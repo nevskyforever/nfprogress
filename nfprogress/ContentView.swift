@@ -93,6 +93,7 @@ struct ContentView: View {
         print("Export failed: \(error.localizedDescription)")
       }
       isExporting = false
+      exportAllMode = false
     }
     .fileImporter(
       isPresented: $isImporting,
@@ -131,6 +132,7 @@ struct ContentView: View {
       } catch {
         print("Export failed: \(error.localizedDescription)")
       }
+      exportAllMode = false
     }
   }
 
