@@ -37,8 +37,11 @@ struct AddEntryView: View {
     }
 
     private func addEntry() {
-        let newEntry = Entry(date: date, characterCount: characterCount)
-        newEntry.project = project
+        let newEntry = Entry(
+            date: date,
+            characterCount: characterCount,
+            project: project
+        )
         modelContext.insert(newEntry)
         dismiss()
     }
