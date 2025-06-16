@@ -12,7 +12,6 @@ struct ContentView: View {
   @State private var isExporting = false
   @State private var exportAllMode = false
   @State private var isImporting = false
-  @State private var importAllMode = false
 
   var body: some View {
     NavigationSplitView {
@@ -190,7 +189,6 @@ struct ContentView: View {
 
   // MARK: - Import
   private func importSelectedProject() {
-    importAllMode = false
 #if os(macOS)
     showOpenPanel()
 #else
@@ -199,7 +197,6 @@ struct ContentView: View {
   }
 
   private func importAllProjects() {
-    importAllMode = true
 #if os(macOS)
     showOpenPanel()
 #else
@@ -212,15 +209,8 @@ struct ContentView: View {
       let text = String(data: data, encoding: .utf8)
     else { return }
     let imported = CSVManager.importProjects(from: text)
-    if importAllMode {
-      for project in imported {
-        modelContext.insert(project)
-      }
-    } else if let target = selectedProject, let first = imported.first {
-      target.title = first.title
-      target.goal = first.goal
-      target.deadline = first.deadline
-      target.entries = first.entries
+    for project in imported {
+      modelContext.insert(project)
     }
     try? modelContext.save()
     isImporting = false
