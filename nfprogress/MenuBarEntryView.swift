@@ -4,7 +4,11 @@ import SwiftData
 struct MenuBarEntryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query private var projects: [WritingProject]
+    @Query(
+        filter: #Predicate<WritingProject> { !$0.isStage },
+        sort: [SortDescriptor(\.title)]
+    )
+    private var projects: [WritingProject]
 
     @State private var selectedIndex: Int = 0
     @State private var characterCount: Int = 0
@@ -74,7 +78,7 @@ struct MenuBarEntryView: View {
 
     private var allItems: [WritingProject] {
         var result: [WritingProject] = []
-        for project in projects.filter({ !$0.isStage }) {
+        for project in projects {
             result.append(project)
             result.append(contentsOf: project.stages)
         }
