@@ -23,20 +23,26 @@ class WritingProject: Identifiable {
         self.isStage = isStage
     }
 
+    /// Last entry without sorting the entire collection
+    private var lastEntry: Entry? {
+        entries.max { $0.date < $1.date }
+    }
+
     var sortedEntries: [Entry] {
         entries.sorted { $0.date < $1.date }
     }
 
     /// Current progress including progress of all stages
     var currentProgress: Int {
-        let own = sortedEntries.last?.characterCount ?? 0
+        let own = lastEntry?.characterCount ?? 0
         let stagesProgress = stages.reduce(0) { $0 + $1.currentProgress }
         return own + stagesProgress
     }
 
     var previousProgress: Int {
-        guard sortedEntries.count >= 2 else { return 0 }
-        return sortedEntries[sortedEntries.count - 2].characterCount
+        let sorted = sortedEntries
+        guard sorted.count >= 2 else { return 0 }
+        return sorted[sorted.count - 2].characterCount
     }
 
     var progressPercentage: Double {

@@ -7,7 +7,11 @@ import AppKit
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
-  @Query private var projects: [WritingProject]
+  @Query(
+    filter: #Predicate<WritingProject> { !$0.isStage },
+    sort: [SortDescriptor(\.title)]
+  )
+  private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   @State private var isExporting = false
   @State private var isImporting = false
@@ -19,7 +23,7 @@ struct ContentView: View {
   var body: some View {
     NavigationSplitView {
       List(selection: $selectedProject) {
-        ForEach(projects.filter { !$0.isStage }) { project in
+        ForEach(projects) { project in
           DisclosureGroup(isExpanded: binding(for: project)) {
             ForEach(project.stages) { stage in
               NavigationLink(value: stage) {
@@ -146,9 +150,8 @@ struct ContentView: View {
   }
 
   private func deleteProjects(at offsets: IndexSet) {
-    let roots = projects.filter { !$0.isStage }
-    if let index = offsets.first, index < roots.count {
-      confirmDeleteProject(roots[index])
+    if let index = offsets.first, index < projects.count {
+      confirmDeleteProject(projects[index])
     }
   }
 
