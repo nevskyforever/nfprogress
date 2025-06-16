@@ -90,6 +90,7 @@ struct ContentView: View {
       if case .failure(let error) = result {
         print("Export failed: \(error.localizedDescription)")
       }
+      isExporting = false
     }
     .fileImporter(
       isPresented: $isImporting,
@@ -101,6 +102,7 @@ struct ContentView: View {
       case .failure(let error):
         print("Import failed: \(error.localizedDescription)")
       }
+      isImporting = false
     }
   }
 
@@ -139,13 +141,15 @@ struct ContentView: View {
   }
 
   private var exportFileName: String {
+    let base: String
     if exportAllMode {
-      return "AllProjects"
+      base = "AllProjects"
     } else if let project = selectedProject {
-      return project.title.replacingOccurrences(of: " ", with: "_")
+      base = project.title.replacingOccurrences(of: " ", with: "_")
     } else {
-      return "Project"
+      base = "Project"
     }
+    return base + ".csv"
   }
 
   // MARK: - Import
@@ -174,5 +178,7 @@ struct ContentView: View {
       target.deadline = first.deadline
       target.entries = first.entries
     }
+    try? modelContext.save()
+    isImporting = false
   }
 }
