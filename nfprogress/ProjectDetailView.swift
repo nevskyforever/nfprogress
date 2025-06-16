@@ -34,12 +34,14 @@ struct ProjectDetailView: View {
                 }
 
                 // Дедлайн
-                DatePicker("Дедлайн", selection: $tempDeadline, displayedComponents: .date)
-                    .labelsHidden()
-                    .onChange(of: tempDeadline) { newDate in
-                        project.deadline = newDate
-                        saveContext()
-                    }
+                HStack {
+                    Text("Дедлайн:")
+                    DatePicker("", selection: $tempDeadline, displayedComponents: .date)
+                        .onChange(of: tempDeadline) { newDate in
+                            project.deadline = newDate
+                            saveContext()
+                        }
+                }
 
                 if project.deadline != nil {
                     Text("Осталось дней: \(project.daysLeft)")
@@ -69,16 +71,19 @@ struct ProjectDetailView: View {
                     let index = project.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
                     let prevCount = index > 0 ? project.sortedEntries[index - 1].characterCount : 0
                     let delta = entry.characterCount - prevCount
-                    let deltaText = prevCount > 0
-                        ? String(format: "%+d (%+.0f%%)", delta, Double(delta) / Double(prevCount) * 100)
-                        : String(format: "%+d", delta)
+                    let deltaPercent = Double(delta) / Double(max(project.goal, 1)) * 100
+                    let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
+                    let progressPercent = Double(entry.characterCount) / Double(max(project.goal, 1)) * 100
 
                     HStack {
                         VStack(alignment: .leading) {
                             Text("Символов: \(entry.characterCount)")
                             Text("Изменение: \(deltaText)")
                                 .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
-                            Text(entry.date.formatted(date: .omitted, time: .shortened))
+                            Text(String(format: "Прогресс: %.0f%%", progressPercent))
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            Text(entry.date.formatted(date: .numeric, time: .shortened))
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
