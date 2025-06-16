@@ -7,7 +7,8 @@ import AppKit
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
-  @Query private var projects: [WritingProject]
+  @Query(filter: #Predicate<WritingProject> { $0.parent == nil })
+  private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   @State private var isExporting = false
   @State private var isImporting = false

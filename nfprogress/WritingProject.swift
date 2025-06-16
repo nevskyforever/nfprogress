@@ -6,21 +6,39 @@ class WritingProject {
     var title: String
     var goal: Int
     var deadline: Date?
+
+    @Relationship(inverse: \Entry.project)
     var entries: [Entry]
 
-    init(title: String, goal: Int, deadline: Date? = nil) {
+    @Relationship(deleteRule: .cascade, inverse: \WritingProject.parent)
+    var stages: [WritingProject]
+
+    @Relationship(inverse: \WritingProject.stages)
+    var parent: WritingProject?
+
+    init(title: String, goal: Int, deadline: Date? = nil, parent: WritingProject? = nil) {
         self.title = title
         self.goal = goal
         self.deadline = deadline
+        self.parent = parent
         self.entries = []
+        self.stages = []
     }
 
     var sortedEntries: [Entry] {
         entries.sorted { $0.date < $1.date }
     }
 
-    var currentProgress: Int {
+    var ownProgress: Int {
         sortedEntries.last?.characterCount ?? 0
+    }
+
+    var isStage: Bool {
+        parent != nil
+    }
+
+    var currentProgress: Int {
+        ownProgress + stages.reduce(0) { $0 + $1.currentProgress }
     }
 
     var previousProgress: Int {
@@ -95,10 +113,13 @@ class Entry: Identifiable {
     var id = UUID()
     var date: Date
     var characterCount: Int
+    @Relationship(inverse: \WritingProject.entries)
+    var project: WritingProject
 
-    init(date: Date, characterCount: Int) {
+    init(date: Date, characterCount: Int, project: WritingProject) {
         self.date = date
         self.characterCount = characterCount
+        self.project = project
     }
 }
 
