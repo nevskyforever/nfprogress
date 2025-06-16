@@ -17,18 +17,13 @@ struct ProjectDetailView: View {
                 TextField("Цель (число)", value: $project.goal, formatter: NumberFormatter())
                     .textFieldStyle(RoundedBorderTextFieldStyle())
 
-                // Дедлайн
+                // Дедлайн (сохраняется автоматически при изменении)
                 DatePicker("Дедлайн", selection: $tempDeadline, displayedComponents: .date)
                     .labelsHidden()
                     .onChange(of: tempDeadline) { newDate in
                         project.deadline = newDate
                         saveContext()
                     }
-                Button("Сохранить дедлайн") {
-                    project.deadline = tempDeadline
-                    saveContext()
-                }
-                .buttonStyle(BorderedProminentButtonStyle())
 
                 // Действия с проектом
                 HStack {
