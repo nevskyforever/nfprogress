@@ -24,11 +24,6 @@ struct ProjectDetailView: View {
                         project.deadline = newDate
                         saveContext()
                     }
-                Button("Сохранить дедлайн") {
-                    project.deadline = tempDeadline
-                    saveContext()
-                }
-                .buttonStyle(BorderedProminentButtonStyle())
 
                 // Действия с проектом
                 HStack {
