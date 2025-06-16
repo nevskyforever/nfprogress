@@ -8,6 +8,14 @@ struct ProjectDetailView: View {
     @State private var editingEntry: Entry?
     @State private var tempDeadline: Date = Date()
 
+    private func deadlineColor(daysLeft: Int) -> Color {
+        let maxDays = 30.0
+        let ratio = max(0, min(1, Double(daysLeft) / maxDays))
+        // Hue from red (0) to green (0.33)
+        let hue = ratio * 0.33
+        return Color(hue: hue, saturation: 1, brightness: 1)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -28,7 +36,7 @@ struct ProjectDetailView: View {
                 if project.deadline != nil {
                     Text("Осталось дней: \(project.daysLeft)")
                         .font(.subheadline)
-                        .foregroundColor(.gray)
+                        .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
                     if let target = project.dailyTarget {
                         Text("Ежедневная цель: \(target) символов")
                             .font(.subheadline)
