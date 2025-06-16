@@ -1,6 +1,9 @@
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
+#if os(macOS)
+import AppKit
+#endif
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
@@ -117,15 +120,48 @@ struct ContentView: View {
     }
   }
 
+#if os(macOS)
+  // MARK: - macOS File Operations
+  private func showSavePanel() {
+    let panel = NSSavePanel()
+    panel.allowedContentTypes = [.commaSeparatedText]
+    panel.nameFieldStringValue = exportFileName
+    if panel.runModal() == .OK, let url = panel.url {
+      do {
+        try exportDocument.text.write(to: url, atomically: true, encoding: .utf8)
+      } catch {
+        print("Export failed: \(error.localizedDescription)")
+      }
+    }
+  }
+
+  private func showOpenPanel() {
+    let panel = NSOpenPanel()
+    panel.allowedContentTypes = [.commaSeparatedText]
+    panel.allowsMultipleSelection = false
+    if panel.runModal() == .OK, let url = panel.url {
+      importCSV(from: url)
+    }
+  }
+#endif
+
   // MARK: - Export
   private func exportSelectedProject() {
     exportAllMode = false
+#if os(macOS)
+    showSavePanel()
+#else
     isExporting = true
+#endif
   }
 
   private func exportAllProjects() {
     exportAllMode = true
+#if os(macOS)
+    showSavePanel()
+#else
     isExporting = true
+#endif
   }
 
   private var exportDocument: CSVDocument {
@@ -155,12 +191,20 @@ struct ContentView: View {
   // MARK: - Import
   private func importSelectedProject() {
     importAllMode = false
+#if os(macOS)
+    showOpenPanel()
+#else
     isImporting = true
+#endif
   }
 
   private func importAllProjects() {
     importAllMode = true
+#if os(macOS)
+    showOpenPanel()
+#else
     isImporting = true
+#endif
   }
 
   private func importCSV(from url: URL) {
