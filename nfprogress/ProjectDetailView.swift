@@ -7,7 +7,10 @@ struct ProjectDetailView: View {
     @State private var showingAddEntry = false
     @State private var editingEntry: Entry?
     @State private var tempDeadline: Date = Date()
-    @State private var addingDeadline = false
+    // Editing state for individual fields
+    @State private var isEditingTitle = true
+    @State private var isEditingGoal = true
+    @State private var isEditingDeadline = false
 
     private func deadlineColor(daysLeft: Int) -> Color {
         let maxDays = 30.0
@@ -23,60 +26,85 @@ struct ProjectDetailView: View {
                 // Название и цель проекта
                 HStack {
                     Text("Название:")
-                    TextField("", text: $project.title)
-                        .textFieldStyle(.roundedBorder)
-                        .fixedSize()
+                    if isEditingTitle {
+                        TextField("", text: $project.title)
+                            .textFieldStyle(.roundedBorder)
+                            .fixedSize()
+                            .onSubmit {
+                                saveContext()
+                                isEditingTitle = false
+                            }
+                    } else {
+                        Text(project.title)
+                            .onTapGesture { isEditingTitle = true }
+                    }
                 }
                 HStack {
                     Text("Цель:")
-                    TextField("", value: $project.goal, formatter: NumberFormatter())
-                        .textFieldStyle(.roundedBorder)
-                        .fixedSize()
+                    if isEditingGoal {
+                        TextField("", value: $project.goal, formatter: NumberFormatter())
+                            .textFieldStyle(.roundedBorder)
+                            .fixedSize()
+                            .onSubmit {
+                                saveContext()
+                                isEditingGoal = false
+                            }
+                    } else {
+                        Text("\(project.goal)")
+                            .onTapGesture { isEditingGoal = true }
+                    }
                 }
 
                 // Дедлайн
-                if project.deadline != nil {
+                if isEditingDeadline {
                     HStack {
-                        Text("Дедлайн:")
-                        DatePicker("", selection: $tempDeadline, displayedComponents: .date)
-                            .onChange(of: tempDeadline) { newDate in
-                                project.deadline = newDate
-                                saveContext()
-                            }
-                        Button(role: .destructive) {
-                            project.deadline = nil
-                            saveContext()
-                        } label: {
-                            Text("Удалить")
-                        }
-                    }
-
-                    Text("Осталось дней: \(project.daysLeft)")
-                        .font(.subheadline)
-                        .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
-                    if let target = project.dailyTarget {
-                        Text("Ежедневная цель: \(target) символов")
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                    }
-                } else {
-                    if addingDeadline {
-                        HStack {
-                            DatePicker("Дедлайн:", selection: $tempDeadline, displayedComponents: .date)
-                            Button("Сохранить") {
+                        DatePicker("Дедлайн:", selection: $tempDeadline, displayedComponents: .date)
+                            .onSubmit {
                                 project.deadline = tempDeadline
                                 saveContext()
-                                addingDeadline = false
+                                isEditingDeadline = false
                             }
-                            Button("Отмена") {
-                                addingDeadline = false
+                        Button("Готово") {
+                            project.deadline = tempDeadline
+                            saveContext()
+                            isEditingDeadline = false
+                        }
+                        if project.deadline != nil {
+                            Button(role: .destructive) {
+                                project.deadline = nil
+                                saveContext()
+                                isEditingDeadline = false
+                            } label: {
+                                Text("Удалить")
                             }
+                        }
+                    }
+                } else {
+                    if let deadline = project.deadline {
+                        HStack {
+                            Text("Дедлайн:")
+                            Text(deadline, style: .date)
+                        }
+                        .onTapGesture {
+                            tempDeadline = deadline
+                            isEditingDeadline = true
+                        }
+
+                        Text("Осталось дней: \(project.daysLeft)")
+                            .font(.subheadline)
+                            .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
+                        if let target = project.dailyTarget {
+                            Text("Ежедневная цель: \(target) символов")
+                                .font(.subheadline)
+                                .foregroundColor(.white)
                         }
                     } else {
-                        Button("Добавить дедлайн") {
-                            tempDeadline = Date()
-                            addingDeadline = true
-                        }
+                        Text("Добавить дедлайн")
+                            .foregroundColor(.accentColor)
+                            .onTapGesture {
+                                tempDeadline = Date()
+                                isEditingDeadline = true
+                            }
                     }
                 }
 
