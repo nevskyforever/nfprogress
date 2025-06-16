@@ -13,6 +13,7 @@ class WritingProject: Identifiable {
     @Relationship(deleteRule: .cascade, inverse: \WritingProject.parent)
     var stages: [WritingProject] = []
     /// Reference to the parent project if this is a stage
+    @Relationship(inverse: \WritingProject.stages)
     var parent: WritingProject?
     /// Flag to distinguish regular projects from stages
     var isStage: Bool

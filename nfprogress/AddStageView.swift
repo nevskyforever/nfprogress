@@ -39,8 +39,9 @@ struct AddStageView: View {
 
     private func addStage() {
         let name = title.isEmpty ? "Новый этап" : title
-        let stage = WritingProject(title: name, goal: goal, isStage: true, parent: project)
-        project.stages.append(stage)
+        let stage = WritingProject(title: name, goal: goal, isStage: true)
+        stage.parent = project
+        modelContext.insert(stage)
         dismiss()
     }
 }
