@@ -6,7 +6,16 @@ struct ProjectDetailView: View {
     @Bindable var project: WritingProject
     @State private var showingAddEntry = false
     @State private var editingEntry: Entry?
-    @State private var tempDeadline: Date = Date()
+
+    private var deadlineBinding: Binding<Date> {
+        Binding<Date>(
+            get: { project.deadline ?? Date() },
+            set: {
+                project.deadline = $0
+                saveContext()
+            }
+        )
+    }
 
     var body: some View {
         ScrollView {
@@ -18,12 +27,8 @@ struct ProjectDetailView: View {
                     .textFieldStyle(RoundedBorderTextFieldStyle())
 
                 // Дедлайн (сохраняется автоматически при изменении)
-                DatePicker("Дедлайн", selection: $tempDeadline, displayedComponents: .date)
+                DatePicker("Дедлайн", selection: deadlineBinding, displayedComponents: .date)
                     .labelsHidden()
-                    .onChange(of: tempDeadline) { newDate in
-                        project.deadline = newDate
-                        saveContext()
-                    }
 
                 // Действия с проектом
                 HStack {
@@ -81,11 +86,6 @@ struct ProjectDetailView: View {
                 }
             }
             .padding()
-        }
-        .onAppear {
-            if let dl = project.deadline {
-                tempDeadline = dl
-            }
         }
         .sheet(isPresented: $showingAddEntry) {
             AddEntryView(project: project)
