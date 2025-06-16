@@ -118,6 +118,9 @@ struct ProjectDetailView: View {
                             Image(systemName: "pencil")
                         }
                         Button(role: .destructive) {
+                            if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
+                                project.entries.remove(at: i)
+                            }
                             modelContext.delete(entry)
                             saveContext()
                         } label: {
