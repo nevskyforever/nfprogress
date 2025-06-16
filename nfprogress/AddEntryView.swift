@@ -36,7 +36,7 @@ struct AddEntryView: View {
     }
 
     private func addEntry() {
-        let newEntry = Entry(date: date, characterCount: characterCount)
+        let newEntry = Entry(date: date, characterCount: characterCount, project: project)
         project.entries.append(newEntry)
         dismiss()
     }

@@ -64,7 +64,7 @@ struct MenuBarEntryView: View {
         let items = allItems
         let index = min(max(selectedIndex, 0), items.count - 1)
         let project = items[index]
-        let entry = Entry(date: date, characterCount: characterCount)
+        let entry = Entry(date: date, characterCount: characterCount, project: project)
         project.entries.append(entry)
         try? modelContext.save()
         didSave = true

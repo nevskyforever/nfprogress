@@ -57,7 +57,7 @@ struct CSVManager {
             }
 
             if let date = dateFormatter.date(from: dateStr) {
-                let entry = Entry(date: date, characterCount: count)
+                let entry = Entry(date: date, characterCount: count, project: project)
                 project.entries.append(entry)
             }
         }

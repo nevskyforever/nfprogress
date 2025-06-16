@@ -7,20 +7,23 @@ class WritingProject: Identifiable {
     var title: String
     var goal: Int
     var deadline: Date?
-    var entries: [Entry]
+    @Relationship(deleteRule: .cascade, inverse: \Entry.project)
+    var entries: [Entry] = []
     // List of stages (subprojects). Stages themselves cannot have their own stages
-    var stages: [WritingProject]
+    @Relationship(deleteRule: .cascade, inverse: \WritingProject.parent)
+    var stages: [WritingProject] = []
+    /// Reference to the parent project if this is a stage
+    var parent: WritingProject?
     /// Flag to distinguish regular projects from stages
     var isStage: Bool
 
-    init(title: String, goal: Int, deadline: Date? = nil, isStage: Bool = false) {
+    init(title: String, goal: Int, deadline: Date? = nil, isStage: Bool = false, parent: WritingProject? = nil) {
         self.id = UUID()
         self.title = title
         self.goal = goal
         self.deadline = deadline
-        self.entries = []
-        self.stages = []
         self.isStage = isStage
+        self.parent = parent
     }
 
     /// Last entry without sorting the entire collection
@@ -112,10 +115,13 @@ class Entry: Identifiable {
     var id = UUID()
     var date: Date
     var characterCount: Int
+    @Relationship(inverse: \WritingProject.entries)
+    var project: WritingProject?
 
-    init(date: Date, characterCount: Int) {
+    init(date: Date, characterCount: Int, project: WritingProject? = nil) {
         self.date = date
         self.characterCount = characterCount
+        self.project = project
     }
 }
 
