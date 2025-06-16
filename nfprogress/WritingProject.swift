@@ -7,25 +7,56 @@ class WritingProject {
     var goal: Int
     var deadline: Date?
     var entries: [Entry]
+    var isStage: Bool
+    @Relationship(deleteRule: .cascade, inverse: \WritingProject.parent)
+    var stages: [WritingProject]
+    var parent: WritingProject?
 
-    init(title: String, goal: Int, deadline: Date? = nil) {
+    init(title: String, goal: Int, deadline: Date? = nil, isStage: Bool = false, parent: WritingProject? = nil) {
         self.title = title
         self.goal = goal
         self.deadline = deadline
         self.entries = []
+        self.isStage = isStage
+        self.stages = []
+        self.parent = parent
     }
 
-    var sortedEntries: [Entry] {
+    /// Entries of this project only, sorted by date
+    var ownSortedEntries: [Entry] {
         entries.sorted { $0.date < $1.date }
     }
 
+    /// All entries including stages if this is a parent project
+    var sortedEntries: [Entry] {
+        if isStage {
+            return ownSortedEntries
+        }
+
+        let stageEntries = stages.flatMap { $0.sortedEntries }
+        return (entries + stageEntries).sorted { $0.date < $1.date }
+    }
+
+    /// Progress for this project including its stages
     var currentProgress: Int {
-        sortedEntries.last?.characterCount ?? 0
+        if isStage {
+            return ownSortedEntries.last?.characterCount ?? 0
+        }
+
+        let own = ownSortedEntries.last?.characterCount ?? 0
+        let stageTotal = stages.reduce(0) { $0 + $1.currentProgress }
+        return own + stageTotal
     }
 
     var previousProgress: Int {
-        guard sortedEntries.count >= 2 else { return 0 }
-        return sortedEntries[sortedEntries.count - 2].characterCount
+        if isStage {
+            guard ownSortedEntries.count >= 2 else { return 0 }
+            return ownSortedEntries[ownSortedEntries.count - 2].characterCount
+        }
+
+        let ownPrev = ownSortedEntries.count >= 2 ? ownSortedEntries[ownSortedEntries.count - 2].characterCount : 0
+        let stagePrev = stages.reduce(0) { $0 + $1.previousProgress }
+        return ownPrev + stagePrev
     }
 
     var progressPercentage: Double {

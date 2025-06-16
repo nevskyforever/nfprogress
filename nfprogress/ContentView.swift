@@ -7,11 +7,13 @@ import AppKit
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
-  @Query private var projects: [WritingProject]
+  @Query(filter: #Predicate<WritingProject> { !$0.isStage })
+  private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   @State private var isExporting = false
   @State private var isImporting = false
   @State private var showingAddProject = false
+  @State private var showingAddStage = false
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
 
@@ -28,8 +30,21 @@ struct ContentView: View {
             }
             .padding(.vertical, 4)
           }
+          ForEach(project.stages) { stage in
+            NavigationLink(value: stage) {
+              HStack {
+                Image(systemName: "arrow.turn.down.right")
+                VStack(alignment: .leading) {
+                  Text(stage.title)
+                    .font(.headline)
+                  ProgressCircleView(project: stage)
+                    .frame(height: 80)
+                }
+              }
+              .padding(.vertical, 4)
+            }
+          }
         }
-        .onDelete(perform: deleteProjects)
       }
       .navigationTitle("Мои тексты")
       .toolbar {
@@ -38,6 +53,13 @@ struct ContentView: View {
             Label("Добавить", systemImage: "plus")
           }
           .keyboardShortcut("N", modifiers: [.command, .shift])
+        }
+        ToolbarItem {
+          Button(action: addStage) {
+            Label("Новый этап", systemImage: "plus.square.on.square")
+          }
+          .keyboardShortcut("S", modifiers: [.command, .shift])
+          .disabled(selectedProject == nil || selectedProject?.isStage == true)
         }
         ToolbarItem {
           Button(action: deleteSelectedProject) {
@@ -107,6 +129,11 @@ struct ContentView: View {
     .sheet(isPresented: $showingAddProject) {
       AddProjectView()
     }
+    .sheet(isPresented: $showingAddStage) {
+      if let parent = selectedProject {
+        AddStageView(parent: parent)
+      }
+    }
     .alert(isPresented: $showDeleteAlert) {
       Alert(
         title: Text("Удалить проект \"\(projectToDelete?.title ?? "")\"?"),
@@ -125,16 +152,15 @@ struct ContentView: View {
     showingAddProject = true
   }
 
+  private func addStage() {
+    showingAddStage = true
+  }
+
   private func deleteSelectedProject() {
     guard let project = selectedProject else { return }
     confirmDeleteProject(project)
   }
 
-  private func deleteProjects(at offsets: IndexSet) {
-    if let index = offsets.first {
-      confirmDeleteProject(projects[index])
-    }
-  }
 
   private func confirmDeleteProject(_ project: WritingProject) {
     projectToDelete = project
