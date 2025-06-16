@@ -241,10 +241,7 @@ struct ContentView: View {
     guard let data = try? Data(contentsOf: url),
       let text = String(data: data, encoding: .utf8)
     else { return }
-    let imported = CSVManager.importProjects(from: text)
-    for project in imported {
-      modelContext.insert(project)
-    }
+    _ = CSVManager.importProjects(from: text, into: modelContext)
     try? modelContext.save()
     isImporting = false
   }

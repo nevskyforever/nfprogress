@@ -2,7 +2,22 @@ import Foundation
 import SwiftData
 
 @Model
-class WritingProject: Identifiable {
+final class Entry: Identifiable {
+    var id = UUID()
+    var date: Date
+    var characterCount: Int
+    @Relationship(inverse: \WritingProject.entries)
+    var project: WritingProject?
+
+    init(date: Date, characterCount: Int, project: WritingProject? = nil) {
+        self.date = date
+        self.characterCount = characterCount
+        self.project = project
+    }
+}
+
+@Model
+final class WritingProject: Identifiable {
     var id = UUID()
     var title: String
     var goal: Int
@@ -108,21 +123,6 @@ class WritingProject: Identifiable {
     var progressLastWeekPercent: Int {
         guard goal > 0 else { return 0 }
         return Int(Double(progressLastWeek) / Double(goal) * 100)
-    }
-}
-
-@Model
-class Entry: Identifiable {
-    var id = UUID()
-    var date: Date
-    var characterCount: Int
-    @Relationship(inverse: \WritingProject.entries)
-    var project: WritingProject?
-
-    init(date: Date, characterCount: Int, project: WritingProject? = nil) {
-        self.date = date
-        self.characterCount = characterCount
-        self.project = project
     }
 }
 

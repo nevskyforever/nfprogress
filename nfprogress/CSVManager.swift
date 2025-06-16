@@ -34,7 +34,7 @@ struct CSVManager {
         return lines.joined(separator: "\n")
     }
 
-    static func importProjects(from csv: String) -> [WritingProject] {
+    static func importProjects(from csv: String, into context: ModelContext) -> [WritingProject] {
         let lines = csv.components(separatedBy: "\n").dropFirst()
         var projectsDict: [String: WritingProject] = [:]
         let dateFormatter = ISO8601DateFormatter()
@@ -52,13 +52,15 @@ struct CSVManager {
                 project = existing
             } else {
                 let deadline = dateFormatter.date(from: deadlineStr)
-                project = WritingProject(title: title, goal: goal, deadline: deadline)
+                let newProject = WritingProject(title: title, goal: goal, deadline: deadline)
+                context.insert(newProject)
+                project = newProject
                 projectsDict[title] = project
             }
 
             if let date = dateFormatter.date(from: dateStr) {
                 let entry = Entry(date: date, characterCount: count, project: project)
-                project.entries.append(entry)
+                context.insert(entry)
             }
         }
         return Array(projectsDict.values)
