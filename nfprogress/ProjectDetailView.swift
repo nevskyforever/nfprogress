@@ -11,6 +11,19 @@ struct ProjectDetailView: View {
     @State private var isEditingTitle = true
     @State private var isEditingGoal = true
     @State private var isEditingDeadline = false
+    @FocusState private var focusedField: Field?
+
+    // Formatter for displaying deadline in Russian
+    private let deadlineFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "ru_RU")
+        df.dateFormat = "d MMMM yyyy"
+        return df
+    }()
+
+    private enum Field: Hashable {
+        case title, goal, deadline
+    }
 
     private func deadlineColor(daysLeft: Int) -> Color {
         let maxDays = 30.0
@@ -30,13 +43,15 @@ struct ProjectDetailView: View {
                         TextField("", text: $project.title)
                             .textFieldStyle(.roundedBorder)
                             .fixedSize()
-                            .onSubmit {
-                                saveContext()
-                                isEditingTitle = false
-                            }
+                            .submitLabel(.done)
+                            .focused($focusedField, equals: .title)
+                            .onSubmit { focusedField = nil }
                     } else {
                         Text(project.title)
-                            .onTapGesture { isEditingTitle = true }
+                            .onTapGesture {
+                                isEditingTitle = true
+                                focusedField = .title
+                            }
                     }
                 }
                 HStack {
@@ -45,13 +60,15 @@ struct ProjectDetailView: View {
                         TextField("", value: $project.goal, formatter: NumberFormatter())
                             .textFieldStyle(.roundedBorder)
                             .fixedSize()
-                            .onSubmit {
-                                saveContext()
-                                isEditingGoal = false
-                            }
+                            .submitLabel(.done)
+                            .focused($focusedField, equals: .goal)
+                            .onSubmit { focusedField = nil }
                     } else {
                         Text("\(project.goal)")
-                            .onTapGesture { isEditingGoal = true }
+                            .onTapGesture {
+                                isEditingGoal = true
+                                focusedField = .goal
+                            }
                     }
                 }
 
@@ -59,21 +76,16 @@ struct ProjectDetailView: View {
                 if isEditingDeadline {
                     HStack {
                         DatePicker("Дедлайн:", selection: $tempDeadline, displayedComponents: .date)
-                            .onSubmit {
-                                project.deadline = tempDeadline
-                                saveContext()
-                                isEditingDeadline = false
-                            }
+                            .environment(\.locale, Locale(identifier: "ru_RU"))
+                            .focused($focusedField, equals: .deadline)
+                            .onSubmit { focusedField = nil }
                         Button("Готово") {
-                            project.deadline = tempDeadline
-                            saveContext()
-                            isEditingDeadline = false
+                            focusedField = nil
                         }
                         if project.deadline != nil {
                             Button(role: .destructive) {
                                 project.deadline = nil
-                                saveContext()
-                                isEditingDeadline = false
+                                focusedField = nil
                             } label: {
                                 Text("Удалить")
                             }
@@ -83,11 +95,12 @@ struct ProjectDetailView: View {
                     if let deadline = project.deadline {
                         HStack {
                             Text("Дедлайн:")
-                            Text(deadline, style: .date)
+                            Text(deadlineFormatter.string(from: deadline))
                         }
                         .onTapGesture {
                             tempDeadline = deadline
                             isEditingDeadline = true
+                            focusedField = .deadline
                         }
 
                         Text("Осталось дней: \(project.daysLeft)")
@@ -104,6 +117,7 @@ struct ProjectDetailView: View {
                             .onTapGesture {
                                 tempDeadline = Date()
                                 isEditingDeadline = true
+                                focusedField = .deadline
                             }
                     }
                 }
@@ -170,8 +184,21 @@ struct ProjectDetailView: View {
         .sheet(item: $editingEntry) { entry in
             EditEntryView(entry: entry)
         }
-        .onChange(of: project.title) { _ in saveContext() }
-        .onChange(of: project.goal) { _ in saveContext() }
+        .onChange(of: focusedField) { newValue in
+            if newValue != .title && isEditingTitle {
+                isEditingTitle = false
+                saveContext()
+            }
+            if newValue != .goal && isEditingGoal {
+                isEditingGoal = false
+                saveContext()
+            }
+            if newValue != .deadline && isEditingDeadline {
+                project.deadline = tempDeadline
+                isEditingDeadline = false
+                saveContext()
+            }
+        }
     }
 
     // MARK: - Save Context
