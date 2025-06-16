@@ -8,8 +8,8 @@ struct ProjectDetailView: View {
     @State private var editingEntry: Entry?
     @State private var tempDeadline: Date = Date()
     // Editing state for individual fields
-    @State private var isEditingTitle = true
-    @State private var isEditingGoal = true
+    @State private var isEditingTitle = false
+    @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
     @FocusState private var focusedField: Field?
 
