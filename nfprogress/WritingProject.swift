@@ -23,10 +23,10 @@ final class WritingProject: Identifiable {
     var goal: Int
     var deadline: Date?
     @Relationship(deleteRule: .cascade, inverse: \Entry.project)
-    var entries: [Entry] = []
+    var entries: [Entry]
     // List of stages (subprojects). Stages themselves cannot have their own stages
     @Relationship(deleteRule: .cascade, inverse: \WritingProject.parent)
-    var stages: [WritingProject] = []
+    var stages: [WritingProject]
     /// Reference to the parent project if this is a stage
     @Relationship(inverse: \WritingProject.stages)
     var parent: WritingProject?
