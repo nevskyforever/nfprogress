@@ -25,6 +25,17 @@ struct ProjectDetailView: View {
                         saveContext()
                     }
 
+                if project.deadline != nil {
+                    Text("Осталось дней: \(project.daysLeft)")
+                        .font(.subheadline)
+                        .foregroundColor(.gray)
+                    if let target = project.dailyTarget {
+                        Text("Ежедневная цель: \(target) символов")
+                            .font(.subheadline)
+                            .foregroundColor(.gray)
+                    }
+                }
+
                 // Действия с проектом
                 HStack {
                     Button("Добавить запись") {
