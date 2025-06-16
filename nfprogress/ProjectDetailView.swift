@@ -6,6 +6,9 @@ struct ProjectDetailView: View {
     @Bindable var project: WritingProject
     @State private var showingAddEntry = false
     @State private var editingEntry: Entry?
+    @State private var showingAddStage = false
+    @State private var stageToDelete: WritingProject?
+    @State private var showDeleteStageAlert = false
     @State private var tempDeadline: Date = Date()
     // Editing state for individual fields
     @State private var isEditingTitle = false
@@ -35,6 +38,15 @@ struct ProjectDetailView: View {
 
     private func addEntry() {
         showingAddEntry = true
+    }
+
+    private func addStage() {
+        showingAddStage = true
+    }
+
+    private func deleteStage(_ stage: WritingProject) {
+        stageToDelete = stage
+        showDeleteStageAlert = true
     }
 
     var body: some View {
@@ -119,6 +131,30 @@ struct ProjectDetailView: View {
                     }
                 }
 
+                // Этапы проекта
+                if !project.isStage {
+                    DisclosureGroup("Этапы") {
+                        ForEach(project.stages) { stage in
+                            HStack {
+                                NavigationLink(value: stage) {
+                                    HStack {
+                                        Text(stage.title)
+                                        Spacer()
+                                        ProgressCircleView(project: stage)
+                                            .frame(width: 40, height: 40)
+                                    }
+                                }
+                                Button(role: .destructive) {
+                                    deleteStage(stage)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                            }
+                        }
+                        Button("Новый этап") { addStage() }
+                    }
+                }
+
                 // Действия с проектом
                 HStack {
                     Button("Добавить запись") {
@@ -181,6 +217,20 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showingAddEntry) {
             AddEntryView(project: project)
+        }
+        .sheet(isPresented: $showingAddStage) {
+            AddStageView(project: project)
+        }
+        .alert("Удалить этап \(stageToDelete?.title ?? "")?", isPresented: $showDeleteStageAlert) {
+            Button("Удалить", role: .destructive) {
+                if let stage = stageToDelete,
+                   let idx = project.stages.firstIndex(where: { $0.id == stage.id }) {
+                    project.stages.remove(at: idx)
+                    modelContext.delete(stage)
+                }
+                stageToDelete = nil
+            }
+            Button("Отмена", role: .cancel) { stageToDelete = nil }
         }
         .sheet(item: $editingEntry) { entry in
             EditEntryView(entry: entry)

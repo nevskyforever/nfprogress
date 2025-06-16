@@ -13,12 +13,20 @@ struct MenuBarEntryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if projects.isEmpty {
+            let items: [(WritingProject, String)] = allItems.map { project in
+                if project.isStage,
+                   let parent = projects.first(where: { $0.stages.contains(where: { $0.id == project.id }) }) {
+                    return (project, "\(parent.title) – \(project.title)")
+                } else {
+                    return (project, project.title)
+                }
+            }
+            if items.isEmpty {
                 Text("Нет проектов")
             } else {
                 Picker("Проект", selection: $selectedIndex) {
-                    ForEach(Array(projects.enumerated()), id: \.offset) { idx, project in
-                        Text(project.title).tag(idx)
+                    ForEach(Array(items.enumerated()), id: \.offset) { idx, pair in
+                        Text(pair.1).tag(idx)
                     }
                 }
                 .labelsHidden()
@@ -49,8 +57,9 @@ struct MenuBarEntryView: View {
 
     private func maybeSave() -> Bool {
         guard !didSave, isValid else { return false }
-        let index = min(max(selectedIndex, 0), projects.count - 1)
-        let project = projects[index]
+        let items = allItems
+        let index = min(max(selectedIndex, 0), items.count - 1)
+        let project = items[index]
         let entry = Entry(date: date, characterCount: characterCount)
         project.entries.append(entry)
         try? modelContext.save()
@@ -60,7 +69,16 @@ struct MenuBarEntryView: View {
     }
 
     private var isValid: Bool {
-        !projects.isEmpty && characterCount > 0
+        !allItems.isEmpty && characterCount > 0
+    }
+
+    private var allItems: [WritingProject] {
+        var result: [WritingProject] = []
+        for project in projects.filter({ !$0.isStage }) {
+            result.append(project)
+            result.append(contentsOf: project.stages)
+        }
+        return result
     }
 
     private func resetFields() {
