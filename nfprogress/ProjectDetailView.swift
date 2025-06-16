@@ -7,6 +7,7 @@ struct ProjectDetailView: View {
     @State private var showingAddEntry = false
     @State private var editingEntry: Entry?
     @State private var tempDeadline: Date = Date()
+    @State private var addingDeadline = false
 
     private func deadlineColor(daysLeft: Int) -> Color {
         let maxDays = 30.0
@@ -34,16 +35,22 @@ struct ProjectDetailView: View {
                 }
 
                 // Дедлайн
-                HStack {
-                    Text("Дедлайн:")
-                    DatePicker("", selection: $tempDeadline, displayedComponents: .date)
-                        .onChange(of: tempDeadline) { newDate in
-                            project.deadline = newDate
-                            saveContext()
-                        }
-                }
-
                 if project.deadline != nil {
+                    HStack {
+                        Text("Дедлайн:")
+                        DatePicker("", selection: $tempDeadline, displayedComponents: .date)
+                            .onChange(of: tempDeadline) { newDate in
+                                project.deadline = newDate
+                                saveContext()
+                            }
+                        Button(role: .destructive) {
+                            project.deadline = nil
+                            saveContext()
+                        } label: {
+                            Text("Удалить")
+                        }
+                    }
+
                     Text("Осталось дней: \(project.daysLeft)")
                         .font(.subheadline)
                         .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
@@ -51,6 +58,25 @@ struct ProjectDetailView: View {
                         Text("Ежедневная цель: \(target) символов")
                             .font(.subheadline)
                             .foregroundColor(.white)
+                    }
+                } else {
+                    if addingDeadline {
+                        HStack {
+                            DatePicker("Дедлайн:", selection: $tempDeadline, displayedComponents: .date)
+                            Button("Сохранить") {
+                                project.deadline = tempDeadline
+                                saveContext()
+                                addingDeadline = false
+                            }
+                            Button("Отмена") {
+                                addingDeadline = false
+                            }
+                        }
+                    } else {
+                        Button("Добавить дедлайн") {
+                            tempDeadline = Date()
+                            addingDeadline = true
+                        }
                     }
                 }
 
