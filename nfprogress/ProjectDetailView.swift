@@ -20,10 +20,18 @@ struct ProjectDetailView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 // Название и цель проекта
-                TextField("Название проекта", text: $project.title)
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                TextField("Цель (число)", value: $project.goal, formatter: NumberFormatter())
-                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                HStack {
+                    Text("Название:")
+                    TextField("", text: $project.title)
+                        .textFieldStyle(.roundedBorder)
+                        .fixedSize()
+                }
+                HStack {
+                    Text("Цель:")
+                    TextField("", value: $project.goal, formatter: NumberFormatter())
+                        .textFieldStyle(.roundedBorder)
+                        .fixedSize()
+                }
 
                 // Дедлайн
                 DatePicker("Дедлайн", selection: $tempDeadline, displayedComponents: .date)
