@@ -17,7 +17,7 @@ struct MenuBarEntryView: View {
                 Text("Нет проектов")
             } else {
                 Picker("Проект", selection: $selectedIndex) {
-                    ForEach(Array(projects.enumerated()), id: \.(offset)) { idx, project in
+                    ForEach(Array(projects.enumerated()), id: \.offset) { idx, project in
                         Text(project.title).tag(idx)
                     }
                 }
