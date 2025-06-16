@@ -1,4 +1,5 @@
 import SwiftUI
+import SwiftData
 
 struct EditEntryView: View {
     @Environment(\.dismiss) private var dismiss
