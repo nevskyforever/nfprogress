@@ -19,18 +19,25 @@ struct AddEntryView: View {
             TextField("Символов", value: $characterCount, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 120)
+                .submitLabel(.done)
+                .onSubmit(addEntry)
 
             Spacer()
 
             Button("Добавить") {
-                let newEntry = Entry(date: date, characterCount: characterCount)
-                project.entries.append(newEntry)
-                dismiss()
+                addEntry()
             }
             .buttonStyle(.borderedProminent)
+            .keyboardShortcut(.defaultAction)
             .padding(.bottom)
         }
         .padding()
         .frame(width: 320)
+    }
+
+    private func addEntry() {
+        let newEntry = Entry(date: date, characterCount: characterCount)
+        project.entries.append(newEntry)
+        dismiss()
     }
 }
