@@ -14,19 +14,34 @@ struct ContentView: View {
   @State private var showingAddProject = false
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
+  @State private var expandedProjects: Set<UUID> = []
 
   var body: some View {
     NavigationSplitView {
       List(selection: $selectedProject) {
-        ForEach(projects) { project in
-          NavigationLink(value: project) {
-            VStack(alignment: .leading) {
-              Text(project.title)
-                .font(.headline)
-              ProgressCircleView(project: project)
-                .frame(height: 80)
+        ForEach(projects.filter { !$0.isStage }) { project in
+          DisclosureGroup(isExpanded: binding(for: project)) {
+            ForEach(project.stages) { stage in
+              NavigationLink(value: stage) {
+                VStack(alignment: .leading) {
+                  Text(stage.title)
+                    .font(.subheadline)
+                  ProgressCircleView(project: stage)
+                    .frame(height: 60)
+                }
+                .padding(.vertical, 2)
+              }
             }
-            .padding(.vertical, 4)
+          } label: {
+            NavigationLink(value: project) {
+              VStack(alignment: .leading) {
+                Text(project.title)
+                  .font(.headline)
+                ProgressCircleView(project: project)
+                  .frame(height: 80)
+              }
+              .padding(.vertical, 4)
+            }
           }
         }
         .onDelete(perform: deleteProjects)
@@ -131,8 +146,9 @@ struct ContentView: View {
   }
 
   private func deleteProjects(at offsets: IndexSet) {
-    if let index = offsets.first {
-      confirmDeleteProject(projects[index])
+    let roots = projects.filter { !$0.isStage }
+    if let index = offsets.first, index < roots.count {
+      confirmDeleteProject(roots[index])
     }
   }
 
@@ -146,6 +162,16 @@ struct ContentView: View {
     if selectedProject === project {
       selectedProject = nil
     }
+  }
+
+  private func binding(for project: WritingProject) -> Binding<Bool> {
+    Binding(
+      get: { expandedProjects.contains(project.id) },
+      set: { newValue in
+        if newValue { expandedProjects.insert(project.id) }
+        else { expandedProjects.remove(project.id) }
+      }
+    )
   }
 
 #if os(macOS)

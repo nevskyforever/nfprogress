@@ -2,25 +2,36 @@ import Foundation
 import SwiftData
 
 @Model
-class WritingProject {
+class WritingProject: Identifiable {
+    var id = UUID()
     var title: String
     var goal: Int
     var deadline: Date?
     var entries: [Entry]
+    // List of stages (subprojects). Stages themselves cannot have their own stages
+    var stages: [WritingProject]
+    /// Flag to distinguish regular projects from stages
+    var isStage: Bool
 
-    init(title: String, goal: Int, deadline: Date? = nil) {
+    init(title: String, goal: Int, deadline: Date? = nil, isStage: Bool = false) {
+        self.id = UUID()
         self.title = title
         self.goal = goal
         self.deadline = deadline
         self.entries = []
+        self.stages = []
+        self.isStage = isStage
     }
 
     var sortedEntries: [Entry] {
         entries.sorted { $0.date < $1.date }
     }
 
+    /// Current progress including progress of all stages
     var currentProgress: Int {
-        sortedEntries.last?.characterCount ?? 0
+        let own = sortedEntries.last?.characterCount ?? 0
+        let stagesProgress = stages.reduce(0) { $0 + $1.currentProgress }
+        return own + stagesProgress
     }
 
     var previousProgress: Int {
