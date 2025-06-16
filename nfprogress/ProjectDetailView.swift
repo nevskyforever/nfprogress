@@ -73,51 +73,43 @@ struct ProjectDetailView: View {
                 }
 
                 // Дедлайн
-                if let _ = project.deadline {
-                    VStack(alignment: .leading) {
+                HStack {
+                    Text("Дедлайн:")
+                    if isEditingDeadline {
                         DatePicker(
-                            "Дедлайн:",
-                            selection: Binding(
-                                get: { project.deadline ?? Date() },
-                                set: { newDate in
-                                    project.deadline = newDate
-                                    saveContext()
-                                }
-                            ),
+                            "",
+                            selection: $tempDeadline,
                             displayedComponents: .date
                         )
+                        .labelsHidden()
                         .environment(\.locale, Locale(identifier: "ru_RU"))
-
-                        Button("Удалить дедлайн", role: .destructive) {
-                            project.deadline = nil
-                            saveContext()
-                        }
-
-                        Text("Осталось дней: \(project.daysLeft)")
-                            .font(.subheadline)
-                            .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
-                        if let target = project.dailyTarget {
-                            Text("Ежедневная цель: \(target) символов")
-                                .font(.subheadline)
-                                .foregroundColor(.white)
+                        .focused($focusedField, equals: .deadline)
+                    } else {
+                        Text(
+                            project.deadline.map { deadlineFormatter.string(from: $0) } ??
+                                "Не установлен"
+                        )
+                        .onTapGesture {
+                            tempDeadline = project.deadline ?? Date()
+                            isEditingDeadline = true
+                            focusedField = .deadline
                         }
                     }
-                } else {
-                    if isEditingDeadline {
-                        VStack(alignment: .leading) {
-                            DatePicker("Дедлайн:", selection: $tempDeadline, displayedComponents: .date)
-                                .environment(\.locale, Locale(identifier: "ru_RU"))
-                            Button("Сохранить") {
-                                project.deadline = tempDeadline
-                                saveContext()
-                                isEditingDeadline = false
-                            }
-                        }
-                    } else {
-                        Button("Установить дедлайн") {
-                            tempDeadline = Date()
-                            isEditingDeadline = true
-                        }
+                }
+
+                if !isEditingDeadline && project.deadline != nil {
+                    Button("Удалить дедлайн", role: .destructive) {
+                        project.deadline = nil
+                        saveContext()
+                    }
+
+                    Text("Осталось дней: \(project.daysLeft)")
+                        .font(.subheadline)
+                        .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
+                    if let target = project.dailyTarget {
+                        Text("Ежедневная цель: \(target) символов")
+                            .font(.subheadline)
+                            .foregroundColor(.white)
                     }
                 }
 
@@ -190,6 +182,11 @@ struct ProjectDetailView: View {
             }
             if newValue != .goal && isEditingGoal {
                 isEditingGoal = false
+                saveContext()
+            }
+            if newValue != .deadline && isEditingDeadline {
+                project.deadline = tempDeadline
+                isEditingDeadline = false
                 saveContext()
             }
         }
