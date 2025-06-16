@@ -84,6 +84,8 @@ struct ProjectDetailView: View {
                         .labelsHidden()
                         .environment(\.locale, Locale(identifier: "ru_RU"))
                         .focused($focusedField, equals: .deadline)
+                        .submitLabel(.done)
+                        .onSubmit { focusedField = nil }
                     } else {
                         Text(
                             project.deadline.map { deadlineFormatter.string(from: $0) } ??
@@ -164,6 +166,9 @@ struct ProjectDetailView: View {
             }
             .padding()
         }
+        .simultaneousGesture(
+            TapGesture().onEnded { focusedField = nil }
+        )
         .onAppear {
             if let dl = project.deadline {
                 tempDeadline = dl
