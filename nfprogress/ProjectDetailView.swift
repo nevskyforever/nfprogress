@@ -33,6 +33,10 @@ struct ProjectDetailView: View {
         return Color(hue: hue, saturation: 1, brightness: 1)
     }
 
+    private func addEntry() {
+        showingAddEntry = true
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
@@ -118,8 +122,9 @@ struct ProjectDetailView: View {
                 // Действия с проектом
                 HStack {
                     Button("Добавить запись") {
-                        showingAddEntry = true
+                        addEntry()
                     }
+                    .keyboardShortcut("n", modifiers: .command)
                     Spacer()
                 }
 
