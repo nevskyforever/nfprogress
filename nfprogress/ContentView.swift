@@ -34,7 +34,11 @@ struct ContentView: View {
                         Label("Добавить", systemImage: "plus")
                     }
                 }
+                #if os(macOS)
+                ToolbarItemGroup(placement: .navigation) {
+                #else
                 ToolbarItemGroup(placement: .navigationBarLeading) {
+                #endif
                     Button("Экспортировать") {
                         exportSelectedProject()
                     }
