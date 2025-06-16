@@ -48,7 +48,7 @@ struct ProjectDetailView: View {
                     if let target = project.dailyTarget {
                         Text("Ежедневная цель: \(target) символов")
                             .font(.subheadline)
-                            .foregroundColor(.gray)
+                            .foregroundColor(.white)
                     }
                 }
 

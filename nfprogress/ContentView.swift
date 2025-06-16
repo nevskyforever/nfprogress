@@ -51,9 +51,6 @@ struct ContentView: View {
               importSelectedProject()
             }
             .disabled(selectedProject == nil)
-            Button("Импортировать все") {
-              importAllProjects()
-            }
           }
         #else
           ToolbarItemGroup(placement: .navigationBarLeading) {
@@ -65,9 +62,6 @@ struct ContentView: View {
               importSelectedProject()
             }
             .disabled(selectedProject == nil)
-            Button("Импортировать все") {
-              importAllProjects()
-            }
           }
         #endif
       }
@@ -183,13 +177,6 @@ struct ContentView: View {
 #endif
   }
 
-  private func importAllProjects() {
-#if os(macOS)
-    showOpenPanel()
-#else
-    isImporting = true
-#endif
-  }
 
   private func importCSV(from url: URL) {
     guard let data = try? Data(contentsOf: url),
