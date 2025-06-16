@@ -10,7 +10,6 @@ struct ContentView: View {
   @Query private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   @State private var isExporting = false
-  @State private var exportAllMode = false
   @State private var isImporting = false
 
   var body: some View {
@@ -36,15 +35,18 @@ struct ContentView: View {
             Label("Добавить", systemImage: "plus")
           }
         }
+        ToolbarItem {
+          Button(action: deleteSelectedProject) {
+            Label("Удалить", systemImage: "minus")
+          }
+          .disabled(selectedProject == nil)
+        }
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
             Button("Экспортировать") {
               exportSelectedProject()
             }
             .disabled(selectedProject == nil)
-            Button("Экспортировать все") {
-              exportAllProjects()
-            }
             Button("Импортировать") {
               importSelectedProject()
             }
@@ -59,9 +61,6 @@ struct ContentView: View {
               exportSelectedProject()
             }
             .disabled(selectedProject == nil)
-            Button("Экспортировать все") {
-              exportAllProjects()
-            }
             Button("Импортировать") {
               importSelectedProject()
             }
@@ -93,7 +92,6 @@ struct ContentView: View {
         print("Export failed: \(error.localizedDescription)")
       }
       isExporting = false
-      exportAllMode = false
     }
     .fileImporter(
       isPresented: $isImporting,
@@ -114,6 +112,12 @@ struct ContentView: View {
     modelContext.insert(newProject)
   }
 
+  private func deleteSelectedProject() {
+    guard let project = selectedProject else { return }
+    modelContext.delete(project)
+    selectedProject = nil
+  }
+
   private func deleteProjects(at offsets: IndexSet) {
     for index in offsets {
       modelContext.delete(projects[index])
@@ -132,7 +136,6 @@ struct ContentView: View {
       } catch {
         print("Export failed: \(error.localizedDescription)")
       }
-      exportAllMode = false
     }
   }
 
@@ -148,16 +151,6 @@ struct ContentView: View {
 
   // MARK: - Export
   private func exportSelectedProject() {
-    exportAllMode = false
-#if os(macOS)
-    showSavePanel()
-#else
-    isExporting = true
-#endif
-  }
-
-  private func exportAllProjects() {
-    exportAllMode = true
 #if os(macOS)
     showSavePanel()
 #else
@@ -166,26 +159,18 @@ struct ContentView: View {
   }
 
   private var exportDocument: CSVDocument {
-    let csv: String
-    if exportAllMode {
-      csv = CSVManager.csvString(for: projects)
-    } else if let project = selectedProject {
-      csv = CSVManager.csvString(for: project)
-    } else {
-      csv = ""
+    guard let project = selectedProject else {
+      return CSVDocument(text: "")
     }
+    let csv = CSVManager.csvString(for: project)
     return CSVDocument(text: csv)
   }
 
   private var exportFileName: String {
-    let base: String
-    if exportAllMode {
-      base = "AllProjects"
-    } else if let project = selectedProject {
-      base = project.title.replacingOccurrences(of: " ", with: "_")
-    } else {
-      base = "Project"
+    guard let project = selectedProject else {
+      return "Project.csv"
     }
+    let base = project.title.replacingOccurrences(of: " ", with: "_")
     return base + ".csv"
   }
 

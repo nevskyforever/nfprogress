@@ -50,15 +50,6 @@ struct ProjectDetailView: View {
                         showingAddEntry = true
                     }
                     Spacer()
-                    // Кнопка удаления проекта
-                    Button(role: .destructive) {
-                        withAnimation {
-                            modelContext.delete(project)
-                            saveContext()
-                        }
-                    } label: {
-                        Label("Удалить проект", systemImage: "trash")
-                    }
                 }
 
                 // История записей
