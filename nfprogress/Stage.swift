@@ -6,6 +6,7 @@ class Stage: Identifiable {
     var id: UUID
     var title: String
     var goal: Int
+    @Relationship(inverse: \Entry.stage)
     var entries: [Entry] = []
 
     init(id: UUID = UUID(), title: String, goal: Int) {
