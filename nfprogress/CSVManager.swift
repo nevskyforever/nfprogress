@@ -7,10 +7,15 @@ struct CSVManager {
         let dateFormatter = ISO8601DateFormatter()
         let deadlineString = project.deadline.map { dateFormatter.string(from: $0) } ?? ""
         var all: [(Entry, Stage?)] = project.entries.map { ($0, nil) }
+        var emptyStages: [Stage] = []
         for stage in project.stages {
-            for e in stage.entries { all.append((e, stage)) }
+            if stage.entries.isEmpty {
+                emptyStages.append(stage)
+            } else {
+                for e in stage.entries { all.append((e, stage)) }
+            }
         }
-        if all.isEmpty {
+        if all.isEmpty && emptyStages.isEmpty {
             lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,,,,")
         } else {
             let sorted = all.sorted { $0.0.date < $1.0.date }
@@ -26,6 +31,10 @@ struct CSVManager {
                 let stageStart = stage != nil ? String(stage!.startProgress) : ""
                 lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(entry.characterCount),\(change),\(percent)")
             }
+            for stage in emptyStages {
+                let stageDeadline = stage.deadline.map { dateFormatter.string(from: $0) } ?? ""
+                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stage.title)),\(stage.goal),\(stageDeadline),\(stage.startProgress),,,,")
+            }
         }
         return lines.joined(separator: "\n")
     }
@@ -36,10 +45,15 @@ struct CSVManager {
         for project in projects {
             let deadlineString = project.deadline.map { dateFormatter.string(from: $0) } ?? ""
             var all: [(Entry, Stage?)] = project.entries.map { ($0, nil) }
+            var emptyStages: [Stage] = []
             for stage in project.stages {
-                for e in stage.entries { all.append((e, stage)) }
+                if stage.entries.isEmpty {
+                    emptyStages.append(stage)
+                } else {
+                    for e in stage.entries { all.append((e, stage)) }
+                }
             }
-            if all.isEmpty {
+            if all.isEmpty && emptyStages.isEmpty {
                 lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,,,,")
             } else {
                 let sorted = all.sorted { $0.0.date < $1.0.date }
@@ -54,6 +68,10 @@ struct CSVManager {
                     let stageDeadline = stage?.deadline.map { dateFormatter.string(from: $0) } ?? ""
                     let stageStart = stage != nil ? String(stage!.startProgress) : ""
                     lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(entry.characterCount),\(change),\(percent)")
+                }
+                for stage in emptyStages {
+                    let stageDeadline = stage.deadline.map { dateFormatter.string(from: $0) } ?? ""
+                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stage.title)),\(stage.goal),\(stageDeadline),\(stage.startProgress),,,,")
                 }
             }
         }
