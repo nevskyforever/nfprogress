@@ -6,7 +6,6 @@ struct ProjectDetailView: View {
     @Bindable var project: WritingProject
     @State private var showingAddEntry = false
     @State private var editingEntry: Entry?
-    @State private var showingAddStage = false
     @State private var tempDeadline: Date = Date()
     // Editing state for individual fields
     @State private var isEditingTitle = false
@@ -36,18 +35,6 @@ struct ProjectDetailView: View {
 
     private func addEntry() {
         showingAddEntry = true
-    }
-
-    private func addStage() {
-        showingAddStage = true
-    }
-
-    private func deleteStage(_ stage: Stage) {
-        if let index = project.stages.firstIndex(where: { $0.id == stage.id }) {
-            project.stages.remove(at: index)
-        }
-        modelContext.delete(stage)
-        saveContext()
     }
 
     var body: some View {
@@ -138,43 +125,7 @@ struct ProjectDetailView: View {
                         addEntry()
                     }
                     .keyboardShortcut("n", modifiers: .command)
-                    Button("Добавить этап") {
-                        addStage()
-                    }
-                    .keyboardShortcut("m", modifiers: .command)
                     Spacer()
-                }
-
-                // Этапы
-                HStack {
-                    Text("Этапы")
-                        .font(.headline)
-                    Spacer()
-                    Button {
-                        project.areStagesExpanded.toggle()
-                        saveContext()
-                    } label: {
-                        Image(systemName: project.areStagesExpanded ? "chevron.down" : "chevron.right")
-                    }
-                }
-
-                if project.areStagesExpanded {
-                    ForEach(project.stages) { stage in
-                        NavigationLink(value: stage) {
-                            HStack {
-                                Text(stage.title)
-                                Spacer()
-                                Text("\(stage.currentProgress)/\(stage.goal)")
-                            }
-                        }
-                        .swipeActions {
-                            Button(role: .destructive) {
-                                deleteStage(stage)
-                            } label: {
-                                Label("Удалить", systemImage: "trash")
-                            }
-                        }
-                    }
                 }
 
                 // История записей
