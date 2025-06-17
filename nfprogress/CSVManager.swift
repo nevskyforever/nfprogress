@@ -10,7 +10,7 @@ struct CSVManager {
             lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,")
         } else {
             var previous = 0
-            for entry in project.allEntries {
+            for entry in project.sortedEntries {
                 let dateStr = dateFormatter.string(from: entry.date)
                 let change = entry.characterCount - previous
                 previous = entry.characterCount
@@ -30,7 +30,7 @@ struct CSVManager {
                 lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,")
             } else {
                 var previous = 0
-                for entry in project.allEntries {
+                for entry in project.sortedEntries {
                     let dateStr = dateFormatter.string(from: entry.date)
                     let change = entry.characterCount - previous
                     previous = entry.characterCount

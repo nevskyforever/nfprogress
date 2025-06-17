@@ -7,43 +7,30 @@ class WritingProject {
     var goal: Int
     var deadline: Date?
     var entries: [Entry]
-    var stages: [Stage]
-    var areStagesExpanded: Bool
 
     init(title: String, goal: Int, deadline: Date? = nil) {
         self.title = title
         self.goal = goal
         self.deadline = deadline
         self.entries = []
-        self.stages = []
-        self.areStagesExpanded = true
     }
 
     var sortedEntries: [Entry] {
         entries.sorted { $0.date < $1.date }
     }
 
-    var allEntries: [Entry] {
-        let stageEntries = stages.flatMap { $0.entries }
-        return (entries + stageEntries).sorted { $0.date < $1.date }
-    }
-
     var currentProgress: Int {
-        allEntries.last?.characterCount ?? 0
+        sortedEntries.last?.characterCount ?? 0
     }
 
     var previousProgress: Int {
-        guard allEntries.count >= 2 else { return 0 }
-        return allEntries[allEntries.count - 2].characterCount
-    }
-
-    var totalSymbolCount: Int {
-        (entries + stages.flatMap { $0.entries }).reduce(0) { $0 + $1.characterCount }
+        guard sortedEntries.count >= 2 else { return 0 }
+        return sortedEntries[sortedEntries.count - 2].characterCount
     }
 
     var progressPercentage: Double {
         guard goal > 0 else { return 0 }
-        return Double(totalSymbolCount) / Double(goal)
+        return Double(currentProgress) / Double(goal)
     }
 
     var changeSinceLast: Int {
@@ -58,7 +45,7 @@ class WritingProject {
 
     var dailyTarget: Int? {
         guard daysLeft > 0 else { return nil }
-        return max(0, (goal - totalSymbolCount) / daysLeft)
+        return max(0, (goal - currentProgress) / daysLeft)
     }
 
     var motivationalMessage: String? {
@@ -74,7 +61,7 @@ class WritingProject {
 
     var streak: Int {
        let calendar = Calendar.current
-       let entriesByDay = Dictionary(grouping: allEntries) { calendar.startOfDay(for: $0.date) }
+       let entriesByDay = Dictionary(grouping: sortedEntries) { calendar.startOfDay(for: $0.date) }
        let entryDays = entriesByDay.keys.sorted()
 
         guard !entryDays.isEmpty else { return 0 }
@@ -138,7 +125,7 @@ class WritingProject {
     private var hasEntryToday: Bool {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
-        return allEntries.contains { calendar.isDate($0.date, inSameDayAs: today) }
+        return sortedEntries.contains { calendar.isDate($0.date, inSameDayAs: today) }
     }
 
     /// Prompt encouraging to keep the streak if today's entry is missing
@@ -146,7 +133,7 @@ class WritingProject {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         let uniqueDays = Array(Set(
-            allEntries.map { calendar.startOfDay(for: $0.date) }
+            sortedEntries.map { calendar.startOfDay(for: $0.date) }
         )).sorted()
 
         if hasEntryToday {
@@ -177,7 +164,7 @@ class WritingProject {
     var progressLastWeek: Int {
         let calendar = Calendar.current
         guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: .now) else { return 0 }
-        let entriesLastWeek = allEntries.filter { $0.date >= weekAgo }
+        let entriesLastWeek = sortedEntries.filter { $0.date >= weekAgo }
         guard let first = entriesLastWeek.first, let last = entriesLastWeek.last else { return 0 }
         return last.characterCount - first.characterCount
     }
@@ -193,12 +180,10 @@ class Entry: Identifiable {
     var id = UUID()
     var date: Date
     var characterCount: Int
-    var stage: Stage?
 
-    init(date: Date, characterCount: Int, stage: Stage? = nil) {
+    init(date: Date, characterCount: Int) {
         self.date = date
         self.characterCount = characterCount
-        self.stage = stage
     }
 }
 
