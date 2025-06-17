@@ -14,88 +14,40 @@ struct ContentView: View {
   @State private var showingAddProject = false
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
-  @State private var viewMode: ViewMode = .detailed
-
-  enum ViewMode: String, CaseIterable, Identifiable {
-    case detailed
-    case compact
-
-    var id: Self { self }
-  }
 
   var body: some View {
     NavigationSplitView {
       List(selection: $selectedProject) {
         ForEach(projects) { project in
           NavigationLink(value: project) {
-            if viewMode == .detailed {
-              VStack(alignment: .leading) {
-                Text(project.title)
-                  .font(.headline)
-                ProgressCircleView(project: project)
-                  .frame(height: 80)
-              }
-              .padding(.vertical, 4)
-            } else {
-              HStack {
-                Text(project.title)
-                Spacer()
-                Text("\(Int(project.progressPercentage * 100))%")
-                  .foregroundColor(progressColor(for: project))
-              }
-              .padding(.vertical, 4)
+            VStack(alignment: .leading) {
+              Text(project.title)
+                .font(.headline)
+              ProgressCircleView(project: project)
+                .frame(height: 80)
             }
+            .padding(.vertical, 4)
           }
         }
         .onDelete(perform: deleteProjects)
       }
       .navigationTitle("Мои тексты")
       .toolbar {
+        ToolbarItem {
+          Button(action: addProject) {
+            Label("Добавить", systemImage: "plus")
+          }
+          .keyboardShortcut("N", modifiers: [.command, .shift])
+        }
+        ToolbarItem {
+          Button(action: deleteSelectedProject) {
+            Label("Удалить", systemImage: "minus")
+          }
+          .keyboardShortcut(.return, modifiers: .command)
+          .disabled(selectedProject == nil)
+        }
         #if os(macOS)
-          // Place project controls and view selector on the leading side
           ToolbarItemGroup(placement: .navigation) {
-            Button(action: addProject) {
-              Label("Добавить", systemImage: "plus")
-            }
-            .keyboardShortcut("N", modifiers: [.command, .shift])
-
-            Button(action: deleteSelectedProject) {
-              Label("Удалить", systemImage: "minus")
-            }
-            .keyboardShortcut(.return, modifiers: .command)
-            .disabled(selectedProject == nil)
-
-            Picker("View", selection: $viewMode) {
-              Image(systemName: "rectangle.grid.1x2").tag(ViewMode.detailed)
-              Image(systemName: "list.bullet").tag(ViewMode.compact)
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 100)
-          }
-        #else
-          // iOS: keep controls on the leading side as well
-          ToolbarItemGroup(placement: .navigationBarLeading) {
-            Button(action: addProject) {
-              Label("Добавить", systemImage: "plus")
-            }
-            .keyboardShortcut("N", modifiers: [.command, .shift])
-
-            Button(action: deleteSelectedProject) {
-              Label("Удалить", systemImage: "minus")
-            }
-            .keyboardShortcut(.return, modifiers: .command)
-            .disabled(selectedProject == nil)
-
-            Picker("View", selection: $viewMode) {
-              Image(systemName: "rectangle.grid.1x2").tag(ViewMode.detailed)
-              Image(systemName: "list.bullet").tag(ViewMode.compact)
-            }
-            .pickerStyle(.segmented)
-          }
-        #endif
-        #if os(macOS)
-          // Export/Import actions move to the trailing side
-          ToolbarItemGroup(placement: .automatic) {
             if selectedProject != nil {
               Button("Экспортировать") {
                 exportSelectedProject()
@@ -106,7 +58,7 @@ struct ContentView: View {
             }
           }
         #else
-          ToolbarItemGroup(placement: .navigationBarTrailing) {
+          ToolbarItemGroup(placement: .navigationBarLeading) {
             if selectedProject != nil {
               Button("Экспортировать") {
                 exportSelectedProject()
@@ -194,12 +146,6 @@ struct ContentView: View {
     if selectedProject === project {
       selectedProject = nil
     }
-  }
-
-  private func progressColor(for project: WritingProject) -> Color {
-    let clamped = max(0, min(1, project.progressPercentage))
-    let hue = clamped * 0.33
-    return Color(hue: hue, saturation: 1, brightness: 1)
   }
 
 #if os(macOS)
