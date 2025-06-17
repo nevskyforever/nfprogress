@@ -48,25 +48,25 @@ struct ContentView: View {
         }
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
-            Button("Экспортировать") {
-              exportSelectedProject()
+            if selectedProject != nil {
+              Button("Экспортировать") {
+                exportSelectedProject()
+              }
             }
-            .disabled(selectedProject == nil)
             Button("Импортировать") {
               importSelectedProject()
             }
-            .disabled(selectedProject == nil)
           }
         #else
           ToolbarItemGroup(placement: .navigationBarLeading) {
-            Button("Экспортировать") {
-              exportSelectedProject()
+            if selectedProject != nil {
+              Button("Экспортировать") {
+                exportSelectedProject()
+              }
             }
-            .disabled(selectedProject == nil)
             Button("Импортировать") {
               importSelectedProject()
             }
-            .disabled(selectedProject == nil)
           }
         #endif
       }
