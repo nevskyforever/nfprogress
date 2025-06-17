@@ -58,6 +58,12 @@ struct ContentView: View {
             }
             .keyboardShortcut("N", modifiers: [.command, .shift])
 
+            Button(action: deleteSelectedProject) {
+              Label("Удалить", systemImage: "minus")
+            }
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(selectedProject == nil)
+
             Picker("View", selection: $viewMode) {
               Image(systemName: "rectangle.grid.1x2").tag(ViewMode.detailed)
               Image(systemName: "list.bullet").tag(ViewMode.compact)
@@ -66,13 +72,18 @@ struct ContentView: View {
             .frame(width: 100)
           }
         #else
-          ToolbarItem {
+          ToolbarItemGroup(placement: .navigationBarTrailing) {
             Button(action: addProject) {
               Label("Добавить", systemImage: "plus")
             }
             .keyboardShortcut("N", modifiers: [.command, .shift])
-          }
-          ToolbarItem {
+
+            Button(action: deleteSelectedProject) {
+              Label("Удалить", systemImage: "minus")
+            }
+            .keyboardShortcut(.return, modifiers: .command)
+            .disabled(selectedProject == nil)
+
             Picker("View", selection: $viewMode) {
               Image(systemName: "rectangle.grid.1x2").tag(ViewMode.detailed)
               Image(systemName: "list.bullet").tag(ViewMode.compact)
@@ -80,13 +91,6 @@ struct ContentView: View {
             .pickerStyle(.segmented)
           }
         #endif
-        ToolbarItem {
-          Button(action: deleteSelectedProject) {
-            Label("Удалить", systemImage: "minus")
-          }
-          .keyboardShortcut(.return, modifiers: .command)
-          .disabled(selectedProject == nil)
-        }
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
             if selectedProject != nil {
