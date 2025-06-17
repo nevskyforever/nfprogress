@@ -17,7 +17,7 @@ struct ArchivedProjectsView: View {
                     .foregroundColor(.gray)
             } else {
                 List {
-                    ForEach(archived) { project in
+                    ForEach(archived, id: \.id) { project in
                         HStack {
                             Text(project.title)
                             Spacer()
@@ -40,6 +40,9 @@ struct ArchivedProjectsView: View {
                 dismiss()
             }
             .padding(.top)
+        }
+        .onAppear {
+            print("Archived count: \(archived.count)")
         }
         .padding()
         .frame(width: 320)

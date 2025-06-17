@@ -21,7 +21,7 @@ struct ContentView: View {
   var body: some View {
     NavigationSplitView {
       List(selection: $selectedProject) {
-        ForEach(projects) { project in
+        ForEach(projects, id: \.id) { project in
           NavigationLink(value: project) {
             VStack(alignment: .leading) {
               Text(project.title)
