@@ -145,7 +145,7 @@ class WritingProject {
         }
 
         let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
-        if calendar.isDate(last, inSameDayAs: yesterday) {
+        if calendar.isDate(last, inSameDayAs: yesterday), streak > 0 {
             return "Вы в ударе \(streak) дней подряд, продолжим?"
         }
 
