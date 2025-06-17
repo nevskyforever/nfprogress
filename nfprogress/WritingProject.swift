@@ -19,48 +19,58 @@ class WritingProject {
         self.areStagesExpanded = true
     }
 
+    @Transient
     var sortedEntries: [Entry] {
         entries.sorted { $0.date < $1.date }
     }
 
+    @Transient
     var allEntries: [Entry] {
         let stageEntries = stages.flatMap { $0.entries }
         return (entries + stageEntries).sorted { $0.date < $1.date }
     }
 
+    @Transient
     var currentProgress: Int {
         allEntries.last?.characterCount ?? 0
     }
 
+    @Transient
     var previousProgress: Int {
         guard allEntries.count >= 2 else { return 0 }
         return allEntries[allEntries.count - 2].characterCount
     }
 
+    @Transient
     var totalSymbolCount: Int {
         (entries + stages.flatMap { $0.entries }).reduce(0) { $0 + $1.characterCount }
     }
 
+    @Transient
     var progressPercentage: Double {
         guard goal > 0 else { return 0 }
         return Double(totalSymbolCount) / Double(goal)
     }
 
+    @Transient
     var changeSinceLast: Int {
         currentProgress - previousProgress
     }
 
+    @Transient
     var daysLeft: Int {
         guard let deadline else { return 0 }
         let calendar = Calendar.current
         return calendar.dateComponents([.day], from: .now, to: deadline).day ?? 0
     }
 
+    @Transient
     var dailyTarget: Int? {
         guard daysLeft > 0 else { return nil }
         return max(0, (goal - totalSymbolCount) / daysLeft)
     }
 
+    @Transient
     var motivationalMessage: String? {
         if changeSinceLast > 0 {
             return "👍 Прогресс: +\(changeSinceLast) символов"
@@ -72,6 +82,7 @@ class WritingProject {
     }
 
 
+    @Transient
     var streak: Int {
        let calendar = Calendar.current
        let entriesByDay = Dictionary(grouping: allEntries) { calendar.startOfDay(for: $0.date) }
@@ -135,6 +146,7 @@ class WritingProject {
     }
 
     /// True if there is already an entry for the current day
+    @Transient
     private var hasEntryToday: Bool {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
@@ -142,6 +154,7 @@ class WritingProject {
     }
 
     /// Prompt encouraging to keep the streak if today's entry is missing
+    @Transient
     var streakPrompt: String? {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
@@ -166,6 +179,7 @@ class WritingProject {
     }
 
     /// Text describing the current streak state
+    @Transient
     var streakStatus: String {
         if streak == 0 {
             return "Начнем путь к цели?"
@@ -174,6 +188,7 @@ class WritingProject {
         }
     }
 
+    @Transient
     var progressLastWeek: Int {
         let calendar = Calendar.current
         guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: .now) else { return 0 }
@@ -182,6 +197,7 @@ class WritingProject {
         return last.characterCount - first.characterCount
     }
 
+    @Transient
     var progressLastWeekPercent: Int {
         guard goal > 0 else { return 0 }
         return Int(Double(progressLastWeek) / Double(goal) * 100)
