@@ -4,7 +4,9 @@ import SwiftData
 struct MenuBarEntryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query(filter: #Predicate<WritingProject> { !$0.isArchived })
+    // Explicitly compare the archived flag as negation sometimes
+    // fails to refresh the query results correctly
+    @Query(filter: #Predicate<WritingProject> { $0.isArchived == false })
     private var projects: [WritingProject]
 
     @State private var selectedIndex: Int = 0
