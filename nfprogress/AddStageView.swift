@@ -7,8 +7,6 @@ struct AddStageView: View {
 
     @State private var title = ""
     @State private var goal = 1000
-    @State private var deadline: Date = Date()
-    @State private var hasDeadline = false
 
     var body: some View {
         VStack(spacing: 16) {
@@ -20,11 +18,6 @@ struct AddStageView: View {
             TextField("Цель", value: $goal, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
-            Toggle("Дедлайн", isOn: $hasDeadline)
-            if hasDeadline {
-                DatePicker("", selection: $deadline, displayedComponents: .date)
-                    .labelsHidden()
-            }
             Spacer()
             Button("Создать") { addStage() }
                 .buttonStyle(.borderedProminent)
@@ -37,8 +30,7 @@ struct AddStageView: View {
 
     private func addStage() {
         let name = title.isEmpty ? "Этап" : title
-        let dl = hasDeadline ? deadline : nil
-        let stage = Stage(title: name, goal: goal, deadline: dl, startProgress: project.currentProgress)
+        let stage = Stage(title: name, goal: goal, startProgress: project.currentProgress)
         project.stages.append(stage)
         dismiss()
     }

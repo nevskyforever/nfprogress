@@ -7,6 +7,7 @@ struct MenuBarEntryView: View {
     @Query private var projects: [WritingProject]
 
     @State private var selectedIndex: Int = 0
+    @State private var selectedStageIndex: Int = 0
     @State private var characterCount: Int = 0
     @State private var date: Date = .now
     @State private var didSave: Bool = false
@@ -22,6 +23,16 @@ struct MenuBarEntryView: View {
                     }
                 }
                 .labelsHidden()
+                let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
+                if !project.stages.isEmpty {
+                    Picker("Этап", selection: $selectedStageIndex) {
+                        Text("Без этапа").tag(0)
+                        ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
+                            Text(stage.title).tag(idx + 1)
+                        }
+                    }
+                    .labelsHidden()
+                }
                 TextField("Символов", value: $characterCount, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: 160)
@@ -45,6 +56,9 @@ struct MenuBarEntryView: View {
         .onAppear {
             didSave = false
         }
+        .onChange(of: selectedIndex) { _ in
+            selectedStageIndex = 0
+        }
     }
 
     private func maybeSave() -> Bool {
@@ -52,7 +66,12 @@ struct MenuBarEntryView: View {
         let index = min(max(selectedIndex, 0), projects.count - 1)
         let project = projects[index]
         let entry = Entry(date: date, characterCount: characterCount)
-        project.entries.append(entry)
+        if selectedStageIndex > 0 && selectedStageIndex - 1 < project.stages.count {
+            let stage = project.stages[selectedStageIndex - 1]
+            stage.entries.append(entry)
+        } else {
+            project.entries.append(entry)
+        }
         try? modelContext.save()
         didSave = true
         resetFields()
@@ -66,5 +85,6 @@ struct MenuBarEntryView: View {
     private func resetFields() {
         characterCount = 0
         date = .now
+        selectedStageIndex = 0
     }
 }
