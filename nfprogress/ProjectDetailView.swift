@@ -150,78 +150,10 @@ struct ProjectDetailView: View {
 
                 // Действия с проектом
                 HStack {
-                    Button("Добавить запись") {
-                        addEntry()
-                    }
-                    .keyboardShortcut("n", modifiers: .command)
-                    Spacer()
                     Button("Добавить этап") { addStage() }
+                    Spacer()
                 }
 
-                ForEach(project.stages) { stage in
-                    DisclosureGroup(
-                        isExpanded: Binding(
-                            get: { expandedStages.contains(stage.id) },
-                            set: { newValue in
-                                if newValue { expandedStages.insert(stage.id) } else { expandedStages.remove(stage.id) }
-                            }
-                        )
-                    ) {
-                        HStack {
-                            Button("Добавить запись") { addEntry(stage: stage) }
-                            Spacer()
-                        }
-                        ForEach(stage.sortedEntries) { entry in
-                            let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-                            let prev = index > 0 ? stage.sortedEntries[index - 1].characterCount : stage.startProgress
-                            let delta = entry.characterCount - prev
-                            let percent = Double(entry.characterCount - stage.startProgress) / Double(max(stage.goal,1)) * 100
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text("Символов: \(entry.characterCount - stage.startProgress)")
-                                    Text(String(format: "Прогресс этапа: %.0f%%", percent))
-                                        .foregroundColor(progressColor(percent / 100))
-                                    Text(entry.date.formatted(date: .numeric, time: .shortened))
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-                                Spacer()
-                                Button { editingEntry = entry } label: { Image(systemName: "pencil") }
-                                Button(role: .destructive) {
-                                    if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
-                                        stage.entries.remove(at: i)
-                                    }
-                                    modelContext.delete(entry)
-                                    saveContext()
-                                } label: { Image(systemName: "trash") }
-                            }
-                        }
-                    } label: {
-                        HStack {
-                            VStack(alignment: .leading) {
-                                Text(stage.title)
-                                Text("Цель: \(stage.goal) знаков")
-                                    .font(.caption)
-                                    .foregroundColor(.gray)
-                            }
-                            Spacer()
-                            Text(String(format: "%.0f%%", stage.progressPercentage * 100))
-                                .foregroundColor(progressColor(stage.progressPercentage))
-                            Button {
-                                editingStage = stage
-                            } label: {
-                                Image(systemName: "pencil")
-                            }
-                            Button {
-                                stageToDelete = stage
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                            .buttonStyle(.borderless)
-                        }
-                        .font(.headline)
-                    }
-                }
 
                 // История записей
                 Text("История записей")
@@ -269,6 +201,80 @@ struct ProjectDetailView: View {
                             saveContext()
                         } label: {
                             Image(systemName: "trash")
+                        }
+                    }
+                }
+                Button("Добавить запись") {
+                    addEntry()
+                }
+                .keyboardShortcut("n", modifiers: .command)
+
+                if !project.stages.isEmpty {
+                    Text("Этапы")
+                        .font(.title3.bold())
+
+                    ForEach(project.stages) { stage in
+                        DisclosureGroup(
+                            isExpanded: Binding(
+                                get: { expandedStages.contains(stage.id) },
+                                set: { newValue in
+                                    if newValue { expandedStages.insert(stage.id) } else { expandedStages.remove(stage.id) }
+                                }
+                            )
+                        ) {
+                            HStack {
+                                Button("Добавить запись") { addEntry(stage: stage) }
+                                Spacer()
+                            }
+                            ForEach(stage.sortedEntries) { entry in
+                                let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
+                                let prev = index > 0 ? stage.sortedEntries[index - 1].characterCount : stage.startProgress
+                                let delta = entry.characterCount - prev
+                                let percent = Double(entry.characterCount - stage.startProgress) / Double(max(stage.goal,1)) * 100
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text("Символов: \(entry.characterCount - stage.startProgress)")
+                                        Text(String(format: "Прогресс этапа: %.0f%%", percent))
+                                            .foregroundColor(progressColor(percent / 100))
+                                        Text(entry.date.formatted(date: .numeric, time: .shortened))
+                                            .font(.caption)
+                                            .foregroundColor(.gray)
+                                    }
+                                    Spacer()
+                                    Button { editingEntry = entry } label: { Image(systemName: "pencil") }
+                                    Button(role: .destructive) {
+                                        if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
+                                            stage.entries.remove(at: i)
+                                        }
+                                        modelContext.delete(entry)
+                                        saveContext()
+                                    } label: { Image(systemName: "trash") }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text(stage.title)
+                                    Text("Цель: \(stage.goal) знаков")
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Text(String(format: "%.0f%%", stage.progressPercentage * 100))
+                                    .foregroundColor(progressColor(stage.progressPercentage))
+                                Button {
+                                    editingStage = stage
+                                } label: {
+                                    Image(systemName: "pencil")
+                                }
+                                Button {
+                                    stageToDelete = stage
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .buttonStyle(.borderless)
+                            }
+                            .font(.headline)
                         }
                     }
                 }
