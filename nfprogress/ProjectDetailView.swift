@@ -119,6 +119,12 @@ struct ProjectDetailView: View {
                     }
                 }
 
+                if let prompt = project.streakPrompt {
+                    Text(prompt)
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                }
+
                 // Действия с проектом
                 HStack {
                     Button("Добавить запись") {
