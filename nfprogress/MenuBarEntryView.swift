@@ -13,6 +13,7 @@ struct MenuBarEntryView: View {
     @State private var characterCount: Int = 0
     @State private var date: Date = .now
     @State private var didSave: Bool = false
+    @State private var showingArchive = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -39,6 +40,9 @@ struct MenuBarEntryView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
             }
+            Button("Архивированные") {
+                showingArchive = true
+            }
         }
         .padding()
         .frame(width: 200)
@@ -47,6 +51,9 @@ struct MenuBarEntryView: View {
         }
         .onAppear {
             didSave = false
+        }
+        .sheet(isPresented: $showingArchive) {
+            ArchivedProjectsView()
         }
     }
 
