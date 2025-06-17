@@ -8,14 +8,13 @@ class WritingProject: Identifiable {
     var goal: Int
     var deadline: Date?
     var entries: [Entry]
-    var isArchived: Bool
+    var isArchived: Bool = false
 
     init(title: String, goal: Int, deadline: Date? = nil) {
         self.title = title
         self.goal = goal
         self.deadline = deadline
         self.entries = []
-        self.isArchived = false
     }
 
     var sortedEntries: [Entry] {
