@@ -2,13 +2,11 @@ import Foundation
 import SwiftData
 
 @Model
-class WritingProject: Identifiable {
-    var id = UUID()
+class WritingProject {
     var title: String
     var goal: Int
     var deadline: Date?
     var entries: [Entry]
-    var isArchived: Bool = false
 
     init(title: String, goal: Int, deadline: Date? = nil) {
         self.title = title

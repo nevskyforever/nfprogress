@@ -3,7 +3,6 @@ import SwiftData
 
 struct AddEntryView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.modelContext) private var modelContext
     @Bindable var project: WritingProject
 
     @State private var date = Date()
@@ -39,7 +38,6 @@ struct AddEntryView: View {
     private func addEntry() {
         let newEntry = Entry(date: date, characterCount: characterCount)
         project.entries.append(newEntry)
-        try? modelContext.save()
         dismiss()
     }
 }

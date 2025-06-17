@@ -4,16 +4,12 @@ import SwiftData
 struct MenuBarEntryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    // Explicitly compare the archived flag as negation sometimes
-    // fails to refresh the query results correctly
-    @Query(filter: #Predicate<WritingProject> { $0.isArchived == false })
-    private var projects: [WritingProject]
+    @Query private var projects: [WritingProject]
 
     @State private var selectedIndex: Int = 0
     @State private var characterCount: Int = 0
     @State private var date: Date = .now
     @State private var didSave: Bool = false
-    @State private var showingArchive = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -40,9 +36,6 @@ struct MenuBarEntryView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
             }
-            Button("Архивированные") {
-                showingArchive = true
-            }
         }
         .padding()
         .frame(width: 200)
@@ -51,10 +44,6 @@ struct MenuBarEntryView: View {
         }
         .onAppear {
             didSave = false
-        }
-        .sheet(isPresented: $showingArchive) {
-            ArchivedProjectsView()
-                .environment(\.modelContext, modelContext)
         }
     }
 
