@@ -58,6 +58,26 @@ class WritingProject {
         }
     }
 
+    /// Поддерживающее сообщение в зависимости от текущей серии и приближения дедлайна
+    var streakMessage: String? {
+        guard streak > 0 else { return nil }
+
+        if let deadline, daysLeft > 0, daysLeft <= 3 {
+            return "Дедлайн близко, не сбавляйте темп!"
+        }
+
+        switch streak {
+        case 1:
+            return "Отличный старт!"
+        case 2...3:
+            return "Вы набираете обороты!"
+        case 4...6:
+            return "Хороший ритм!"
+        default:
+            return "Невероятная серия!"
+        }
+    }
+
     var streak: Int {
         let calendar = Calendar.current
         let entriesByDay = Dictionary(grouping: sortedEntries) { calendar.startOfDay(for: $0.date) }
