@@ -107,6 +107,15 @@ class WritingProject {
         return "Начнем путь к цели?"
     }
 
+    /// Text describing the current streak state
+    var streakStatus: String {
+        if streak == 0 {
+            return "Начнем путь к цели?"
+        } else {
+            return "🔥 В цели \(streak) дней подряд"
+        }
+    }
+
     var progressLastWeek: Int {
         let calendar = Calendar.current
         guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: .now) else { return 0 }
