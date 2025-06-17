@@ -9,6 +9,7 @@ struct ProjectDetailView: View {
     @State private var editingEntry: Entry?
     @State private var showingAddStage = false
     @State private var expandedStages: Set<Stage.ID> = []
+    @State private var stageToDelete: Stage?
     @State private var tempDeadline: Date = Date()
     // Editing state for individual fields
     @State private var isEditingTitle = false
@@ -189,9 +190,20 @@ struct ProjectDetailView: View {
                         }
                     } label: {
                         HStack {
-                            Text(stage.title)
+                            VStack(alignment: .leading) {
+                                Text(stage.title)
+                                Text("Цель: \(stage.goal) знаков")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
                             Spacer()
                             Text(String(format: "%.0f%%", stage.progressPercentage * 100))
+                            Button {
+                                stageToDelete = stage
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                            .buttonStyle(.borderless)
                         }
                         .font(.headline)
                     }
@@ -202,16 +214,21 @@ struct ProjectDetailView: View {
                     .font(.title3.bold())
                 ProgressChartView(project: project)
 
-                ForEach(project.entries) { entry in
+                ForEach(project.sortedEntries) { entry in
                     let index = project.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
                     let prevCount = index > 0 ? project.sortedEntries[index - 1].characterCount : 0
                     let delta = entry.characterCount - prevCount
                     let deltaPercent = Double(delta) / Double(max(project.goal, 1)) * 100
                     let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
                     let progressPercent = Double(entry.characterCount) / Double(max(project.goal, 1)) * 100
+                    let stageName = stageForEntry(entry)?.title
 
                     HStack {
                         VStack(alignment: .leading) {
+                            if let stageName {
+                                Text("Этап: \(stageName)")
+                                    .font(.caption)
+                            }
                             Text("Символов: \(entry.characterCount)")
                             Text("Изменение: \(deltaText)")
                                 .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
@@ -227,7 +244,11 @@ struct ProjectDetailView: View {
                             Image(systemName: "pencil")
                         }
                         Button(role: .destructive) {
-                            if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
+                            if let stage = stageForEntry(entry) {
+                                if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
+                                    stage.entries.remove(at: i)
+                                }
+                            } else if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
                                 project.entries.remove(at: i)
                             }
                             modelContext.delete(entry)
@@ -257,6 +278,14 @@ struct ProjectDetailView: View {
         .sheet(item: $editingEntry) { entry in
             EditEntryView(entry: entry)
         }
+        .alert(item: $stageToDelete) { stage in
+            Alert(
+                title: Text("Удалить этап \"\(stage.title)\"?"),
+                message: Text("Все записи из этапа будут удалены."),
+                primaryButton: .destructive(Text("Удалить")) { deleteStage(stage) },
+                secondaryButton: .cancel()
+            )
+        }
         .onChange(of: focusedField) { newValue in
             if newValue != .title && isEditingTitle {
                 isEditingTitle = false
@@ -281,6 +310,28 @@ struct ProjectDetailView: View {
         } catch {
             print("Ошибка сохранения: \(error)")
         }
+    }
+
+    // MARK: - Helpers
+    private func stageForEntry(_ entry: Entry) -> Stage? {
+        for stage in project.stages {
+            if stage.entries.contains(where: { $0.id == entry.id }) {
+                return stage
+            }
+        }
+        return nil
+    }
+
+    private func deleteStage(_ stage: Stage) {
+        for entry in stage.entries {
+            modelContext.delete(entry)
+        }
+        stage.entries.removeAll()
+        if let index = project.stages.firstIndex(where: { $0.id == stage.id }) {
+            project.stages.remove(at: index)
+        }
+        modelContext.delete(stage)
+        saveContext()
     }
 }
 
