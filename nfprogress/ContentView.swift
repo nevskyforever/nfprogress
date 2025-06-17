@@ -14,19 +14,37 @@ struct ContentView: View {
   @State private var showingAddProject = false
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
+  @State private var viewMode: ViewMode = .detailed
+
+  enum ViewMode: String, CaseIterable, Identifiable {
+    case detailed
+    case compact
+
+    var id: Self { self }
+  }
 
   var body: some View {
     NavigationSplitView {
       List(selection: $selectedProject) {
         ForEach(projects) { project in
           NavigationLink(value: project) {
-            VStack(alignment: .leading) {
-              Text(project.title)
-                .font(.headline)
-              ProgressCircleView(project: project)
-                .frame(height: 80)
+            if viewMode == .detailed {
+              VStack(alignment: .leading) {
+                Text(project.title)
+                  .font(.headline)
+                ProgressCircleView(project: project)
+                  .frame(height: 80)
+              }
+              .padding(.vertical, 4)
+            } else {
+              HStack {
+                Text(project.title)
+                Spacer()
+                Text("\(Int(project.progressPercentage * 100))%")
+                  .foregroundColor(progressColor(for: project))
+              }
+              .padding(.vertical, 4)
             }
-            .padding(.vertical, 4)
           }
         }
         .onDelete(perform: deleteProjects)
@@ -45,6 +63,13 @@ struct ContentView: View {
           }
           .keyboardShortcut(.return, modifiers: .command)
           .disabled(selectedProject == nil)
+        }
+        ToolbarItem {
+          Picker("View", selection: $viewMode) {
+            Image(systemName: "rectangle.grid.1x2").tag(ViewMode.detailed)
+            Image(systemName: "list.bullet").tag(ViewMode.compact)
+          }
+          .pickerStyle(.segmented)
         }
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
@@ -146,6 +171,12 @@ struct ContentView: View {
     if selectedProject === project {
       selectedProject = nil
     }
+  }
+
+  private func progressColor(for project: WritingProject) -> Color {
+    let clamped = max(0, min(1, project.progressPercentage))
+    let hue = clamped * 0.33
+    return Color(hue: hue, saturation: 1, brightness: 1)
   }
 
 #if os(macOS)
