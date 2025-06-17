@@ -3,9 +3,8 @@ import SwiftUI
 struct ProgressCircleView: View {
     var project: WritingProject
 
-    /// Отображаемое значение прогресса, анимированное при появлении и изменении
+    /// Отображаемое значение прогресса, анимированное только при изменении
     @State private var displayedProgress: Double = 0
-    @State private var hasAppeared = false
 
     /// Цвет прогресса от красного к зеленому в зависимости от процента выполнения
     private var progressColor: Color {
@@ -36,15 +35,7 @@ struct ProgressCircleView: View {
                 .bold()
         }
         .onAppear {
-            if !hasAppeared {
-                hasAppeared = true
-                displayedProgress = 0
-                withAnimation(.easeOut(duration: animationDuration)) {
-                    displayedProgress = project.progressPercentage
-                }
-            } else {
-                displayedProgress = project.progressPercentage
-            }
+            displayedProgress = project.progressPercentage
         }
         .onChange(of: project.progressPercentage) { newValue in
             withAnimation(.easeOut(duration: animationDuration)) {
