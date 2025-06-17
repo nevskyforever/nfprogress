@@ -7,6 +7,7 @@ struct ProjectDetailView: View {
     @State private var showingAddEntry = false
     @State private var addEntryStage: Stage?
     @State private var editingEntry: Entry?
+    @State private var editingStage: Stage?
     @State private var showingAddStage = false
     @State private var expandedStages: Set<Stage.ID> = []
     @State private var stageToDelete: Stage?
@@ -34,6 +35,12 @@ struct ProjectDetailView: View {
         let ratio = max(0, min(1, Double(daysLeft) / maxDays))
         // Hue from red (0) to green (0.33)
         let hue = ratio * 0.33
+        return Color(hue: hue, saturation: 1, brightness: 1)
+    }
+
+    private func progressColor(_ percent: Double) -> Color {
+        let clamped = max(0, min(1, percent))
+        let hue = clamped * 0.33
         return Color(hue: hue, saturation: 1, brightness: 1)
     }
 
@@ -173,6 +180,7 @@ struct ProjectDetailView: View {
                                 VStack(alignment: .leading) {
                                     Text("Символов: \(entry.characterCount - stage.startProgress)")
                                     Text(String(format: "Прогресс этапа: %.0f%%", percent))
+                                        .foregroundColor(progressColor(percent / 100))
                                     Text(entry.date.formatted(date: .numeric, time: .shortened))
                                         .font(.caption)
                                         .foregroundColor(.gray)
@@ -198,6 +206,12 @@ struct ProjectDetailView: View {
                             }
                             Spacer()
                             Text(String(format: "%.0f%%", stage.progressPercentage * 100))
+                                .foregroundColor(progressColor(stage.progressPercentage))
+                            Button {
+                                editingStage = stage
+                            } label: {
+                                Image(systemName: "pencil")
+                            }
                             Button {
                                 stageToDelete = stage
                             } label: {
@@ -277,6 +291,9 @@ struct ProjectDetailView: View {
         }
         .sheet(item: $editingEntry) { entry in
             EditEntryView(entry: entry)
+        }
+        .sheet(item: $editingStage) { stage in
+            EditStageView(stage: stage)
         }
         .alert(item: $stageToDelete) { stage in
             Alert(

@@ -23,8 +23,12 @@ struct ContentView: View {
             VStack(alignment: .leading) {
               Text(project.title)
                 .font(.headline)
-              ProgressCircleView(project: project)
-                .frame(height: 80)
+              HStack {
+                Spacer()
+                ProgressCircleView(project: project)
+                  .frame(height: 80)
+                Spacer()
+              }
             }
             .padding(.vertical, 4)
           }
