@@ -47,20 +47,26 @@ struct ContentView: View {
           .disabled(selectedProject == nil)
         }
         #if os(macOS)
-          ToolbarItem(placement: .navigation) {
-            AdaptiveImportExportButtons(
-              hasSelection: selectedProject != nil,
-              exportAction: exportSelectedProject,
-              importAction: importSelectedProject
-            )
+          ToolbarItemGroup(placement: .navigation) {
+            if selectedProject != nil {
+              Button("Экспортировать") {
+                exportSelectedProject()
+              }
+            }
+            Button("Импортировать") {
+              importSelectedProject()
+            }
           }
         #else
-          ToolbarItem(placement: .navigationBarLeading) {
-            AdaptiveImportExportButtons(
-              hasSelection: selectedProject != nil,
-              exportAction: exportSelectedProject,
-              importAction: importSelectedProject
-            )
+          ToolbarItemGroup(placement: .navigationBarLeading) {
+            if selectedProject != nil {
+              Button("Экспортировать") {
+                exportSelectedProject()
+              }
+            }
+            Button("Импортировать") {
+              importSelectedProject()
+            }
           }
         #endif
       }
