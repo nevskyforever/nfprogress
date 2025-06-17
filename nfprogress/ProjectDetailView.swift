@@ -5,7 +5,10 @@ struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var project: WritingProject
     @State private var showingAddEntry = false
+    @State private var addEntryStage: Stage?
     @State private var editingEntry: Entry?
+    @State private var showingAddStage = false
+    @State private var expandedStages: Set<Stage.ID> = []
     @State private var tempDeadline: Date = Date()
     // Editing state for individual fields
     @State private var isEditingTitle = false
@@ -33,8 +36,13 @@ struct ProjectDetailView: View {
         return Color(hue: hue, saturation: 1, brightness: 1)
     }
 
-    private func addEntry() {
+    private func addEntry(stage: Stage? = nil) {
+        addEntryStage = stage
         showingAddEntry = true
+    }
+
+    private func addStage() {
+        showingAddStage = true
     }
 
     var body: some View {
@@ -139,6 +147,54 @@ struct ProjectDetailView: View {
                     }
                     .keyboardShortcut("n", modifiers: .command)
                     Spacer()
+                    Button("Добавить этап") { addStage() }
+                }
+
+                ForEach(project.stages) { stage in
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { expandedStages.contains(stage.id) },
+                            set: { newValue in
+                                if newValue { expandedStages.insert(stage.id) } else { expandedStages.remove(stage.id) }
+                            }
+                        )
+                    ) {
+                        HStack {
+                            Button("Добавить запись") { addEntry(stage: stage) }
+                            Spacer()
+                        }
+                        ForEach(stage.sortedEntries) { entry in
+                            let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
+                            let prev = index > 0 ? stage.sortedEntries[index - 1].characterCount : stage.startProgress
+                            let delta = entry.characterCount - prev
+                            let percent = Double(entry.characterCount - stage.startProgress) / Double(max(stage.goal,1)) * 100
+                            HStack {
+                                VStack(alignment: .leading) {
+                                    Text("Символов: \(entry.characterCount - stage.startProgress)")
+                                    Text(String(format: "Прогресс этапа: %.0f%%", percent))
+                                    Text(entry.date.formatted(date: .numeric, time: .shortened))
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
+                                Spacer()
+                                Button { editingEntry = entry } label: { Image(systemName: "pencil") }
+                                Button(role: .destructive) {
+                                    if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
+                                        stage.entries.remove(at: i)
+                                    }
+                                    modelContext.delete(entry)
+                                    saveContext()
+                                } label: { Image(systemName: "trash") }
+                            }
+                        }
+                    } label: {
+                        HStack {
+                            Text(stage.title)
+                            Spacer()
+                            Text(String(format: "%.0f%%", stage.progressPercentage * 100))
+                        }
+                        .font(.headline)
+                    }
                 }
 
                 // История записей
@@ -146,7 +202,7 @@ struct ProjectDetailView: View {
                     .font(.title3.bold())
                 ProgressChartView(project: project)
 
-                ForEach(project.sortedEntries) { entry in
+                ForEach(project.entries) { entry in
                     let index = project.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
                     let prevCount = index > 0 ? project.sortedEntries[index - 1].characterCount : 0
                     let delta = entry.characterCount - prevCount
@@ -193,7 +249,10 @@ struct ProjectDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddEntry) {
-            AddEntryView(project: project)
+            AddEntryView(project: project, stage: addEntryStage)
+        }
+        .sheet(isPresented: $showingAddStage) {
+            AddStageView(project: project)
         }
         .sheet(item: $editingEntry) { entry in
             EditEntryView(entry: entry)
