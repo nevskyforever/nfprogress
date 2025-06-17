@@ -60,19 +60,40 @@ class WritingProject {
 
     var streak: Int {
         let calendar = Calendar.current
-        let uniqueDays = Array(Set(
-            sortedEntries.map { calendar.startOfDay(for: $0.date) }
-        )).sorted()
+        let entriesByDay = Dictionary(grouping: sortedEntries) { calendar.startOfDay(for: $0.date) }
+        let days = entriesByDay.keys.sorted()
 
-        guard let last = uniqueDays.last else { return 0 }
+        guard !days.isEmpty else { return 0 }
 
-        var streakCount = 1
-        var current = last
-
-        while uniqueDays.contains(calendar.date(byAdding: .day, value: -streakCount, to: current)!) {
-            streakCount += 1
+        func progress(atEndOf day: Date) -> Int {
+            entriesByDay[day]!.max(by: { $0.date < $1.date })!.characterCount
         }
 
+        // If нет дедлайна, считаем подряд дни с любыми записями
+        guard let deadline else {
+            var streakCount = 1
+            var current = days.last!
+            while days.contains(calendar.date(byAdding: .day, value: -streakCount, to: current)!) {
+                streakCount += 1
+            }
+            return streakCount
+        }
+
+        var streakCount = 0
+        for index in stride(from: days.count - 1, through: 0, by: -1) {
+            let day = days[index]
+            let endProgress = progress(atEndOf: day)
+            let startProgress = index > 0 ? progress(atEndOf: days[index - 1]) : 0
+            let delta = endProgress - startProgress
+            let daysLeft = calendar.dateComponents([.day], from: day, to: deadline).day ?? 0
+            guard daysLeft > 0 else { break }
+            let target = max(0, (goal - startProgress) / daysLeft)
+            if delta >= target {
+                streakCount += 1
+            } else {
+                break
+            }
+        }
         return streakCount
     }
 
