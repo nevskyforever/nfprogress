@@ -61,37 +61,57 @@ class WritingProject {
     var streak: Int {
         let calendar = Calendar.current
         let entriesByDay = Dictionary(grouping: sortedEntries) { calendar.startOfDay(for: $0.date) }
-        let days = entriesByDay.keys.sorted()
+        let entryDays = entriesByDay.keys.sorted()
 
-        guard !days.isEmpty else { return 0 }
+        guard !entryDays.isEmpty else { return 0 }
 
         func progress(atEndOf day: Date) -> Int {
-            entriesByDay[day]!.max(by: { $0.date < $1.date })!.characterCount
+            guard let entries = entriesByDay[day] else { return 0 }
+            return entries.max(by: { $0.date < $1.date })!.characterCount
         }
 
-        // If нет дедлайна, считаем подряд дни с любыми записями
-        guard let deadline else {
-            var streakCount = 1
-            var current = days.last!
-            while days.contains(calendar.date(byAdding: .day, value: -streakCount, to: current)!) {
-                streakCount += 1
+        // Build list of all days between first and last entry
+        var allDays: [Date] = []
+        var day = calendar.startOfDay(for: entryDays.first!)
+        let lastDay = calendar.startOfDay(for: entryDays.last!)
+        while day <= lastDay {
+            allDays.append(day)
+            day = calendar.date(byAdding: .day, value: 1, to: day)!
+        }
+
+        // Compute progress at end of each day, carrying forward progress when there are no entries
+        var progressByDay: [Date: Int] = [:]
+        var lastProgress = 0
+        for day in allDays {
+            if entryDays.contains(day) {
+                lastProgress = progress(atEndOf: day)
             }
-            return streakCount
+            progressByDay[day] = lastProgress
         }
 
+        // Calculate streak by checking consecutive calendar days from the last day backwards
         var streakCount = 0
-        for index in stride(from: days.count - 1, through: 0, by: -1) {
-            let day = days[index]
-            let endProgress = progress(atEndOf: day)
-            let startProgress = index > 0 ? progress(atEndOf: days[index - 1]) : 0
+        for index in stride(from: allDays.count - 1, through: 0, by: -1) {
+            let day = allDays[index]
+            let endProgress = progressByDay[day] ?? 0
+            let startProgress = index > 0 ? (progressByDay[allDays[index - 1]] ?? 0) : 0
             let delta = endProgress - startProgress
-            let daysLeft = calendar.dateComponents([.day], from: day, to: deadline).day ?? 0
-            guard daysLeft > 0 else { break }
-            let target = max(0, (goal - startProgress) / daysLeft)
-            if delta >= target {
-                streakCount += 1
+
+            if let deadline {
+                let daysLeft = calendar.dateComponents([.day], from: day, to: deadline).day ?? 0
+                guard daysLeft > 0 else { break }
+                let target = max(0, (goal - startProgress) / daysLeft)
+                if delta >= target {
+                    streakCount += 1
+                } else {
+                    break
+                }
             } else {
-                break
+                if delta > 0 {
+                    streakCount += 1
+                } else {
+                    break
+                }
             }
         }
         return streakCount
