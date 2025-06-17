@@ -58,25 +58,6 @@ class WritingProject {
         }
     }
 
-    /// Поддерживающее сообщение в зависимости от текущей серии и приближения дедлайна
-    var streakMessage: String? {
-        guard streak > 0 else { return nil }
-
-        if let deadline, daysLeft > 0, daysLeft <= 3 {
-            return "Дедлайн близко, не сбавляйте темп!"
-        }
-
-        switch streak {
-        case 1:
-            return "Отличный старт!"
-        case 2...3:
-            return "Вы набираете обороты!"
-        case 4...6:
-            return "Хороший ритм!"
-        default:
-            return "Невероятная серия!"
-        }
-    }
 
     var streak: Int {
        let calendar = Calendar.current
@@ -138,6 +119,46 @@ class WritingProject {
             }
         }
         return streakCount
+    }
+
+    /// True if there is already an entry for the current day
+    private var hasEntryToday: Bool {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        return sortedEntries.contains { calendar.isDate($0.date, inSameDayAs: today) }
+    }
+
+    /// Prompt encouraging to keep the streak if today's entry is missing
+    var streakPrompt: String? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let uniqueDays = Array(Set(
+            sortedEntries.map { calendar.startOfDay(for: $0.date) }
+        )).sorted()
+
+        if hasEntryToday {
+            return nil
+        }
+
+        guard let last = uniqueDays.last else {
+            return "Начнем путь к цели?"
+        }
+
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        if calendar.isDate(last, inSameDayAs: yesterday) {
+            return "Вы в ударе \(streak) дней подряд, продолжим?"
+        }
+
+        return "Начнем путь к цели?"
+    }
+
+    /// Text describing the current streak state
+    var streakStatus: String {
+        if streak == 0 {
+            return "Начнем путь к цели?"
+        } else {
+            return "🔥 В цели \(streak) дней подряд"
+        }
     }
 
     var progressLastWeek: Int {

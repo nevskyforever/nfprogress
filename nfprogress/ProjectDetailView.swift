@@ -119,10 +119,14 @@ struct ProjectDetailView: View {
                     }
                 }
 
-                if let message = project.streakMessage {
-                    Text(message)
+                if let prompt = project.streakPrompt {
+                    Text(prompt)
                         .font(.subheadline)
-                        .foregroundColor(.orange)
+                        .foregroundColor(.green)
+                } else {
+                    Text(project.streakStatus)
+                        .font(.subheadline)
+                        .foregroundColor(.green)
                 }
 
                 // Действия с проектом
