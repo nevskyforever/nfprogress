@@ -40,6 +40,7 @@ struct AddProjectView: View {
         let name = title.isEmpty ? "Новый текст" : title
         let newProject = WritingProject(title: name, goal: goal)
         modelContext.insert(newProject)
+        try? modelContext.save()
         dismiss()
     }
 }
