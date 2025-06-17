@@ -14,6 +14,15 @@ struct MenuBarEntryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.plain)
+            }
+
             if projects.isEmpty {
                 Text("Нет проектов")
             } else {
