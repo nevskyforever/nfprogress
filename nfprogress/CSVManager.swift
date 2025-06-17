@@ -66,26 +66,35 @@ struct CSVManager {
 
     // MARK: - Helpers
     private static func escape(_ string: String) -> String {
-        if string.contains(",") {
-            return "\"\(string)\""
-        } else {
-            return string
+        if string.contains(where: { $0 == "," || $0 == "\"" || $0 == "\n" }) {
+            let escaped = string.replacingOccurrences(of: "\"", with: "\"\"")
+            return "\"\(escaped)\""
         }
+        return string
     }
 
     private static func parseCSVLine(_ line: String) -> [String] {
         var result: [String] = []
         var current = ""
+        let chars = Array(line)
+        var index = 0
         var inQuotes = false
-        for char in line {
+        while index < chars.count {
+            let char = chars[index]
             if char == "\"" {
-                inQuotes.toggle()
+                if inQuotes && index + 1 < chars.count && chars[index + 1] == "\"" {
+                    current.append("\"")
+                    index += 1
+                } else {
+                    inQuotes.toggle()
+                }
             } else if char == "," && !inQuotes {
                 result.append(current)
                 current = ""
             } else {
                 current.append(char)
             }
+            index += 1
         }
         result.append(current)
         return result
