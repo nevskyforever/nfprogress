@@ -4,8 +4,7 @@ import SwiftData
 struct MenuBarEntryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @Query(filter: #Predicate<WritingProject> { !$0.isArchived })
-    private var projects: [WritingProject]
+    @Query private var projects: [WritingProject]
 
     @State private var selectedIndex: Int = 0
     @State private var characterCount: Int = 0

@@ -7,14 +7,12 @@ class WritingProject {
     var goal: Int
     var deadline: Date?
     var entries: [Entry]
-    var isArchived: Bool
 
     init(title: String, goal: Int, deadline: Date? = nil) {
         self.title = title
         self.goal = goal
         self.deadline = deadline
         self.entries = []
-        self.isArchived = false
     }
 
     var sortedEntries: [Entry] {
