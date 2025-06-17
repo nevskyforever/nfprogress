@@ -46,6 +46,9 @@ struct ArchivedProjectsView: View {
         }
         .padding()
         .frame(width: 320)
+        .onAppear {
+            print("Archived projects count: \(archived.count)")
+        }
     }
 }
 
