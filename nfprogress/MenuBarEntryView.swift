@@ -54,6 +54,7 @@ struct MenuBarEntryView: View {
         }
         .sheet(isPresented: $showingArchive) {
             ArchivedProjectsView()
+                .environment(\.modelContext, modelContext)
         }
     }
 
