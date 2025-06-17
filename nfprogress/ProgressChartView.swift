@@ -5,21 +5,21 @@ struct ProgressChartView: View {
     var project: WritingProject
 
     var body: some View {
-        if project.sortedEntries.count >= 2 {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("📈 График прогресса")
-                    .font(.headline)
+        VStack(alignment: .leading, spacing: 8) {
+            Text("📈 График прогресса")
+                .font(.headline)
 
-                Text("🔥 Стик: \(project.streak) дней подряд")
+            if let prompt = project.streakPrompt {
+                Text(prompt)
                     .font(.subheadline)
                     .foregroundColor(.green)
+            } else {
+                Text(project.streakStatus)
+                    .font(.subheadline)
+                    .foregroundColor(.green)
+            }
 
-                if let message = project.streakMessage {
-                    Text(message)
-                        .font(.footnote)
-                        .foregroundColor(.orange)
-                }
-
+            if project.sortedEntries.count >= 2 {
                 Chart {
                     // Целевая линия
                     RuleMark(y: .value("Цель", project.goal))
@@ -55,7 +55,7 @@ struct ProgressChartView: View {
                 }
                 .frame(height: 200)
             }
-            .padding(.top)
         }
+        .padding(.top)
     }
 }
