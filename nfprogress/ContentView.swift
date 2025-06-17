@@ -20,15 +20,13 @@ struct ContentView: View {
       List(selection: $selectedProject) {
         ForEach(projects) { project in
           NavigationLink(value: project) {
-            VStack {
+            VStack(alignment: .leading) {
               Text(project.title)
                 .font(.headline)
               ProgressCircleView(project: project)
                 .frame(height: 80)
-                .frame(maxWidth: .infinity)
             }
             .padding(.vertical, 4)
-            .frame(maxWidth: .infinity)
           }
         }
         .onDelete(perform: deleteProjects)

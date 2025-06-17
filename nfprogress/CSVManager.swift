@@ -3,39 +3,31 @@ import SwiftData
 
 struct CSVManager {
     static func csvString(for project: WritingProject) -> String {
-        var lines: [String] = ["Title,Goal,Deadline,Date,CharacterCount,ChangeSinceLast,ProgressPercent"]
+        var lines: [String] = ["Title,Goal,Deadline,Date,CharacterCount"]
         let dateFormatter = ISO8601DateFormatter()
         let deadlineString = project.deadline.map { dateFormatter.string(from: $0) } ?? ""
         if project.entries.isEmpty {
-            lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,")
+            lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,")
         } else {
-            var previous = 0
-            for entry in project.allEntries {
+            for entry in project.sortedEntries {
                 let dateStr = dateFormatter.string(from: entry.date)
-                let change = entry.characterCount - previous
-                previous = entry.characterCount
-                let percent = Int(Double(entry.characterCount) / Double(max(project.goal, 1)) * 100)
-                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(dateStr),\(entry.characterCount),\(change),\(percent)")
+                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(dateStr),\(entry.characterCount)")
             }
         }
         return lines.joined(separator: "\n")
     }
 
     static func csvString(for projects: [WritingProject]) -> String {
-        var lines: [String] = ["Title,Goal,Deadline,Date,CharacterCount,ChangeSinceLast,ProgressPercent"]
+        var lines: [String] = ["Title,Goal,Deadline,Date,CharacterCount"]
         let dateFormatter = ISO8601DateFormatter()
         for project in projects {
             let deadlineString = project.deadline.map { dateFormatter.string(from: $0) } ?? ""
             if project.entries.isEmpty {
-                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,")
+                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,")
             } else {
-                var previous = 0
-                for entry in project.allEntries {
+                for entry in project.sortedEntries {
                     let dateStr = dateFormatter.string(from: entry.date)
-                    let change = entry.characterCount - previous
-                    previous = entry.characterCount
-                    let percent = Int(Double(entry.characterCount) / Double(max(project.goal, 1)) * 100)
-                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(dateStr),\(entry.characterCount),\(change),\(percent)")
+                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(dateStr),\(entry.characterCount)")
                 }
             }
         }
@@ -74,39 +66,26 @@ struct CSVManager {
 
     // MARK: - Helpers
     private static func escape(_ string: String) -> String {
-        var escaped = string.replacingOccurrences(of: "\"", with: "\"\"")
-        if escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") {
-            escaped = "\"\(escaped)\""
+        if string.contains(",") {
+            return "\"\(string)\""
+        } else {
+            return string
         }
-        return escaped
     }
 
     private static func parseCSVLine(_ line: String) -> [String] {
         var result: [String] = []
         var current = ""
         var inQuotes = false
-        var index = line.startIndex
-        while index < line.endIndex {
-            let char = line[index]
+        for char in line {
             if char == "\"" {
-                if inQuotes {
-                    let nextIndex = line.index(after: index)
-                    if nextIndex < line.endIndex && line[nextIndex] == "\"" {
-                        current.append("\"")
-                        index = nextIndex
-                    } else {
-                        inQuotes = false
-                    }
-                } else {
-                    inQuotes = true
-                }
+                inQuotes.toggle()
             } else if char == "," && !inQuotes {
                 result.append(current)
                 current = ""
             } else {
                 current.append(char)
             }
-            index = line.index(after: index)
         }
         result.append(current)
         return result
