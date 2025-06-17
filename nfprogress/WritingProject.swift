@@ -193,6 +193,7 @@ class Entry: Identifiable {
     var id = UUID()
     var date: Date
     var characterCount: Int
+    @Relationship(inverse: \Stage.entries)
     var stage: Stage?
 
     init(date: Date, characterCount: Int, stage: Stage? = nil) {
