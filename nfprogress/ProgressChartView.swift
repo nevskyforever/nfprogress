@@ -9,14 +9,16 @@ struct ProgressChartView: View {
             Text("📈 График прогресса")
                 .font(.headline)
 
-            if let prompt = project.streakPrompt {
-                Text(prompt)
-                    .font(.subheadline)
-                    .foregroundColor(.green)
-            } else {
-                Text(project.streakStatus)
-                    .font(.subheadline)
-                    .foregroundColor(.green)
+            if project.streak > 0 {
+                if let prompt = project.streakPrompt {
+                    Text(prompt)
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                } else {
+                    Text(project.streakStatus)
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                }
             }
 
             if project.sortedEntries.count >= 2 {
