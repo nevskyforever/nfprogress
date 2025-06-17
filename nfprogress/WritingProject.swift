@@ -91,12 +91,12 @@ class WritingProject {
             sortedEntries.map { calendar.startOfDay(for: $0.date) }
         )).sorted()
 
-        guard let last = uniqueDays.last else {
-            return "Начнем путь к цели?"
-        }
-
         if hasEntryToday {
             return nil
+        }
+
+        guard let last = uniqueDays.last else {
+            return "Начнем путь к цели?"
         }
 
         let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
@@ -104,7 +104,7 @@ class WritingProject {
             return "Вы в ударе \(streak) дней подряд, продолжим?"
         }
 
-        return nil
+        return "Начнем путь к цели?"
     }
 
     var progressLastWeek: Int {
