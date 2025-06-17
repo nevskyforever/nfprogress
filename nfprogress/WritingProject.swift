@@ -140,6 +140,7 @@ class WritingProject {
 
     /// Prompt encouraging to keep the streak if today's entry is missing
     var streakPrompt: String? {
+        guard deadline != nil else { return nil }
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         let uniqueDays = Array(Set(
@@ -164,6 +165,7 @@ class WritingProject {
 
     /// Text describing the current streak state
     var streakStatus: String {
+        guard deadline != nil else { return "" }
         if streak == 0 {
             return "Начнем путь к цели?"
         } else {
