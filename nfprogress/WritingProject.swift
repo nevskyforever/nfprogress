@@ -7,16 +7,26 @@ class WritingProject {
     var goal: Int
     var deadline: Date?
     var entries: [Entry]
+    var stages: [Stage]
 
     init(title: String, goal: Int, deadline: Date? = nil) {
         self.title = title
         self.goal = goal
         self.deadline = deadline
         self.entries = []
+        self.stages = []
+    }
+
+    private var allEntries: [Entry] {
+        var result = entries
+        for stage in stages {
+            result.append(contentsOf: stage.entries)
+        }
+        return result
     }
 
     var sortedEntries: [Entry] {
-        entries.sorted { $0.date < $1.date }
+        allEntries.sorted { $0.date < $1.date }
     }
 
     var currentProgress: Int {
