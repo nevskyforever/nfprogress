@@ -123,6 +123,10 @@ struct ProjectDetailView: View {
                     Text(prompt)
                         .font(.subheadline)
                         .foregroundColor(.green)
+                } else if project.streak == 0 {
+                    Text("Начнем путь к цели?")
+                        .font(.subheadline)
+                        .foregroundColor(.green)
                 }
 
                 // Действия с проектом
