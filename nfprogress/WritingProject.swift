@@ -76,6 +76,37 @@ class WritingProject {
         return streakCount
     }
 
+    /// True if there is already an entry for the current day
+    private var hasEntryToday: Bool {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        return sortedEntries.contains { calendar.isDate($0.date, inSameDayAs: today) }
+    }
+
+    /// Prompt encouraging to keep the streak if today's entry is missing
+    var streakPrompt: String? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: .now)
+        let uniqueDays = Array(Set(
+            sortedEntries.map { calendar.startOfDay(for: $0.date) }
+        )).sorted()
+
+        guard let last = uniqueDays.last else {
+            return "Начнем путь к цели?"
+        }
+
+        if hasEntryToday {
+            return nil
+        }
+
+        let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
+        if calendar.isDate(last, inSameDayAs: yesterday) {
+            return "Вы в ударе \(streak) дней подряд, продолжим?"
+        }
+
+        return nil
+    }
+
     var progressLastWeek: Int {
         let calendar = Calendar.current
         guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: .now) else { return 0 }

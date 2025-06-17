@@ -10,9 +10,15 @@ struct ProgressChartView: View {
                 Text("📈 График прогресса")
                     .font(.headline)
 
-                Text("🔥 Стик: \(project.streak) дней подряд")
-                    .font(.subheadline)
-                    .foregroundColor(.green)
+                if let prompt = project.streakPrompt {
+                    Text(prompt)
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                } else {
+                    Text("🔥 Стик: \(project.streak) дней подряд")
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                }
 
                 Chart {
                     // Целевая линия
