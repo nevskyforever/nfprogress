@@ -51,25 +51,41 @@ struct ContentView: View {
       }
       .navigationTitle("Мои тексты")
       .toolbar {
-        ToolbarItem {
-          Button(action: addProject) {
-            Label("Добавить", systemImage: "plus")
+        #if os(macOS)
+          ToolbarItemGroup(placement: .automatic) {
+            Button(action: addProject) {
+              Label("Добавить", systemImage: "plus")
+            }
+            .keyboardShortcut("N", modifiers: [.command, .shift])
+
+            Picker("View", selection: $viewMode) {
+              Image(systemName: "rectangle.grid.1x2").tag(ViewMode.detailed)
+              Image(systemName: "list.bullet").tag(ViewMode.compact)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 100)
           }
-          .keyboardShortcut("N", modifiers: [.command, .shift])
-        }
+        #else
+          ToolbarItem {
+            Button(action: addProject) {
+              Label("Добавить", systemImage: "plus")
+            }
+            .keyboardShortcut("N", modifiers: [.command, .shift])
+          }
+          ToolbarItem {
+            Picker("View", selection: $viewMode) {
+              Image(systemName: "rectangle.grid.1x2").tag(ViewMode.detailed)
+              Image(systemName: "list.bullet").tag(ViewMode.compact)
+            }
+            .pickerStyle(.segmented)
+          }
+        #endif
         ToolbarItem {
           Button(action: deleteSelectedProject) {
             Label("Удалить", systemImage: "minus")
           }
           .keyboardShortcut(.return, modifiers: .command)
           .disabled(selectedProject == nil)
-        }
-        ToolbarItem {
-          Picker("View", selection: $viewMode) {
-            Image(systemName: "rectangle.grid.1x2").tag(ViewMode.detailed)
-            Image(systemName: "list.bullet").tag(ViewMode.compact)
-          }
-          .pickerStyle(.segmented)
         }
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
