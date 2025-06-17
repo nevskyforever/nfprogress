@@ -148,71 +148,13 @@ struct ProjectDetailView: View {
                         .foregroundColor(.green)
                 }
 
-                // Действия с проектом
-                HStack {
-                    Button("Добавить этап") { addStage() }
-                    Spacer()
-                }
-
-
-                // История записей
-                Text("История записей")
+                // Этапы
+                Text("Этапы")
                     .font(.title3.bold())
-                ProgressChartView(project: project)
-
-                ForEach(project.sortedEntries) { entry in
-                    let index = project.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-                    let prevCount = index > 0 ? project.sortedEntries[index - 1].characterCount : 0
-                    let delta = entry.characterCount - prevCount
-                    let deltaPercent = Double(delta) / Double(max(project.goal, 1)) * 100
-                    let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
-                    let progressPercent = Double(entry.characterCount) / Double(max(project.goal, 1)) * 100
-                    let stageName = stageForEntry(entry)?.title
-
-                    HStack {
-                        VStack(alignment: .leading) {
-                            if let stageName {
-                                Text("Этап: \(stageName)")
-                                    .font(.caption)
-                            }
-                            Text("Символов: \(entry.characterCount)")
-                            Text("Изменение: \(deltaText)")
-                                .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
-                            Text(String(format: "Прогресс: %.0f%%", progressPercent))
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            Text(entry.date.formatted(date: .numeric, time: .shortened))
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        Spacer()
-                        Button { editingEntry = entry } label: {
-                            Image(systemName: "pencil")
-                        }
-                        Button(role: .destructive) {
-                            if let stage = stageForEntry(entry) {
-                                if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
-                                    stage.entries.remove(at: i)
-                                }
-                            } else if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
-                                project.entries.remove(at: i)
-                            }
-                            modelContext.delete(entry)
-                            saveContext()
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                    }
+                Button("Добавить этап") {
+                    addStage()
                 }
-                Button("Добавить запись") {
-                    addEntry()
-                }
-                .keyboardShortcut("n", modifiers: .command)
-
                 if !project.stages.isEmpty {
-                    Text("Этапы")
-                        .font(.title3.bold())
-
                     ForEach(project.stages) { stage in
                         DisclosureGroup(
                             isExpanded: Binding(
@@ -275,6 +217,60 @@ struct ProjectDetailView: View {
                                 .buttonStyle(.borderless)
                             }
                             .font(.headline)
+                        }
+                    }
+                }
+
+                // История записей
+                Text("История записей")
+                    .font(.title3.bold())
+                Button("Добавить запись") {
+                    addEntry()
+                }
+                .keyboardShortcut("n", modifiers: .command)
+                ProgressChartView(project: project)
+
+                ForEach(project.sortedEntries) { entry in
+                    let index = project.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
+                    let prevCount = index > 0 ? project.sortedEntries[index - 1].characterCount : 0
+                    let delta = entry.characterCount - prevCount
+                    let deltaPercent = Double(delta) / Double(max(project.goal, 1)) * 100
+                    let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
+                    let progressPercent = Double(entry.characterCount) / Double(max(project.goal, 1)) * 100
+                    let stageName = stageForEntry(entry)?.title
+
+                    HStack {
+                        VStack(alignment: .leading) {
+                            if let stageName {
+                                Text("Этап: \(stageName)")
+                                    .font(.caption)
+                            }
+                            Text("Символов: \(entry.characterCount)")
+                            Text("Изменение: \(deltaText)")
+                                .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
+                            Text(String(format: "Прогресс: %.0f%%", progressPercent))
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                            Text(entry.date.formatted(date: .numeric, time: .shortened))
+                                .font(.caption)
+                                .foregroundColor(.gray)
+                        }
+                        Spacer()
+                        Button { editingEntry = entry } label: {
+                            Image(systemName: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            if let stage = stageForEntry(entry) {
+                                if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
+                                    stage.entries.remove(at: i)
+                                }
+                            } else if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
+                                project.entries.remove(at: i)
+                            }
+                            modelContext.delete(entry)
+                            saveContext()
+                        } label: {
+                            Image(systemName: "trash")
                         }
                     }
                 }
