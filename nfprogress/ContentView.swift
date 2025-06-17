@@ -7,15 +7,11 @@ import AppKit
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
-  @Query(filter: #Predicate<WritingProject> { !$0.isArchived })
-  private var projects: [WritingProject]
+  @Query private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   @State private var isExporting = false
   @State private var isImporting = false
   @State private var showingAddProject = false
-  @State private var projectToArchive: WritingProject?
-  @State private var showArchiveAlert = false
-  @State private var showArchivedList = false
 
   var body: some View {
     NavigationSplitView {
@@ -30,13 +26,6 @@ struct ContentView: View {
             }
             .padding(.vertical, 4)
           }
-          .swipeActions(edge: .trailing) {
-            Button(role: .destructive) {
-              confirmArchiveProject(project)
-            } label: {
-              Label("Архивировать", systemImage: "archivebox.fill")
-            }
-          }
         }
       }
       .navigationTitle("Мои тексты")
@@ -47,20 +36,7 @@ struct ContentView: View {
           }
           .keyboardShortcut("N", modifiers: [.command, .shift])
         }
-        ToolbarItem {
-          Button(action: deleteSelectedProject) {
-            Label("Архивировать", systemImage: "archivebox.fill")
-          }
-          .keyboardShortcut(.return, modifiers: .command)
-          .disabled(selectedProject == nil)
-        }
-        ToolbarItem {
-          Button {
-            showArchivedList = true
-          } label: {
-            Label("Архив", systemImage: "archivebox")
-          }
-        }
+        
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
             Button("Экспортировать") {
@@ -122,50 +98,14 @@ struct ContentView: View {
     .sheet(isPresented: $showingAddProject) {
       AddProjectView()
     }
-    .sheet(isPresented: $showArchivedList) {
-      ArchivedProjectsView()
-    }
-    .alert(isPresented: $showArchiveAlert) {
-      Alert(
-        title: Text("Архивировать проект \"\(projectToArchive?.title ?? "")\"?"),
-        message: Text("Проект можно будет восстановить в любое время."),
-        primaryButton: .destructive(Text("Архивировать")) {
-          if let project = projectToArchive {
-            archiveProject(project)
-          }
-        },
-        secondaryButton: .cancel()
-      )
-    }
+    
   }
 
   private func addProject() {
     showingAddProject = true
   }
 
-  private func deleteSelectedProject() {
-    guard let project = selectedProject else { return }
-    confirmArchiveProject(project)
-  }
 
-  private func archiveProjects(at offsets: IndexSet) {
-    if let index = offsets.first {
-      confirmArchiveProject(projects[index])
-    }
-  }
-
-  private func confirmArchiveProject(_ project: WritingProject) {
-    projectToArchive = project
-    showArchiveAlert = true
-  }
-
-  private func archiveProject(_ project: WritingProject) {
-    project.isArchived = true
-    try? modelContext.save()
-    if selectedProject === project {
-      selectedProject = nil
-    }
-  }
 
 #if os(macOS)
   // MARK: - macOS File Operations
