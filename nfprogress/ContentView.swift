@@ -25,7 +25,6 @@ struct ContentView: View {
                 .font(.headline)
               ProgressCircleView(project: project)
                 .frame(height: 80)
-                .frame(maxWidth: .infinity, alignment: .center)
             }
             .padding(.vertical, 4)
           }
