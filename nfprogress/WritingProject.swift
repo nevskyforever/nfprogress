@@ -2,7 +2,8 @@ import Foundation
 import SwiftData
 
 @Model
-class WritingProject {
+class WritingProject: Identifiable {
+    var id = UUID()
     var title: String
     var goal: Int
     var deadline: Date?
