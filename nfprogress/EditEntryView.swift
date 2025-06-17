@@ -7,6 +7,15 @@ struct EditEntryView: View {
 
     var body: some View {
         VStack(spacing: 16) {
+            HStack {
+                Spacer()
+                Button(action: { dismiss() }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.red)
+                }
+                .buttonStyle(.plain)
+            }
+
             Text("Редактировать запись")
                 .font(.title2.bold())
 
