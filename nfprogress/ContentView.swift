@@ -7,13 +7,15 @@ import AppKit
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
-  @Query private var projects: [WritingProject]
+  @Query(filter: #Predicate<WritingProject> { !$0.isArchived })
+  private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   @State private var isExporting = false
   @State private var isImporting = false
   @State private var showingAddProject = false
-  @State private var projectToDelete: WritingProject?
-  @State private var showDeleteAlert = false
+  @State private var projectToArchive: WritingProject?
+  @State private var showArchiveAlert = false
+  @State private var showArchivedList = false
 
   var body: some View {
     NavigationSplitView {
@@ -28,8 +30,14 @@ struct ContentView: View {
             }
             .padding(.vertical, 4)
           }
+          .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+              confirmArchiveProject(project)
+            } label: {
+              Label("Архивировать", systemImage: "archivebox.fill")
+            }
+          }
         }
-        .onDelete(perform: deleteProjects)
       }
       .navigationTitle("Мои тексты")
       .toolbar {
@@ -41,10 +49,17 @@ struct ContentView: View {
         }
         ToolbarItem {
           Button(action: deleteSelectedProject) {
-            Label("Удалить", systemImage: "minus")
+            Label("Архивировать", systemImage: "archivebox.fill")
           }
           .keyboardShortcut(.return, modifiers: .command)
           .disabled(selectedProject == nil)
+        }
+        ToolbarItem {
+          Button {
+            showArchivedList = true
+          } label: {
+            Label("Архив", systemImage: "archivebox")
+          }
         }
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
@@ -107,13 +122,16 @@ struct ContentView: View {
     .sheet(isPresented: $showingAddProject) {
       AddProjectView()
     }
-    .alert(isPresented: $showDeleteAlert) {
+    .sheet(isPresented: $showArchivedList) {
+      ArchivedProjectsView()
+    }
+    .alert(isPresented: $showArchiveAlert) {
       Alert(
-        title: Text("Удалить проект \"\(projectToDelete?.title ?? "")\"?"),
-        message: Text("Это действие нельзя отменить."),
-        primaryButton: .destructive(Text("Удалить")) {
-          if let project = projectToDelete {
-            deleteProject(project)
+        title: Text("Архивировать проект \"\(projectToArchive?.title ?? "")\"?"),
+        message: Text("Проект можно будет восстановить в любое время."),
+        primaryButton: .destructive(Text("Архивировать")) {
+          if let project = projectToArchive {
+            archiveProject(project)
           }
         },
         secondaryButton: .cancel()
@@ -127,22 +145,23 @@ struct ContentView: View {
 
   private func deleteSelectedProject() {
     guard let project = selectedProject else { return }
-    confirmDeleteProject(project)
+    confirmArchiveProject(project)
   }
 
-  private func deleteProjects(at offsets: IndexSet) {
+  private func archiveProjects(at offsets: IndexSet) {
     if let index = offsets.first {
-      confirmDeleteProject(projects[index])
+      confirmArchiveProject(projects[index])
     }
   }
 
-  private func confirmDeleteProject(_ project: WritingProject) {
-    projectToDelete = project
-    showDeleteAlert = true
+  private func confirmArchiveProject(_ project: WritingProject) {
+    projectToArchive = project
+    showArchiveAlert = true
   }
 
-  private func deleteProject(_ project: WritingProject) {
-    modelContext.delete(project)
+  private func archiveProject(_ project: WritingProject) {
+    project.isArchived = true
+    try? modelContext.save()
     if selectedProject === project {
       selectedProject = nil
     }
