@@ -79,11 +79,14 @@ class WritingProject {
     }
 
     var streak: Int {
-        let calendar = Calendar.current
-        let entriesByDay = Dictionary(grouping: sortedEntries) { calendar.startOfDay(for: $0.date) }
-        let entryDays = entriesByDay.keys.sorted()
+       let calendar = Calendar.current
+       let entriesByDay = Dictionary(grouping: sortedEntries) { calendar.startOfDay(for: $0.date) }
+       let entryDays = entriesByDay.keys.sorted()
 
         guard !entryDays.isEmpty else { return 0 }
+        // Streak counts only when there is an entry for today
+        let today = calendar.startOfDay(for: Date())
+        guard entryDays.contains(today) else { return 0 }
 
         func progress(atEndOf day: Date) -> Int {
             guard let entries = entriesByDay[day] else { return 0 }
