@@ -81,6 +81,9 @@ struct ContentView: View {
     .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
     }
+    .navigationDestination(for: Stage.self) { stage in
+      StageDetailView(stage: stage)
+    }
     .fileExporter(
       isPresented: $isExporting,
       document: exportDocument,

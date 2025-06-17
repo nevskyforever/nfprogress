@@ -5,7 +5,7 @@ struct ProgressChartView: View {
     var project: WritingProject
 
     var body: some View {
-        if project.sortedEntries.count >= 2 {
+        if project.allEntries.count >= 2 {
             VStack(alignment: .leading, spacing: 8) {
                 Text("📈 График прогресса")
                     .font(.headline)
@@ -26,7 +26,7 @@ struct ProgressChartView: View {
                         }
 
                     // Линия прогресса
-                    ForEach(project.sortedEntries) { entry in
+                    ForEach(project.allEntries) { entry in
                         LineMark(
                             x: .value("Дата", entry.date),
                             y: .value("Символы", entry.characterCount)
