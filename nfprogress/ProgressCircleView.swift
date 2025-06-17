@@ -25,7 +25,7 @@ struct ProgressCircleView: View {
 
             // Процент в центре
             Text("\(Int(project.progressPercentage * 100))%")
-                .font(.system(size: 36))
+                .font(.system(size: 20))
                 .bold()
         }
     }
