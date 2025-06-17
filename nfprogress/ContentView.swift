@@ -30,8 +30,14 @@ struct ContentView: View {
             }
             .padding(.vertical, 4)
           }
+          .swipeActions(edge: .trailing) {
+            Button(role: .destructive) {
+              confirmArchiveProject(project)
+            } label: {
+              Label("Архивировать", systemImage: "archivebox.fill")
+            }
+          }
         }
-        .onDelete(perform: archiveProjects)
       }
       .navigationTitle("Мои тексты")
       .toolbar {
