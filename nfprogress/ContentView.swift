@@ -12,6 +12,8 @@ struct ContentView: View {
   @State private var isExporting = false
   @State private var isImporting = false
   @State private var showingAddProject = false
+  @State private var projectToDelete: WritingProject?
+  @State private var showDeleteAlert = false
 
   var body: some View {
     NavigationSplitView {
@@ -27,6 +29,7 @@ struct ContentView: View {
             .padding(.vertical, 4)
           }
         }
+        .onDelete(perform: deleteProjects)
       }
       .navigationTitle("Мои тексты")
       .toolbar {
@@ -36,7 +39,13 @@ struct ContentView: View {
           }
           .keyboardShortcut("N", modifiers: [.command, .shift])
         }
-        
+        ToolbarItem {
+          Button(action: deleteSelectedProject) {
+            Label("Удалить", systemImage: "minus")
+          }
+          .keyboardShortcut(.return, modifiers: .command)
+          .disabled(selectedProject == nil)
+        }
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
             Button("Экспортировать") {
@@ -98,14 +107,46 @@ struct ContentView: View {
     .sheet(isPresented: $showingAddProject) {
       AddProjectView()
     }
-    
+    .alert(isPresented: $showDeleteAlert) {
+      Alert(
+        title: Text("Удалить проект \"\(projectToDelete?.title ?? "")\"?"),
+        message: Text("Это действие нельзя отменить."),
+        primaryButton: .destructive(Text("Удалить")) {
+          if let project = projectToDelete {
+            deleteProject(project)
+          }
+        },
+        secondaryButton: .cancel()
+      )
+    }
   }
 
   private func addProject() {
     showingAddProject = true
   }
 
+  private func deleteSelectedProject() {
+    guard let project = selectedProject else { return }
+    confirmDeleteProject(project)
+  }
 
+  private func deleteProjects(at offsets: IndexSet) {
+    if let index = offsets.first {
+      confirmDeleteProject(projects[index])
+    }
+  }
+
+  private func confirmDeleteProject(_ project: WritingProject) {
+    projectToDelete = project
+    showDeleteAlert = true
+  }
+
+  private func deleteProject(_ project: WritingProject) {
+    modelContext.delete(project)
+    if selectedProject === project {
+      selectedProject = nil
+    }
+  }
 
 #if os(macOS)
   // MARK: - macOS File Operations
