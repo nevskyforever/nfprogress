@@ -7,30 +7,43 @@ class WritingProject {
     var goal: Int
     var deadline: Date?
     var entries: [Entry]
+    var stages: [Stage]
+    var areStagesExpanded: Bool
 
     init(title: String, goal: Int, deadline: Date? = nil) {
         self.title = title
         self.goal = goal
         self.deadline = deadline
         self.entries = []
+        self.stages = []
+        self.areStagesExpanded = true
     }
 
     var sortedEntries: [Entry] {
         entries.sorted { $0.date < $1.date }
     }
 
+    var allEntries: [Entry] {
+        let stageEntries = stages.flatMap { $0.entries }
+        return (entries + stageEntries).sorted { $0.date < $1.date }
+    }
+
     var currentProgress: Int {
-        sortedEntries.last?.characterCount ?? 0
+        allEntries.last?.characterCount ?? 0
     }
 
     var previousProgress: Int {
-        guard sortedEntries.count >= 2 else { return 0 }
-        return sortedEntries[sortedEntries.count - 2].characterCount
+        guard allEntries.count >= 2 else { return 0 }
+        return allEntries[allEntries.count - 2].characterCount
+    }
+
+    var totalSymbolCount: Int {
+        (entries + stages.flatMap { $0.entries }).reduce(0) { $0 + $1.characterCount }
     }
 
     var progressPercentage: Double {
         guard goal > 0 else { return 0 }
-        return Double(currentProgress) / Double(goal)
+        return Double(totalSymbolCount) / Double(goal)
     }
 
     var changeSinceLast: Int {
@@ -45,7 +58,7 @@ class WritingProject {
 
     var dailyTarget: Int? {
         guard daysLeft > 0 else { return nil }
-        return max(0, (goal - currentProgress) / daysLeft)
+        return max(0, (goal - totalSymbolCount) / daysLeft)
     }
 
     var motivationalMessage: String? {
@@ -61,7 +74,7 @@ class WritingProject {
     var streak: Int {
         let calendar = Calendar.current
         let uniqueDays = Array(Set(
-            sortedEntries.map { calendar.startOfDay(for: $0.date) }
+            allEntries.map { calendar.startOfDay(for: $0.date) }
         )).sorted()
 
         guard let last = uniqueDays.last else { return 0 }
@@ -79,7 +92,7 @@ class WritingProject {
     var progressLastWeek: Int {
         let calendar = Calendar.current
         guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: .now) else { return 0 }
-        let entriesLastWeek = sortedEntries.filter { $0.date >= weekAgo }
+        let entriesLastWeek = allEntries.filter { $0.date >= weekAgo }
         guard let first = entriesLastWeek.first, let last = entriesLastWeek.last else { return 0 }
         return last.characterCount - first.characterCount
     }
