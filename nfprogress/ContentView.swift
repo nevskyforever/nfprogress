@@ -52,7 +52,8 @@ struct ContentView: View {
       .navigationTitle("Мои тексты")
       .toolbar {
         #if os(macOS)
-          ToolbarItemGroup(placement: .automatic) {
+          // Place project controls and view selector on the leading side
+          ToolbarItemGroup(placement: .navigation) {
             Button(action: addProject) {
               Label("Добавить", systemImage: "plus")
             }
@@ -72,7 +73,8 @@ struct ContentView: View {
             .frame(width: 100)
           }
         #else
-          ToolbarItemGroup(placement: .navigationBarTrailing) {
+          // iOS: keep controls on the leading side as well
+          ToolbarItemGroup(placement: .navigationBarLeading) {
             Button(action: addProject) {
               Label("Добавить", systemImage: "plus")
             }
@@ -92,7 +94,8 @@ struct ContentView: View {
           }
         #endif
         #if os(macOS)
-          ToolbarItemGroup(placement: .navigation) {
+          // Export/Import actions move to the trailing side
+          ToolbarItemGroup(placement: .automatic) {
             if selectedProject != nil {
               Button("Экспортировать") {
                 exportSelectedProject()
@@ -103,7 +106,7 @@ struct ContentView: View {
             }
           }
         #else
-          ToolbarItemGroup(placement: .navigationBarLeading) {
+          ToolbarItemGroup(placement: .navigationBarTrailing) {
             if selectedProject != nil {
               Button("Экспортировать") {
                 exportSelectedProject()
