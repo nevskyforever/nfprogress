@@ -36,5 +36,8 @@ struct EditEntryView: View {
         }
         .padding()
         .frame(width: 320)
+        .onDisappear {
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        }
     }
 }

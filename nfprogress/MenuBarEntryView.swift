@@ -83,6 +83,7 @@ struct MenuBarEntryView: View {
         }
         try? modelContext.save()
         didSave = true
+        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         resetFields()
         return true
     }
