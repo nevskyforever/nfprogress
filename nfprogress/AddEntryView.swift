@@ -4,13 +4,14 @@ import SwiftData
 struct AddEntryView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var project: WritingProject
+    var stage: Stage?
 
     @State private var date = Date()
     @State private var characterCount = 0
 
     var body: some View {
         VStack(spacing: 16) {
-            Text("Новая запись")
+            Text("Новая запись" + (stage != nil ? " в \(stage!.title)" : ""))
                 .font(.title2.bold())
 
             DatePicker("Дата и время", selection: $date)
@@ -37,7 +38,11 @@ struct AddEntryView: View {
 
     private func addEntry() {
         let newEntry = Entry(date: date, characterCount: characterCount)
-        project.entries.append(newEntry)
+        if let stage {
+            stage.entries.append(newEntry)
+        } else {
+            project.entries.append(newEntry)
+        }
         dismiss()
     }
 }
