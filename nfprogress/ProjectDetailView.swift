@@ -43,6 +43,7 @@ struct ProjectDetailView: View {
                 // Название и цель проекта
                 HStack {
                     Text("Название:")
+                        .font(.title3.bold())
                     if isEditingTitle {
                         TextField("", text: $project.title)
                             .textFieldStyle(.roundedBorder)
@@ -60,6 +61,7 @@ struct ProjectDetailView: View {
                 }
                 HStack {
                     Text("Цель:")
+                        .font(.title3.bold())
                     if isEditingGoal {
                         TextField("", value: $project.goal, formatter: NumberFormatter())
                             .textFieldStyle(.roundedBorder)
@@ -79,6 +81,7 @@ struct ProjectDetailView: View {
                 // Дедлайн
                 HStack {
                     Text("Дедлайн:")
+                        .font(.title3.bold())
                     if isEditingDeadline {
                         DatePicker(
                             "",
@@ -114,7 +117,7 @@ struct ProjectDetailView: View {
                         .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
                     if let target = project.dailyTarget {
                         Text("Ежедневная цель: \(target) символов")
-                            .font(.subheadline)
+                            .font(.title3.bold())
                             .foregroundColor(.white)
                     }
                 }
@@ -140,7 +143,7 @@ struct ProjectDetailView: View {
 
                 // История записей
                 Text("История записей")
-                    .font(.headline)
+                    .font(.title3.bold())
                 ProgressChartView(project: project)
 
                 ForEach(project.sortedEntries) { entry in
