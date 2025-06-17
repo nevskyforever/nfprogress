@@ -4,7 +4,8 @@ import SwiftData
 struct ArchivedProjectsView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Query(filter: #Predicate<WritingProject> { $0.isArchived })
+    // Explicit comparison helps SwiftData refresh results
+    @Query(filter: #Predicate<WritingProject> { $0.isArchived == true })
     private var archived: [WritingProject]
 
     var body: some View {

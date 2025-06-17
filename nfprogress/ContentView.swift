@@ -7,7 +7,8 @@ import AppKit
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
-  @Query(filter: #Predicate<WritingProject> { !$0.isArchived })
+  // Using an explicit comparison improves reliability of query updates
+  @Query(filter: #Predicate<WritingProject> { $0.isArchived == false })
   private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   @State private var isExporting = false
