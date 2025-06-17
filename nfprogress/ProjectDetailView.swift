@@ -119,6 +119,12 @@ struct ProjectDetailView: View {
                     }
                 }
 
+                if let message = project.streakMessage {
+                    Text(message)
+                        .font(.subheadline)
+                        .foregroundColor(.orange)
+                }
+
                 // Действия с проектом
                 HStack {
                     Button("Добавить запись") {

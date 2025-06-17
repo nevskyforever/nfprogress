@@ -14,6 +14,12 @@ struct ProgressChartView: View {
                     .font(.subheadline)
                     .foregroundColor(.green)
 
+                if let message = project.streakMessage {
+                    Text(message)
+                        .font(.footnote)
+                        .foregroundColor(.orange)
+                }
+
                 Chart {
                     // Целевая линия
                     RuleMark(y: .value("Цель", project.goal))
