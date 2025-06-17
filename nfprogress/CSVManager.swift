@@ -154,47 +154,19 @@ struct CSVManager {
         return try encoder.encode(p)
     }
 
-    static func jsonData(for projects: [WritingProject]) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        let arr = projects.map { project in
-            JSONProject(
-                title: project.title,
-                goal: project.goal,
-                deadline: project.deadline,
-                entries: project.entries.map { JSONEntry(date: $0.date, characterCount: $0.characterCount) },
-                stages: project.stages.map { stage in
-                    JSONStage(
-                        title: stage.title,
-                        goal: stage.goal,
-                        deadline: stage.deadline,
-                        startProgress: stage.startProgress,
-                        entries: stage.entries.map { JSONEntry(date: $0.date, characterCount: $0.characterCount) }
-                    )
-                }
-            )
-        }
-        return try encoder.encode(arr)
-    }
-
     static func projects(fromJSON data: Data) throws -> [WritingProject] {
         let decoder = JSONDecoder()
-        if let projectsData = try? decoder.decode([JSONProject].self, from: data) {
-            return projectsData.map(convert)
+        let projectsData = try decoder.decode([JSONProject].self, from: data)
+        return projectsData.map { jp in
+            let proj = WritingProject(title: jp.title, goal: jp.goal, deadline: jp.deadline)
+            proj.entries = jp.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
+            proj.stages = jp.stages.map { js in
+                let st = Stage(title: js.title, goal: js.goal, deadline: js.deadline, startProgress: js.startProgress)
+                st.entries = js.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
+                return st
+            }
+            return proj
         }
-        let single = try decoder.decode(JSONProject.self, from: data)
-        return [convert(single)]
-    }
-
-    private static func convert(_ jp: JSONProject) -> WritingProject {
-        let proj = WritingProject(title: jp.title, goal: jp.goal, deadline: jp.deadline)
-        proj.entries = jp.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
-        proj.stages = jp.stages.map { js in
-            let st = Stage(title: js.title, goal: js.goal, deadline: js.deadline, startProgress: js.startProgress)
-            st.entries = js.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
-            return st
-        }
-        return proj
     }
 
     // MARK: - Helpers
