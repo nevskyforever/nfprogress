@@ -5,10 +5,10 @@ struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
     @Bindable var project: WritingProject
     @State private var showingAddEntry = false
-    @State private var addEntryStage: Stage?
-    @State private var editingEntry: Entry?
     @State private var showingAddStage = false
-    @State private var expandedStages: Set<Stage.ID> = []
+    @State private var stageToDelete: Stage?
+    @State private var showStageAlert = false
+    @State private var editingEntry: Entry?
     @State private var tempDeadline: Date = Date()
     // Editing state for individual fields
     @State private var isEditingTitle = false
@@ -36,13 +36,25 @@ struct ProjectDetailView: View {
         return Color(hue: hue, saturation: 1, brightness: 1)
     }
 
-    private func addEntry(stage: Stage? = nil) {
-        addEntryStage = stage
+    private func addEntry() {
         showingAddEntry = true
     }
 
     private func addStage() {
         showingAddStage = true
+    }
+
+    private func confirmDeleteStage(_ stage: Stage) {
+        stageToDelete = stage
+        showStageAlert = true
+    }
+
+    private func deleteStage(_ stage: Stage) {
+        if let index = project.stages.firstIndex(where: { $0.id == stage.id }) {
+            project.stages.remove(at: index)
+        }
+        modelContext.delete(stage)
+        saveContext()
     }
 
     var body: some View {
@@ -146,54 +158,31 @@ struct ProjectDetailView: View {
                         addEntry()
                     }
                     .keyboardShortcut("n", modifiers: .command)
+                    Button("Добавить этап") {
+                        addStage()
+                    }
+                    .keyboardShortcut("m", modifiers: .command)
                     Spacer()
-                    Button("Добавить этап") { addStage() }
                 }
 
-                ForEach(project.stages) { stage in
-                    DisclosureGroup(
-                        isExpanded: Binding(
-                            get: { expandedStages.contains(stage.id) },
-                            set: { newValue in
-                                if newValue { expandedStages.insert(stage.id) } else { expandedStages.remove(stage.id) }
-                            }
-                        )
-                    ) {
-                        HStack {
-                            Button("Добавить запись") { addEntry(stage: stage) }
-                            Spacer()
-                        }
-                        ForEach(stage.sortedEntries) { entry in
-                            let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-                            let prev = index > 0 ? stage.sortedEntries[index - 1].characterCount : stage.startProgress
-                            let delta = entry.characterCount - prev
-                            let percent = Double(entry.characterCount - stage.startProgress) / Double(max(stage.goal,1)) * 100
+                if !project.stages.isEmpty {
+                    Text("Этапы")
+                        .font(.title3.bold())
+                    ForEach(project.stages) { stage in
+                        VStack(alignment: .leading) {
                             HStack {
-                                VStack(alignment: .leading) {
-                                    Text("Символов: \(entry.characterCount - stage.startProgress)")
-                                    Text(String(format: "Прогресс этапа: %.0f%%", percent))
-                                    Text(entry.date.formatted(date: .numeric, time: .shortened))
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
+                                Text(stage.title)
+                                    .font(.headline)
                                 Spacer()
-                                Button { editingEntry = entry } label: { Image(systemName: "pencil") }
                                 Button(role: .destructive) {
-                                    if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
-                                        stage.entries.remove(at: i)
-                                    }
-                                    modelContext.delete(entry)
-                                    saveContext()
-                                } label: { Image(systemName: "trash") }
+                                    confirmDeleteStage(stage)
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
                             }
+                            Text("Цель: \(stage.goal) знаков")
+                                .font(.caption)
                         }
-                    } label: {
-                        HStack {
-                            Text(stage.title)
-                            Spacer()
-                            Text(String(format: "%.0f%%", stage.progressPercentage * 100))
-                        }
-                        .font(.headline)
                     }
                 }
 
@@ -202,41 +191,7 @@ struct ProjectDetailView: View {
                     .font(.title3.bold())
                 ProgressChartView(project: project)
 
-                ForEach(project.entries) { entry in
-                    let index = project.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-                    let prevCount = index > 0 ? project.sortedEntries[index - 1].characterCount : 0
-                    let delta = entry.characterCount - prevCount
-                    let deltaPercent = Double(delta) / Double(max(project.goal, 1)) * 100
-                    let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
-                    let progressPercent = Double(entry.characterCount) / Double(max(project.goal, 1)) * 100
-
-                    HStack {
-                        VStack(alignment: .leading) {
-                            Text("Символов: \(entry.characterCount)")
-                            Text("Изменение: \(deltaText)")
-                                .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
-                            Text(String(format: "Прогресс: %.0f%%", progressPercent))
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            Text(entry.date.formatted(date: .numeric, time: .shortened))
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        Spacer()
-                        Button { editingEntry = entry } label: {
-                            Image(systemName: "pencil")
-                        }
-                        Button(role: .destructive) {
-                            if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
-                                project.entries.remove(at: i)
-                            }
-                            modelContext.delete(entry)
-                            saveContext()
-                        } label: {
-                            Image(systemName: "trash")
-                        }
-                    }
-                }
+                HistoryView(project: project, editingEntry: $editingEntry)
             }
             .padding()
         }
@@ -249,10 +204,20 @@ struct ProjectDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddEntry) {
-            AddEntryView(project: project, stage: addEntryStage)
+            AddEntryView(project: project)
         }
         .sheet(isPresented: $showingAddStage) {
             AddStageView(project: project)
+        }
+        .alert(isPresented: $showStageAlert) {
+            Alert(
+                title: Text("Удалить этап \"\(stageToDelete?.title ?? "")\"?"),
+                message: Text("Это действие нельзя отменить."),
+                primaryButton: .destructive(Text("Удалить")) {
+                    if let stage = stageToDelete { deleteStage(stage) }
+                },
+                secondaryButton: .cancel()
+            )
         }
         .sheet(item: $editingEntry) { entry in
             EditEntryView(entry: entry)

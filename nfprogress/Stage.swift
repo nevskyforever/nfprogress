@@ -3,18 +3,15 @@ import SwiftData
 
 @Model
 class Stage: Identifiable {
-    var id = UUID()
+    var id: UUID
     var title: String
     var goal: Int
-    var deadline: Date?
-    var startProgress: Int
     var entries: [Entry]
 
-    init(title: String, goal: Int, deadline: Date? = nil, startProgress: Int) {
+    init(id: UUID = UUID(), title: String, goal: Int) {
+        self.id = id
         self.title = title
         self.goal = goal
-        self.deadline = deadline
-        self.startProgress = startProgress
         self.entries = []
     }
 
@@ -23,12 +20,6 @@ class Stage: Identifiable {
     }
 
     var currentProgress: Int {
-        guard let last = sortedEntries.last else { return 0 }
-        return max(0, last.characterCount - startProgress)
-    }
-
-    var progressPercentage: Double {
-        guard goal > 0 else { return 0 }
-        return Double(currentProgress) / Double(goal)
+        sortedEntries.last?.characterCount ?? 0
     }
 }
