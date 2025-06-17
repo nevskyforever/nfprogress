@@ -42,6 +42,11 @@ struct ProgressCircleView: View {
                 displayedProgress = newValue
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+            withAnimation(.easeInOut(duration: animationDuration)) {
+                displayedProgress = project.progressPercentage
+            }
+        }
     }
 }
 
