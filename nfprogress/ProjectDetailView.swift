@@ -284,12 +284,25 @@ struct ProjectDetailView: View {
             EditStageView(stage: stage)
         }
         .alert(item: $stageToDelete) { stage in
-            Alert(
-                title: Text("Удалить этап \"\(stage.title)\"?"),
-                message: Text("Все записи из этапа будут удалены."),
-                primaryButton: .destructive(Text("Удалить")) { deleteStage(stage) },
-                secondaryButton: .cancel()
-            )
+            if project.stages.count == 1 {
+                return Alert(
+                    title: Text("Удалить этап \"\(stage.title)\"?"),
+                    message: Text("Записи из этого этапа будут перенесены в проект. Если вы хотите удалить их, нажмите кнопку \"Удалить этап и записи\"."),
+                    primaryButton: .default(Text("Удалить и перенести")) {
+                        deleteStage(stage, moveEntries: true)
+                    },
+                    secondaryButton: .destructive(Text("Удалить этап и записи")) {
+                        deleteStage(stage, moveEntries: false)
+                    }
+                )
+            } else {
+                return Alert(
+                    title: Text("Удалить этап \"\(stage.title)\"?"),
+                    message: Text("Все записи из этапа будут удалены."),
+                    primaryButton: .destructive(Text("Удалить")) { deleteStage(stage) },
+                    secondaryButton: .cancel()
+                )
+            }
         }
         .onChange(of: focusedField) { newValue in
             if newValue != .title && isEditingTitle {
@@ -318,9 +331,13 @@ struct ProjectDetailView: View {
     }
 
     // MARK: - Helpers
-    private func deleteStage(_ stage: Stage) {
-        for entry in stage.entries {
-            modelContext.delete(entry)
+    private func deleteStage(_ stage: Stage, moveEntries: Bool = false) {
+        if moveEntries {
+            project.entries.append(contentsOf: stage.entries)
+        } else {
+            for entry in stage.entries {
+                modelContext.delete(entry)
+            }
         }
         stage.entries.removeAll()
         if let index = project.stages.firstIndex(where: { $0.id == stage.id }) {
