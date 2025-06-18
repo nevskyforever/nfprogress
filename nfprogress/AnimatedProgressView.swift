@@ -20,5 +20,10 @@ struct AnimatedProgressView<Content: View>: View {
             content(value, color)
         }
         .onAppear { startDate = Date() }
+        .onChange(of: startPercent) { _ in startDate = Date() }
+        .onChange(of: endPercent) { _ in startDate = Date() }
+        .onChange(of: startColor) { _ in startDate = Date() }
+        .onChange(of: endColor) { _ in startDate = Date() }
+        .onChange(of: duration) { _ in startDate = Date() }
     }
 }
