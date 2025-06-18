@@ -170,12 +170,11 @@ struct ProjectDetailView: View {
                             }
                             ForEach(stage.sortedEntries) { entry in
                                 let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-                                let prev = index > 0 ? stage.sortedEntries[index - 1].characterCount : stage.startProgress
-                                let delta = entry.characterCount - prev
-                                let percent = Double(entry.characterCount - stage.startProgress) / Double(max(stage.goal,1)) * 100
+                                let cumulative = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
+                                let percent = Double(cumulative) / Double(max(stage.goal,1)) * 100
                                 HStack {
                                     VStack(alignment: .leading) {
-                                        Text("Символов: \(entry.characterCount - stage.startProgress)")
+                                        Text("Символов: \(cumulative)")
                                         Text(String(format: "Прогресс этапа: %.0f%%", percent))
                                             .foregroundColor(progressColor(percent / 100))
                                         Text(entry.date.formatted(date: .numeric, time: .shortened))
@@ -217,13 +216,13 @@ struct ProjectDetailView: View {
                 ProgressChartView(project: project)
 
                 ForEach(project.sortedEntries) { entry in
-                    let index = project.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-                    let prevCount = index > 0 ? project.sortedEntries[index - 1].characterCount : 0
-                    let delta = entry.characterCount - prevCount
+                    let total = project.globalProgress(for: entry)
+                    let prevCount = project.previousGlobalProgress(before: entry)
+                    let delta = total - prevCount
                     let deltaPercent = Double(delta) / Double(max(project.goal, 1)) * 100
                     let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
-                    let progressPercent = Double(entry.characterCount) / Double(max(project.goal, 1)) * 100
-                    let stageName = stageForEntry(entry)?.title
+                    let progressPercent = Double(total) / Double(max(project.goal, 1)) * 100
+                    let stageName = project.stageForEntry(entry)?.title
 
                     HStack {
                         VStack(alignment: .leading) {
@@ -231,7 +230,7 @@ struct ProjectDetailView: View {
                                 Text("Этап: \(stageName)")
                                     .font(.caption)
                             }
-                            Text("Символов: \(entry.characterCount)")
+                            Text("Символов: \(total)")
                             Text("Изменение: \(deltaText)")
                                 .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
                             Text(String(format: "Прогресс: %.0f%%", progressPercent))
@@ -246,7 +245,7 @@ struct ProjectDetailView: View {
                             Image(systemName: "pencil")
                         }
                         Button(role: .destructive) {
-                            if let stage = stageForEntry(entry) {
+                            if let stage = project.stageForEntry(entry) {
                                 if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
                                     stage.entries.remove(at: i)
                                 }
@@ -319,15 +318,6 @@ struct ProjectDetailView: View {
     }
 
     // MARK: - Helpers
-    private func stageForEntry(_ entry: Entry) -> Stage? {
-        for stage in project.stages {
-            if stage.entries.contains(where: { $0.id == entry.id }) {
-                return stage
-            }
-        }
-        return nil
-    }
-
     private func deleteStage(_ stage: Stage) {
         for entry in stage.entries {
             modelContext.delete(entry)

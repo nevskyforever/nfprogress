@@ -25,13 +25,41 @@ class WritingProject {
         allEntries.sorted { $0.date < $1.date }
     }
 
+    func stageForEntry(_ entry: Entry) -> Stage? {
+        for stage in stages {
+            if stage.entries.contains(where: { $0.id == entry.id }) {
+                return stage
+            }
+        }
+        return nil
+    }
+
+    func globalProgress(for entry: Entry) -> Int {
+        if let stage = stageForEntry(entry) {
+            guard let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) else { return stage.startProgress }
+            let sum = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
+            return stage.startProgress + sum
+        }
+        return entry.characterCount
+    }
+
+    func previousGlobalProgress(before entry: Entry) -> Int {
+        let entries = sortedEntries
+        guard let idx = entries.firstIndex(where: { $0.id == entry.id }) else { return 0 }
+        if idx == 0 { return 0 }
+        let prev = entries[idx - 1]
+        return globalProgress(for: prev)
+    }
+
     var currentProgress: Int {
-        sortedEntries.last?.characterCount ?? 0
+        guard let last = sortedEntries.last else { return 0 }
+        return globalProgress(for: last)
     }
 
     var previousProgress: Int {
         guard sortedEntries.count >= 2 else { return 0 }
-        return sortedEntries[sortedEntries.count - 2].characterCount
+        let prev = sortedEntries[sortedEntries.count - 2]
+        return globalProgress(for: prev)
     }
 
     var progressPercentage: Double {
@@ -40,7 +68,7 @@ class WritingProject {
             return Double(currentProgress) / Double(goal)
         }
         let total = stages.reduce(0.0) { partial, stage in
-            partial + stage.progress(in: self)
+            partial + stage.progressPercentage
         }
         return min(total, 1.0)
     }
@@ -83,7 +111,8 @@ class WritingProject {
 
         func progress(atEndOf day: Date) -> Int {
             guard let entries = entriesByDay[day] else { return 0 }
-            return entries.max(by: { $0.date < $1.date })!.characterCount
+            let last = entries.max(by: { $0.date < $1.date })!
+            return globalProgress(for: last)
         }
 
         // Build list of all days between first and last entry
@@ -180,7 +209,9 @@ class WritingProject {
         guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: .now) else { return 0 }
         let entriesLastWeek = sortedEntries.filter { $0.date >= weekAgo }
         guard let first = entriesLastWeek.first, let last = entriesLastWeek.last else { return 0 }
-        return last.characterCount - first.characterCount
+        let start = globalProgress(for: first)
+        let end = globalProgress(for: last)
+        return end - start
     }
 
     var progressLastWeekPercent: Int {
