@@ -45,9 +45,9 @@ struct StageHeaderView: View {
         .onAppear {
             displayedProgress = stage.progressPercentage
         }
-        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+        .onChange(of: stage.progressPercentage) { newValue in
             withAnimation(.easeOut(duration: animationDuration)) {
-                displayedProgress = stage.progressPercentage
+                displayedProgress = newValue
             }
         }
     }
