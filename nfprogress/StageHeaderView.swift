@@ -70,10 +70,12 @@ struct StageHeaderView: View {
                     duration: duration
                 ) { value, color in
                     let percent = Int(ceil(value * 100))
-                    Text("\(percent)%")
-                        .monospacedDigit()
-                        .bold()
-                        .foregroundColor(color)
+                    ZStack {
+                        Text("\(percent)%")
+                            .monospacedDigit()
+                            .bold()
+                            .foregroundColor(color)
+                    }
                 }
             } else {
                 AnimatedCounterText(value: endProgress)
