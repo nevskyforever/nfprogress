@@ -42,6 +42,9 @@ struct StageHeaderView: View {
 
     /// Update the progress animation parameters
     private func updateProgress(to newValue: Double) {
+        // Skip updates that wouldn't change the progress to avoid resetting the animation
+        guard abs(newValue - endProgress) > 0.0001 else { return }
+
         palette = newValue >= endProgress ? .increase : .decrease
         startProgress = endProgress
         endProgress = newValue
