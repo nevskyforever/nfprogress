@@ -48,19 +48,19 @@ struct ProgressCircleView: View {
             AnimatedCounterText(value: displayedProgress)
         }
         .onAppear {
-            updateProgress(to: project.progressPercentage)
+            updateProgress(to: project.progress)
         }
-        .onChange(of: project.progressPercentage) { newValue in
+        .onChange(of: project.progress) { newValue in
             updateProgress(to: newValue)
         }
         .onChange(of: project.entries.map(\.id)) { _ in
-            updateProgress(to: project.progressPercentage)
+            updateProgress(to: project.progress)
         }
         .onChange(of: project.stages.flatMap { $0.entries }.map(\.id)) { _ in
-            updateProgress(to: project.progressPercentage)
+            updateProgress(to: project.progress)
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            updateProgress(to: project.progressPercentage)
+            updateProgress(to: project.progress)
         }
     }
 }

@@ -62,15 +62,19 @@ class WritingProject {
         return globalProgress(for: prev)
     }
 
-    var progressPercentage: Double {
+    /// Sum of characters across all stage entries
+    var totalStageCharacters: Int {
+        stages.flatMap(\.entries).reduce(0) { $0 + $1.characterCount }
+    }
+
+    /// Overall project progress in the range 0...1
+    var progress: Double {
         guard goal > 0 else { return 0 }
-        if stages.isEmpty {
-            return Double(currentProgress) / Double(goal)
-        }
-        let total = stages.reduce(0.0) { partial, stage in
-            partial + stage.progressPercentage
-        }
-        return min(total, 1.0)
+        return min(Double(totalStageCharacters) / Double(goal), 1.0)
+    }
+
+    var progressPercentage: Double {
+        progress
     }
 
     var changeSinceLast: Int {
