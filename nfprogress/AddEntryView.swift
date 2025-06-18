@@ -67,13 +67,19 @@ struct AddEntryView: View {
     }
 
     private func addEntry() {
-        let newEntry = Entry(date: date, characterCount: characterCount)
+        // New entry represents the total character count. Convert it to a delta
+        // relative to the current project progress so that progress is updated
+        // correctly without double counting.
+        let delta = characterCount - project.currentProgress
+        let newEntry = Entry(date: date, characterCount: delta)
+
         if project.stages.isEmpty {
             project.entries.append(newEntry)
         } else {
             let index = min(max(selectedStageIndex, 0), project.stages.count - 1)
             project.stages[index].entries.append(newEntry)
         }
+
         NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         dismiss()
     }
