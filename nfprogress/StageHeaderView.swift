@@ -11,11 +11,8 @@ struct StageHeaderView: View {
     /// Currently displayed progress value (0...1)
     @State private var displayedProgress: Double = 0
 
-    /// Flag to run appear animation only once
-    @State private var didAnimateOnAppear = false
-
     /// Minimum and maximum allowed duration for the progress animation
-    private let minDuration = 0.025
+    private let minDuration = 0.4
     private let maxDuration = 3.0
 
     /// Current progress percentage for this stage
@@ -70,14 +67,10 @@ struct StageHeaderView: View {
         }
         .font(.headline)
         .onAppear {
-            if !didAnimateOnAppear {
-                displayedProgress = 0
-                DispatchQueue.main.async {
-                    updateProgress(to: progress)
-                    didAnimateOnAppear = true
-                }
-            } else {
-                displayedProgress = progress
+            let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
+            let delay = max(0, 1 - elapsed)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                updateProgress(to: progress)
             }
         }
         .onChange(of: progress) { newValue in
