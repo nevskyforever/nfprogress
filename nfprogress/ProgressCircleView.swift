@@ -29,10 +29,8 @@ struct ProgressCircleView: View {
                 .stroke(progressColor, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                 .rotationEffect(.degrees(-90))
 
-            // Процент в центре
-            Text("\(Int(displayedProgress * 100))%")
-                .font(.system(size: 20))
-                .bold()
+            // Процент в центре с плавной анимацией цифр
+            AnimatedCounterText(value: displayedProgress)
         }
         .onAppear {
             displayedProgress = project.progressPercentage
