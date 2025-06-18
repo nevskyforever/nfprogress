@@ -1,8 +1,10 @@
 import SwiftUI
+import SwiftData
 
 /// Header view for displaying a stage with animated progress percentage
 struct StageHeaderView: View {
     @Bindable var stage: Stage
+    @Bindable var project: WritingProject
     var onEdit: () -> Void
     var onDelete: () -> Void
 
@@ -58,13 +60,13 @@ struct StageHeaderView: View {
         }
         .font(.headline)
         .onAppear {
-            updateProgress(to: stage.progressPercentage)
+            updateProgress(to: stage.progressPercentage(in: project))
         }
-        .onChange(of: stage.progressPercentage) { newValue in
-            updateProgress(to: newValue)
+        .onChange(of: stage.entries) { _ in
+            updateProgress(to: stage.progressPercentage(in: project))
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            updateProgress(to: stage.progressPercentage)
+            updateProgress(to: stage.progressPercentage(in: project))
         }
     }
 }
