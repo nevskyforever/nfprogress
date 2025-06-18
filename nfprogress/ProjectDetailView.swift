@@ -171,10 +171,11 @@ struct ProjectDetailView: View {
                             ForEach(stage.sortedEntries) { entry in
                                 let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
                                 let cumulative = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
-                                let percent = Double(cumulative) / Double(max(stage.goal,1)) * 100
+                                let clamped = max(cumulative, 0)
+                                let percent = Double(clamped) / Double(max(stage.goal,1)) * 100
                                 HStack {
                                     VStack(alignment: .leading) {
-                                        Text("Символов: \(cumulative)")
+                                        Text("Символов: \(clamped)")
                                         Text(String(format: "Прогресс этапа: %.0f%%", percent))
                                             .foregroundColor(progressColor(percent / 100))
                                         Text(entry.date.formatted(date: .numeric, time: .shortened))
