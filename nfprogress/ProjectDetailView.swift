@@ -197,6 +197,7 @@ struct ProjectDetailView: View {
                         } label: {
                             StageHeaderView(
                                 stage: stage,
+                                project: project,
                                 onEdit: { editingStage = stage },
                                 onDelete: { stageToDelete = stage }
                             )
