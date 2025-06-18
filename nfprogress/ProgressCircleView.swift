@@ -6,6 +6,9 @@ struct ProgressCircleView: View {
     /// Отображаемое значение прогресса, анимированное только при изменении
     @State private var displayedProgress: Double = 0
 
+    /// Flag to ensure appear animation runs only once
+    @State private var didAnimateOnAppear = false
+
     /// Цвет прогресса от красного к зеленому в зависимости от процента выполнения
     private var progressColor: Color {
         let clamped = max(0, min(1, displayedProgress))
@@ -15,7 +18,7 @@ struct ProgressCircleView: View {
     }
 
     /// Minimum and maximum allowed duration for the progress animation
-    private let minDuration = 0.4
+    private let minDuration = 0.025
     private let maxDuration = 3.0
 
     /// Update the displayed progress with an animated transition
@@ -50,10 +53,14 @@ struct ProgressCircleView: View {
             AnimatedCounterText(value: displayedProgress)
         }
         .onAppear {
-            let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-            let delay = max(0, 1 - elapsed)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                updateProgress(to: project.progress)
+            if !didAnimateOnAppear {
+                displayedProgress = 0
+                DispatchQueue.main.async {
+                    updateProgress(to: project.progress)
+                    didAnimateOnAppear = true
+                }
+            } else {
+                displayedProgress = project.progress
             }
         }
         .onChange(of: project.progress) { newValue in
