@@ -4,6 +4,14 @@ import SwiftData
 struct EditEntryView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var entry: Entry
+    @State private var date: Date
+    @State private var characterCount: Int
+
+    init(entry: Entry) {
+        self.entry = entry
+        _date = State(initialValue: entry.date)
+        _characterCount = State(initialValue: entry.characterCount)
+    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -19,25 +27,29 @@ struct EditEntryView: View {
             Text("Редактировать запись")
                 .font(.title2.bold())
 
-            DatePicker("Дата и время", selection: $entry.date)
+            DatePicker("Дата и время", selection: $date)
                 .labelsHidden()
 
-            TextField("Символов", value: $entry.characterCount, format: .number)
+            TextField("Символов", value: $characterCount, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 120)
 
             Spacer()
 
             Button("Готово") {
-                dismiss()
+                saveAndDismiss()
             }
             .buttonStyle(.borderedProminent)
             .padding(.bottom)
         }
         .padding()
         .frame(width: 320)
-        .onDisappear {
-            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-        }
+    }
+
+    private func saveAndDismiss() {
+        entry.date = date
+        entry.characterCount = characterCount
+        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        dismiss()
     }
 }
