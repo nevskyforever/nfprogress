@@ -13,7 +13,7 @@ struct StageHeaderView: View {
 
     /// Minimum and maximum allowed duration for the progress animation
     private let minDuration = 0.4
-    private let maxDuration = 2.5
+    private let maxDuration = 3.0
 
     /// Current progress percentage for this stage
     private var progress: Double {
@@ -67,7 +67,11 @@ struct StageHeaderView: View {
         }
         .font(.headline)
         .onAppear {
-            updateProgress(to: progress)
+            let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
+            let delay = max(0, 1 - elapsed)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                updateProgress(to: progress)
+            }
         }
         .onChange(of: progress) { newValue in
             updateProgress(to: newValue)
