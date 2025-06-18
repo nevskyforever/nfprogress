@@ -208,10 +208,12 @@ struct ProjectDetailView: View {
                 // История записей
                 Text("История записей")
                     .font(.title3.bold())
-                Button("Добавить запись") {
-                    addEntry()
+                if project.stages.isEmpty {
+                    Button("Добавить запись") {
+                        addEntry()
+                    }
+                    .keyboardShortcut("n", modifiers: .command)
                 }
-                .keyboardShortcut("n", modifiers: .command)
                 ProgressChartView(project: project)
 
                 ForEach(project.sortedEntries) { entry in
