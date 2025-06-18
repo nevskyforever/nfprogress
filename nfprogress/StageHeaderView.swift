@@ -8,39 +8,46 @@ struct StageHeaderView: View {
     var onEdit: () -> Void
     var onDelete: () -> Void
 
-    /// Currently displayed progress value (0...1)
-    @State private var displayedProgress: Double = 0
+    /// Current progress value at the start of animation
+    @State private var startProgress: Double = 0
+    /// Target progress value
+    @State private var endProgress: Double = 0
 
     /// Minimum and maximum allowed duration for the progress animation
-    private let minDuration = 0.4
+    private let minDuration = 0.25
     private let maxDuration = 3.0
+
+    /// Palette used for color interpolation
+    @State private var palette: ProgressPalette = .increase
+
+    /// Duration for the current animation
+    @State private var duration: Double = 0.25
+
+    /// Helper that maps progress to a color depending on palette
+    private func color(for percent: Double) -> Color {
+        switch palette {
+        case .increase:
+            return .interpolate(from: .green, to: .orange, fraction: percent)
+        case .decrease:
+            return .interpolate(from: .orange, to: .green, fraction: percent)
+        }
+    }
 
     /// Current progress percentage for this stage
     private var progress: Double {
         stage.progressPercentage
     }
 
-    /// Update the displayed progress with an animated transition
+    /// Update the progress animation parameters
     private func updateProgress(to newValue: Double) {
-        // Рассчитываем относительный диапазон изменения от 0 до 1
-        let diff = abs(newValue - displayedProgress)
+        palette = newValue >= endProgress ? .increase : .decrease
+        startProgress = endProgress
+        endProgress = newValue
+
+        let diff = abs(endProgress - startProgress)
         let range = max(diff, 0.01)
         let scaled = min(range, 1.0)
-
-        // Чем больше изменение, тем дольше длится анимация
-        let duration = min(minDuration + scaled * (maxDuration - minDuration),
-                           maxDuration)
-
-        withAnimation(.easeOut(duration: duration)) {
-            displayedProgress = newValue
-        }
-    }
-
-    /// Color representing current progress
-    private var progressColor: Color {
-        let clamped = max(0, min(1, displayedProgress))
-        let hue = clamped * 0.33
-        return Color(hue: hue, saturation: 1, brightness: 1)
+        duration = min(minDuration + scaled * (maxDuration - minDuration), maxDuration)
     }
 
     var body: some View {
@@ -54,8 +61,23 @@ struct StageHeaderView: View {
 
             Spacer()
 
-            AnimatedCounterText(value: displayedProgress)
-                .foregroundColor(progressColor)
+            if #available(macOS 12, *) {
+                AnimatedProgressView(
+                    startPercent: startProgress,
+                    endPercent: endProgress,
+                    startColor: color(for: startProgress),
+                    endColor: color(for: endProgress),
+                    duration: duration
+                ) { value, color in
+                    Text("\(Int(value * 100))%")
+                        .monospacedDigit()
+                        .bold()
+                        .foregroundColor(color)
+                }
+            } else {
+                AnimatedCounterText(value: endProgress)
+                    .foregroundColor(color(for: endProgress))
+            }
 
             Button(action: onEdit) {
                 Image(systemName: "pencil")
