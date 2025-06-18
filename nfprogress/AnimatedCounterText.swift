@@ -13,6 +13,7 @@ struct AnimatedCounterText: Animatable, View {
     var body: some View {
         Text("\(Int(value * 100))%")
             .font(.system(size: 20))
+            .monospacedDigit()
             .bold()
     }
 }
