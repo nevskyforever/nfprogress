@@ -287,11 +287,11 @@ struct ProjectDetailView: View {
             if project.stages.count == 1 {
                 return Alert(
                     title: Text("Удалить этап \"\(stage.title)\"?"),
-                    message: Text("Записи из этого этапа будут перенесены в проект. Если вы хотите удалить их, нажмите кнопку \"Удалить этап и записи\"."),
+                    message: Text("Записи из этого этапа будут перенесены в проект. Если вы хотите удалить их, нажмите кнопку \"Удалить полностью\"."),
                     primaryButton: .default(Text("Удалить и перенести")) {
                         deleteStage(stage, moveEntries: true)
                     },
-                    secondaryButton: .destructive(Text("Удалить этап и записи")) {
+                    secondaryButton: .destructive(Text("Удалить полностью")) {
                         deleteStage(stage, moveEntries: false)
                     }
                 )
