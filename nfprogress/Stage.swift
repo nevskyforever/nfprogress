@@ -18,12 +18,18 @@ class Stage: Identifiable {
         self.entries = []
     }
 
+    /// Entries belonging to this stage without duplicates
+    private var uniqueEntries: [Entry] {
+        var seen = Set<UUID>()
+        return entries.filter { seen.insert($0.id).inserted }
+    }
+
     var sortedEntries: [Entry] {
-        entries.sorted { $0.date < $1.date }
+        uniqueEntries.sorted { $0.date < $1.date }
     }
 
     var currentProgress: Int {
-        max(0, entries.reduce(0) { $0 + $1.characterCount })
+        max(0, uniqueEntries.reduce(0) { $0 + $1.characterCount })
     }
 
     var progressPercentage: Double {
