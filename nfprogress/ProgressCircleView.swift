@@ -24,6 +24,63 @@ struct ProgressCircleView: View {
         }
     }
 
+    /// Computed colors for the current animation state
+    private var startColor: Color { color(for: startProgress) }
+    private var endColor: Color { color(for: endProgress) }
+
+    /// Background circle behind the animated progress
+    private var backgroundCircle: some View {
+        Circle()
+            .stroke(Color.gray.opacity(0.3), lineWidth: 12)
+    }
+
+    /// Helper to draw a progress ring with the given value and color
+    private func ring(value: Double, color: Color) -> some View {
+        Circle()
+            .trim(from: 0, to: CGFloat(value))
+            .stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+            .rotationEffect(.degrees(-90))
+    }
+
+    /// Animated ring for macOS 12+
+    @available(macOS 12, *)
+    private var animatedRing: some View {
+        AnimatedProgressView(
+            startPercent: startProgress,
+            endPercent: endProgress,
+            startColor: startColor,
+            endColor: endColor,
+            duration: duration
+        ) { value, color in
+            ring(value: value, color: color)
+            Text("\(Int(value * 100))%")
+                .font(.system(size: 20))
+                .monospacedDigit()
+                .bold()
+                .foregroundColor(color)
+        }
+    }
+
+    /// Static fallback ring on older systems
+    private var staticRing: some View {
+        let color = endColor
+        return ZStack {
+            ring(value: endProgress, color: color)
+            AnimatedCounterText(value: endProgress)
+                .foregroundColor(color)
+        }
+    }
+
+    /// Choose the appropriate ring depending on OS version
+    @ViewBuilder
+    private var progressRing: some View {
+        if #available(macOS 12, *) {
+            animatedRing
+        } else {
+            staticRing
+        }
+    }
+
     /// Minimum and maximum allowed duration for the progress animation
     private let minDuration = 0.25
     private let maxDuration = 3.0
@@ -42,41 +99,8 @@ struct ProgressCircleView: View {
 
     var body: some View {
         ZStack {
-            // Background circle
-            Circle()
-                .stroke(Color.gray.opacity(0.3), lineWidth: 12)
-
-            if #available(macOS 12, *) {
-                let startColor = color(for: startProgress)
-                let endColor = color(for: endProgress)
-
-                AnimatedProgressView(
-                    startPercent: startProgress,
-                    endPercent: endProgress,
-                    startColor: startColor,
-                    endColor: endColor,
-                    duration: duration
-                ) { value, color in
-                    let progressCircle = Circle()
-                        .trim(from: 0, to: CGFloat(value))
-                        .stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                        .rotationEffect(.degrees(-90))
-
-                    progressCircle
-                    Text("\(Int(value * 100))%")
-                        .font(.system(size: 20))
-                        .monospacedDigit()
-                        .bold()
-                        .foregroundColor(color)
-                }
-            } else {
-                let color = color(for: endProgress)
-                Circle()
-                    .trim(from: 0, to: CGFloat(endProgress))
-                    .stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                AnimatedCounterText(value: endProgress)
-            }
+            backgroundCircle
+            progressRing
         }
         .onAppear {
             let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
