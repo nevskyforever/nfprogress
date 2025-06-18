@@ -15,7 +15,7 @@ struct ProgressCircleView: View {
     }
 
     /// Общая продолжительность анимации
-    private let animationDuration = 1.8
+    private let animationDuration = 2.0
 
     var body: some View {
         ZStack {
@@ -37,8 +37,13 @@ struct ProgressCircleView: View {
         .onAppear {
             displayedProgress = project.progressPercentage
         }
-        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+        .onChange(of: project.progressPercentage) { newValue in
             withAnimation(.easeOut(duration: animationDuration)) {
+                displayedProgress = newValue
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+            withAnimation(.easeInOut(duration: animationDuration)) {
                 displayedProgress = project.progressPercentage
             }
         }
