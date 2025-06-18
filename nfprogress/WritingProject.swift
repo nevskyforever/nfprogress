@@ -58,8 +58,7 @@ class WritingProject {
     }
 
     var currentProgress: Int {
-        guard let last = sortedEntries.last else { return 0 }
-        return globalProgress(for: last)
+        max(0, allEntries.reduce(0) { $0 + $1.characterCount })
     }
 
     var previousProgress: Int {

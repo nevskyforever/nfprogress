@@ -33,9 +33,11 @@ struct StageHeaderView: View {
         }
     }
 
-    /// Current progress percentage for this stage
+    /// Current progress percentage for this stage based on character count
     private var progress: Double {
-        stage.progressPercentage
+        guard stage.goal > 0 else { return 0 }
+        let percent = Double(stage.currentProgress) / Double(stage.goal)
+        return min(max(percent, 0), 1.0)
     }
 
     /// Update the progress animation parameters
@@ -102,6 +104,9 @@ struct StageHeaderView: View {
             updateProgress(to: newValue)
         }
         .onChange(of: stage.entries.map(\.id)) { _ in
+            updateProgress(to: progress)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
             updateProgress(to: progress)
         }
     }
