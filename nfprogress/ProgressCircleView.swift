@@ -14,8 +14,13 @@ struct ProgressCircleView: View {
         return Color(hue: hue, saturation: 1, brightness: 1)
     }
 
-    /// Общая продолжительность анимации
-    private let animationDuration = 1.8
+    /// Base animation duration
+    private let baseDuration = 0.4
+    /// Extra time per percent of change
+    private let scalingFactor = 0.03
+    /// Minimum and maximum allowed duration
+    private let minDuration = 0.4
+    private let maxDuration = 2.5
 
     var body: some View {
         ZStack {
@@ -36,7 +41,10 @@ struct ProgressCircleView: View {
             displayedProgress = project.progressPercentage
         }
         .onChange(of: project.progressPercentage) { newValue in
-            withAnimation(.easeOut(duration: animationDuration)) {
+            let diffPercent = abs(newValue - displayedProgress) * 100
+            var duration = baseDuration + scalingFactor * diffPercent
+            duration = min(max(duration, minDuration), maxDuration)
+            withAnimation(.easeOut(duration: duration)) {
                 displayedProgress = newValue
             }
         }
