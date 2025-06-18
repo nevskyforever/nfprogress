@@ -21,6 +21,12 @@ struct AddStageView: View {
 
             Text("Новый этап")
                 .font(.title2.bold())
+            if project.stages.isEmpty && !project.entries.isEmpty {
+                Text("Все записи проекта будут перенесены в этот этап")
+                    .multilineTextAlignment(.center)
+                    .font(.caption)
+                    .foregroundColor(.orange)
+            }
             TextField("Название", text: $title)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
@@ -39,7 +45,12 @@ struct AddStageView: View {
 
     private func addStage() {
         let name = title.isEmpty ? "Этап" : title
-        let stage = Stage(title: name, goal: goal, startProgress: project.currentProgress)
+        let start = (project.stages.isEmpty && !project.entries.isEmpty) ? 0 : project.currentProgress
+        let stage = Stage(title: name, goal: goal, startProgress: start)
+        if project.stages.isEmpty && !project.entries.isEmpty {
+            stage.entries = project.entries
+            project.entries.removeAll()
+        }
         project.stages.append(stage)
         NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         dismiss()

@@ -278,7 +278,7 @@ struct ProjectDetailView: View {
             AddStageView(project: project)
         }
         .sheet(item: $editingEntry) { entry in
-            EditEntryView(entry: entry)
+            EditEntryView(project: project, entry: entry)
         }
         .sheet(item: $editingStage) { stage in
             EditStageView(stage: stage)
