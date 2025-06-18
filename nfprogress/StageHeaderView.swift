@@ -103,7 +103,13 @@ struct StageHeaderView: View {
         .onChange(of: progress) { newValue in
             updateProgress(to: newValue)
         }
+        .onChange(of: stage.goal) { _ in
+            updateProgress(to: progress)
+        }
         .onChange(of: stage.entries.map(\.id)) { _ in
+            updateProgress(to: progress)
+        }
+        .onChange(of: stage.entries.map(\.characterCount)) { _ in
             updateProgress(to: progress)
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
