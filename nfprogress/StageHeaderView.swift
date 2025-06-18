@@ -69,7 +69,8 @@ struct StageHeaderView: View {
                     endColor: color(for: endProgress),
                     duration: duration
                 ) { value, color in
-                    Text("\(Int(value * 100))%")
+                    let percent = Int(ceil(value * 100))
+                    Text("\(percent)%")
                         .monospacedDigit()
                         .bold()
                         .foregroundColor(color)

@@ -11,7 +11,8 @@ struct AnimatedCounterText: Animatable, View {
     }
 
     var body: some View {
-        Text("\(Int(value * 100))%")
+        let percent = Int(ceil(value * 100))
+        Text("\(percent)%")
             .font(.system(size: 20))
             .monospacedDigit()
             .bold()
