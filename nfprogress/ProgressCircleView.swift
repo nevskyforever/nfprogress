@@ -14,19 +14,9 @@ struct ProgressCircleView: View {
     /// Duration for the current animation
     @State private var duration: Double = 0.25
 
-    /// Map progress value to a color depending on palette
-    private func color(for percent: Double) -> Color {
-        switch palette {
-        case .increase:
-            return .interpolate(from: .green, to: .orange, fraction: percent)
-        case .decrease:
-            return .interpolate(from: .orange, to: .green, fraction: percent)
-        }
-    }
-
     /// Computed colors for the current animation state
-    private var startColor: Color { color(for: startProgress) }
-    private var endColor: Color { color(for: endProgress) }
+    private var startColor: Color { palette.color(for: startProgress) }
+    private var endColor: Color { palette.color(for: endProgress) }
 
     /// Background circle behind the animated progress
     private var backgroundCircle: some View {
@@ -58,7 +48,7 @@ struct ProgressCircleView: View {
                     .font(.system(size: 20))
                     .monospacedDigit()
                     .bold()
-                    .foregroundColor(color)
+                    .foregroundColor(.white)
             }
         }
     }
@@ -69,7 +59,7 @@ struct ProgressCircleView: View {
         return ZStack {
             ring(value: endProgress, color: color)
             AnimatedCounterText(value: endProgress)
-                .foregroundColor(color)
+                .foregroundColor(.white)
         }
     }
 
