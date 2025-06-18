@@ -17,11 +17,13 @@ struct HistoryView: View {
 
     var body: some View {
         ForEach(project.sortedEntries) { entry in
-            let index = project.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-            let prevCount = index > 0 ? project.sortedEntries[index - 1].characterCount : 0
-            let delta = entry.characterCount - prevCount
+            let entries = project.sortedEntries
+            let index = entries.firstIndex(where: { $0.id == entry.id }) ?? 0
+            let total = entries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
+            let prevTotal = index > 0 ? entries.prefix(index).reduce(0) { $0 + $1.characterCount } : 0
+            let delta = total - prevTotal
             let deltaPercent = Double(delta) / Double(max(project.goal, 1)) * 100
-            let progressPercent = Double(entry.characterCount) / Double(max(project.goal, 1)) * 100
+            let progressPercent = Double(total) / Double(max(project.goal, 1)) * 100
             let stageName = stageForEntry(entry)?.title
 
             HStack {
