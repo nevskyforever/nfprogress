@@ -16,7 +16,7 @@ struct ProgressCircleView: View {
 
     /// Minimum and maximum allowed duration for the progress animation
     private let minDuration = 0.4
-    private let maxDuration = 2.5
+    private let maxDuration = 3.0
 
     /// Update the displayed progress with an animated transition
     private func updateProgress(to newValue: Double) {
@@ -50,7 +50,11 @@ struct ProgressCircleView: View {
             AnimatedCounterText(value: displayedProgress)
         }
         .onAppear {
-            updateProgress(to: project.progress)
+            let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
+            let delay = max(0, 1 - elapsed)
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                updateProgress(to: project.progress)
+            }
         }
         .onChange(of: project.progress) { newValue in
             updateProgress(to: newValue)
