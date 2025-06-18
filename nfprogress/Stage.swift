@@ -23,11 +23,12 @@ class Stage: Identifiable {
     }
 
     var currentProgress: Int {
-        entries.reduce(0) { $0 + $1.characterCount }
+        max(0, entries.reduce(0) { $0 + $1.characterCount })
     }
 
     var progressPercentage: Double {
         guard goal > 0 else { return 0 }
-        return min(Double(currentProgress) / Double(goal), 1.0)
+        let percent = Double(currentProgress) / Double(goal)
+        return min(max(percent, 0), 1.0)
     }
 }
