@@ -17,8 +17,11 @@ class WritingProject {
         self.stages = []
     }
 
+    /// All entries across the project and stages without duplicates
     private var allEntries: [Entry] {
-        entries + stages.flatMap { $0.entries }
+        var seen = Set<UUID>()
+        let combined = entries + stages.flatMap { $0.entries }
+        return combined.filter { seen.insert($0.id).inserted }
     }
 
     var sortedEntries: [Entry] {

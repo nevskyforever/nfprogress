@@ -54,7 +54,8 @@ struct ProgressCircleView: View {
         ) { value, color in
             ZStack {
                 ring(value: value, color: color)
-                Text("\(Int(value * 100))%")
+                let percent = Int(ceil(value * 100))
+                Text("\(percent)%")
                     .font(.system(size: 20))
                     .monospacedDigit()
                     .bold()
