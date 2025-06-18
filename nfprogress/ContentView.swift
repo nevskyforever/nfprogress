@@ -15,7 +15,7 @@ struct ContentView: View {
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
 
-  var body: some View {
+  private var splitView: some View {
     NavigationSplitView {
       List(selection: $selectedProject) {
         ForEach(projects) { project in
@@ -85,10 +85,14 @@ struct ContentView: View {
     .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
     }
-    .fileExporter(
-      isPresented: $isExporting,
-      document: exportDocument,
-      contentType: .commaSeparatedText,
+  }
+
+  var body: some View {
+    splitView
+      .fileExporter(
+        isPresented: $isExporting,
+        document: exportDocument,
+        contentType: .commaSeparatedText,
       defaultFilename: exportFileName
     ) { result in
       if case .failure(let error) = result {
