@@ -6,14 +6,10 @@ struct EditEntryView: View {
     @Bindable var project: WritingProject
     @Bindable var entry: Entry
     @State private var selectedStageIndex: Int = 0
-    @State private var date: Date
-    @State private var characterCount: Int
 
     init(project: WritingProject, entry: Entry) {
         self.project = project
         self.entry = entry
-        _date = State(initialValue: entry.date)
-        _characterCount = State(initialValue: entry.characterCount)
         if let stage = project.stageForEntry(entry),
            let idx = project.stages.firstIndex(where: { $0.id == stage.id }) {
             _selectedStageIndex = State(initialValue: idx)
@@ -34,7 +30,7 @@ struct EditEntryView: View {
             Text("Редактировать запись")
                 .font(.title2.bold())
 
-            DatePicker("Дата и время", selection: $date)
+            DatePicker("Дата и время", selection: $entry.date)
                 .labelsHidden()
 
             if !project.stages.isEmpty {
@@ -46,31 +42,33 @@ struct EditEntryView: View {
                 .labelsHidden()
             }
 
-            TextField("Символов", value: $characterCount, format: .number)
+            TextField("Символов", value: $entry.characterCount, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 120)
 
             Spacer()
 
             Button("Готово") {
-                saveAndDismiss()
+                dismiss()
             }
             .buttonStyle(.borderedProminent)
             .padding(.bottom)
         }
         .padding()
         .frame(width: 320)
-    }
-
-    private func saveAndDismiss() {
-        entry.date = date
-        entry.characterCount = characterCount
-        if !project.stages.isEmpty {
-            let index = min(max(selectedStageIndex, 0), project.stages.count - 1)
-            moveEntry(to: project.stages[index])
+        .onDisappear {
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
-        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-        dismiss()
+        .onChange(of: entry.characterCount) { _ in
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        }
+        .onChange(of: entry.date) { _ in
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        }
+        .onChange(of: selectedStageIndex) { newValue in
+            guard !project.stages.isEmpty else { return }
+            moveEntry(to: project.stages[newValue])
+        }
     }
 
     private func moveEntry(to stage: Stage) {
@@ -82,5 +80,6 @@ struct EditEntryView: View {
             project.entries.remove(at: idx)
         }
         stage.entries.append(entry)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
     }
 }

@@ -4,14 +4,6 @@ import SwiftData
 struct EditStageView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var stage: Stage
-    @State private var title: String
-    @State private var goal: Int
-
-    init(stage: Stage) {
-        self.stage = stage
-        _title = State(initialValue: stage.title)
-        _goal = State(initialValue: stage.goal)
-    }
 
     var body: some View {
         VStack(spacing: 16) {
@@ -27,30 +19,29 @@ struct EditStageView: View {
             Text("Редактировать этап")
                 .font(.title2.bold())
 
-            TextField("Название", text: $title)
+            TextField("Название", text: $stage.title)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
 
-            TextField("Цель", value: $goal, format: .number)
+            TextField("Цель", value: $stage.goal, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
 
             Spacer()
 
             Button("Готово") {
-                saveAndDismiss()
+                dismiss()
             }
             .buttonStyle(.borderedProminent)
             .padding(.bottom)
         }
         .padding()
         .frame(width: 320)
-    }
-
-    private func saveAndDismiss() {
-        stage.title = title
-        stage.goal = goal
-        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-        dismiss()
+        .onDisappear {
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        }
+        .onChange(of: stage.goal) { _ in
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        }
     }
 }

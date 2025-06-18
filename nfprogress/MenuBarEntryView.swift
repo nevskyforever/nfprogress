@@ -59,6 +59,9 @@ struct MenuBarEntryView: View {
         }
         .padding()
         .frame(width: 200)
+        .onDisappear {
+            _ = maybeSave()
+        }
         .onAppear {
             didSave = false
         }
