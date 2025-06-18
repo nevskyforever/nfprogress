@@ -97,6 +97,9 @@ struct ProgressCircleView: View {
 
     /// Update animation parameters when progress changes
     private func updateProgress(to newValue: Double) {
+        // Ignore redundant updates that would result in a zero length animation
+        guard abs(newValue - endProgress) > 0.0001 else { return }
+
         palette = newValue >= endProgress ? .increase : .decrease
         startProgress = endProgress
         endProgress = newValue
