@@ -41,6 +41,7 @@ struct AddStageView: View {
         let name = title.isEmpty ? "Этап" : title
         let stage = Stage(title: name, goal: goal, startProgress: project.currentProgress)
         project.stages.append(stage)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         dismiss()
     }
 }

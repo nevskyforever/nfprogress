@@ -39,5 +39,11 @@ struct EditEntryView: View {
         .onDisappear {
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
+        .onChange(of: entry.characterCount) { _ in
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        }
+        .onChange(of: entry.date) { _ in
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        }
     }
 }
