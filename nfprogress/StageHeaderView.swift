@@ -34,12 +34,6 @@ struct StageHeaderView: View {
         }
     }
 
-    /// Color representing current progress
-    private var progressColor: Color {
-        let clamped = max(0, min(1, displayedProgress))
-        let hue = clamped * 0.33
-        return Color(hue: hue, saturation: 1, brightness: 1)
-    }
 
     var body: some View {
         HStack {
@@ -52,8 +46,12 @@ struct StageHeaderView: View {
 
             Spacer()
 
-            AnimatedCounterText(value: displayedProgress)
-                .foregroundColor(progressColor)
+            AnimatedProgressView(value: displayedProgress) { value, color in
+                Text("\(Int(value * 100))%")
+                    .foregroundColor(color)
+                    .bold()
+            }
+            .frame(width: 32, height: 32)
 
             Button(action: onEdit) {
                 Image(systemName: "pencil")
