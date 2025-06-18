@@ -23,15 +23,6 @@ struct StageHeaderView: View {
     /// Duration for the current animation
     @State private var duration: Double = 0.25
 
-    /// Helper that maps progress to a color depending on palette
-    private func color(for percent: Double) -> Color {
-        switch palette {
-        case .increase:
-            return .interpolate(from: .green, to: .orange, fraction: percent)
-        case .decrease:
-            return .interpolate(from: .orange, to: .green, fraction: percent)
-        }
-    }
 
     /// Current progress percentage for this stage
     private var progress: Double {
@@ -65,8 +56,8 @@ struct StageHeaderView: View {
                 AnimatedProgressView(
                     startPercent: startProgress,
                     endPercent: endProgress,
-                    startColor: color(for: startProgress),
-                    endColor: color(for: endProgress),
+                    startColor: palette.color(for: startProgress),
+                    endColor: palette.color(for: endProgress),
                     duration: duration
                 ) { value, color in
                     Text("\(Int(value * 100))%")
@@ -76,7 +67,7 @@ struct StageHeaderView: View {
                 }
             } else {
                 AnimatedCounterText(value: endProgress)
-                    .foregroundColor(color(for: endProgress))
+                    .foregroundColor(palette.color(for: endProgress))
             }
 
             Button(action: onEdit) {

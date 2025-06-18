@@ -20,4 +20,9 @@ enum ProgressPalette {
         case .decrease: return .green
         }
     }
+
+    /// Interpolate between the palette's start and end colors.
+    func color(for percent: Double) -> Color {
+        .interpolate(from: startColor, to: endColor, fraction: percent)
+    }
 }
