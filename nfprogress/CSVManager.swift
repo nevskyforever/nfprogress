@@ -22,14 +22,15 @@ struct CSVManager {
             var previous = 0
             for (entry, stage) in sorted {
                 let dateStr = dateFormatter.string(from: entry.date)
-                let change = entry.characterCount - previous
-                previous = entry.characterCount
-                let percent = Int(Double(entry.characterCount) / Double(max(project.goal, 1)) * 100)
+                let total = project.globalProgress(for: entry)
+                let change = total - previous
+                previous = total
+                let percent = Int(Double(total) / Double(max(project.goal, 1)) * 100)
                 let stageTitle = stage?.title ?? ""
                 let stageGoal = stage != nil ? String(stage!.goal) : ""
                 let stageDeadline = stage?.deadline.map { dateFormatter.string(from: $0) } ?? ""
                 let stageStart = stage != nil ? String(stage!.startProgress) : ""
-                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(entry.characterCount),\(change),\(percent)")
+                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(total),\(change),\(percent)")
             }
             for stage in emptyStages {
                 let stageDeadline = stage.deadline.map { dateFormatter.string(from: $0) } ?? ""
@@ -60,14 +61,15 @@ struct CSVManager {
                 var previous = 0
                 for (entry, stage) in sorted {
                     let dateStr = dateFormatter.string(from: entry.date)
-                    let change = entry.characterCount - previous
-                    previous = entry.characterCount
-                    let percent = Int(Double(entry.characterCount) / Double(max(project.goal, 1)) * 100)
+                    let total = project.globalProgress(for: entry)
+                    let change = total - previous
+                    previous = total
+                    let percent = Int(Double(total) / Double(max(project.goal, 1)) * 100)
                     let stageTitle = stage?.title ?? ""
                     let stageGoal = stage != nil ? String(stage!.goal) : ""
                     let stageDeadline = stage?.deadline.map { dateFormatter.string(from: $0) } ?? ""
                     let stageStart = stage != nil ? String(stage!.startProgress) : ""
-                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(entry.characterCount),\(change),\(percent)")
+                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(total),\(change),\(percent)")
                 }
                 for stage in emptyStages {
                     let stageDeadline = stage.deadline.map { dateFormatter.string(from: $0) } ?? ""

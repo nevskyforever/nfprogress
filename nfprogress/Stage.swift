@@ -23,46 +23,11 @@ class Stage: Identifiable {
     }
 
     var currentProgress: Int {
-        guard let last = sortedEntries.last else { return 0 }
-        return max(0, last.characterCount - startProgress)
+        entries.reduce(0) { $0 + $1.characterCount }
     }
 
     var progressPercentage: Double {
         guard goal > 0 else { return 0 }
-        return Double(currentProgress) / Double(goal)
-    }
-}
-
-extension Stage {
-    /// Calculate progress based only on this stage's entries within the given project
-    func currentProgress(in project: WritingProject) -> Int {
-        let sorted = project.sortedEntries
-        let ids = Set(entries.map { $0.id })
-        var last = startProgress
-        var total = 0
-        for entry in sorted {
-            if entry.characterCount < startProgress {
-                last = entry.characterCount
-                continue
-            }
-            if ids.contains(entry.id) {
-                total += entry.characterCount - last
-            }
-            last = entry.characterCount
-        }
-        return max(0, total)
-    }
-
-    /// Percentage progress relative to this stage's goal within the given project
-    func progressPercentage(in project: WritingProject) -> Double {
-        guard goal > 0 else { return 0 }
-        return Double(currentProgress(in: project)) / Double(goal)
-    }
-
-    /// Normalized progress contribution relative to the project's goal
-    func progress(in project: WritingProject) -> Double {
-        guard project.goal > 0 else { return 0 }
-        let current = currentProgress(in: project)
-        return Double(current) / Double(project.goal)
+        return min(Double(currentProgress) / Double(goal), 1.0)
     }
 }
