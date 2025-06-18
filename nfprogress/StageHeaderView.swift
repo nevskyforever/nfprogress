@@ -17,20 +17,14 @@ struct StageHeaderView: View {
     private let minDuration = 0.25
     private let maxDuration = 3.0
 
-    /// Palette used for color interpolation
-    @State private var palette: ProgressPalette = .increase
-
     /// Duration for the current animation
     @State private var duration: Double = 0.25
 
-    /// Helper that maps progress to a color depending on palette
+    /// Maps progress (0...1) to a hue ranging from red to green
     private func color(for percent: Double) -> Color {
-        switch palette {
-        case .increase:
-            return .interpolate(from: .green, to: .orange, fraction: percent)
-        case .decrease:
-            return .interpolate(from: .orange, to: .green, fraction: percent)
-        }
+        let clamped = max(0, min(1, percent))
+        let hue = clamped * 0.33 // 0 = red, 0.33 = green
+        return Color(hue: hue, saturation: 1, brightness: 1)
     }
 
     /// Current progress percentage for this stage based on character count
@@ -45,7 +39,6 @@ struct StageHeaderView: View {
         // Skip updates that wouldn't change the progress to avoid resetting the animation
         guard abs(newValue - endProgress) > 0.0001 else { return }
 
-        palette = newValue >= endProgress ? .increase : .decrease
         startProgress = endProgress
         endProgress = newValue
 
