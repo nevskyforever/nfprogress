@@ -11,11 +11,7 @@ struct StageHeaderView: View {
     /// Currently displayed progress value (0...1)
     @State private var displayedProgress: Double = 0
 
-    /// Base animation duration
-    private let baseDuration = 0.4
-    /// Extra time per percent of change
-    private let scalingFactor = 0.03
-    /// Minimum and maximum allowed duration
+    /// Minimum and maximum allowed duration for the progress animation
     private let minDuration = 0.4
     private let maxDuration = 2.5
 
@@ -26,9 +22,15 @@ struct StageHeaderView: View {
 
     /// Update the displayed progress with an animated transition
     private func updateProgress(to newValue: Double) {
-        let diffPercent = abs(newValue - displayedProgress) * 100
-        var duration = baseDuration + scalingFactor * diffPercent
-        duration = min(max(duration, minDuration), maxDuration)
+        // Рассчитываем относительный диапазон изменения от 0 до 1
+        let diff = abs(newValue - displayedProgress)
+        let range = max(diff, 0.01)
+        let scaled = min(range, 1.0)
+
+        // Чем больше изменение, тем дольше длится анимация
+        let duration = min(minDuration + scaled * (maxDuration - minDuration),
+                           maxDuration)
+
         withAnimation(.easeOut(duration: duration)) {
             displayedProgress = newValue
         }
