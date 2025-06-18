@@ -74,7 +74,12 @@ struct MenuBarEntryView: View {
         guard !didSave, isValid else { return false }
         let index = min(max(selectedIndex, 0), projects.count - 1)
         let project = projects[index]
-        let entry = Entry(date: date, characterCount: characterCount)
+
+        // Convert the entered total count into a delta relative to the current
+        // progress. This ensures the last value is replaced instead of summed.
+        let delta = characterCount - project.currentProgress
+        let entry = Entry(date: date, characterCount: delta)
+
         if selectedStageIndex > 0 && selectedStageIndex - 1 < project.stages.count {
             let stage = project.stages[selectedStageIndex - 1]
             stage.entries.append(entry)
