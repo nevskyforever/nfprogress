@@ -15,20 +15,12 @@ struct ProgressCircleView: View {
     /// Target progress value
     @State private var endProgress: Double = 0
 
-    /// Palette for color interpolation
-    @State private var palette: ProgressPalette = .increase
-
     /// Duration for the current animation
     @State private var duration: Double = 0.25
 
-    /// Map progress value to a color depending on palette
+    /// Map progress value to a color in the red to green range
     private func color(for percent: Double) -> Color {
-        switch palette {
-        case .increase:
-            return .interpolate(from: .green, to: .orange, fraction: percent)
-        case .decrease:
-            return .interpolate(from: .orange, to: .green, fraction: percent)
-        }
+        .interpolate(from: .red, to: .green, fraction: percent)
     }
 
     /// Computed colors for the current animation state
@@ -100,7 +92,6 @@ struct ProgressCircleView: View {
         // Ignore redundant updates that would result in a zero length animation
         guard abs(newValue - endProgress) > 0.0001 else { return }
 
-        palette = newValue >= endProgress ? .increase : .decrease
         startProgress = endProgress
         endProgress = newValue
 
