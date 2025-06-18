@@ -3,51 +3,74 @@ import SwiftUI
 struct ProgressCircleView: View {
     var project: WritingProject
 
-    /// Отображаемое значение прогресса, анимированное только при изменении
-    @State private var displayedProgress: Double = 0
+    /// Progress value at the start of animation
+    @State private var startProgress: Double = 0
+    /// Target progress value
+    @State private var endProgress: Double = 0
 
-    /// Цвет прогресса от красного к зеленому в зависимости от процента выполнения
-    private var progressColor: Color {
-        let clamped = max(0, min(1, displayedProgress))
-        // От красного (0) к зеленому (0.33) по шкале hue
-        let hue = clamped * 0.33
-        return Color(hue: hue, saturation: 1, brightness: 1)
+    /// Palette for color interpolation
+    @State private var palette: ProgressPalette = .increase
+
+    /// Duration for the current animation
+    @State private var duration: Double = 0.25
+
+    /// Map progress value to a color depending on palette
+    private func color(for percent: Double) -> Color {
+        switch palette {
+        case .increase:
+            return .interpolate(from: .green, to: .orange, fraction: percent)
+        case .decrease:
+            return .interpolate(from: .orange, to: .green, fraction: percent)
+        }
     }
 
     /// Minimum and maximum allowed duration for the progress animation
-    private let minDuration = 0.4
+    private let minDuration = 0.25
     private let maxDuration = 3.0
 
-    /// Update the displayed progress with an animated transition
+    /// Update animation parameters when progress changes
     private func updateProgress(to newValue: Double) {
-        // Рассчитываем относительный диапазон изменения от 0 до 1
-        let diff = abs(newValue - displayedProgress)
+        palette = newValue >= endProgress ? .increase : .decrease
+        startProgress = endProgress
+        endProgress = newValue
+
+        let diff = abs(endProgress - startProgress)
         let range = max(diff, 0.01)
         let scaled = min(range, 1.0)
-
-        // Чем больше изменение, тем дольше длится анимация
-        let duration = min(minDuration + scaled * (maxDuration - minDuration),
-                           maxDuration)
-
-        withAnimation(.easeOut(duration: duration)) {
-            displayedProgress = newValue
-        }
+        duration = min(minDuration + scaled * (maxDuration - minDuration), maxDuration)
     }
 
     var body: some View {
         ZStack {
-            // Фоновый круг
+            // Background circle
             Circle()
                 .stroke(Color.gray.opacity(0.3), lineWidth: 12)
 
-            // Круг прогресса с динамическим цветом
-            Circle()
-                .trim(from: 0, to: CGFloat(displayedProgress))
-                .stroke(progressColor, style: StrokeStyle(lineWidth: 12, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-
-            // Процент в центре с плавной анимацией цифр
-            AnimatedCounterText(value: displayedProgress)
+            if #available(macOS 12, *) {
+                AnimatedProgressView(
+                    startPercent: startProgress,
+                    endPercent: endProgress,
+                    startColor: color(for: startProgress),
+                    endColor: color(for: endProgress),
+                    duration: duration
+                ) { value, color in
+                    Circle()
+                        .trim(from: 0, to: CGFloat(value))
+                        .stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                    Text("\(Int(value * 100))%")
+                        .font(.system(size: 20))
+                        .monospacedDigit()
+                        .bold()
+                        .foregroundColor(color)
+                }
+            } else {
+                Circle()
+                    .trim(from: 0, to: CGFloat(endProgress))
+                    .stroke(color(for: endProgress), style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                AnimatedCounterText(value: endProgress)
+            }
         }
         .onAppear {
             let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
