@@ -39,7 +39,7 @@ struct ProgressChartView: View {
                     ForEach(project.sortedEntries) { entry in
                         LineMark(
                             x: .value("Дата", entry.date),
-                            y: .value("Символы", entry.characterCount)
+                            y: .value("Символы", project.globalProgress(for: entry))
                         )
                         .interpolationMethod(.monotone)
                         .symbol(.circle)
