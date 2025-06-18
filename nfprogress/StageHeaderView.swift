@@ -23,12 +23,6 @@ struct StageHeaderView: View {
     /// Duration for the current animation
     @State private var duration: Double = 0.25
 
-    /// Width of the progress ring stroke
-    private let lineWidth: CGFloat = 8
-
-    /// Size of the progress ring
-    private let ringSize: CGFloat = 32
-
     /// Helper that maps progress to a color depending on palette
     private func color(for percent: Double) -> Color {
         switch palette {
@@ -56,15 +50,6 @@ struct StageHeaderView: View {
         duration = min(minDuration + scaled * (maxDuration - minDuration), maxDuration)
     }
 
-    /// Draw the progress ring for a given value and color
-    private func ring(value: Double, color: Color) -> some View {
-        Circle()
-            .trim(from: 0, to: CGFloat(value))
-            .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
-            .rotationEffect(.degrees(-90))
-            .frame(width: ringSize, height: ringSize)
-    }
-
     var body: some View {
         HStack {
             VStack(alignment: .leading) {
@@ -84,21 +69,15 @@ struct StageHeaderView: View {
                     endColor: color(for: endProgress),
                     duration: duration
                 ) { value, color in
-                    ZStack {
-                        ring(value: value, color: color)
-                        let percent = Int(ceil(value * 100))
-                        Text("\(percent)%")
-                            .monospacedDigit()
-                            .bold()
-                            .foregroundColor(color)
-                    }
+                    let percent = Int(ceil(value * 100))
+                    Text("\(percent)%")
+                        .monospacedDigit()
+                        .bold()
+                        .foregroundColor(color)
                 }
             } else {
-                ZStack {
-                    ring(value: endProgress, color: color(for: endProgress))
-                    AnimatedCounterText(value: endProgress)
-                        .foregroundColor(color(for: endProgress))
-                }
+                AnimatedCounterText(value: endProgress)
+                    .foregroundColor(color(for: endProgress))
             }
 
             Button(action: onEdit) {
