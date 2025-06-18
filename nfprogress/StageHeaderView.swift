@@ -70,7 +70,7 @@ struct StageHeaderView: View {
                     duration: duration
                 ) { value, color in
                     let percent = Int(ceil(value * 100))
-                    ZStack {
+                    return ZStack {
                         Text("\(percent)%")
                             .monospacedDigit()
                             .bold()
