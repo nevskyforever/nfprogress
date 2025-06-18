@@ -53,6 +53,12 @@ struct ProgressCircleView: View {
         .onChange(of: project.progressPercentage) { newValue in
             updateProgress(to: newValue)
         }
+        .onChange(of: project.entries.map(\.id)) { _ in
+            updateProgress(to: project.progressPercentage)
+        }
+        .onChange(of: project.stages.flatMap { $0.entries }.map(\.id)) { _ in
+            updateProgress(to: project.progressPercentage)
+        }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
             updateProgress(to: project.progressPercentage)
         }
