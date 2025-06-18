@@ -18,11 +18,7 @@ class WritingProject {
     }
 
     private var allEntries: [Entry] {
-        var result = entries
-        for stage in stages {
-            result.append(contentsOf: stage.entries)
-        }
-        return result
+        entries + stages.flatMap { $0.entries }
     }
 
     var sortedEntries: [Entry] {
