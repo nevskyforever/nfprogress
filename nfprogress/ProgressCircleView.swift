@@ -47,17 +47,22 @@ struct ProgressCircleView: View {
                 .stroke(Color.gray.opacity(0.3), lineWidth: 12)
 
             if #available(macOS 12, *) {
+                let startColor = color(for: startProgress)
+                let endColor = color(for: endProgress)
+
                 AnimatedProgressView(
                     startPercent: startProgress,
                     endPercent: endProgress,
-                    startColor: color(for: startProgress),
-                    endColor: color(for: endProgress),
+                    startColor: startColor,
+                    endColor: endColor,
                     duration: duration
                 ) { value, color in
-                    Circle()
+                    let progressCircle = Circle()
                         .trim(from: 0, to: CGFloat(value))
                         .stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                         .rotationEffect(.degrees(-90))
+
+                    progressCircle
                     Text("\(Int(value * 100))%")
                         .font(.system(size: 20))
                         .monospacedDigit()
@@ -65,9 +70,10 @@ struct ProgressCircleView: View {
                         .foregroundColor(color)
                 }
             } else {
+                let color = color(for: endProgress)
                 Circle()
                     .trim(from: 0, to: CGFloat(endProgress))
-                    .stroke(color(for: endProgress), style: StrokeStyle(lineWidth: 12, lineCap: .round))
+                    .stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                 AnimatedCounterText(value: endProgress)
             }
@@ -82,10 +88,10 @@ struct ProgressCircleView: View {
         .onChange(of: project.progress) { newValue in
             updateProgress(to: newValue)
         }
-        .onChange(of: project.entries.map(\.id)) { _ in
+        .onChange(of: project.entries.map { $0.id }) { _ in
             updateProgress(to: project.progress)
         }
-        .onChange(of: project.stages.flatMap { $0.entries }.map(\.id)) { _ in
+        .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
             updateProgress(to: project.progress)
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
