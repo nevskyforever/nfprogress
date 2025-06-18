@@ -36,7 +36,13 @@ class WritingProject {
 
     var progressPercentage: Double {
         guard goal > 0 else { return 0 }
-        return Double(currentProgress) / Double(goal)
+        if stages.isEmpty {
+            return Double(currentProgress) / Double(goal)
+        }
+        let total = stages.reduce(0.0) { partial, stage in
+            partial + stage.progress(in: self)
+        }
+        return min(total, 1.0)
     }
 
     var changeSinceLast: Int {

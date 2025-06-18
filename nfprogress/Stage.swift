@@ -58,4 +58,11 @@ extension Stage {
         guard goal > 0 else { return 0 }
         return Double(currentProgress(in: project)) / Double(goal)
     }
+
+    /// Normalized progress contribution relative to the project's goal
+    func progress(in project: WritingProject) -> Double {
+        guard project.goal > 0 else { return 0 }
+        let current = currentProgress(in: project)
+        return Double(current) / Double(project.goal)
+    }
 }
