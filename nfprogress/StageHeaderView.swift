@@ -9,8 +9,13 @@ struct StageHeaderView: View {
     /// Currently displayed progress value (0...1)
     @State private var displayedProgress: Double = 0
 
-    /// Duration for animation to match progress circle
-    private let animationDuration = 1.8
+    /// Base animation duration
+    private let baseDuration = 0.4
+    /// Extra time per percent of change
+    private let scalingFactor = 0.03
+    /// Minimum and maximum allowed duration
+    private let minDuration = 0.4
+    private let maxDuration = 2.5
 
     /// Color representing current progress
     private var progressColor: Color {
@@ -46,7 +51,10 @@ struct StageHeaderView: View {
             displayedProgress = stage.progressPercentage
         }
         .onChange(of: stage.progressPercentage) { newValue in
-            withAnimation(.easeOut(duration: animationDuration)) {
+            let diffPercent = abs(newValue - displayedProgress) * 100
+            var duration = baseDuration + scalingFactor * diffPercent
+            duration = min(max(duration, minDuration), maxDuration)
+            withAnimation(.easeOut(duration: duration)) {
                 displayedProgress = newValue
             }
         }
