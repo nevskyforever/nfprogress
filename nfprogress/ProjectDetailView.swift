@@ -172,12 +172,19 @@ struct ProjectDetailView: View {
                                 let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
                                 let cumulative = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
                                 let clamped = max(cumulative, 0)
-                                let percent = Double(clamped) / Double(max(stage.goal,1)) * 100
+                                let percent = Double(clamped) / Double(max(stage.goal, 1)) * 100
+
+                                let delta = entry.characterCount
+                                let deltaPercent = Double(delta) / Double(max(stage.goal, 1)) * 100
+                                let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
+
                                 HStack {
                                     VStack(alignment: .leading) {
                                         Text("Символов: \(clamped)")
                                         Text(String(format: "Прогресс этапа: %.0f%%", percent))
                                             .foregroundColor(progressColor(percent / 100))
+                                        Text("Изменение: \(deltaText)")
+                                            .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
                                         Text(entry.date.formatted(date: .numeric, time: .shortened))
                                             .font(.caption)
                                             .foregroundColor(.gray)
