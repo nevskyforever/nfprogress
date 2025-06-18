@@ -40,7 +40,10 @@ class WritingProject {
             let sum = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
             return stage.startProgress + sum
         }
-        return entry.characterCount
+
+        let sorted = entries.sorted { $0.date < $1.date }
+        guard let index = sorted.firstIndex(where: { $0.id == entry.id }) else { return 0 }
+        return sorted.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
     }
 
     func previousGlobalProgress(before entry: Entry) -> Int {
@@ -70,7 +73,7 @@ class WritingProject {
     /// Overall project progress in the range 0...1
     var progress: Double {
         guard goal > 0 else { return 0 }
-        return min(Double(totalStageCharacters) / Double(goal), 1.0)
+        return min(Double(currentProgress) / Double(goal), 1.0)
     }
 
     var progressPercentage: Double {
