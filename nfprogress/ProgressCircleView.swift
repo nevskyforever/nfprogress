@@ -52,12 +52,14 @@ struct ProgressCircleView: View {
             endColor: endColor,
             duration: duration
         ) { value, color in
-            ring(value: value, color: color)
-            Text("\(Int(value * 100))%")
-                .font(.system(size: 20))
-                .monospacedDigit()
-                .bold()
-                .foregroundColor(color)
+            ZStack {
+                ring(value: value, color: color)
+                Text("\(Int(value * 100))%")
+                    .font(.system(size: 20))
+                    .monospacedDigit()
+                    .bold()
+                    .foregroundColor(color)
+            }
         }
     }
 
