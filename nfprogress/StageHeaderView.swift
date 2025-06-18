@@ -19,6 +19,11 @@ struct StageHeaderView: View {
     private let minDuration = 0.4
     private let maxDuration = 2.5
 
+    /// Current progress percentage for this stage within its project
+    private var progress: Double {
+        stage.progressPercentage(in: project)
+    }
+
     /// Update the displayed progress with an animated transition
     private func updateProgress(to newValue: Double) {
         let diffPercent = abs(newValue - displayedProgress) * 100
@@ -60,13 +65,13 @@ struct StageHeaderView: View {
         }
         .font(.headline)
         .onAppear {
-            updateProgress(to: stage.progressPercentage(in: project))
+            updateProgress(to: progress)
         }
-        .onChange(of: stage.entries) { _ in
-            updateProgress(to: stage.progressPercentage(in: project))
+        .onChange(of: progress) { newValue in
+            updateProgress(to: newValue)
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            updateProgress(to: stage.progressPercentage(in: project))
+            updateProgress(to: progress)
         }
     }
 }
