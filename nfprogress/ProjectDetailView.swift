@@ -195,29 +195,11 @@ struct ProjectDetailView: View {
                                 }
                             }
                         } label: {
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(stage.title)
-                                    Text("Цель: \(stage.goal) знаков")
-                                        .font(.caption)
-                                        .foregroundColor(.gray)
-                                }
-                                Spacer()
-                                Text(String(format: "%.0f%%", stage.progressPercentage * 100))
-                                    .foregroundColor(progressColor(stage.progressPercentage))
-                                Button {
-                                    editingStage = stage
-                                } label: {
-                                    Image(systemName: "pencil")
-                                }
-                                Button {
-                                    stageToDelete = stage
-                                } label: {
-                                    Image(systemName: "trash")
-                                }
-                                .buttonStyle(.borderless)
-                            }
-                            .font(.headline)
+                            StageHeaderView(
+                                stage: stage,
+                                onEdit: { editingStage = stage },
+                                onDelete: { stageToDelete = stage }
+                            )
                         }
                     }
                 }
