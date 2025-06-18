@@ -17,6 +17,16 @@ struct StageHeaderView: View {
     private let minDuration = 0.4
     private let maxDuration = 2.5
 
+    /// Update the displayed progress with an animated transition
+    private func updateProgress(to newValue: Double) {
+        let diffPercent = abs(newValue - displayedProgress) * 100
+        var duration = baseDuration + scalingFactor * diffPercent
+        duration = min(max(duration, minDuration), maxDuration)
+        withAnimation(.easeOut(duration: duration)) {
+            displayedProgress = newValue
+        }
+    }
+
     /// Color representing current progress
     private var progressColor: Color {
         let clamped = max(0, min(1, displayedProgress))
@@ -48,15 +58,13 @@ struct StageHeaderView: View {
         }
         .font(.headline)
         .onAppear {
-            displayedProgress = stage.progressPercentage
+            updateProgress(to: stage.progressPercentage)
         }
         .onChange(of: stage.progressPercentage) { newValue in
-            let diffPercent = abs(newValue - displayedProgress) * 100
-            var duration = baseDuration + scalingFactor * diffPercent
-            duration = min(max(duration, minDuration), maxDuration)
-            withAnimation(.easeOut(duration: duration)) {
-                displayedProgress = newValue
-            }
+            updateProgress(to: newValue)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+            updateProgress(to: stage.progressPercentage)
         }
     }
 }
