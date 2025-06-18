@@ -68,13 +68,12 @@ struct AddEntryView: View {
     }
 
     private func addEntry() {
+        let absoluteCount = project.currentProgress + characterCount
+        let newEntry = Entry(date: date, characterCount: absoluteCount)
         if selectedStageIndex > 0 && selectedStageIndex - 1 < project.stages.count {
             let stage = project.stages[selectedStageIndex - 1]
-            let absoluteCount = characterCount + stage.startProgress
-            let newEntry = Entry(date: date, characterCount: absoluteCount)
             stage.entries.append(newEntry)
         } else {
-            let newEntry = Entry(date: date, characterCount: characterCount)
             project.entries.append(newEntry)
         }
         dismiss()
