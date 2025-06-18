@@ -3,6 +3,13 @@ import SwiftUI
 struct ProgressCircleView: View {
     var project: WritingProject
 
+    /// Current project progress percentage based on total characters
+    private var progress: Double {
+        guard project.goal > 0 else { return 0 }
+        let percent = Double(project.currentProgress) / Double(project.goal)
+        return min(max(percent, 0), 1.0)
+    }
+
     /// Progress value at the start of animation
     @State private var startProgress: Double = 0
     /// Target progress value
@@ -109,20 +116,20 @@ struct ProgressCircleView: View {
             let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
             let delay = max(0, 1 - elapsed)
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                updateProgress(to: project.progress)
+                updateProgress(to: progress)
             }
         }
-        .onChange(of: project.progress) { newValue in
+        .onChange(of: progress) { newValue in
             updateProgress(to: newValue)
         }
         .onChange(of: project.entries.map { $0.id }) { _ in
-            updateProgress(to: project.progress)
+            updateProgress(to: progress)
         }
         .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
-            updateProgress(to: project.progress)
+            updateProgress(to: progress)
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            updateProgress(to: project.progress)
+            updateProgress(to: progress)
         }
     }
 }
