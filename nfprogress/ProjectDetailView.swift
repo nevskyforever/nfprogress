@@ -224,16 +224,18 @@ struct ProjectDetailView: View {
                     }
                     .keyboardShortcut("n", modifiers: .command)
                 }
-                DisclosureGroup(
-                    isExpanded: Binding(
-                        get: { !project.isChartCollapsed },
-                        set: { project.isChartCollapsed = !$0 }
-                    )
-                ) {
-                    ProgressChartView(project: project)
-                } label: {
-                    Text("График прогресса")
-                        .font(.title3.bold())
+                if !project.sortedEntries.isEmpty {
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { !project.isChartCollapsed },
+                            set: { project.isChartCollapsed = !$0 }
+                        )
+                    ) {
+                        ProgressChartView(project: project)
+                    } label: {
+                        Text("График прогресса")
+                            .font(.title3.bold())
+                    }
                 }
 
                 ForEach(project.sortedEntries) { entry in
