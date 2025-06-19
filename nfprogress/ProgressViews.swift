@@ -57,6 +57,9 @@ import SwiftUI
 struct ProgressCircleView: View {
     var project: WritingProject
 
+    @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
+    @AppStorage("disableAllAnimations") private var disableAllAnimations = false
+
     /// Текущий процент выполнения проекта на основе общего количества символов
     private var progress: Double {
         guard project.goal > 0 else { return 0 }
@@ -130,7 +133,7 @@ struct ProgressCircleView: View {
     /// Выбор подходящего кольца в зависимости от версии ОС
     @ViewBuilder
     private var progressRing: some View {
-        if AppSettings.disableAllAnimations {
+        if disableAllAnimations {
             staticRing
         } else if #available(macOS 12, *) {
             animatedRing
@@ -171,7 +174,7 @@ struct ProgressCircleView: View {
             progressRing
         }
         .onAppear {
-            if AppSettings.disableLaunchAnimations || AppSettings.disableAllAnimations {
+            if disableLaunchAnimations || disableAllAnimations {
                 startProgress = progress
                 endProgress = progress
             } else {
@@ -183,16 +186,16 @@ struct ProgressCircleView: View {
             }
         }
         .onChange(of: progress) { newValue in
-            updateProgress(to: newValue, animated: !AppSettings.disableAllAnimations)
+            updateProgress(to: newValue, animated: !disableAllAnimations)
         }
         .onChange(of: project.entries.map { $0.id }) { _ in
-            updateProgress(to: progress, animated: !AppSettings.disableAllAnimations)
+            updateProgress(to: progress, animated: !disableAllAnimations)
         }
         .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
-            updateProgress(to: progress, animated: !AppSettings.disableAllAnimations)
+            updateProgress(to: progress, animated: !disableAllAnimations)
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            updateProgress(to: progress, animated: !AppSettings.disableAllAnimations)
+            updateProgress(to: progress, animated: !disableAllAnimations)
         }
     }
 }
