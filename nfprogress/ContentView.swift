@@ -128,6 +128,15 @@ struct ContentView: View {
         secondaryButton: .cancel()
       )
     }
+    .onReceive(NotificationCenter.default.publisher(for: .menuAddProject)) { _ in
+      addProject()
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .menuImport)) { _ in
+      importSelectedProject()
+    }
+    .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
+      exportSelectedProject()
+    }
   }
 
   private func addProject() {
