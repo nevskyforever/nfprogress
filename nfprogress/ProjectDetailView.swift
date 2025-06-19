@@ -310,6 +310,12 @@ struct ProjectDetailView: View {
         .sheet(item: $editingStage) { stage in
             EditStageView(stage: stage)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
+            addEntry()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .menuAddStage)) { _ in
+            addStage()
+        }
         .alert(item: $stageToDelete) { stage in
             if project.stages.count == 1 {
                 return Alert(
