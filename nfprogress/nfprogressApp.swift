@@ -17,6 +17,7 @@ struct nfprogressApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(\.textScale, AppSettings.textScale)
         }
         .modelContainer(DataController.shared)
         .commands { MainMenuCommands() }

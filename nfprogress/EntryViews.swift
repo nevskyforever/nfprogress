@@ -36,6 +36,7 @@ struct AddEntryView: View {
 
             Text("new_entry")
                 .font(.title2.bold())
+                .applyTextScale()
 
             DatePicker("date_time", selection: $date)
                 .labelsHidden()
@@ -43,7 +44,9 @@ struct AddEntryView: View {
             if fixedStage == nil && !project.stages.isEmpty {
                 Picker("stage", selection: $selectedStageIndex) {
                     ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
-                        Text(stage.title).tag(idx)
+                        Text(stage.title)
+                            .applyTextScale()
+                            .tag(idx)
                     }
                 }
                 .labelsHidden()
@@ -132,6 +135,7 @@ struct EditEntryView: View {
 
             Text("edit_entry")
                 .font(.title2.bold())
+                .applyTextScale()
 
             DatePicker("date_time", selection: $entry.date)
                 .labelsHidden()
@@ -139,7 +143,9 @@ struct EditEntryView: View {
             if !project.stages.isEmpty {
                 Picker("stage", selection: $selectedStageIndex) {
                     ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
-                        Text(stage.title).tag(idx)
+                        Text(stage.title)
+                            .applyTextScale()
+                            .tag(idx)
                     }
                 }
                 .labelsHidden()
@@ -243,19 +249,26 @@ struct MenuBarEntryView: View {
 
             if projects.isEmpty {
                 Text("Нет проектов")
+                    .applyTextScale()
             } else {
                 Picker("Проект", selection: $selectedIndex) {
                     ForEach(Array(projects.enumerated()), id: \.offset) { idx, project in
-                        Text(project.title).tag(idx)
+                        Text(project.title)
+                            .applyTextScale()
+                            .tag(idx)
                     }
                 }
                 .labelsHidden()
                 let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
                 if !project.stages.isEmpty {
                     Picker("Этап", selection: $selectedStageIndex) {
-                        Text("Без этапа").tag(0)
+                        Text("Без этапа")
+                            .applyTextScale()
+                            .tag(0)
                         ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
-                            Text(stage.title).tag(idx + 1)
+                            Text(stage.title)
+                                .applyTextScale()
+                                .tag(idx + 1)
                         }
                     }
                     .labelsHidden()

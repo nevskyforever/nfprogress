@@ -21,8 +21,10 @@ struct AddStageView: View {
 
             Text("new_stage")
                 .font(.title2.bold())
+                .applyTextScale()
             if project.stages.isEmpty && !project.entries.isEmpty {
                 Text("all_entries_move")
+                    .applyTextScale()
                     .multilineTextAlignment(.center)
                     .font(.caption)
                     .foregroundColor(.orange)
@@ -79,6 +81,7 @@ struct EditStageView: View {
 
             Text("edit_stage")
                 .font(.title2.bold())
+                .applyTextScale()
 
             TextField("project_name", text: $stage.title)
                 .textFieldStyle(.roundedBorder)
@@ -162,7 +165,9 @@ struct StageHeaderView: View {
         HStack {
             VStack(alignment: .leading) {
                 Text(stage.title)
+                    .applyTextScale()
                 Text("Цель: \(stage.goal) знаков")
+                    .applyTextScale()
                     .font(.caption)
                     .foregroundColor(.gray)
             }
