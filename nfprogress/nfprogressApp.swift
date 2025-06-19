@@ -20,6 +20,7 @@ struct nfprogressApp: App {
         WindowGroup {
             ContentView()
                 .environment(\.textScale, textScale == 0 ? 1.0 : textScale)
+                .applyTextScale()
         }
         .modelContainer(DataController.shared)
         .commands { MainMenuCommands() }
@@ -27,6 +28,7 @@ struct nfprogressApp: App {
         MenuBarExtra("NFProgress", systemImage: "text.cursor") {
             MenuBarEntryView()
                 .environment(\.textScale, textScale == 0 ? 1.0 : textScale)
+                .applyTextScale()
         }
         .menuBarExtraStyle(.window)
         .modelContainer(DataController.shared)
@@ -35,6 +37,7 @@ struct nfprogressApp: App {
         Settings {
             SettingsView()
                 .environment(\.textScale, textScale == 0 ? 1.0 : textScale)
+                .applyTextScale()
         }
 #endif
     }
