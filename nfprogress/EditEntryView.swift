@@ -6,6 +6,7 @@ struct EditEntryView: View {
     @Bindable var project: WritingProject
     @Bindable var entry: Entry
     @State private var selectedStageIndex: Int = 0
+    @State private var editedCount: Int = 0
 
     init(project: WritingProject, entry: Entry) {
         self.project = project
@@ -14,6 +15,7 @@ struct EditEntryView: View {
            let idx = project.stages.firstIndex(where: { $0.id == stage.id }) {
             _selectedStageIndex = State(initialValue: idx)
         }
+        _editedCount = State(initialValue: Self.progressAfterEntry(project: project, entry: entry))
     }
 
     var body: some View {
@@ -42,13 +44,14 @@ struct EditEntryView: View {
                 .labelsHidden()
             }
 
-            TextField("Символов", value: $entry.characterCount, format: .number)
+            TextField("Символов", value: $editedCount, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 120)
 
             Spacer()
 
             Button("Готово") {
+                saveChanges()
                 dismiss()
             }
             .buttonStyle(.borderedProminent)
@@ -57,9 +60,6 @@ struct EditEntryView: View {
         .padding()
         .frame(width: 320)
         .onDisappear {
-            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-        }
-        .onChange(of: entry.characterCount) { _ in
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
         .onChange(of: entry.date) { _ in
@@ -80,6 +80,36 @@ struct EditEntryView: View {
             project.entries.remove(at: idx)
         }
         stage.entries.append(entry)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+    }
+
+    private static func progressAfterEntry(project: WritingProject, entry: Entry) -> Int {
+        if let stage = project.stageForEntry(entry) {
+            let sorted = stage.sortedEntries.sorted { $0.date < $1.date }
+            guard let idx = sorted.firstIndex(where: { $0.id == entry.id }) else { return entry.characterCount }
+            return sorted.prefix(idx + 1).reduce(0) { $0 + $1.characterCount }
+        } else {
+            let sorted = project.entries.sorted { $0.date < $1.date }
+            guard let idx = sorted.firstIndex(where: { $0.id == entry.id }) else { return entry.characterCount }
+            return sorted.prefix(idx + 1).reduce(0) { $0 + $1.characterCount }
+        }
+    }
+
+    private static func progressBeforeEntry(project: WritingProject, entry: Entry) -> Int {
+        if let stage = project.stageForEntry(entry) {
+            let sorted = stage.sortedEntries.sorted { $0.date < $1.date }
+            guard let idx = sorted.firstIndex(where: { $0.id == entry.id }) else { return 0 }
+            return sorted.prefix(idx).reduce(0) { $0 + $1.characterCount }
+        } else {
+            let sorted = project.entries.sorted { $0.date < $1.date }
+            guard let idx = sorted.firstIndex(where: { $0.id == entry.id }) else { return 0 }
+            return sorted.prefix(idx).reduce(0) { $0 + $1.characterCount }
+        }
+    }
+
+    private func saveChanges() {
+        let previous = Self.progressBeforeEntry(project: project, entry: entry)
+        entry.characterCount = editedCount - previous
         NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
     }
 }
