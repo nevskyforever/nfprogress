@@ -285,6 +285,7 @@ struct ProjectDetailView: View {
                 }
             }
             .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .simultaneousGesture(
             TapGesture().onEnded { focusedField = nil }
