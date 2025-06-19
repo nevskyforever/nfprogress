@@ -224,7 +224,17 @@ struct ProjectDetailView: View {
                     }
                     .keyboardShortcut("n", modifiers: .command)
                 }
-                ProgressChartView(project: project)
+                DisclosureGroup(
+                    isExpanded: Binding(
+                        get: { !project.isChartCollapsed },
+                        set: { project.isChartCollapsed = !$0 }
+                    )
+                ) {
+                    ProgressChartView(project: project)
+                } label: {
+                    Text("График прогресса")
+                        .font(.title3.bold())
+                }
 
                 ForEach(project.sortedEntries) { entry in
                     let total = project.globalProgress(for: entry)
