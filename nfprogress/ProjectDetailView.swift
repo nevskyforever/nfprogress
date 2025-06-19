@@ -224,7 +224,7 @@ struct ProjectDetailView: View {
                     }
                     .keyboardShortcut("n", modifiers: .command)
                 }
-                if !project.sortedEntries.isEmpty {
+                if project.sortedEntries.count >= 2 {
                     DisclosureGroup(
                         isExpanded: Binding(
                             get: { !project.isChartCollapsed },
