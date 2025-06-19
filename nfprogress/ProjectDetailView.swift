@@ -285,7 +285,6 @@ struct ProjectDetailView: View {
                 }
             }
             .padding()
-            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .simultaneousGesture(
             TapGesture().onEnded { focusedField = nil }
@@ -309,12 +308,6 @@ struct ProjectDetailView: View {
         }
         .sheet(item: $editingStage) { stage in
             EditStageView(stage: stage)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
-            addEntry()
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .menuAddStage)) { _ in
-            addStage()
         }
         .alert(item: $stageToDelete) { stage in
             if project.stages.count == 1 {
