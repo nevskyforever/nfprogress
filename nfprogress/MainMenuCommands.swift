@@ -2,32 +2,32 @@ import SwiftUI
 
 struct MainMenuCommands: Commands {
     var body: some Commands {
-        CommandMenu("Файл") {
-            Button("Новый проект") {
+        CommandMenu("menu_file") {
+            Button("new_project") {
                 NotificationCenter.default.post(name: .menuAddProject, object: nil)
             }
             .keyboardShortcut("n", modifiers: [.command, .shift])
 
             Divider()
 
-            Button("Импортировать\u{2026}") {
+            Button("import_ellipsis") {
                 NotificationCenter.default.post(name: .menuImport, object: nil)
             }
             .keyboardShortcut("i", modifiers: .command)
 
-            Button("Экспортировать\u{2026}") {
+            Button("export_ellipsis") {
                 NotificationCenter.default.post(name: .menuExport, object: nil)
             }
             .keyboardShortcut("e", modifiers: .command)
         }
 
-        CommandMenu("Проект") {
-            Button("Новая запись") {
+        CommandMenu("menu_project") {
+            Button("new_entry") {
                 NotificationCenter.default.post(name: .menuAddEntry, object: nil)
             }
             .keyboardShortcut("n", modifiers: .command)
 
-            Button("Новый этап") {
+            Button("new_stage") {
                 NotificationCenter.default.post(name: .menuAddStage, object: nil)
             }
             .keyboardShortcut("n", modifiers: [.command, .option])

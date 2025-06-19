@@ -35,14 +35,14 @@ struct AddEntryView: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Новая запись")
+            Text("new_entry")
                 .font(.title2.bold())
 
-            DatePicker("Дата и время", selection: $date)
+            DatePicker("date_time", selection: $date)
                 .labelsHidden()
 
             if fixedStage == nil && !project.stages.isEmpty {
-                Picker("Этап", selection: $selectedStageIndex) {
+                Picker("stage", selection: $selectedStageIndex) {
                     ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                         Text(stage.title).tag(idx)
                     }
@@ -50,7 +50,7 @@ struct AddEntryView: View {
                 .labelsHidden()
             }
 
-            TextField("Символов", value: $characterCount, format: .number)
+            TextField("characters", value: $characterCount, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 120)
                 .submitLabel(.done)
@@ -58,7 +58,7 @@ struct AddEntryView: View {
 
             Spacer()
 
-            Button("Добавить") {
+            Button("add") {
                 addEntry()
             }
             .buttonStyle(.borderedProminent)

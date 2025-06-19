@@ -20,14 +20,14 @@ struct AddProjectView: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Новый проект")
+            Text("new_project")
                 .font(.title2.bold())
 
-            TextField("Название", text: $title)
+            TextField("project_name", text: $title)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
 
-            TextField("Цель", value: $goal, format: .number)
+            TextField("project_goal", value: $goal, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
                 .submitLabel(.done)
@@ -35,7 +35,7 @@ struct AddProjectView: View {
 
             Spacer()
 
-            Button("Создать") {
+            Button("create") {
                 addProject()
             }
             .buttonStyle(.borderedProminent)
@@ -47,7 +47,7 @@ struct AddProjectView: View {
     }
 
     private func addProject() {
-        let name = title.isEmpty ? "Новый текст" : title
+        let name = title.isEmpty ? String(localized: "new_text") : title
         let maxOrder = projects.map(\.order).max() ?? -1
         let newProject = WritingProject(title: name, goal: goal, order: maxOrder + 1)
         modelContext.insert(newProject)

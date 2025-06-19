@@ -3,6 +3,7 @@ import PackageDescription
 
 let package = Package(
     name: "nfprogress",
+    defaultLocalization: "ru",
     platforms: [
         .macOS(.v14)
     ],
@@ -15,7 +16,10 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "nfprogress",
-            path: "nfprogress"
+            path: "nfprogress",
+            resources: [
+                .process("Resources")
+            ]
         ),
         .testTarget(
             name: "nfprogressTests",
