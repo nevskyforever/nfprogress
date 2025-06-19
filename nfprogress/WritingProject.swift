@@ -8,13 +8,19 @@ class WritingProject {
     var deadline: Date?
     var entries: [Entry]
     var stages: [Stage]
+    /// Порядок отображения проектов в списке
+    var order: Int = 0
+    /// Состояние графика: `true` если график свернут
+    var isChartCollapsed: Bool = false
 
-    init(title: String, goal: Int, deadline: Date? = nil) {
+    init(title: String, goal: Int, deadline: Date? = nil, order: Int = 0, isChartCollapsed: Bool = false) {
         self.title = title
         self.goal = goal
         self.deadline = deadline
         self.entries = []
         self.stages = []
+        self.order = order
+        self.isChartCollapsed = isChartCollapsed
     }
 
     /// All entries across the project and stages without duplicates
