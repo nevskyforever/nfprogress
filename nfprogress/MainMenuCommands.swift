@@ -1,8 +1,6 @@
 import SwiftUI
 
 struct MainMenuCommands: Commands {
-    @Environment(\.openWindow) private var openWindow
-
     var body: some Commands {
         CommandMenu("Файл") {
             Button("Новый проект") {
@@ -35,10 +33,5 @@ struct MainMenuCommands: Commands {
             .keyboardShortcut("n", modifiers: [.command, .option])
         }
 
-        CommandGroup(replacing: .appSettings) {
-            Button("Настройки\u{2026}") {
-                openWindow(id: "Settings")
-            }
-        }
     }
 }
