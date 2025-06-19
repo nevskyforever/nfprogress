@@ -12,6 +12,7 @@ struct ProjectDetailView: View {
     @State private var expandedStages: Set<Stage.ID> = []
     @State private var stageToDelete: Stage?
     @State private var tempDeadline: Date = Date()
+    @State private var selectedEntry: Entry?
     // Editing state for individual fields
     @State private var isEditingTitle = false
     @State private var isEditingGoal = false
@@ -192,6 +193,8 @@ struct ProjectDetailView: View {
                                 let deltaPercent = Double(delta) / Double(max(stage.goal, 1)) * 100
                                 let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
 
+                                let isSelected = selectedEntry?.id == entry.id
+
                                 HStack {
                                     VStack(alignment: .leading) {
                                         Text("Символов: \(clamped)")
@@ -208,15 +211,27 @@ struct ProjectDetailView: View {
                                             .foregroundColor(.gray)
                                     }
                                     Spacer()
-                                    Button { editingEntry = entry } label: { Image(systemName: "pencil") }
-                                    Button(role: .destructive) {
-                                        if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
-                                            stage.entries.remove(at: i)
-                                        }
-                                        modelContext.delete(entry)
-                                        saveContext()
-                                        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-                                    } label: { Image(systemName: "trash") }
+                                    if isSelected {
+                                        Button { editingEntry = entry } label: { Image(systemName: "pencil") }
+                                        Button(role: .destructive) {
+                                            if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
+                                                stage.entries.remove(at: i)
+                                            }
+                                            modelContext.delete(entry)
+                                            saveContext()
+                                            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+                                        } label: { Image(systemName: "trash") }
+                                    }
+                                }
+                                .contentShape(Rectangle())
+                                .padding(4)
+                                .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                                .onTapGesture {
+                                    if selectedEntry?.id == entry.id {
+                                        selectedEntry = nil
+                                    } else {
+                                        selectedEntry = entry
+                                    }
                                 }
                             }
                         } label: {
@@ -264,6 +279,8 @@ struct ProjectDetailView: View {
                     let progressPercent = Double(total) / Double(max(project.goal, 1)) * 100
                     let stageName = project.stageForEntry(entry)?.title
 
+                    let isSelected = selectedEntry?.id == entry.id
+
                     HStack {
                         VStack(alignment: .leading) {
                             if let stageName {
@@ -286,22 +303,34 @@ struct ProjectDetailView: View {
                                 .foregroundColor(.gray)
                         }
                         Spacer()
-                        Button { editingEntry = entry } label: {
-                            Image(systemName: "pencil")
-                        }
-                        Button(role: .destructive) {
-                            if let stage = project.stageForEntry(entry) {
-                                if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
-                                    stage.entries.remove(at: i)
-                                }
-                            } else if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
-                                project.entries.remove(at: i)
+                        if isSelected {
+                            Button { editingEntry = entry } label: {
+                                Image(systemName: "pencil")
                             }
-                            modelContext.delete(entry)
-                            saveContext()
-                            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-                        } label: {
-                            Image(systemName: "trash")
+                            Button(role: .destructive) {
+                                if let stage = project.stageForEntry(entry) {
+                                    if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
+                                        stage.entries.remove(at: i)
+                                    }
+                                } else if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
+                                    project.entries.remove(at: i)
+                                }
+                                modelContext.delete(entry)
+                                saveContext()
+                                NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+                            } label: {
+                                Image(systemName: "trash")
+                            }
+                        }
+                    }
+                    .contentShape(Rectangle())
+                    .padding(4)
+                    .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                    .onTapGesture {
+                        if selectedEntry?.id == entry.id {
+                            selectedEntry = nil
+                        } else {
+                            selectedEntry = entry
                         }
                     }
                 }
@@ -372,6 +401,14 @@ struct ProjectDetailView: View {
                 project.deadline = tempDeadline
                 isEditingDeadline = false
                 saveContext()
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .principal) {
+                Text(project.title)
+                    .multilineTextAlignment(.center)
+                    .applyTextScale()
+                    .fixedSize(horizontal: false, vertical: true)
             }
         }
     }

@@ -24,10 +24,8 @@ struct ContentView: View {
               Text(project.title)
                 .font(.headline)
                 .applyTextScale()
-                .lineLimit(1)
-                .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .minimumScaleFactor(0.8)
+                .fixedSize(horizontal: false, vertical: true)
               HStack {
                 Spacer()
                 ProgressCircleView(project: project)
