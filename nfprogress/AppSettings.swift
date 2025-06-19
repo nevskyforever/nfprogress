@@ -49,7 +49,9 @@ extension EnvironmentValues {
 struct ApplyTextScale: ViewModifier {
     @Environment(\.textScale) private var textScale
     func body(content: Content) -> some View {
-        content.dynamicTypeSize(size(for: textScale))
+        content
+            .environment(\.sizeCategory, category(for: textScale))
+            .dynamicTypeSize(size(for: textScale))
     }
 
     private func size(for scale: Double) -> DynamicTypeSize {
@@ -62,6 +64,20 @@ struct ApplyTextScale: ViewModifier {
         let clamped = min(max(scale, 1), 3)
         let index = Int(round((clamped - 1) / 2 * Double(sizes.count - 1)))
         return sizes[index]
+    }
+
+    private func category(for scale: Double) -> ContentSizeCategory {
+        let categories: [ContentSizeCategory] = [
+            .extraSmall, .small, .medium, .large, .extraLarge,
+            .extraExtraLarge, .extraExtraExtraLarge,
+            .accessibilityMedium, .accessibilityLarge,
+            .accessibilityExtraLarge, .accessibilityExtraExtraLarge,
+            .accessibilityExtraExtraExtraLarge,
+        ]
+
+        let clamped = min(max(scale, 1), 3)
+        let index = Int(round((clamped - 1) / 2 * Double(categories.count - 1)))
+        return categories[index]
     }
 }
 
