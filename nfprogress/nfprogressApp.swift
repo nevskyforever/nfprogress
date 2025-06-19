@@ -19,7 +19,6 @@ struct nfprogressApp: App {
             ContentView()
                 .environment(\.textScale, AppSettings.textScale)
         }
-        .windowStyle(.hiddenTitleBar)
         .modelContainer(DataController.shared)
         .commands { MainMenuCommands() }
 
