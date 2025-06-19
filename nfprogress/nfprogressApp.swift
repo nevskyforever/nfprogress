@@ -14,21 +14,23 @@ struct nfprogressApp: App {
         }
 #endif
     }
-    @AppStorage("textScale") private var textScale = 1.0
+    @StateObject private var settings = AppSettings()
 
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.textScale, textScale == 0 ? 1.0 : textScale)
+                .environment(\.textScale, settings.textScale)
                 .applyTextScale()
+                .environmentObject(settings)
         }
         .modelContainer(DataController.shared)
         .commands { MainMenuCommands() }
 
         MenuBarExtra("NFProgress", systemImage: "text.cursor") {
             MenuBarEntryView()
-                .environment(\.textScale, textScale == 0 ? 1.0 : textScale)
+                .environment(\.textScale, settings.textScale)
                 .applyTextScale()
+                .environmentObject(settings)
         }
         .menuBarExtraStyle(.window)
         .modelContainer(DataController.shared)
@@ -36,8 +38,9 @@ struct nfprogressApp: App {
 #if os(macOS)
         Settings {
             SettingsView()
-                .environment(\.textScale, textScale == 0 ? 1.0 : textScale)
+                .environment(\.textScale, settings.textScale)
                 .applyTextScale()
+                .environmentObject(settings)
         }
 #endif
     }
