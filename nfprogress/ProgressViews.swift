@@ -14,7 +14,7 @@ struct AnimatedCounterText: Animatable, View {
     var body: some View {
         let percent = Int(ceil(value * 100))
         Text("\(percent)%")
-            .font(.system(size: 20, relativeTo: .body))
+            .font(.system(size: 20))
             .monospacedDigit()
             .bold()
             .applyTextScale()
@@ -113,7 +113,7 @@ struct ProgressCircleView: View {
                 ring(value: value, color: color)
                 let percent = Int(ceil(value * 100))
                 Text("\(percent)%")
-                    .font(.system(size: 20, relativeTo: .body))
+                    .font(.system(size: 20))
                     .monospacedDigit()
                     .bold()
                     .foregroundColor(color)
