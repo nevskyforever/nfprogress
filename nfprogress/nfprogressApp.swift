@@ -18,7 +18,7 @@ struct nfprogressApp: App {
         .modelContainer(DataController.shared)
 
 #if os(macOS)
-        Settings(id: "settings") {
+        Settings {
             SettingsView()
         }
 #endif
