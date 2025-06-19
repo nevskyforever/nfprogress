@@ -13,19 +13,14 @@ final class AppSettings: ObservableObject {
     }
 
     @Published var textScale: Double {
-        didSet {
-            if textScale < 1.0 { textScale = 1.0 }
-            else if textScale > 1.5 { textScale = 1.5 }
-            defaults.set(textScale, forKey: "textScale")
-        }
+        didSet { defaults.set(textScale, forKey: "textScale") }
     }
 
     init() {
         disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
         disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
         let value = defaults.double(forKey: "textScale")
-        let stored = value == 0 ? 1.0 : value
-        textScale = min(max(stored, 1.0), 1.5)
+        textScale = value == 0 ? 1.0 : value
     }
 }
 
@@ -57,6 +52,7 @@ struct ApplyTextScale: ViewModifier {
         content
             .environment(\.sizeCategory, category(for: textScale))
             .dynamicTypeSize(size(for: textScale))
+            .scaleEffect(textScale)
     }
 
     private func size(for scale: Double) -> DynamicTypeSize {
@@ -66,7 +62,7 @@ struct ApplyTextScale: ViewModifier {
             .accessibility5
         ]
 
-        let clamped = min(max(scale, 1), 1.5)
+        let clamped = min(max(scale, 1), 3)
         let startIndex = 3 // `.large`
         let endIndex = sizes.count - 1
         let index = Int(round((clamped - 1) / 2 * Double(endIndex - startIndex))) + startIndex
@@ -82,7 +78,7 @@ struct ApplyTextScale: ViewModifier {
             .accessibilityExtraExtraExtraLarge,
         ]
 
-        let clamped = min(max(scale, 1), 1.5)
+        let clamped = min(max(scale, 1), 3)
         let startIndex = 3 // `.large`
         let endIndex = categories.count - 1
         let index = Int(round((clamped - 1) / 2 * Double(endIndex - startIndex))) + startIndex

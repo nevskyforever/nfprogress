@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
-    private let scaleOptions: [Double] = Array(stride(from: 1.0, through: 1.5, by: 0.1))
+    private let scaleOptions: [Double] = Array(stride(from: 1.0, through: 3.0, by: 0.1))
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
