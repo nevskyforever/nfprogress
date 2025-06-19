@@ -81,6 +81,7 @@ struct ProjectDetailView: View {
                             }
                     }
                 }
+                .padding(.bottom, 8)
                 HStack {
                     Text("Цель:")
                         .font(.title3.bold())
@@ -101,6 +102,7 @@ struct ProjectDetailView: View {
                             }
                     }
                 }
+                .padding(.bottom, 8)
 
                 // Дедлайн
                 HStack {
