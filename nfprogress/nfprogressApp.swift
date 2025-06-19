@@ -16,6 +16,12 @@ struct nfprogressApp: App {
         }
         .menuBarExtraStyle(.window)
         .modelContainer(DataController.shared)
+
+#if os(macOS)
+        Settings(id: "settings") {
+            SettingsView()
+        }
+#endif
     }
 }
 
