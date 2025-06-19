@@ -5,6 +5,7 @@
 //  Создан Романом Кишочкиным 15.06.2025.
 //
 
+#if canImport(SwiftData)
 import Foundation
 import SwiftData
 
@@ -16,3 +17,4 @@ final class Item {
         self.timestamp = timestamp
     }
 }
+#endif

@@ -1,3 +1,4 @@
+#if canImport(SwiftData)
 import Foundation
 import SwiftData
 
@@ -38,3 +39,4 @@ class Stage: Identifiable {
         return min(max(percent, 0), 1.0)
     }
 }
+#endif

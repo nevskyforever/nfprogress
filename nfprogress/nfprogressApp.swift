@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 import SwiftData
 #if os(macOS)
@@ -156,3 +157,4 @@ extension nfprogressApp {
 }
 #endif
 
+#endif

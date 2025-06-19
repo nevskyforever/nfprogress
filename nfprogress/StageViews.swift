@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 import SwiftData
 
@@ -239,3 +240,4 @@ struct StageHeaderView: View {
     }
 }
 
+#endif

@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 import SwiftData
 
@@ -66,3 +67,4 @@ struct HistoryView: View {
         }
     }
 }
+#endif

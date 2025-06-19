@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 
 /// Текстовое поле, плавно анимирующее изменение чисел.
@@ -267,3 +268,4 @@ struct ProgressChartView: View {
         .padding(.top)
     }
 }
+#endif

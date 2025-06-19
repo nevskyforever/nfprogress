@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 
 struct SettingsView: View {
@@ -31,3 +32,4 @@ struct SettingsView: View {
         .frame(minWidth: 300, minHeight: 200)
     }
 }
+#endif

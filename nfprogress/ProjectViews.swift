@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 import SwiftData
 
@@ -58,3 +59,4 @@ struct AddProjectView: View {
     }
 }
 
+#endif

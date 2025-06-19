@@ -1,4 +1,5 @@
 import Foundation
+#if canImport(SwiftData)
 import SwiftData
 
 struct CSVManager {
@@ -229,3 +230,4 @@ struct CSVManager {
         return result
     }
 }
+#endif
