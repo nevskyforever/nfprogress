@@ -20,7 +20,7 @@ final class AppSettings: ObservableObject {
         disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
         disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
         let value = defaults.double(forKey: "textScale")
-        textScale = value == 0 ? 1.5 : value
+        textScale = value == 0 ? 1.0 : value
     }
 }
 
@@ -36,7 +36,7 @@ func restartApp() {
 #endif
 
 private struct TextScaleKey: EnvironmentKey {
-    static let defaultValue: Double = 1.5
+    static let defaultValue: Double = 1.0
 }
 
 extension EnvironmentValues {
