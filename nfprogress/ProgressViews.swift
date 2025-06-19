@@ -16,6 +16,7 @@ struct AnimatedCounterText: Animatable, View {
             .font(.system(size: 20))
             .monospacedDigit()
             .bold()
+            .applyTextScale()
     }
 }
 

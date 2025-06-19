@@ -188,6 +188,7 @@ struct StageHeaderView: View {
                             .monospacedDigit()
                             .bold()
                             .foregroundColor(color)
+                            .applyTextScale()
                     }
                 }
             } else {
