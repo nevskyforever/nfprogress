@@ -129,7 +129,9 @@ struct ProgressCircleView: View {
     /// Выбор подходящего кольца в зависимости от версии ОС
     @ViewBuilder
     private var progressRing: some View {
-        if #available(macOS 12, *) {
+        if AppSettings.disableAllAnimations {
+            staticRing
+        } else if #available(macOS 12, *) {
             animatedRing
         } else {
             staticRing
@@ -141,17 +143,25 @@ struct ProgressCircleView: View {
     private let maxDuration = 3.0
 
     /// Обновить параметры анимации при изменении прогресса
-    private func updateProgress(to newValue: Double) {
+    private func updateProgress(to newValue: Double, animated: Bool = true) {
         // Игнорируем лишние обновления, приводящие к нулевой длительности анимации
         guard abs(newValue - endProgress) > 0.0001 else { return }
 
-        startProgress = endProgress
+        if animated {
+            startProgress = endProgress
+        } else {
+            startProgress = newValue
+        }
         endProgress = newValue
 
-        let diff = abs(endProgress - startProgress)
-        let range = max(diff, 0.01)
-        let scaled = min(range, 1.0)
-        duration = min(minDuration + scaled * (maxDuration - minDuration), maxDuration)
+        if animated {
+            let diff = abs(endProgress - startProgress)
+            let range = max(diff, 0.01)
+            let scaled = min(range, 1.0)
+            duration = min(minDuration + scaled * (maxDuration - minDuration), maxDuration)
+        } else {
+            duration = 0
+        }
     }
 
     var body: some View {
@@ -160,23 +170,28 @@ struct ProgressCircleView: View {
             progressRing
         }
         .onAppear {
-            let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-            let delay = max(0, 1 - elapsed)
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                updateProgress(to: progress)
+            if AppSettings.disableLaunchAnimations || AppSettings.disableAllAnimations {
+                startProgress = progress
+                endProgress = progress
+            } else {
+                let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
+                let delay = max(0, 1 - elapsed)
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    updateProgress(to: progress)
+                }
             }
         }
         .onChange(of: progress) { newValue in
-            updateProgress(to: newValue)
+            updateProgress(to: newValue, animated: !AppSettings.disableAllAnimations)
         }
         .onChange(of: project.entries.map { $0.id }) { _ in
-            updateProgress(to: progress)
+            updateProgress(to: progress, animated: !AppSettings.disableAllAnimations)
         }
         .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
-            updateProgress(to: progress)
+            updateProgress(to: progress, animated: !AppSettings.disableAllAnimations)
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            updateProgress(to: progress)
+            updateProgress(to: progress, animated: !AppSettings.disableAllAnimations)
         }
     }
 }
@@ -196,10 +211,12 @@ struct ProgressChartView: View {
                 if let prompt = project.streakPrompt {
                     Text(prompt)
                         .font(.subheadline)
+                        .applyTextScale()
                         .foregroundColor(.green)
                 } else {
                     Text(project.streakStatus)
                         .font(.subheadline)
+                        .applyTextScale()
                         .foregroundColor(.green)
                 }
             }
@@ -213,6 +230,7 @@ struct ProgressChartView: View {
                         .annotation(position: .top, alignment: .leading) {
                             Text("Цель: \(project.goal)")
                                 .font(.caption)
+                                .applyTextScale()
                                 .foregroundColor(.gray)
                         }
 
@@ -234,6 +252,7 @@ struct ProgressChartView: View {
                             AxisTick()
                             AxisValueLabel {
                                 Text(date.formatted(date: .numeric, time: .shortened))
+                                    .applyTextScale()
                             }
                         }
                     }

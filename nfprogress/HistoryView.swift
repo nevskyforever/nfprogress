@@ -28,14 +28,19 @@ struct HistoryView: View {
                 VStack(alignment: .leading) {
                     if let stageName {
                         Text("Этап: \(stageName)")
+                            .applyTextScale()
                     }
                     Text("Символов: \(total)")
+                        .applyTextScale()
                     Text(String(format: "Вклад: %d (%.0f%%)", delta, deltaPercent))
+                        .applyTextScale()
                         .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
                     Text(String(format: "Прогресс: %.0f%%", progressPercent))
+                        .applyTextScale()
                         .font(.caption)
                         .foregroundColor(.gray)
                     Text(entry.date.formatted(date: .numeric, time: .shortened))
+                        .applyTextScale()
                         .font(.caption)
                         .foregroundColor(.gray)
                 }

@@ -23,6 +23,7 @@ struct ContentView: View {
             VStack(alignment: .leading) {
               Text(project.title)
                 .font(.headline)
+                .applyTextScale()
               HStack {
                 Spacer()
                 ProgressCircleView(project: project)
@@ -80,6 +81,7 @@ struct ContentView: View {
         ProjectDetailView(project: project)
       } else {
         Text("select_project")
+          .applyTextScale()
           .foregroundColor(.gray)
       }
     })

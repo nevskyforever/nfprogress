@@ -22,6 +22,7 @@ struct AddProjectView: View {
 
             Text("new_project")
                 .font(.title2.bold())
+                .applyTextScale()
 
             TextField("project_name", text: $title)
                 .textFieldStyle(.roundedBorder)
