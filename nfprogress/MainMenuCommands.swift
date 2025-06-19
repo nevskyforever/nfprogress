@@ -37,7 +37,7 @@ struct MainMenuCommands: Commands {
 
         CommandGroup(replacing: .appSettings) {
             Button("Настройки\u{2026}") {
-                openWindow(id: "settings")
+                openWindow(id: "Settings")
             }
         }
     }
