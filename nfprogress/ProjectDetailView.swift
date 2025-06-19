@@ -224,7 +224,19 @@ struct ProjectDetailView: View {
                     }
                     .keyboardShortcut("n", modifiers: .command)
                 }
-                ProgressChartView(project: project)
+                if project.sortedEntries.count >= 2 {
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { !project.isChartCollapsed },
+                            set: { project.isChartCollapsed = !$0 }
+                        )
+                    ) {
+                        ProgressChartView(project: project)
+                    } label: {
+                        Text("График прогресса")
+                            .font(.title3.bold())
+                    }
+                }
 
                 ForEach(project.sortedEntries) { entry in
                     let total = project.globalProgress(for: entry)
@@ -273,6 +285,7 @@ struct ProjectDetailView: View {
                 }
             }
             .padding()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .simultaneousGesture(
             TapGesture().onEnded { focusedField = nil }
@@ -296,6 +309,12 @@ struct ProjectDetailView: View {
         }
         .sheet(item: $editingStage) { stage in
             EditStageView(stage: stage)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
+            addEntry()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .menuAddStage)) { _ in
+            addStage()
         }
         .alert(item: $stageToDelete) { stage in
             if project.stages.count == 1 {
