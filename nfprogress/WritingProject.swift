@@ -23,7 +23,7 @@ class WritingProject {
         self.isChartCollapsed = isChartCollapsed
     }
 
-    /// All entries across the project and stages without duplicates
+    /// Все записи проекта и этапов без повторов
     private var allEntries: [Entry] {
         var seen = Set<UUID>()
         let combined = entries + stages.flatMap { $0.entries }
@@ -73,12 +73,12 @@ class WritingProject {
         return globalProgress(for: prev)
     }
 
-    /// Sum of characters across all stage entries
+    /// Сумма символов по всем этапам
     var totalStageCharacters: Int {
         stages.flatMap(\.entries).reduce(0) { $0 + $1.characterCount }
     }
 
-    /// Overall project progress in the range 0...1
+    /// Общий прогресс проекта в диапазоне 0...1
     var progress: Double {
         guard goal > 0 else { return 0 }
         return min(Double(currentProgress) / Double(goal), 1.0)
@@ -120,7 +120,7 @@ class WritingProject {
        let entryDays = entriesByDay.keys.sorted()
 
         guard !entryDays.isEmpty else { return 0 }
-        // Streak counts only when there is an entry for today
+        // Подсчет серии ведётся только при наличии записи за сегодня
         let today = calendar.startOfDay(for: Date())
         guard entryDays.contains(today) else { return 0 }
 
@@ -130,7 +130,7 @@ class WritingProject {
             return globalProgress(for: last)
         }
 
-        // Build list of all days between first and last entry
+        // Формируем список всех дней между первой и последней записью
         var allDays: [Date] = []
         var day = calendar.startOfDay(for: entryDays.first!)
         let lastDay = calendar.startOfDay(for: entryDays.last!)
@@ -139,7 +139,7 @@ class WritingProject {
             day = calendar.date(byAdding: .day, value: 1, to: day)!
         }
 
-        // Compute progress at end of each day, carrying forward progress when there are no entries
+        // Вычисляем прогресс на конец дня, перенося предыдущее значение при отсутствии записей
         var progressByDay: [Date: Int] = [:]
         var lastProgress = 0
         for day in allDays {
@@ -149,7 +149,7 @@ class WritingProject {
             progressByDay[day] = lastProgress
         }
 
-        // Calculate streak by checking consecutive calendar days from the last day backwards
+        // Считаем серию, проверяя последовательные дни от последнего к первому
         var streakCount = 0
         for index in stride(from: allDays.count - 1, through: 0, by: -1) {
             let day = allDays[index]
@@ -177,14 +177,14 @@ class WritingProject {
         return streakCount
     }
 
-    /// True if there is already an entry for the current day
+    /// Есть ли запись за текущий день
     private var hasEntryToday: Bool {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: .now)
         return sortedEntries.contains { calendar.isDate($0.date, inSameDayAs: today) }
     }
 
-    /// Prompt encouraging to keep the streak if today's entry is missing
+    /// Подсказка продолжить серию, если запись за сегодня отсутствует
     var streakPrompt: String? {
         guard deadline != nil else { return nil }
         let calendar = Calendar.current
@@ -209,7 +209,7 @@ class WritingProject {
         return "Начнем путь к цели?"
     }
 
-    /// Text describing the current streak state
+    /// Текстовое описание текущей серии
     var streakStatus: String {
         guard deadline != nil else { return "" }
         if streak == 0 {

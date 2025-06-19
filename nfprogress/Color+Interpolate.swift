@@ -6,7 +6,7 @@ import UIKit
 #endif
 
 extension Color {
-    /// Interpolates between two colors using HSB space with cyclic hue.
+    /// Интерполирует два цвета в пространстве HSB с циклическим изменением оттенка
     static func interpolate(from: Color, to: Color, fraction: Double) -> Color {
         let t = max(0, min(1, fraction))
         #if canImport(AppKit)
@@ -22,7 +22,7 @@ extension Color {
         UIColor(from).getHue(&fh, saturation: &fs, brightness: &fb, alpha: &fa)
         UIColor(to).getHue(&th, saturation: &ts, brightness: &tb, alpha: &ta)
         #endif
-        // Shortest path hue interpolation with wraparound
+        // Интерполяция оттенка по кратчайшему пути с переходом через границу
         var delta = th - fh
         if abs(delta) > 0.5 { delta += (delta > 0 ? -1 : 1) }
         let hue = fh + delta * t

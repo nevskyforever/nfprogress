@@ -61,7 +61,7 @@ extension nfprogressApp {
             if let submenu = item.submenu {
                 for subItem in submenu.items {
                     switch subItem.title {
-                    // MARK: - Application menu
+                    // MARK: - Меню приложения
                     case "About nfprogress":
                         subItem.title = "О приложении nfprogress"
                     case "Settings…", "Preferences…":
@@ -75,7 +75,7 @@ extension nfprogressApp {
                     case "Quit nfprogress":
                         subItem.title = "Завершить nfprogress"
 
-                    // MARK: - File menu
+                    // MARK: - Меню File
                     case "New":
                         subItem.title = "Новый"
                     case "Open…":
@@ -93,7 +93,7 @@ extension nfprogressApp {
                     case "Print…":
                         subItem.title = "Печать…"
 
-                    // MARK: - Edit menu
+                    // MARK: - Меню Edit
                     case "Undo":
                         subItem.title = "Отменить"
                     case "Redo":
@@ -109,7 +109,7 @@ extension nfprogressApp {
                     case "Select All":
                         subItem.title = "Выбрать все"
 
-                    // MARK: - View menu
+                    // MARK: - Меню View
                     case "Enter Full Screen":
                         subItem.title = "Во весь экран"
                     case "Exit Full Screen":
@@ -121,7 +121,7 @@ extension nfprogressApp {
                     case "Customize Toolbar…":
                         subItem.title = "Настроить панель инструментов…"
 
-                    // MARK: - Window menu
+                    // MARK: - Меню Window
                     case "Minimize":
                         subItem.title = "Свернуть"
                     case "Zoom":
