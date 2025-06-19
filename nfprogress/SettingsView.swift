@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
-    private let scaleOptions: [Double] = Array(stride(from: 1.0, through: 2.0, by: 0.25))
+    private let scaleOptions = TextScale.values
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -23,7 +23,6 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.menu)
-            .fixedSize()
             .applyTextScale()
 
             Spacer()

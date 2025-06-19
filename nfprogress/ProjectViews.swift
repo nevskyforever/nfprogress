@@ -23,14 +23,16 @@ struct AddProjectView: View {
             Text("new_project")
                 .font(.title2.bold())
                 .applyTextScale()
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             TextField("project_name", text: $title)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(minWidth: 200)
 
             TextField("project_goal", value: $goal, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(minWidth: 200)
                 .submitLabel(.done)
                 .onSubmit(addProject)
 
@@ -44,7 +46,7 @@ struct AddProjectView: View {
             .padding(.bottom)
         }
         .padding()
-        .frame(width: 320)
+        .frame(minWidth: 320)
     }
 
     private func addProject() {
@@ -55,3 +57,4 @@ struct AddProjectView: View {
         dismiss()
     }
 }
+
