@@ -18,7 +18,7 @@ class Stage: Identifiable {
         self.entries = []
     }
 
-    /// Entries belonging to this stage without duplicates
+    /// Записи этого этапа без повторов
     private var uniqueEntries: [Entry] {
         var seen = Set<UUID>()
         return entries.filter { seen.insert($0.id).inserted }

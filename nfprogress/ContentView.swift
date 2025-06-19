@@ -168,7 +168,7 @@ struct ContentView: View {
   }
 
 #if os(macOS)
-  // MARK: - macOS File Operations
+  // MARK: - Файловые операции macOS
   private func showSavePanel() {
     let panel = NSSavePanel()
     panel.allowedContentTypes = [.commaSeparatedText]
@@ -192,7 +192,7 @@ struct ContentView: View {
   }
 #endif
 
-  // MARK: - Export
+  // MARK: - Экспорт
   private func exportSelectedProject() {
 #if os(macOS)
     showSavePanel()
@@ -217,7 +217,7 @@ struct ContentView: View {
     return base + ".csv"
   }
 
-  // MARK: - Import
+  // MARK: - Импорт
   private func importSelectedProject() {
 #if os(macOS)
     showOpenPanel()

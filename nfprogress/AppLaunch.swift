@@ -1,6 +1,6 @@
 import Foundation
 
 enum AppLaunch {
-    /// Time when the app module was loaded
+    /// Время загрузки модуля приложения
     static let launchDate = Date()
 }

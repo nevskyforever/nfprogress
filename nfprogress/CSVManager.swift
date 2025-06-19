@@ -130,7 +130,7 @@ struct CSVManager {
         return Array(projectsDict.values)
     }
 
-    // MARK: - JSON Export/Import
+    // MARK: - Экспорт/Импорт JSON
 
     struct JSONEntry: Codable {
         var date: Date
@@ -189,7 +189,7 @@ struct CSVManager {
         }
     }
 
-    // MARK: - Helpers
+    // MARK: - Вспомогательные функции
     private static func escape(_ string: String) -> String {
         var escaped = string.replacingOccurrences(of: "\"", with: "\"\"")
         if escaped.contains(",") || escaped.contains("\"") || escaped.contains("\n") {

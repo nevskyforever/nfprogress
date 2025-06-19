@@ -2,7 +2,7 @@
 //  Item.swift
 //  nfprogress
 //
-//  Created by Роман Кишочкин on 15.06.2025.
+//  Создан Романом Кишочкиным 15.06.2025.
 //
 
 import Foundation
