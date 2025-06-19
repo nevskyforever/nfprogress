@@ -16,7 +16,7 @@ struct ContentView: View {
   @State private var showDeleteAlert = false
 
   private var splitView: some View {
-    NavigationSplitView(sidebar: {
+    NavigationSplitView {
       List(selection: $selectedProject) {
         ForEach(projects) { project in
           NavigationLink(value: project) {
@@ -75,14 +75,14 @@ struct ContentView: View {
           }
         #endif
       }
-    }, detail: {
+    } detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
       } else {
         Text("Выберите проект")
           .foregroundColor(.gray)
       }
-    })
+    }
     .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
     }
@@ -127,15 +127,6 @@ struct ContentView: View {
         },
         secondaryButton: .cancel()
       )
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .menuAddProject)) { _ in
-      addProject()
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .menuImport)) { _ in
-      importSelectedProject()
-    }
-    .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
-      exportSelectedProject()
     }
   }
 
