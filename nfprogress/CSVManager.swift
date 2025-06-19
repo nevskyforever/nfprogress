@@ -102,7 +102,7 @@ struct CSVManager {
                 project = existing
             } else {
                 let deadline = dateFormatter.date(from: deadlineStr)
-                project = WritingProject(title: title, goal: goal, deadline: deadline, order: projectsDict.count)
+                project = WritingProject(title: title, goal: goal, deadline: deadline)
                 projectsDict[title] = project
             }
 
@@ -177,8 +177,8 @@ struct CSVManager {
     static func projects(fromJSON data: Data) throws -> [WritingProject] {
         let decoder = JSONDecoder()
         let projectsData = try decoder.decode([JSONProject].self, from: data)
-        return projectsData.enumerated().map { idx, jp in
-            let proj = WritingProject(title: jp.title, goal: jp.goal, deadline: jp.deadline, order: idx)
+        return projectsData.map { jp in
+            let proj = WritingProject(title: jp.title, goal: jp.goal, deadline: jp.deadline)
             proj.entries = jp.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
             proj.stages = jp.stages.map { js in
                 let st = Stage(title: js.title, goal: js.goal, deadline: js.deadline, startProgress: js.startProgress)

@@ -4,7 +4,6 @@ import SwiftData
 struct AddProjectView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: [SortDescriptor(\WritingProject.order)]) private var projects: [WritingProject]
 
     @State private var title = ""
     @State private var goal = 10000
@@ -48,8 +47,7 @@ struct AddProjectView: View {
 
     private func addProject() {
         let name = title.isEmpty ? "Новый текст" : title
-        let maxOrder = projects.map(\.order).max() ?? -1
-        let newProject = WritingProject(title: name, goal: goal, order: maxOrder + 1)
+        let newProject = WritingProject(title: name, goal: goal)
         modelContext.insert(newProject)
         dismiss()
     }
