@@ -9,6 +9,7 @@ struct nfprogressApp: App {
             ContentView()
         }
         .modelContainer(DataController.shared)
+        .commands { MainMenuCommands() }
 
         MenuBarExtra("NFProgress", systemImage: "text.cursor") {
             MenuBarEntryView()
