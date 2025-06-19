@@ -7,7 +7,7 @@ import AppKit
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
-  @Query(sort: [SortDescriptor(\WritingProject.order)]) private var projects: [WritingProject]
+  @Query private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   @State private var isExporting = false
   @State private var isImporting = false
@@ -34,7 +34,6 @@ struct ContentView: View {
           }
         }
         .onDelete(perform: deleteProjects)
-        .onMove(perform: moveProjects)
       }
       .navigationTitle("Мои тексты")
       .toolbar {
@@ -155,7 +154,6 @@ struct ContentView: View {
     if selectedProject === project {
       selectedProject = nil
     }
-    reorderProjects()
   }
 
 #if os(macOS)
@@ -228,21 +226,5 @@ struct ContentView: View {
     }
     try? modelContext.save()
     isImporting = false
-  }
-
-  private func moveProjects(from source: IndexSet, to destination: Int) {
-    var ordered = projects
-    ordered.move(fromOffsets: source, toOffset: destination)
-    for (index, project) in ordered.enumerated() {
-      project.order = index
-    }
-    try? modelContext.save()
-  }
-
-  private func reorderProjects() {
-    for (index, project) in projects.enumerated() {
-      project.order = index
-    }
-    try? modelContext.save()
   }
 }
