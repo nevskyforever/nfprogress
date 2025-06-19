@@ -29,14 +29,14 @@ struct EditEntryView: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Редактировать запись")
+            Text("edit_entry")
                 .font(.title2.bold())
 
-            DatePicker("Дата и время", selection: $entry.date)
+            DatePicker("date_time", selection: $entry.date)
                 .labelsHidden()
 
             if !project.stages.isEmpty {
-                Picker("Этап", selection: $selectedStageIndex) {
+                Picker("stage", selection: $selectedStageIndex) {
                     ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                         Text(stage.title).tag(idx)
                     }
@@ -44,13 +44,13 @@ struct EditEntryView: View {
                 .labelsHidden()
             }
 
-            TextField("Символов", value: $editedCount, format: .number)
+            TextField("characters", value: $editedCount, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 120)
 
             Spacer()
 
-            Button("Готово") {
+            Button("done") {
                 saveChanges()
                 dismiss()
             }

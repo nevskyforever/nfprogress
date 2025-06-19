@@ -36,17 +36,17 @@ struct ContentView: View {
         .onDelete(perform: deleteProjects)
         .onMove(perform: moveProjects)
       }
-      .navigationTitle("Мои тексты")
+      .navigationTitle("my_texts")
       .toolbar {
         ToolbarItem {
           Button(action: addProject) {
-            Label("Добавить", systemImage: "plus")
+            Label("add", systemImage: "plus")
           }
           .keyboardShortcut("N", modifiers: [.command, .shift])
         }
         ToolbarItem {
           Button(action: deleteSelectedProject) {
-            Label("Удалить", systemImage: "minus")
+            Label("delete", systemImage: "minus")
           }
           .keyboardShortcut(.return, modifiers: .command)
           .disabled(selectedProject == nil)
@@ -54,22 +54,22 @@ struct ContentView: View {
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
             if selectedProject != nil {
-              Button("Экспортировать") {
+              Button("export") {
                 exportSelectedProject()
               }
             }
-            Button("Импортировать") {
+            Button("import") {
               importSelectedProject()
             }
           }
         #else
           ToolbarItemGroup(placement: .navigationBarLeading) {
             if selectedProject != nil {
-              Button("Экспортировать") {
+              Button("export") {
                 exportSelectedProject()
               }
             }
-            Button("Импортировать") {
+            Button("import") {
               importSelectedProject()
             }
           }
@@ -79,7 +79,7 @@ struct ContentView: View {
       if let project = selectedProject {
         ProjectDetailView(project: project)
       } else {
-        Text("Выберите проект")
+        Text("select_project")
           .foregroundColor(.gray)
       }
     })
@@ -118,9 +118,9 @@ struct ContentView: View {
     }
     .alert(isPresented: $showDeleteAlert) {
       Alert(
-        title: Text("Удалить проект \"\(projectToDelete?.title ?? "")\"?"),
-        message: Text("Это действие нельзя отменить."),
-        primaryButton: .destructive(Text("Удалить")) {
+        title: Text(String(format: NSLocalizedString("delete_project_confirm", comment: ""), projectToDelete?.title ?? "")),
+        message: Text("cannot_undo"),
+        primaryButton: .destructive(Text("delete")) {
           if let project = projectToDelete {
             deleteProject(project)
           }

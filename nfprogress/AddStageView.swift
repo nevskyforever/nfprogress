@@ -19,22 +19,22 @@ struct AddStageView: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Новый этап")
+            Text("new_stage")
                 .font(.title2.bold())
             if project.stages.isEmpty && !project.entries.isEmpty {
-                Text("Все записи проекта будут перенесены в этот этап")
+                Text("all_entries_move")
                     .multilineTextAlignment(.center)
                     .font(.caption)
                     .foregroundColor(.orange)
             }
-            TextField("Название", text: $title)
+            TextField("project_name", text: $title)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
-            TextField("Цель", value: $goal, format: .number)
+            TextField("project_goal", value: $goal, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
             Spacer()
-            Button("Создать") { addStage() }
+            Button("create") { addStage() }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .padding(.bottom)
@@ -44,7 +44,7 @@ struct AddStageView: View {
     }
 
     private func addStage() {
-        let name = title.isEmpty ? "Этап" : title
+        let name = title.isEmpty ? String(localized: "stage_placeholder") : title
         let start = (project.stages.isEmpty && !project.entries.isEmpty) ? 0 : project.currentProgress
         let stage = Stage(title: name, goal: goal, startProgress: start)
         if project.stages.isEmpty && !project.entries.isEmpty {

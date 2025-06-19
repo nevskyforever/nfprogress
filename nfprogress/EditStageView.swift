@@ -16,20 +16,20 @@ struct EditStageView: View {
                 .buttonStyle(.plain)
             }
 
-            Text("Редактировать этап")
+            Text("edit_stage")
                 .font(.title2.bold())
 
-            TextField("Название", text: $stage.title)
+            TextField("project_name", text: $stage.title)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
 
-            TextField("Цель", value: $stage.goal, format: .number)
+            TextField("project_goal", value: $stage.goal, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 200)
 
             Spacer()
 
-            Button("Готово") {
+            Button("done") {
                 dismiss()
             }
             .buttonStyle(.borderedProminent)
