@@ -6,6 +6,10 @@ struct ProgressChartView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
+            if project.sortedEntries.count >= 2 {
+                Text("📈 График прогресса")
+                    .font(.headline)
+            }
 
             if project.streak > 0 {
                 if let prompt = project.streakPrompt {
