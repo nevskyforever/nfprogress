@@ -45,8 +45,11 @@ struct ProjectDetailView: View {
     }
 
     private func addEntry(stage: Stage? = nil) {
-        addEntryStage = stage
-        showingAddEntry = true
+        if let stage {
+            addEntryStage = stage
+        } else {
+            showingAddEntry = true
+        }
     }
 
     private func addStage() {
@@ -280,7 +283,10 @@ struct ProjectDetailView: View {
             }
         }
         .sheet(isPresented: $showingAddEntry) {
-            AddEntryView(project: project, stage: addEntryStage)
+            AddEntryView(project: project)
+        }
+        .sheet(item: $addEntryStage) { stage in
+            AddEntryView(project: project, stage: stage)
         }
         .sheet(isPresented: $showingAddStage) {
             AddStageView(project: project)
