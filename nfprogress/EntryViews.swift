@@ -37,6 +37,8 @@ struct AddEntryView: View {
             Text("new_entry")
                 .font(.title2.bold())
                 .applyTextScale()
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             DatePicker("date_time", selection: $date)
                 .labelsHidden()
@@ -54,7 +56,7 @@ struct AddEntryView: View {
 
             TextField("characters", value: $characterCount, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 120)
+                .frame(minWidth: 120)
                 .submitLabel(.done)
                 .onSubmit(addEntry)
 
@@ -68,7 +70,7 @@ struct AddEntryView: View {
             .padding(.bottom)
         }
         .padding()
-        .frame(width: 320)
+        .frame(minWidth: 320)
         .onDisappear {
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
@@ -136,6 +138,8 @@ struct EditEntryView: View {
             Text("edit_entry")
                 .font(.title2.bold())
                 .applyTextScale()
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             DatePicker("date_time", selection: $entry.date)
                 .labelsHidden()
@@ -153,7 +157,7 @@ struct EditEntryView: View {
 
             TextField("characters", value: $editedCount, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 120)
+                .frame(minWidth: 120)
 
             Spacer()
 
@@ -165,7 +169,7 @@ struct EditEntryView: View {
             .padding(.bottom)
         }
         .padding()
-        .frame(width: 320)
+        .frame(minWidth: 320)
         .onDisappear {
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
@@ -275,7 +279,7 @@ struct MenuBarEntryView: View {
                 }
                 TextField("Символов", value: $characterCount, format: .number)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 160)
+                    .frame(minWidth: 160)
                     .onSubmit {
                         if maybeSave() { dismiss() }
                     }
@@ -289,7 +293,7 @@ struct MenuBarEntryView: View {
             }
         }
         .padding()
-        .frame(width: 200)
+        .frame(minWidth: 200)
         .onDisappear {
             _ = maybeSave()
         }
@@ -335,3 +339,4 @@ struct MenuBarEntryView: View {
         selectedStageIndex = 0
     }
 }
+

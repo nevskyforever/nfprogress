@@ -22,19 +22,22 @@ struct AddStageView: View {
             Text("new_stage")
                 .font(.title2.bold())
                 .applyTextScale()
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
             if project.stages.isEmpty && !project.entries.isEmpty {
                 Text("all_entries_move")
                     .applyTextScale()
                     .multilineTextAlignment(.center)
                     .font(.caption)
                     .foregroundColor(.orange)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             TextField("project_name", text: $title)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(minWidth: 200)
             TextField("project_goal", value: $goal, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(minWidth: 200)
             Spacer()
             Button("create") { addStage() }
                 .buttonStyle(.borderedProminent)
@@ -42,7 +45,7 @@ struct AddStageView: View {
                 .padding(.bottom)
         }
         .padding()
-        .frame(width: 320)
+        .frame(minWidth: 320)
     }
 
     private func addStage() {
@@ -82,14 +85,16 @@ struct EditStageView: View {
             Text("edit_stage")
                 .font(.title2.bold())
                 .applyTextScale()
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
 
             TextField("project_name", text: $stage.title)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(minWidth: 200)
 
             TextField("project_goal", value: $stage.goal, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(minWidth: 200)
 
             Spacer()
 
@@ -100,7 +105,7 @@ struct EditStageView: View {
             .padding(.bottom)
         }
         .padding()
-        .frame(width: 320)
+        .frame(minWidth: 320)
         .onDisappear {
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
@@ -166,10 +171,14 @@ struct StageHeaderView: View {
             VStack(alignment: .leading) {
                 Text(stage.title)
                     .applyTextScale()
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
                 Text("Цель: \(stage.goal) знаков")
                     .applyTextScale()
                     .font(.caption)
                     .foregroundColor(.gray)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -229,3 +238,4 @@ struct StageHeaderView: View {
         }
     }
 }
+
