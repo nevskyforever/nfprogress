@@ -2,7 +2,8 @@ import SwiftUI
 
 struct MainMenuCommands: Commands {
     var body: some Commands {
-        CommandMenu("menu_file") {
+        // Add custom commands directly to the standard File menu
+        CommandGroup(after: .newItem) {
             Button("new_project") {
                 NotificationCenter.default.post(name: .menuAddProject, object: nil)
             }
