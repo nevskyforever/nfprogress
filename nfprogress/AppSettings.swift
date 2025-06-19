@@ -52,6 +52,7 @@ struct ApplyTextScale: ViewModifier {
         content
             .environment(\.sizeCategory, category(for: textScale))
             .dynamicTypeSize(size(for: textScale))
+            .scaleEffect(textScale)
     }
 
     private func size(for scale: Double) -> DynamicTypeSize {
