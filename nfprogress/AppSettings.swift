@@ -62,7 +62,9 @@ struct ApplyTextScale: ViewModifier {
         ]
 
         let clamped = min(max(scale, 1), 3)
-        let index = Int(round((clamped - 1) / 2 * Double(sizes.count - 1)))
+        let startIndex = 3 // `.large`
+        let endIndex = sizes.count - 1
+        let index = Int(round((clamped - 1) / 2 * Double(endIndex - startIndex))) + startIndex
         return sizes[index]
     }
 
@@ -76,7 +78,9 @@ struct ApplyTextScale: ViewModifier {
         ]
 
         let clamped = min(max(scale, 1), 3)
-        let index = Int(round((clamped - 1) / 2 * Double(categories.count - 1)))
+        let startIndex = 3 // `.large`
+        let endIndex = categories.count - 1
+        let index = Int(round((clamped - 1) / 2 * Double(endIndex - startIndex))) + startIndex
         return categories[index]
     }
 }
