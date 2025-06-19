@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 
 struct MainMenuCommands: Commands {
@@ -36,3 +37,4 @@ struct MainMenuCommands: Commands {
 
     }
 }
+#endif

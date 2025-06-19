@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftData
 import SwiftUI
 import UniformTypeIdentifiers
@@ -259,3 +260,4 @@ struct ContentView: View {
     try? modelContext.save()
   }
 }
+#endif

@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -23,3 +24,4 @@ struct CSVDocument: FileDocument {
         return .init(regularFileWithContents: data)
     }
 }
+#endif

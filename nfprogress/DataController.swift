@@ -1,3 +1,4 @@
+#if canImport(SwiftData)
 import SwiftData
 
 @MainActor
@@ -17,3 +18,4 @@ enum DataController {
         }
     }()
 }
+#endif

@@ -1,5 +1,9 @@
+import Foundation
+#if canImport(SwiftUI)
 import SwiftUI
+#endif
 
+#if canImport(SwiftUI)
 @MainActor
 final class AppSettings: ObservableObject {
     private let defaults: UserDefaults
@@ -14,14 +18,14 @@ final class AppSettings: ObservableObject {
 
     @Published var textScale: Double {
         didSet {
-            let quantized = TextScale.quantized(textScale)
-            if quantized != textScale { textScale = quantized; return }
+            let q = TextScale.quantized(textScale)
+            if q != textScale { textScale = q; return }
             defaults.set(textScale, forKey: "textScale")
         }
     }
 
     init(userDefaults: UserDefaults = .standard) {
-        self.defaults = userDefaults
+        defaults = userDefaults
         disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
         disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
         let value = defaults.double(forKey: "textScale")
@@ -29,8 +33,39 @@ final class AppSettings: ObservableObject {
         textScale = TextScale.quantized(scale)
     }
 }
+#else
+@MainActor
+final class AppSettings {
+    private let defaults: UserDefaults
 
-#if os(macOS)
+    var disableLaunchAnimations: Bool {
+        didSet { defaults.set(disableLaunchAnimations, forKey: "disableLaunchAnimations") }
+    }
+
+    var disableAllAnimations: Bool {
+        didSet { defaults.set(disableAllAnimations, forKey: "disableAllAnimations") }
+    }
+
+    var textScale: Double {
+        didSet {
+            let q = TextScale.quantized(textScale)
+            if q != textScale { textScale = q; return }
+            defaults.set(textScale, forKey: "textScale")
+        }
+    }
+
+    init(userDefaults: UserDefaults = .standard) {
+        defaults = userDefaults
+        disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
+        disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
+        let value = defaults.double(forKey: "textScale")
+        let scale = value == 0 ? 1.0 : value
+        textScale = TextScale.quantized(scale)
+    }
+}
+#endif
+
+#if os(macOS) && canImport(SwiftUI)
 func restartApp() {
     let url = URL(fileURLWithPath: Bundle.main.bundlePath)
     let task = Process()
@@ -41,6 +76,7 @@ func restartApp() {
 }
 #endif
 
+#if canImport(SwiftUI)
 private struct TextScaleKey: EnvironmentKey {
     static let defaultValue: Double = 1.0
 }
@@ -67,4 +103,4 @@ extension View {
         modifier(ApplyTextScale())
     }
 }
-
+#endif

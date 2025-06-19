@@ -1,3 +1,4 @@
+#if canImport(SwiftUI)
 import SwiftUI
 import SwiftData
 
@@ -340,3 +341,4 @@ struct MenuBarEntryView: View {
     }
 }
 
+#endif
