@@ -1,26 +1,26 @@
 import SwiftUI
 
-enum AppSettings {
-    private static let defaults = UserDefaults.standard
+@MainActor
+final class AppSettings: ObservableObject {
+    private let defaults = UserDefaults.standard
 
-    static var disableLaunchAnimations: Bool {
-        get { defaults.bool(forKey: "disableLaunchAnimations") }
-        set { defaults.set(newValue, forKey: "disableLaunchAnimations") }
+    @Published var disableLaunchAnimations: Bool {
+        didSet { defaults.set(disableLaunchAnimations, forKey: "disableLaunchAnimations") }
     }
 
-    static var disableAllAnimations: Bool {
-        get { defaults.bool(forKey: "disableAllAnimations") }
-        set { defaults.set(newValue, forKey: "disableAllAnimations") }
+    @Published var disableAllAnimations: Bool {
+        didSet { defaults.set(disableAllAnimations, forKey: "disableAllAnimations") }
     }
 
-    static var textScale: Double {
-        get {
-            let value = defaults.double(forKey: "textScale")
-            return value == 0 ? 1.0 : value
-        }
-        set {
-            defaults.set(newValue, forKey: "textScale")
-        }
+    @Published var textScale: Double {
+        didSet { defaults.set(textScale, forKey: "textScale") }
+    }
+
+    init() {
+        disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
+        disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
+        let value = defaults.double(forKey: "textScale")
+        textScale = value == 0 ? 1.0 : value
     }
 }
 
