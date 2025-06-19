@@ -58,13 +58,13 @@ extension nfprogressApp {
                 break
             }
 
-            if let submenu = item.submenu,
-               item.title.contains("nfprogress") || item.title.contains("NFProgress") {
+            if let submenu = item.submenu {
                 for subItem in submenu.items {
                     switch subItem.title {
+                    // MARK: - Application menu
                     case "About nfprogress":
                         subItem.title = "О приложении nfprogress"
-                    case "Settings…":
+                    case "Settings…", "Preferences…":
                         subItem.title = "Настройки…"
                     case "Hide nfprogress":
                         subItem.title = "Скрыть nfprogress"
@@ -74,6 +74,67 @@ extension nfprogressApp {
                         subItem.title = "Показать все"
                     case "Quit nfprogress":
                         subItem.title = "Завершить nfprogress"
+
+                    // MARK: - File menu
+                    case "New":
+                        subItem.title = "Новый"
+                    case "Open…":
+                        subItem.title = "Открыть…"
+                    case "Close":
+                        subItem.title = "Закрыть"
+                    case "Save":
+                        subItem.title = "Сохранить"
+                    case "Save As…":
+                        subItem.title = "Сохранить как…"
+                    case "Revert":
+                        subItem.title = "Восстановить"
+                    case "Page Setup…":
+                        subItem.title = "Параметры страницы…"
+                    case "Print…":
+                        subItem.title = "Печать…"
+
+                    // MARK: - Edit menu
+                    case "Undo":
+                        subItem.title = "Отменить"
+                    case "Redo":
+                        subItem.title = "Повторить"
+                    case "Cut":
+                        subItem.title = "Вырезать"
+                    case "Copy":
+                        subItem.title = "Копировать"
+                    case "Paste":
+                        subItem.title = "Вставить"
+                    case "Delete":
+                        subItem.title = "Удалить"
+                    case "Select All":
+                        subItem.title = "Выбрать все"
+
+                    // MARK: - View menu
+                    case "Enter Full Screen":
+                        subItem.title = "Во весь экран"
+                    case "Exit Full Screen":
+                        subItem.title = "Выйти из полноэкранного режима"
+                    case "Show Toolbar":
+                        subItem.title = "Показать панель инструментов"
+                    case "Hide Toolbar":
+                        subItem.title = "Скрыть панель инструментов"
+                    case "Customize Toolbar…":
+                        subItem.title = "Настроить панель инструментов…"
+
+                    // MARK: - Window menu
+                    case "Minimize":
+                        subItem.title = "Свернуть"
+                    case "Zoom":
+                        subItem.title = "Увеличить"
+                    case "Close Window":
+                        subItem.title = "Закрыть окно"
+                    case "Tile Window to Left of Screen":
+                        subItem.title = "Разместить окно слева"
+                    case "Tile Window to Right of Screen":
+                        subItem.title = "Разместить окно справа"
+                    case "Bring All to Front":
+                        subItem.title = "Разместить все поверх"
+
                     default:
                         break
                     }
