@@ -403,14 +403,7 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        .toolbar {
-            ToolbarItem(placement: .principal) {
-                Text(project.title)
-                    .multilineTextAlignment(.center)
-                    .applyTextScale()
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
+        // Removed project title from toolbar to declutter interface
     }
 
     // MARK: - Save Context
