@@ -14,10 +14,12 @@ struct nfprogressApp: App {
         }
 #endif
     }
+    @AppStorage("textScale") private var textScale = 1.0
+
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.textScale, AppSettings.textScale)
+                .environment(\.textScale, textScale == 0 ? 1.0 : textScale)
         }
         .modelContainer(DataController.shared)
         .commands { MainMenuCommands() }
