@@ -46,6 +46,8 @@ extension nfprogressApp {
                 item.title = "Файл"
             case "Edit":
                 item.title = "Правка"
+            case "View":
+                item.title = "Вид"
             case "Project":
                 item.title = "Проект"
             case "Window":
