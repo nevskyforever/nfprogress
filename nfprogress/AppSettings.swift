@@ -107,6 +107,7 @@ struct ApplyTextScale: ViewModifier {
         return content
             .environment(\.sizeCategory, level.contentSizeCategory)
             .dynamicTypeSize(level.dynamicTypeSize)
+            .scaleEffect(textScale)
     }
 }
 
