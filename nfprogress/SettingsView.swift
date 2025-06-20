@@ -5,9 +5,11 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     private let scaleOptions = TextScale.values
 
-    @ScaledMetric private var baseSpacing: CGFloat = 20
     @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { baseSpacing * textScale }
+    private var viewSpacing: CGFloat { scaledSpacing(2, scaleFactor: textScale) }
+    /// "38" approximates the previous 300pt width with whole layout steps.
+    private var minWidth: CGFloat { layoutStep(38, scaleFactor: textScale) }
+    private var minHeight: CGFloat { layoutStep(25, scaleFactor: textScale) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -34,8 +36,8 @@ struct SettingsView: View {
 
             Spacer()
         }
-        .padding()
-        .frame(minWidth: 300, minHeight: 200)
+        .scaledPadding()
+        .frame(minWidth: minWidth, minHeight: minHeight)
     }
 }
 #endif

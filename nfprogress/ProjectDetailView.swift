@@ -24,11 +24,8 @@ struct ProjectDetailView: View {
     @FocusState private var focusedField: Field?
 
     /// Отступ ячеек истории и этапов, масштабируемый относительно размера текста.
-    @ScaledMetric private var baseRowPadding: CGFloat = 4
-    @ScaledMetric private var baseViewSpacing: CGFloat = 16
     @Environment(\.textScale) private var textScale
-    private var rowPadding: CGFloat { baseRowPadding * textScale }
-    private var viewSpacing: CGFloat { baseViewSpacing * textScale }
+    private var viewSpacing: CGFloat { scaledSpacing(2, scaleFactor: textScale) }
 
     // Formatter for displaying deadline in Russian
     private let deadlineFormatter: DateFormatter = {
@@ -252,7 +249,7 @@ struct ProjectDetailView: View {
                                     }
                                 }
                                 .contentShape(Rectangle())
-                                .padding(rowPadding)
+                                .scaledPadding(1)
                                 .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                                 .onTapGesture {
                                     if selectedEntry?.id == entry.id {
@@ -359,7 +356,7 @@ struct ProjectDetailView: View {
                         }
                     }
                     .contentShape(Rectangle())
-                    .padding(rowPadding)
+                    .scaledPadding(1)
                     .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                     .onTapGesture {
                         if selectedEntry?.id == entry.id {
@@ -370,7 +367,7 @@ struct ProjectDetailView: View {
                     }
                 }
             }
-            .padding()
+            .scaledPadding()
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .simultaneousGesture(

@@ -7,19 +7,23 @@ public enum TextScaleLevel: Int, CaseIterable {
     case percent130
     case percent140
     case percent150
-    case percent160
-    case percent170
-    case percent180
-    case percent190
-    case percent200
+    /// Максимальное значение шкалы (159 %).
+    case percent159
 }
 
 public struct TextScale {
-    public static let values: [Double] = stride(from: 1.0, through: 2.0, by: 0.1).map { Double(round($0 * 10) / 10) }
+    public static let values: [Double] = {
+        var steps = stride(from: 1.0, through: 1.59, by: 0.10)
+            .map { Double(round($0 * 100) / 100) }
+        if let last = steps.last, last < 1.59 {
+            steps.append(1.59)
+        }
+        return steps
+    }()
 
-    /// Returns the nearest allowed scale value clamped to 1.0...2.0
+    /// Returns the nearest allowed scale value clamped to 1.0...1.59
     public static func quantized(_ value: Double) -> Double {
-        let clamped = min(max(value, 1.0), 2.0)
+        let clamped = min(max(value, 1.0), 1.59)
         let step = 0.1
         let index = Int(round((clamped - 1.0) / step))
         let bounded = max(0, min(index, values.count - 1))
