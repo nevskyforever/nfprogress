@@ -1,6 +1,8 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if canImport(SwiftData)
 import SwiftData
+#endif
 #if os(macOS)
 import AppKit
 #endif

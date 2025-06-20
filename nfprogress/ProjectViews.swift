@@ -1,6 +1,8 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if canImport(SwiftData)
 import SwiftData
+#endif
 
 struct AddProjectView: View {
     @Environment(\.dismiss) private var dismiss

@@ -1,6 +1,10 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
+#if canImport(Charts)
+import Charts
+#endif
+
 /// Текстовое поле, плавно анимирующее изменение чисел.
 struct AnimatedCounterText: Animatable, View {
     /// Текущее значение счётчика в процентах (0...1).
@@ -21,8 +25,6 @@ struct AnimatedCounterText: Animatable, View {
     }
 }
 
-
-import SwiftUI
 
 @available(macOS 12, *)
 struct AnimatedProgressView<Content: View>: View {
@@ -52,8 +54,6 @@ struct AnimatedProgressView<Content: View>: View {
     }
 }
 
-
-import SwiftUI
 
 struct ProgressCircleView: View {
     var project: WritingProject
@@ -205,9 +205,6 @@ struct ProgressCircleView: View {
 
 
 
-import SwiftUI
-import Charts
-
 struct ProgressChartView: View {
     var project: WritingProject
 
@@ -233,12 +230,14 @@ struct ProgressChartView: View {
             }
 
             if project.sortedEntries.count >= 2 {
-                Chart {
-                    // Целевая линия
-                    RuleMark(y: .value("Цель", project.goal))
-                        .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
-                        .foregroundStyle(.gray)
-                        .annotation(position: .top, alignment: .leading) {
+#if canImport(Charts)
+                GeometryReader { geo in
+                    Chart {
+                        // Целевая линия
+                        RuleMark(y: .value("Цель", project.goal))
+                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
+                            .foregroundStyle(.gray)
+                            .annotation(position: .top, alignment: .leading) {
                             Text("Цель: \(project.goal)")
                                 .font(.caption)
                                 .applyTextScale()
@@ -257,7 +256,9 @@ struct ProgressChartView: View {
                     }
                 }
                 .chartXAxis {
-                    AxisMarks(values: .automatic(desiredCount: 5)) { value in
+                    let comp = project.sortedEntryDates.stride(forWidth: geo.size.width,
+                                                                   fontScale: textScale)
+                    AxisMarks(values: .stride(by: comp)) { value in
                         if let date = value.as(Date.self) {
                             AxisGridLine()
                             AxisTick()
@@ -268,7 +269,13 @@ struct ProgressChartView: View {
                         }
                     }
                 }
-                .frame(height: chartHeight)
+                .frame(maxWidth: .infinity)
+                .frame(height: chartHeight, alignment: .top)
+            }
+#else
+                Text("Chart requires the Charts framework")
+                    .frame(height: chartHeight, alignment: .top)
+#endif
             }
         }
         .scaledPadding(1, .top)
