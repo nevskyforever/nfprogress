@@ -5,20 +5,20 @@ extension TextScaleLevel {
     var dynamicTypeSize: DynamicTypeSize {
         switch self {
         case .percent100: return .large
-        case .percent125: return .xLarge
-        case .percent150: return .xxLarge
-        case .percent175: return .xxxLarge
-        case .percent200: return .accessibility1
+        case .percent125: return .accessibility1
+        case .percent150: return .accessibility2
+        case .percent175: return .accessibility3
+        case .percent200: return .accessibility4
         }
     }
 
     var contentSizeCategory: ContentSizeCategory {
         switch self {
         case .percent100: return .large
-        case .percent125: return .extraLarge
-        case .percent150: return .extraExtraLarge
-        case .percent175: return .extraExtraExtraLarge
-        case .percent200: return .accessibilityMedium
+        case .percent125: return .accessibilityMedium
+        case .percent150: return .accessibilityLarge
+        case .percent175: return .accessibilityExtraLarge
+        case .percent200: return .accessibilityExtraExtraLarge
         }
     }
 }
