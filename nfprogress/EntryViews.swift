@@ -24,7 +24,9 @@ struct AddEntryView: View {
         }
     }
 
-    @ScaledMetric private var viewSpacing: CGFloat = 16
+    @ScaledMetric private var baseSpacing: CGFloat = 16
+    @Environment(\.textScale) private var textScale
+    private var viewSpacing: CGFloat { baseSpacing * textScale }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -127,7 +129,9 @@ struct EditEntryView: View {
         _editedCount = State(initialValue: Self.progressAfterEntry(project: project, entry: entry))
     }
 
-    @ScaledMetric private var viewSpacing: CGFloat = 16
+    @ScaledMetric private var baseSpacing: CGFloat = 16
+    @Environment(\.textScale) private var textScale
+    private var viewSpacing: CGFloat { baseSpacing * textScale }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -245,7 +249,9 @@ struct MenuBarEntryView: View {
     @State private var date: Date = .now
     @State private var didSave: Bool = false
 
-    @ScaledMetric private var viewSpacing: CGFloat = 8
+    @ScaledMetric private var baseSpacing: CGFloat = 8
+    @Environment(\.textScale) private var textScale
+    private var viewSpacing: CGFloat { baseSpacing * textScale }
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {

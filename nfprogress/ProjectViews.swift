@@ -10,7 +10,9 @@ struct AddProjectView: View {
     @State private var title = ""
     @State private var goal = 10000
 
-    @ScaledMetric private var viewSpacing: CGFloat = 16
+    @ScaledMetric private var baseSpacing: CGFloat = 16
+    @Environment(\.textScale) private var textScale
+    private var viewSpacing: CGFloat { baseSpacing * textScale }
 
     var body: some View {
         VStack(spacing: viewSpacing) {

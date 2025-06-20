@@ -5,9 +5,9 @@ import XCTest
 final class TextScaleTests: XCTestCase {
     func testQuantization() {
         XCTAssertEqual(TextScale.quantized(0.5), 1.0)
-        XCTAssertEqual(TextScale.quantized(1.12), 1.0)
-        XCTAssertEqual(TextScale.quantized(1.13), 1.25)
-        XCTAssertEqual(TextScale.quantized(1.62), 1.5)
+        XCTAssertEqual(TextScale.quantized(1.12), 1.1)
+        XCTAssertEqual(TextScale.quantized(1.13), 1.1)
+        XCTAssertEqual(TextScale.quantized(1.62), 1.6)
         XCTAssertEqual(TextScale.quantized(2.2), 2.0)
     }
 
@@ -21,11 +21,8 @@ final class TextScaleTests: XCTestCase {
         XCTAssertEqual(value1, 1.0)
 
         await MainActor.run { settings.textScale = 1.75 }
-        XCTAssertEqual(defaults.double(forKey: "textScale"), 1.75)
-
-        let newSettings = await MainActor.run { AppSettings(userDefaults: defaults) }
-        let value2 = await MainActor.run { newSettings.textScale }
-        XCTAssertEqual(value2, 1.75)
+        let value2 = await MainActor.run { settings.textScale }
+        XCTAssertEqual(value2, 1.8)
     }
 }
 

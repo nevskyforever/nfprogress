@@ -5,7 +5,9 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     private let scaleOptions = TextScale.values
 
-    @ScaledMetric private var viewSpacing: CGFloat = 20
+    @ScaledMetric private var baseSpacing: CGFloat = 20
+    @Environment(\.textScale) private var textScale
+    private var viewSpacing: CGFloat { baseSpacing * textScale }
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {

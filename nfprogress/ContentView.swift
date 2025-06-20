@@ -16,8 +16,10 @@ struct ContentView: View {
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
 
-  @ScaledMetric private var rowPadding: CGFloat = 4
+  @ScaledMetric private var baseRowPadding: CGFloat = 4
   @ScaledMetric private var circleHeight: CGFloat = 80
+  @Environment(\.textScale) private var textScale
+  private var rowPadding: CGFloat { baseRowPadding * textScale }
 
   private var splitView: some View {
     NavigationSplitView(sidebar: {

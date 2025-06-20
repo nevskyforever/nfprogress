@@ -210,7 +210,9 @@ import Charts
 struct ProgressChartView: View {
     var project: WritingProject
 
-    @ScaledMetric private var viewSpacing: CGFloat = 8
+    @ScaledMetric private var baseSpacing: CGFloat = 8
+    @Environment(\.textScale) private var textScale
+    private var viewSpacing: CGFloat { baseSpacing * textScale }
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
