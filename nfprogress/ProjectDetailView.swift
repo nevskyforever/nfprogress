@@ -356,28 +356,18 @@ struct ProjectDetailView: View {
         }
         .sheet(isPresented: $showingAddEntry) {
             AddEntryView(project: project)
-                .windowStyle(.titleBar)
-                .idealFrame(width: 320, height: nil)
         }
         .sheet(item: $addEntryStage) { stage in
             AddEntryView(project: project, stage: stage)
-                .windowStyle(.titleBar)
-                .idealFrame(width: 320, height: nil)
         }
         .sheet(isPresented: $showingAddStage) {
             AddStageView(project: project)
-                .windowStyle(.titleBar)
-                .idealFrame(width: 320, height: nil)
         }
         .sheet(item: $editingEntry) { entry in
             EditEntryView(project: project, entry: entry)
-                .windowStyle(.titleBar)
-                .idealFrame(width: 320, height: nil)
         }
         .sheet(item: $editingStage) { stage in
             EditStageView(stage: stage)
-                .windowStyle(.titleBar)
-                .idealFrame(width: 320, height: nil)
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
             addEntry()

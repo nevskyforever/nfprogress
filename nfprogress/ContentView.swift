@@ -125,8 +125,6 @@ struct ContentView: View {
     }
     .sheet(isPresented: $showingAddProject) {
       AddProjectView()
-        .windowStyle(.titleBar)
-        .idealFrame(width: 320, height: nil)
     }
     .alert(isPresented: $showDeleteAlert) {
       Alert(
