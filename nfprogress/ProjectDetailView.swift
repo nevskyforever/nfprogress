@@ -77,13 +77,14 @@ struct ProjectDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: viewSpacing) {
+            LazyVStack(alignment: .leading, spacing: scaledSpacing(1.5, scaleFactor: textScale)) {
                 // Название, цель и дедлайн проекта
                 Grid(alignment: .leading, horizontalSpacing: viewSpacing / 2, verticalSpacing: viewSpacing / 2) {
                     GridRow {
                         Text("Название:")
                             .font(.title3.bold())
                             .applyTextScale()
+                            .fixedSize(horizontal: false, vertical: true)
                         if isEditingTitle {
                             TextField("", text: $project.title)
                                 .textFieldStyle(.roundedBorder)
@@ -93,6 +94,7 @@ struct ProjectDetailView: View {
                         } else {
                             Text(project.title)
                                 .applyTextScale()
+                                .fixedSize(horizontal: false, vertical: true)
                                 .onTapGesture {
                                     isEditingTitle = true
                                     focusedField = .title
@@ -104,6 +106,7 @@ struct ProjectDetailView: View {
                         Text("Цель:")
                             .font(.title3.bold())
                             .applyTextScale()
+                            .fixedSize(horizontal: false, vertical: true)
                         if isEditingGoal {
                             TextField("", value: $project.goal, formatter: NumberFormatter())
                                 .textFieldStyle(.roundedBorder)
@@ -113,6 +116,7 @@ struct ProjectDetailView: View {
                         } else {
                             Text("\(project.goal)")
                                 .applyTextScale()
+                                .fixedSize(horizontal: false, vertical: true)
                                 .onTapGesture {
                                     isEditingGoal = true
                                     focusedField = .goal
@@ -124,6 +128,7 @@ struct ProjectDetailView: View {
                         Text("Дедлайн:")
                             .font(.title3.bold())
                             .applyTextScale()
+                            .fixedSize(horizontal: false, vertical: true)
                         if isEditingDeadline {
                             DatePicker(
                                 "",
@@ -141,6 +146,7 @@ struct ProjectDetailView: View {
                                     "Не установлен"
                             )
                             .applyTextScale()
+                            .fixedSize(horizontal: false, vertical: true)
                             .onTapGesture {
                                 tempDeadline = project.deadline ?? Date()
                                 isEditingDeadline = true
@@ -159,12 +165,14 @@ struct ProjectDetailView: View {
                     Text("Осталось дней: \(project.daysLeft)")
                         .font(.subheadline)
                         .applyTextScale()
+                        .fixedSize(horizontal: false, vertical: true)
                         .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
                     if let target = project.dailyTarget {
                         Text("Ежедневная цель: \(target) символов")
                             .font(.title3.bold())
                             .applyTextScale()
                             .foregroundColor(.white)
+                            .fixedSize(horizontal: false, vertical: true)
                     }
                 }
 
@@ -173,17 +181,20 @@ struct ProjectDetailView: View {
                         .font(.subheadline)
                         .applyTextScale()
                         .foregroundColor(.green)
+                        .fixedSize(horizontal: false, vertical: true)
                 } else {
                     Text(project.streakStatus)
                         .font(.subheadline)
                         .applyTextScale()
                         .foregroundColor(.green)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 // Этапы
                 Text("Этапы")
                     .font(.title3.bold())
                     .applyTextScale()
+                    .fixedSize(horizontal: false, vertical: true)
                 Button("Добавить этап") {
                     addStage()
                 }
@@ -217,14 +228,18 @@ struct ProjectDetailView: View {
                                     VStack(alignment: .leading) {
                                         Text("Символов: \(clamped)")
                                             .applyTextScale()
+                                            .fixedSize(horizontal: false, vertical: true)
                                         Text(String(format: "Прогресс этапа: %.0f%%", percent))
                                             .applyTextScale()
+                                            .fixedSize(horizontal: false, vertical: true)
                                             .foregroundColor(progressColor(percent / 100))
                                         Text("Изменение: \(deltaText)")
                                             .applyTextScale()
+                                            .fixedSize(horizontal: false, vertical: true)
                                             .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
                                         Text(entry.date.formatted(date: .numeric, time: .shortened))
                                             .applyTextScale()
+                                            .fixedSize(horizontal: false, vertical: true)
                                             .font(.caption)
                                             .foregroundColor(.gray)
                                     }
@@ -249,7 +264,8 @@ struct ProjectDetailView: View {
                                     }
                                 }
                                 .contentShape(Rectangle())
-                                .scaledPadding(1)
+                                .scaledPadding(1, .vertical)
+                                .frame(minHeight: layoutStep(10, scaleFactor: textScale))
                                 .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                                 .onTapGesture {
                                     if selectedEntry?.id == entry.id {
@@ -312,18 +328,23 @@ struct ProjectDetailView: View {
                                 Text("Этап: \(stageName)")
                                     .font(.caption)
                                     .applyTextScale()
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             Text("Символов: \(total)")
                                 .applyTextScale()
+                                .fixedSize(horizontal: false, vertical: true)
                             Text("Изменение: \(deltaText)")
                                 .applyTextScale()
+                                .fixedSize(horizontal: false, vertical: true)
                                 .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
                             Text(String(format: "Прогресс: %.0f%%", progressPercent))
                                 .applyTextScale()
+                                .fixedSize(horizontal: false, vertical: true)
                                 .font(.caption)
                                 .foregroundColor(.gray)
                             Text(entry.date.formatted(date: .numeric, time: .shortened))
                                 .applyTextScale()
+                                .fixedSize(horizontal: false, vertical: true)
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
@@ -356,7 +377,8 @@ struct ProjectDetailView: View {
                         }
                     }
                     .contentShape(Rectangle())
-                    .scaledPadding(1)
+                    .scaledPadding(1, .vertical)
+                    .frame(minHeight: layoutStep(10, scaleFactor: textScale))
                     .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                     .onTapGesture {
                         if selectedEntry?.id == entry.id {

@@ -32,6 +32,16 @@ final class nfprogressUITests: XCTestCase {
     }
 
     @MainActor
+    func testScaledLayoutNoOverlap() throws {
+        let app = XCUIApplication()
+        app.launchArguments += ["-textScale", "1.59"]
+        app.launch()
+
+        let detail = app.scrollViews.firstMatch
+        XCTAssertFalse(detail.hasOverlappingRendering)
+    }
+
+    @MainActor
     func testLaunchPerformance() throws {
         // This measures how long it takes to launch your application.
         measure(metrics: [XCTApplicationLaunchMetric()]) {
