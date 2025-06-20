@@ -18,7 +18,7 @@ jobs:
           key: ${{ runner.os }}-spm-${{ hashFiles('**/Package.resolved') }}
           restore-keys: ${{ runner.os }}-spm-
       - name: Resolve packages
-        run: xcodebuild -resolvePackageDependencies -workspace nfprogress.xcworkspace CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled YES
+        run: xcodebuild -resolvePackageDependencies -workspace nfprogress.xcworkspace -scheme nfprogress CODE_SIGNING_ALLOWED=NO -parallel-testing-enabled YES
       - name: Lint Text scaling
         run: bash Scripts/checkTextScale.sh
       - name: Boot simulator
