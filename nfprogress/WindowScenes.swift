@@ -47,9 +47,10 @@ extension nfprogressApp {
         }
         .modelContainer(DataController.shared)
 
-        WindowGroup(for: AddStageRequest.self, id: "addStage") { request in
+        WindowGroup(id: "addStage", for: AddStageRequest.self) { binding in
             let context = ModelContext(DataController.shared)
-            if let project = fetchProject(id: request.projectID, context: context) {
+            if let request = binding.wrappedValue,
+               let project = fetchProject(id: request.projectID, context: context) {
                 AddStageView(project: project)
                     .environment(\.textScale, settings.textScale)
                     .environmentObject(settings)
@@ -57,9 +58,10 @@ extension nfprogressApp {
         }
         .modelContainer(DataController.shared)
 
-        WindowGroup(for: AddEntryRequest.self, id: "addEntry") { request in
+        WindowGroup(id: "addEntry", for: AddEntryRequest.self) { binding in
             let context = ModelContext(DataController.shared)
-            if let project = fetchProject(id: request.projectID, context: context) {
+            if let request = binding.wrappedValue,
+               let project = fetchProject(id: request.projectID, context: context) {
                 if let stageID = request.stageID,
                    let stage = fetchStage(id: stageID, context: context) {
                     AddEntryView(project: project, stage: stage)
@@ -74,9 +76,10 @@ extension nfprogressApp {
         }
         .modelContainer(DataController.shared)
 
-        WindowGroup(for: EditEntryRequest.self, id: "editEntry") { request in
+        WindowGroup(id: "editEntry", for: EditEntryRequest.self) { binding in
             let context = ModelContext(DataController.shared)
-            if let project = fetchProject(id: request.projectID, context: context),
+            if let request = binding.wrappedValue,
+               let project = fetchProject(id: request.projectID, context: context),
                let entry = fetchEntry(id: request.entryID, context: context) {
                 EditEntryView(project: project, entry: entry)
                     .environment(\.textScale, settings.textScale)
