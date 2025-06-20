@@ -21,8 +21,11 @@ struct ProjectDetailView: View {
     @FocusState private var focusedField: Field?
 
     /// Отступ ячеек истории и этапов, масштабируемый относительно размера текста.
-    @ScaledMetric private var rowPadding: CGFloat = 4
-    @ScaledMetric private var viewSpacing: CGFloat = 16
+    @ScaledMetric private var baseRowPadding: CGFloat = 4
+    @ScaledMetric private var baseViewSpacing: CGFloat = 16
+    @Environment(\.textScale) private var textScale
+    private var rowPadding: CGFloat { baseRowPadding * textScale }
+    private var viewSpacing: CGFloat { baseViewSpacing * textScale }
 
     // Formatter for displaying deadline in Russian
     private let deadlineFormatter: DateFormatter = {

@@ -9,7 +9,9 @@ struct AddStageView: View {
     @State private var title = ""
     @State private var goal = 1000
 
-    @ScaledMetric private var viewSpacing: CGFloat = 16
+    @ScaledMetric private var baseSpacing: CGFloat = 16
+    @Environment(\.textScale) private var textScale
+    private var viewSpacing: CGFloat { baseSpacing * textScale }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -74,7 +76,9 @@ struct EditStageView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var stage: Stage
 
-    @ScaledMetric private var viewSpacing: CGFloat = 16
+    @ScaledMetric private var baseSpacing: CGFloat = 16
+    @Environment(\.textScale) private var textScale
+    private var viewSpacing: CGFloat { baseSpacing * textScale }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
