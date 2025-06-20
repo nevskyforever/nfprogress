@@ -1,6 +1,8 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if canImport(SwiftData)
 import SwiftData
+#endif
 
 struct AddStageView: View {
     @Environment(\.dismiss) private var dismiss
@@ -71,7 +73,9 @@ struct AddStageView: View {
 
 
 import SwiftUI
+#if canImport(SwiftData)
 import SwiftData
+#endif
 
 struct EditStageView: View {
     @Environment(\.dismiss) private var dismiss
@@ -128,7 +132,9 @@ struct EditStageView: View {
 
 
 import SwiftUI
+#if canImport(SwiftData)
 import SwiftData
+#endif
 
 /// Заголовок этапа с анимированным отображением процента прогресса
 struct StageHeaderView: View {

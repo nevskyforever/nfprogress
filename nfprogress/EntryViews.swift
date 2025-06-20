@@ -1,6 +1,8 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if canImport(SwiftData)
 import SwiftData
+#endif
 
 struct AddEntryView: View {
     @Environment(\.dismiss) private var dismiss
@@ -111,7 +113,9 @@ struct AddEntryView: View {
 
 
 import SwiftUI
+#if canImport(SwiftData)
 import SwiftData
+#endif
 
 struct EditEntryView: View {
     @Environment(\.dismiss) private var dismiss
@@ -238,7 +242,9 @@ struct EditEntryView: View {
 
 
 import SwiftUI
+#if canImport(SwiftData)
 import SwiftData
+#endif
 
 struct MenuBarEntryView: View {
     @Environment(\.modelContext) private var modelContext

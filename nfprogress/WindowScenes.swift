@@ -1,6 +1,8 @@
 #if os(macOS)
 import SwiftUI
+#if canImport(SwiftData)
 import SwiftData
+#endif
 
 struct AddStageRequest: Codable, Hashable {
     var projectID: PersistentIdentifier
