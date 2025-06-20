@@ -354,20 +354,25 @@ struct ProjectDetailView: View {
                 tempDeadline = dl
             }
         }
-        .sheet(isPresented: $showingAddEntry) {
+        .window(isPresented: $showingAddEntry) {
             AddEntryView(project: project)
+                .windowResizability(.contentSize)
         }
-        .sheet(item: $addEntryStage) { stage in
+        .window(item: $addEntryStage) { stage in
             AddEntryView(project: project, stage: stage)
+                .windowResizability(.contentSize)
         }
-        .sheet(isPresented: $showingAddStage) {
+        .window(isPresented: $showingAddStage) {
             AddStageView(project: project)
+                .windowResizability(.contentSize)
         }
-        .sheet(item: $editingEntry) { entry in
+        .window(item: $editingEntry) { entry in
             EditEntryView(project: project, entry: entry)
+                .windowResizability(.contentSize)
         }
-        .sheet(item: $editingStage) { stage in
+        .window(item: $editingStage) { stage in
             EditStageView(stage: stage)
+                .windowResizability(.contentSize)
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
             addEntry()

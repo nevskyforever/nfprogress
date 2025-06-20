@@ -123,8 +123,9 @@ struct ContentView: View {
       }
       isImporting = false
     }
-    .sheet(isPresented: $showingAddProject) {
+    .window(isPresented: $showingAddProject) {
       AddProjectView()
+        .windowResizability(.contentSize)
     }
     .alert(isPresented: $showDeleteAlert) {
       Alert(
