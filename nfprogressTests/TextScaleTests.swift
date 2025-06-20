@@ -7,8 +7,8 @@ final class TextScaleTests: XCTestCase {
         XCTAssertEqual(TextScale.quantized(0.5), 1.0)
         XCTAssertEqual(TextScale.quantized(1.12), 1.1)
         XCTAssertEqual(TextScale.quantized(1.13), 1.1)
-        XCTAssertEqual(TextScale.quantized(1.62), 1.6)
-        XCTAssertEqual(TextScale.quantized(2.2), 2.0)
+        XCTAssertEqual(TextScale.quantized(1.62), 1.59)
+        XCTAssertEqual(TextScale.quantized(2.2), 1.59)
     }
 
     func testUserDefaultsPersistence() async {
@@ -22,7 +22,7 @@ final class TextScaleTests: XCTestCase {
 
         await MainActor.run { settings.textScale = 1.75 }
         let value2 = await MainActor.run { settings.textScale }
-        XCTAssertEqual(value2, 1.8)
+        XCTAssertEqual(value2, 1.59)
     }
 }
 

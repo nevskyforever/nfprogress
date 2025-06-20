@@ -10,11 +10,10 @@ struct AddProjectView: View {
     @State private var title = ""
     @State private var goal = 10000
 
-    @ScaledMetric private var baseSpacing: CGFloat = 16
-    @ScaledMetric private var baseFieldWidth: CGFloat = 200
     @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { baseSpacing * textScale }
-    private var fieldWidth: CGFloat { baseFieldWidth * textScale }
+    private var viewSpacing: CGFloat { scaledSpacing(2, scaleFactor: textScale) }
+    private var fieldWidth: CGFloat { layoutStep(25, scaleFactor: textScale) }
+    private var minWidth: CGFloat { layoutStep(40, scaleFactor: textScale) }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -50,10 +49,10 @@ struct AddProjectView: View {
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
-            .padding(.bottom)
+            .scaledPadding(1, .bottom)
         }
-        .padding()
-        .frame(minWidth: 320)
+        .scaledPadding()
+        .frame(minWidth: minWidth)
     }
 
     private func addProject() {

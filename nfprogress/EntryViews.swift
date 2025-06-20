@@ -24,11 +24,10 @@ struct AddEntryView: View {
         }
     }
 
-    @ScaledMetric private var baseSpacing: CGFloat = 16
-    @ScaledMetric private var baseFieldWidth: CGFloat = 120
     @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { baseSpacing * textScale }
-    private var fieldWidth: CGFloat { baseFieldWidth * textScale }
+    private var viewSpacing: CGFloat { scaledSpacing(2, scaleFactor: textScale) }
+    private var fieldWidth: CGFloat { layoutStep(15, scaleFactor: textScale) }
+    private var minWidth: CGFloat { layoutStep(40, scaleFactor: textScale) }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -74,10 +73,10 @@ struct AddEntryView: View {
             }
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
-            .padding(.bottom)
+            .scaledPadding(1, .bottom)
         }
-        .padding()
-        .frame(minWidth: 320)
+        .scaledPadding()
+        .frame(minWidth: minWidth)
         .onDisappear {
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
@@ -131,11 +130,10 @@ struct EditEntryView: View {
         _editedCount = State(initialValue: Self.progressAfterEntry(project: project, entry: entry))
     }
 
-    @ScaledMetric private var baseSpacing: CGFloat = 16
-    @ScaledMetric private var baseFieldWidth: CGFloat = 120
     @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { baseSpacing * textScale }
-    private var fieldWidth: CGFloat { baseFieldWidth * textScale }
+    private var viewSpacing: CGFloat { scaledSpacing(2, scaleFactor: textScale) }
+    private var fieldWidth: CGFloat { layoutStep(15, scaleFactor: textScale) }
+    private var minWidth: CGFloat { layoutStep(40, scaleFactor: textScale) }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -179,10 +177,10 @@ struct EditEntryView: View {
                 dismiss()
             }
             .buttonStyle(.borderedProminent)
-            .padding(.bottom)
+            .scaledPadding(1, .bottom)
         }
-        .padding()
-        .frame(minWidth: 320)
+        .scaledPadding()
+        .frame(minWidth: minWidth)
         .onDisappear {
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
@@ -253,13 +251,10 @@ struct MenuBarEntryView: View {
     @State private var date: Date = .now
     @State private var didSave: Bool = false
 
-    @ScaledMetric private var baseSpacing: CGFloat = 8
-    @ScaledMetric private var baseFieldWidth: CGFloat = 160
-    @ScaledMetric private var baseMinWidth: CGFloat = 200
     @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { baseSpacing * textScale }
-    private var fieldWidth: CGFloat { baseFieldWidth * textScale }
-    private var minWidth: CGFloat { baseMinWidth * textScale }
+    private var viewSpacing: CGFloat { scaledSpacing(1, scaleFactor: textScale) }
+    private var fieldWidth: CGFloat { layoutStep(20, scaleFactor: textScale) }
+    private var minWidth: CGFloat { layoutStep(25, scaleFactor: textScale) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -313,7 +308,7 @@ struct MenuBarEntryView: View {
                 .keyboardShortcut(.defaultAction)
             }
         }
-        .padding()
+        .scaledPadding()
         .frame(minWidth: minWidth)
         .onDisappear {
             _ = maybeSave()

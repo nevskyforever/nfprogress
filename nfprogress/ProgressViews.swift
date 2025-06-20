@@ -60,9 +60,8 @@ struct ProgressCircleView: View {
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
-    @ScaledMetric private var baseRingWidth: CGFloat = 12
     @Environment(\.textScale) private var textScale
-    private var ringWidth: CGFloat { baseRingWidth * textScale }
+    private var ringWidth: CGFloat { layoutStep(2, scaleFactor: textScale) }
 
     /// Текущий процент выполнения проекта на основе общего количества символов
     private var progress: Double {
@@ -212,9 +211,9 @@ import Charts
 struct ProgressChartView: View {
     var project: WritingProject
 
-    @ScaledMetric private var baseSpacing: CGFloat = 8
     @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { baseSpacing * textScale }
+    private var viewSpacing: CGFloat { scaledSpacing(1, scaleFactor: textScale) }
+    private var chartHeight: CGFloat { layoutStep(25, scaleFactor: textScale) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -269,10 +268,10 @@ struct ProgressChartView: View {
                         }
                     }
                 }
-                .frame(height: 200)
+                .frame(height: chartHeight)
             }
         }
-        .padding(.top)
+        .scaledPadding(1, .top)
     }
 }
 #endif
