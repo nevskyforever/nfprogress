@@ -24,36 +24,71 @@ struct ContentView: View {
   @Environment(\.textScale) private var textScale
   private var circleHeight: CGFloat { layoutStep(10, scaleFactor: textScale) }
 
-  private var splitView: some View {
-    NavigationSplitView(sidebar: {
-      List(selection: $selectedProject) {
-        ForEach(projects) { project in
-          NavigationLink(value: project) {
-            VStack(alignment: .leading) {
-              Text(project.title)
-                .font(.headline)
-                .applyTextScale()
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-              HStack {
-                Spacer()
-                ProgressCircleView(project: project)
-                  .frame(height: circleHeight)
-                Spacer()
-              }
-            }
-            .padding(.vertical, scaledSpacing(1, scaleFactor: textScale))
-            .frame(minHeight: circleHeight + layoutStep(2, scaleFactor: textScale))
-            .background(Color.clear)
-            .listRowInsets(EdgeInsets())
-          }
-        }
-        .onDelete(perform: deleteProjects)
-        .onMove(perform: moveProjects)
+  private func projectRowLabel(for project: WritingProject) -> some View {
+    VStack(alignment: .leading) {
+      Text(project.title)
+        .font(.headline)
+        .applyTextScale()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .fixedSize(horizontal: false, vertical: true)
+      HStack {
+        Spacer()
+        ProgressCircleView(project: project)
+          .frame(height: circleHeight)
+        Spacer()
       }
-      .listStyle(.plain)
-      .navigationTitle("my_texts")
-      .toolbar {
+    }
+    .padding(.vertical, scaledSpacing(1, scaleFactor: textScale))
+    .frame(minHeight: circleHeight + layoutStep(2, scaleFactor: textScale))
+    .background(Color.clear)
+  }
+
+  @ViewBuilder
+  private func projectRow(for project: WritingProject) -> some View {
+    if #available(iOS 16, macOS 13, *) {
+      NavigationLink(value: project) {
+        projectRowLabel(for: project)
+      }
+#if os(iOS)
+      .buttonStyle(.plain)
+#endif
+      .listRowInsets(EdgeInsets())
+    } else {
+      NavigationLink(destination: ProjectDetailView(project: project)) {
+        projectRowLabel(for: project)
+      }
+#if os(iOS)
+      .buttonStyle(.plain)
+#endif
+      .listRowInsets(EdgeInsets())
+      .simultaneousGesture(TapGesture().onEnded { selectedProject = project })
+    }
+  }
+
+  private var sidebarView: some View {
+    Group {
+      if #available(iOS 16, macOS 13, *) {
+        List(selection: $selectedProject) {
+          ForEach(projects) { project in
+              projectRow(for: project)
+          }
+          .onDelete(perform: deleteProjects)
+          .onMove(perform: moveProjects)
+        }
+      } else {
+        List {
+          ForEach(projects) { project in
+              projectRow(for: project)
+          }
+          .onDelete(perform: deleteProjects)
+          .onMove(perform: moveProjects)
+        }
+      }
+    }
+    .listStyle(.plain)
+    .applyCompatSplitWidth()
+    .navigationTitle("my_texts")
+    .toolbar {
         ToolbarItem {
           Button(action: addProject) {
             Label("add", systemImage: "plus")
@@ -90,8 +125,11 @@ struct ContentView: View {
             }
           }
         #endif
-      }
-    }, detail: {
+    }
+  }
+
+  @ViewBuilder
+  private var detailView: some View {
       if let project = selectedProject {
         ProjectDetailView(project: project)
       } else {
@@ -99,14 +137,31 @@ struct ContentView: View {
           .applyTextScale()
           .foregroundColor(.gray)
       }
-    })
-    .navigationDestination(for: WritingProject.self) { project in
-      ProjectDetailView(project: project)
+  }
+
+  @ViewBuilder
+  private var splitView: some View {
+    if #available(iOS 16, macOS 13, *) {
+      NavigationSplitView(sidebar: {
+        sidebarView
+      }, detail: {
+        detailView
+      })
+      .compatNavigationSplitViewColumnWidth(min: 200, ideal: 260, max: 400)
+    } else {
+      NavigationView {
+        sidebarView
+        detailView
+      }
+      .compatNavigationSplitViewColumnWidth(min: 200, ideal: 260, max: 400)
     }
   }
 
   var body: some View {
     splitView
+      .compatNavigationDestination(for: WritingProject.self) { project in
+        ProjectDetailView(project: project)
+      }
       .fileExporter(
         isPresented: $isExporting,
         document: exportDocument,
