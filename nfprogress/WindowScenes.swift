@@ -46,6 +46,7 @@ extension nfprogressApp {
             AddProjectView()
                 .environmentObject(settings)
         }
+        .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
 
         WindowGroup(id: "addStage", for: AddStageRequest.self) { binding in
@@ -56,6 +57,7 @@ extension nfprogressApp {
                     .environmentObject(settings)
             }
         }
+        .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
 
         WindowGroup(id: "addEntry", for: AddEntryRequest.self) { binding in
@@ -72,6 +74,7 @@ extension nfprogressApp {
                 }
             }
         }
+        .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
 
         WindowGroup(id: "editEntry", for: EditEntryRequest.self) { binding in
