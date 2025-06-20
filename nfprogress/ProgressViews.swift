@@ -14,7 +14,7 @@ struct AnimatedCounterText: Animatable, View {
     var body: some View {
         let percent = Int(ceil(value * 100))
         Text("\(percent)%")
-            .font(.system(size: 20))
+            .scaledFont(.progressValue)
             .monospacedDigit()
             .bold()
             .applyTextScale()
@@ -60,6 +60,7 @@ struct ProgressCircleView: View {
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
+    @ScaledMetric private var ringWidth: CGFloat = 12
 
     /// Текущий процент выполнения проекта на основе общего количества символов
     private var progress: Double {
@@ -88,14 +89,14 @@ struct ProgressCircleView: View {
     /// Фоновый круг за анимированным прогрессом
     private var backgroundCircle: some View {
         Circle()
-            .stroke(Color.gray.opacity(0.3), lineWidth: 12)
+            .stroke(Color.gray.opacity(0.3), lineWidth: ringWidth)
     }
 
     /// Рисует кольцо прогресса с указанным значением и цветом
     private func ring(value: Double, color: Color) -> some View {
         Circle()
             .trim(from: 0, to: CGFloat(value))
-            .stroke(color, style: StrokeStyle(lineWidth: 12, lineCap: .round))
+            .stroke(color, style: StrokeStyle(lineWidth: ringWidth, lineCap: .round))
             .rotationEffect(.degrees(-90))
     }
 
@@ -113,7 +114,7 @@ struct ProgressCircleView: View {
                 ring(value: value, color: color)
                 let percent = Int(ceil(value * 100))
                 Text("\(percent)%")
-                    .font(.system(size: 20))
+                    .scaledFont(.progressValue)
                     .monospacedDigit()
                     .bold()
                     .foregroundColor(color)
