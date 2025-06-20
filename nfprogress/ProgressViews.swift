@@ -60,7 +60,9 @@ struct ProgressCircleView: View {
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
-    @ScaledMetric private var ringWidth: CGFloat = 12
+    @ScaledMetric private var baseRingWidth: CGFloat = 12
+    @Environment(\.textScale) private var textScale
+    private var ringWidth: CGFloat { baseRingWidth * textScale }
 
     /// Текущий процент выполнения проекта на основе общего количества символов
     private var progress: Double {

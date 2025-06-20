@@ -10,8 +10,10 @@ struct AddStageView: View {
     @State private var goal = 1000
 
     @ScaledMetric private var baseSpacing: CGFloat = 16
+    @ScaledMetric private var baseFieldWidth: CGFloat = 200
     @Environment(\.textScale) private var textScale
     private var viewSpacing: CGFloat { baseSpacing * textScale }
+    private var fieldWidth: CGFloat { baseFieldWidth * textScale }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -39,10 +41,10 @@ struct AddStageView: View {
             }
             TextField("project_name", text: $title)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(width: fieldWidth)
             TextField("project_goal", value: $goal, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(width: fieldWidth)
             Spacer()
             Button("create") { addStage() }
                 .buttonStyle(.borderedProminent)
@@ -77,8 +79,10 @@ struct EditStageView: View {
     @Bindable var stage: Stage
 
     @ScaledMetric private var baseSpacing: CGFloat = 16
+    @ScaledMetric private var baseFieldWidth: CGFloat = 200
     @Environment(\.textScale) private var textScale
     private var viewSpacing: CGFloat { baseSpacing * textScale }
+    private var fieldWidth: CGFloat { baseFieldWidth * textScale }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -99,11 +103,11 @@ struct EditStageView: View {
 
             TextField("project_name", text: $stage.title)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(width: fieldWidth)
 
             TextField("project_goal", value: $stage.goal, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 200)
+                .frame(width: fieldWidth)
 
             Spacer()
 
