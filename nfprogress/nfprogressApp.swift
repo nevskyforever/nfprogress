@@ -21,7 +21,6 @@ struct nfprogressApp: App {
         WindowGroup {
             ContentView()
                 .environment(\.textScale, settings.textScale)
-                .applyTextScale()
                 .environmentObject(settings)
         }
         .modelContainer(DataController.shared)
@@ -30,7 +29,6 @@ struct nfprogressApp: App {
         MenuBarExtra("NFProgress", systemImage: "text.cursor") {
             MenuBarEntryView()
                 .environment(\.textScale, settings.textScale)
-                .applyTextScale()
                 .environmentObject(settings)
         }
         .menuBarExtraStyle(.window)
@@ -40,7 +38,6 @@ struct nfprogressApp: App {
         Settings {
             SettingsView()
                 .environment(\.textScale, settings.textScale)
-                .applyTextScale()
                 .environmentObject(settings)
         }
 #endif
