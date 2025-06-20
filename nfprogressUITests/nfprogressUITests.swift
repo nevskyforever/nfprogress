@@ -34,11 +34,52 @@ final class nfprogressUITests: XCTestCase {
     @MainActor
     func testScaledLayoutNoOverlap() throws {
         let app = XCUIApplication()
+        app.launchEnvironment["OS_ACTIVITY_MODE"] = "disable"
         app.launchArguments += ["-textScale", "1.59"]
         app.launch()
 
         let detail = app.scrollViews.firstMatch
         XCTAssertFalse(detail.hasOverlappingRendering)
+    }
+
+    @MainActor
+    func testSnapshot159() throws {
+        let app = XCUIApplication()
+        app.launchEnvironment["OS_ACTIVITY_MODE"] = "disable"
+        app.launchArguments += ["-textScale", "1.59"]
+        app.launch()
+
+        let detail = app.scrollViews.firstMatch
+        XCTAssertTrue(detail.waitForExistence(timeout: 5))
+        let attachment = XCTAttachment(screenshot: detail.screenshot())
+        attachment.name = "snapshot-159-\(UUID().uuidString)"
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    @MainActor
+    func testScaledLayoutExtremeSizes() throws {
+        for scale in ["2.0", "2.5", "3.0"] {
+            XCTContext.runActivity(named: "Scale \(scale)") { _ in
+                let app = XCUIApplication()
+                app.launchEnvironment["OS_ACTIVITY_MODE"] = "disable"
+                app.launchArguments = ["-textScale", scale]
+                app.launch()
+
+                let detail = app.scrollViews.firstMatch
+                XCTAssertFalse(detail.hasOverlappingRendering)
+
+                #if os(iOS)
+                if XCUIDevice.shared.supportsOrientationChanges {
+                    XCUIDevice.shared.orientation = .landscapeLeft
+                    XCTAssertFalse(detail.hasOverlappingRendering)
+                    XCUIDevice.shared.orientation = .portrait
+                }
+                #endif
+
+                app.terminate()
+            }
+        }
     }
 
     @MainActor

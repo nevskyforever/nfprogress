@@ -81,8 +81,8 @@ struct ProjectDetailView: View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: scaledSpacing(1.5, scaleFactor: textScale)) {
                 // Название, цель и дедлайн проекта
-                Grid(alignment: .leading, horizontalSpacing: viewSpacing / 2, verticalSpacing: viewSpacing / 2) {
-                    GridRow {
+                VStack(alignment: .leading, spacing: viewSpacing / 2) {
+                    HStack(alignment: .top, spacing: viewSpacing / 2) {
                         Text("Название:")
                             .font(.title3.bold())
                             .applyTextScale()
@@ -97,14 +97,17 @@ struct ProjectDetailView: View {
                             Text(project.title)
                                 .applyTextScale()
                                 .fixedSize(horizontal: false, vertical: true)
+                                .lineLimit(nil)
+                                .layoutPriority(1)
                                 .onTapGesture {
                                     isEditingTitle = true
                                     focusedField = .title
                                 }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    GridRow {
+                    HStack(alignment: .top, spacing: viewSpacing / 2) {
                         Text("Цель:")
                             .font(.title3.bold())
                             .applyTextScale()
@@ -119,14 +122,17 @@ struct ProjectDetailView: View {
                             Text("\(project.goal)")
                                 .applyTextScale()
                                 .fixedSize(horizontal: false, vertical: true)
+                                .lineLimit(nil)
+                                .layoutPriority(1)
                                 .onTapGesture {
                                     isEditingGoal = true
                                     focusedField = .goal
                                 }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    GridRow {
+                    HStack(alignment: .top, spacing: viewSpacing / 2) {
                         Text("Дедлайн:")
                             .font(.title3.bold())
                             .applyTextScale()
@@ -149,6 +155,8 @@ struct ProjectDetailView: View {
                             )
                             .applyTextScale()
                             .fixedSize(horizontal: false, vertical: true)
+                            .lineLimit(nil)
+                            .layoutPriority(1)
                             .onTapGesture {
                                 tempDeadline = project.deadline ?? Date()
                                 isEditingDeadline = true
@@ -156,6 +164,7 @@ struct ProjectDetailView: View {
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 if !isEditingDeadline && project.deadline != nil {
@@ -461,6 +470,7 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
+        .onDisappear { focusedField = nil }
         // Removed project title from toolbar to declutter interface
     }
 
