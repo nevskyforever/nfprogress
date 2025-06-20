@@ -25,9 +25,9 @@ struct ContentView: View {
 
   private var splitView: some View {
     NavigationSplitView(sidebar: {
-      List(selection: $selectedProject) {
+      List {
         ForEach(projects) { project in
-          NavigationLink(value: project) {
+          Button(action: { selectedProject = project }) {
             VStack(alignment: .leading) {
               Text(project.title)
                 .font(.headline)
@@ -42,9 +42,9 @@ struct ContentView: View {
             }
             .padding(.vertical, scaledSpacing(1))
             .frame(minHeight: circleHeight + layoutStep(2))
-            .background(Color.clear)
             .listRowInsets(EdgeInsets())
           }
+          .buttonStyle(.plain)
         }
         .onDelete(perform: deleteProjects)
         .onMove(perform: moveProjects)
