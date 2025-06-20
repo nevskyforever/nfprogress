@@ -15,7 +15,8 @@ struct nfprogressApp: App {
         }
 #endif
     }
-    @StateObject private var settings = AppSettings()
+    /// Global application settings available across all scenes
+    @StateObject var settings = AppSettings()
 
     var body: some Scene {
         WindowGroup {
