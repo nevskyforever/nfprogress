@@ -22,6 +22,7 @@ struct ProjectDetailView: View {
 
     /// Отступ ячеек истории и этапов, масштабируемый относительно размера текста.
     @ScaledMetric private var rowPadding: CGFloat = 4
+    @ScaledMetric private var viewSpacing: CGFloat = 16
 
     // Formatter for displaying deadline in Russian
     private let deadlineFormatter: DateFormatter = {
@@ -63,9 +64,9 @@ struct ProjectDetailView: View {
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: viewSpacing) {
                 // Название, цель и дедлайн проекта
-                Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                Grid(alignment: .leading, horizontalSpacing: viewSpacing / 2, verticalSpacing: viewSpacing / 2) {
                     GridRow {
                         Text("Название:")
                             .font(.title3.bold())

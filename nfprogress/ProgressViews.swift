@@ -210,8 +210,10 @@ import Charts
 struct ProgressChartView: View {
     var project: WritingProject
 
+    @ScaledMetric private var viewSpacing: CGFloat = 8
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: viewSpacing) {
 
             if project.streak > 0 {
                 if let prompt = project.streakPrompt {
