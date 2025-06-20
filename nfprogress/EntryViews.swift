@@ -24,8 +24,10 @@ struct AddEntryView: View {
         }
     }
 
+    @ScaledMetric private var viewSpacing: CGFloat = 16
+
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: viewSpacing) {
             HStack {
                 Spacer()
                 Button(action: { dismiss() }) {
@@ -125,8 +127,10 @@ struct EditEntryView: View {
         _editedCount = State(initialValue: Self.progressAfterEntry(project: project, entry: entry))
     }
 
+    @ScaledMetric private var viewSpacing: CGFloat = 16
+
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: viewSpacing) {
             HStack {
                 Spacer()
                 Button(action: { dismiss() }) {
@@ -241,8 +245,10 @@ struct MenuBarEntryView: View {
     @State private var date: Date = .now
     @State private var didSave: Bool = false
 
+    @ScaledMetric private var viewSpacing: CGFloat = 8
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: viewSpacing) {
             HStack {
                 Spacer()
                 Button(action: { dismiss() }) {

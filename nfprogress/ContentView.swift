@@ -16,6 +16,9 @@ struct ContentView: View {
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
 
+  @ScaledMetric private var rowPadding: CGFloat = 4
+  @ScaledMetric private var circleHeight: CGFloat = 80
+
   private var splitView: some View {
     NavigationSplitView(sidebar: {
       List(selection: $selectedProject) {
@@ -30,11 +33,11 @@ struct ContentView: View {
               HStack {
                 Spacer()
                 ProgressCircleView(project: project)
-                  .frame(height: 80)
+                  .frame(height: circleHeight)
                 Spacer()
               }
             }
-            .padding(.vertical, 4)
+            .padding(.vertical, rowPadding)
           }
         }
         .onDelete(perform: deleteProjects)

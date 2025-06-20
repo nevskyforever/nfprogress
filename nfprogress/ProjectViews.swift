@@ -10,8 +10,10 @@ struct AddProjectView: View {
     @State private var title = ""
     @State private var goal = 10000
 
+    @ScaledMetric private var viewSpacing: CGFloat = 16
+
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: viewSpacing) {
             HStack {
                 Spacer()
                 Button(action: { dismiss() }) {

@@ -5,8 +5,10 @@ struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     private let scaleOptions = TextScale.values
 
+    @ScaledMetric private var viewSpacing: CGFloat = 20
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 20) {
+        VStack(alignment: .leading, spacing: viewSpacing) {
             Text("Внешний вид")
                 .font(.headline)
                 .applyTextScale()
