@@ -20,6 +20,9 @@ struct ProjectDetailView: View {
     @State private var isEditingDeadline = false
     @FocusState private var focusedField: Field?
 
+    /// Отступ ячеек истории и этапов, масштабируемый относительно размера текста.
+    @ScaledMetric private var rowPadding: CGFloat = 4
+
     // Formatter for displaying deadline in Russian
     private let deadlineFormatter: DateFormatter = {
         let df = DateFormatter()
@@ -61,76 +64,74 @@ struct ProjectDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                // Название и цель проекта
-                HStack {
-                    Text("Название:")
-                        .font(.title3.bold())
-                        .applyTextScale()
-                    if isEditingTitle {
-                        TextField("", text: $project.title)
-                            .textFieldStyle(.roundedBorder)
-                            .fixedSize()
-                            .submitLabel(.done)
-                            .focused($focusedField, equals: .title)
-                            .onSubmit { focusedField = nil }
-                    } else {
-                        Text(project.title)
+                // Название, цель и дедлайн проекта
+                Grid(alignment: .leading, horizontalSpacing: 8, verticalSpacing: 8) {
+                    GridRow {
+                        Text("Название:")
+                            .font(.title3.bold())
                             .applyTextScale()
-                            .onTapGesture {
-                                isEditingTitle = true
-                                focusedField = .title
-                            }
+                        if isEditingTitle {
+                            TextField("", text: $project.title)
+                                .textFieldStyle(.roundedBorder)
+                                .submitLabel(.done)
+                                .focused($focusedField, equals: .title)
+                                .onSubmit { focusedField = nil }
+                        } else {
+                            Text(project.title)
+                                .applyTextScale()
+                                .onTapGesture {
+                                    isEditingTitle = true
+                                    focusedField = .title
+                                }
+                        }
                     }
-                }
-                .padding(.bottom, 8)
-                HStack {
-                    Text("Цель:")
-                        .font(.title3.bold())
-                        .applyTextScale()
-                    if isEditingGoal {
-                        TextField("", value: $project.goal, formatter: NumberFormatter())
-                            .textFieldStyle(.roundedBorder)
-                            .fixedSize()
-                            .submitLabel(.done)
-                            .focused($focusedField, equals: .goal)
-                            .onSubmit { focusedField = nil }
-                    } else {
-                        Text("\(project.goal)")
-                            .applyTextScale()
-                            .onTapGesture {
-                                isEditingGoal = true
-                                focusedField = .goal
-                            }
-                    }
-                }
-                .padding(.bottom, 8)
 
-                // Дедлайн
-                HStack {
-                    Text("Дедлайн:")
-                        .font(.title3.bold())
-                        .applyTextScale()
-                    if isEditingDeadline {
-                        DatePicker(
-                            "",
-                            selection: $tempDeadline,
-                            displayedComponents: .date
-                        )
-                        .labelsHidden()
-                        .environment(\.locale, Locale(identifier: "ru_RU"))
-                        .focused($focusedField, equals: .deadline)
-                        .submitLabel(.done)
-                        .onSubmit { focusedField = nil }
-                    } else {
-                        Text(
-                            project.deadline.map { deadlineFormatter.string(from: $0) } ??
-                                "Не установлен"
-                        )
-                        .applyTextScale()
-                        .onTapGesture {
-                            tempDeadline = project.deadline ?? Date()
-                            isEditingDeadline = true
-                            focusedField = .deadline
+                    GridRow {
+                        Text("Цель:")
+                            .font(.title3.bold())
+                            .applyTextScale()
+                        if isEditingGoal {
+                            TextField("", value: $project.goal, formatter: NumberFormatter())
+                                .textFieldStyle(.roundedBorder)
+                                .submitLabel(.done)
+                                .focused($focusedField, equals: .goal)
+                                .onSubmit { focusedField = nil }
+                        } else {
+                            Text("\(project.goal)")
+                                .applyTextScale()
+                                .onTapGesture {
+                                    isEditingGoal = true
+                                    focusedField = .goal
+                                }
+                        }
+                    }
+
+                    GridRow {
+                        Text("Дедлайн:")
+                            .font(.title3.bold())
+                            .applyTextScale()
+                        if isEditingDeadline {
+                            DatePicker(
+                                "",
+                                selection: $tempDeadline,
+                                displayedComponents: .date
+                            )
+                            .labelsHidden()
+                            .environment(\.locale, Locale(identifier: "ru_RU"))
+                            .focused($focusedField, equals: .deadline)
+                            .submitLabel(.done)
+                            .onSubmit { focusedField = nil }
+                        } else {
+                            Text(
+                                project.deadline.map { deadlineFormatter.string(from: $0) } ??
+                                    "Не установлен"
+                            )
+                            .applyTextScale()
+                            .onTapGesture {
+                                tempDeadline = project.deadline ?? Date()
+                                isEditingDeadline = true
+                                focusedField = .deadline
+                            }
                         }
                     }
                 }
@@ -227,7 +228,7 @@ struct ProjectDetailView: View {
                                     }
                                 }
                                 .contentShape(Rectangle())
-                                .padding(4)
+                                .padding(rowPadding)
                                 .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                                 .onTapGesture {
                                     if selectedEntry?.id == entry.id {
@@ -327,7 +328,7 @@ struct ProjectDetailView: View {
                         }
                     }
                     .contentShape(Rectangle())
-                    .padding(4)
+                    .padding(rowPadding)
                     .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                     .onTapGesture {
                         if selectedEntry?.id == entry.id {

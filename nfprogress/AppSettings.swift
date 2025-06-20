@@ -24,6 +24,12 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    /// Коэффициент масштабирования декоративных размеров и шрифтов.
+    var scaleFactor: Double {
+        get { textScale }
+        set { textScale = newValue }
+    }
+
     init(userDefaults: UserDefaults = .standard) {
         defaults = userDefaults
         disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
@@ -52,6 +58,12 @@ final class AppSettings {
             if q != textScale { textScale = q; return }
             defaults.set(textScale, forKey: "textScale")
         }
+    }
+
+    /// Коэффициент масштабирования декоративных размеров и шрифтов.
+    var scaleFactor: Double {
+        get { textScale }
+        set { textScale = newValue }
     }
 
     init(userDefaults: UserDefaults = .standard) {
