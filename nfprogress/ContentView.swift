@@ -20,9 +20,10 @@ struct ContentView: View {
   @State private var showDeleteAlert = false
 
   @ScaledMetric private var baseRowPadding: CGFloat = 4
-  @ScaledMetric private var circleHeight: CGFloat = 80
+  @ScaledMetric private var baseCircleHeight: CGFloat = 80
   @Environment(\.textScale) private var textScale
   private var rowPadding: CGFloat { baseRowPadding * textScale }
+  private var circleHeight: CGFloat { baseCircleHeight * textScale }
 
   private var splitView: some View {
     NavigationSplitView(sidebar: {

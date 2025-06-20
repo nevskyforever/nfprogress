@@ -25,8 +25,10 @@ struct AddEntryView: View {
     }
 
     @ScaledMetric private var baseSpacing: CGFloat = 16
+    @ScaledMetric private var baseFieldWidth: CGFloat = 120
     @Environment(\.textScale) private var textScale
     private var viewSpacing: CGFloat { baseSpacing * textScale }
+    private var fieldWidth: CGFloat { baseFieldWidth * textScale }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -61,7 +63,7 @@ struct AddEntryView: View {
 
             TextField("characters", value: $characterCount, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 120)
+                .frame(width: fieldWidth)
                 .submitLabel(.done)
                 .onSubmit(addEntry)
 
@@ -130,8 +132,10 @@ struct EditEntryView: View {
     }
 
     @ScaledMetric private var baseSpacing: CGFloat = 16
+    @ScaledMetric private var baseFieldWidth: CGFloat = 120
     @Environment(\.textScale) private var textScale
     private var viewSpacing: CGFloat { baseSpacing * textScale }
+    private var fieldWidth: CGFloat { baseFieldWidth * textScale }
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -166,7 +170,7 @@ struct EditEntryView: View {
 
             TextField("characters", value: $editedCount, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 120)
+                .frame(width: fieldWidth)
 
             Spacer()
 
@@ -250,8 +254,12 @@ struct MenuBarEntryView: View {
     @State private var didSave: Bool = false
 
     @ScaledMetric private var baseSpacing: CGFloat = 8
+    @ScaledMetric private var baseFieldWidth: CGFloat = 160
+    @ScaledMetric private var baseMinWidth: CGFloat = 200
     @Environment(\.textScale) private var textScale
     private var viewSpacing: CGFloat { baseSpacing * textScale }
+    private var fieldWidth: CGFloat { baseFieldWidth * textScale }
+    private var minWidth: CGFloat { baseMinWidth * textScale }
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -292,7 +300,7 @@ struct MenuBarEntryView: View {
                 }
                 TextField("Символов", value: $characterCount, format: .number)
                     .textFieldStyle(.roundedBorder)
-                    .frame(width: 160)
+                    .frame(width: fieldWidth)
                     .onSubmit {
                         if maybeSave() { dismiss() }
                     }
@@ -306,7 +314,7 @@ struct MenuBarEntryView: View {
             }
         }
         .padding()
-        .frame(minWidth: 200)
+        .frame(minWidth: minWidth)
         .onDisappear {
             _ = maybeSave()
         }
