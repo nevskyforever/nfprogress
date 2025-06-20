@@ -28,18 +28,10 @@ struct AddEntryView: View {
 
     private let viewSpacing: CGFloat = scaledSpacing(2)
     private let fieldWidth: CGFloat = layoutStep(15)
-    private let minWidth: CGFloat = layoutStep(40)
+    private let minWidth: CGFloat = layoutStep(30)
 
     var body: some View {
         VStack(spacing: viewSpacing) {
-            HStack {
-                Spacer()
-                Button(action: { dismiss() }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.red)
-                }
-                .buttonStyle(.plain)
-            }
 
             Text("new_entry")
                 .font(.title2.bold())
