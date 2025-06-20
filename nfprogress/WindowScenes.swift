@@ -3,20 +3,20 @@ import SwiftUI
 import SwiftData
 
 struct AddStageRequest: Codable, Hashable {
-    var projectID: UUID
+    var projectID: PersistentIdentifier
 }
 
 struct AddEntryRequest: Codable, Hashable {
-    var projectID: UUID
+    var projectID: PersistentIdentifier
     var stageID: UUID?
 }
 
 struct EditEntryRequest: Codable, Hashable {
-    var projectID: UUID
+    var projectID: PersistentIdentifier
     var entryID: UUID
 }
 
-private func fetchProject(id: UUID, context: ModelContext) -> WritingProject? {
+private func fetchProject(id: PersistentIdentifier, context: ModelContext) -> WritingProject? {
     let descriptor = FetchDescriptor<WritingProject>(
         predicate: #Predicate { $0.id == id }
     )
