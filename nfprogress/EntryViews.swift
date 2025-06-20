@@ -26,10 +26,9 @@ struct AddEntryView: View {
         }
     }
 
-    @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { scaledSpacing(2, scaleFactor: textScale) }
-    private var fieldWidth: CGFloat { layoutStep(15, scaleFactor: textScale) }
-    private var minWidth: CGFloat { layoutStep(40, scaleFactor: textScale) }
+    private let viewSpacing: CGFloat = scaledSpacing(2)
+    private let fieldWidth: CGFloat = layoutStep(15)
+    private let minWidth: CGFloat = layoutStep(40)
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -44,7 +43,6 @@ struct AddEntryView: View {
 
             Text("new_entry")
                 .font(.title2.bold())
-                .applyTextScale()
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -55,7 +53,6 @@ struct AddEntryView: View {
                 Picker("stage", selection: $selectedStageIndex) {
                     ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                         Text(stage.title)
-                            .applyTextScale()
                             .tag(idx)
                     }
                 }
@@ -134,10 +131,9 @@ struct EditEntryView: View {
         _editedCount = State(initialValue: Self.progressAfterEntry(project: project, entry: entry))
     }
 
-    @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { scaledSpacing(2, scaleFactor: textScale) }
-    private var fieldWidth: CGFloat { layoutStep(15, scaleFactor: textScale) }
-    private var minWidth: CGFloat { layoutStep(40, scaleFactor: textScale) }
+    private let viewSpacing: CGFloat = scaledSpacing(2)
+    private let fieldWidth: CGFloat = layoutStep(15)
+    private let minWidth: CGFloat = layoutStep(40)
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -152,7 +148,6 @@ struct EditEntryView: View {
 
             Text("edit_entry")
                 .font(.title2.bold())
-                .applyTextScale()
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -163,7 +158,6 @@ struct EditEntryView: View {
                 Picker("stage", selection: $selectedStageIndex) {
                     ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                         Text(stage.title)
-                            .applyTextScale()
                             .tag(idx)
                     }
                 }
@@ -257,10 +251,9 @@ struct MenuBarEntryView: View {
     @State private var date: Date = .now
     @State private var didSave: Bool = false
 
-    @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { scaledSpacing(1, scaleFactor: textScale) }
-    private var fieldWidth: CGFloat { layoutStep(20, scaleFactor: textScale) }
-    private var minWidth: CGFloat { layoutStep(25, scaleFactor: textScale) }
+    private let viewSpacing: CGFloat = scaledSpacing(1)
+    private let fieldWidth: CGFloat = layoutStep(20)
+    private let minWidth: CGFloat = layoutStep(25)
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -275,12 +268,10 @@ struct MenuBarEntryView: View {
 
             if projects.isEmpty {
                 Text("Нет проектов")
-                    .applyTextScale()
             } else {
                 Picker("Проект", selection: $selectedIndex) {
                     ForEach(Array(projects.enumerated()), id: \.offset) { idx, project in
                         Text(project.title)
-                            .applyTextScale()
                             .tag(idx)
                     }
                 }
@@ -289,11 +280,9 @@ struct MenuBarEntryView: View {
                 if !project.stages.isEmpty {
                     Picker("Этап", selection: $selectedStageIndex) {
                         Text("Без этапа")
-                            .applyTextScale()
                             .tag(0)
                         ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                             Text(stage.title)
-                                .applyTextScale()
                                 .tag(idx + 1)
                         }
                     }

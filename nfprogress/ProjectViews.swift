@@ -12,10 +12,9 @@ struct AddProjectView: View {
     @State private var title = ""
     @State private var goal = 10000
 
-    @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { scaledSpacing(2, scaleFactor: textScale) }
-    private var fieldWidth: CGFloat { layoutStep(25, scaleFactor: textScale) }
-    private var minWidth: CGFloat { layoutStep(40, scaleFactor: textScale) }
+    private let viewSpacing: CGFloat = scaledSpacing(2)
+    private let fieldWidth: CGFloat = layoutStep(25)
+    private let minWidth: CGFloat = layoutStep(40)
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -30,7 +29,6 @@ struct AddProjectView: View {
 
             Text("new_project")
                 .font(.title2.bold())
-                .applyTextScale()
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
 

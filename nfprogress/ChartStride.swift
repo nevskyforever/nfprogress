@@ -8,13 +8,12 @@ import SwiftUI
 
 extension Array where Element == Date {
     /// Calculates the minimal calendar component step so that labels don't overlap
-    /// for the given chart width and text scale.
+    /// for the given chart width.
     func stride(forWidth width: CGFloat,
-                fontScale: Double,
                 minLabelSpacing: CGFloat = 80) -> Calendar.Component {
         guard !isEmpty else { return .day }
         let calendar = Calendar.current
-        let allowed = Double(width / (minLabelSpacing * CGFloat(fontScale)))
+        let allowed = Double(width / minLabelSpacing)
 
         func count(for component: Calendar.Component) -> Int {
             var set = Set<Date>()

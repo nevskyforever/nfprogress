@@ -21,8 +21,7 @@ struct ContentView: View {
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
 
-  @Environment(\.textScale) private var textScale
-  private var circleHeight: CGFloat { layoutStep(10, scaleFactor: textScale) }
+  private let circleHeight: CGFloat = layoutStep(10)
 
   private var splitView: some View {
     NavigationSplitView(sidebar: {
@@ -32,7 +31,6 @@ struct ContentView: View {
             VStack(alignment: .leading) {
               Text(project.title)
                 .font(.headline)
-                .applyTextScale()
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
               HStack {
@@ -42,8 +40,8 @@ struct ContentView: View {
                 Spacer()
               }
             }
-            .padding(.vertical, scaledSpacing(1, scaleFactor: textScale))
-            .frame(minHeight: circleHeight + layoutStep(2, scaleFactor: textScale))
+            .padding(.vertical, scaledSpacing(1))
+            .frame(minHeight: circleHeight + layoutStep(2))
             .background(Color.clear)
             .listRowInsets(EdgeInsets())
           }
@@ -96,7 +94,6 @@ struct ContentView: View {
         ProjectDetailView(project: project)
       } else {
         Text("select_project")
-          .applyTextScale()
           .foregroundColor(.gray)
       }
     })

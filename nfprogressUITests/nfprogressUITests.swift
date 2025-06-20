@@ -31,15 +31,6 @@ final class nfprogressUITests: XCTestCase {
         // Use XCTAssert and related functions to verify your tests produce the correct results.
     }
 
-    @MainActor
-    func testScaledLayoutNoOverlap() throws {
-        let app = XCUIApplication()
-        app.launchArguments += ["-textScale", "1.59"]
-        app.launch()
-
-        let detail = app.scrollViews.firstMatch
-        XCTAssertFalse(detail.hasOverlappingRendering)
-    }
 
     @MainActor
     func testLaunchPerformance() throws {

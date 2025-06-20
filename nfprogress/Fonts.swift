@@ -8,19 +8,18 @@ enum FontToken: Double, CaseIterable {
     case progressValue = 20
 }
 
-/// Вычисляет итоговый размер шрифта с учетом масштабирования.
-func calcFontSize(token: FontToken, scaleFactor: Double) -> Double {
-    token.rawValue * scaleFactor
+/// Returns base font size for the provided token.
+func calcFontSize(token: FontToken) -> Double {
+    token.rawValue
 }
 
 #if canImport(SwiftUI)
 /// Модификатор, применяющий масштабированный размер шрифта.
 struct ScaledFont: ViewModifier {
-    @EnvironmentObject private var settings: AppSettings
     var token: FontToken
 
     func body(content: Content) -> some View {
-        let size = CGFloat(calcFontSize(token: token, scaleFactor: settings.textScale))
+        let size = CGFloat(calcFontSize(token: token))
         content.font(.system(size: size))
     }
 }

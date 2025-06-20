@@ -3,16 +3,11 @@ import XCTest
 
 final class LayoutScalingTests: XCTestCase {
     func testCalcLayoutValue() {
-        for scale in TextScale.values {
-            let expected = CGFloat(8) * CGFloat(scale)
-            XCTAssertEqual(calcLayoutValue(base: CGFloat(8), scaleFactor: scale), expected)
-        }
+        XCTAssertEqual(calcLayoutValue(base: CGFloat(8)), CGFloat(8))
     }
 
     func testLayoutStep() {
-        for scale in TextScale.values {
-            let expected = baseLayoutStep * 2 * CGFloat(scale)
-            XCTAssertEqual(layoutStep(2, scaleFactor: scale), expected)
-        }
+        let expected = baseLayoutStep * 2
+        XCTAssertEqual(layoutStep(2), expected)
     }
 }

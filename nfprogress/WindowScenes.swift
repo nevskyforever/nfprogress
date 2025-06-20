@@ -44,7 +44,6 @@ extension nfprogressApp {
     var additionalWindows: some Scene {
         WindowGroup(id: "addProject") {
             AddProjectView()
-                .environment(\.textScale, settings.textScale)
                 .environmentObject(settings)
         }
         .modelContainer(DataController.shared)
@@ -54,7 +53,6 @@ extension nfprogressApp {
             if let request = binding.wrappedValue,
                let project = fetchProject(id: request.projectID, context: context) {
                 AddStageView(project: project)
-                    .environment(\.textScale, settings.textScale)
                     .environmentObject(settings)
             }
         }
@@ -67,11 +65,9 @@ extension nfprogressApp {
                 if let stageID = request.stageID,
                    let stage = fetchStage(id: stageID, context: context) {
                     AddEntryView(project: project, stage: stage)
-                        .environment(\.textScale, settings.textScale)
                         .environmentObject(settings)
                 } else {
                     AddEntryView(project: project)
-                        .environment(\.textScale, settings.textScale)
                         .environmentObject(settings)
                 }
             }
@@ -84,7 +80,6 @@ extension nfprogressApp {
                let project = fetchProject(id: request.projectID, context: context),
                let entry = fetchEntry(id: request.entryID, context: context) {
                 EditEntryView(project: project, entry: entry)
-                    .environment(\.textScale, settings.textScale)
                     .environmentObject(settings)
             }
         }
