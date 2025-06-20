@@ -39,10 +39,10 @@ struct AddStageView: View {
             }
             TextField("project_name", text: $title)
                 .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 200)
+                .frame(width: 200)
             TextField("project_goal", value: $goal, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 200)
+                .frame(width: 200)
             Spacer()
             Button("create") { addStage() }
                 .buttonStyle(.borderedProminent)
@@ -99,11 +99,11 @@ struct EditStageView: View {
 
             TextField("project_name", text: $stage.title)
                 .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 200)
+                .frame(width: 200)
 
             TextField("project_goal", value: $stage.goal, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 200)
+                .frame(width: 200)
 
             Spacer()
 

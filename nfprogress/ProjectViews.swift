@@ -33,11 +33,11 @@ struct AddProjectView: View {
 
             TextField("project_name", text: $title)
                 .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 200)
+                .frame(width: 200)
 
             TextField("project_goal", value: $goal, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 200)
+                .frame(width: 200)
                 .submitLabel(.done)
                 .onSubmit(addProject)
 
