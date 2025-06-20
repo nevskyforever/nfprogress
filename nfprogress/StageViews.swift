@@ -13,8 +13,7 @@ struct AddStageView: View {
 
     private let viewSpacing: CGFloat = scaledSpacing(2)
     private let fieldWidth: CGFloat = layoutStep(25)
-    private let minWidth: CGFloat = layoutStep(34)
-    private let minHeight: CGFloat = layoutStep(20)
+    private let minWidth: CGFloat = layoutStep(30)
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -43,7 +42,7 @@ struct AddStageView: View {
                 .scaledPadding(1, .bottom)
         }
         .scaledPadding()
-        .frame(minWidth: minWidth, minHeight: minHeight)
+        .frame(minWidth: minWidth)
     }
 
     private func addStage() {
