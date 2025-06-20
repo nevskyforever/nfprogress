@@ -54,15 +54,39 @@ struct ProjectDetailView: View {
     }
 
     private func addEntry(stage: Stage? = nil) {
+#if os(macOS)
+        if let stage {
+            openWindow(title: String(localized: "new_entry")) {
+                AddEntryView(project: project, stage: stage)
+                    .environment(\.modelContext, modelContext)
+                    .environment(\.textScale, textScale)
+            }
+        } else {
+            openWindow(title: String(localized: "new_entry")) {
+                AddEntryView(project: project)
+                    .environment(\.modelContext, modelContext)
+                    .environment(\.textScale, textScale)
+            }
+        }
+#else
         if let stage {
             addEntryStage = stage
         } else {
             showingAddEntry = true
         }
+#endif
     }
 
     private func addStage() {
+        #if os(macOS)
+        openWindow(title: String(localized: "new_stage")) {
+            AddStageView(project: project)
+                .environment(\.modelContext, modelContext)
+                .environment(\.textScale, textScale)
+        }
+        #else
         showingAddStage = true
+        #endif
     }
 
     var body: some View {
@@ -220,7 +244,17 @@ struct ProjectDetailView: View {
                                     }
                                     Spacer()
                                     if isSelected {
+#if os(macOS)
+                                        Button {
+                                            openWindow(title: String(localized: "edit_entry")) {
+                                                EditEntryView(project: project, entry: entry)
+                                                    .environment(\.modelContext, modelContext)
+                                                    .environment(\.textScale, textScale)
+                                            }
+                                        } label: { Image(systemName: "pencil") }
+#else
                                         Button { editingEntry = entry } label: { Image(systemName: "pencil") }
+#endif
                                         Button(role: .destructive) {
                                             if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
                                                 stage.entries.remove(at: i)
@@ -246,7 +280,17 @@ struct ProjectDetailView: View {
                             StageHeaderView(
                                 stage: stage,
                                 project: project,
-                                onEdit: { editingStage = stage },
+                                onEdit: {
+#if os(macOS)
+                                    openWindow(title: String(localized: "edit_stage")) {
+                                        EditStageView(stage: stage)
+                                            .environment(\.modelContext, modelContext)
+                                            .environment(\.textScale, textScale)
+                                    }
+#else
+                                    editingStage = stage
+#endif
+                                },
                                 onDelete: { stageToDelete = stage }
                             )
                         }
@@ -312,9 +356,21 @@ struct ProjectDetailView: View {
                         }
                         Spacer()
                         if isSelected {
+#if os(macOS)
+                            Button {
+                                openWindow(title: String(localized: "edit_entry")) {
+                                    EditEntryView(project: project, entry: entry)
+                                        .environment(\.modelContext, modelContext)
+                                        .environment(\.textScale, textScale)
+                                }
+                            } label: {
+                                Image(systemName: "pencil")
+                            }
+#else
                             Button { editingEntry = entry } label: {
                                 Image(systemName: "pencil")
                             }
+#endif
                             Button(role: .destructive) {
                                 if let stage = project.stageForEntry(entry) {
                                     if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
@@ -354,6 +410,7 @@ struct ProjectDetailView: View {
                 tempDeadline = dl
             }
         }
+        #if !os(macOS)
         .sheet(isPresented: $showingAddEntry) {
             AddEntryView(project: project)
         }
@@ -369,6 +426,7 @@ struct ProjectDetailView: View {
         .sheet(item: $editingStage) { stage in
             EditStageView(stage: stage)
         }
+        #endif
         .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
             addEntry()
         }
