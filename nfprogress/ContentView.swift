@@ -123,9 +123,10 @@ struct ContentView: View {
       }
       isImporting = false
     }
-    .window(isPresented: $showingAddProject) {
+    .sheet(isPresented: $showingAddProject) {
       AddProjectView()
-        .windowResizability(.contentSize)
+        .windowStyle(.titleBar)
+        .idealFrame(width: 320, height: nil)
     }
     .alert(isPresented: $showDeleteAlert) {
       Alert(
