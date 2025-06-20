@@ -28,7 +28,9 @@ struct SettingsView: View {
                 }
             }
             .pickerStyle(.menu)
+            .labelsHidden()
             .applyTextScale()
+            .fixedSize()
 
             Spacer()
         }
