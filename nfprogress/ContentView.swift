@@ -8,6 +8,9 @@ import AppKit
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
+  #if os(macOS)
+  @Environment(\.openWindow) private var openWindow
+  #endif
   @Query(sort: [SortDescriptor(\WritingProject.order)]) private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   @State private var isExporting = false
@@ -123,9 +126,11 @@ struct ContentView: View {
       }
       isImporting = false
     }
+    #if !os(macOS)
     .sheet(isPresented: $showingAddProject) {
       AddProjectView()
     }
+    #endif
     .alert(isPresented: $showDeleteAlert) {
       Alert(
         title: Text(String(format: NSLocalizedString("delete_project_confirm", comment: ""), projectToDelete?.title ?? "")),
@@ -150,7 +155,11 @@ struct ContentView: View {
   }
 
   private func addProject() {
+    #if os(macOS)
+    openWindow(id: "addProject")
+    #else
     showingAddProject = true
+    #endif
   }
 
   private func deleteSelectedProject() {

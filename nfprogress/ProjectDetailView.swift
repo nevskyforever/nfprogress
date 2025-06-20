@@ -4,6 +4,9 @@ import SwiftData
 
 struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
+    #if os(macOS)
+    @Environment(\.openWindow) private var openWindow
+    #endif
     @Bindable var project: WritingProject
     @State private var showingAddEntry = false
     @State private var addEntryStage: Stage?
@@ -54,15 +57,25 @@ struct ProjectDetailView: View {
     }
 
     private func addEntry(stage: Stage? = nil) {
+        #if os(macOS)
+        let request = AddEntryRequest(projectID: project.id, stageID: stage?.id)
+        openWindow(id: "addEntry", value: request)
+        #else
         if let stage {
             addEntryStage = stage
         } else {
             showingAddEntry = true
         }
+        #endif
     }
 
     private func addStage() {
+        #if os(macOS)
+        let request = AddStageRequest(projectID: project.id)
+        openWindow(id: "addStage", value: request)
+        #else
         showingAddStage = true
+        #endif
     }
 
     var body: some View {
@@ -220,7 +233,14 @@ struct ProjectDetailView: View {
                                     }
                                     Spacer()
                                     if isSelected {
-                                        Button { editingEntry = entry } label: { Image(systemName: "pencil") }
+                                        Button {
+#if os(macOS)
+                                            let req = EditEntryRequest(projectID: project.id, entryID: entry.id)
+                                            openWindow(id: "editEntry", value: req)
+#else
+                                            editingEntry = entry
+#endif
+                                        } label: { Image(systemName: "pencil") }
                                         Button(role: .destructive) {
                                             if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
                                                 stage.entries.remove(at: i)
@@ -312,7 +332,14 @@ struct ProjectDetailView: View {
                         }
                         Spacer()
                         if isSelected {
-                            Button { editingEntry = entry } label: {
+                            Button {
+#if os(macOS)
+                                let req = EditEntryRequest(projectID: project.id, entryID: entry.id)
+                                openWindow(id: "editEntry", value: req)
+#else
+                                editingEntry = entry
+#endif
+                            } label: {
                                 Image(systemName: "pencil")
                             }
                             Button(role: .destructive) {
@@ -354,6 +381,7 @@ struct ProjectDetailView: View {
                 tempDeadline = dl
             }
         }
+        #if !os(macOS)
         .sheet(isPresented: $showingAddEntry) {
             AddEntryView(project: project)
         }
@@ -366,6 +394,7 @@ struct ProjectDetailView: View {
         .sheet(item: $editingEntry) { entry in
             EditEntryView(project: project, entry: entry)
         }
+        #endif
         .sheet(item: $editingStage) { stage in
             EditStageView(stage: stage)
         }
