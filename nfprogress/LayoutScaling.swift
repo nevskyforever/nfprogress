@@ -8,39 +8,38 @@ let baseLayoutStep: CGFloat = 8
 ///   - base: The base value in points.
 ///   - scaleFactor: Current text scale factor.
 /// - Returns: Scaled result `base * scaleFactor`.
-func calcLayoutValue(base: CGFloat, scaleFactor: Double) -> CGFloat {
-    base * CGFloat(scaleFactor)
+func calcLayoutValue(base: CGFloat) -> CGFloat {
+    base
 }
 
 /// Returns layout value as a multiple of ``baseLayoutStep`` scaled by ``scaleFactor``.
-func layoutStep(_ multiplier: CGFloat = 1, scaleFactor: Double) -> CGFloat {
-    calcLayoutValue(base: baseLayoutStep * multiplier, scaleFactor: scaleFactor)
+func layoutStep(_ multiplier: CGFloat = 1) -> CGFloat {
+    calcLayoutValue(base: baseLayoutStep * multiplier)
 }
 
 #if canImport(SwiftUI)
 import SwiftUI
 
-/// View modifier applying scaled padding based on ``textScale``.
+/// View modifier applying padding based on ``layoutStep``.
 private struct ScaledPaddingModifier: ViewModifier {
-    @Environment(\.textScale) private var textScale
     var multiplier: CGFloat
     var edges: Edge.Set
 
     func body(content: Content) -> some View {
-        let value = layoutStep(multiplier, scaleFactor: textScale)
+        let value = layoutStep(multiplier)
         content.padding(edges, value)
     }
 }
 
 extension View {
-    /// Adds padding scaled with ``textScale``.
+    /// Adds padding using ``layoutStep``.
     func scaledPadding(_ multiplier: CGFloat = 1, _ edges: Edge.Set = .all) -> some View {
         modifier(ScaledPaddingModifier(multiplier: multiplier, edges: edges))
     }
 }
 
-/// Returns spacing value scaled with ``textScale``.
-func scaledSpacing(_ multiplier: CGFloat = 1, scaleFactor: Double) -> CGFloat {
-    layoutStep(multiplier, scaleFactor: scaleFactor)
+/// Returns spacing value using ``layoutStep``.
+func scaledSpacing(_ multiplier: CGFloat = 1) -> CGFloat {
+    layoutStep(multiplier)
 }
 #endif

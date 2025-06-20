@@ -21,7 +21,6 @@ struct AnimatedCounterText: Animatable, View {
             .scaledFont(.progressValue)
             .monospacedDigit()
             .bold()
-            .applyTextScale()
     }
 }
 
@@ -60,8 +59,7 @@ struct ProgressCircleView: View {
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
-    @Environment(\.textScale) private var textScale
-    private var ringWidth: CGFloat { layoutStep(2, scaleFactor: textScale) }
+    private let ringWidth: CGFloat = layoutStep(2)
 
     /// Текущий процент выполнения проекта на основе общего количества символов
     private var progress: Double {
@@ -208,9 +206,8 @@ struct ProgressCircleView: View {
 struct ProgressChartView: View {
     var project: WritingProject
 
-    @Environment(\.textScale) private var textScale
-    private var viewSpacing: CGFloat { scaledSpacing(1, scaleFactor: textScale) }
-    private var chartHeight: CGFloat { layoutStep(25, scaleFactor: textScale) }
+    private let viewSpacing: CGFloat = scaledSpacing(1)
+    private let chartHeight: CGFloat = layoutStep(25)
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -219,12 +216,10 @@ struct ProgressChartView: View {
                 if let prompt = project.streakPrompt {
                     Text(prompt)
                         .font(.subheadline)
-                        .applyTextScale()
                         .foregroundColor(.green)
                 } else {
                     Text(project.streakStatus)
                         .font(.subheadline)
-                        .applyTextScale()
                         .foregroundColor(.green)
                 }
             }
@@ -240,7 +235,6 @@ struct ProgressChartView: View {
                             .annotation(position: .top, alignment: .leading) {
                             Text("Цель: \(project.goal)")
                                 .font(.caption)
-                                .applyTextScale()
                                 .foregroundColor(.gray)
                         }
 
@@ -256,15 +250,13 @@ struct ProgressChartView: View {
                     }
                 }
                 .chartXAxis {
-                    let comp = project.sortedEntryDates.stride(forWidth: geo.size.width,
-                                                                   fontScale: textScale)
+                    let comp = project.sortedEntryDates.stride(forWidth: geo.size.width)
                     AxisMarks(values: .stride(by: comp)) { value in
                         if let date = value.as(Date.self) {
                             AxisGridLine()
                             AxisTick()
                             AxisValueLabel {
                                 Text(date.formatted(date: .numeric, time: .shortened))
-                                    .applyTextScale()
                             }
                         }
                     }

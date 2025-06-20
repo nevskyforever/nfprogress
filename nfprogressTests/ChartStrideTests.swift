@@ -9,7 +9,7 @@ final class ChartStrideTests: XCTestCase {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: Date())
         let dates = (0..<30).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
-        let comp = dates.stride(forWidth: CGFloat(640), fontScale: 1.59)
+        let comp = dates.stride(forWidth: CGFloat(640))
         XCTAssertEqual(comp, .weekOfYear)
     }
 
@@ -17,7 +17,7 @@ final class ChartStrideTests: XCTestCase {
         let calendar = Calendar.current
         let start = calendar.startOfDay(for: Date())
         let dates = (0..<1825).compactMap { calendar.date(byAdding: .day, value: $0, to: start) }
-        let comp = dates.stride(forWidth: CGFloat(600), fontScale: 1.0)
+        let comp = dates.stride(forWidth: CGFloat(600))
         XCTAssertEqual(comp, .year)
     }
 }
