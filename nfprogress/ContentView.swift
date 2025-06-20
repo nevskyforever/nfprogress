@@ -123,9 +123,11 @@ struct ContentView: View {
       }
       isImporting = false
     }
+    #if !os(macOS)
     .sheet(isPresented: $showingAddProject) {
       AddProjectView()
     }
+    #endif
     .alert(isPresented: $showDeleteAlert) {
       Alert(
         title: Text(String(format: NSLocalizedString("delete_project_confirm", comment: ""), projectToDelete?.title ?? "")),
@@ -150,7 +152,15 @@ struct ContentView: View {
   }
 
   private func addProject() {
+#if os(macOS)
+    openWindow(title: String(localized: "new_project")) {
+      AddProjectView()
+        .environment(\.modelContext, modelContext)
+        .environment(\.textScale, textScale)
+    }
+#else
     showingAddProject = true
+#endif
   }
 
   private func deleteSelectedProject() {

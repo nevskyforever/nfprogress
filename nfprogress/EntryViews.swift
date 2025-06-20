@@ -61,7 +61,6 @@ struct AddEntryView: View {
 
             TextField("characters", value: $characterCount, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 120)
                 .submitLabel(.done)
                 .onSubmit(addEntry)
 
@@ -166,7 +165,6 @@ struct EditEntryView: View {
 
             TextField("characters", value: $editedCount, format: .number)
                 .textFieldStyle(.roundedBorder)
-                .frame(minWidth: 120)
 
             Spacer()
 
@@ -292,7 +290,6 @@ struct MenuBarEntryView: View {
                 }
                 TextField("Символов", value: $characterCount, format: .number)
                     .textFieldStyle(.roundedBorder)
-                    .frame(minWidth: 160)
                     .onSubmit {
                         if maybeSave() { dismiss() }
                     }
@@ -306,7 +303,6 @@ struct MenuBarEntryView: View {
             }
         }
         .padding()
-        .frame(minWidth: 200)
         .onDisappear {
             _ = maybeSave()
         }
