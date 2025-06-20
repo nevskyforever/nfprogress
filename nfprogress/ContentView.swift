@@ -40,12 +40,16 @@ struct ContentView: View {
                 Spacer()
               }
             }
-            .scaledPadding(1, .vertical)
+            .padding(.vertical, scaledSpacing(1, scaleFactor: textScale))
+            .frame(minHeight: circleHeight + layoutStep(2, scaleFactor: textScale))
+            .background(Color.clear)
+            .listRowInsets(EdgeInsets())
           }
         }
         .onDelete(perform: deleteProjects)
         .onMove(perform: moveProjects)
       }
+      .listStyle(.plain)
       .navigationTitle("my_texts")
       .toolbar {
         ToolbarItem {

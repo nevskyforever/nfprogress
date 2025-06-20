@@ -34,9 +34,16 @@ final class AppSettings: ObservableObject {
         defaults = userDefaults
         disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
         disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
-        let value = defaults.double(forKey: "textScale")
-        let scale = value == 0 ? 1.0 : value
-        textScale = TextScale.quantized(scale)
+
+        let args = ProcessInfo.processInfo.arguments
+        if let idx = args.firstIndex(of: "-textScale"), idx + 1 < args.count,
+           let argValue = Double(args[idx + 1]) {
+            textScale = TextScale.quantized(argValue)
+        } else {
+            let value = defaults.double(forKey: "textScale")
+            let scale = value == 0 ? 1.0 : value
+            textScale = TextScale.quantized(scale)
+        }
     }
 }
 #else
@@ -70,9 +77,15 @@ final class AppSettings {
         defaults = userDefaults
         disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
         disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
-        let value = defaults.double(forKey: "textScale")
-        let scale = value == 0 ? 1.0 : value
-        textScale = TextScale.quantized(scale)
+        let args = ProcessInfo.processInfo.arguments
+        if let idx = args.firstIndex(of: "-textScale"), idx + 1 < args.count,
+           let argValue = Double(args[idx + 1]) {
+            textScale = TextScale.quantized(argValue)
+        } else {
+            let value = defaults.double(forKey: "textScale")
+            let scale = value == 0 ? 1.0 : value
+            textScale = TextScale.quantized(scale)
+        }
     }
 }
 #endif
