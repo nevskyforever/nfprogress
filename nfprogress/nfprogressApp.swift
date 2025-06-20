@@ -35,6 +35,10 @@ struct nfprogressApp: App {
         .modelContainer(DataController.shared)
 
 #if os(macOS)
+        additionalWindows
+#endif
+
+#if os(macOS)
         Settings {
             SettingsView()
                 .environment(\.textScale, settings.textScale)
