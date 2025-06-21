@@ -30,12 +30,12 @@ struct HistoryView: View {
             HStack {
                 VStack(alignment: .leading) {
                     if let stageName {
-                        Text("Этап: \(stageName)")
+                        Text(String(format: NSLocalizedString("stage_colon", comment: ""), stageName))
                     }
-                    Text("Символов: \(total)")
-                    Text(String(format: "Вклад: %d (%.0f%%)", delta, deltaPercent))
+                    Text(String(format: NSLocalizedString("characters_count", comment: ""), total))
+                    Text(String(format: NSLocalizedString("change_format", comment: ""), delta, deltaPercent))
                         .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
-                    Text(String(format: "Прогресс: %.0f%%", progressPercent))
+                    Text(String(format: NSLocalizedString("progress_format", comment: ""), progressPercent))
                         .font(.caption)
                         .foregroundColor(.gray)
                     Text(entry.date.formatted(date: .numeric, time: .shortened))
