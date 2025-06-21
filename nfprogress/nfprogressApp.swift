@@ -27,6 +27,7 @@ struct nfprogressApp: App {
             ContentView()
                 .environmentObject(settings)
                 .environment(\.locale, settings.locale)
+                .windowTitle("NFProgress")
         }
         .modelContainer(DataController.shared)
         .commands { MainMenuCommands() }
@@ -40,6 +41,7 @@ struct nfprogressApp: App {
             MenuBarEntryView()
                 .environmentObject(settings)
                 .environment(\.locale, settings.locale)
+                .windowTitle("NFProgress")
         }
         .menuBarExtraStyle(.window)
         .modelContainer(DataController.shared)
