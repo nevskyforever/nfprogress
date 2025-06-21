@@ -175,9 +175,19 @@ struct ProgressCircleView: View {
             progressRing
         }
         .onAppear {
+            let last = ProgressAnimationTracker.lastProgress(for: project)
+
             if disableLaunchAnimations || disableAllAnimations {
                 startProgress = progress
                 endProgress = progress
+            } else if let last {
+                startProgress = last
+                endProgress = last
+                if abs(last - progress) > 0.0001 {
+                    DispatchQueue.main.async {
+                        updateProgress(to: progress)
+                    }
+                }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
                 let delay = max(0, 1 - elapsed)
@@ -185,17 +195,23 @@ struct ProgressCircleView: View {
                     updateProgress(to: progress)
                 }
             }
+
+            ProgressAnimationTracker.setProgress(progress, for: project)
         }
         .onChange(of: progress) { newValue in
+            ProgressAnimationTracker.setProgress(newValue, for: project)
             updateProgress(to: newValue, animated: !disableAllAnimations)
         }
         .onChange(of: project.entries.map { $0.id }) { _ in
+            ProgressAnimationTracker.setProgress(progress, for: project)
             updateProgress(to: progress, animated: !disableAllAnimations)
         }
         .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
+            ProgressAnimationTracker.setProgress(progress, for: project)
             updateProgress(to: progress, animated: !disableAllAnimations)
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+            ProgressAnimationTracker.setProgress(progress, for: project)
             updateProgress(to: progress, animated: !disableAllAnimations)
         }
     }
