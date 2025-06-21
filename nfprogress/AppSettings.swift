@@ -57,8 +57,27 @@ final class AppSettings: ObservableObject {
         var id: String { rawValue }
     }
 
+    enum ProjectSortOrder: String, CaseIterable, Identifiable {
+        case title
+        case progress
+        var id: String { rawValue }
+
+        var iconName: String {
+            switch self {
+            case .title: return "textformat"
+            case .progress: return "chart.bar"
+            }
+        }
+
+        var next: ProjectSortOrder { self == .title ? .progress : .title }
+    }
+
     @Published var projectListStyle: ProjectListStyle {
         didSet { defaults.set(projectListStyle.rawValue, forKey: "projectListStyle") }
+    }
+
+    @Published var projectSortOrder: ProjectSortOrder {
+        didSet { defaults.set(projectSortOrder.rawValue, forKey: "projectSortOrder") }
     }
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
@@ -71,6 +90,8 @@ final class AppSettings: ObservableObject {
         language = AppLanguage(rawValue: raw) ?? .system
         let styleRaw = defaults.string(forKey: "projectListStyle") ?? ProjectListStyle.detailed.rawValue
         projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
+        let sortRaw = defaults.string(forKey: "projectSortOrder") ?? ProjectSortOrder.title.rawValue
+        projectSortOrder = ProjectSortOrder(rawValue: sortRaw) ?? .title
     }
 }
 #else
@@ -95,8 +116,26 @@ final class AppSettings {
         case compact
     }
 
+    enum ProjectSortOrder: String {
+        case title
+        case progress
+
+        var iconName: String {
+            switch self {
+            case .title: return "textformat"
+            case .progress: return "chart.bar"
+            }
+        }
+
+        var next: ProjectSortOrder { self == .title ? .progress : .title }
+    }
+
     var projectListStyle: ProjectListStyle {
         didSet { defaults.set(projectListStyle.rawValue, forKey: "projectListStyle") }
+    }
+
+    var projectSortOrder: ProjectSortOrder {
+        didSet { defaults.set(projectSortOrder.rawValue, forKey: "projectSortOrder") }
     }
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
@@ -109,6 +148,8 @@ final class AppSettings {
         language = AppLanguage(rawValue: raw) ?? .system
         let styleRaw = defaults.string(forKey: "projectListStyle") ?? ProjectListStyle.detailed.rawValue
         projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
+        let sortRaw = defaults.string(forKey: "projectSortOrder") ?? ProjectSortOrder.title.rawValue
+        projectSortOrder = ProjectSortOrder(rawValue: sortRaw) ?? .title
     }
 }
 #endif
