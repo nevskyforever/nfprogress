@@ -178,7 +178,7 @@ struct StageHeaderView: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(1)
-                Text(String(format: NSLocalizedString("goal_characters", comment: ""), stage.goal))
+                Text("Цель: \(stage.goal) знаков")
                     .font(.caption)
                     .foregroundColor(.gray)
                     .fixedSize(horizontal: false, vertical: true)

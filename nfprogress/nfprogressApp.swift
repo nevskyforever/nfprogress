@@ -12,10 +12,8 @@ import AppKit
 struct nfprogressApp: App {
     init() {
 #if os(macOS)
-        let raw = UserDefaults.standard.string(forKey: "language") ?? AppLanguage.system.rawValue
-        let lang = AppLanguage(rawValue: raw) ?? .system
         DispatchQueue.main.async {
-            Self.localizeMenus(language: lang)
+            Self.localizeMenus()
         }
 #endif
     }
@@ -26,20 +24,13 @@ struct nfprogressApp: App {
         WindowGroup {
             ContentView()
                 .environmentObject(settings)
-                .environment(\.locale, settings.locale)
         }
         .modelContainer(DataController.shared)
         .commands { MainMenuCommands() }
-        #if os(macOS)
-        .onChange(of: settings.language) { newLang in
-            Self.localizeMenus(language: newLang)
-        }
-        #endif
 
         MenuBarExtra("NFProgress", systemImage: "text.cursor") {
             MenuBarEntryView()
                 .environmentObject(settings)
-                .environment(\.locale, settings.locale)
         }
         .menuBarExtraStyle(.window)
         .modelContainer(DataController.shared)
@@ -52,7 +43,6 @@ struct nfprogressApp: App {
         Settings {
             SettingsView()
                 .environmentObject(settings)
-                .environment(\.locale, settings.locale)
         }
 #endif
     }
@@ -60,23 +50,23 @@ struct nfprogressApp: App {
 
 #if os(macOS)
 extension nfprogressApp {
-    private static func localizeMenus(language: AppLanguage) {
+    private static func localizeMenus() {
         guard let mainMenu = NSApp.mainMenu else { return }
 
         for item in mainMenu.items {
             switch item.title {
-            case "File", "Файл":
-                item.title = (language == .ru) ? "Файл" : "File"
-            case "Edit", "Правка":
-                item.title = (language == .ru) ? "Правка" : "Edit"
-            case "View", "Вид":
-                item.title = (language == .ru) ? "Вид" : "View"
-            case "Project", "Проект":
-                item.title = (language == .ru) ? "Проект" : "Project"
-            case "Window", "Окно":
-                item.title = (language == .ru) ? "Окно" : "Window"
-            case "Help", "Справка":
-                item.title = (language == .ru) ? "Справка" : "Help"
+            case "File":
+                item.title = "Файл"
+            case "Edit":
+                item.title = "Правка"
+            case "View":
+                item.title = "Вид"
+            case "Project":
+                item.title = "Проект"
+            case "Window":
+                item.title = "Окно"
+            case "Help":
+                item.title = "Справка"
             default:
                 break
             }
@@ -84,79 +74,79 @@ extension nfprogressApp {
             if let submenu = item.submenu {
                 for subItem in submenu.items {
                     switch subItem.title {
-                    // MARK: - Application menu
-                    case "About nfprogress", "О приложении nfprogress":
-                        subItem.title = language == .ru ? "О приложении nfprogress" : "About nfprogress"
-                    case "Settings…", "Preferences…", "Настройки…":
-                        subItem.title = language == .ru ? "Настройки…" : "Settings…"
-                    case "Hide nfprogress", "Скрыть nfprogress":
-                        subItem.title = language == .ru ? "Скрыть nfprogress" : "Hide nfprogress"
-                    case "Hide Others", "Скрыть другие":
-                        subItem.title = language == .ru ? "Скрыть другие" : "Hide Others"
-                    case "Show All", "Показать все":
-                        subItem.title = language == .ru ? "Показать все" : "Show All"
-                    case "Quit nfprogress", "Завершить nfprogress":
-                        subItem.title = language == .ru ? "Завершить nfprogress" : "Quit nfprogress"
+                    // MARK: - Меню приложения
+                    case "About nfprogress":
+                        subItem.title = "О приложении nfprogress"
+                    case "Settings…", "Preferences…":
+                        subItem.title = "Настройки…"
+                    case "Hide nfprogress":
+                        subItem.title = "Скрыть nfprogress"
+                    case "Hide Others":
+                        subItem.title = "Скрыть другие"
+                    case "Show All":
+                        subItem.title = "Показать все"
+                    case "Quit nfprogress":
+                        subItem.title = "Завершить nfprogress"
 
-                    // MARK: - File menu
-                    case "New", "Новый":
-                        subItem.title = language == .ru ? "Новый" : "New"
-                    case "Open…", "Открыть…":
-                        subItem.title = language == .ru ? "Открыть…" : "Open…"
-                    case "Close", "Закрыть":
-                        subItem.title = language == .ru ? "Закрыть" : "Close"
-                    case "Save", "Сохранить":
-                        subItem.title = language == .ru ? "Сохранить" : "Save"
-                    case "Save As…", "Сохранить как…":
-                        subItem.title = language == .ru ? "Сохранить как…" : "Save As…"
-                    case "Revert", "Восстановить":
-                        subItem.title = language == .ru ? "Восстановить" : "Revert"
-                    case "Page Setup…", "Параметры страницы…":
-                        subItem.title = language == .ru ? "Параметры страницы…" : "Page Setup…"
-                    case "Print…", "Печать…":
-                        subItem.title = language == .ru ? "Печать…" : "Print…"
+                    // MARK: - Меню File
+                    case "New":
+                        subItem.title = "Новый"
+                    case "Open…":
+                        subItem.title = "Открыть…"
+                    case "Close":
+                        subItem.title = "Закрыть"
+                    case "Save":
+                        subItem.title = "Сохранить"
+                    case "Save As…":
+                        subItem.title = "Сохранить как…"
+                    case "Revert":
+                        subItem.title = "Восстановить"
+                    case "Page Setup…":
+                        subItem.title = "Параметры страницы…"
+                    case "Print…":
+                        subItem.title = "Печать…"
 
-                    // MARK: - Edit menu
-                    case "Undo", "Отменить":
-                        subItem.title = language == .ru ? "Отменить" : "Undo"
-                    case "Redo", "Повторить":
-                        subItem.title = language == .ru ? "Повторить" : "Redo"
-                    case "Cut", "Вырезать":
-                        subItem.title = language == .ru ? "Вырезать" : "Cut"
-                    case "Copy", "Копировать":
-                        subItem.title = language == .ru ? "Копировать" : "Copy"
-                    case "Paste", "Вставить":
-                        subItem.title = language == .ru ? "Вставить" : "Paste"
-                    case "Delete", "Удалить":
-                        subItem.title = language == .ru ? "Удалить" : "Delete"
-                    case "Select All", "Выбрать все":
-                        subItem.title = language == .ru ? "Выбрать все" : "Select All"
+                    // MARK: - Меню Edit
+                    case "Undo":
+                        subItem.title = "Отменить"
+                    case "Redo":
+                        subItem.title = "Повторить"
+                    case "Cut":
+                        subItem.title = "Вырезать"
+                    case "Copy":
+                        subItem.title = "Копировать"
+                    case "Paste":
+                        subItem.title = "Вставить"
+                    case "Delete":
+                        subItem.title = "Удалить"
+                    case "Select All":
+                        subItem.title = "Выбрать все"
 
-                    // MARK: - View menu
-                    case "Enter Full Screen", "Во весь экран":
-                        subItem.title = language == .ru ? "Во весь экран" : "Enter Full Screen"
-                    case "Exit Full Screen", "Выйти из полноэкранного режима":
-                        subItem.title = language == .ru ? "Выйти из полноэкранного режима" : "Exit Full Screen"
-                    case "Show Toolbar", "Показать панель инструментов":
-                        subItem.title = language == .ru ? "Показать панель инструментов" : "Show Toolbar"
-                    case "Hide Toolbar", "Скрыть панель инструментов":
-                        subItem.title = language == .ru ? "Скрыть панель инструментов" : "Hide Toolbar"
-                    case "Customize Toolbar…", "Настроить панель инструментов…":
-                        subItem.title = language == .ru ? "Настроить панель инструментов…" : "Customize Toolbar…"
+                    // MARK: - Меню View
+                    case "Enter Full Screen":
+                        subItem.title = "Во весь экран"
+                    case "Exit Full Screen":
+                        subItem.title = "Выйти из полноэкранного режима"
+                    case "Show Toolbar":
+                        subItem.title = "Показать панель инструментов"
+                    case "Hide Toolbar":
+                        subItem.title = "Скрыть панель инструментов"
+                    case "Customize Toolbar…":
+                        subItem.title = "Настроить панель инструментов…"
 
-                    // MARK: - Window menu
-                    case "Minimize", "Свернуть":
-                        subItem.title = language == .ru ? "Свернуть" : "Minimize"
-                    case "Zoom", "Увеличить":
-                        subItem.title = language == .ru ? "Увеличить" : "Zoom"
-                    case "Close Window", "Закрыть окно":
-                        subItem.title = language == .ru ? "Закрыть окно" : "Close Window"
-                    case "Tile Window to Left of Screen", "Разместить окно слева":
-                        subItem.title = language == .ru ? "Разместить окно слева" : "Tile Window to Left of Screen"
-                    case "Tile Window to Right of Screen", "Разместить окно справа":
-                        subItem.title = language == .ru ? "Разместить окно справа" : "Tile Window to Right of Screen"
-                    case "Bring All to Front", "Разместить все поверх":
-                        subItem.title = language == .ru ? "Разместить все поверх" : "Bring All to Front"
+                    // MARK: - Меню Window
+                    case "Minimize":
+                        subItem.title = "Свернуть"
+                    case "Zoom":
+                        subItem.title = "Увеличить"
+                    case "Close Window":
+                        subItem.title = "Закрыть окно"
+                    case "Tile Window to Left of Screen":
+                        subItem.title = "Разместить окно слева"
+                    case "Tile Window to Right of Screen":
+                        subItem.title = "Разместить окно справа"
+                    case "Bring All to Front":
+                        subItem.title = "Разместить все поверх"
 
                     default:
                         break
