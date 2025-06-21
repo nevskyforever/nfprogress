@@ -106,9 +106,9 @@ class WritingProject {
 
     var motivationalMessage: String? {
         if changeSinceLast > 0 {
-            return String(format: NSLocalizedString("motivation_positive", comment: ""), changeSinceLast)
+            return "👍 Прогресс: +\(changeSinceLast) символов"
         } else if changeSinceLast < 0 {
-            return NSLocalizedString("motivation_negative", comment: "")
+            return "⚠️ Меньше, чем в прошлый раз"
         } else {
             return nil
         }
@@ -199,23 +199,24 @@ class WritingProject {
         }
 
         guard let last = uniqueDays.last else {
-            return NSLocalizedString("streak_start", comment: "")
+            return "Начнем путь к цели?"
         }
 
         let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
         if calendar.isDate(last, inSameDayAs: yesterday), streak > 0 {
-            return String(format: NSLocalizedString("streak_continue", comment: ""), streak)
+            return "Вы в ударе \(streak) дней подряд, продолжим?"
         }
-        return NSLocalizedString("streak_start", comment: "")
+
+        return "Начнем путь к цели?"
     }
 
     /// Текстовое описание текущей серии
     var streakStatus: String {
         guard deadline != nil else { return "" }
         if streak == 0 {
-            return NSLocalizedString("streak_start", comment: "")
+            return "Начнем путь к цели?"
         } else {
-            return String(format: NSLocalizedString("streak_success", comment: ""), streak)
+            return "🔥 В цели \(streak) дней подряд"
         }
     }
 

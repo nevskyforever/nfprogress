@@ -229,11 +229,11 @@ struct ProgressChartView: View {
                 GeometryReader { geo in
                     Chart {
                         // Целевая линия
-                        RuleMark(y: .value(String(localized: "progress_chart_goal"), project.goal))
+                        RuleMark(y: .value("Цель", project.goal))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
                             .foregroundStyle(.gray)
                             .annotation(position: .top, alignment: .leading) {
-                            Text(String(format: NSLocalizedString("goal_characters", comment: ""), project.goal))
+                            Text("Цель: \(project.goal)")
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
@@ -241,8 +241,8 @@ struct ProgressChartView: View {
                     // Линия прогресса
                     ForEach(project.sortedEntries) { entry in
                         LineMark(
-                            x: .value(String(localized: "date_field"), entry.date),
-                            y: .value(String(localized: "characters_field"), project.globalProgress(for: entry))
+                            x: .value("Дата", entry.date),
+                            y: .value("Символы", project.globalProgress(for: entry))
                         )
                         .interpolationMethod(.monotone)
                         .symbol(.circle)
