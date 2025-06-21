@@ -204,6 +204,7 @@ struct ProgressCircleView: View {
 
 
 struct ProgressChartView: View {
+    @EnvironmentObject private var settings: AppSettings
     var project: WritingProject
 
     private let viewSpacing: CGFloat = scaledSpacing(1)
@@ -229,11 +230,11 @@ struct ProgressChartView: View {
                 GeometryReader { geo in
                     Chart {
                         // Целевая линия
-                        RuleMark(y: .value("Цель", project.goal))
+                        RuleMark(y: .value(String(localized: "progress_chart_goal"), project.goal))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
                             .foregroundStyle(.gray)
                             .annotation(position: .top, alignment: .leading) {
-                            Text("Цель: \(project.goal)")
+                            Text(settings.localized("goal_characters", project.goal))
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }
@@ -241,8 +242,8 @@ struct ProgressChartView: View {
                     // Линия прогресса
                     ForEach(project.sortedEntries) { entry in
                         LineMark(
-                            x: .value("Дата", entry.date),
-                            y: .value("Символы", project.globalProgress(for: entry))
+                            x: .value(String(localized: "date_field"), entry.date),
+                            y: .value(String(localized: "characters_field"), project.globalProgress(for: entry))
                         )
                         .interpolationMethod(.monotone)
                         .symbol(.circle)

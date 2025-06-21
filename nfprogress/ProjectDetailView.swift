@@ -6,9 +6,10 @@ import SwiftData
 
 struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
-    #if os(macOS)
+#if os(macOS)
     @Environment(\.openWindow) private var openWindow
-    #endif
+#endif
+    @EnvironmentObject private var settings: AppSettings
     @Bindable var project: WritingProject
     @State private var showingAddEntry = false
     @State private var addEntryStage: Stage?
@@ -28,13 +29,13 @@ struct ProjectDetailView: View {
     /// Base spacing for history and stages sections.
     private let viewSpacing: CGFloat = scaledSpacing(2)
 
-    // Formatter for displaying deadline in Russian
-    private let deadlineFormatter: DateFormatter = {
+    // Formatter for displaying deadline
+    private var deadlineFormatter: DateFormatter {
         let df = DateFormatter()
-        df.locale = Locale(identifier: "ru_RU")
+        df.locale = settings.locale
         df.dateFormat = "d MMMM yyyy"
         return df
-    }()
+    }
 
     private enum Field: Hashable {
         case title, goal, deadline
@@ -82,7 +83,7 @@ struct ProjectDetailView: View {
                 // Название, цель и дедлайн проекта
                 Grid(alignment: .leading, horizontalSpacing: viewSpacing / 2, verticalSpacing: viewSpacing / 2) {
                     GridRow {
-                        Text("Название:")
+                        Text("label_title_colon")
                             .font(.title3.bold())
                             .fixedSize(horizontal: false, vertical: true)
                         if isEditingTitle {
@@ -102,7 +103,7 @@ struct ProjectDetailView: View {
                     }
 
                     GridRow {
-                        Text("Цель:")
+                        Text("label_goal_colon")
                             .font(.title3.bold())
                             .fixedSize(horizontal: false, vertical: true)
                         if isEditingGoal {
@@ -122,7 +123,7 @@ struct ProjectDetailView: View {
                     }
 
                     GridRow {
-                        Text("Дедлайн:")
+                        Text("label_deadline_colon")
                             .font(.title3.bold())
                             .fixedSize(horizontal: false, vertical: true)
                         if isEditingDeadline {
@@ -132,14 +133,14 @@ struct ProjectDetailView: View {
                                 displayedComponents: .date
                             )
                             .labelsHidden()
-                            .environment(\.locale, Locale(identifier: "ru_RU"))
+                            .environment(\.locale, settings.locale)
                             .focused($focusedField, equals: .deadline)
                             .submitLabel(.done)
                             .onSubmit { focusedField = nil }
                         } else {
                             Text(
                                 project.deadline.map { deadlineFormatter.string(from: $0) } ??
-                                    "Не установлен"
+                                    String(localized: "not_set")
                             )
                             .fixedSize(horizontal: false, vertical: true)
                             .onTapGesture {
@@ -152,17 +153,17 @@ struct ProjectDetailView: View {
                 }
 
                 if !isEditingDeadline && project.deadline != nil {
-                    Button("Удалить дедлайн", role: .destructive) {
+                    Button("remove_deadline", role: .destructive) {
                         project.deadline = nil
                         saveContext()
                     }
 
-                    Text("Осталось дней: \(project.daysLeft)")
+                    Text(settings.localized("days_left", project.daysLeft))
                         .font(.subheadline)
                         .fixedSize(horizontal: false, vertical: true)
                         .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
                     if let target = project.dailyTarget {
-                        Text("Ежедневная цель: \(target) символов")
+                        Text(settings.localized("daily_goal", target))
                             .font(.title3.bold())
                             .foregroundColor(.white)
                             .fixedSize(horizontal: false, vertical: true)
@@ -182,10 +183,10 @@ struct ProjectDetailView: View {
                 }
 
                 // Этапы
-                Text("Этапы")
+                Text("stages")
                     .font(.title3.bold())
                     .fixedSize(horizontal: false, vertical: true)
-                Button("Добавить этап") {
+                Button("add_stage") {
                     addStage()
                 }
                 if !project.stages.isEmpty {
@@ -199,7 +200,7 @@ struct ProjectDetailView: View {
                             )
                         ) {
                             HStack {
-                                Button("Добавить запись") { addEntry(stage: stage) }
+                                Button("add_entry_button") { addEntry(stage: stage) }
                                 Spacer()
                             }
                             ForEach(stage.sortedEntries) { entry in
@@ -216,12 +217,12 @@ struct ProjectDetailView: View {
 
                                 HStack {
                                     VStack(alignment: .leading) {
-                                        Text("Символов: \(clamped)")
+                                        Text(settings.localized("characters_count", clamped))
                                             .fixedSize(horizontal: false, vertical: true)
-                                        Text(String(format: "Прогресс этапа: %.0f%%", percent))
+                                        Text(settings.localized("stage_progress_format", percent))
                                             .fixedSize(horizontal: false, vertical: true)
                                             .foregroundColor(progressColor(percent / 100))
-                                        Text("Изменение: \(deltaText)")
+                                        Text(settings.localized("change_format", delta, deltaPercent))
                                             .fixedSize(horizontal: false, vertical: true)
                                             .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
                                         Text(entry.date.formatted(date: .numeric, time: .shortened))
@@ -268,15 +269,16 @@ struct ProjectDetailView: View {
                                 onEdit: { editingStage = stage },
                                 onDelete: { stageToDelete = stage }
                             )
+                            .environmentObject(settings)
                         }
                     }
                 }
 
                 // История записей
-                Text("История записей")
+                Text("entries_history")
                     .font(.title3.bold())
                 if project.stages.isEmpty {
-                    Button("Добавить запись") {
+                    Button("add_entry_button") {
                         addEntry()
                     }
                     .keyboardShortcut("n", modifiers: .command)
@@ -289,8 +291,9 @@ struct ProjectDetailView: View {
                         )
                     ) {
                         ProgressChartView(project: project)
+                            .environmentObject(settings)
                     } label: {
-                        Text("График прогресса")
+                        Text("progress_chart")
                             .font(.title3.bold())
                     }
                 }
@@ -309,16 +312,16 @@ struct ProjectDetailView: View {
                     HStack {
                         VStack(alignment: .leading) {
                             if let stageName {
-                                Text("Этап: \(stageName)")
+                                Text(settings.localized("stage_colon", stageName))
                                     .font(.caption)
                                     .fixedSize(horizontal: false, vertical: true)
                             }
-                            Text("Символов: \(total)")
+                            Text(settings.localized("characters_count", total))
                                 .fixedSize(horizontal: false, vertical: true)
-                            Text("Изменение: \(deltaText)")
+                            Text(settings.localized("change_format", delta, deltaPercent))
                                 .fixedSize(horizontal: false, vertical: true)
                                 .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
-                            Text(String(format: "Прогресс: %.0f%%", progressPercent))
+                            Text(settings.localized("progress_format", progressPercent))
                                 .fixedSize(horizontal: false, vertical: true)
                                 .font(.caption)
                                 .foregroundColor(.gray)
@@ -405,20 +408,20 @@ struct ProjectDetailView: View {
         .alert(item: $stageToDelete) { stage in
             if project.stages.count == 1 {
                 return Alert(
-                    title: Text("Удалить этап \"\(stage.title)\"?"),
-                    message: Text("Записи из этого этапа будут перенесены в проект. Если вы хотите удалить их, нажмите кнопку \"Удалить полностью\"."),
-                    primaryButton: .default(Text("Удалить и перенести")) {
+                    title: Text(settings.localized("delete_stage_confirm", stage.title)),
+                    message: Text("stage_delete_move_warning"),
+                    primaryButton: .default(Text("delete_and_move")) {
                         deleteStage(stage, moveEntries: true)
                     },
-                    secondaryButton: .destructive(Text("Удалить полностью")) {
+                    secondaryButton: .destructive(Text("delete_completely")) {
                         deleteStage(stage, moveEntries: false)
                     }
                 )
             } else {
                 return Alert(
-                    title: Text("Удалить этап \"\(stage.title)\"?"),
-                    message: Text("Все записи из этапа будут удалены."),
-                    primaryButton: .destructive(Text("Удалить")) { deleteStage(stage) },
+                    title: Text(settings.localized("delete_stage_confirm", stage.title)),
+                    message: Text("stage_delete_warning"),
+                    primaryButton: .destructive(Text("delete")) { deleteStage(stage) },
                     secondaryButton: .cancel()
                 )
             }
