@@ -29,22 +29,11 @@ struct ContentView: View {
       List {
         ForEach(projects) { project in
           Button(action: { selectedProject = project }) {
-            VStack(alignment: .leading) {
-              Text(project.title)
-                .font(.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-              HStack {
-                Spacer()
-                ProgressCircleView(project: project)
-                  .frame(height: circleHeight)
-                Spacer()
-              }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.vertical, scaledSpacing(1))
-            .frame(minHeight: circleHeight + layoutStep(2))
-            .contentShape(Rectangle())
+            projectRow(for: project)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(.vertical, scaledSpacing(1))
+              .frame(minHeight: circleHeight + layoutStep(2))
+              .contentShape(Rectangle())
           }
           .listRowInsets(EdgeInsets())
           .buttonStyle(.plain)
@@ -60,6 +49,11 @@ struct ContentView: View {
             Label("add", systemImage: "plus")
           }
           .keyboardShortcut("N", modifiers: [.command, .shift])
+        }
+        ToolbarItem {
+          Button(action: toggleProjectListStyle) {
+            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+          }
         }
         ToolbarItem {
           Button(action: deleteSelectedProject) {
@@ -79,6 +73,7 @@ struct ContentView: View {
               importSelectedProject()
             }
           }
+          // View style toggle handled by main toolbar button
         #else
           ToolbarItemGroup(placement: .navigationBarLeading) {
             if selectedProject != nil {
@@ -90,6 +85,7 @@ struct ContentView: View {
               importSelectedProject()
             }
           }
+          // View style toggle handled by main toolbar button
         #endif
       }
     }, detail: {
@@ -102,6 +98,27 @@ struct ContentView: View {
     })
     .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
+    }
+  }
+
+  @ViewBuilder
+  private func projectRow(for project: WritingProject) -> some View {
+    switch settings.projectListStyle {
+    case .detailed:
+      VStack(alignment: .leading) {
+        Text(project.title)
+          .font(.headline)
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .fixedSize(horizontal: false, vertical: true)
+        HStack {
+          Spacer()
+          ProgressCircleView(project: project)
+            .frame(height: circleHeight)
+          Spacer()
+        }
+      }
+    case .compact:
+      CompactProjectRow(project: project)
     }
   }
 
@@ -164,6 +181,11 @@ struct ContentView: View {
     #else
     showingAddProject = true
     #endif
+  }
+
+  private func toggleProjectListStyle() {
+    settings.projectListStyle =
+      settings.projectListStyle == .detailed ? .compact : .detailed
   }
 
   private func deleteSelectedProject() {
