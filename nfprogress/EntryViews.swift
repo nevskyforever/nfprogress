@@ -127,6 +127,7 @@ struct EditEntryView: View {
     private let viewSpacing: CGFloat = scaledSpacing(2)
     private let fieldWidth: CGFloat = layoutStep(15)
     private let minWidth: CGFloat = layoutStep(40)
+    private let minHeight: CGFloat = layoutStep(25)
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -171,7 +172,7 @@ struct EditEntryView: View {
             .scaledPadding(1, .bottom)
         }
         .scaledPadding()
-        .frame(minWidth: minWidth)
+        .frame(minWidth: minWidth, minHeight: minHeight)
         .onDisappear {
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
@@ -247,6 +248,7 @@ struct MenuBarEntryView: View {
     private let viewSpacing: CGFloat = scaledSpacing(1)
     private let fieldWidth: CGFloat = layoutStep(20)
     private let minWidth: CGFloat = layoutStep(25)
+    private let minHeight: CGFloat = layoutStep(20)
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -260,9 +262,9 @@ struct MenuBarEntryView: View {
             }
 
             if projects.isEmpty {
-                Text("Нет проектов")
+                Text("no_projects")
             } else {
-                Picker("Проект", selection: $selectedIndex) {
+                Picker("project_picker", selection: $selectedIndex) {
                     ForEach(Array(projects.enumerated()), id: \.offset) { idx, project in
                         Text(project.title)
                             .tag(idx)
@@ -271,8 +273,8 @@ struct MenuBarEntryView: View {
                 .labelsHidden()
                 let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
                 if !project.stages.isEmpty {
-                    Picker("Этап", selection: $selectedStageIndex) {
-                        Text("Без этапа")
+                    Picker("stage_picker", selection: $selectedStageIndex) {
+                        Text("no_stage")
                             .tag(0)
                         ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                             Text(stage.title)
@@ -281,15 +283,15 @@ struct MenuBarEntryView: View {
                     }
                     .labelsHidden()
                 }
-                TextField("Символов", value: $characterCount, format: .number)
+                TextField("characters_field", value: $characterCount, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: fieldWidth)
                     .onSubmit {
                         if maybeSave() { dismiss() }
                     }
-                DatePicker("Дата", selection: $date)
+                DatePicker("date_field", selection: $date)
                     .labelsHidden()
-                Button("Добавить") {
+                Button("add_button") {
                     if maybeSave() { dismiss() }
                 }
                 .buttonStyle(.borderedProminent)
@@ -297,7 +299,7 @@ struct MenuBarEntryView: View {
             }
         }
         .scaledPadding()
-        .frame(minWidth: minWidth)
+        .frame(minWidth: minWidth, minHeight: minHeight)
         .onDisappear {
             _ = maybeSave()
         }
