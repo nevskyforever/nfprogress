@@ -6,7 +6,6 @@ import SwiftData
 
 struct AddStageView: View {
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var settings: AppSettings
     @Bindable var project: WritingProject
 
     @State private var title = ""
@@ -48,7 +47,7 @@ struct AddStageView: View {
     }
 
     private func addStage() {
-        let name = title.isEmpty ? settings.localized("stage_placeholder") : title
+        let name = title.isEmpty ? String(localized: "stage_placeholder") : title
         let start = (project.stages.isEmpty && !project.entries.isEmpty) ? 0 : project.currentProgress
         let stage = Stage(title: name, goal: goal, startProgress: start)
         if project.stages.isEmpty && !project.entries.isEmpty {
@@ -75,7 +74,6 @@ struct EditStageView: View {
     private let viewSpacing: CGFloat = scaledSpacing(2)
     private let fieldWidth: CGFloat = layoutStep(25)
     private let minWidth: CGFloat = layoutStep(40)
-    private let minHeight: CGFloat = layoutStep(25)
 
     var body: some View {
         VStack(spacing: viewSpacing) {
@@ -110,7 +108,7 @@ struct EditStageView: View {
             .scaledPadding(1, .bottom)
         }
         .scaledPadding()
-        .frame(minWidth: minWidth, minHeight: minHeight)
+        .frame(minWidth: minWidth)
         .onDisappear {
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
@@ -128,7 +126,6 @@ import SwiftData
 
 /// Заголовок этапа с анимированным отображением процента прогресса
 struct StageHeaderView: View {
-    @EnvironmentObject private var settings: AppSettings
     @Bindable var stage: Stage
     @Bindable var project: WritingProject
     var onEdit: () -> Void
@@ -181,7 +178,7 @@ struct StageHeaderView: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(1)
-                Text(settings.localized("goal_characters", stage.goal))
+                Text("Цель: \(stage.goal) знаков")
                     .font(.caption)
                     .foregroundColor(.gray)
                     .fixedSize(horizontal: false, vertical: true)
