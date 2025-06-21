@@ -24,10 +24,19 @@ struct ContentView: View {
 
   private let circleHeight: CGFloat = layoutStep(10)
 
+  private var sortedProjects: [WritingProject] {
+    switch settings.projectSortOrder {
+    case .title:
+      return projects.sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
+    case .progress:
+      return projects.sorted { $0.progress > $1.progress }
+    }
+  }
+
   private var splitView: some View {
     NavigationSplitView(sidebar: {
       List {
-        ForEach(projects) { project in
+        ForEach(sortedProjects) { project in
           Button(action: { selectedProject = project }) {
             projectRow(for: project)
               .frame(maxWidth: .infinity, alignment: .leading)
@@ -39,7 +48,6 @@ struct ContentView: View {
           .buttonStyle(.plain)
         }
         .onDelete(perform: deleteProjects)
-        .onMove(perform: moveProjects)
       }
       .listStyle(.plain)
       .navigationTitle("my_texts")
@@ -51,6 +59,12 @@ struct ContentView: View {
             Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
           }
           .help(settings.localized("toggle_view_tooltip"))
+        }
+        ToolbarItem {
+          Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+            Image(systemName: settings.projectSortOrder.iconName)
+          }
+          .help(settings.localized("toggle_sort_tooltip"))
         }
         ToolbarItemGroup {
           if selectedProject != nil {
@@ -185,7 +199,8 @@ struct ContentView: View {
 
   private func deleteProjects(at offsets: IndexSet) {
     if let index = offsets.first {
-      confirmDeleteProject(projects[index])
+      let project = sortedProjects[index]
+      confirmDeleteProject(project)
     }
   }
 
@@ -199,7 +214,6 @@ struct ContentView: View {
     if selectedProject === project {
       selectedProject = nil
     }
-    reorderProjects()
   }
 
 #if os(macOS)
@@ -278,13 +292,6 @@ struct ContentView: View {
     var ordered = projects
     ordered.move(fromOffsets: source, toOffset: destination)
     for (index, project) in ordered.enumerated() {
-      project.order = index
-    }
-    try? modelContext.save()
-  }
-
-  private func reorderProjects() {
-    for (index, project) in projects.enumerated() {
       project.order = index
     }
     try? modelContext.save()
