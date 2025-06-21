@@ -10,6 +10,7 @@ import AppKit
 
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
+  @EnvironmentObject private var settings: AppSettings
   #if os(macOS)
   @Environment(\.openWindow) private var openWindow
   #endif
@@ -134,7 +135,7 @@ struct ContentView: View {
     #endif
     .alert(isPresented: $showDeleteAlert) {
       Alert(
-        title: Text(String(format: NSLocalizedString("delete_project_confirm", comment: ""), projectToDelete?.title ?? "")),
+        title: Text(settings.localized("delete_project_confirm", projectToDelete?.title ?? "")),
         message: Text("cannot_undo"),
         primaryButton: .destructive(Text("delete")) {
           if let project = projectToDelete {

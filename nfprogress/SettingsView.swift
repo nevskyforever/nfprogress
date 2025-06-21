@@ -10,12 +10,19 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
-            Text("Внешний вид")
+            Text("appearance")
                 .font(.headline)
 
-            Toggle("Отключить анимации при запуске", isOn: $settings.disableLaunchAnimations)
+            Picker("language", selection: $settings.language) {
+                ForEach(AppLanguage.allCases) { lang in
+                    Text(lang.description).tag(lang)
+                }
+            }
+            .pickerStyle(.segmented)
 
-            Toggle("Отключить все анимации", isOn: $settings.disableAllAnimations)
+            Toggle("disable_launch_animations", isOn: $settings.disableLaunchAnimations)
+
+            Toggle("disable_all_animations", isOn: $settings.disableAllAnimations)
 
             Spacer()
         }
