@@ -45,15 +45,17 @@ struct ContentView: View {
       .navigationTitle("my_texts")
       .toolbar {
         ToolbarItem {
+          Picker("", selection: $settings.projectListStyle) {
+            Image(systemName: "chart.pie").tag(AppSettings.ProjectListStyle.detailed)
+            Image(systemName: "list.bullet").tag(AppSettings.ProjectListStyle.compact)
+          }
+          .pickerStyle(.segmented)
+        }
+        ToolbarItem {
           Button(action: addProject) {
             Label("add", systemImage: "plus")
           }
           .keyboardShortcut("N", modifiers: [.command, .shift])
-        }
-        ToolbarItem {
-          Button(action: toggleProjectListStyle) {
-            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
-          }
         }
         ToolbarItem {
           Button(action: deleteSelectedProject) {
@@ -183,10 +185,6 @@ struct ContentView: View {
     #endif
   }
 
-  private func toggleProjectListStyle() {
-    settings.projectListStyle =
-      settings.projectListStyle == .detailed ? .compact : .detailed
-  }
 
   private func deleteSelectedProject() {
     guard let project = selectedProject else { return }
