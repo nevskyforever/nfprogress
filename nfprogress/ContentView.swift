@@ -45,11 +45,6 @@ struct ContentView: View {
       .navigationTitle("my_texts")
       .toolbar {
         ToolbarItem {
-          Button(action: toggleProjectListStyle) {
-            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
-          }
-        }
-        ToolbarItem {
           Button(action: addProject) {
             Label("add", systemImage: "plus")
           }
