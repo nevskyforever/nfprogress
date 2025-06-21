@@ -45,6 +45,13 @@ struct ContentView: View {
       .navigationTitle("my_texts")
       .toolbar {
         ToolbarItem {
+          Picker("", selection: $settings.projectListStyle) {
+            Image(systemName: "chart.pie").tag(AppSettings.ProjectListStyle.detailed)
+            Image(systemName: "list.bullet").tag(AppSettings.ProjectListStyle.compact)
+          }
+          .pickerStyle(.segmented)
+        }
+        ToolbarItem {
           Button(action: addProject) {
             Label("add", systemImage: "plus")
           }
@@ -68,13 +75,6 @@ struct ContentView: View {
               importSelectedProject()
             }
           }
-          ToolbarItem {
-            Picker("", selection: $settings.projectListStyle) {
-              Image(systemName: "chart.pie").tag(AppSettings.ProjectListStyle.detailed)
-              Image(systemName: "list.bullet").tag(AppSettings.ProjectListStyle.compact)
-            }
-            .pickerStyle(.segmented)
-          }
         #else
           ToolbarItemGroup(placement: .navigationBarLeading) {
             if selectedProject != nil {
@@ -85,13 +85,6 @@ struct ContentView: View {
             Button("import") {
               importSelectedProject()
             }
-          }
-          ToolbarItem(placement: .navigationBarTrailing) {
-            Picker("", selection: $settings.projectListStyle) {
-              Image(systemName: "chart.pie").tag(AppSettings.ProjectListStyle.detailed)
-              Image(systemName: "list.bullet").tag(AppSettings.ProjectListStyle.compact)
-            }
-            .pickerStyle(.segmented)
           }
         #endif
       }
