@@ -126,7 +126,6 @@ import SwiftData
 
 /// Заголовок этапа с анимированным отображением процента прогресса
 struct StageHeaderView: View {
-    @EnvironmentObject private var settings: AppSettings
     @Bindable var stage: Stage
     @Bindable var project: WritingProject
     var onEdit: () -> Void
@@ -179,7 +178,7 @@ struct StageHeaderView: View {
                     .multilineTextAlignment(.leading)
                     .fixedSize(horizontal: false, vertical: true)
                     .layoutPriority(1)
-                Text(settings.localized("goal_characters", stage.goal))
+                Text("Цель: \(stage.goal) знаков")
                     .font(.caption)
                     .foregroundColor(.gray)
                     .fixedSize(horizontal: false, vertical: true)
