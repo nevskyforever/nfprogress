@@ -52,6 +52,20 @@ struct ContentView: View {
           }
           .help(settings.localized("toggle_view_tooltip"))
         }
+        ToolbarItemGroup {
+          if selectedProject != nil {
+            Button(action: exportSelectedProject) {
+              Image(systemName: "square.and.arrow.up")
+            }
+            .accessibilityLabel(settings.localized("export"))
+            .help(settings.localized("export_project_tooltip"))
+          }
+          Button(action: importSelectedProject) {
+            Image(systemName: "square.and.arrow.down")
+          }
+          .accessibilityLabel(settings.localized("import"))
+          .help(settings.localized("import_project_tooltip"))
+        }
         ToolbarItem {
           Button(action: addProject) {
             Label("add", systemImage: "plus")
@@ -67,35 +81,6 @@ struct ContentView: View {
           .disabled(selectedProject == nil)
           .help(settings.localized("delete_project_tooltip"))
         }
-        #if os(macOS)
-          ToolbarItemGroup(placement: .navigation) {
-            if selectedProject != nil {
-              Button("export") {
-                exportSelectedProject()
-              }
-              .help(settings.localized("export_project_tooltip"))
-            }
-            Button("import") {
-              importSelectedProject()
-            }
-            .help(settings.localized("import_project_tooltip"))
-          }
-          // View style toggle handled by main toolbar button
-        #else
-          ToolbarItemGroup(placement: .navigationBarLeading) {
-            if selectedProject != nil {
-              Button("export") {
-                exportSelectedProject()
-              }
-              .help(settings.localized("export_project_tooltip"))
-            }
-            Button("import") {
-              importSelectedProject()
-            }
-            .help(settings.localized("import_project_tooltip"))
-          }
-          // View style toggle handled by main toolbar button
-        #endif
       }
     }, detail: {
       if let project = selectedProject {
