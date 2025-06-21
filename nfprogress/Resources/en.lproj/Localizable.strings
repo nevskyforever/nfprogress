@@ -68,3 +68,8 @@
 "streak_start" = "Start the path to the goal?";
 "streak_continue" = "You're on a roll %d days in a row, keep going?";
 "streak_success" = "🔥 On target %d days in a row";
+"toggle_view_tooltip" = "Switch list style";
+"add_project_tooltip" = "Add new project";
+"delete_project_tooltip" = "Delete selected project";
+"export_project_tooltip" = "Export project";
+"import_project_tooltip" = "Import project";
