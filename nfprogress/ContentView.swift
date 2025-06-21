@@ -29,11 +29,22 @@ struct ContentView: View {
       List {
         ForEach(projects) { project in
           Button(action: { selectedProject = project }) {
-            projectRow(for: project)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(.vertical, scaledSpacing(1))
-              .frame(minHeight: circleHeight + layoutStep(2))
-              .contentShape(Rectangle())
+            VStack(alignment: .leading) {
+              Text(project.title)
+                .font(.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+              HStack {
+                Spacer()
+                ProgressCircleView(project: project)
+                  .frame(height: circleHeight)
+                Spacer()
+              }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, scaledSpacing(1))
+            .frame(minHeight: circleHeight + layoutStep(2))
+            .contentShape(Rectangle())
           }
           .listRowInsets(EdgeInsets())
           .buttonStyle(.plain)
@@ -68,13 +79,6 @@ struct ContentView: View {
               importSelectedProject()
             }
           }
-          ToolbarItem {
-            Picker("", selection: $settings.projectListStyle) {
-              Image(systemName: "chart.pie").tag(AppSettings.ProjectListStyle.detailed)
-              Image(systemName: "list.bullet").tag(AppSettings.ProjectListStyle.compact)
-            }
-            .pickerStyle(.segmented)
-          }
         #else
           ToolbarItemGroup(placement: .navigationBarLeading) {
             if selectedProject != nil {
@@ -85,13 +89,6 @@ struct ContentView: View {
             Button("import") {
               importSelectedProject()
             }
-          }
-          ToolbarItem(placement: .navigationBarTrailing) {
-            Picker("", selection: $settings.projectListStyle) {
-              Image(systemName: "chart.pie").tag(AppSettings.ProjectListStyle.detailed)
-              Image(systemName: "list.bullet").tag(AppSettings.ProjectListStyle.compact)
-            }
-            .pickerStyle(.segmented)
           }
         #endif
       }
@@ -105,27 +102,6 @@ struct ContentView: View {
     })
     .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
-    }
-  }
-
-  @ViewBuilder
-  private func projectRow(for project: WritingProject) -> some View {
-    switch settings.projectListStyle {
-    case .detailed:
-      VStack(alignment: .leading) {
-        Text(project.title)
-          .font(.headline)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .fixedSize(horizontal: false, vertical: true)
-        HStack {
-          Spacer()
-          ProgressCircleView(project: project)
-            .frame(height: circleHeight)
-          Spacer()
-        }
-      }
-    case .compact:
-      CompactProjectRow(project: project)
     }
   }
 

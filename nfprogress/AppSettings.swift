@@ -51,16 +51,6 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(language.rawValue, forKey: "language") }
     }
 
-    enum ProjectListStyle: String, CaseIterable, Identifiable {
-        case detailed
-        case compact
-        var id: String { rawValue }
-    }
-
-    @Published var projectListStyle: ProjectListStyle {
-        didSet { defaults.set(projectListStyle.rawValue, forKey: "projectListStyle") }
-    }
-
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     init(userDefaults: UserDefaults = .standard) {
@@ -69,8 +59,6 @@ final class AppSettings: ObservableObject {
         disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
         let raw = defaults.string(forKey: "language") ?? AppLanguage.system.rawValue
         language = AppLanguage(rawValue: raw) ?? .system
-        let styleRaw = defaults.string(forKey: "projectListStyle") ?? ProjectListStyle.detailed.rawValue
-        projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
     }
 }
 #else
@@ -90,15 +78,6 @@ final class AppSettings {
         didSet { defaults.set(language.rawValue, forKey: "language") }
     }
 
-    enum ProjectListStyle: String {
-        case detailed
-        case compact
-    }
-
-    var projectListStyle: ProjectListStyle {
-        didSet { defaults.set(projectListStyle.rawValue, forKey: "projectListStyle") }
-    }
-
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     init(userDefaults: UserDefaults = .standard) {
@@ -107,8 +86,6 @@ final class AppSettings {
         disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
         let raw = defaults.string(forKey: "language") ?? AppLanguage.system.rawValue
         language = AppLanguage(rawValue: raw) ?? .system
-        let styleRaw = defaults.string(forKey: "projectListStyle") ?? ProjectListStyle.detailed.rawValue
-        projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
     }
 }
 #endif
