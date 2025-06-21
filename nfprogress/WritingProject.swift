@@ -93,6 +93,20 @@ class WritingProject {
         currentProgress - previousProgress
     }
 
+    private var languageIdentifier: String {
+        let raw = UserDefaults.standard.string(forKey: "language") ?? AppLanguage.system.rawValue
+        let lang = AppLanguage(rawValue: raw) ?? .system
+        return lang.resolvedIdentifier
+    }
+
+    private func localized(_ key: String) -> String {
+        if let path = Bundle.main.path(forResource: languageIdentifier, ofType: "lproj"),
+           let bundle = Bundle(path: path) {
+            return bundle.localizedString(forKey: key, value: nil, table: nil)
+        }
+        return NSLocalizedString(key, comment: "")
+    }
+
     var daysLeft: Int {
         guard let deadline else { return 0 }
         let calendar = Calendar.current
@@ -106,9 +120,9 @@ class WritingProject {
 
     var motivationalMessage: String? {
         if changeSinceLast > 0 {
-            return "👍 Прогресс: +\(changeSinceLast) символов"
+            return String(format: localized("motivation_positive"), changeSinceLast)
         } else if changeSinceLast < 0 {
-            return "⚠️ Меньше, чем в прошлый раз"
+            return localized("motivation_negative")
         } else {
             return nil
         }
@@ -199,24 +213,23 @@ class WritingProject {
         }
 
         guard let last = uniqueDays.last else {
-            return "Начнем путь к цели?"
+            return localized("streak_start")
         }
 
         let yesterday = calendar.date(byAdding: .day, value: -1, to: today)!
         if calendar.isDate(last, inSameDayAs: yesterday), streak > 0 {
-            return "Вы в ударе \(streak) дней подряд, продолжим?"
+            return String(format: localized("streak_continue"), streak)
         }
-
-        return "Начнем путь к цели?"
+        return localized("streak_start")
     }
 
     /// Текстовое описание текущей серии
     var streakStatus: String {
         guard deadline != nil else { return "" }
         if streak == 0 {
-            return "Начнем путь к цели?"
+            return localized("streak_start")
         } else {
-            return "🔥 В цели \(streak) дней подряд"
+            return String(format: localized("streak_success"), streak)
         }
     }
 
