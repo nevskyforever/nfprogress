@@ -229,11 +229,11 @@ struct ProgressChartView: View {
                 GeometryReader { geo in
                     Chart {
                         // Целевая линия
-                        RuleMark(y: .value("Цель", project.goal))
+                        RuleMark(y: .value(String(localized: "progress_chart_goal"), project.goal))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
                             .foregroundStyle(.gray)
                             .annotation(position: .top, alignment: .leading) {
-                            Text("Цель: \(project.goal)")
+                            Text(String(format: NSLocalizedString("goal_characters", comment: ""), project.goal))
                                 .font(.caption)
                                 .foregroundColor(.gray)
                         }

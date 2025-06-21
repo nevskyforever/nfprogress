@@ -260,9 +260,9 @@ struct MenuBarEntryView: View {
             }
 
             if projects.isEmpty {
-                Text("Нет проектов")
+                Text("no_projects")
             } else {
-                Picker("Проект", selection: $selectedIndex) {
+                Picker("project_picker", selection: $selectedIndex) {
                     ForEach(Array(projects.enumerated()), id: \.offset) { idx, project in
                         Text(project.title)
                             .tag(idx)
@@ -271,8 +271,8 @@ struct MenuBarEntryView: View {
                 .labelsHidden()
                 let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
                 if !project.stages.isEmpty {
-                    Picker("Этап", selection: $selectedStageIndex) {
-                        Text("Без этапа")
+                    Picker("stage_picker", selection: $selectedStageIndex) {
+                        Text("no_stage")
                             .tag(0)
                         ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                             Text(stage.title)
@@ -281,15 +281,15 @@ struct MenuBarEntryView: View {
                     }
                     .labelsHidden()
                 }
-                TextField("Символов", value: $characterCount, format: .number)
+                TextField("characters_field", value: $characterCount, format: .number)
                     .textFieldStyle(.roundedBorder)
                     .frame(width: fieldWidth)
                     .onSubmit {
                         if maybeSave() { dismiss() }
                     }
-                DatePicker("Дата", selection: $date)
+                DatePicker("date_field", selection: $date)
                     .labelsHidden()
-                Button("Добавить") {
+                Button("add_button") {
                     if maybeSave() { dismiss() }
                 }
                 .buttonStyle(.borderedProminent)
