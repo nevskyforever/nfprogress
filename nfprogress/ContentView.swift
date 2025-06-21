@@ -45,6 +45,11 @@ struct ContentView: View {
       .navigationTitle("my_texts")
       .toolbar {
         ToolbarItem {
+          Button(action: toggleProjectListStyle) {
+            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+          }
+        }
+        ToolbarItem {
           Button(action: addProject) {
             Label("add", systemImage: "plus")
           }
@@ -68,13 +73,7 @@ struct ContentView: View {
               importSelectedProject()
             }
           }
-          ToolbarItem {
-            Picker("", selection: $settings.projectListStyle) {
-              Image(systemName: "chart.pie").tag(AppSettings.ProjectListStyle.detailed)
-              Image(systemName: "list.bullet").tag(AppSettings.ProjectListStyle.compact)
-            }
-            .pickerStyle(.segmented)
-          }
+          // View style toggle handled by main toolbar button
         #else
           ToolbarItemGroup(placement: .navigationBarLeading) {
             if selectedProject != nil {
@@ -86,13 +85,7 @@ struct ContentView: View {
               importSelectedProject()
             }
           }
-          ToolbarItem(placement: .navigationBarTrailing) {
-            Picker("", selection: $settings.projectListStyle) {
-              Image(systemName: "chart.pie").tag(AppSettings.ProjectListStyle.detailed)
-              Image(systemName: "list.bullet").tag(AppSettings.ProjectListStyle.compact)
-            }
-            .pickerStyle(.segmented)
-          }
+          // View style toggle handled by main toolbar button
         #endif
       }
     }, detail: {
@@ -188,6 +181,11 @@ struct ContentView: View {
     #else
     showingAddProject = true
     #endif
+  }
+
+  private func toggleProjectListStyle() {
+    settings.projectListStyle =
+      settings.projectListStyle == .detailed ? .compact : .detailed
   }
 
   private func deleteSelectedProject() {
