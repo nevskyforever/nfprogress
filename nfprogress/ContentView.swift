@@ -45,11 +45,11 @@ struct ContentView: View {
       .navigationTitle("my_texts")
       .toolbar {
         ToolbarItem {
-          Picker("", selection: $settings.projectListStyle) {
-            Image(systemName: "chart.pie").tag(AppSettings.ProjectListStyle.detailed)
-            Image(systemName: "list.bullet").tag(AppSettings.ProjectListStyle.compact)
+          Button {
+            settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+          } label: {
+            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
           }
-          .pickerStyle(.segmented)
         }
         ToolbarItem {
           Button(action: addProject) {
