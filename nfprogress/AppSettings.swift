@@ -57,8 +57,19 @@ final class AppSettings: ObservableObject {
         var id: String { rawValue }
     }
 
+    enum ProjectSortOrder: String, CaseIterable, Identifiable {
+        case manual
+        case title
+        case progress
+        var id: String { rawValue }
+    }
+
     @Published var projectListStyle: ProjectListStyle {
         didSet { defaults.set(projectListStyle.rawValue, forKey: "projectListStyle") }
+    }
+
+    @Published var projectSortOrder: ProjectSortOrder {
+        didSet { defaults.set(projectSortOrder.rawValue, forKey: "projectSortOrder") }
     }
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
@@ -71,6 +82,8 @@ final class AppSettings: ObservableObject {
         language = AppLanguage(rawValue: raw) ?? .system
         let styleRaw = defaults.string(forKey: "projectListStyle") ?? ProjectListStyle.detailed.rawValue
         projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
+        let sortRaw = defaults.string(forKey: "projectSortOrder") ?? ProjectSortOrder.manual.rawValue
+        projectSortOrder = ProjectSortOrder(rawValue: sortRaw) ?? .manual
     }
 }
 #else
@@ -95,8 +108,18 @@ final class AppSettings {
         case compact
     }
 
+    enum ProjectSortOrder: String {
+        case manual
+        case title
+        case progress
+    }
+
     var projectListStyle: ProjectListStyle {
         didSet { defaults.set(projectListStyle.rawValue, forKey: "projectListStyle") }
+    }
+
+    var projectSortOrder: ProjectSortOrder {
+        didSet { defaults.set(projectSortOrder.rawValue, forKey: "projectSortOrder") }
     }
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
@@ -109,6 +132,8 @@ final class AppSettings {
         language = AppLanguage(rawValue: raw) ?? .system
         let styleRaw = defaults.string(forKey: "projectListStyle") ?? ProjectListStyle.detailed.rawValue
         projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
+        let sortRaw = defaults.string(forKey: "projectSortOrder") ?? ProjectSortOrder.manual.rawValue
+        projectSortOrder = ProjectSortOrder(rawValue: sortRaw) ?? .manual
     }
 }
 #endif
