@@ -46,6 +46,7 @@ extension nfprogressApp {
             AddProjectView()
                 .environmentObject(settings)
                 .environment(\.locale, settings.locale)
+                .windowTitle("nfprogress — " + settings.localized("new_project"))
         }
         .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
@@ -57,6 +58,7 @@ extension nfprogressApp {
                 AddStageView(project: project)
                     .environmentObject(settings)
                     .environment(\.locale, settings.locale)
+                    .windowTitle("nfprogress — " + settings.localized("new_stage"))
             }
         }
         .defaultSize(width: layoutStep(35), height: layoutStep(20))
@@ -71,10 +73,12 @@ extension nfprogressApp {
                     AddEntryView(project: project, stage: stage)
                         .environmentObject(settings)
                         .environment(\.locale, settings.locale)
+                        .windowTitle("nfprogress — " + settings.localized("new_entry"))
                 } else {
                     AddEntryView(project: project)
                         .environmentObject(settings)
                         .environment(\.locale, settings.locale)
+                        .windowTitle("nfprogress — " + settings.localized("new_entry"))
                 }
             }
         }
@@ -89,6 +93,7 @@ extension nfprogressApp {
                 EditEntryView(project: project, entry: entry)
                     .environmentObject(settings)
                     .environment(\.locale, settings.locale)
+                    .windowTitle("NFProgress")
             }
         }
         .defaultSize(width: layoutStep(40), height: layoutStep(25))
