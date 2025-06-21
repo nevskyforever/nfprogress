@@ -41,10 +41,12 @@ struct ContentView: View {
                 Spacer()
               }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, scaledSpacing(1))
             .frame(minHeight: circleHeight + layoutStep(2))
-            .listRowInsets(EdgeInsets())
+            .contentShape(Rectangle())
           }
+          .listRowInsets(EdgeInsets())
           .buttonStyle(.plain)
         }
         .onDelete(perform: deleteProjects)
