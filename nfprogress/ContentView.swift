@@ -182,9 +182,6 @@ struct ContentView: View {
     .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
       exportSelectedProject()
     }
-#if os(macOS)
-    .windowTitle(selectedProject?.title ?? "NFProgress")
-#endif
   }
 
   private func addProject() {
