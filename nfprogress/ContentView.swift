@@ -50,12 +50,14 @@ struct ContentView: View {
           } label: {
             Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
           }
+          .help(settings.localized("toggle_view_tooltip"))
         }
         ToolbarItem {
           Button(action: addProject) {
             Label("add", systemImage: "plus")
           }
           .keyboardShortcut("N", modifiers: [.command, .shift])
+          .help(settings.localized("add_project_tooltip"))
         }
         ToolbarItem {
           Button(action: deleteSelectedProject) {
@@ -63,6 +65,7 @@ struct ContentView: View {
           }
           .keyboardShortcut(.return, modifiers: .command)
           .disabled(selectedProject == nil)
+          .help(settings.localized("delete_project_tooltip"))
         }
         #if os(macOS)
           ToolbarItemGroup(placement: .navigation) {
@@ -70,10 +73,12 @@ struct ContentView: View {
               Button("export") {
                 exportSelectedProject()
               }
+              .help(settings.localized("export_project_tooltip"))
             }
             Button("import") {
               importSelectedProject()
             }
+            .help(settings.localized("import_project_tooltip"))
           }
           // View style toggle handled by main toolbar button
         #else
@@ -82,10 +87,12 @@ struct ContentView: View {
               Button("export") {
                 exportSelectedProject()
               }
+              .help(settings.localized("export_project_tooltip"))
             }
             Button("import") {
               importSelectedProject()
             }
+            .help(settings.localized("import_project_tooltip"))
           }
           // View style toggle handled by main toolbar button
         #endif
