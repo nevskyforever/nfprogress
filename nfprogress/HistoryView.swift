@@ -6,7 +6,6 @@ import SwiftData
 
 struct HistoryView: View {
     @Environment(\.modelContext) private var modelContext
-    @EnvironmentObject private var settings: AppSettings
     @Bindable var project: WritingProject
     @Binding var editingEntry: Entry?
 
@@ -31,12 +30,12 @@ struct HistoryView: View {
             HStack {
                 VStack(alignment: .leading) {
                     if let stageName {
-                        Text(settings.localized("stage_colon", stageName))
+                        Text("Этап: \(stageName)")
                     }
-                    Text(settings.localized("characters_count", total))
-                    Text(settings.localized("change_format", delta, deltaPercent))
+                    Text("Символов: \(total)")
+                    Text(String(format: "Вклад: %d (%.0f%%)", delta, deltaPercent))
                         .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
-                    Text(settings.localized("progress_format", progressPercent))
+                    Text(String(format: "Прогресс: %.0f%%", progressPercent))
                         .font(.caption)
                         .foregroundColor(.gray)
                     Text(entry.date.formatted(date: .numeric, time: .shortened))
