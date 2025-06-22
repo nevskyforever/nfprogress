@@ -20,6 +20,8 @@ struct ProjectPercentView: View {
     @State private var startProgress: Double = 0
     @State private var endProgress: Double = 0
     @State private var duration: Double = 0.25
+    /// Indicates that the view is currently visible.
+    @State private var isVisible = false
 
     private let minDuration = 0.25
     private let maxDuration = 3.0
@@ -71,6 +73,7 @@ struct ProjectPercentView: View {
         progressText()
             .scaledFont(.progressValue)
         .onAppear {
+            isVisible = true
             let last = ProgressAnimationTracker.lastProgress(for: project)
             if disableLaunchAnimations || disableAllAnimations {
                 startProgress = progress
@@ -90,21 +93,30 @@ struct ProjectPercentView: View {
             }
             ProgressAnimationTracker.setProgress(progress, for: project)
         }
+        .onDisappear { isVisible = false }
         .onChange(of: progress) { newValue in
-            ProgressAnimationTracker.setProgress(newValue, for: project)
-            updateProgress(to: newValue, animated: !disableAllAnimations)
+            if isVisible {
+                ProgressAnimationTracker.setProgress(newValue, for: project)
+                updateProgress(to: newValue, animated: !disableAllAnimations)
+            }
         }
         .onChange(of: project.entries.map { $0.id }) { _ in
-            ProgressAnimationTracker.setProgress(progress, for: project)
-            updateProgress(to: progress, animated: !disableAllAnimations)
+            if isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+                updateProgress(to: progress, animated: !disableAllAnimations)
+            }
         }
         .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
-            ProgressAnimationTracker.setProgress(progress, for: project)
-            updateProgress(to: progress, animated: !disableAllAnimations)
+            if isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+                updateProgress(to: progress, animated: !disableAllAnimations)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            ProgressAnimationTracker.setProgress(progress, for: project)
-            updateProgress(to: progress, animated: !disableAllAnimations)
+            if isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+                updateProgress(to: progress, animated: !disableAllAnimations)
+            }
         }
     }
 }
