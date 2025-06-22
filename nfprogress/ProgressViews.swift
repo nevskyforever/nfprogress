@@ -300,32 +300,32 @@ struct ProgressChartView: View {
                                 .foregroundColor(.gray)
                         }
 
-                    // Линия прогресса
-                    ForEach(project.sortedEntries) { entry in
-                        LineMark(
-                            x: .value(settings.localized("date_field"), entry.date),
-                            y: .value(settings.localized("characters_field"), project.globalProgress(for: entry))
-                        )
-                        .interpolationMethod(.monotone)
-                        .symbol(.circle)
-                        .foregroundStyle(.blue)
+                        // Линия прогресса
+                        ForEach(project.sortedEntries) { entry in
+                            LineMark(
+                                x: .value(settings.localized("date_field"), entry.date),
+                                y: .value(settings.localized("characters_field"), project.globalProgress(for: entry))
+                            )
+                            .interpolationMethod(.monotone)
+                            .symbol(.circle)
+                            .foregroundStyle(.blue)
+                        }
                     }
-                }
-                .chartXAxis {
-                    let comp = project.sortedEntryDates.stride(forWidth: geo.size.width)
-                    AxisMarks(values: .stride(by: comp)) { value in
-                        if let date = value.as(Date.self) {
-                            AxisGridLine()
-                            AxisTick()
-                            AxisValueLabel {
-                                Text(date.formatted(date: .numeric, time: .shortened))
+                    .chartXAxis {
+                        let comp = project.sortedEntryDates.stride(forWidth: geo.size.width)
+                        AxisMarks(values: .stride(by: comp)) { value in
+                            if let date = value.as(Date.self) {
+                                AxisGridLine()
+                                AxisTick()
+                                AxisValueLabel {
+                                    Text(date.formatted(date: .numeric, time: .shortened))
+                                }
                             }
                         }
                     }
+                    .frame(maxWidth: .infinity)
                 }
-                .frame(maxWidth: .infinity)
                 .frame(height: chartHeight, alignment: .top)
-            }
 #else
                 Text("Chart requires the Charts framework")
                     .frame(height: chartHeight, alignment: .top)
