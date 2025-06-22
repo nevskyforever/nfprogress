@@ -14,9 +14,6 @@ struct AddEntryView: View {
 
     @State private var date = Date()
     @State private var characterCount = 0
-#if os(iOS)
-    @FocusState private var isCharactersFieldFocused: Bool
-#endif
 
     init(project: WritingProject, stage: Stage? = nil) {
         self.project = project
@@ -58,10 +55,6 @@ struct AddEntryView: View {
             TextField("characters", value: $characterCount, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: fieldWidth)
-#if os(iOS)
-                .keyboardType(.numberPad)
-                .focused($isCharactersFieldFocused)
-#endif
                 .submitLabel(.done)
                 .onSubmit(addEntry)
 
@@ -73,12 +66,9 @@ struct AddEntryView: View {
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
             .scaledPadding(1, .bottom)
-        } 
+        }
         .scaledPadding()
         .frame(minWidth: minWidth, minHeight: minHeight)
-#if os(iOS)
-        .onAppear { isCharactersFieldFocused = true }
-#endif
     }
 
     private func addEntry() {
