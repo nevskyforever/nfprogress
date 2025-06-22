@@ -5,7 +5,8 @@ let package = Package(
     name: "nfprogress",
     defaultLocalization: "ru",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v14),
+        .iOS(.v17)
     ],
     products: [
         .executable(
