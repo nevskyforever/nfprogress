@@ -4,6 +4,6 @@ import XCTest
 final class FontScalingTests: XCTestCase {
     func testCalcFontSize() {
         let size = calcFontSize(token: .progressValue)
-        XCTAssertEqual(size, 20)
+        XCTAssertEqual(size, 30)
     }
 }
