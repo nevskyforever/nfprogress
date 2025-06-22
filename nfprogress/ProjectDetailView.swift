@@ -28,6 +28,8 @@ struct ProjectDetailView: View {
 
     /// Base spacing for history and stages sections.
     private let viewSpacing: CGFloat = scaledSpacing(2)
+    /// Size for ``ProgressCircleView`` shown on iOS.
+    private let circleSize: CGFloat = layoutStep(20)
 
     // Formatter for displaying deadline
     private var deadlineFormatter: DateFormatter {
@@ -181,6 +183,15 @@ struct ProjectDetailView: View {
                         .foregroundColor(.green)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+
+#if os(iOS)
+                HStack {
+                    Spacer()
+                    ProgressCircleView(project: project, trackProgress: false)
+                        .frame(width: circleSize, height: circleSize)
+                    Spacer()
+                }
+#endif
 
                 // Этапы
                 Text("stages")

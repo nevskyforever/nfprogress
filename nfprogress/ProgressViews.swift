@@ -56,6 +56,9 @@ struct AnimatedProgressView<Content: View>: View {
 
 struct ProgressCircleView: View {
     var project: WritingProject
+    /// When `true` the view stores progress using ``ProgressAnimationTracker``.
+    /// Used to trigger animations when returning to the project list.
+    var trackProgress: Bool = true
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
@@ -75,6 +78,8 @@ struct ProgressCircleView: View {
 
     /// Длительность текущей анимации
     @State private var duration: Double = 0.25
+    /// Flag indicating that the view is currently visible on screen.
+    @State private var isVisible = false
 
     /// Преобразует значение прогресса в цвет от красного к зелёному
     private func color(for percent: Double) -> Color {
@@ -175,7 +180,8 @@ struct ProgressCircleView: View {
             progressRing
         }
         .onAppear {
-            let last = ProgressAnimationTracker.lastProgress(for: project)
+            isVisible = true
+            let last = trackProgress ? ProgressAnimationTracker.lastProgress(for: project) : nil
 
             if disableLaunchAnimations || disableAllAnimations {
                 startProgress = progress
@@ -196,23 +202,42 @@ struct ProgressCircleView: View {
                 }
             }
 
-            ProgressAnimationTracker.setProgress(progress, for: project)
+            if trackProgress {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
         }
+        .onDisappear { isVisible = false }
         .onChange(of: progress) { newValue in
-            ProgressAnimationTracker.setProgress(newValue, for: project)
-            updateProgress(to: newValue, animated: !disableAllAnimations)
+            if isVisible {
+                updateProgress(to: newValue, animated: !disableAllAnimations)
+            }
+            if trackProgress && isVisible {
+                ProgressAnimationTracker.setProgress(newValue, for: project)
+            }
         }
         .onChange(of: project.entries.map { $0.id }) { _ in
-            ProgressAnimationTracker.setProgress(progress, for: project)
-            updateProgress(to: progress, animated: !disableAllAnimations)
+            if trackProgress && isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
+            if isVisible {
+                updateProgress(to: progress, animated: !disableAllAnimations)
+            }
         }
         .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
-            ProgressAnimationTracker.setProgress(progress, for: project)
-            updateProgress(to: progress, animated: !disableAllAnimations)
+            if trackProgress && isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
+            if isVisible {
+                updateProgress(to: progress, animated: !disableAllAnimations)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            ProgressAnimationTracker.setProgress(progress, for: project)
-            updateProgress(to: progress, animated: !disableAllAnimations)
+            if trackProgress && isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
+            if isVisible {
+                updateProgress(to: progress, animated: !disableAllAnimations)
+            }
         }
     }
 }
