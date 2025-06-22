@@ -13,6 +13,9 @@ header {
 main {
   padding: 1rem;
 }
+canvas {
+  max-width: 100%;
+}
 ul {
   list-style: none;
   padding: 0;
@@ -40,6 +43,32 @@ button {
   border-radius: 4px;
   width: 90%;
   max-width: 400px;
+}
+
+.view {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.project-header {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.progress-bar {
+  height: 1rem;
+  background: #ddd;
+  margin: 0.25rem 0;
+  border-radius: 4px;
+  position: relative;
+}
+
+.progress-bar span {
+  display: block;
+  height: 100%;
+  background: #4caf50;
+  border-radius: 4px;
 }
 
 /* Responsive Layout */
