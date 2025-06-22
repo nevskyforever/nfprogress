@@ -4,7 +4,9 @@ import SwiftUI
 import SwiftData
 #endif
 import UniformTypeIdentifiers
-#if os(macOS)
+#if os(iOS)
+import UIKit
+#elseif os(macOS)
 import AppKit
 #endif
 
@@ -39,26 +41,60 @@ struct ContentView: View {
 
   private var splitView: some View {
 #if os(iOS)
-    NavigationStack {
-      List {
-        ForEach(sortedProjects) { project in
-          NavigationLink(value: project) {
-            projectRow(for: project)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(.vertical, scaledSpacing(1))
-              .frame(minHeight: (settings.projectListStyle == .detailed ? largeCircleHeight : circleHeight) + layoutStep(2))
-              .contentShape(Rectangle())
+    Group {
+      if UIDevice.current.userInterfaceIdiom == .pad {
+        NavigationSplitView(sidebar: {
+          List {
+            ForEach(sortedProjects) { project in
+              Button(action: { selectedProject = project }) {
+                projectRow(for: project)
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  .padding(.vertical, scaledSpacing(1))
+                  .frame(minHeight: circleHeight + layoutStep(2))
+                  .contentShape(Rectangle())
+              }
+              .listRowInsets(EdgeInsets())
+              .buttonStyle(.plain)
+            }
+            .onDelete(perform: deleteProjects)
           }
-          .listRowInsets(EdgeInsets())
+          .listStyle(.plain)
+          .navigationTitle("my_texts")
+          .toolbar { toolbarContent }
+        }, detail: {
+          if let project = selectedProject {
+            ProjectDetailView(project: project)
+          } else {
+            Text("select_project")
+              .foregroundColor(.gray)
+          }
+        })
+        .navigationDestination(for: WritingProject.self) { project in
+          ProjectDetailView(project: project)
         }
-        .onDelete(perform: deleteProjects)
-      }
-      .listStyle(.plain)
-      .navigationTitle("my_texts")
-      .navigationBarTitleDisplayMode(.inline)
-      .toolbar { toolbarContent }
-      .navigationDestination(for: WritingProject.self) { project in
-        ProjectDetailView(project: project)
+      } else {
+        NavigationStack {
+          List {
+            ForEach(sortedProjects) { project in
+              NavigationLink(value: project) {
+                projectRow(for: project)
+                  .frame(maxWidth: .infinity, alignment: .leading)
+                  .padding(.vertical, scaledSpacing(1))
+                  .frame(minHeight: (settings.projectListStyle == .detailed ? largeCircleHeight : circleHeight) + layoutStep(2))
+                  .contentShape(Rectangle())
+              }
+              .listRowInsets(EdgeInsets())
+            }
+            .onDelete(perform: deleteProjects)
+          }
+          .listStyle(.plain)
+          .navigationTitle("my_texts")
+          .navigationBarTitleDisplayMode(.inline)
+          .toolbar { toolbarContent }
+          .navigationDestination(for: WritingProject.self) { project in
+            ProjectDetailView(project: project)
+          }
+        }
       }
     }
 #else
