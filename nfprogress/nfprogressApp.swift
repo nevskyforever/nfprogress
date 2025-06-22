@@ -39,16 +39,16 @@ struct nfprogressApp: App {
         }
         #endif
 
+        #if os(macOS)
         MenuBarExtra("NFProgress", systemImage: "text.cursor") {
             MenuBarEntryView()
                 .environmentObject(settings)
                 .environment(\.locale, settings.locale)
-#if os(macOS)
                 .windowTitle("NFProgress")
-#endif
         }
         .menuBarExtraStyle(.window)
         .modelContainer(DataController.shared)
+        #endif
 
 #if os(macOS)
         additionalWindows
