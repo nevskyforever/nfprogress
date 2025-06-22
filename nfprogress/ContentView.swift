@@ -18,6 +18,8 @@ struct ContentView: View {
   #endif
   @Query(sort: [SortDescriptor(\WritingProject.order)]) private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
+  /// Project currently opened in the navigation stack on iPhone
+  @State private var openedProject: WritingProject?
   @State private var isExporting = false
   @State private var isImporting = false
   @State private var showingAddProject = false
@@ -76,14 +78,22 @@ struct ContentView: View {
         NavigationStack {
           List {
             ForEach(sortedProjects) { project in
-              NavigationLink(value: project) {
+              Button {
+                if selectedProject === project {
+                  openedProject = project
+                } else {
+                  selectedProject = project
+                }
+              } label: {
                 projectRow(for: project)
                   .frame(maxWidth: .infinity, alignment: .leading)
                   .padding(.vertical, scaledSpacing(1))
                   .frame(minHeight: (settings.projectListStyle == .detailed ? largeCircleHeight : circleHeight) + layoutStep(2))
                   .contentShape(Rectangle())
               }
+              .buttonStyle(.plain)
               .listRowInsets(EdgeInsets())
+              .listRowBackground(selectedProject === project ? Color.accentColor.opacity(0.1) : Color.clear)
             }
             .onDelete(perform: deleteProjects)
           }
@@ -91,7 +101,7 @@ struct ContentView: View {
           .navigationTitle("my_texts")
           .navigationBarTitleDisplayMode(.inline)
           .toolbar { toolbarContent }
-          .navigationDestination(for: WritingProject.self) { project in
+          .navigationDestination(item: $openedProject) { project in
             ProjectDetailView(project: project)
           }
         }
@@ -159,41 +169,23 @@ struct ContentView: View {
   @ToolbarContentBuilder
   private var toolbarContent: some ToolbarContent {
 #if os(iOS)
-    ToolbarItem(placement: .secondaryAction) {
-      Button {
-        settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
-      } label: {
-        Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+    if selectedProject != nil {
+      ToolbarItem(placement: .secondaryAction) {
+        Button {
+          settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+        } label: {
+          Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+        }
+        .help(settings.localized("toggle_view_tooltip"))
       }
-      .help(settings.localized("toggle_view_tooltip"))
-    }
-#else
-    ToolbarItem {
-      Button {
-        settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
-      } label: {
-        Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+      ToolbarItem(placement: .secondaryAction) {
+        Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+          Image(systemName: settings.projectSortOrder.iconName)
+        }
+        .help(settings.localized("toggle_sort_tooltip"))
       }
-      .help(settings.localized("toggle_view_tooltip"))
     }
-#endif
-#if os(iOS)
-    ToolbarItem(placement: .secondaryAction) {
-      Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-        Image(systemName: settings.projectSortOrder.iconName)
-      }
-      .help(settings.localized("toggle_sort_tooltip"))
-    }
-#else
-    ToolbarItem {
-      Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-        Image(systemName: settings.projectSortOrder.iconName)
-      }
-      .help(settings.localized("toggle_sort_tooltip"))
-    }
-#endif
-#if os(iOS)
-    ToolbarItemGroup(placement: .secondaryAction) {
+    ToolbarItemGroup(placement: selectedProject == nil ? .primaryAction : .secondaryAction) {
       if selectedProject != nil {
         Button(action: exportSelectedProject) {
           Image(systemName: "square.and.arrow.up")
@@ -207,7 +199,37 @@ struct ContentView: View {
       .accessibilityLabel(settings.localized("import"))
       .help(settings.localized("import_project_tooltip"))
     }
+    ToolbarItem(placement: .primaryAction) {
+      Button(action: addProject) {
+        Label("add", systemImage: "plus")
+      }
+      .keyboardShortcut("N", modifiers: [.command, .shift])
+      .help(settings.localized("add_project_tooltip"))
+    }
+    if selectedProject != nil {
+      ToolbarItem(placement: .primaryAction) {
+        Button(action: deleteSelectedProject) {
+          Label("delete", systemImage: "minus")
+        }
+        .keyboardShortcut(.return, modifiers: .command)
+        .help(settings.localized("delete_project_tooltip"))
+      }
+    }
 #else
+    ToolbarItem {
+      Button {
+        settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+      } label: {
+        Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+      }
+      .help(settings.localized("toggle_view_tooltip"))
+    }
+    ToolbarItem {
+      Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+        Image(systemName: settings.projectSortOrder.iconName)
+      }
+      .help(settings.localized("toggle_sort_tooltip"))
+    }
     ToolbarItemGroup {
       if selectedProject != nil {
         Button(action: exportSelectedProject) {
@@ -222,16 +244,6 @@ struct ContentView: View {
       .accessibilityLabel(settings.localized("import"))
       .help(settings.localized("import_project_tooltip"))
     }
-#endif
-#if os(iOS)
-    ToolbarItem(placement: .primaryAction) {
-      Button(action: addProject) {
-        Label("add", systemImage: "plus")
-      }
-      .keyboardShortcut("N", modifiers: [.command, .shift])
-      .help(settings.localized("add_project_tooltip"))
-    }
-#else
     ToolbarItem {
       Button(action: addProject) {
         Label("add", systemImage: "plus")
@@ -239,17 +251,6 @@ struct ContentView: View {
       .keyboardShortcut("N", modifiers: [.command, .shift])
       .help(settings.localized("add_project_tooltip"))
     }
-#endif
-#if os(iOS)
-    ToolbarItem(placement: .primaryAction) {
-      Button(action: deleteSelectedProject) {
-        Label("delete", systemImage: "minus")
-      }
-      .keyboardShortcut(.return, modifiers: .command)
-      .disabled(selectedProject == nil)
-      .help(settings.localized("delete_project_tooltip"))
-    }
-#else
     ToolbarItem {
       Button(action: deleteSelectedProject) {
         Label("delete", systemImage: "minus")
