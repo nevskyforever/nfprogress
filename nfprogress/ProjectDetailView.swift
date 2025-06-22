@@ -187,7 +187,7 @@ struct ProjectDetailView: View {
 #if os(iOS)
                 HStack {
                     Spacer()
-                    ProgressCircleView(project: project, trackProgress: false)
+                    ProgressCircleView(project: project, trackProgress: false, style: .large)
                         .frame(width: circleSize, height: circleSize)
                     Spacer()
                 }

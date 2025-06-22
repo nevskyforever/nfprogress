@@ -51,13 +51,16 @@ struct AddStageView: View {
         let name = title.isEmpty ? settings.localized("stage_placeholder") : title
         let start = (project.stages.isEmpty && !project.entries.isEmpty) ? 0 : project.currentProgress
         let stage = Stage(title: name, goal: goal, startProgress: start)
-        if project.stages.isEmpty && !project.entries.isEmpty {
-            stage.entries = project.entries
-            project.entries.removeAll()
-        }
-        project.stages.append(stage)
-        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        let moveEntries = project.stages.isEmpty && !project.entries.isEmpty
         dismiss()
+        DispatchQueue.main.async {
+            if moveEntries {
+                stage.entries = project.entries
+                project.entries.removeAll()
+            }
+            project.stages.append(stage)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        }
     }
 }
 
@@ -206,7 +209,7 @@ struct StageHeaderView: View {
                     }
                 }
             } else {
-                AnimatedCounterText(value: endProgress)
+                AnimatedCounterText(value: endProgress, token: .progressValue)
                     .foregroundColor(color(for: endProgress))
             }
 

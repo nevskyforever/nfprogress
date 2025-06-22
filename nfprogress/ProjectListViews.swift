@@ -47,7 +47,7 @@ struct ProjectPercentView: View {
     @ViewBuilder
     private func progressText() -> some View {
         if disableAllAnimations {
-            AnimatedCounterText(value: endProgress)
+            AnimatedCounterText(value: endProgress, token: .progressValue)
                 .foregroundColor(color(for: endProgress))
         } else if #available(macOS 12, *) {
             AnimatedProgressView(
@@ -64,7 +64,7 @@ struct ProjectPercentView: View {
                     .foregroundColor(color)
             }
         } else {
-            AnimatedCounterText(value: endProgress)
+            AnimatedCounterText(value: endProgress, token: .progressValue)
                 .foregroundColor(color(for: endProgress))
         }
     }
