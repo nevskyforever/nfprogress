@@ -13,7 +13,20 @@ struct AddEntryView: View {
     @State private var selectedStageIndex: Int
 
     @State private var date = Date()
-    @State private var characterCount = 0
+    /// Text entered by the user for the new progress value.
+    @State private var characterText = ""
+
+    /// Current progress value for the selected stage or the whole project.
+    private var previousProgress: Int {
+        if let fixedStage {
+            return fixedStage.currentProgress
+        }
+        if project.stages.isEmpty {
+            return project.currentProgress
+        }
+        let stage = project.stages[min(max(selectedStageIndex, 0), project.stages.count - 1)]
+        return stage.currentProgress
+    }
 
     init(project: WritingProject, stage: Stage? = nil) {
         self.project = project
@@ -26,14 +39,6 @@ struct AddEntryView: View {
             initialIndex = 0
         }
         _selectedStageIndex = State(initialValue: initialIndex)
-        if let stage {
-            _characterCount = State(initialValue: stage.currentProgress)
-        } else if project.stages.isEmpty {
-            _characterCount = State(initialValue: project.currentProgress)
-        } else {
-            let st = project.stages[min(max(initialIndex, 0), project.stages.count - 1)]
-            _characterCount = State(initialValue: st.currentProgress)
-        }
     }
 
     private let viewSpacing: CGFloat = scaledSpacing(2)
@@ -62,7 +67,10 @@ struct AddEntryView: View {
                 .labelsHidden()
             }
 
-            SelectAllIntField(value: $characterCount, placeholder: "characters", focusOnAppear: true)
+            SelectAllIntField(text: $characterText,
+                              placeholder: "characters",
+                              prompt: String(previousProgress),
+                              focusOnAppear: true)
                 .frame(width: fieldWidth)
                 .submitLabel(.done)
                 .onSubmit(addEntry)
@@ -81,16 +89,17 @@ struct AddEntryView: View {
         .onChange(of: selectedStageIndex) { newValue in
             guard fixedStage == nil,
                   project.stages.indices.contains(newValue) else { return }
-            characterCount = project.stages[newValue].currentProgress
+            characterText = ""
         }
     }
 
     private func addEntry() {
         let targetStage: Stage?
+        guard let entered = Int(characterText) else { return }
         let delta: Int
         if project.stages.isEmpty {
             targetStage = nil
-            delta = characterCount - project.currentProgress
+            delta = entered - project.currentProgress
         } else {
             if let fixedStage {
                 targetStage = fixedStage
@@ -98,7 +107,7 @@ struct AddEntryView: View {
                 let index = min(max(selectedStageIndex, 0), project.stages.count - 1)
                 targetStage = project.stages[index]
             }
-            delta = characterCount - (targetStage?.currentProgress ?? 0)
+            delta = entered - (targetStage?.currentProgress ?? 0)
         }
 
         let newEntry = Entry(date: date, characterCount: delta)
@@ -254,9 +263,21 @@ struct MenuBarEntryView: View {
 
     @State private var selectedIndex: Int = 0
     @State private var selectedStageIndex: Int = 0
-    @State private var characterCount: Int = 0
+    /// Text entered by the user with new progress value.
+    @State private var characterText: String = ""
     @State private var date: Date = .now
     @State private var didSave: Bool = false
+
+    /// Previous progress for the currently selected stage or project.
+    private var previousProgress: Int {
+        guard !projects.isEmpty else { return 0 }
+        let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
+        if selectedStageIndex > 0 && selectedStageIndex - 1 < project.stages.count {
+            return project.stages[selectedStageIndex - 1].currentProgress
+        } else {
+            return project.currentProgress
+        }
+    }
 
     private let viewSpacing: CGFloat = scaledSpacing(1)
     private let fieldWidth: CGFloat = layoutStep(20)
@@ -296,7 +317,7 @@ struct MenuBarEntryView: View {
                     }
                     .labelsHidden()
                 }
-                TextField("characters_field", value: $characterCount, format: .number)
+                TextField("characters_field", text: $characterText, prompt: Text(String(previousProgress)))
                     .textFieldStyle(.roundedBorder)
                     .frame(width: fieldWidth)
                     .onSubmit {
@@ -333,11 +354,13 @@ struct MenuBarEntryView: View {
         if selectedStageIndex > 0 && selectedStageIndex - 1 < project.stages.count {
             let stage = project.stages[selectedStageIndex - 1]
             // Преобразуем введённый прогресс в дельту относительно выбранного этапа
-            let delta = characterCount - stage.currentProgress
+            guard let value = Int(characterText) else { return false }
+            let delta = value - stage.currentProgress
             entry = Entry(date: date, characterCount: delta)
             stage.entries.append(entry)
         } else {
-            let delta = characterCount - project.currentProgress
+            guard let value = Int(characterText) else { return false }
+            let delta = value - project.currentProgress
             entry = Entry(date: date, characterCount: delta)
             project.entries.append(entry)
         }
@@ -349,11 +372,11 @@ struct MenuBarEntryView: View {
     }
 
     private var isValid: Bool {
-        !projects.isEmpty && characterCount > 0
+        !projects.isEmpty && Int(characterText) != nil
     }
 
     private func resetFields() {
-        characterCount = 0
+        characterText = ""
         date = .now
         selectedStageIndex = 0
     }

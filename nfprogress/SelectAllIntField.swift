@@ -3,15 +3,22 @@ import SwiftUI
 
 /// Numeric text field that focuses automatically and selects its contents when it appears.
 struct SelectAllIntField: View {
-    @Binding var value: Int
+    /// Current text in the field. Should contain only digits.
+    @Binding var text: String
+    /// Localized title for accessibility.
     var placeholder: LocalizedStringKey
+    /// Optional prompt displayed when the text is empty.
+    var prompt: String? = nil
+    /// Focuses the field when it appears.
     var focusOnAppear: Bool = false
 
     @State private var didFocus: Bool = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        TextField(placeholder, value: $value, format: .number)
+        TextField(placeholder,
+                  text: $text,
+                  prompt: prompt.map { Text(verbatim: $0) })
             .textFieldStyle(.roundedBorder)
 #if os(iOS)
             .keyboardType(.numberPad)
