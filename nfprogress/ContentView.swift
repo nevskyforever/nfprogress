@@ -23,6 +23,10 @@ struct ContentView: View {
   @State private var showDeleteAlert = false
 
   private let circleHeight: CGFloat = layoutStep(10)
+#if os(iOS)
+  /// Enlarged circle size used when projects are displayed in the main menu.
+  private let largeCircleHeight: CGFloat = layoutStep(20)
+#endif
 
   private var sortedProjects: [WritingProject] {
     switch settings.projectSortOrder {
@@ -42,7 +46,7 @@ struct ContentView: View {
             projectRow(for: project)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(.vertical, scaledSpacing(1))
-              .frame(minHeight: circleHeight + layoutStep(2))
+              .frame(minHeight: (settings.projectListStyle == .detailed ? largeCircleHeight : circleHeight) + layoutStep(2))
               .contentShape(Rectangle())
           }
           .listRowInsets(EdgeInsets())
@@ -101,8 +105,13 @@ struct ContentView: View {
           .fixedSize(horizontal: false, vertical: true)
         HStack {
           Spacer()
+#if os(iOS)
+          ProgressCircleView(project: project, style: .large)
+            .frame(height: largeCircleHeight)
+#else
           ProgressCircleView(project: project)
             .frame(height: circleHeight)
+#endif
           Spacer()
         }
       }
