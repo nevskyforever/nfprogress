@@ -47,7 +47,7 @@ extension nfprogressApp {
                 .environmentObject(settings)
                 .environment(\.locale, settings.locale)
 #if os(macOS)
-                .windowTitle("nfprogress — " + settings.localized("new_project"))
+                .windowTitle(settings.localized("new_project"))
 #endif
         }
         .defaultSize(width: layoutStep(35), height: layoutStep(20))
@@ -61,7 +61,7 @@ extension nfprogressApp {
                     .environmentObject(settings)
                     .environment(\.locale, settings.locale)
 #if os(macOS)
-                    .windowTitle("nfprogress — " + settings.localized("new_stage"))
+                    .windowTitle(settings.localized("new_stage"))
 #endif
             }
         }
@@ -78,14 +78,14 @@ extension nfprogressApp {
                         .environmentObject(settings)
                         .environment(\.locale, settings.locale)
 #if os(macOS)
-                        .windowTitle("nfprogress — " + settings.localized("new_entry"))
+                        .windowTitle(settings.localized("new_entry"))
 #endif
                 } else {
                     AddEntryView(project: project)
                         .environmentObject(settings)
                         .environment(\.locale, settings.locale)
 #if os(macOS)
-                        .windowTitle("nfprogress — " + settings.localized("new_entry"))
+                        .windowTitle(settings.localized("new_entry"))
 #endif
                 }
             }

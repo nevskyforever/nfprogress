@@ -48,12 +48,6 @@ struct AddEntryView: View {
 
     var body: some View {
         VStack(spacing: viewSpacing) {
-
-            Text("new_entry")
-                .font(.title2.bold())
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-
             DatePicker("date_time", selection: $date)
                 .labelsHidden()
 
@@ -83,8 +77,9 @@ struct AddEntryView: View {
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
             .scaledPadding(1, .bottom)
-        } 
-        .scaledPadding()
+        }
+        .scaledPadding(1, [.horizontal, .bottom])
+        .scaledPadding(2, .top)
         .frame(minWidth: minWidth, minHeight: minHeight)
         .onChange(of: selectedStageIndex) { newValue in
             guard fixedStage == nil,

@@ -20,13 +20,6 @@ struct AddProjectView: View {
 
     var body: some View {
         VStack(spacing: viewSpacing) {
-
-            Text("new_project")
-                .font(.title2.bold())
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .scaledPadding(1, .top)
-
             TextField("project_name", text: $title)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: fieldWidth)
@@ -46,7 +39,8 @@ struct AddProjectView: View {
             .keyboardShortcut(.defaultAction)
             .scaledPadding(1, .bottom)
         }
-        .scaledPadding()
+        .scaledPadding(1, [.horizontal, .bottom])
+        .scaledPadding(2, .top)
         .frame(minWidth: minWidth, minHeight: minHeight)
     }
 
