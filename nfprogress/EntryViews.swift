@@ -18,11 +18,21 @@ struct AddEntryView: View {
     init(project: WritingProject, stage: Stage? = nil) {
         self.project = project
         self.fixedStage = stage
+        let initialIndex: Int
         if let stage,
            let found = project.stages.firstIndex(where: { $0.id == stage.id }) {
-            _selectedStageIndex = State(initialValue: found)
+            initialIndex = found
         } else {
-            _selectedStageIndex = State(initialValue: 0)
+            initialIndex = 0
+        }
+        _selectedStageIndex = State(initialValue: initialIndex)
+        if let stage {
+            _characterCount = State(initialValue: stage.currentProgress)
+        } else if project.stages.isEmpty {
+            _characterCount = State(initialValue: project.currentProgress)
+        } else {
+            let st = project.stages[min(max(initialIndex, 0), project.stages.count - 1)]
+            _characterCount = State(initialValue: st.currentProgress)
         }
     }
 
@@ -52,8 +62,7 @@ struct AddEntryView: View {
                 .labelsHidden()
             }
 
-            TextField("characters", value: $characterCount, format: .number)
-                .textFieldStyle(.roundedBorder)
+            SelectAllIntField(value: $characterCount, placeholder: "characters", focusOnAppear: true)
                 .frame(width: fieldWidth)
                 .submitLabel(.done)
                 .onSubmit(addEntry)
@@ -66,9 +75,14 @@ struct AddEntryView: View {
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
             .scaledPadding(1, .bottom)
-        }
+        } 
         .scaledPadding()
         .frame(minWidth: minWidth, minHeight: minHeight)
+        .onChange(of: selectedStageIndex) { newValue in
+            guard fixedStage == nil,
+                  project.stages.indices.contains(newValue) else { return }
+            characterCount = project.stages[newValue].currentProgress
+        }
     }
 
     private func addEntry() {
