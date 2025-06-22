@@ -34,6 +34,30 @@ struct ContentView: View {
   }
 
   private var splitView: some View {
+#if os(iOS)
+    NavigationStack {
+      List {
+        ForEach(sortedProjects) { project in
+          NavigationLink(value: project) {
+            projectRow(for: project)
+              .frame(maxWidth: .infinity, alignment: .leading)
+              .padding(.vertical, scaledSpacing(1))
+              .frame(minHeight: circleHeight + layoutStep(2))
+              .contentShape(Rectangle())
+          }
+          .listRowInsets(EdgeInsets())
+        }
+        .onDelete(perform: deleteProjects)
+      }
+      .listStyle(.plain)
+      .navigationTitle("my_texts")
+      .navigationBarTitleDisplayMode(.inline)
+      .toolbar { toolbarContent }
+      .navigationDestination(for: WritingProject.self) { project in
+        ProjectDetailView(project: project)
+      }
+    }
+#else
     NavigationSplitView(sidebar: {
       List {
         ForEach(sortedProjects) { project in
@@ -51,51 +75,7 @@ struct ContentView: View {
       }
       .listStyle(.plain)
       .navigationTitle("my_texts")
-      .toolbar {
-        ToolbarItem {
-          Button {
-            settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
-          } label: {
-            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
-          }
-          .help(settings.localized("toggle_view_tooltip"))
-        }
-        ToolbarItem {
-          Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-            Image(systemName: settings.projectSortOrder.iconName)
-          }
-          .help(settings.localized("toggle_sort_tooltip"))
-        }
-        ToolbarItemGroup {
-          if selectedProject != nil {
-            Button(action: exportSelectedProject) {
-              Image(systemName: "square.and.arrow.up")
-            }
-            .accessibilityLabel(settings.localized("export"))
-            .help(settings.localized("export_project_tooltip"))
-          }
-          Button(action: importSelectedProject) {
-            Image(systemName: "square.and.arrow.down")
-          }
-          .accessibilityLabel(settings.localized("import"))
-          .help(settings.localized("import_project_tooltip"))
-        }
-        ToolbarItem {
-          Button(action: addProject) {
-            Label("add", systemImage: "plus")
-          }
-          .keyboardShortcut("N", modifiers: [.command, .shift])
-          .help(settings.localized("add_project_tooltip"))
-        }
-        ToolbarItem {
-          Button(action: deleteSelectedProject) {
-            Label("delete", systemImage: "minus")
-          }
-          .keyboardShortcut(.return, modifiers: .command)
-          .disabled(selectedProject == nil)
-          .help(settings.localized("delete_project_tooltip"))
-        }
-      }
+      .toolbar { toolbarContent }
     }, detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
@@ -107,6 +87,7 @@ struct ContentView: View {
     .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
     }
+#endif
   }
 
   @ViewBuilder
@@ -127,6 +108,53 @@ struct ContentView: View {
       }
     case .compact:
       CompactProjectRow(project: project)
+    }
+  }
+
+  @ToolbarContentBuilder
+  private var toolbarContent: some ToolbarContent {
+    ToolbarItem {
+      Button {
+        settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+      } label: {
+        Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+      }
+      .help(settings.localized("toggle_view_tooltip"))
+    }
+    ToolbarItem {
+      Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+        Image(systemName: settings.projectSortOrder.iconName)
+      }
+      .help(settings.localized("toggle_sort_tooltip"))
+    }
+    ToolbarItemGroup {
+      if selectedProject != nil {
+        Button(action: exportSelectedProject) {
+          Image(systemName: "square.and.arrow.up")
+        }
+        .accessibilityLabel(settings.localized("export"))
+        .help(settings.localized("export_project_tooltip"))
+      }
+      Button(action: importSelectedProject) {
+        Image(systemName: "square.and.arrow.down")
+      }
+      .accessibilityLabel(settings.localized("import"))
+      .help(settings.localized("import_project_tooltip"))
+    }
+    ToolbarItem {
+      Button(action: addProject) {
+        Label("add", systemImage: "plus")
+      }
+      .keyboardShortcut("N", modifiers: [.command, .shift])
+      .help(settings.localized("add_project_tooltip"))
+    }
+    ToolbarItem {
+      Button(action: deleteSelectedProject) {
+        Label("delete", systemImage: "minus")
+      }
+      .keyboardShortcut(.return, modifiers: .command)
+      .disabled(selectedProject == nil)
+      .help(settings.localized("delete_project_tooltip"))
     }
   }
 
