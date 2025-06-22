@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFProgress Web</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>NFProgress</h1>
+  </header>
+  <main>
+    <section id="project-list" class="view">
+      <h2>Your Projects</h2>
+      <ul id="projects"></ul>
+      <button id="add-project-btn">Add Project</button>
+    </section>
+    <section id="project-details" class="view hidden">
+      <button id="back-btn">&larr; Back</button>
+      <div class="project-header">
+        <h2 id="project-title"></h2>
+        <button id="edit-project-btn">Edit</button>
+        <button id="delete-project-btn">Delete</button>
+      </div>
+      <div id="project-meta">
+        <span id="project-goal"></span>
+        <span id="project-total"></span>
+      </div>
+      <canvas id="progress-chart" width="400" height="200"></canvas>
+
+      <div id="stage-section">
+        <h3>Stages</h3>
+        <ul id="stages"></ul>
+        <button id="add-stage-btn">Add Stage</button>
+      </div>
+
+      <div id="entry-section">
+        <h3>Entries</h3>
+        <ul id="entries"></ul>
+        <button id="add-entry-btn">Add Entry</button>
+      </div>
+    </section>
+  </main>
+
+  <div id="project-dialog" class="modal hidden">
+    <div class="modal-content">
+      <h3 id="project-dialog-title">New Project</h3>
+      <label>Title <input type="text" id="project-title-input"></label>
+      <label>Goal <input type="number" id="project-goal-input"></label>
+      <button id="project-save-btn">Save</button>
+      <button id="project-cancel-btn">Cancel</button>
+    </div>
+  </div>
+
+  <div id="stage-dialog" class="modal hidden">
+    <div class="modal-content">
+      <h3 id="stage-dialog-title">New Stage</h3>
+      <label>Title <input type="text" id="stage-title-input"></label>
+      <label>Goal <input type="number" id="stage-goal-input"></label>
+      <button id="stage-save-btn">Save</button>
+      <button id="stage-cancel-btn">Cancel</button>
+    </div>
+  </div>
+
+  <div id="entry-dialog" class="modal hidden">
+    <div class="modal-content">
+      <h3 id="entry-dialog-title">New Entry</h3>
+      <label>Date <input type="date" id="entry-date"></label>
+      <label>Characters <input type="number" id="entry-count"></label>
+      <label>Stage <select id="entry-stage-select"></select></label>
+      <button id="entry-save-btn">Save</button>
+      <button id="entry-cancel-btn">Cancel</button>
+    </div>
+  </div>
+
+<script src="chart.min.js"></script>
+<script src="script.js"></script>
+</body>
+</html>
