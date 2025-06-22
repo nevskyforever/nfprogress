@@ -192,6 +192,22 @@ struct ProjectDetailView: View {
                     Spacer()
                 }
 #endif
+                if project.sortedEntries.count >= 2 {
+                    DisclosureGroup(
+                        isExpanded: Binding(
+                            get: { !project.isChartCollapsed },
+                            set: { project.isChartCollapsed = !$0 }
+                        )
+                    ) {
+                        ProgressChartView(project: project)
+                            .environmentObject(settings)
+                    } label: {
+                        Text("progress_chart")
+                            .font(.title3.bold())
+                    }
+                }
+
+
 
                 // Этапы
                 Text("stages")
@@ -294,21 +310,6 @@ struct ProjectDetailView: View {
                     }
                     .keyboardShortcut("n", modifiers: .command)
                 }
-                if project.sortedEntries.count >= 2 {
-                    DisclosureGroup(
-                        isExpanded: Binding(
-                            get: { !project.isChartCollapsed },
-                            set: { project.isChartCollapsed = !$0 }
-                        )
-                    ) {
-                        ProgressChartView(project: project)
-                            .environmentObject(settings)
-                    } label: {
-                        Text("progress_chart")
-                            .font(.title3.bold())
-                    }
-                }
-
                 ForEach(project.sortedEntries) { entry in
                     let total = project.globalProgress(for: entry)
                     let prevCount = project.previousGlobalProgress(before: entry)
