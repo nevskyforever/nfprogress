@@ -5,7 +5,7 @@ import SwiftUI
 /// Базовые размеры шрифтов, используемые в приложении.
 enum FontToken: Double, CaseIterable {
     /// Размер текста внутри колец прогресса
-    case progressValue = 30
+    case progressValue = 20
 }
 
 /// Returns base font size for the provided token.

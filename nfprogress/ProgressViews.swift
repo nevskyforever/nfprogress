@@ -62,7 +62,7 @@ struct ProgressCircleView: View {
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
-    private let ringWidth: CGFloat = layoutStep(3)
+    private let ringWidth: CGFloat = layoutStep(2)
 
     /// Текущий процент выполнения проекта на основе общего количества символов
     private var progress: Double {
