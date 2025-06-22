@@ -69,34 +69,35 @@ struct AddEntryView: View {
         }
         .scaledPadding()
         .frame(minWidth: minWidth, minHeight: minHeight)
+        .onDisappear {
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        }
     }
 
     private func addEntry() {
-        let targetStage: Stage?
-        let delta: Int
+        let newEntry: Entry
         if project.stages.isEmpty {
-            targetStage = nil
-            delta = characterCount - project.currentProgress
+            // Запись относится напрямую к проекту
+            let delta = characterCount - project.currentProgress
+            newEntry = Entry(date: date, characterCount: delta)
+            project.entries.append(newEntry)
         } else {
+            let stage: Stage
             if let fixedStage {
-                targetStage = fixedStage
+                stage = fixedStage
             } else {
                 let index = min(max(selectedStageIndex, 0), project.stages.count - 1)
-                targetStage = project.stages[index]
+                stage = project.stages[index]
             }
-            delta = characterCount - (targetStage?.currentProgress ?? 0)
+
+            // Преобразуем прогресс этапа в дельту относительно самого этапа, чтобы остальные этапы не затрагивались.
+            let delta = characterCount - stage.currentProgress
+            newEntry = Entry(date: date, characterCount: delta)
+            stage.entries.append(newEntry)
         }
 
-        let newEntry = Entry(date: date, characterCount: delta)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         dismiss()
-        DispatchQueue.main.async {
-            if let stage = targetStage {
-                stage.entries.append(newEntry)
-            } else {
-                project.entries.append(newEntry)
-            }
-            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-        }
     }
 }
 
