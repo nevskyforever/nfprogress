@@ -19,8 +19,10 @@ struct SelectAllIntField: View {
             .focused($isFocused)
             .onAppear {
                 guard focusOnAppear, !didFocus else { return }
-                isFocused = true
                 didFocus = true
+                DispatchQueue.main.async {
+                    isFocused = true
+                }
             }
             .onChange(of: isFocused) { focused in
                 if focused {
