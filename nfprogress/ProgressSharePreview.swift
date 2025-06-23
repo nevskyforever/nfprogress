@@ -118,7 +118,7 @@ struct ProgressSharePreview: View {
         }
         .fullScreenCover(isPresented: $showingFullImage) {
             ZStack {
-                Color.white.ignoresSafeArea()
+                Color.gray.opacity(0.3).ignoresSafeArea()
                 VStack {
                     Spacer()
                     ProgressShareView(project: project,

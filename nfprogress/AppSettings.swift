@@ -3,8 +3,13 @@ import Foundation
 import SwiftUI
 #endif
 
-// Default values for share preview settings
+// Default values for share preview settings. When SwiftUI is available we
+// derive the circle size from `shareImageSize` so the diagram fits the canvas.
+#if canImport(SwiftUI)
+let defaultShareCircleSize: Double = Double(shareImageSize * 0.7)
+#else
 let defaultShareCircleSize: Double = 175
+#endif
 let defaultShareRingWidth: Double = 24
 let defaultSharePercentSize: Double = 45
 let defaultShareTitleSize: Double = 56
