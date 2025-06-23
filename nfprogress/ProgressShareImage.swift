@@ -12,12 +12,6 @@ public typealias OSImage = NSImage
 /// Size of the exported progress image in points.
 let shareImageSize: CGFloat = 500
 
-/// Default parameters for share image preview.
-let defaultShareCircleSize: CGFloat = shareImageSize * 0.35
-let defaultShareRingWidth: CGFloat = layoutStep(3)
-let defaultSharePercentSize: CGFloat = CGFloat(calcFontSize(token: .progressValueLarge) * 1.5)
-let defaultShareTitleSize: CGFloat = 56
-let defaultShareSpacing: CGFloat = scaledSpacing(2)
 
 /// Snapshot of ``ProgressCircleView`` without animations.
 private struct ProgressCircleSnapshotView: View {
@@ -54,11 +48,11 @@ private struct ProgressCircleSnapshotView: View {
 
 struct ProgressShareView: View {
     var project: WritingProject
-    var circleSize: CGFloat = defaultShareCircleSize
-    var ringWidth: CGFloat = defaultShareRingWidth
-    var percentFontSize: CGFloat = defaultSharePercentSize
-    var titleFontSize: CGFloat = defaultShareTitleSize
-    var titleSpacing: CGFloat = defaultShareSpacing
+    var circleSize: CGFloat = CGFloat(defaultShareCircleSize)
+    var ringWidth: CGFloat = CGFloat(defaultShareRingWidth)
+    var percentFontSize: CGFloat = CGFloat(defaultSharePercentSize)
+    var titleFontSize: CGFloat = CGFloat(defaultShareTitleSize)
+    var titleSpacing: CGFloat = CGFloat(defaultShareSpacing)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -82,11 +76,11 @@ struct ProgressShareView: View {
 
 @MainActor
 func progressShareImage(for project: WritingProject,
-                        circleSize: CGFloat = defaultShareCircleSize,
-                        ringWidth: CGFloat = defaultShareRingWidth,
-                        percentFontSize: CGFloat = defaultSharePercentSize,
-                        titleFontSize: CGFloat = defaultShareTitleSize,
-                        titleSpacing: CGFloat = defaultShareSpacing) -> OSImage? {
+                        circleSize: CGFloat = CGFloat(defaultShareCircleSize),
+                        ringWidth: CGFloat = CGFloat(defaultShareRingWidth),
+                        percentFontSize: CGFloat = CGFloat(defaultSharePercentSize),
+                        titleFontSize: CGFloat = CGFloat(defaultShareTitleSize),
+                        titleSpacing: CGFloat = CGFloat(defaultShareSpacing)) -> OSImage? {
     let view = ProgressShareView(project: project,
                                  circleSize: circleSize,
                                  ringWidth: ringWidth,
@@ -111,11 +105,11 @@ func progressShareImage(for project: WritingProject,
 
 @MainActor
 func progressShareURL(for project: WritingProject,
-                      circleSize: CGFloat = defaultShareCircleSize,
-                      ringWidth: CGFloat = defaultShareRingWidth,
-                      percentFontSize: CGFloat = defaultSharePercentSize,
-                      titleFontSize: CGFloat = defaultShareTitleSize,
-                      titleSpacing: CGFloat = defaultShareSpacing) -> URL? {
+                      circleSize: CGFloat = CGFloat(defaultShareCircleSize),
+                      ringWidth: CGFloat = CGFloat(defaultShareRingWidth),
+                      percentFontSize: CGFloat = CGFloat(defaultSharePercentSize),
+                      titleFontSize: CGFloat = CGFloat(defaultShareTitleSize),
+                      titleSpacing: CGFloat = CGFloat(defaultShareSpacing)) -> URL? {
     guard let image = progressShareImage(for: project,
                                          circleSize: circleSize,
                                          ringWidth: ringWidth,

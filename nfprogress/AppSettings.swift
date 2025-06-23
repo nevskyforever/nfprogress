@@ -10,6 +10,7 @@ let defaultSharePercentSize: Double = 45
 let defaultShareTitleSize: Double = 56
 let defaultShareSpacing: Double = 16
 
+
 enum AppLanguage: String, CaseIterable, Identifiable {
     case system
     case en
