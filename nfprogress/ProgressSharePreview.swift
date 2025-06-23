@@ -9,44 +9,80 @@ struct ProgressSharePreview: View {
     @EnvironmentObject private var settings: AppSettings
     var project: WritingProject
 
-    @State private var circleSize: CGFloat = CGFloat(defaultShareCircleSize)
-    @State private var ringWidth: CGFloat = CGFloat(defaultShareRingWidth)
-    @State private var percentSize: CGFloat = CGFloat(defaultSharePercentSize)
-    @State private var titleSize: CGFloat = CGFloat(defaultShareTitleSize)
-    @State private var spacing: CGFloat = CGFloat(defaultShareSpacing)
+    // Values stored as percentages of defaults (1...100)
+    @State private var circlePercent: Int = 100
+    @State private var ringPercent: Int = 100
+    @State private var percentFontPercent: Int = 100
+    @State private var titleFontPercent: Int = 100
+    @State private var spacingPercent: Int = 100
     @State private var initialized = false
 #if os(iOS)
     @State private var shareURL: URL?
     @State private var showingShareSheet = false
+    @State private var showingFullImage = false
+#endif
+#if os(iOS)
+    @State private var containerSize: CGSize = .zero
 #endif
 
+    private var circleSize: CGFloat {
+        CGFloat(circlePercent) / 100 * CGFloat(defaultShareCircleSize)
+    }
+    private var ringWidth: CGFloat {
+        CGFloat(ringPercent) / 100 * CGFloat(defaultShareRingWidth)
+    }
+    private var percentSize: CGFloat {
+        CGFloat(percentFontPercent) / 100 * CGFloat(defaultSharePercentSize)
+    }
+    private var titleSize: CGFloat {
+        CGFloat(titleFontPercent) / 100 * CGFloat(defaultShareTitleSize)
+    }
+    private var spacing: CGFloat {
+        CGFloat(spacingPercent) / 100 * CGFloat(defaultShareSpacing)
+    }
+
+    private var orientationScale: CGFloat {
+#if os(iOS)
+        if UIDevice.current.userInterfaceIdiom == .phone {
+            return showingFullImage ? 1 : 0.5
+        } else {
+            return containerSize.width > containerSize.height ? 0.75 : 1
+        }
+#else
+        return 1
+#endif
+    }
+
     var body: some View {
-        VStack(spacing: scaledSpacing(1.5)) {
-            Spacer()
-            ProgressShareView(project: project,
-                               circleSize: circleSize,
-                               ringWidth: ringWidth,
-                               percentFontSize: percentSize,
-                               titleFontSize: titleSize,
-                               titleSpacing: spacing)
-            VStack(spacing: scaledSpacing(0.5)) {
-                sliderRow(title: settings.localized("share_preview_circle_size"),
-                          value: $circleSize,
-                          range: 100...shareImageSize)
-                sliderRow(title: settings.localized("share_preview_ring_width"),
-                          value: $ringWidth,
-                          range: 1...60)
-                sliderRow(title: settings.localized("share_preview_percent_size"),
-                          value: $percentSize,
-                          range: 10...120)
-                sliderRow(title: settings.localized("share_preview_title_size"),
-                          value: $titleSize,
-                          range: 20...100)
-                sliderRow(title: settings.localized("share_preview_spacing"),
-                          value: $spacing,
-                          range: 0...layoutStep(20))
+        GeometryReader { geo in
+            VStack(spacing: scaledSpacing(1.5)) {
+                Spacer()
+                ProgressShareView(project: project,
+                                   circleSize: circleSize,
+                                   ringWidth: ringWidth,
+                                   percentFontSize: percentSize,
+                                   titleFontSize: titleSize,
+                                   titleSpacing: spacing)
+                    .scaleEffect(orientationScale)
+                    .onTapGesture {
+#if os(iOS)
+                        if orientationScale < 1 { showingFullImage = true }
+#endif
+                    }
+                VStack(spacing: scaledSpacing(0.5)) {
+                    pickerRow(title: settings.localized("share_preview_circle_size"), value: $circlePercent)
+                    pickerRow(title: settings.localized("share_preview_ring_width"), value: $ringPercent)
+                    pickerRow(title: settings.localized("share_preview_percent_size"), value: $percentFontPercent)
+                    pickerRow(title: settings.localized("share_preview_title_size"), value: $titleFontPercent)
+                    pickerRow(title: settings.localized("share_preview_spacing"), value: $spacingPercent)
+                }
+                Spacer()
             }
-            Spacer()
+            .onChange(of: geo.size) { newValue in
+#if os(iOS)
+                containerSize = newValue
+#endif
+            }
         }
         .scaledPadding()
         #if os(macOS)
@@ -60,11 +96,11 @@ struct ProgressSharePreview: View {
         #endif
         .onAppear {
             if !initialized {
-                circleSize = CGFloat(settings.lastShareCircleSize)
-                ringWidth = CGFloat(settings.lastShareRingWidth)
-                percentSize = CGFloat(settings.lastSharePercentSize)
-                titleSize = CGFloat(settings.lastShareTitleSize)
-                spacing = CGFloat(settings.lastShareSpacing)
+                circlePercent = max(1, min(100, Int((settings.lastShareCircleSize / defaultShareCircleSize * 100).rounded())))
+                ringPercent = max(1, min(100, Int((settings.lastShareRingWidth / defaultShareRingWidth * 100).rounded())))
+                percentFontPercent = max(1, min(100, Int((settings.lastSharePercentSize / defaultSharePercentSize * 100).rounded())))
+                titleFontPercent = max(1, min(100, Int((settings.lastShareTitleSize / defaultShareTitleSize * 100).rounded())))
+                spacingPercent = max(1, min(100, Int((settings.lastShareSpacing / defaultShareSpacing * 100).rounded())))
                 initialized = true
             }
         }
@@ -77,6 +113,23 @@ struct ProgressSharePreview: View {
             if let url = shareURL {
                 ShareSheet(items: [url])
             }
+        }
+        .fullScreenCover(isPresented: $showingFullImage) {
+            VStack {
+                HStack {
+                    Button(settings.localized("cancel")) { showingFullImage = false }
+                        .padding()
+                    Spacer()
+                }
+                ProgressShareView(project: project,
+                                   circleSize: circleSize,
+                                   ringWidth: ringWidth,
+                                   percentFontSize: percentSize,
+                                   titleFontSize: titleSize,
+                                   titleSpacing: spacing)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color.white)
         }
 #endif
     }
@@ -106,23 +159,17 @@ struct ProgressSharePreview: View {
     }
 
     @ViewBuilder
-    private func sliderRow(title: String,
-                           value: Binding<CGFloat>,
-                           range: ClosedRange<CGFloat>) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack {
-                Text(title)
-                    .font(.footnote)
-                Slider(value: value, in: range)
-                    .controlSize(.small)
-                    .frame(maxWidth: .infinity)
+    private func pickerRow(title: String, value: Binding<Int>) -> some View {
+        HStack {
+            Text(title)
+                .font(.footnote)
+            Picker("", selection: value) {
+                ForEach(1..<101) { num in
+                    Text("\(num)").tag(num)
+                }
             }
-            VStack(alignment: .leading) {
-                Text(title)
-                    .font(.footnote)
-                Slider(value: value, in: range)
-                    .controlSize(.small)
-            }
+            .labelsHidden()
+            .pickerStyle(.menu)
         }
     }
 
