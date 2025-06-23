@@ -522,6 +522,7 @@ struct ProjectDetailView: View {
         .sheet(isPresented: $showingSharePreview) {
             ProgressSharePreview(project: project)
                 .environmentObject(settings)
+                .presentationDetents([.medium, .large])
         }
 #endif
     }

@@ -29,27 +29,22 @@ struct ProgressSharePreview: View {
                                percentFontSize: percentSize,
                                titleFontSize: titleSize,
                                titleSpacing: spacing)
-            VStack {
-                HStack {
-                    Text(settings.localized("share_preview_circle_size"))
-                    Slider(value: $circleSize, in: 100...shareImageSize)
-                }
-                HStack {
-                    Text(settings.localized("share_preview_ring_width"))
-                    Slider(value: $ringWidth, in: 1...60)
-                }
-                HStack {
-                    Text(settings.localized("share_preview_percent_size"))
-                    Slider(value: $percentSize, in: 10...120)
-                }
-                HStack {
-                    Text(settings.localized("share_preview_title_size"))
-                    Slider(value: $titleSize, in: 20...100)
-                }
-                HStack {
-                    Text(settings.localized("share_preview_spacing"))
-                    Slider(value: $spacing, in: 0...layoutStep(20))
-                }
+            VStack(spacing: scaledSpacing(1)) {
+                sliderRow(title: settings.localized("share_preview_circle_size"),
+                          value: $circleSize,
+                          range: 100...shareImageSize)
+                sliderRow(title: settings.localized("share_preview_ring_width"),
+                          value: $ringWidth,
+                          range: 1...60)
+                sliderRow(title: settings.localized("share_preview_percent_size"),
+                          value: $percentSize,
+                          range: 10...120)
+                sliderRow(title: settings.localized("share_preview_title_size"),
+                          value: $titleSize,
+                          range: 20...100)
+                sliderRow(title: settings.localized("share_preview_spacing"),
+                          value: $spacing,
+                          range: 0...layoutStep(20))
             }
             Spacer()
         }
@@ -59,14 +54,14 @@ struct ProgressSharePreview: View {
         #else
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         #endif
-        .safeAreaInset(edge: .bottom) {
-            HStack(spacing: scaledSpacing(2)) {
+        .toolbar {
+            ToolbarItemGroup(placement: .bottomBar) {
                 Button(settings.localized("cancel"), role: .cancel) { dismiss() }
+                Spacer()
                 Button(settings.localized("share")) { shareProgress() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
-            .padding(.bottom, scaledSpacing(1))
         }
         .onAppear {
             if !initialized {
@@ -113,6 +108,25 @@ struct ProgressSharePreview: View {
         }
         dismiss()
 #endif
+    }
+
+    @ViewBuilder
+    private func sliderRow(title: String,
+                           value: Binding<CGFloat>,
+                           range: ClosedRange<CGFloat>) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                Text(title)
+                    .font(.subheadline)
+                Slider(value: value, in: range)
+                    .frame(maxWidth: .infinity)
+            }
+            VStack(alignment: .leading) {
+                Text(title)
+                    .font(.subheadline)
+                Slider(value: value, in: range)
+            }
+        }
     }
 }
 #endif
