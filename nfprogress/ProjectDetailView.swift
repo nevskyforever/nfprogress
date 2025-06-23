@@ -4,6 +4,7 @@ import SwiftUI
 import SwiftData
 #endif
 
+@MainActor
 struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
 #if os(macOS)
@@ -288,6 +289,24 @@ struct ProjectDetailView: View {
         return ShareableProgressImage(image: image)
     }
 
+    @ViewBuilder
+    private func shareToolbarButton(for item: ShareableProgressImage) -> some View {
+        if #available(iOS 16.0, macOS 13.0, *) {
+            shareToolbarButtonAvailable(for: item)
+        } else {
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    @available(iOS 16.0, macOS 13.0, *)
+    private func shareToolbarButtonAvailable(for item: ShareableProgressImage) -> some View {
+        ShareLink(item: item) {
+            Image(systemName: "square.and.arrow.up")
+        }
+        .help(settings.localized("share_progress_tooltip"))
+    }
+
     private func addEntry(stage: Stage? = nil) {
         #if os(macOS)
         let request = AddEntryRequest(projectID: project.id, stageID: stage?.id)
@@ -498,10 +517,7 @@ struct ProjectDetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if let item = shareItem {
-                    ShareLink(item: item) {
-                        Image(systemName: "square.and.arrow.up")
-                    }
-                    .help(settings.localized("share_progress_tooltip"))
+                    shareToolbarButton(for: item)
                 }
             }
         }
