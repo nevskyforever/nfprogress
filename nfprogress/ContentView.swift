@@ -131,9 +131,6 @@ struct ContentView: View {
       .listStyle(.plain)
       .navigationTitle("my_texts")
       .toolbar { toolbarContent }
-#if os(macOS)
-      .navigationSplitViewColumnWidth(405)
-#endif
     }, detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
@@ -141,11 +138,10 @@ struct ContentView: View {
         Text("select_project")
           .foregroundColor(.gray)
       }
-    }
+    })
 #if os(macOS)
     .navigationSplitViewColumnWidth(405)
 #endif
-    )
     .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
     }
