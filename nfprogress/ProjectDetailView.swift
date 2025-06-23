@@ -4,6 +4,7 @@ import SwiftUI
 import SwiftData
 #endif
 
+@MainActor
 struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
 #if os(macOS)
@@ -57,10 +58,253 @@ struct ProjectDetailView: View {
         return Color(hue: hue, saturation: 1, brightness: 1)
     }
 
+#if os(iOS)
+    @ViewBuilder
+    private var progressCircleSection: some View {
+        HStack {
+            Spacer()
+            ProgressCircleView(project: project, trackProgress: false, style: .large)
+                .frame(width: circleSize, height: circleSize)
+            Spacer()
+        }
+    }
+#else
+    @ViewBuilder
+    private var progressCircleSection: some View { EmptyView() }
+#endif
+
+    @ViewBuilder
+    private var chartSection: some View {
+        if project.sortedEntries.count >= 2 {
+            DisclosureGroup(
+                isExpanded: Binding(
+                    get: { !project.isChartCollapsed },
+                    set: { project.isChartCollapsed = !$0 }
+                )
+            ) {
+                ProgressChartView(project: project)
+                    .environmentObject(settings)
+            } label: {
+                Text("progress_chart")
+                    .font(.title3.bold())
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var stagesSection: some View {
+        Text("stages")
+            .font(.title3.bold())
+            .fixedSize(horizontal: false, vertical: true)
+        Button("add_stage") { addStage() }
+        if !project.stages.isEmpty {
+            ForEach(project.stages) { stage in
+                stageDisclosureView(for: stage)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stageDisclosureView(for stage: Stage) -> some View {
+        DisclosureGroup(
+            isExpanded: Binding(
+                get: { expandedStages.contains(stage.id) },
+                set: { newValue in
+                    if newValue { expandedStages.insert(stage.id) } else { expandedStages.remove(stage.id) }
+                }
+            )
+        ) {
+            stageEntriesView(for: stage)
+        } label: {
+            StageHeaderView(
+                stage: stage,
+                project: project,
+                onEdit: { editingStage = stage },
+                onDelete: { stageToDelete = stage }
+            )
+            .environmentObject(settings)
+        }
+    }
+
+    @ViewBuilder
+    private func stageEntriesView(for stage: Stage) -> some View {
+        HStack {
+            Button("add_entry_button") { addEntry(stage: stage) }
+            Spacer()
+        }
+        ForEach(stage.sortedEntries) { entry in
+            stageEntryRow(stage: stage, entry: entry)
+        }
+    }
+
+    @ViewBuilder
+    private func stageEntryRow(stage: Stage, entry: Entry) -> some View {
+        let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
+        let cumulative = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
+        let clamped = max(cumulative, 0)
+        let percent = Double(clamped) / Double(max(stage.goal, 1)) * 100
+
+        let delta = entry.characterCount
+        let deltaPercent = Double(delta) / Double(max(stage.goal, 1)) * 100
+
+        let isSelected = selectedEntry?.id == entry.id
+
+        HStack {
+            VStack(alignment: .leading) {
+                Text(settings.localized("characters_count", clamped))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(settings.localized("stage_progress_format", percent))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundColor(progressColor(percent / 100))
+                Text(settings.localized("change_format", delta, deltaPercent))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
+                Text(entry.date.formatted(date: .numeric, time: .shortened))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            Spacer()
+            if isSelected {
+                Button {
+#if os(macOS)
+                    let req = EditEntryRequest(projectID: project.id, entryID: entry.id)
+                    openWindow(id: "editEntry", value: req)
+#else
+                    editingEntry = entry
+#endif
+                } label: { Image(systemName: "pencil") }
+                Button(role: .destructive) {
+                    if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
+                        stage.entries.remove(at: i)
+                    }
+                    modelContext.delete(entry)
+                    saveContext()
+                    NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+                } label: { Image(systemName: "trash") }
+            }
+        }
+        .contentShape(Rectangle())
+        .scaledPadding(1, .vertical)
+        .frame(minHeight: layoutStep(10))
+        .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        .onTapGesture {
+            if selectedEntry?.id == entry.id {
+                selectedEntry = nil
+            } else {
+                selectedEntry = entry
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var historySection: some View {
+        Text("entries_history")
+            .font(.title3.bold())
+        if project.stages.isEmpty {
+            Button("add_entry_button") { addEntry() }
+                .keyboardShortcut("n", modifiers: .command)
+        }
+        ForEach(project.sortedEntries) { entry in
+            historyEntryRow(entry: entry)
+        }
+    }
+
+    @ViewBuilder
+    private func historyEntryRow(entry: Entry) -> some View {
+        let total = project.globalProgress(for: entry)
+        let prevCount = project.previousGlobalProgress(before: entry)
+        let delta = total - prevCount
+        let deltaPercent = Double(delta) / Double(max(project.goal, 1)) * 100
+        let progressPercent = Double(total) / Double(max(project.goal, 1)) * 100
+        let stageName = project.stageForEntry(entry)?.title
+
+        let isSelected = selectedEntry?.id == entry.id
+
+        HStack {
+            VStack(alignment: .leading) {
+                if let stageName {
+                    Text(settings.localized("stage_colon", stageName))
+                        .font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(settings.localized("characters_count", total))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(settings.localized("change_format", delta, deltaPercent))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
+                Text(settings.localized("progress_format", progressPercent))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+                Text(entry.date.formatted(date: .numeric, time: .shortened))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            Spacer()
+            if isSelected {
+                Button {
+#if os(macOS)
+                    let req = EditEntryRequest(projectID: project.id, entryID: entry.id)
+                    openWindow(id: "editEntry", value: req)
+#else
+                    editingEntry = entry
+#endif
+                } label: {
+                    Image(systemName: "pencil")
+                }
+                Button(role: .destructive) {
+                    if let stage = project.stageForEntry(entry) {
+                        if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
+                            stage.entries.remove(at: i)
+                        }
+                    } else if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
+                        project.entries.remove(at: i)
+                    }
+                    modelContext.delete(entry)
+                    saveContext()
+                    NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+                } label: {
+                    Image(systemName: "trash")
+                }
+            }
+        }
+        .contentShape(Rectangle())
+        .scaledPadding(1, .vertical)
+        .frame(minHeight: layoutStep(10))
+        .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        .onTapGesture {
+            if selectedEntry?.id == entry.id {
+                selectedEntry = nil
+            } else {
+                selectedEntry = entry
+            }
+        }
+    }
+
     /// Image used for sharing the current progress circle.
     @MainActor private var shareItem: ShareableProgressImage? {
         guard let image = progressShareImage(for: project) else { return nil }
         return ShareableProgressImage(image: image)
+    }
+
+    @ViewBuilder
+    private func shareToolbarButton(for item: ShareableProgressImage) -> some View {
+        if #available(iOS 16.0, macOS 13.0, *) {
+            shareToolbarButtonAvailable(for: item)
+        } else {
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    @available(iOS 16.0, macOS 13.0, *)
+    private func shareToolbarButtonAvailable(for item: ShareableProgressImage) -> some View {
+        ShareLink(item: item) {
+            Image(systemName: "square.and.arrow.up")
+        }
+        .help(settings.localized("share_progress_tooltip"))
     }
 
     private func addEntry(stage: Stage? = nil) {
@@ -85,309 +329,119 @@ struct ProjectDetailView: View {
         #endif
     }
 
+    @ViewBuilder
+    private var infoSection: some View {
+        // Название, цель и дедлайн проекта
+        Grid(alignment: .leading, horizontalSpacing: viewSpacing / 2, verticalSpacing: viewSpacing / 2) {
+            GridRow {
+                Text("label_title_colon")
+                    .font(.title3.bold())
+                    .fixedSize(horizontal: false, vertical: true)
+                if isEditingTitle {
+                    TextField("", text: $project.title)
+                        .textFieldStyle(.roundedBorder)
+                        .submitLabel(.done)
+                        .focused($focusedField, equals: .title)
+                        .onSubmit { focusedField = nil }
+                } else {
+                    Text(project.title)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onTapGesture {
+                            isEditingTitle = true
+                            focusedField = .title
+                        }
+                }
+            }
+
+            GridRow {
+                Text("label_goal_colon")
+                    .font(.title3.bold())
+                    .fixedSize(horizontal: false, vertical: true)
+                if isEditingGoal {
+                    TextField("", value: $project.goal, formatter: NumberFormatter())
+                        .textFieldStyle(.roundedBorder)
+                        .submitLabel(.done)
+                        .focused($focusedField, equals: .goal)
+                        .onSubmit { focusedField = nil }
+                } else {
+                    Text("\(project.goal)")
+                        .fixedSize(horizontal: false, vertical: true)
+                        .onTapGesture {
+                            isEditingGoal = true
+                            focusedField = .goal
+                        }
+                }
+            }
+
+            GridRow {
+                Text("label_deadline_colon")
+                    .font(.title3.bold())
+                    .fixedSize(horizontal: false, vertical: true)
+                if isEditingDeadline {
+                    DatePicker(
+                        "",
+                        selection: $tempDeadline,
+                        displayedComponents: .date
+                    )
+                    .labelsHidden()
+                    .environment(\.locale, settings.locale)
+                    .focused($focusedField, equals: .deadline)
+                    .submitLabel(.done)
+                    .onSubmit { focusedField = nil }
+                } else {
+                    Text(
+                        project.deadline.map { deadlineFormatter.string(from: $0) } ??
+                            settings.localized("not_set")
+                    )
+                    .fixedSize(horizontal: false, vertical: true)
+                    .onTapGesture {
+                        tempDeadline = project.deadline ?? Date()
+                        isEditingDeadline = true
+                        focusedField = .deadline
+                    }
+                }
+            }
+        }
+
+        if !isEditingDeadline && project.deadline != nil {
+            Button("remove_deadline", role: .destructive) {
+                project.deadline = nil
+                saveContext()
+            }
+
+            Text(settings.localized("days_left", project.daysLeft))
+                .font(.subheadline)
+                .fixedSize(horizontal: false, vertical: true)
+                .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
+            if let target = project.dailyTarget {
+                Text(settings.localized("daily_goal", target))
+                    .font(.title3.bold())
+                    .foregroundColor(.white)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+
+        if let prompt = project.streakPrompt {
+            Text(prompt)
+                .font(.subheadline)
+                .foregroundColor(.green)
+                .fixedSize(horizontal: false, vertical: true)
+        } else {
+            Text(project.streakStatus)
+                .font(.subheadline)
+                .foregroundColor(.green)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: scaledSpacing(1.5)) {
-                // Название, цель и дедлайн проекта
-                Grid(alignment: .leading, horizontalSpacing: viewSpacing / 2, verticalSpacing: viewSpacing / 2) {
-                    GridRow {
-                        Text("label_title_colon")
-                            .font(.title3.bold())
-                            .fixedSize(horizontal: false, vertical: true)
-                        if isEditingTitle {
-                            TextField("", text: $project.title)
-                                .textFieldStyle(.roundedBorder)
-                                .submitLabel(.done)
-                                .focused($focusedField, equals: .title)
-                                .onSubmit { focusedField = nil }
-                        } else {
-                            Text(project.title)
-                                .fixedSize(horizontal: false, vertical: true)
-                                .onTapGesture {
-                                    isEditingTitle = true
-                                    focusedField = .title
-                                }
-                        }
-                    }
-
-                    GridRow {
-                        Text("label_goal_colon")
-                            .font(.title3.bold())
-                            .fixedSize(horizontal: false, vertical: true)
-                        if isEditingGoal {
-                            TextField("", value: $project.goal, formatter: NumberFormatter())
-                                .textFieldStyle(.roundedBorder)
-                                .submitLabel(.done)
-                                .focused($focusedField, equals: .goal)
-                                .onSubmit { focusedField = nil }
-                        } else {
-                            Text("\(project.goal)")
-                                .fixedSize(horizontal: false, vertical: true)
-                                .onTapGesture {
-                                    isEditingGoal = true
-                                    focusedField = .goal
-                                }
-                        }
-                    }
-
-                    GridRow {
-                        Text("label_deadline_colon")
-                            .font(.title3.bold())
-                            .fixedSize(horizontal: false, vertical: true)
-                        if isEditingDeadline {
-                            DatePicker(
-                                "",
-                                selection: $tempDeadline,
-                                displayedComponents: .date
-                            )
-                            .labelsHidden()
-                            .environment(\.locale, settings.locale)
-                            .focused($focusedField, equals: .deadline)
-                            .submitLabel(.done)
-                            .onSubmit { focusedField = nil }
-                        } else {
-                            Text(
-                                project.deadline.map { deadlineFormatter.string(from: $0) } ??
-                                    settings.localized("not_set")
-                            )
-                            .fixedSize(horizontal: false, vertical: true)
-                            .onTapGesture {
-                                tempDeadline = project.deadline ?? Date()
-                                isEditingDeadline = true
-                                focusedField = .deadline
-                            }
-                        }
-                    }
-                }
-
-                if !isEditingDeadline && project.deadline != nil {
-                    Button("remove_deadline", role: .destructive) {
-                        project.deadline = nil
-                        saveContext()
-                    }
-
-                    Text(settings.localized("days_left", project.daysLeft))
-                        .font(.subheadline)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
-                    if let target = project.dailyTarget {
-                        Text(settings.localized("daily_goal", target))
-                            .font(.title3.bold())
-                            .foregroundColor(.white)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-
-                if let prompt = project.streakPrompt {
-                    Text(prompt)
-                        .font(.subheadline)
-                        .foregroundColor(.green)
-                        .fixedSize(horizontal: false, vertical: true)
-                } else {
-                    Text(project.streakStatus)
-                        .font(.subheadline)
-                        .foregroundColor(.green)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-#if os(iOS)
-                HStack {
-                    Spacer()
-                    ProgressCircleView(project: project, trackProgress: false, style: .large)
-                        .frame(width: circleSize, height: circleSize)
-                    Spacer()
-                }
-#endif
-                if project.sortedEntries.count >= 2 {
-                    DisclosureGroup(
-                        isExpanded: Binding(
-                            get: { !project.isChartCollapsed },
-                            set: { project.isChartCollapsed = !$0 }
-                        )
-                    ) {
-                        ProgressChartView(project: project)
-                            .environmentObject(settings)
-                    } label: {
-                        Text("progress_chart")
-                            .font(.title3.bold())
-                    }
-                }
-
-
-
-                // Этапы
-                Text("stages")
-                    .font(.title3.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                Button("add_stage") {
-                    addStage()
-                }
-                if !project.stages.isEmpty {
-                    ForEach(project.stages) { stage in
-                        DisclosureGroup(
-                            isExpanded: Binding(
-                                get: { expandedStages.contains(stage.id) },
-                                set: { newValue in
-                                    if newValue { expandedStages.insert(stage.id) } else { expandedStages.remove(stage.id) }
-                                }
-                            )
-                        ) {
-                            HStack {
-                                Button("add_entry_button") { addEntry(stage: stage) }
-                                Spacer()
-                            }
-                            ForEach(stage.sortedEntries) { entry in
-                                let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-                                let cumulative = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
-                                let clamped = max(cumulative, 0)
-                                let percent = Double(clamped) / Double(max(stage.goal, 1)) * 100
-
-                                let delta = entry.characterCount
-                                let deltaPercent = Double(delta) / Double(max(stage.goal, 1)) * 100
-                                let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
-
-                                let isSelected = selectedEntry?.id == entry.id
-
-                                HStack {
-                                    VStack(alignment: .leading) {
-                                        Text(settings.localized("characters_count", clamped))
-                                            .fixedSize(horizontal: false, vertical: true)
-                                        Text(settings.localized("stage_progress_format", percent))
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .foregroundColor(progressColor(percent / 100))
-                                        Text(settings.localized("change_format", delta, deltaPercent))
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
-                                        Text(entry.date.formatted(date: .numeric, time: .shortened))
-                                            .fixedSize(horizontal: false, vertical: true)
-                                            .font(.caption)
-                                            .foregroundColor(.gray)
-                                    }
-                                    Spacer()
-                                    if isSelected {
-                                        Button {
-#if os(macOS)
-                                            let req = EditEntryRequest(projectID: project.id, entryID: entry.id)
-                                            openWindow(id: "editEntry", value: req)
-#else
-                                            editingEntry = entry
-#endif
-                                        } label: { Image(systemName: "pencil") }
-                                        Button(role: .destructive) {
-                                            if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
-                                                stage.entries.remove(at: i)
-                                            }
-                                            modelContext.delete(entry)
-                                            saveContext()
-                                            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-                                        } label: { Image(systemName: "trash") }
-                                    }
-                                }
-                                .contentShape(Rectangle())
-                                .scaledPadding(1, .vertical)
-                                .frame(minHeight: layoutStep(10))
-                                .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-                                .onTapGesture {
-                                    if selectedEntry?.id == entry.id {
-                                        selectedEntry = nil
-                                    } else {
-                                        selectedEntry = entry
-                                    }
-                                }
-                            }
-                        } label: {
-                            StageHeaderView(
-                                stage: stage,
-                                project: project,
-                                onEdit: { editingStage = stage },
-                                onDelete: { stageToDelete = stage }
-                            )
-                            .environmentObject(settings)
-                        }
-                    }
-                }
-
-                // История записей
-                Text("entries_history")
-                    .font(.title3.bold())
-                if project.stages.isEmpty {
-                    Button("add_entry_button") {
-                        addEntry()
-                    }
-                    .keyboardShortcut("n", modifiers: .command)
-                }
-                ForEach(project.sortedEntries) { entry in
-                    let total = project.globalProgress(for: entry)
-                    let prevCount = project.previousGlobalProgress(before: entry)
-                    let delta = total - prevCount
-                    let deltaPercent = Double(delta) / Double(max(project.goal, 1)) * 100
-                    let deltaText = String(format: "%+d (%+.0f%%)", delta, deltaPercent)
-                    let progressPercent = Double(total) / Double(max(project.goal, 1)) * 100
-                    let stageName = project.stageForEntry(entry)?.title
-
-                    let isSelected = selectedEntry?.id == entry.id
-
-                    HStack {
-                        VStack(alignment: .leading) {
-                            if let stageName {
-                                Text(settings.localized("stage_colon", stageName))
-                                    .font(.caption)
-                                    .fixedSize(horizontal: false, vertical: true)
-                            }
-                            Text(settings.localized("characters_count", total))
-                                .fixedSize(horizontal: false, vertical: true)
-                            Text(settings.localized("change_format", delta, deltaPercent))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
-                            Text(settings.localized("progress_format", progressPercent))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                            Text(entry.date.formatted(date: .numeric, time: .shortened))
-                                .fixedSize(horizontal: false, vertical: true)
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
-                        Spacer()
-                        if isSelected {
-                            Button {
-#if os(macOS)
-                                let req = EditEntryRequest(projectID: project.id, entryID: entry.id)
-                                openWindow(id: "editEntry", value: req)
-#else
-                                editingEntry = entry
-#endif
-                            } label: {
-                                Image(systemName: "pencil")
-                            }
-                            Button(role: .destructive) {
-                                if let stage = project.stageForEntry(entry) {
-                                    if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
-                                        stage.entries.remove(at: i)
-                                    }
-                                } else if let i = project.entries.firstIndex(where: { $0.id == entry.id }) {
-                                    project.entries.remove(at: i)
-                                }
-                                modelContext.delete(entry)
-                                saveContext()
-                                NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                        }
-                    }
-                    .contentShape(Rectangle())
-                    .scaledPadding(1, .vertical)
-                    .frame(minHeight: layoutStep(10))
-                    .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-                    .onTapGesture {
-                        if selectedEntry?.id == entry.id {
-                            selectedEntry = nil
-                        } else {
-                            selectedEntry = entry
-                        }
-                    }
-                }
+                infoSection
+                progressCircleSection
+                chartSection
+                stagesSection
+                historySection
             }
             .scaledPadding()
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -463,10 +517,7 @@ struct ProjectDetailView: View {
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 if let item = shareItem {
-                    ShareLink(item: item) {
-                        Image(systemName: "square.and.arrow.up")
-                    }
-                    .help(settings.localized("share_progress_tooltip"))
+                    shareToolbarButton(for: item)
                 }
             }
         }
