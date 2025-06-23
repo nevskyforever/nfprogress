@@ -59,7 +59,6 @@ struct ProgressShareView: View {
     var percentFontSize: CGFloat = CGFloat(defaultSharePercentSize)
     var titleFontSize: CGFloat = CGFloat(defaultShareTitleSize)
     var titleSpacing: CGFloat = CGFloat(defaultShareSpacing)
-    var titleOffset: CGFloat = CGFloat(defaultShareTitleOffset)
 
     var body: some View {
         VStack(spacing: 0) {
@@ -75,7 +74,6 @@ struct ProgressShareView: View {
                 .foregroundColor(.black)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
-                .offset(y: titleOffset)
             Spacer()
         }
         .frame(width: shareImageSize, height: shareImageSize)
@@ -89,15 +87,13 @@ func progressShareImage(for project: WritingProject,
                         ringWidth: CGFloat = CGFloat(defaultShareRingWidth),
                         percentFontSize: CGFloat = CGFloat(defaultSharePercentSize),
                         titleFontSize: CGFloat = CGFloat(defaultShareTitleSize),
-                        titleSpacing: CGFloat = CGFloat(defaultShareSpacing),
-                        titleOffset: CGFloat = CGFloat(defaultShareTitleOffset)) -> OSImage? {
+                        titleSpacing: CGFloat = CGFloat(defaultShareSpacing)) -> OSImage? {
     let view = ProgressShareView(project: project,
                                  circleSize: circleSize,
                                  ringWidth: ringWidth,
                                  percentFontSize: percentFontSize,
                                  titleFontSize: titleFontSize,
-                                 titleSpacing: titleSpacing,
-                                 titleOffset: titleOffset)
+                                 titleSpacing: titleSpacing)
     let renderer = ImageRenderer(content: view)
 #if swift(>=5.9)
     renderer.proposedSize = ProposedViewSize(width: shareImageSize, height: shareImageSize)
@@ -120,15 +116,13 @@ func progressShareURL(for project: WritingProject,
                       ringWidth: CGFloat = CGFloat(defaultShareRingWidth),
                       percentFontSize: CGFloat = CGFloat(defaultSharePercentSize),
                       titleFontSize: CGFloat = CGFloat(defaultShareTitleSize),
-                      titleSpacing: CGFloat = CGFloat(defaultShareSpacing),
-                      titleOffset: CGFloat = CGFloat(defaultShareTitleOffset)) -> URL? {
+                      titleSpacing: CGFloat = CGFloat(defaultShareSpacing)) -> URL? {
     guard let image = progressShareImage(for: project,
                                          circleSize: circleSize,
                                          ringWidth: ringWidth,
                                          percentFontSize: percentFontSize,
                                          titleFontSize: titleFontSize,
-                                         titleSpacing: titleSpacing,
-                                         titleOffset: titleOffset) else { return nil }
+                                         titleSpacing: titleSpacing) else { return nil }
 #if canImport(UIKit)
     guard let data = image.pngData() else { return nil }
 #else
