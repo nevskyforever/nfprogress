@@ -261,21 +261,28 @@ struct ContentView: View {
         }
       }
 
-      if selectedProject == nil {
-        ToolbarItem(placement: .navigationBarTrailing) {
-          Menu {
-            Button {
-              settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
-            } label: {
-              Label(settings.localized("toggle_view_tooltip"), systemImage: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
-            }
-
-            Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-              Label(settings.localized("toggle_sort_tooltip"), systemImage: settings.projectSortOrder.iconName)
-            }
+      ToolbarItem(placement: .navigationBarTrailing) {
+        Menu {
+          Button {
+            settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
           } label: {
-            Image(systemName: "ellipsis.circle")
+            Label(settings.localized("toggle_view_tooltip"), systemImage: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
           }
+
+          Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+            Label(settings.localized("toggle_sort_tooltip"), systemImage: settings.projectSortOrder.iconName)
+          }
+
+          if selectedProject != nil {
+            Button(action: exportSelectedProject) {
+              Label(settings.localized("export"), systemImage: "square.and.arrow.up")
+            }
+          }
+          Button(action: importSelectedProject) {
+            Label(settings.localized("import"), systemImage: "square.and.arrow.down")
+          }
+        } label: {
+          Image(systemName: "ellipsis.circle")
         }
       }
     }
