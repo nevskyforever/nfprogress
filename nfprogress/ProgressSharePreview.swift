@@ -1,11 +1,13 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
 struct ProgressSharePreview: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: AppSettings
     var project: WritingProject
-    var shareAction: (_ circleSize: CGFloat, _ ringWidth: CGFloat, _ percentFont: CGFloat, _ titleFont: CGFloat, _ spacing: CGFloat) -> Void
 
     @State private var circleSize: CGFloat = CGFloat(defaultShareCircleSize)
     @State private var ringWidth: CGFloat = CGFloat(defaultShareRingWidth)
@@ -13,6 +15,10 @@ struct ProgressSharePreview: View {
     @State private var titleSize: CGFloat = CGFloat(defaultShareTitleSize)
     @State private var spacing: CGFloat = CGFloat(defaultShareSpacing)
     @State private var initialized = false
+#if os(iOS)
+    @State private var shareURL: URL?
+    @State private var showingShareSheet = false
+#endif
 
     var body: some View {
         VStack(spacing: scaledSpacing(2)) {
@@ -48,19 +54,13 @@ struct ProgressSharePreview: View {
             Spacer()
             HStack(spacing: scaledSpacing(2)) {
                 Button("cancel", role: .cancel) { dismiss() }
-                Button(settings.localized("share")) {
-                    dismiss()
-                    DispatchQueue.main.async {
-                        shareAction(circleSize, ringWidth, percentSize, titleSize, spacing)
-                    }
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
+                Button(settings.localized("share")) { shareProgress() }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .scaledPadding()
-        .frame(minWidth: shareImageSize + layoutStep(4),
-               minHeight: shareImageSize + layoutStep(20))
+        .frame(width: 560, height: 730)
         .onAppear {
             if !initialized {
                 circleSize = CGFloat(settings.lastShareCircleSize)
@@ -71,6 +71,41 @@ struct ProgressSharePreview: View {
                 initialized = true
             }
         }
+#if os(iOS)
+        .sheet(isPresented: $showingShareSheet, onDismiss: {
+            if let url = shareURL { try? FileManager.default.removeItem(at: url) }
+            shareURL = nil
+            dismiss()
+        }) {
+            if let url = shareURL {
+                ShareSheet(items: [url])
+            }
+        }
+#endif
+    }
+
+    private func shareProgress() {
+        guard let url = progressShareURL(for: project,
+                                         circleSize: circleSize,
+                                         ringWidth: ringWidth,
+                                         percentFontSize: percentSize,
+                                         titleFontSize: titleSize,
+                                         titleSpacing: spacing) else { return }
+        settings.lastShareCircleSize = Double(circleSize)
+        settings.lastShareRingWidth = Double(ringWidth)
+        settings.lastSharePercentSize = Double(percentSize)
+        settings.lastShareTitleSize = Double(titleSize)
+        settings.lastShareSpacing = Double(spacing)
+#if os(iOS)
+        shareURL = url
+        showingShareSheet = true
+#else
+        let picker = NSSharingServicePicker(items: [url])
+        if let window = NSApp.keyWindow ?? NSApp.windows.first {
+            picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .minY)
+        }
+        dismiss()
+#endif
     }
 }
 #endif

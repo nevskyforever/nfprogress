@@ -30,10 +30,8 @@ struct ProjectDetailView: View {
     @State private var isEditingDeadline = false
     @FocusState private var focusedField: Field?
 #if os(iOS)
-    @State private var showingShareSheet = false
-#endif
-    @State private var shareURL: URL?
     @State private var showingSharePreview = false
+#endif
 
     /// Base spacing for history and stages sections.
     private let viewSpacing: CGFloat = scaledSpacing(2)
@@ -292,38 +290,19 @@ struct ProjectDetailView: View {
     }
 
     private func shareToolbarButton() -> some View {
+#if os(macOS)
+        Button(action: {
+            let request = SharePreviewRequest(projectID: project.id)
+            openWindow(id: "sharePreview", value: request)
+        }) {
+            Image(systemName: "square.and.arrow.up")
+        }
+        .help(settings.localized("share_progress_tooltip"))
+#else
         Button(action: { showingSharePreview = true }) {
             Image(systemName: "square.and.arrow.up")
         }
         .help(settings.localized("share_progress_tooltip"))
-    }
-
-    private func shareProgress(circleSize: CGFloat,
-                               ringWidth: CGFloat,
-                               percentSize: CGFloat,
-                               titleSize: CGFloat,
-                               spacing: CGFloat) {
-        guard let url = progressShareURL(for: project,
-                                         circleSize: circleSize,
-                                         ringWidth: ringWidth,
-                                         percentFontSize: percentSize,
-                                         titleFontSize: titleSize,
-                                         titleSpacing: spacing) else { return }
-        settings.lastShareCircleSize = Double(circleSize)
-        settings.lastShareRingWidth = Double(ringWidth)
-        settings.lastSharePercentSize = Double(percentSize)
-        settings.lastShareTitleSize = Double(titleSize)
-        settings.lastShareSpacing = Double(spacing)
-        shareURL = url
-#if os(iOS)
-        showingShareSheet = true
-#else
-        let picker = NSSharingServicePicker(items: [url])
-        if let window = NSApplication.shared.keyWindow {
-            picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .minY)
-        } else if let window = NSApplication.shared.windows.first {
-            picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .minY)
-        }
 #endif
     }
 
@@ -539,24 +518,10 @@ struct ProjectDetailView: View {
                 shareToolbarButton()
             }
         }
-        .sheet(isPresented: $showingSharePreview) {
-            ProgressSharePreview(project: project) { cSize, rWidth, pSize, tSize, space in
-                shareProgress(circleSize: cSize,
-                              ringWidth: rWidth,
-                              percentSize: pSize,
-                              titleSize: tSize,
-                              spacing: space)
-            }
-            .environmentObject(settings)
-        }
 #if os(iOS)
-        .sheet(isPresented: $showingShareSheet, onDismiss: {
-            if let url = shareURL { try? FileManager.default.removeItem(at: url) }
-            shareURL = nil
-        }) {
-            if let url = shareURL {
-                ShareSheet(items: [url])
-            }
+        .sheet(isPresented: $showingSharePreview) {
+            ProgressSharePreview(project: project)
+                .environmentObject(settings)
         }
 #endif
     }
