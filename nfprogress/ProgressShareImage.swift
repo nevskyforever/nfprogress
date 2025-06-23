@@ -64,7 +64,7 @@ private struct ProgressShareView: View {
 func progressShareImage(for project: WritingProject) -> OSImage? {
     let view = ProgressShareView(project: project)
     let renderer = ImageRenderer(content: view)
-#if swift(>=6.0)
+#if swift(>=5.9)
     renderer.proposedSize = ProposedViewSize(width: shareImageSize, height: shareImageSize)
 #else
     renderer.proposedSize = CGSize(width: shareImageSize, height: shareImageSize)
