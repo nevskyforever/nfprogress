@@ -9,8 +9,14 @@ import AppKit
 public typealias OSImage = NSImage
 #endif
 
-/// Size of the exported progress image in points.
-let shareImageSize: CGFloat = 500
+/// Size of the exported progress image in points so that the resulting image
+/// has dimensions of 500×500 pixels regardless of screen scale.
+#if canImport(UIKit)
+private let deviceScale = UIScreen.main.scale
+#else
+private let deviceScale = NSScreen.main?.backingScaleFactor ?? 2
+#endif
+let shareImageSize: CGFloat = 500 / deviceScale
 
 
 /// Snapshot of ``ProgressCircleView`` without animations.

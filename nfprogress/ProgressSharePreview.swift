@@ -20,6 +20,7 @@ struct ProgressSharePreview: View {
     @State private var shareURL: URL?
     @State private var showingShareSheet = false
     @State private var showingFullImage = false
+    private var isPhone: Bool { UIDevice.current.userInterfaceIdiom == .phone }
 #endif
 #if os(iOS)
     @State private var containerSize: CGSize = .zero
@@ -43,7 +44,7 @@ struct ProgressSharePreview: View {
 
     private var orientationScale: CGFloat {
 #if os(iOS)
-        if UIDevice.current.userInterfaceIdiom == .phone {
+        if isPhone {
             return showingFullImage ? 1 : 0.5
         } else {
             return containerSize.width > containerSize.height ? 0.75 : 1
@@ -70,14 +71,15 @@ struct ProgressSharePreview: View {
 #endif
                     }
                 VStack(spacing: scaledSpacing(0.5)) {
-                    pickerRow(title: settings.localized("share_preview_circle_size"), value: $circlePercent)
-                    pickerRow(title: settings.localized("share_preview_ring_width"), value: $ringPercent)
-                    pickerRow(title: settings.localized("share_preview_percent_size"), value: $percentFontPercent)
-                    pickerRow(title: settings.localized("share_preview_title_size"), value: $titleFontPercent)
-                    pickerRow(title: settings.localized("share_preview_spacing"), value: $spacingPercent)
+                    controlRow(title: settings.localized("share_preview_circle_size"), value: $circlePercent)
+                    controlRow(title: settings.localized("share_preview_ring_width"), value: $ringPercent)
+                    controlRow(title: settings.localized("share_preview_percent_size"), value: $percentFontPercent)
+                    controlRow(title: settings.localized("share_preview_title_size"), value: $titleFontPercent)
+                    controlRow(title: settings.localized("share_preview_spacing"), value: $spacingPercent)
                 }
                 Spacer()
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onChange(of: geo.size) { newValue in
 #if os(iOS)
                 containerSize = newValue
@@ -115,21 +117,27 @@ struct ProgressSharePreview: View {
             }
         }
         .fullScreenCover(isPresented: $showingFullImage) {
-            VStack {
-                HStack {
-                    Button(settings.localized("cancel")) { showingFullImage = false }
-                        .padding()
+            ZStack {
+                Color.white.ignoresSafeArea()
+                VStack {
+                    Spacer()
+                    ProgressShareView(project: project,
+                                       circleSize: circleSize,
+                                       ringWidth: ringWidth,
+                                       percentFontSize: percentSize,
+                                       titleFontSize: titleSize,
+                                       titleSpacing: spacing)
                     Spacer()
                 }
-                ProgressShareView(project: project,
-                                   circleSize: circleSize,
-                                   ringWidth: ringWidth,
-                                   percentFontSize: percentSize,
-                                   titleFontSize: titleSize,
-                                   titleSpacing: spacing)
+                VStack {
+                    HStack {
+                        Button(settings.localized("cancel")) { showingFullImage = false }
+                            .padding()
+                        Spacer()
+                    }
+                    Spacer()
+                }
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color.white)
         }
 #endif
     }
@@ -159,6 +167,18 @@ struct ProgressSharePreview: View {
     }
 
     @ViewBuilder
+    private func sliderRow(title: String, value: Binding<Int>) -> some View {
+        HStack {
+            Text(title)
+                .font(.footnote)
+            Slider(value: Binding(
+                get: { Double(value.wrappedValue) },
+                set: { value.wrappedValue = Int($0) }
+            ), in: 1...100, step: 1)
+        }
+    }
+
+    @ViewBuilder
     private func pickerRow(title: String, value: Binding<Int>) -> some View {
         HStack {
             Text(title)
@@ -171,6 +191,19 @@ struct ProgressSharePreview: View {
             .labelsHidden()
             .pickerStyle(.menu)
         }
+    }
+
+    @ViewBuilder
+    private func controlRow(title: String, value: Binding<Int>) -> some View {
+#if os(iOS)
+        if isPhone {
+            pickerRow(title: title, value: value)
+        } else {
+            sliderRow(title: title, value: value)
+        }
+#else
+        sliderRow(title: title, value: value)
+#endif
     }
 
     @ViewBuilder
