@@ -22,8 +22,6 @@
 "my_texts" = "My Texts";
 "select_project" = "Select a project";
 "export" = "Export";
-"share" = "Share";
-"cancel" = "Cancel";
 "import" = "Import";
 "delete_project_confirm" = "Delete project \"%@\"?";
 "cannot_undo" = "This action cannot be undone.";
@@ -77,8 +75,3 @@
 "import_project_tooltip" = "Import project";
 "toggle_sort_tooltip" = "Change sort order";
 "share_progress_tooltip" = "Share progress";
-"share_preview_circle_size" = "Circle size";
-"share_preview_ring_width" = "Ring width";
-"share_preview_percent_size" = "Percent size";
-"share_preview_title_size" = "Title size";
-"share_preview_spacing" = "Title spacing";
