@@ -1,6 +1,5 @@
 #if canImport(SwiftUI)
 import SwiftUI
-import UniformTypeIdentifiers
 
 #if canImport(UIKit)
 import UIKit
@@ -65,7 +64,11 @@ private struct ProgressShareView: View {
 func progressShareImage(for project: WritingProject) -> OSImage? {
     let view = ProgressShareView(project: project)
     let renderer = ImageRenderer(content: view)
+#if swift(>=6.0)
+    renderer.proposedSize = ProposedViewSize(width: shareImageSize, height: shareImageSize)
+#else
     renderer.proposedSize = CGSize(width: shareImageSize, height: shareImageSize)
+#endif
 #if canImport(UIKit)
     renderer.scale = UIScreen.main.scale
     return renderer.uiImage
