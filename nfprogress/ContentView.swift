@@ -263,6 +263,16 @@ struct ContentView: View {
 
       ToolbarItem(placement: .navigationBarTrailing) {
         Menu {
+          if selectedProject != nil {
+            Button(action: importSelectedProject) {
+              Label(settings.localized("import"), systemImage: "square.and.arrow.down")
+            }
+
+            Button(action: exportSelectedProject) {
+              Label(settings.localized("export"), systemImage: "square.and.arrow.up")
+            }
+          }
+
           Button {
             settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
           } label: {
@@ -271,15 +281,6 @@ struct ContentView: View {
 
           Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
             Label(settings.localized("toggle_sort_tooltip"), systemImage: settings.projectSortOrder.iconName)
-          }
-
-          if selectedProject != nil {
-            Button(action: exportSelectedProject) {
-              Label(settings.localized("export"), systemImage: "square.and.arrow.up")
-            }
-          }
-          Button(action: importSelectedProject) {
-            Label(settings.localized("import"), systemImage: "square.and.arrow.down")
           }
         } label: {
           Image(systemName: "ellipsis.circle")
