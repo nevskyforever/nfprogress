@@ -2,8 +2,12 @@
 import SwiftUI
 #if canImport(SwiftData)
 import SwiftData
+#if canImport(AppKit)
+import AppKit
+#endif
 #endif
 
+@MainActor
 struct ProjectDetailView: View {
     @Environment(\.modelContext) private var modelContext
 #if os(macOS)
@@ -25,6 +29,10 @@ struct ProjectDetailView: View {
     @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
     @FocusState private var focusedField: Field?
+#if os(iOS)
+    @State private var showingShareSheet = false
+#endif
+    @State private var shareURL: URL?
 
     /// Base spacing for history and stages sections.
     private let viewSpacing: CGFloat = scaledSpacing(2)
@@ -282,10 +290,26 @@ struct ProjectDetailView: View {
         }
     }
 
-    /// Image used for sharing the current progress circle.
-    @MainActor private var shareItem: ShareableProgressImage? {
-        guard let image = progressShareImage(for: project) else { return nil }
-        return ShareableProgressImage(image: image)
+    private func shareToolbarButton() -> some View {
+        Button(action: shareProgress) {
+            Image(systemName: "square.and.arrow.up")
+        }
+        .help(settings.localized("share_progress_tooltip"))
+    }
+
+    private func shareProgress() {
+        guard let url = progressShareURL(for: project) else { return }
+        shareURL = url
+#if os(iOS)
+        showingShareSheet = true
+#else
+        let picker = NSSharingServicePicker(items: [url])
+        if let window = NSApplication.shared.keyWindow {
+            picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .minY)
+        } else if let window = NSApplication.shared.windows.first {
+            picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .minY)
+        }
+#endif
     }
 
     private func addEntry(stage: Stage? = nil) {
@@ -497,14 +521,19 @@ struct ProjectDetailView: View {
         // Removed project title from toolbar to declutter interface
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
-                if let item = shareItem {
-                    ShareLink(item: item) {
-                        Image(systemName: "square.and.arrow.up")
-                    }
-                    .help(settings.localized("share_progress_tooltip"))
-                }
+                shareToolbarButton()
             }
         }
+#if os(iOS)
+        .sheet(isPresented: $showingShareSheet, onDismiss: {
+            if let url = shareURL { try? FileManager.default.removeItem(at: url) }
+            shareURL = nil
+        }) {
+            if let url = shareURL {
+                ShareSheet(items: [url])
+            }
+        }
+#endif
     }
 
     // MARK: - Save Context
