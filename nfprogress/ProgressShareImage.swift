@@ -65,6 +65,7 @@ struct ProgressShareView: View {
             Text(project.title)
                 .font(.system(size: titleFontSize, weight: .bold))
                 .multilineTextAlignment(.center)
+                .foregroundColor(.black)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
