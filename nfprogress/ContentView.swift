@@ -76,9 +76,9 @@ struct ContentView: View {
               .foregroundColor(.gray)
           }
         })
-        .navigationDestination(for: WritingProject.self, destination: { (project: WritingProject) -> ProjectDetailView in
+        .navigationDestination(for: WritingProject.self) { project in
           ProjectDetailView(project: project)
-        })
+        }
       } else {
         NavigationStack {
           List {
@@ -146,9 +146,9 @@ struct ContentView: View {
     .navigationSplitViewColumnWidth(405)
 #endif
     )
-    .navigationDestination(for: WritingProject.self, destination: { (project: WritingProject) -> ProjectDetailView in
+    .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
-    })
+    }
 #endif
   }
 
