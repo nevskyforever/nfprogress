@@ -184,37 +184,34 @@ struct ContentView: View {
         .disabled(selectedProject == nil)
         .help(settings.localized("delete_project_tooltip"))
 
-        if selectedProject == nil {
-          Button(action: importSelectedProject) {
-            Image(systemName: "square.and.arrow.down")
+        Button(action: importSelectedProject) {
+          Image(systemName: "square.and.arrow.down")
+        }
+        .accessibilityLabel(settings.localized("import"))
+        .help(settings.localized("import_project_tooltip"))
+
+        if selectedProject != nil {
+          Button(action: exportSelectedProject) {
+            Image(systemName: "square.and.arrow.up")
           }
-          .accessibilityLabel(settings.localized("import"))
-          .help(settings.localized("import_project_tooltip"))
+          .accessibilityLabel(settings.localized("export"))
+          .help(settings.localized("export_project_tooltip"))
         }
       }
 
-      ToolbarItem(placement: .secondaryAction) {
-        Menu {
+      if selectedProject != nil {
+        ToolbarItemGroup(placement: .secondaryAction) {
           Button {
             settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
           } label: {
-            Label(settings.localized("toggle_view_tooltip"), systemImage: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
           }
+          .help(settings.localized("toggle_view_tooltip"))
 
           Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-            Label(settings.localized("toggle_sort_tooltip"), systemImage: settings.projectSortOrder.iconName)
+            Image(systemName: settings.projectSortOrder.iconName)
           }
-
-          if selectedProject != nil {
-            Button(action: exportSelectedProject) {
-              Label(settings.localized("export"), systemImage: "square.and.arrow.up")
-            }
-            Button(action: importSelectedProject) {
-              Label(settings.localized("import"), systemImage: "square.and.arrow.down")
-            }
-          }
-        } label: {
-          Image(systemName: "ellipsis.circle")
+          .help(settings.localized("toggle_sort_tooltip"))
         }
       }
     } else {
