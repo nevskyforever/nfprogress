@@ -21,7 +21,7 @@ struct ProgressSharePreview: View {
 #endif
 
     var body: some View {
-        VStack(spacing: scaledSpacing(2)) {
+        VStack(spacing: scaledSpacing(1.5)) {
             Spacer()
             ProgressShareView(project: project,
                                circleSize: circleSize,
@@ -29,7 +29,7 @@ struct ProgressSharePreview: View {
                                percentFontSize: percentSize,
                                titleFontSize: titleSize,
                                titleSpacing: spacing)
-            VStack(spacing: scaledSpacing(1)) {
+            VStack(spacing: scaledSpacing(0.5)) {
                 sliderRow(title: settings.localized("share_preview_circle_size"),
                           value: $circleSize,
                           range: 100...shareImageSize)
@@ -51,18 +51,13 @@ struct ProgressSharePreview: View {
         .scaledPadding()
         #if os(macOS)
         .frame(width: 560, height: 730)
+        .toolbar {
+            ToolbarItemGroup(placement: .bottomBar) { bottomControls }
+        }
         #else
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .safeAreaInset(edge: .bottom) { bottomControls }
         #endif
-        .toolbar {
-            ToolbarItemGroup(placement: .bottomBar) {
-                Button(settings.localized("cancel"), role: .cancel) { dismiss() }
-                Spacer()
-                Button(settings.localized("share")) { shareProgress() }
-                    .buttonStyle(.borderedProminent)
-                    .keyboardShortcut(.defaultAction)
-            }
-        }
         .onAppear {
             if !initialized {
                 circleSize = CGFloat(settings.lastShareCircleSize)
@@ -117,16 +112,30 @@ struct ProgressSharePreview: View {
         ViewThatFits(in: .horizontal) {
             HStack {
                 Text(title)
-                    .font(.subheadline)
+                    .font(.footnote)
                 Slider(value: value, in: range)
+                    .controlSize(.small)
                     .frame(maxWidth: .infinity)
             }
             VStack(alignment: .leading) {
                 Text(title)
-                    .font(.subheadline)
+                    .font(.footnote)
                 Slider(value: value, in: range)
+                    .controlSize(.small)
             }
         }
+    }
+
+    @ViewBuilder
+    private var bottomControls: some View {
+        HStack {
+            Button(settings.localized("cancel"), role: .cancel) { dismiss() }
+            Spacer()
+            Button(settings.localized("share")) { shareProgress() }
+                .buttonStyle(.borderedProminent)
+                .keyboardShortcut(.defaultAction)
+        }
+        .scaledPadding()
     }
 }
 #endif
