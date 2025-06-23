@@ -15,6 +15,7 @@ struct ProgressSharePreview: View {
     @State private var percentFontPercent: Int = 100
     @State private var titleFontPercent: Int = 100
     @State private var spacingPercent: Int = 100
+    @State private var offsetPercent: Int = 0
     @State private var initialized = false
 #if os(iOS)
     @State private var shareURL: URL?
@@ -41,6 +42,9 @@ struct ProgressSharePreview: View {
     private var spacing: CGFloat {
         CGFloat(spacingPercent) / 100 * CGFloat(defaultShareSpacing)
     }
+    private var titleOffset: CGFloat {
+        CGFloat(offsetPercent) / 100 * (shareImageSize / 4)
+    }
 
     private var orientationScale: CGFloat {
 #if os(iOS)
@@ -63,8 +67,11 @@ struct ProgressSharePreview: View {
                                    ringWidth: ringWidth,
                                    percentFontSize: percentSize,
                                    titleFontSize: titleSize,
-                                   titleSpacing: spacing)
+                                   titleSpacing: spacing,
+                                   titleOffset: titleOffset)
                     .scaleEffect(orientationScale)
+                    .frame(width: shareImageSize * orientationScale,
+                           height: shareImageSize * orientationScale)
                     .onTapGesture {
 #if os(iOS)
                         if !showingFullImage { showingFullImage = true }
@@ -76,6 +83,7 @@ struct ProgressSharePreview: View {
                     controlRow(title: settings.localized("share_preview_percent_size"), value: $percentFontPercent)
                     controlRow(title: settings.localized("share_preview_title_size"), value: $titleFontPercent)
                     controlRow(title: settings.localized("share_preview_spacing"), value: $spacingPercent)
+                    controlRow(title: settings.localized("share_preview_title_offset"), value: $offsetPercent)
                 }
                 Spacer()
             }
@@ -103,6 +111,7 @@ struct ProgressSharePreview: View {
                 percentFontPercent = max(1, min(100, Int((settings.lastSharePercentSize / defaultSharePercentSize * 100).rounded())))
                 titleFontPercent = max(1, min(100, Int((settings.lastShareTitleSize / defaultShareTitleSize * 100).rounded())))
                 spacingPercent = max(1, min(100, Int((settings.lastShareSpacing / defaultShareSpacing * 100).rounded())))
+                offsetPercent = max(-100, min(100, Int((settings.lastShareTitleOffset / (shareImageSize / 4) * 100).rounded())))
                 initialized = true
             }
         }
@@ -121,12 +130,13 @@ struct ProgressSharePreview: View {
                 Color.gray.opacity(0.3).ignoresSafeArea()
                 VStack {
                     Spacer()
-                    if let img = progressShareImage(for: project,
+                   if let img = progressShareImage(for: project,
                                                   circleSize: circleSize,
                                                   ringWidth: ringWidth,
                                                   percentFontSize: percentSize,
                                                   titleFontSize: titleSize,
-                                                  titleSpacing: spacing) {
+                                                  titleSpacing: spacing,
+                                                  titleOffset: titleOffset) {
 #if os(iOS)
                         Image(uiImage: img)
 #else
@@ -157,12 +167,14 @@ struct ProgressSharePreview: View {
                                          ringWidth: ringWidth,
                                          percentFontSize: percentSize,
                                          titleFontSize: titleSize,
-                                         titleSpacing: spacing) else { return }
+                                         titleSpacing: spacing,
+                                         titleOffset: titleOffset) else { return }
         settings.lastShareCircleSize = Double(circleSize)
         settings.lastShareRingWidth = Double(ringWidth)
         settings.lastSharePercentSize = Double(percentSize)
         settings.lastShareTitleSize = Double(titleSize)
         settings.lastShareSpacing = Double(spacing)
+        settings.lastShareTitleOffset = Double(titleOffset)
 #if os(iOS)
         shareURL = url
         showingShareSheet = true
@@ -184,6 +196,7 @@ struct ProgressSharePreview: View {
                 get: { Double(value.wrappedValue) },
                 set: { value.wrappedValue = Int($0) }
             ), in: 1...100, step: 1)
+            .sliderStyle(.circular)
         }
     }
 
