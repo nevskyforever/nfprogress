@@ -22,6 +22,8 @@
 "my_texts" = "Мои тексты";
 "select_project" = "Выберите проект";
 "export" = "Экспортировать";
+"share" = "Поделиться";
+"cancel" = "Отмена";
 "import" = "Импортировать";
 "delete_project_confirm" = "Удалить проект \"%@\"?";
 "cannot_undo" = "Это действие нельзя отменить.";
@@ -75,3 +77,8 @@
 "import_project_tooltip" = "Импортировать проект";
 "toggle_sort_tooltip" = "Изменить сортировку";
 "share_progress_tooltip" = "Поделиться прогрессом";
+"share_preview_circle_size" = "Размер диаграммы";
+"share_preview_ring_width" = "Толщина круга";
+"share_preview_percent_size" = "Размер процентов";
+"share_preview_title_size" = "Размер названия";
+"share_preview_spacing" = "Расстояние";
