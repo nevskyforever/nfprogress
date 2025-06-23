@@ -169,8 +169,7 @@ struct ContentView: View {
   @ToolbarContentBuilder
   private var toolbarContent: some ToolbarContent {
 #if os(iOS)
-    let isPhone = UIDevice.current.userInterfaceIdiom == .phone
-    if selectedProject != nil || !isPhone {
+    if selectedProject != nil {
       ToolbarItem(placement: .secondaryAction) {
         Button {
           settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
@@ -186,8 +185,8 @@ struct ContentView: View {
         .help(settings.localized("toggle_sort_tooltip"))
       }
     }
-    ToolbarItemGroup(placement: isPhone && selectedProject == nil ? .primaryAction : .secondaryAction) {
-      if selectedProject != nil || !isPhone {
+    ToolbarItemGroup(placement: selectedProject == nil ? .primaryAction : .secondaryAction) {
+      if selectedProject != nil {
         Button(action: exportSelectedProject) {
           Image(systemName: "square.and.arrow.up")
         }
@@ -207,7 +206,7 @@ struct ContentView: View {
       .keyboardShortcut("N", modifiers: [.command, .shift])
       .help(settings.localized("add_project_tooltip"))
     }
-    if selectedProject != nil || !isPhone {
+    if selectedProject != nil {
       ToolbarItem(placement: .primaryAction) {
         Button(action: deleteSelectedProject) {
           Label("delete", systemImage: "minus")
