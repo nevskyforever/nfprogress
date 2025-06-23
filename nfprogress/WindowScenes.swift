@@ -18,6 +18,10 @@ struct EditEntryRequest: Codable, Hashable {
     var entryID: UUID
 }
 
+struct SharePreviewRequest: Codable, Hashable {
+    var projectID: PersistentIdentifier
+}
+
 private func fetchProject(id: PersistentIdentifier, context: ModelContext) -> WritingProject? {
     let descriptor = FetchDescriptor<WritingProject>(
         predicate: #Predicate { $0.id == id }
@@ -105,6 +109,21 @@ extension nfprogressApp {
 #if os(macOS)
                     .windowTitle("NFProgress")
                     .windowDefaultSize(width: layoutStep(40), height: layoutStep(25))
+#endif
+            }
+        }
+        .modelContainer(DataController.shared)
+
+        WindowGroup(id: "sharePreview", for: SharePreviewRequest.self) { binding in
+            let context = ModelContext(DataController.shared)
+            if let request = binding.wrappedValue,
+               let project = fetchProject(id: request.projectID, context: context) {
+                ProgressSharePreview(project: project)
+                    .environmentObject(settings)
+                    .environment(\.locale, settings.locale)
+#if os(macOS)
+                    .windowTitle(settings.localized("share"))
+                    .windowDefaultSize(width: 560, height: 730)
 #endif
             }
         }
