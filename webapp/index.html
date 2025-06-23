@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NFProgress Web</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header>
+    <h1>NFProgress</h1>
+  </header>
+  <main>
+    <section id="project-list">
+      <h2>Your Projects</h2>
+      <ul id="projects"></ul>
+      <button id="add-project-btn">Add Project</button>
+    </section>
+    <section id="project-details" class="hidden">
+      <button id="back-btn">&larr; Back</button>
+      <h2 id="project-title"></h2>
+      <div id="project-progress"></div>
+      <ul id="entries"></ul>
+      <button id="add-entry-btn">Add Entry</button>
+    </section>
+  </main>
+
+  <div id="project-dialog" class="modal hidden">
+    <div class="modal-content">
+      <label>Title <input type="text" id="project-title-input"></label>
+      <label>Goal <input type="number" id="project-goal-input"></label>
+      <button id="save-project-btn">Save</button>
+      <button id="cancel-project-btn">Cancel</button>
+    </div>
+  </div>
+
+  <div id="entry-dialog" class="modal hidden">
+    <div class="modal-content">
+      <label>Date <input type="date" id="entry-date"></label>
+      <label>Characters <input type="number" id="entry-count"></label>
+      <button id="save-entry-btn">Save</button>
+      <button id="cancel-entry-btn">Cancel</button>
+    </div>
+  </div>
+
+<script src="script.js"></script>
+</body>
+</html>
