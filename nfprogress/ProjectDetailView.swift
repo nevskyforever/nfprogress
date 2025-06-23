@@ -85,115 +85,110 @@ struct ProjectDetailView: View {
         #endif
     }
 
-    @ViewBuilder
-    private var infoSection: some View {
-        // Название, цель и дедлайн проекта
-        Grid(alignment: .leading, horizontalSpacing: viewSpacing / 2, verticalSpacing: viewSpacing / 2) {
-            GridRow {
-                Text("label_title_colon")
-                    .font(.title3.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                if isEditingTitle {
-                    TextField("", text: $project.title)
-                        .textFieldStyle(.roundedBorder)
-                        .submitLabel(.done)
-                        .focused($focusedField, equals: .title)
-                        .onSubmit { focusedField = nil }
-                } else {
-                    Text(project.title)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onTapGesture {
-                            isEditingTitle = true
-                            focusedField = .title
-                        }
-                }
-            }
-
-            GridRow {
-                Text("label_goal_colon")
-                    .font(.title3.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                if isEditingGoal {
-                    TextField("", value: $project.goal, formatter: NumberFormatter())
-                        .textFieldStyle(.roundedBorder)
-                        .submitLabel(.done)
-                        .focused($focusedField, equals: .goal)
-                        .onSubmit { focusedField = nil }
-                } else {
-                    Text("\(project.goal)")
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onTapGesture {
-                            isEditingGoal = true
-                            focusedField = .goal
-                        }
-                }
-            }
-
-            GridRow {
-                Text("label_deadline_colon")
-                    .font(.title3.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                if isEditingDeadline {
-                    DatePicker(
-                        "",
-                        selection: $tempDeadline,
-                        displayedComponents: .date
-                    )
-                    .labelsHidden()
-                    .environment(\.locale, settings.locale)
-                    .focused($focusedField, equals: .deadline)
-                    .submitLabel(.done)
-                    .onSubmit { focusedField = nil }
-                } else {
-                    Text(
-                        project.deadline.map { deadlineFormatter.string(from: $0) } ??
-                            settings.localized("not_set")
-                    )
-                    .fixedSize(horizontal: false, vertical: true)
-                    .onTapGesture {
-                        tempDeadline = project.deadline ?? Date()
-                        isEditingDeadline = true
-                        focusedField = .deadline
-                    }
-                }
-            }
-        }
-
-        if !isEditingDeadline && project.deadline != nil {
-            Button("remove_deadline", role: .destructive) {
-                project.deadline = nil
-                saveContext()
-            }
-
-            Text(settings.localized("days_left", project.daysLeft))
-                .font(.subheadline)
-                .fixedSize(horizontal: false, vertical: true)
-                .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
-            if let target = project.dailyTarget {
-                Text(settings.localized("daily_goal", target))
-                    .font(.title3.bold())
-                    .foregroundColor(.white)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-
-        if let prompt = project.streakPrompt {
-            Text(prompt)
-                .font(.subheadline)
-                .foregroundColor(.green)
-                .fixedSize(horizontal: false, vertical: true)
-        } else {
-            Text(project.streakStatus)
-                .font(.subheadline)
-                .foregroundColor(.green)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: scaledSpacing(1.5)) {
-                infoSection
+                // Название, цель и дедлайн проекта
+                Grid(alignment: .leading, horizontalSpacing: viewSpacing / 2, verticalSpacing: viewSpacing / 2) {
+                    GridRow {
+                        Text("label_title_colon")
+                            .font(.title3.bold())
+                            .fixedSize(horizontal: false, vertical: true)
+                        if isEditingTitle {
+                            TextField("", text: $project.title)
+                                .textFieldStyle(.roundedBorder)
+                                .submitLabel(.done)
+                                .focused($focusedField, equals: .title)
+                                .onSubmit { focusedField = nil }
+                        } else {
+                            Text(project.title)
+                                .fixedSize(horizontal: false, vertical: true)
+                                .onTapGesture {
+                                    isEditingTitle = true
+                                    focusedField = .title
+                                }
+                        }
+                    }
+
+                    GridRow {
+                        Text("label_goal_colon")
+                            .font(.title3.bold())
+                            .fixedSize(horizontal: false, vertical: true)
+                        if isEditingGoal {
+                            TextField("", value: $project.goal, formatter: NumberFormatter())
+                                .textFieldStyle(.roundedBorder)
+                                .submitLabel(.done)
+                                .focused($focusedField, equals: .goal)
+                                .onSubmit { focusedField = nil }
+                        } else {
+                            Text("\(project.goal)")
+                                .fixedSize(horizontal: false, vertical: true)
+                                .onTapGesture {
+                                    isEditingGoal = true
+                                    focusedField = .goal
+                                }
+                        }
+                    }
+
+                    GridRow {
+                        Text("label_deadline_colon")
+                            .font(.title3.bold())
+                            .fixedSize(horizontal: false, vertical: true)
+                        if isEditingDeadline {
+                            DatePicker(
+                                "",
+                                selection: $tempDeadline,
+                                displayedComponents: .date
+                            )
+                            .labelsHidden()
+                            .environment(\.locale, settings.locale)
+                            .focused($focusedField, equals: .deadline)
+                            .submitLabel(.done)
+                            .onSubmit { focusedField = nil }
+                        } else {
+                            Text(
+                                project.deadline.map { deadlineFormatter.string(from: $0) } ??
+                                    settings.localized("not_set")
+                            )
+                            .fixedSize(horizontal: false, vertical: true)
+                            .onTapGesture {
+                                tempDeadline = project.deadline ?? Date()
+                                isEditingDeadline = true
+                                focusedField = .deadline
+                            }
+                        }
+                    }
+                }
+
+                if !isEditingDeadline && project.deadline != nil {
+                    Button("remove_deadline", role: .destructive) {
+                        project.deadline = nil
+                        saveContext()
+                    }
+
+                    Text(settings.localized("days_left", project.daysLeft))
+                        .font(.subheadline)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .foregroundColor(deadlineColor(daysLeft: project.daysLeft))
+                    if let target = project.dailyTarget {
+                        Text(settings.localized("daily_goal", target))
+                            .font(.title3.bold())
+                            .foregroundColor(.white)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                if let prompt = project.streakPrompt {
+                    Text(prompt)
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text(project.streakStatus)
+                        .font(.subheadline)
+                        .foregroundColor(.green)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
 
 #if os(iOS)
                 HStack {
