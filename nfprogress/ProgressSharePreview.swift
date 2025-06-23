@@ -53,11 +53,12 @@ struct ProgressSharePreview: View {
             }
             Spacer()
             HStack(spacing: scaledSpacing(2)) {
-                Button("cancel", role: .cancel) { dismiss() }
+                Button(settings.localized("cancel"), role: .cancel) { dismiss() }
                 Button(settings.localized("share")) { shareProgress() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
+            .padding(.bottom, scaledSpacing(1))
         }
         .scaledPadding()
         .frame(width: 560, height: 730)

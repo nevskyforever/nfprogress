@@ -23,6 +23,7 @@
 "select_project" = "Select a project";
 "export" = "Export";
 "share" = "Share";
+"cancel" = "Cancel";
 "import" = "Import";
 "delete_project_confirm" = "Delete project \"%@\"?";
 "cannot_undo" = "This action cannot be undone.";
