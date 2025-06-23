@@ -90,7 +90,7 @@ struct ProgressSharePreview: View {
         #if os(macOS)
         .frame(width: 560, height: 730)
         .toolbar {
-            ToolbarItemGroup(placement: .bottomBar) { bottomControls }
+            ToolbarItemGroup { bottomControls }
         }
         #else
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -127,7 +127,7 @@ struct ProgressSharePreview: View {
                                                   percentFontSize: percentSize,
                                                   titleFontSize: titleSize,
                                                   titleSpacing: spacing) {
-#if canImport(UIKit)
+#if os(iOS)
                         Image(uiImage: img)
 #else
                         Image(nsImage: img)
