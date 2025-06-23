@@ -65,6 +65,8 @@ struct ProgressSharePreview: View {
                                    titleFontSize: titleSize,
                                    titleSpacing: spacing)
                     .scaleEffect(orientationScale)
+                    .frame(width: shareImageSize * orientationScale,
+                           height: shareImageSize * orientationScale)
                     .onTapGesture {
 #if os(iOS)
                         if !showingFullImage { showingFullImage = true }
