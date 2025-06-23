@@ -61,7 +61,11 @@ struct ProgressSharePreview: View {
             .padding(.bottom, scaledSpacing(1))
         }
         .scaledPadding()
+#if os(macOS)
         .frame(width: 560, height: 730)
+#else
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+#endif
         .onAppear {
             if !initialized {
                 circleSize = CGFloat(settings.lastShareCircleSize)
