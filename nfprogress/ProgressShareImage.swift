@@ -1,5 +1,6 @@
 #if canImport(SwiftUI)
 import SwiftUI
+import UniformTypeIdentifiers
 
 #if canImport(UIKit)
 import UIKit
@@ -75,7 +76,8 @@ struct ShareableProgressImage: Transferable {
     var image: OSImage
 
     static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(contentType: .png) { item in
+        // Encoding must run on the main actor because OSImage is a UI type.
+        DataRepresentation(contentType: .png) { @MainActor item in
 #if canImport(UIKit)
             item.image.pngData() ?? Data()
 #else
