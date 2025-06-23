@@ -52,6 +52,14 @@ struct ProgressSharePreview: View {
                 }
             }
             Spacer()
+        }
+        .scaledPadding()
+        #if os(macOS)
+        .frame(width: 560, height: 730)
+        #else
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        #endif
+        .safeAreaInset(edge: .bottom) {
             HStack(spacing: scaledSpacing(2)) {
                 Button(settings.localized("cancel"), role: .cancel) { dismiss() }
                 Button(settings.localized("share")) { shareProgress() }
@@ -60,12 +68,6 @@ struct ProgressSharePreview: View {
             }
             .padding(.bottom, scaledSpacing(1))
         }
-        .scaledPadding()
-#if os(macOS)
-        .frame(width: 560, height: 730)
-#else
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-#endif
         .onAppear {
             if !initialized {
                 circleSize = CGFloat(settings.lastShareCircleSize)
