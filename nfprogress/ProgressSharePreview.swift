@@ -196,7 +196,6 @@ struct ProgressSharePreview: View {
                 get: { Double(value.wrappedValue) },
                 set: { value.wrappedValue = Int($0) }
             ), in: 1...100, step: 1)
-            .sliderStyle(.circular)
         }
     }
 
