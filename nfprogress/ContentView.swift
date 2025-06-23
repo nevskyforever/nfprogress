@@ -261,9 +261,18 @@ struct ContentView: View {
         }
       }
 
-      if selectedProject == nil {
         ToolbarItem(placement: .navigationBarTrailing) {
           Menu {
+            if selectedProject != nil {
+              Button(action: importSelectedProject) {
+                Label(settings.localized("import"), systemImage: "square.and.arrow.down")
+              }
+
+              Button(action: exportSelectedProject) {
+                Label(settings.localized("export"), systemImage: "square.and.arrow.up")
+              }
+            }
+
             Button {
               settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
             } label: {
@@ -277,7 +286,6 @@ struct ContentView: View {
             Image(systemName: "ellipsis.circle")
           }
         }
-      }
     }
 #else
     ToolbarItemGroup(placement: .automatic) {
