@@ -58,7 +58,10 @@ private struct ProgressShareView: View {
 
 @MainActor
 func progressShareImage(for project: WritingProject) -> OSImage? {
-    let renderer = ImageRenderer(content: ProgressShareView(project: project))
+    // Break the rendering steps into smaller expressions to
+    // help the compiler with type inference.
+    let view = ProgressShareView(project: project)
+    let renderer = ImageRenderer(content: view)
 #if canImport(UIKit)
     renderer.scale = UIScreen.main.scale
     return renderer.uiImage

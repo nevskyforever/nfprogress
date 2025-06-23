@@ -58,7 +58,7 @@ struct ProjectDetailView: View {
     }
 
     /// Image used for sharing the current progress circle.
-    private var shareItem: ShareableProgressImage? {
+    @MainActor private var shareItem: ShareableProgressImage? {
         guard let image = progressShareImage(for: project) else { return nil }
         return ShareableProgressImage(image: image)
     }
