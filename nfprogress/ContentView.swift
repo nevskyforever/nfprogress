@@ -216,21 +216,23 @@ struct ContentView: View {
       }
     }
 #else
-    ToolbarItem {
-      Button {
-        settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
-      } label: {
-        Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+    if selectedProject != nil {
+      ToolbarItem(placement: .secondaryAction) {
+        Button {
+          settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+        } label: {
+          Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+        }
+        .help(settings.localized("toggle_view_tooltip"))
       }
-      .help(settings.localized("toggle_view_tooltip"))
-    }
-    ToolbarItem {
-      Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-        Image(systemName: settings.projectSortOrder.iconName)
+      ToolbarItem(placement: .secondaryAction) {
+        Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+          Image(systemName: settings.projectSortOrder.iconName)
+        }
+        .help(settings.localized("toggle_sort_tooltip"))
       }
-      .help(settings.localized("toggle_sort_tooltip"))
     }
-    ToolbarItemGroup {
+    ToolbarItemGroup(placement: selectedProject == nil ? .primaryAction : .secondaryAction) {
       if selectedProject != nil {
         Button(action: exportSelectedProject) {
           Image(systemName: "square.and.arrow.up")
@@ -244,20 +246,21 @@ struct ContentView: View {
       .accessibilityLabel(settings.localized("import"))
       .help(settings.localized("import_project_tooltip"))
     }
-    ToolbarItem {
+    ToolbarItem(placement: .primaryAction) {
       Button(action: addProject) {
         Label("add", systemImage: "plus")
       }
       .keyboardShortcut("N", modifiers: [.command, .shift])
       .help(settings.localized("add_project_tooltip"))
     }
-    ToolbarItem {
-      Button(action: deleteSelectedProject) {
-        Label("delete", systemImage: "minus")
+    if selectedProject != nil {
+      ToolbarItem(placement: .primaryAction) {
+        Button(action: deleteSelectedProject) {
+          Label("delete", systemImage: "minus")
+        }
+        .keyboardShortcut(.return, modifiers: .command)
+        .help(settings.localized("delete_project_tooltip"))
       }
-      .keyboardShortcut(.return, modifiers: .command)
-      .disabled(selectedProject == nil)
-      .help(settings.localized("delete_project_tooltip"))
     }
 #endif
   }
