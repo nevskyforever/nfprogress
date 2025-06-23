@@ -48,7 +48,7 @@ struct ProgressSharePreview: View {
             Spacer()
             HStack(spacing: scaledSpacing(2)) {
                 Button("cancel", role: .cancel) { dismiss() }
-                Button(settings.localized("export")) {
+                Button(settings.localized("share")) {
                     dismiss()
                     DispatchQueue.main.async {
                         shareAction(circleSize, ringWidth, percentSize, titleSize, spacing)

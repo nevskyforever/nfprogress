@@ -22,6 +22,7 @@
 "my_texts" = "My Texts";
 "select_project" = "Select a project";
 "export" = "Export";
+"share" = "Share";
 "import" = "Import";
 "delete_project_confirm" = "Delete project \"%@\"?";
 "cannot_undo" = "This action cannot be undone.";
