@@ -28,6 +28,8 @@ struct ContentView: View {
 
   private let circleHeight: CGFloat = layoutStep(10)
 #if os(macOS)
+  /// Minimal window width when no project is selected.
+  private let baseWindowWidth: CGFloat = layoutStep(35)
   /// Expanded window width to fit all toolbar buttons.
   private let expandedWindowWidth: CGFloat = layoutStep(48)
 #endif
@@ -39,7 +41,7 @@ struct ContentView: View {
 #if os(macOS)
   /// Current minimum width required for the window.
   private var minWindowWidth: CGFloat {
-    selectedProject == nil ? 0 : expandedWindowWidth
+    selectedProject == nil ? baseWindowWidth : expandedWindowWidth
   }
 #endif
 
@@ -431,7 +433,7 @@ struct ContentView: View {
   /// Updates the current window width according to ``minWindowWidth``.
   private func updateWindowWidth() {
     DispatchQueue.main.async {
-      guard let window = NSApp.keyWindow else { return }
+      guard let window = NSApp.keyWindow ?? NSApp.windows.first else { return }
       var size = window.contentMinSize
       size.width = minWindowWidth
       window.contentMinSize = size
