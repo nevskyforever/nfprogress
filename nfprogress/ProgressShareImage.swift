@@ -56,6 +56,7 @@ private struct ProgressShareView: View {
     }
 }
 
+@MainActor
 func progressShareImage(for project: WritingProject) -> OSImage? {
     let renderer = ImageRenderer(content: ProgressShareView(project: project))
 #if canImport(UIKit)
@@ -71,7 +72,7 @@ struct ShareableProgressImage: Transferable {
     var image: OSImage
 
     static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(exportedContentType: .png) { item in
+        DataRepresentation(contentType: .png) { item in
 #if canImport(UIKit)
             item.image.pngData() ?? Data()
 #else
