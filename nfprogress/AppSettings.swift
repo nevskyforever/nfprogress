@@ -14,7 +14,6 @@ let defaultShareRingWidth: Double = 24
 let defaultSharePercentSize: Double = 45
 let defaultShareTitleSize: Double = 56
 let defaultShareSpacing: Double = 16
-let defaultShareTitleOffset: Double = 0
 
 
 enum AppLanguage: String, CaseIterable, Identifiable {
@@ -110,9 +109,6 @@ final class AppSettings: ObservableObject {
     @Published var lastShareSpacing: Double {
         didSet { defaults.set(lastShareSpacing, forKey: "lastShareSpacing") }
     }
-    @Published var lastShareTitleOffset: Double {
-        didSet { defaults.set(lastShareTitleOffset, forKey: "lastShareTitleOffset") }
-    }
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
@@ -136,8 +132,6 @@ final class AppSettings: ObservableObject {
         lastShareTitleSize = t == 0 ? defaultShareTitleSize : t
         let s = defaults.double(forKey: "lastShareSpacing")
         lastShareSpacing = s == 0 ? defaultShareSpacing : s
-        let o = defaults.double(forKey: "lastShareTitleOffset")
-        lastShareTitleOffset = o == 0 ? defaultShareTitleOffset : o
     }
 }
 #else
@@ -200,9 +194,6 @@ final class AppSettings {
     var lastShareSpacing: Double {
         didSet { defaults.set(lastShareSpacing, forKey: "lastShareSpacing") }
     }
-    var lastShareTitleOffset: Double {
-        didSet { defaults.set(lastShareTitleOffset, forKey: "lastShareTitleOffset") }
-    }
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
@@ -226,8 +217,6 @@ final class AppSettings {
         lastShareTitleSize = t == 0 ? defaultShareTitleSize : t
         let s = defaults.double(forKey: "lastShareSpacing")
         lastShareSpacing = s == 0 ? defaultShareSpacing : s
-        let o = defaults.double(forKey: "lastShareTitleOffset")
-        lastShareTitleOffset = o == 0 ? defaultShareTitleOffset : o
     }
 }
 #endif
