@@ -247,6 +247,19 @@ class WritingProject {
         guard goal > 0 else { return 0 }
         return Int(Double(progressLastWeek) / Double(goal) * 100)
     }
+
+    /// Conformance to ``Identifiable`` and ``Hashable`` enables using
+    /// ``WritingProject`` with navigation destinations.
+}
+
+extension WritingProject: Identifiable, Hashable {
+    static func == (lhs: WritingProject, rhs: WritingProject) -> Bool {
+        lhs.id == rhs.id
+    }
+
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
 }
 
 @Model
