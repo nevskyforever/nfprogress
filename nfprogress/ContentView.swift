@@ -76,7 +76,7 @@ struct ContentView: View {
               .foregroundColor(.gray)
           }
         })
-        .navigationDestination(for: WritingProject.self) { project in
+        .navigationDestination(for: WritingProject.self) { (project: WritingProject) -> ProjectDetailView in
           ProjectDetailView(project: project)
         }
       } else {
@@ -106,7 +106,7 @@ struct ContentView: View {
           .navigationTitle("my_texts")
           .navigationBarTitleDisplayMode(.inline)
           .toolbar { toolbarContent }
-          .navigationDestination(item: $openedProject) { project in
+          .navigationDestination(item: $openedProject) { (project: WritingProject) -> ProjectDetailView in
             ProjectDetailView(project: project)
           }
         }
@@ -146,7 +146,7 @@ struct ContentView: View {
     .navigationSplitViewColumnWidth(405)
 #endif
     )
-    .navigationDestination(for: WritingProject.self) { project in
+    .navigationDestination(for: WritingProject.self) { (project: WritingProject) -> ProjectDetailView in
       ProjectDetailView(project: project)
     }
 #endif
