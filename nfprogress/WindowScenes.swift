@@ -48,9 +48,9 @@ extension nfprogressApp {
                 .environment(\.locale, settings.locale)
 #if os(macOS)
                 .windowTitle(settings.localized("new_project"))
+                .windowDefaultSize(width: layoutStep(35), height: layoutStep(20))
 #endif
         }
-        .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
 
         WindowGroup(id: "addStage", for: AddStageRequest.self) { binding in
@@ -62,10 +62,10 @@ extension nfprogressApp {
                     .environment(\.locale, settings.locale)
 #if os(macOS)
                     .windowTitle(settings.localized("new_stage"))
+                    .windowDefaultSize(width: layoutStep(35), height: layoutStep(20))
 #endif
             }
         }
-        .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
 
         WindowGroup(id: "addEntry", for: AddEntryRequest.self) { binding in
@@ -79,6 +79,7 @@ extension nfprogressApp {
                         .environment(\.locale, settings.locale)
 #if os(macOS)
                         .windowTitle(settings.localized("new_entry"))
+                        .windowDefaultSize(width: layoutStep(35), height: layoutStep(20))
 #endif
                 } else {
                     AddEntryView(project: project)
@@ -86,11 +87,11 @@ extension nfprogressApp {
                         .environment(\.locale, settings.locale)
 #if os(macOS)
                         .windowTitle(settings.localized("new_entry"))
+                        .windowDefaultSize(width: layoutStep(35), height: layoutStep(20))
 #endif
                 }
             }
         }
-        .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
 
         WindowGroup(id: "editEntry", for: EditEntryRequest.self) { binding in
@@ -103,10 +104,10 @@ extension nfprogressApp {
                     .environment(\.locale, settings.locale)
 #if os(macOS)
                     .windowTitle("NFProgress")
+                    .windowDefaultSize(width: layoutStep(40), height: layoutStep(25))
 #endif
             }
         }
-        .defaultSize(width: layoutStep(40), height: layoutStep(25))
         .modelContainer(DataController.shared)
     }
 }
