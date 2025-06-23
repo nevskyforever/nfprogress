@@ -10,9 +10,6 @@ import AppKit
 public typealias OSImage = NSImage
 #endif
 
-/// Size of the exported progress image in points.
-private let shareImageSize: CGFloat = 500
-
 /// Snapshot of ``ProgressCircleView`` without animations.
 private struct ProgressCircleSnapshotView: View {
     var project: WritingProject
@@ -51,21 +48,21 @@ private struct ProgressShareView: View {
     var body: some View {
         VStack(spacing: scaledSpacing(2)) {
             ProgressCircleSnapshotView(project: project, style: .large)
-                .frame(width: shareImageSize * 0.7, height: shareImageSize * 0.7)
+                .frame(width: layoutStep(20), height: layoutStep(20))
             Text(project.title)
-                .font(.title.bold())
-                .multilineTextAlignment(.center)
+                .font(.title2.bold())
         }
-        .frame(width: shareImageSize, height: shareImageSize)
+        .padding()
         .background(Color.white)
     }
 }
 
 @MainActor
 func progressShareImage(for project: WritingProject) -> OSImage? {
+    // Break the rendering steps into smaller expressions to
+    // help the compiler with type inference.
     let view = ProgressShareView(project: project)
     let renderer = ImageRenderer(content: view)
-    renderer.proposedSize = CGSize(width: shareImageSize, height: shareImageSize)
 #if canImport(UIKit)
     renderer.scale = UIScreen.main.scale
     return renderer.uiImage
@@ -75,26 +72,28 @@ func progressShareImage(for project: WritingProject) -> OSImage? {
 #endif
 }
 
+struct ShareableProgressImage: Transferable {
+    var image: OSImage
 
-@MainActor
-func progressShareURL(for project: WritingProject) -> URL? {
-    guard let image = progressShareImage(for: project) else { return nil }
+    static var transferRepresentation: some TransferRepresentation {
+        DataRepresentation(contentType: .png) { item in
 #if canImport(UIKit)
-    guard let data = image.pngData() else { return nil }
+            item.image.pngData() ?? Data()
 #else
-    guard let tiff = image.tiffRepresentation,
-          let rep = NSBitmapImageRep(data: tiff),
-          let data = rep.representation(using: .png, properties: [:]) else {
-        return nil
-    }
+            guard let tiff = item.image.tiffRepresentation,
+                  let rep = NSBitmapImageRep(data: tiff),
+                  let data = rep.representation(using: .png, properties: [:]) else {
+                return Data()
+            }
+            return data
 #endif
-    let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString + ".png")
-    do {
-        try data.write(to: url)
-        return url
-    } catch {
-        print("Ошибка сохранения PNG: \(error)")
-        return nil
+        } importing: { data in
+#if canImport(UIKit)
+            ShareableProgressImage(image: UIImage(data: data) ?? UIImage())
+#else
+            ShareableProgressImage(image: NSImage(data: data) ?? NSImage())
+#endif
+        }
     }
 }
 #endif
