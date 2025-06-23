@@ -261,10 +261,23 @@ struct ContentView: View {
         }
       }
 
-        // iOS automatically provides a toolbar menu for secondary actions when a
-        // project is selected. Showing our custom menu in that state caused a
-        // duplicate empty menu on iPhone. The custom menu is therefore removed
-        // to avoid confusion.
+        if selectedProject == nil {
+          ToolbarItem(placement: .navigationBarTrailing) {
+            Menu {
+              Button {
+                settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+              } label: {
+                Label(settings.localized("toggle_view_tooltip"), systemImage: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+              }
+
+              Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+                Label(settings.localized("toggle_sort_tooltip"), systemImage: settings.projectSortOrder.iconName)
+              }
+            } label: {
+              Image(systemName: "ellipsis.circle")
+            }
+          }
+        }
     }
 #else
     ToolbarItemGroup(placement: .automatic) {
