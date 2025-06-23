@@ -23,7 +23,7 @@ private struct ProgressCircleSnapshotView: View {
         return min(max(value, 0), 1)
     }
 
-    private var ringWidth: CGFloat { (style == .large ? layoutStep(3) : layoutStep(2)) * 2 }
+    private var ringWidth: CGFloat { style == .large ? layoutStep(3) : layoutStep(2) }
     private var color: Color { .interpolate(from: .red, to: .green, fraction: progress) }
     private var fontToken: FontToken { style == .large ? .progressValueLarge : .progressValue }
 
@@ -36,7 +36,7 @@ private struct ProgressCircleSnapshotView: View {
                 .rotationEffect(.degrees(-90))
             let percent = Int(ceil(progress * 100))
             Text("\(percent)%")
-                .font(.system(size: calcFontSize(token: fontToken) * 3))
+                .scaledFont(fontToken)
                 .monospacedDigit()
                 .bold()
                 .foregroundColor(color)
