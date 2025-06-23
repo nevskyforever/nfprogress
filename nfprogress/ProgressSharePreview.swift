@@ -9,13 +9,13 @@ struct ProgressSharePreview: View {
     @EnvironmentObject private var settings: AppSettings
     var project: WritingProject
 
-    // Values stored as percentages of defaults (1...100)
-    @State private var circlePercent: Int = 100
-    @State private var ringPercent: Int = 100
-    @State private var percentFontPercent: Int = 100
-    @State private var titleFontPercent: Int = 100
-    @State private var spacingPercent: Int = 100
-    @State private var offsetPercent: Int = 0
+    // Значения хранятся как проценты от базовых (1...100)
+    @State private var circlePercent: Double = 100
+    @State private var ringPercent: Double = 100
+    @State private var percentFontPercent: Double = 100
+    @State private var titleFontPercent: Double = 100
+    @State private var spacingPercent: Double = 100
+    @State private var offsetPercent: Double = 0
     @State private var initialized = false
 #if os(iOS)
     @State private var shareURL: URL?
@@ -83,7 +83,7 @@ struct ProgressSharePreview: View {
                     controlRow(title: settings.localized("share_preview_percent_size"), value: $percentFontPercent)
                     controlRow(title: settings.localized("share_preview_title_size"), value: $titleFontPercent)
                     controlRow(title: settings.localized("share_preview_spacing"), value: $spacingPercent)
-                    controlRow(title: settings.localized("share_preview_title_offset"), value: $offsetPercent)
+                    controlRow(title: settings.localized("share_preview_title_offset"), value: $offsetPercent, range: -100...100)
                 }
                 Spacer()
             }
@@ -106,12 +106,12 @@ struct ProgressSharePreview: View {
         #endif
         .onAppear {
             if !initialized {
-                circlePercent = max(1, min(100, Int((settings.lastShareCircleSize / defaultShareCircleSize * 100).rounded())))
-                ringPercent = max(1, min(100, Int((settings.lastShareRingWidth / defaultShareRingWidth * 100).rounded())))
-                percentFontPercent = max(1, min(100, Int((settings.lastSharePercentSize / defaultSharePercentSize * 100).rounded())))
-                titleFontPercent = max(1, min(100, Int((settings.lastShareTitleSize / defaultShareTitleSize * 100).rounded())))
-                spacingPercent = max(1, min(100, Int((settings.lastShareSpacing / defaultShareSpacing * 100).rounded())))
-                offsetPercent = max(-100, min(100, Int((settings.lastShareTitleOffset / (shareImageSize / 4) * 100).rounded())))
+                circlePercent = max(1, min(100, settings.lastShareCircleSize / defaultShareCircleSize * 100))
+                ringPercent = max(1, min(100, settings.lastShareRingWidth / defaultShareRingWidth * 100))
+                percentFontPercent = max(1, min(100, settings.lastSharePercentSize / defaultSharePercentSize * 100))
+                titleFontPercent = max(1, min(100, settings.lastShareTitleSize / defaultShareTitleSize * 100))
+                spacingPercent = max(1, min(100, settings.lastShareSpacing / defaultShareSpacing * 100))
+                offsetPercent = max(-100, min(100, settings.lastShareTitleOffset / (shareImageSize / 4) * 100))
                 initialized = true
             }
         }
@@ -188,24 +188,24 @@ struct ProgressSharePreview: View {
     }
 
     @ViewBuilder
-    private func sliderRow(title: String, value: Binding<Int>) -> some View {
+    private func sliderRow(title: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
         HStack {
             Text(title)
                 .font(.footnote)
-            Slider(value: Binding(
-                get: { Double(value.wrappedValue) },
-                set: { value.wrappedValue = Int($0) }
-            ), in: 1...100, step: 1)
+            Slider(value: value, in: range)
         }
     }
 
     @ViewBuilder
-    private func pickerRow(title: String, value: Binding<Int>) -> some View {
+    private func pickerRow(title: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
         HStack {
             Text(title)
                 .font(.footnote)
-            Picker("", selection: value) {
-                ForEach(1..<101) { num in
+            Picker("", selection: Binding(
+                get: { Int(value.wrappedValue.rounded()) },
+                set: { value.wrappedValue = Double($0) }
+            )) {
+                ForEach(Int(range.lowerBound)...Int(range.upperBound), id: \.self) { num in
                     Text("\(num)").tag(num)
                 }
             }
@@ -215,15 +215,15 @@ struct ProgressSharePreview: View {
     }
 
     @ViewBuilder
-    private func controlRow(title: String, value: Binding<Int>) -> some View {
+    private func controlRow(title: String, value: Binding<Double>, range: ClosedRange<Double> = 1...100) -> some View {
 #if os(iOS)
         if isPhone {
-            pickerRow(title: title, value: value)
+            pickerRow(title: title, value: value, range: range)
         } else {
-            sliderRow(title: title, value: value)
+            sliderRow(title: title, value: value, range: range)
         }
 #else
-        sliderRow(title: title, value: value)
+        sliderRow(title: title, value: value, range: range)
 #endif
     }
 
