@@ -1,6 +1,5 @@
 #if canImport(SwiftUI)
 import SwiftUI
-import UniformTypeIdentifiers
 
 #if canImport(UIKit)
 import UIKit
@@ -9,6 +8,28 @@ public typealias OSImage = UIImage
 import AppKit
 public typealias OSImage = NSImage
 #endif
+
+/// Size of the exported progress image in points.
+private let shareImageSize: CGFloat = 500
+
+/// Reads the size of the view and writes it into the provided binding.
+private struct SizeReader: View {
+    @Binding var size: CGSize
+    var body: some View {
+        GeometryReader { geo in
+            Color.clear
+                .preference(key: SizePreferenceKey.self, value: geo.size)
+        }
+        .onPreferenceChange(SizePreferenceKey.self) { size = $0 }
+    }
+}
+
+private struct SizePreferenceKey: PreferenceKey {
+    static var defaultValue: CGSize = .zero
+    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
+        value = nextValue()
+    }
+}
 
 /// Snapshot of ``ProgressCircleView`` without animations.
 private struct ProgressCircleSnapshotView: View {
@@ -21,7 +42,7 @@ private struct ProgressCircleSnapshotView: View {
         return min(max(value, 0), 1)
     }
 
-    private var ringWidth: CGFloat { style == .large ? layoutStep(3) : layoutStep(2) }
+    private var ringWidth: CGFloat { (style == .large ? layoutStep(3) : layoutStep(2)) }
     private var color: Color { .interpolate(from: .red, to: .green, fraction: progress) }
     private var fontToken: FontToken { style == .large ? .progressValueLarge : .progressValue }
 
@@ -34,7 +55,7 @@ private struct ProgressCircleSnapshotView: View {
                 .rotationEffect(.degrees(-90))
             let percent = Int(ceil(progress * 100))
             Text("\(percent)%")
-                .scaledFont(fontToken)
+                .font(.system(size: calcFontSize(token: fontToken) * 1.5))
                 .monospacedDigit()
                 .bold()
                 .foregroundColor(color)
@@ -45,24 +66,45 @@ private struct ProgressCircleSnapshotView: View {
 private struct ProgressShareView: View {
     var project: WritingProject
 
+    @State private var titleSize: CGSize = .zero
+
+    /// Base size of the progress circle before any scaling is applied.
+    private var baseCircleSize: CGFloat { shareImageSize * 0.35 }
+
+    /// Final scale ensuring both title and circle fit into the square canvas.
+    private var circleScale: CGFloat {
+        let available = shareImageSize - titleSize.height - scaledSpacing(2)
+        return min(1, max(0.1, available / baseCircleSize))
+    }
+
     var body: some View {
         VStack(spacing: scaledSpacing(2)) {
             ProgressCircleSnapshotView(project: project, style: .large)
-                .frame(width: layoutStep(20), height: layoutStep(20))
+                .frame(width: baseCircleSize, height: baseCircleSize)
+                .scaleEffect(circleScale)
+            Spacer()
             Text(project.title)
-                .font(.title2.bold())
+                .font(.system(size: 56, weight: .bold))
+                .multilineTextAlignment(.center)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+                .background(SizeReader(size: $titleSize))
+                .padding(.bottom, scaledSpacing(1))
         }
-        .padding()
+        .frame(width: shareImageSize, height: shareImageSize, alignment: .bottom)
         .background(Color.white)
     }
 }
 
 @MainActor
 func progressShareImage(for project: WritingProject) -> OSImage? {
-    // Break the rendering steps into smaller expressions to
-    // help the compiler with type inference.
     let view = ProgressShareView(project: project)
     let renderer = ImageRenderer(content: view)
+#if swift(>=5.9)
+    renderer.proposedSize = ProposedViewSize(width: shareImageSize, height: shareImageSize)
+#else
+    renderer.proposedSize = CGSize(width: shareImageSize, height: shareImageSize)
+#endif
 #if canImport(UIKit)
     renderer.scale = UIScreen.main.scale
     return renderer.uiImage
@@ -72,28 +114,26 @@ func progressShareImage(for project: WritingProject) -> OSImage? {
 #endif
 }
 
-struct ShareableProgressImage: Transferable {
-    var image: OSImage
 
-    static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(contentType: .png) { item in
+@MainActor
+func progressShareURL(for project: WritingProject) -> URL? {
+    guard let image = progressShareImage(for: project) else { return nil }
 #if canImport(UIKit)
-            item.image.pngData() ?? Data()
+    guard let data = image.pngData() else { return nil }
 #else
-            guard let tiff = item.image.tiffRepresentation,
-                  let rep = NSBitmapImageRep(data: tiff),
-                  let data = rep.representation(using: .png, properties: [:]) else {
-                return Data()
-            }
-            return data
+    guard let tiff = image.tiffRepresentation,
+          let rep = NSBitmapImageRep(data: tiff),
+          let data = rep.representation(using: .png, properties: [:]) else {
+        return nil
+    }
 #endif
-        } importing: { data in
-#if canImport(UIKit)
-            ShareableProgressImage(image: UIImage(data: data) ?? UIImage())
-#else
-            ShareableProgressImage(image: NSImage(data: data) ?? NSImage())
-#endif
-        }
+    let url = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString + ".png")
+    do {
+        try data.write(to: url)
+        return url
+    } catch {
+        print("Ошибка сохранения PNG: \(error)")
+        return nil
     }
 }
 #endif
