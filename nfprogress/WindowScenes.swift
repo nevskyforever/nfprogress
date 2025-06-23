@@ -50,7 +50,7 @@ extension nfprogressApp {
                 .windowTitle(settings.localized("new_project"))
 #endif
         }
-        .windowDefaultSize(width: layoutStep(35), height: layoutStep(20))
+        .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
 
         WindowGroup(id: "addStage", for: AddStageRequest.self) { binding in
@@ -65,7 +65,7 @@ extension nfprogressApp {
 #endif
             }
         }
-        .windowDefaultSize(width: layoutStep(35), height: layoutStep(20))
+        .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
 
         WindowGroup(id: "addEntry", for: AddEntryRequest.self) { binding in
@@ -90,7 +90,7 @@ extension nfprogressApp {
                 }
             }
         }
-        .windowDefaultSize(width: layoutStep(35), height: layoutStep(20))
+        .defaultSize(width: layoutStep(35), height: layoutStep(20))
         .modelContainer(DataController.shared)
 
         WindowGroup(id: "editEntry", for: EditEntryRequest.self) { binding in
@@ -106,7 +106,7 @@ extension nfprogressApp {
 #endif
             }
         }
-        .windowDefaultSize(width: layoutStep(40), height: layoutStep(25))
+        .defaultSize(width: layoutStep(40), height: layoutStep(25))
         .modelContainer(DataController.shared)
     }
 }
