@@ -76,7 +76,7 @@ struct ShareableProgressImage: Transferable {
     var image: OSImage
 
     static var transferRepresentation: some TransferRepresentation {
-        DataRepresentation(contentType: .png) { item in
+        DataRepresentation(contentType: .png) { @MainActor item in
 #if canImport(UIKit)
             item.image.pngData() ?? Data()
 #else
