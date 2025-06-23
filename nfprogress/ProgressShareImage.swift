@@ -12,24 +12,12 @@ public typealias OSImage = NSImage
 /// Size of the exported progress image in points.
 let shareImageSize: CGFloat = 500
 
-/// Reads the size of the view and writes it into the provided binding.
-private struct SizeReader: View {
-    @Binding var size: CGSize
-    var body: some View {
-        GeometryReader { geo in
-            Color.clear
-                .preference(key: SizePreferenceKey.self, value: geo.size)
-        }
-        .onPreferenceChange(SizePreferenceKey.self) { size = $0 }
-    }
-}
-
-private struct SizePreferenceKey: PreferenceKey {
-    static var defaultValue: CGSize = .zero
-    static func reduce(value: inout CGSize, nextValue: () -> CGSize) {
-        value = nextValue()
-    }
-}
+/// Default parameters for share image preview.
+let defaultShareCircleSize: CGFloat = shareImageSize * 0.35
+let defaultShareRingWidth: CGFloat = layoutStep(3)
+let defaultSharePercentSize: CGFloat = CGFloat(calcFontSize(token: .progressValueLarge) * 1.5)
+let defaultShareTitleSize: CGFloat = 56
+let defaultShareSpacing: CGFloat = scaledSpacing(2)
 
 /// Snapshot of ``ProgressCircleView`` without animations.
 private struct ProgressCircleSnapshotView: View {
@@ -66,51 +54,45 @@ private struct ProgressCircleSnapshotView: View {
 
 struct ProgressShareView: View {
     var project: WritingProject
-    var circleSize: CGFloat = shareImageSize * 0.35
-    var ringWidth: CGFloat = layoutStep(3)
-    var percentFontSize: CGFloat = calcFontSize(token: .progressValueLarge) * 1.5
-    var titleFontSize: CGFloat = 56
-
-    @State private var titleSize: CGSize = .zero
-
-    /// Final scale ensuring both title and circle fit into the square canvas.
-    private var circleScale: CGFloat {
-        let available = shareImageSize - titleSize.height - scaledSpacing(2)
-        return min(1, max(0.1, available / circleSize))
-    }
+    var circleSize: CGFloat = defaultShareCircleSize
+    var ringWidth: CGFloat = defaultShareRingWidth
+    var percentFontSize: CGFloat = defaultSharePercentSize
+    var titleFontSize: CGFloat = defaultShareTitleSize
+    var titleSpacing: CGFloat = defaultShareSpacing
 
     var body: some View {
-        VStack(spacing: scaledSpacing(2)) {
+        VStack(spacing: 0) {
+            Spacer()
             ProgressCircleSnapshotView(project: project,
                                        size: circleSize,
                                        ringWidth: ringWidth,
                                        percentFontSize: percentFontSize)
-                .scaleEffect(circleScale)
-            Spacer()
+            Spacer().frame(height: titleSpacing)
             Text(project.title)
                 .font(.system(size: titleFontSize, weight: .bold))
                 .multilineTextAlignment(.center)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
-                .background(SizeReader(size: $titleSize))
-                .padding(.bottom, scaledSpacing(1))
+            Spacer()
         }
-        .frame(width: shareImageSize, height: shareImageSize, alignment: .bottom)
+        .frame(width: shareImageSize, height: shareImageSize)
         .background(Color.white)
     }
 }
 
 @MainActor
 func progressShareImage(for project: WritingProject,
-                        circleSize: CGFloat = shareImageSize * 0.35,
-                        ringWidth: CGFloat = layoutStep(3),
-                        percentFontSize: CGFloat = calcFontSize(token: .progressValueLarge) * 1.5,
-                        titleFontSize: CGFloat = 56) -> OSImage? {
+                        circleSize: CGFloat = defaultShareCircleSize,
+                        ringWidth: CGFloat = defaultShareRingWidth,
+                        percentFontSize: CGFloat = defaultSharePercentSize,
+                        titleFontSize: CGFloat = defaultShareTitleSize,
+                        titleSpacing: CGFloat = defaultShareSpacing) -> OSImage? {
     let view = ProgressShareView(project: project,
                                  circleSize: circleSize,
                                  ringWidth: ringWidth,
                                  percentFontSize: percentFontSize,
-                                 titleFontSize: titleFontSize)
+                                 titleFontSize: titleFontSize,
+                                 titleSpacing: titleSpacing)
     let renderer = ImageRenderer(content: view)
 #if swift(>=5.9)
     renderer.proposedSize = ProposedViewSize(width: shareImageSize, height: shareImageSize)
@@ -129,15 +111,17 @@ func progressShareImage(for project: WritingProject,
 
 @MainActor
 func progressShareURL(for project: WritingProject,
-                      circleSize: CGFloat = shareImageSize * 0.35,
-                      ringWidth: CGFloat = layoutStep(3),
-                      percentFontSize: CGFloat = calcFontSize(token: .progressValueLarge) * 1.5,
-                      titleFontSize: CGFloat = 56) -> URL? {
+                      circleSize: CGFloat = defaultShareCircleSize,
+                      ringWidth: CGFloat = defaultShareRingWidth,
+                      percentFontSize: CGFloat = defaultSharePercentSize,
+                      titleFontSize: CGFloat = defaultShareTitleSize,
+                      titleSpacing: CGFloat = defaultShareSpacing) -> URL? {
     guard let image = progressShareImage(for: project,
                                          circleSize: circleSize,
                                          ringWidth: ringWidth,
                                          percentFontSize: percentFontSize,
-                                         titleFontSize: titleFontSize) else { return nil }
+                                         titleFontSize: titleFontSize,
+                                         titleSpacing: titleSpacing) else { return nil }
 #if canImport(UIKit)
     guard let data = image.pngData() else { return nil }
 #else

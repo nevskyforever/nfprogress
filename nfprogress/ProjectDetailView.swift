@@ -301,12 +301,19 @@ struct ProjectDetailView: View {
     private func shareProgress(circleSize: CGFloat,
                                ringWidth: CGFloat,
                                percentSize: CGFloat,
-                               titleSize: CGFloat) {
+                               titleSize: CGFloat,
+                               spacing: CGFloat) {
         guard let url = progressShareURL(for: project,
                                          circleSize: circleSize,
                                          ringWidth: ringWidth,
                                          percentFontSize: percentSize,
-                                         titleFontSize: titleSize) else { return }
+                                         titleFontSize: titleSize,
+                                         titleSpacing: spacing) else { return }
+        settings.lastShareCircleSize = Double(circleSize)
+        settings.lastShareRingWidth = Double(ringWidth)
+        settings.lastSharePercentSize = Double(percentSize)
+        settings.lastShareTitleSize = Double(titleSize)
+        settings.lastShareSpacing = Double(spacing)
         shareURL = url
 #if os(iOS)
         showingShareSheet = true
@@ -533,11 +540,12 @@ struct ProjectDetailView: View {
             }
         }
         .sheet(isPresented: $showingSharePreview) {
-            ProgressSharePreview(project: project) { cSize, rWidth, pSize, tSize in
+            ProgressSharePreview(project: project) { cSize, rWidth, pSize, tSize, space in
                 shareProgress(circleSize: cSize,
                               ringWidth: rWidth,
                               percentSize: pSize,
-                              titleSize: tSize)
+                              titleSize: tSize,
+                              spacing: space)
             }
             .environmentObject(settings)
         }
