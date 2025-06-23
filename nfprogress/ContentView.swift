@@ -27,9 +27,22 @@ struct ContentView: View {
   @State private var showDeleteAlert = false
 
   private let circleHeight: CGFloat = layoutStep(10)
+#if os(macOS)
+  /// Minimal window width when no project is selected.
+  private let baseWindowWidth: CGFloat = layoutStep(35)
+  /// Expanded window width to fit all toolbar buttons.
+  private let expandedWindowWidth: CGFloat = layoutStep(48)
+#endif
 #if os(iOS)
   /// Enlarged circle size used when projects are displayed in the main menu.
   private let largeCircleHeight: CGFloat = layoutStep(20)
+#endif
+
+#if os(macOS)
+  /// Current minimum width required for the window.
+  private var minWindowWidth: CGFloat {
+    selectedProject == nil ? baseWindowWidth : expandedWindowWidth
+  }
 #endif
 
   private var sortedProjects: [WritingProject] {
@@ -354,6 +367,9 @@ struct ContentView: View {
     }
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
+    .windowMinWidth(minWindowWidth)
+    .onAppear { updateWindowWidth() }
+    .onChange(of: selectedProject) { _ in updateWindowWidth() }
 #endif
   }
 
@@ -411,6 +427,21 @@ struct ContentView: View {
     panel.allowsMultipleSelection = false
     if panel.runModal() == .OK, let url = panel.url {
       importCSV(from: url)
+    }
+  }
+
+  /// Updates the current window width according to ``minWindowWidth``.
+  private func updateWindowWidth() {
+    DispatchQueue.main.async {
+      guard let window = NSApp.keyWindow else { return }
+      var size = window.contentMinSize
+      size.width = minWindowWidth
+      window.contentMinSize = size
+      if window.frame.width < minWindowWidth {
+        var frame = window.frame
+        frame.size.width = minWindowWidth
+        window.setFrame(frame, display: true)
+      }
     }
   }
 #endif
