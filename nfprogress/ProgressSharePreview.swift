@@ -45,12 +45,12 @@ struct ProgressSharePreview: View {
     private var orientationScale: CGFloat {
 #if os(iOS)
         if isPhone {
-            return showingFullImage ? 1 : 0.5
+            return showingFullImage ? 2 : 1
         } else {
-            return containerSize.width > containerSize.height ? 0.75 : 1
+            return (containerSize.width > containerSize.height ? 1.5 : 2)
         }
 #else
-        return 1
+        return 2
 #endif
     }
 
@@ -67,7 +67,7 @@ struct ProgressSharePreview: View {
                     .scaleEffect(orientationScale)
                     .onTapGesture {
 #if os(iOS)
-                        if orientationScale < 1 { showingFullImage = true }
+                        if !showingFullImage { showingFullImage = true }
 #endif
                     }
                 VStack(spacing: scaledSpacing(0.5)) {
@@ -121,12 +121,21 @@ struct ProgressSharePreview: View {
                 Color.gray.opacity(0.3).ignoresSafeArea()
                 VStack {
                     Spacer()
-                    ProgressShareView(project: project,
-                                       circleSize: circleSize,
-                                       ringWidth: ringWidth,
-                                       percentFontSize: percentSize,
-                                       titleFontSize: titleSize,
-                                       titleSpacing: spacing)
+                    if let img = progressShareImage(for: project,
+                                                  circleSize: circleSize,
+                                                  ringWidth: ringWidth,
+                                                  percentFontSize: percentSize,
+                                                  titleFontSize: titleSize,
+                                                  titleSpacing: spacing) {
+#if canImport(UIKit)
+                        Image(uiImage: img)
+#else
+                        Image(nsImage: img)
+#endif
+                            .resizable()
+                            .interpolation(.high)
+                            .scaledToFit()
+                    }
                     Spacer()
                 }
                 VStack {
