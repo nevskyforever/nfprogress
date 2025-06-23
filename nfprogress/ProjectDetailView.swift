@@ -33,7 +33,6 @@ struct ProjectDetailView: View {
     @State private var showingShareSheet = false
 #endif
     @State private var shareURL: URL?
-    @State private var showingSharePreview = false
 
     /// Base spacing for history and stages sections.
     private let viewSpacing: CGFloat = scaledSpacing(2)
@@ -292,21 +291,14 @@ struct ProjectDetailView: View {
     }
 
     private func shareToolbarButton() -> some View {
-        Button(action: { showingSharePreview = true }) {
+        Button(action: shareProgress) {
             Image(systemName: "square.and.arrow.up")
         }
         .help(settings.localized("share_progress_tooltip"))
     }
 
-    private func shareProgress(circleSize: CGFloat,
-                               ringWidth: CGFloat,
-                               percentSize: CGFloat,
-                               titleSize: CGFloat) {
-        guard let url = progressShareURL(for: project,
-                                         circleSize: circleSize,
-                                         ringWidth: ringWidth,
-                                         percentFontSize: percentSize,
-                                         titleFontSize: titleSize) else { return }
+    private func shareProgress() {
+        guard let url = progressShareURL(for: project) else { return }
         shareURL = url
 #if os(iOS)
         showingShareSheet = true
@@ -531,15 +523,6 @@ struct ProjectDetailView: View {
             ToolbarItem(placement: .primaryAction) {
                 shareToolbarButton()
             }
-        }
-        .sheet(isPresented: $showingSharePreview) {
-            ProgressSharePreview(project: project) { cSize, rWidth, pSize, tSize in
-                shareProgress(circleSize: cSize,
-                              ringWidth: rWidth,
-                              percentSize: pSize,
-                              titleSize: tSize)
-            }
-            .environmentObject(settings)
         }
 #if os(iOS)
         .sheet(isPresented: $showingShareSheet, onDismiss: {
