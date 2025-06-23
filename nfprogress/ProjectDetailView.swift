@@ -57,6 +57,12 @@ struct ProjectDetailView: View {
         return Color(hue: hue, saturation: 1, brightness: 1)
     }
 
+    /// Image used for sharing the current progress circle.
+    private var shareItem: ShareableProgressImage? {
+        guard let image = progressShareImage(for: project) else { return nil }
+        return ShareableProgressImage(image: image)
+    }
+
     private func addEntry(stage: Stage? = nil) {
         #if os(macOS)
         let request = AddEntryRequest(projectID: project.id, stageID: stage?.id)
@@ -454,6 +460,16 @@ struct ProjectDetailView: View {
             }
         }
         // Removed project title from toolbar to declutter interface
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                if let item = shareItem {
+                    ShareLink(item: item) {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .help(settings.localized("share_progress_tooltip"))
+                }
+            }
+        }
     }
 
     // MARK: - Save Context

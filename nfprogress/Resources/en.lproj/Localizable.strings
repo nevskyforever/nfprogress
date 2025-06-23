@@ -74,3 +74,4 @@
 "export_project_tooltip" = "Export project";
 "import_project_tooltip" = "Import project";
 "toggle_sort_tooltip" = "Change sort order";
+"share_progress_tooltip" = "Share progress";
