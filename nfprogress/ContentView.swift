@@ -301,6 +301,9 @@ struct ContentView: View {
             Label(settings.localized("export"), systemImage: "square.and.arrow.up")
           }
         }
+        Button(action: importSelectedProject) {
+          Label(settings.localized("import"), systemImage: "square.and.arrow.down")
+        }
       } label: {
         Image(systemName: "ellipsis.circle")
       }
