@@ -178,12 +178,13 @@ struct ContentView: View {
           .keyboardShortcut("N", modifiers: [.command, .shift])
           .help(settings.localized("add_project_tooltip"))
 
-          Button(action: deleteSelectedProject) {
-            Label("delete", systemImage: "minus")
+          if selectedProject != nil {
+            Button(action: deleteSelectedProject) {
+              Label("delete", systemImage: "minus")
+            }
+            .keyboardShortcut(.return, modifiers: .command)
+            .help(settings.localized("delete_project_tooltip"))
           }
-          .keyboardShortcut(.return, modifiers: .command)
-          .disabled(selectedProject == nil)
-          .help(settings.localized("delete_project_tooltip"))
 
           Button(action: importSelectedProject) {
             Image(systemName: "square.and.arrow.down")
@@ -268,20 +269,19 @@ struct ContentView: View {
       .keyboardShortcut("N", modifiers: [.command, .shift])
       .help(settings.localized("add_project_tooltip"))
 
-      Button(action: deleteSelectedProject) {
-        Label("delete", systemImage: "minus")
-      }
-      .keyboardShortcut(.return, modifiers: .command)
-      .disabled(selectedProject == nil)
-      .help(settings.localized("delete_project_tooltip"))
-
-      if selectedProject == nil {
-        Button(action: importSelectedProject) {
-          Image(systemName: "square.and.arrow.down")
+      if selectedProject != nil {
+        Button(action: deleteSelectedProject) {
+          Label("delete", systemImage: "minus")
         }
-        .accessibilityLabel(settings.localized("import"))
-        .help(settings.localized("import_project_tooltip"))
+        .keyboardShortcut(.return, modifiers: .command)
+        .help(settings.localized("delete_project_tooltip"))
       }
+
+      Button(action: importSelectedProject) {
+        Image(systemName: "square.and.arrow.down")
+      }
+      .accessibilityLabel(settings.localized("import"))
+      .help(settings.localized("import_project_tooltip"))
     }
 
     ToolbarItem {
@@ -299,9 +299,6 @@ struct ContentView: View {
         if selectedProject != nil {
           Button(action: exportSelectedProject) {
             Label(settings.localized("export"), systemImage: "square.and.arrow.up")
-          }
-          Button(action: importSelectedProject) {
-            Label(settings.localized("import"), systemImage: "square.and.arrow.down")
           }
         }
       } label: {
@@ -362,6 +359,9 @@ struct ContentView: View {
     .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
       exportSelectedProject()
     }
+#if os(macOS)
+    .onExitCommand { selectedProject = nil }
+#endif
   }
 
   private func addProject() {

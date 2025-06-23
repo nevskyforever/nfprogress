@@ -42,6 +42,9 @@ struct AddProjectView: View {
         .scaledPadding(1, [.horizontal, .bottom])
         .scaledPadding(2, .top)
         .frame(minWidth: minWidth, minHeight: minHeight)
+#if os(macOS)
+        .onExitCommand { dismiss() }
+#endif
     }
 
     private func addProject() {
