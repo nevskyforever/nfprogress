@@ -3,6 +3,13 @@ import Foundation
 import SwiftUI
 #endif
 
+// Default values for share preview settings
+let defaultShareCircleSize: Double = 175
+let defaultShareRingWidth: Double = 24
+let defaultSharePercentSize: Double = 45
+let defaultShareTitleSize: Double = 56
+let defaultShareSpacing: Double = 16
+
 enum AppLanguage: String, CaseIterable, Identifiable {
     case system
     case en
@@ -80,6 +87,23 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(projectSortOrder.rawValue, forKey: "projectSortOrder") }
     }
 
+    // Last used export parameters
+    @Published var lastShareCircleSize: Double {
+        didSet { defaults.set(lastShareCircleSize, forKey: "lastShareCircleSize") }
+    }
+    @Published var lastShareRingWidth: Double {
+        didSet { defaults.set(lastShareRingWidth, forKey: "lastShareRingWidth") }
+    }
+    @Published var lastSharePercentSize: Double {
+        didSet { defaults.set(lastSharePercentSize, forKey: "lastSharePercentSize") }
+    }
+    @Published var lastShareTitleSize: Double {
+        didSet { defaults.set(lastShareTitleSize, forKey: "lastShareTitleSize") }
+    }
+    @Published var lastShareSpacing: Double {
+        didSet { defaults.set(lastShareSpacing, forKey: "lastShareSpacing") }
+    }
+
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     init(userDefaults: UserDefaults = .standard) {
@@ -92,6 +116,16 @@ final class AppSettings: ObservableObject {
         projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
         let sortRaw = defaults.string(forKey: "projectSortOrder") ?? ProjectSortOrder.title.rawValue
         projectSortOrder = ProjectSortOrder(rawValue: sortRaw) ?? .title
+        let c = defaults.double(forKey: "lastShareCircleSize")
+        lastShareCircleSize = c == 0 ? defaultShareCircleSize : c
+        let r = defaults.double(forKey: "lastShareRingWidth")
+        lastShareRingWidth = r == 0 ? defaultShareRingWidth : r
+        let p = defaults.double(forKey: "lastSharePercentSize")
+        lastSharePercentSize = p == 0 ? defaultSharePercentSize : p
+        let t = defaults.double(forKey: "lastShareTitleSize")
+        lastShareTitleSize = t == 0 ? defaultShareTitleSize : t
+        let s = defaults.double(forKey: "lastShareSpacing")
+        lastShareSpacing = s == 0 ? defaultShareSpacing : s
     }
 }
 #else
@@ -138,6 +172,23 @@ final class AppSettings {
         didSet { defaults.set(projectSortOrder.rawValue, forKey: "projectSortOrder") }
     }
 
+    // Last used export parameters
+    var lastShareCircleSize: Double {
+        didSet { defaults.set(lastShareCircleSize, forKey: "lastShareCircleSize") }
+    }
+    var lastShareRingWidth: Double {
+        didSet { defaults.set(lastShareRingWidth, forKey: "lastShareRingWidth") }
+    }
+    var lastSharePercentSize: Double {
+        didSet { defaults.set(lastSharePercentSize, forKey: "lastSharePercentSize") }
+    }
+    var lastShareTitleSize: Double {
+        didSet { defaults.set(lastShareTitleSize, forKey: "lastShareTitleSize") }
+    }
+    var lastShareSpacing: Double {
+        didSet { defaults.set(lastShareSpacing, forKey: "lastShareSpacing") }
+    }
+
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     init(userDefaults: UserDefaults = .standard) {
@@ -150,6 +201,16 @@ final class AppSettings {
         projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
         let sortRaw = defaults.string(forKey: "projectSortOrder") ?? ProjectSortOrder.title.rawValue
         projectSortOrder = ProjectSortOrder(rawValue: sortRaw) ?? .title
+        let c = defaults.double(forKey: "lastShareCircleSize")
+        lastShareCircleSize = c == 0 ? defaultShareCircleSize : c
+        let r = defaults.double(forKey: "lastShareRingWidth")
+        lastShareRingWidth = r == 0 ? defaultShareRingWidth : r
+        let p = defaults.double(forKey: "lastSharePercentSize")
+        lastSharePercentSize = p == 0 ? defaultSharePercentSize : p
+        let t = defaults.double(forKey: "lastShareTitleSize")
+        lastShareTitleSize = t == 0 ? defaultShareTitleSize : t
+        let s = defaults.double(forKey: "lastShareSpacing")
+        lastShareSpacing = s == 0 ? defaultShareSpacing : s
     }
 }
 #endif
