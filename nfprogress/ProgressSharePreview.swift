@@ -4,6 +4,41 @@ import SwiftUI
 import AppKit
 #endif
 
+/// Актуальный стиль для ползунков предпросмотра экспорта
+private struct ModernSliderStyle: SliderStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        GeometryReader { geo in
+            let fraction = CGFloat((configuration.value - configuration.bounds.lowerBound) /
+                                   (configuration.bounds.upperBound - configuration.bounds.lowerBound))
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.gray.opacity(0.25))
+                    .frame(height: 8)
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(width: geo.size.width * fraction, height: 8)
+                Circle()
+                    .fill(Color.accentColor)
+                    .frame(width: 18, height: 18)
+                    .offset(x: geo.size.width * fraction - 9)
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { g in
+                                let x = max(0, min(g.location.x, geo.size.width))
+                                let newValue = configuration.bounds.lowerBound +
+                                    Double(x / geo.size.width) *
+                                    (configuration.bounds.upperBound - configuration.bounds.lowerBound)
+                                configuration.onEditingChanged(true)
+                                configuration.value = newValue
+                            }
+                            .onEnded { _ in configuration.onEditingChanged(false) }
+                    )
+            }
+        }
+        .frame(height: 24)
+    }
+}
+
 struct ProgressSharePreview: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject private var settings: AppSettings
@@ -65,6 +100,8 @@ struct ProgressSharePreview: View {
                                    titleFontSize: titleSize,
                                    titleSpacing: spacing)
                     .scaleEffect(orientationScale)
+                    .frame(width: shareImageSize * orientationScale,
+                           height: shareImageSize * orientationScale)
                     .onTapGesture {
 #if os(iOS)
                         if !showingFullImage { showingFullImage = true }
@@ -171,7 +208,6 @@ struct ProgressSharePreview: View {
         if let window = NSApp.keyWindow ?? NSApp.windows.first {
             picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .minY)
         }
-        dismiss()
 #endif
     }
 
@@ -184,6 +220,7 @@ struct ProgressSharePreview: View {
                 get: { Double(value.wrappedValue) },
                 set: { value.wrappedValue = Int($0) }
             ), in: 1...100, step: 1)
+            .sliderStyle(ModernSliderStyle())
         }
     }
 
