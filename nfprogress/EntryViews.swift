@@ -81,6 +81,9 @@ struct AddEntryView: View {
         .scaledPadding(1, [.horizontal, .bottom])
         .scaledPadding(2, .top)
         .frame(minWidth: minWidth, minHeight: minHeight)
+#if os(macOS)
+        .onExitCommand { dismiss() }
+#endif
         .onChange(of: selectedStageIndex) { newValue in
             guard fixedStage == nil,
                   project.stages.indices.contains(newValue) else { return }
@@ -190,6 +193,9 @@ struct EditEntryView: View {
         }
         .scaledPadding()
         .frame(minWidth: minWidth, minHeight: minHeight)
+#if os(macOS)
+        .onExitCommand { dismiss() }
+#endif
         .onDisappear {
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
