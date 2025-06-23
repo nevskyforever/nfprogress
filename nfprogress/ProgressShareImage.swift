@@ -76,6 +76,7 @@ struct ShareableProgressImage: Transferable {
     var image: OSImage
 
     static var transferRepresentation: some TransferRepresentation {
+        // Encoding must run on the main actor because OSImage is a UI type.
         DataRepresentation(contentType: .png) { @MainActor item in
 #if canImport(UIKit)
             item.image.pngData() ?? Data()
