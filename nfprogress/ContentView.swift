@@ -214,35 +214,30 @@ struct ContentView: View {
         }
       }
     } else {
-      if selectedProject != nil {
-        ToolbarItem(placement: .secondaryAction) {
+      ToolbarItem(placement: .navigationBarTrailing) {
+        Menu {
+          if selectedProject != nil {
+            Button(action: importSelectedProject) {
+              Label(settings.localized("import"), systemImage: "square.and.arrow.down")
+            }
+
+            Button(action: exportSelectedProject) {
+              Label(settings.localized("export"), systemImage: "square.and.arrow.up")
+            }
+          }
+
           Button {
             settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
           } label: {
-            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+            Label(settings.localized("toggle_view_tooltip"), systemImage: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
           }
-          .help(settings.localized("toggle_view_tooltip"))
-        }
-        ToolbarItem(placement: .secondaryAction) {
+
           Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-            Image(systemName: settings.projectSortOrder.iconName)
+            Label(settings.localized("toggle_sort_tooltip"), systemImage: settings.projectSortOrder.iconName)
           }
-          .help(settings.localized("toggle_sort_tooltip"))
+        } label: {
+          Image(systemName: "ellipsis.circle")
         }
-      }
-      ToolbarItemGroup(placement: selectedProject == nil ? .primaryAction : .secondaryAction) {
-        if selectedProject != nil {
-          Button(action: exportSelectedProject) {
-            Image(systemName: "square.and.arrow.up")
-          }
-          .accessibilityLabel(settings.localized("export"))
-          .help(settings.localized("export_project_tooltip"))
-        }
-        Button(action: importSelectedProject) {
-          Image(systemName: "square.and.arrow.down")
-        }
-        .accessibilityLabel(settings.localized("import"))
-        .help(settings.localized("import_project_tooltip"))
       }
       ToolbarItem(placement: .primaryAction) {
         Button(action: addProject) {
@@ -260,24 +255,6 @@ struct ContentView: View {
           .help(settings.localized("delete_project_tooltip"))
         }
       }
-
-        if selectedProject == nil {
-          ToolbarItem(placement: .navigationBarTrailing) {
-            Menu {
-              Button {
-                settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
-              } label: {
-                Label(settings.localized("toggle_view_tooltip"), systemImage: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
-              }
-
-              Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-                Label(settings.localized("toggle_sort_tooltip"), systemImage: settings.projectSortOrder.iconName)
-              }
-            } label: {
-              Image(systemName: "ellipsis.circle")
-            }
-          }
-        }
     }
 #else
     ToolbarItemGroup(placement: .automatic) {
