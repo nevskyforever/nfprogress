@@ -156,9 +156,6 @@ struct ProjectDetailView: View {
         let isSelected = selectedEntry?.id == entry.id
 
         HStack {
-            if entry.isWordEntry {
-                Image(systemName: "doc")
-            }
             VStack(alignment: .leading) {
                 Text(settings.localized("characters_count", clamped))
                     .fixedSize(horizontal: false, vertical: true)
@@ -231,9 +228,6 @@ struct ProjectDetailView: View {
         let isSelected = selectedEntry?.id == entry.id
 
         HStack {
-            if entry.isWordEntry {
-                Image(systemName: "doc")
-            }
             VStack(alignment: .leading) {
                 if let stageName {
                     Text(settings.localized("stage_colon", stageName))
@@ -311,25 +305,6 @@ struct ProjectDetailView: View {
         .help(settings.localized("share_progress_tooltip"))
 #endif
     }
-
-#if os(macOS)
-    private func wordSyncToolbarButton() -> some View {
-        Button(action: { selectWordFile() }) {
-            Image(systemName: "arrow.triangle.2.circlepath")
-        }
-        .help(settings.localized("sync_word_tooltip"))
-    }
-
-    private func selectWordFile() {
-        let panel = NSOpenPanel()
-        panel.allowedFileTypes = ["doc", "docx"]
-        panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK, let url = panel.url {
-            project.wordFilePath = url.path
-            WordSyncManager.startMonitoring(project: project)
-        }
-    }
-#endif
 
     private func addEntry(stage: Stage? = nil) {
         #if os(macOS)
@@ -477,17 +452,7 @@ struct ProjectDetailView: View {
             if let dl = project.deadline {
                 tempDeadline = dl
             }
-#if os(macOS)
-            if project.wordFilePath != nil {
-                WordSyncManager.startMonitoring(project: project)
-            }
-#endif
         }
-#if os(macOS)
-        .onDisappear {
-            WordSyncManager.stopMonitoring(project: project)
-        }
-#endif
         #if !os(macOS)
         .sheet(isPresented: $showingAddEntry) {
             AddEntryView(project: project)
@@ -552,11 +517,6 @@ struct ProjectDetailView: View {
             ToolbarItem(placement: .primaryAction) {
                 shareToolbarButton()
             }
-#if os(macOS)
-            ToolbarItem(placement: .primaryAction) {
-                wordSyncToolbarButton()
-            }
-#endif
         }
 #if os(iOS)
         .sheet(isPresented: $showingSharePreview) {
