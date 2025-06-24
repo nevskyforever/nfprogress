@@ -22,15 +22,6 @@ struct SharePreviewRequest: Codable, Hashable {
     var projectID: PersistentIdentifier
 }
 
-struct ScrivenerSelectRequest: Codable, Hashable {
-    var projectID: PersistentIdentifier
-    var projectPath: String
-}
-
-struct SyncInfoRequest: Codable, Hashable {
-    var projectID: PersistentIdentifier
-}
-
 private func fetchProject(id: PersistentIdentifier, context: ModelContext) -> WritingProject? {
     let descriptor = FetchDescriptor<WritingProject>(
         predicate: #Predicate { $0.id == id }
@@ -134,29 +125,6 @@ extension nfprogressApp {
                     .windowTitle(settings.localized("share"))
                     .windowDefaultSize(width: 560, height: 730)
 #endif
-            }
-        }
-        .modelContainer(DataController.shared)
-
-        WindowGroup(id: "selectScrivenerItem", for: ScrivenerSelectRequest.self) { binding in
-            let context = ModelContext(DataController.shared)
-            if let request = binding.wrappedValue,
-               let project = fetchProject(id: request.projectID, context: context) {
-                let url = URL(fileURLWithPath: request.projectPath)
-                ScrivenerItemSelectView(project: project, projectURL: url)
-                    .environmentObject(settings)
-                    .environment(\.locale, settings.locale)
-            }
-        }
-        .modelContainer(DataController.shared)
-
-        WindowGroup(id: "syncInfo", for: SyncInfoRequest.self) { binding in
-            let context = ModelContext(DataController.shared)
-            if let request = binding.wrappedValue,
-               let project = fetchProject(id: request.projectID, context: context) {
-                DocumentSyncInfoView(project: project)
-                    .environmentObject(settings)
-                    .environment(\.locale, settings.locale)
             }
         }
         .modelContainer(DataController.shared)
