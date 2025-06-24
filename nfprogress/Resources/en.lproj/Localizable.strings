@@ -77,15 +77,9 @@
 "import_project_tooltip" = "Import project";
 "toggle_sort_tooltip" = "Change sort order";
 "share_progress_tooltip" = "Share progress";
-"sync_document_tooltip" = "Sync document";
-"sync_type_prompt" = "Select sync source";
-"sync_type_word" = "Word";
-"sync_type_scrivener" = "Scrivener";
-"scrivener_choose_item" = "Select item";
 "share_preview_circle_size" = "Circle size";
 "share_preview_ring_width" = "Ring width";
 "share_preview_percent_size" = "Percent size";
 "share_preview_title_size" = "Title size";
 "share_preview_spacing" = "Title spacing";
 "charts_framework_required" = "Charts framework is required";
-"scrivener_parse_error" = "Failed to load Scrivener project";
