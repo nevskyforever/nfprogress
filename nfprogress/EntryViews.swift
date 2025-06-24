@@ -13,10 +13,10 @@ struct AddEntryView: View {
     @State private var selectedStageIndex: Int
 
     @State private var date = Date()
-    /// Text entered by the user for the new progress value.
+    /// Текст, введённый пользователем для нового значения прогресса.
     @State private var characterText = ""
 
-    /// Current progress value for the selected stage or the whole project.
+    /// Текущий прогресс выбранного этапа или всего проекта.
     private var previousProgress: Int {
         if let fixedStage {
             return fixedStage.currentProgress
@@ -264,12 +264,12 @@ struct MenuBarEntryView: View {
 
     @State private var selectedIndex: Int = 0
     @State private var selectedStageIndex: Int = 0
-    /// Text entered by the user with new progress value.
+    /// Текст, введённый пользователем для нового значения прогресса.
     @State private var characterText: String = ""
     @State private var date: Date = .now
     @State private var didSave: Bool = false
 
-    /// Previous progress for the currently selected stage or project.
+    /// Предыдущий прогресс для выбранного этапа или проекта.
     private var previousProgress: Int {
         guard !projects.isEmpty else { return 0 }
         let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
