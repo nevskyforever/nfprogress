@@ -1,5 +1,8 @@
 #if canImport(SwiftUI)
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -83,7 +86,6 @@ struct ProgressSharePreview: View {
                     controlRow(title: settings.localized("share_preview_percent_size"), value: $percentFontPercent)
                     controlRow(title: settings.localized("share_preview_title_size"), value: $titleFontPercent)
                     controlRow(title: settings.localized("share_preview_spacing"), value: $spacingPercent)
-                    controlRow(title: settings.localized("share_preview_title_offset"), value: $offsetPercent, range: -100...100)
                 }
                 Spacer()
             }
@@ -137,11 +139,7 @@ struct ProgressSharePreview: View {
                                                   titleFontSize: titleSize,
                                                   titleSpacing: spacing,
                                                   titleOffset: titleOffset) {
-#if os(iOS)
-                        Image(uiImage: img)
-#else
-                        Image(nsImage: img)
-#endif
+                        Image(osImage: img)
                             .resizable()
                             .interpolation(.high)
                             .scaledToFit()
