@@ -77,11 +77,6 @@
 "import_project_tooltip" = "Импортировать проект";
 "toggle_sort_tooltip" = "Изменить сортировку";
 "share_progress_tooltip" = "Поделиться прогрессом";
-"sync_document_tooltip" = "Синхронизация";
-"sync_type_prompt" = "Выберите источник";
-"sync_type_word" = "Word";
-"sync_type_scrivener" = "Scrivener";
-"scrivener_choose_item" = "Выбор элемента";
 "share_preview_circle_size" = "Размер диаграммы";
 "share_preview_ring_width" = "Толщина круга";
 "share_preview_percent_size" = "Размер процентов";
