@@ -17,6 +17,18 @@ struct nfprogressApp: App {
         DispatchQueue.main.async {
             Self.localizeMenus(language: lang)
         }
+        let context = DataController.mainContext
+        let descriptor = FetchDescriptor<WritingProject>()
+        if let projects = try? context.fetch(descriptor) {
+            for project in projects where project.syncType != nil {
+                DocumentSyncManager.startMonitoring(project: project)
+            }
+            for project in projects {
+                for stage in project.stages where stage.syncType != nil {
+                    DocumentSyncManager.startMonitoring(stage: stage)
+                }
+            }
+        }
 #endif
     }
     /// Глобальные настройки приложения, доступные во всех сценах
