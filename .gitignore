@@ -1,6 +1,1 @@
 .build/
-
-# macOS build files
-.DS_Store
-*.xcuserstate
-*.xcuserdatad

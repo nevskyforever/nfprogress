@@ -9,7 +9,7 @@ import Charts
 struct AnimatedCounterText: Animatable, View {
     /// Текущее значение счётчика в процентах (0...1).
     var value: Double
-    /// Токен, определяющий размер шрифта процента
+    /// Token defining font size of the percentage text
     var token: FontToken = .progressValue
 
     var animatableData: Double {
@@ -57,29 +57,29 @@ struct AnimatedProgressView<Content: View>: View {
 
 
 enum ProgressCircleStyle {
-    /// Стиль колец в списке проектов
+    /// Style for circles shown in the project list
     case regular
-    /// Увеличенный стиль в деталях проекта
+    /// Enlarged style used inside the project details
     case large
 }
 
 struct ProgressCircleView: View {
     var project: WritingProject
-    /// При значении `true` прогресс сохраняется через ``ProgressAnimationTracker``.
-    /// Это нужно, чтобы запускать анимацию при возврате к списку проектов.
+    /// When `true` the view stores progress using ``ProgressAnimationTracker``.
+    /// Used to trigger animations when returning to the project list.
     var trackProgress: Bool = true
-    /// Визуальный стиль круга прогресса
+    /// Visual style for the progress circle
     var style: ProgressCircleStyle = .regular
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
 
-    /// Толщина кольца в зависимости от ``ProgressCircleStyle``
+    /// Ring width based on the selected ``ProgressCircleStyle``
     private var ringWidth: CGFloat {
         style == .large ? layoutStep(3) : layoutStep(2)
     }
 
-    /// Токен шрифта в зависимости от стиля
+    /// Font token depending on style
     private var fontToken: FontToken {
         style == .large ? .progressValueLarge : .progressValue
     }
@@ -98,7 +98,7 @@ struct ProgressCircleView: View {
 
     /// Длительность текущей анимации
     @State private var duration: Double = 0.25
-    /// Флаг, показывающий, что видимая часть сейчас на экране.
+    /// Flag indicating that the view is currently visible on screen.
     @State private var isVisible = false
 
     /// Преобразует значение прогресса в цвет от красного к зелёному
@@ -327,7 +327,7 @@ struct ProgressChartView: View {
                 }
                 .frame(height: chartHeight, alignment: .top)
 #else
-                Text("charts_framework_required")
+                Text("Chart requires the Charts framework")
                     .frame(height: chartHeight, alignment: .top)
 #endif
             }

@@ -10,7 +10,7 @@ enum FontToken: Double, CaseIterable {
     case progressValueLarge = 30
 }
 
-/// Возвращает базовый размер шрифта для указанного токена.
+/// Returns base font size for the provided token.
 func calcFontSize(token: FontToken) -> Double {
     token.rawValue
 }
