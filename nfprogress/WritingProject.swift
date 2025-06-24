@@ -13,6 +13,12 @@ class WritingProject {
     var order: Int = 0
     /// Состояние графика: `true` если график свернут
     var isChartCollapsed: Bool = false
+    /// Путь к файлу Word для синхронизации
+    var wordFilePath: String?
+    /// Количество символов в файле при последней проверке
+    var lastWordCharacters: Int?
+    /// Дата последнего изменения файла Word
+    var lastWordModified: Date?
 
     init(title: String, goal: Int, deadline: Date? = nil, order: Int = 0, isChartCollapsed: Bool = false) {
         self.title = title
@@ -267,6 +273,8 @@ class Entry: Identifiable {
     var id = UUID()
     var date: Date
     var characterCount: Int
+    /// Запись получена из Word-документа
+    var isWordEntry: Bool = false
 
     init(date: Date, characterCount: Int) {
         self.date = date
