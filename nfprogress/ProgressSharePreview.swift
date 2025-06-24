@@ -1,8 +1,5 @@
 #if canImport(SwiftUI)
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 #if canImport(AppKit)
 import AppKit
 #endif
@@ -140,7 +137,11 @@ struct ProgressSharePreview: View {
                                                   titleFontSize: titleSize,
                                                   titleSpacing: spacing,
                                                   titleOffset: titleOffset) {
-                        Image(osImage: img)
+#if os(iOS)
+                        Image(uiImage: img)
+#else
+                        Image(nsImage: img)
+#endif
                             .resizable()
                             .interpolation(.high)
                             .scaledToFit()
