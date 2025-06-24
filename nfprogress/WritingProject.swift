@@ -13,20 +13,6 @@ class WritingProject {
     var order: Int = 0
     /// Состояние графика: `true` если график свернут
     var isChartCollapsed: Bool = false
-    /// Тип синхронизации документа
-    var syncType: SyncDocumentType?
-    /// Путь к файлу Word для синхронизации
-    var wordFilePath: String?
-    /// Путь к проекту Scrivener
-    var scrivenerProjectPath: String?
-    /// Выбранный ID элемента Scrivener
-    var scrivenerItemID: String?
-    /// Количество символов в файле при последней проверке
-    var lastWordCharacters: Int?
-    var lastScrivenerCharacters: Int?
-    /// Дата последнего изменения файла Word
-    var lastWordModified: Date?
-    var lastScrivenerModified: Date?
 
     init(title: String, goal: Int, deadline: Date? = nil, order: Int = 0, isChartCollapsed: Bool = false) {
         self.title = title
@@ -281,8 +267,6 @@ class Entry: Identifiable {
     var id = UUID()
     var date: Date
     var characterCount: Int
-    /// Источник синхронизации
-    var syncSource: SyncDocumentType?
 
     init(date: Date, characterCount: Int) {
         self.date = date
