@@ -86,7 +86,6 @@ struct ProgressSharePreview: View {
                     controlRow(title: settings.localized("share_preview_percent_size"), value: $percentFontPercent)
                     controlRow(title: settings.localized("share_preview_title_size"), value: $titleFontPercent)
                     controlRow(title: settings.localized("share_preview_spacing"), value: $spacingPercent)
-                    controlRow(title: settings.localized("share_preview_title_offset"), value: $offsetPercent, range: -100...100)
                 }
                 Spacer()
             }
