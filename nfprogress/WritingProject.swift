@@ -13,6 +13,20 @@ class WritingProject {
     var order: Int = 0
     /// Состояние графика: `true` если график свернут
     var isChartCollapsed: Bool = false
+    /// Тип синхронизации документа
+    var syncType: SyncDocumentType?
+    /// Путь к файлу Word для синхронизации
+    var wordFilePath: String?
+    /// Путь к проекту Scrivener
+    var scrivenerProjectPath: String?
+    /// Выбранный ID элемента Scrivener
+    var scrivenerItemID: String?
+    /// Количество символов в файле при последней проверке
+    var lastWordCharacters: Int?
+    var lastScrivenerCharacters: Int?
+    /// Дата последнего изменения файла Word
+    var lastWordModified: Date?
+    var lastScrivenerModified: Date?
 
     init(title: String, goal: Int, deadline: Date? = nil, order: Int = 0, isChartCollapsed: Bool = false) {
         self.title = title
@@ -53,7 +67,16 @@ class WritingProject {
 
         let sorted = entries.sorted { $0.date < $1.date }
         guard let index = sorted.firstIndex(where: { $0.id == entry.id }) else { return 0 }
-        return sorted.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
+        var progress = 0
+        for i in 0...index {
+            let e = sorted[i]
+            if e.syncSource != nil {
+                progress = e.characterCount
+            } else {
+                progress += e.characterCount
+            }
+        }
+        return progress
     }
 
     func previousGlobalProgress(before entry: Entry) -> Int {
@@ -65,7 +88,8 @@ class WritingProject {
     }
 
     var currentProgress: Int {
-        max(0, allEntries.reduce(0) { $0 + $1.characterCount })
+        guard let last = sortedEntries.last else { return 0 }
+        return max(0, globalProgress(for: last))
     }
 
     var previousProgress: Int {
@@ -267,6 +291,8 @@ class Entry: Identifiable {
     var id = UUID()
     var date: Date
     var characterCount: Int
+    /// Источник синхронизации
+    var syncSource: SyncDocumentType?
 
     init(date: Date, characterCount: Int) {
         self.date = date
