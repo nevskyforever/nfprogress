@@ -28,6 +28,9 @@ struct ProgressSharePreview: View {
 #endif
 #if os(iOS)
     @State private var containerSize: CGSize = .zero
+#else
+    // Храним ссылку на пикер, чтобы он не удалился раньше времени
+    @State private var sharePicker: NSSharingServicePicker?
 #endif
 
     private var circleSize: CGFloat {
@@ -179,9 +182,10 @@ struct ProgressSharePreview: View {
 #else
         let picker = NSSharingServicePicker(items: [url])
         if let window = NSApp.keyWindow ?? NSApp.windows.first {
+            sharePicker = picker
             picker.show(relativeTo: .zero, of: window.contentView!, preferredEdge: .minY)
         }
-        dismiss()
+        // Не закрываем окно сразу, иначе диалог шеринга не появится
 #endif
     }
 

@@ -32,7 +32,7 @@ private struct WindowDefaultSizeSetter: NSViewRepresentable {
 }
 
 extension View {
-    /// Sets the default size for the macOS window containing this view.
+    /// Устанавливает размер окна macOS по умолчанию для данного представления.
     func windowDefaultSize(width: CGFloat, height: CGFloat) -> some View {
         background(WindowDefaultSizeSetter(width: width, height: height))
     }

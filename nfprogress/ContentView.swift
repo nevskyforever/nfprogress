@@ -18,7 +18,7 @@ struct ContentView: View {
   #endif
   @Query(sort: [SortDescriptor(\WritingProject.order)]) private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
-  /// Project currently opened in the navigation stack on iPhone
+  /// Проект, открытый в навигационном стеке на iPhone
   @State private var openedProject: WritingProject?
   @State private var isExporting = false
   @State private var isImporting = false
@@ -28,11 +28,11 @@ struct ContentView: View {
 
   private let circleHeight: CGFloat = layoutStep(10)
 #if os(macOS)
-  /// Minimum width required for the main window.
+  /// Минимальная ширина основного окна
   private let minWindowWidth: CGFloat = layoutStep(48)
 #endif
 #if os(iOS)
-  /// Enlarged circle size used when projects are displayed in the main menu.
+  /// Увеличенный размер круга при отображении проектов в меню
   private let largeCircleHeight: CGFloat = layoutStep(20)
 #endif
 

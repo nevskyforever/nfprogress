@@ -3,8 +3,9 @@ import Foundation
 import SwiftUI
 #endif
 
-// Default values for share preview settings. When SwiftUI is available we
-// derive the circle size from `shareImageSize` so the diagram fits the canvas.
+// Значения по умолчанию для предварительного просмотра экспорта.
+// При наличии SwiftUI размер круга вычисляется из `shareImageSize`,
+// чтобы диаграмма помещалась на холсте.
 #if canImport(SwiftUI)
 let defaultShareCircleSize: Double = Double(shareImageSize * 0.7)
 #else
@@ -94,7 +95,7 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(projectSortOrder.rawValue, forKey: "projectSortOrder") }
     }
 
-    // Last used export parameters
+    // Последние использованные параметры экспорта
     @Published var lastShareCircleSize: Double {
         didSet { defaults.set(lastShareCircleSize, forKey: "lastShareCircleSize") }
     }
@@ -184,7 +185,7 @@ final class AppSettings {
         didSet { defaults.set(projectSortOrder.rawValue, forKey: "projectSortOrder") }
     }
 
-    // Last used export parameters
+    // Последние использованные параметры экспорта
     var lastShareCircleSize: Double {
         didSet { defaults.set(lastShareCircleSize, forKey: "lastShareCircleSize") }
     }

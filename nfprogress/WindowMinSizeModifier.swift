@@ -29,7 +29,7 @@ private struct WindowMinWidthSetter: NSViewRepresentable {
 }
 
 extension View {
-    /// Sets the minimum width for the macOS window containing this view.
+    /// Устанавливает минимальную ширину окна macOS для данного представления.
     func windowMinWidth(_ width: CGFloat) -> some View {
         background(WindowMinWidthSetter(width: width))
     }

@@ -1,18 +1,18 @@
 import Foundation
 
-/// Base spacing step used for layout metrics.
+/// Базовый шаг отступов, используемый в расчётах компоновки.
 let baseLayoutStep: CGFloat = 8
 
-/// Computes scaled layout values such as spacing and padding.
+/// Вычисляет масштабированные значения отступов и интервалов.
 /// - Parameters:
-///   - base: The base value in points.
-///   - scaleFactor: Current text scale factor.
-/// - Returns: Scaled result `base * scaleFactor`.
+///   - base: Базовое значение в точках.
+///   - scaleFactor: Текущий коэффициент масштабирования текста.
+/// - Returns: Результат `base * scaleFactor`.
 func calcLayoutValue(base: CGFloat) -> CGFloat {
     base
 }
 
-/// Returns layout value as a multiple of ``baseLayoutStep`` scaled by ``scaleFactor``.
+/// Возвращает значение отступа как кратное ``baseLayoutStep`` с учётом ``scaleFactor``.
 func layoutStep(_ multiplier: CGFloat = 1) -> CGFloat {
     calcLayoutValue(base: baseLayoutStep * multiplier)
 }
@@ -20,7 +20,7 @@ func layoutStep(_ multiplier: CGFloat = 1) -> CGFloat {
 #if canImport(SwiftUI)
 import SwiftUI
 
-/// View modifier applying padding based on ``layoutStep``.
+/// Модификатор, добавляющий отступы с использованием ``layoutStep``.
 private struct ScaledPaddingModifier: ViewModifier {
     var multiplier: CGFloat
     var edges: Edge.Set
@@ -32,7 +32,7 @@ private struct ScaledPaddingModifier: ViewModifier {
 }
 
 extension View {
-    /// Adds padding using ``layoutStep``.
+    /// Добавляет отступ, рассчитанный через ``layoutStep``.
     func scaledPadding(_ multiplier: CGFloat = 1, _ edges: Edge.Set = .all) -> some View {
         modifier(ScaledPaddingModifier(multiplier: multiplier, edges: edges))
     }

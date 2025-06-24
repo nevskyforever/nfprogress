@@ -23,7 +23,7 @@ private struct WindowAccessor: NSViewRepresentable {
 }
 
 extension View {
-    /// Sets the macOS window title for the view's window.
+    /// Устанавливает заголовок окна macOS для данного представления.
     func windowTitle(_ title: String) -> some View {
         self.background(WindowAccessor(title: title))
     }
