@@ -4,7 +4,8 @@ import SwiftUI
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
     private let viewSpacing: CGFloat = scaledSpacing(2)
-    /// "38" approximates the previous 300pt width with whole layout steps.
+    /// "38" приблизительно соответствует прежней ширине 300pt,
+    /// кратной шагу компоновки.
     private let minWidth: CGFloat = layoutStep(38)
     private let minHeight: CGFloat = layoutStep(25)
 

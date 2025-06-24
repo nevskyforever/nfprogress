@@ -248,8 +248,8 @@ class WritingProject {
         return Int(Double(progressLastWeek) / Double(goal) * 100)
     }
 
-    /// Conformance to ``Identifiable`` and ``Hashable`` enables using
-    /// ``WritingProject`` with navigation destinations.
+    /// Соответствие ``Identifiable`` и ``Hashable`` позволяет
+    /// использовать ``WritingProject`` в навигации.
 }
 
 extension WritingProject: Identifiable, Hashable {
