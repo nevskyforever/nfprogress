@@ -1,11 +1,13 @@
+
 #if canImport(SwiftUI)
 import SwiftUI
 #if canImport(SwiftData)
 import SwiftData
+#endif
 #if canImport(AppKit)
 import AppKit
 #endif
-#endif
+
 
 @MainActor
 struct ProjectDetailView: View {
@@ -156,6 +158,11 @@ struct ProjectDetailView: View {
         let isSelected = selectedEntry?.id == entry.id
 
         HStack {
+            if entry.syncSource == .word {
+                Image(systemName: "doc")
+            } else if entry.syncSource == .scrivener {
+                Image(systemName: "doc.text")
+            }
             VStack(alignment: .leading) {
                 Text(settings.localized("characters_count", clamped))
                     .fixedSize(horizontal: false, vertical: true)
@@ -228,6 +235,11 @@ struct ProjectDetailView: View {
         let isSelected = selectedEntry?.id == entry.id
 
         HStack {
+            if entry.syncSource == .word {
+                Image(systemName: "doc")
+            } else if entry.syncSource == .scrivener {
+                Image(systemName: "doc.text")
+            }
             VStack(alignment: .leading) {
                 if let stageName {
                     Text(settings.localized("stage_colon", stageName))
@@ -305,6 +317,60 @@ struct ProjectDetailView: View {
         .help(settings.localized("share_progress_tooltip"))
 #endif
     }
+
+#if os(macOS)
+    private func wordSyncToolbarButton() -> some View {
+        Button(action: { selectSyncFile() }) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+        }
+        .help(settings.localized("sync_document_tooltip"))
+    }
+
+    private func selectSyncFile() {
+        let alert = NSAlert()
+        alert.messageText = settings.localized("sync_type_prompt")
+        alert.addButton(withTitle: settings.localized("sync_type_word"))
+        alert.addButton(withTitle: settings.localized("sync_type_scrivener"))
+        let result = alert.runModal()
+        switch result {
+        case .alertFirstButtonReturn:
+            project.syncType = .word
+            let panel = NSOpenPanel()
+            panel.allowedFileTypes = ["doc", "docx"]
+            panel.allowsMultipleSelection = false
+            if panel.runModal() == .OK, let url = panel.url {
+                project.wordFilePath = url.path
+                DocumentSyncManager.startMonitoring(project: project)
+                try? project.modelContext?.save()
+            }
+        case .alertSecondButtonReturn:
+            project.syncType = .scrivener
+            let panel = NSOpenPanel()
+            panel.allowedFileTypes = ["scriv"]
+            panel.canChooseFiles = true
+            panel.canChooseDirectories = false
+            panel.allowsMultipleSelection = false
+            if panel.runModal() == .OK, let url = panel.url {
+                selectScrivenerItem(projectURL: url)
+            }
+        default:
+            break
+        }
+    }
+
+    private func selectScrivenerItem(projectURL: URL) {
+        let items = ScrivenerParser.items(in: projectURL)
+        guard !items.isEmpty else {
+            let alert = NSAlert()
+            alert.messageText = settings.localized("scrivener_parse_error")
+            alert.runModal()
+            return
+        }
+
+        let request = ScrivenerSelectRequest(projectID: project.id, projectPath: projectURL.path)
+        openWindow(id: "selectScrivenerItem", value: request)
+    }
+#endif
 
     private func addEntry(stage: Stage? = nil) {
         #if os(macOS)
@@ -452,23 +518,11 @@ struct ProjectDetailView: View {
             if let dl = project.deadline {
                 tempDeadline = dl
             }
-        }
-        #if !os(macOS)
-        .sheet(isPresented: $showingAddEntry) {
-            AddEntryView(project: project)
-        }
-        .sheet(item: $addEntryStage) { stage in
-            AddEntryView(project: project, stage: stage)
-        }
-        .sheet(isPresented: $showingAddStage) {
-            AddStageView(project: project)
-        }
-        .sheet(item: $editingEntry) { entry in
-            EditEntryView(project: project, entry: entry)
-        }
-        #endif
-        .sheet(item: $editingStage) { stage in
-            EditStageView(stage: stage)
+#if os(macOS)
+            if project.syncType != nil {
+                DocumentSyncManager.startMonitoring(project: project)
+            }
+#endif
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
             addEntry()
@@ -517,7 +571,20 @@ struct ProjectDetailView: View {
             ToolbarItem(placement: .primaryAction) {
                 shareToolbarButton()
             }
+#if os(macOS)
+            ToolbarItem(placement: .primaryAction) {
+                wordSyncToolbarButton()
+            }
+#endif
         }
+        .modifier(SyncSheetsModifier(
+            project: project,
+            showingAddEntry: $showingAddEntry,
+            addEntryStage: $addEntryStage,
+            showingAddStage: $showingAddStage,
+            editingEntry: $editingEntry,
+            editingStage: $editingStage
+        ))
 #if os(iOS)
         .sheet(isPresented: $showingSharePreview) {
             ProgressSharePreview(project: project)
@@ -552,6 +619,39 @@ struct ProjectDetailView: View {
         modelContext.delete(stage)
         saveContext()
         NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+    }
+
+    // MARK: - Sheet Modifier
+    private struct SyncSheetsModifier: ViewModifier {
+        @Bindable var project: WritingProject
+        @Binding var showingAddEntry: Bool
+        @Binding var addEntryStage: Stage?
+        @Binding var showingAddStage: Bool
+        @Binding var editingEntry: Entry?
+        @Binding var editingStage: Stage?
+
+        func body(content: Content) -> some View {
+            var view = content
+#if !os(macOS)
+            view = view
+                .sheet(isPresented: $showingAddEntry) {
+                    AddEntryView(project: project)
+                }
+                .sheet(item: $addEntryStage) { stage in
+                    AddEntryView(project: project, stage: stage)
+                }
+                .sheet(isPresented: $showingAddStage) {
+                    AddStageView(project: project)
+                }
+                .sheet(item: $editingEntry) { entry in
+                    EditEntryView(project: project, entry: entry)
+                }
+#endif
+            return view
+                .sheet(item: $editingStage) { stage in
+                    EditStageView(stage: stage)
+                }
+        }
     }
 }
 
