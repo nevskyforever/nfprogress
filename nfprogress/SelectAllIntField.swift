@@ -1,15 +1,16 @@
 #if canImport(SwiftUI)
 import SwiftUI
 
-/// Numeric text field that focuses automatically and selects its contents when it appears.
+/// Числовое поле, которое автоматически фокусируется
+/// и выделяет содержимое при появлении.
 struct SelectAllIntField: View {
-    /// Current text in the field. Should contain only digits.
+    /// Текущий текст в поле. Должен содержать только цифры.
     @Binding var text: String
-    /// Localized title for accessibility.
+    /// Локализованный заголовок для доступности.
     var placeholder: LocalizedStringKey
-    /// Optional prompt displayed when the text is empty.
+    /// Необязательная подсказка, отображаемая при пустом поле.
     var prompt: String? = nil
-    /// Focuses the field when it appears.
+    /// Фокусирует поле при появлении.
     var focusOnAppear: Bool = false
 
     @State private var didFocus: Bool = false
