@@ -17,9 +17,5 @@ enum DataController {
                                       configurations: config)
         }
     }()
-
-    static var mainContext: ModelContext {
-        shared.mainContext
-    }
 }
 #endif
