@@ -7,8 +7,8 @@ import SwiftUI
 #endif
 
 extension Array where Element == Date {
-    /// Вычисляет минимальный шаг календаря, чтобы подписи не перекрывались
-    /// при заданной ширине графика.
+    /// Calculates the minimal calendar component step so that labels don't overlap
+    /// for the given chart width.
     func stride(forWidth width: CGFloat,
                 minLabelSpacing: CGFloat = 80) -> Calendar.Component {
         guard !isEmpty else { return .day }
@@ -41,7 +41,7 @@ extension Array where Element == Date {
 import SwiftData
 
 extension WritingProject {
-    /// Отсортированный список дат записей без повторений.
+    /// Sorted list of entry dates without duplicates.
     var sortedEntryDates: [Date] {
         let calendar = Calendar.current
         let dates = sortedEntries.map { calendar.startOfDay(for: $0.date) }

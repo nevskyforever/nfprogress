@@ -4,7 +4,7 @@ import SwiftUI
 import SwiftData
 #endif
 
-/// Анимированный текст с процентом прогресса для компактного списка проектов.
+/// Animated percent text for project progress used in compact list view.
 struct ProjectPercentView: View {
     var project: WritingProject
 
@@ -20,7 +20,7 @@ struct ProjectPercentView: View {
     @State private var startProgress: Double = 0
     @State private var endProgress: Double = 0
     @State private var duration: Double = 0.25
-    /// Показывает, что представление в данный момент видно.
+    /// Indicates that the view is currently visible.
     @State private var isVisible = false
 
     private let minDuration = 0.25
@@ -121,7 +121,7 @@ struct ProjectPercentView: View {
     }
 }
 
-/// Строка списка, показывающая только название проекта и процент прогресса.
+/// Row view showing only project title and progress percentage.
 struct CompactProjectRow: View {
     var project: WritingProject
     var body: some View {

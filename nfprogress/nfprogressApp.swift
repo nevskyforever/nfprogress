@@ -19,7 +19,7 @@ struct nfprogressApp: App {
         }
 #endif
     }
-    /// Глобальные настройки приложения, доступные во всех сценах
+    /// Global application settings available across all scenes
     @StateObject var settings = AppSettings()
 
     var body: some Scene {

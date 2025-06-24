@@ -6,7 +6,7 @@ import UIKit
 import AppKit
 #endif
 
-/// Удобный инициализатор ``SwiftUI.Image`` из ``OSImage``.
+/// Convenience initializer to create a ``SwiftUI.Image`` from ``OSImage``.
 extension Image {
     init(osImage: OSImage) {
 #if canImport(UIKit)

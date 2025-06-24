@@ -24,7 +24,7 @@ struct ProjectDetailView: View {
     @State private var stageToDelete: Stage?
     @State private var tempDeadline: Date = Date()
     @State private var selectedEntry: Entry?
-    // Состояние редактирования отдельных полей
+    // Editing state for individual fields
     @State private var isEditingTitle = false
     @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
@@ -33,12 +33,12 @@ struct ProjectDetailView: View {
     @State private var showingSharePreview = false
 #endif
 
-    /// Базовый отступ между секциями истории и этапов.
+    /// Base spacing for history and stages sections.
     private let viewSpacing: CGFloat = scaledSpacing(2)
-    /// Размер ``ProgressCircleView`` на iOS.
+    /// Size for ``ProgressCircleView`` shown on iOS.
     private let circleSize: CGFloat = layoutStep(20)
 
-    // Форматтер для отображения дедлайна
+    // Formatter for displaying deadline
     private var deadlineFormatter: DateFormatter {
         let df = DateFormatter()
         df.locale = settings.locale
@@ -53,7 +53,7 @@ struct ProjectDetailView: View {
     private func deadlineColor(daysLeft: Int) -> Color {
         let maxDays = 30.0
         let ratio = max(0, min(1, Double(daysLeft) / maxDays))
-        // Оттенок от красного (0) к зелёному (0.33)
+        // Hue from red (0) to green (0.33)
         let hue = ratio * 0.33
         return Color(hue: hue, saturation: 1, brightness: 1)
     }
@@ -512,7 +512,7 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        // Заголовок проекта убран из панели инструментов для простоты интерфейса
+        // Removed project title from toolbar to declutter interface
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 shareToolbarButton()
