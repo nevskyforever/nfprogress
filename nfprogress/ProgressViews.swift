@@ -321,14 +321,17 @@ struct ProgressChartView: View {
                             .foregroundStyle(.blue)
                         }
                     }
+                    .chartXScale(domain: (project.sortedEntries.first?.date ?? Date())...(project.sortedEntries.last?.date ?? Date()))
                     .chartXAxis {
-                        let comp = project.sortedEntryDates.stride(forWidth: geo.size.width)
-                        AxisMarks(values: .stride(by: comp)) { value in
-                            if let date = value.as(Date.self) {
-                                AxisGridLine()
-                                AxisTick()
-                                AxisValueLabel {
-                                    Text(date.formatted(date: .numeric, time: .shortened))
+                        if let first = project.sortedEntries.first?.date,
+                           let last = project.sortedEntries.last?.date {
+                            AxisMarks(values: [first, last]) { value in
+                                if let date = value.as(Date.self) {
+                                    AxisGridLine()
+                                    AxisTick()
+                                    AxisValueLabel {
+                                        Text(date.formatted(date: .numeric, time: .shortened))
+                                    }
                                 }
                             }
                         }
