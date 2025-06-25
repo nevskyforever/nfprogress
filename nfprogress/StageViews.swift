@@ -20,6 +20,10 @@ struct AddStageView: View {
     private let minWidth: CGFloat = layoutStep(35)
     private let minHeight: CGFloat = layoutStep(20)
 
+    private var moveWarning: Bool {
+        project.stages.isEmpty && !project.entries.isEmpty
+    }
+
     var body: some View {
         VStack(spacing: viewSpacing) {
             TextField("project_name", text: $title)
@@ -28,6 +32,12 @@ struct AddStageView: View {
             TextField("project_goal", value: $goal, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: fieldWidth)
+            if moveWarning {
+                Text(settings.localized("all_entries_move"))
+                    .multilineTextAlignment(.center)
+                    .foregroundColor(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             Spacer()
             Button("create") { addStage() }
                 .buttonStyle(.borderedProminent)
@@ -54,6 +64,7 @@ struct AddStageView: View {
                 project.entries.removeAll()
             }
             project.stages.append(stage)
+            try? project.modelContext?.save()
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
     }
