@@ -1,0 +1,28 @@
+name: Auto-merge bot PRs
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.pull_requests &&
+      github.event.workflow_run.pull_requests[0] &&
+      (github.event.workflow_run.pull_requests[0].user.type == 'Bot' ||
+       endsWith(github.event.workflow_run.pull_requests[0].user.login, '[bot]'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge PR
+        uses: peter-evans/merge-pull-request@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          pull-request: ${{ github.event.workflow_run.pull_requests[0].number }}
+          merge-method: merge
