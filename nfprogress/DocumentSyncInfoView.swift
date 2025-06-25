@@ -1,10 +1,8 @@
 #if os(macOS)
 import SwiftUI
-import AppKit
 
 struct DocumentSyncInfoView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var settings: AppSettings
     @Bindable var project: WritingProject
 
@@ -35,17 +33,6 @@ struct DocumentSyncInfoView: View {
         VStack(spacing: scaledSpacing()) {
             Text(info)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Toggle(settings.localized("pause_sync"), isOn: $project.syncPaused)
-                .toggleStyle(.switch)
-                .onChange(of: project.syncPaused) { value in
-                    if value { DocumentSyncManager.stopMonitoring(project: project) }
-                    else { DocumentSyncManager.startMonitoring(project: project) }
-                }
-            if project.syncType == .scrivener {
-                Button(settings.localized("change")) { changeScrivenerItem() }
-            } else if project.syncType == .word {
-                Button(settings.localized("change")) { changeWordFile() }
-            }
             Spacer()
             HStack {
                 Spacer()
@@ -62,28 +49,6 @@ struct DocumentSyncInfoView: View {
     private func unlink() {
         DocumentSyncManager.removeSync(project: project)
         dismiss()
-    }
-
-    private func changeScrivenerItem() {
-        guard let basePath = DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
-                                                               path: project.scrivenerProjectPath) else { return }
-        let request = ScrivenerSelectRequest(projectID: project.id, projectPath: basePath)
-        openWindow(id: "selectScrivenerItem", value: request)
-        dismiss()
-    }
-
-    private func changeWordFile() {
-        let panel = NSOpenPanel()
-        panel.allowedFileTypes = ["doc", "docx"]
-        panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK, let url = panel.url {
-            project.syncType = .word
-            project.wordFilePath = url.path
-            project.wordFileBookmark = try? url.bookmarkData(options: .withSecurityScope)
-            try? project.modelContext?.save()
-            DocumentSyncManager.startMonitoring(project: project)
-            dismiss()
-        }
     }
 }
 #endif

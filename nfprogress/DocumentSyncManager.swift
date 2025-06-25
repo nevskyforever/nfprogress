@@ -13,82 +13,6 @@ enum DocumentSyncManager {
     private static var stageWatchers: [UUID: DispatchSourceFileSystemObject] = [:]
     private static var stageTimers: [UUID: Timer] = [:]
     private static var stageAccessURLs: [UUID: URL] = [:]
-    private static var syncInterval: TimeInterval = {
-        let v = UserDefaults.standard.double(forKey: "syncInterval")
-        return v == 0 ? 2 : v
-    }()
-    private static var globallyPaused: Bool = UserDefaults.standard.bool(forKey: "pauseAllSync")
-
-    static func updateSyncInterval(to value: TimeInterval) {
-        syncInterval = value
-        refreshAllTimers()
-    }
-
-    static func setGlobalPause(_ paused: Bool) {
-        globallyPaused = paused
-        if paused {
-            stopAllMonitoring()
-        } else {
-            startAllMonitoring()
-        }
-    }
-
-    private static func stopAllMonitoring() {
-        let context = DataController.mainContext
-        let desc = FetchDescriptor<WritingProject>()
-        if let projects = try? context.fetch(desc) {
-            for project in projects where project.syncType != nil {
-                stopMonitoring(project: project)
-            }
-            for stage in projects.flatMap({ $0.stages }) where stage.syncType != nil {
-                stopMonitoring(stage: stage)
-            }
-        }
-    }
-
-    private static func startAllMonitoring() {
-        let context = DataController.mainContext
-        let desc = FetchDescriptor<WritingProject>()
-        if let projects = try? context.fetch(desc) {
-            for project in projects where project.syncType != nil && !project.syncPaused {
-                startMonitoring(project: project)
-            }
-            for stage in projects.flatMap({ $0.stages }) where stage.syncType != nil && !stage.syncPaused {
-                startMonitoring(stage: stage)
-            }
-        }
-    }
-
-    private static func refreshAllTimers() {
-        for (id, timer) in timers {
-            timer.invalidate()
-            guard let project = fetchProject(id: id) else { continue }
-            let handler: () -> Void = {
-                switch project.syncType {
-                case .word: checkWordFile(for: id)
-                case .scrivener: checkScrivenerFile(for: id)
-                case .none: break
-                }
-            }
-            let t = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { _ in handler() }
-            timers[id] = t
-            RunLoop.main.add(t, forMode: .common)
-        }
-        for (id, timer) in stageTimers {
-            timer.invalidate()
-            guard let stage = fetchStage(id: id) else { continue }
-            let handler: () -> Void = {
-                switch stage.syncType {
-                case .word: checkWordFile(stageID: id)
-                case .scrivener: checkScrivenerFile(stageID: id)
-                case .none: break
-                }
-            }
-            let t = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { _ in handler() }
-            stageTimers[id] = t
-            RunLoop.main.add(t, forMode: .common)
-        }
-    }
 
     /// Возвращает идентификатор проекта, которому принадлежит этап
     private static func projectID(for stage: Stage) -> PersistentIdentifier? {
@@ -150,7 +74,7 @@ enum DocumentSyncManager {
 
     static func startMonitoring(project: WritingProject) {
         stopMonitoring(project: project)
-        guard !globallyPaused, !project.syncPaused, let type = project.syncType else { return }
+        guard let type = project.syncType else { return }
         let id = project.id
         switch type {
         case .word:
@@ -230,7 +154,7 @@ enum DocumentSyncManager {
         source.setCancelHandler { close(fd) }
         watchers[projectID] = source
         source.resume()
-        let timer = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { _ in handler() }
+        let timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in handler() }
         timers[projectID] = timer
         RunLoop.main.add(timer, forMode: .common)
     }
@@ -259,7 +183,7 @@ enum DocumentSyncManager {
 
     static func startMonitoring(stage: Stage) {
         stopMonitoring(stage: stage)
-        guard !globallyPaused, !stage.syncPaused, let type = stage.syncType else { return }
+        guard let type = stage.syncType else { return }
         let id = stage.id
         switch type {
         case .word:
@@ -338,7 +262,7 @@ enum DocumentSyncManager {
         source.setCancelHandler { close(fd) }
         stageWatchers[stageID] = source
         source.resume()
-        let timer = Timer.scheduledTimer(withTimeInterval: syncInterval, repeats: true) { _ in handler() }
+        let timer = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { _ in handler() }
         stageTimers[stageID] = timer
         RunLoop.main.add(timer, forMode: .common)
     }
