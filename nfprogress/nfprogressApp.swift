@@ -41,8 +41,8 @@ struct nfprogressApp: App {
                 .environment(\.locale, settings.locale)
 #if os(macOS)
                 .windowTitle("NFProgress")
-                .windowDefaultSize(width: 810, height: 530)
                 .persistentWindowFrame()
+                .windowDefaultSize(width: 810, height: 530)
 #endif
         }
         .modelContainer(DataController.shared)
