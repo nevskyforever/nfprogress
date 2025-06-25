@@ -1,8 +1,5 @@
 #if canImport(SwiftUI)
 import SwiftUI
-#if os(macOS)
-import AppKit
-#endif
 #if canImport(SwiftData)
 import SwiftData
 #endif
@@ -134,9 +131,6 @@ struct StageHeaderView: View {
     @Bindable var project: WritingProject
     var onEdit: () -> Void
     var onDelete: () -> Void
-#if os(macOS)
-    @Environment(\.openWindow) private var openWindow
-#endif
 
     /// Значение прогресса в начале анимации
     @State private var startProgress: Double = 0
@@ -213,12 +207,6 @@ struct StageHeaderView: View {
                 AnimatedCounterText(value: endProgress, token: .progressValue)
                     .foregroundColor(color(for: endProgress))
             }
-#if os(macOS)
-            Button(action: { selectSyncFile() }) {
-                Image(systemName: "arrow.triangle.2.circlepath")
-            }
-            .help(settings.localized("sync_document_tooltip"))
-#endif
 
             Button(action: onEdit) {
                 Image(systemName: "pencil")
@@ -252,58 +240,6 @@ struct StageHeaderView: View {
             updateProgress(to: progress)
         }
     }
-
-#if os(macOS)
-    private func selectSyncFile() {
-        if stage.syncType != nil {
-            let request = StageSyncInfoRequest(stageID: stage.id)
-            openWindow(id: "stageSyncInfo", value: request)
-            return
-        }
-
-        let alert = NSAlert()
-        alert.messageText = settings.localized("sync_type_prompt")
-        alert.addButton(withTitle: settings.localized("sync_type_word"))
-        alert.addButton(withTitle: settings.localized("sync_type_scrivener"))
-        let result = alert.runModal()
-        switch result {
-        case .alertFirstButtonReturn:
-            let panel = NSOpenPanel()
-            panel.allowedFileTypes = ["doc", "docx"]
-            panel.allowsMultipleSelection = false
-            if panel.runModal() == .OK, let url = panel.url {
-                stage.syncType = .word
-                stage.wordFilePath = url.path
-                stage.wordFileBookmark = try? url.bookmarkData(options: .withSecurityScope)
-                try? stage.modelContext?.save()
-                DocumentSyncManager.startMonitoring(stage: stage)
-            }
-        case .alertSecondButtonReturn:
-            let panel = NSOpenPanel()
-            panel.allowedFileTypes = ["scriv"]
-            panel.canChooseFiles = true
-            panel.canChooseDirectories = false
-            panel.allowsMultipleSelection = false
-            if panel.runModal() == .OK, let url = panel.url {
-                selectScrivenerItem(projectURL: url)
-            }
-        default:
-            break
-        }
-    }
-
-    private func selectScrivenerItem(projectURL: URL) {
-        let items = ScrivenerParser.items(in: projectURL)
-        guard !items.isEmpty else {
-            let alert = NSAlert()
-            alert.messageText = settings.localized("scrivener_parse_error")
-            alert.runModal()
-            return
-        }
-        let request = StageScrivenerSelectRequest(stageID: stage.id, projectPath: projectURL.path)
-        openWindow(id: "stageSelectScrivenerItem", value: request)
-    }
-#endif
 }
 
 #endif

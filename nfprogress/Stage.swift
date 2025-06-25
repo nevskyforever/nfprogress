@@ -10,26 +10,6 @@ class Stage: Identifiable {
     var deadline: Date?
     var startProgress: Int
     var entries: [Entry]
-    /// Тип синхронизации документа для этапа
-    var syncType: SyncDocumentType?
-    /// Путь к файлу Word
-    var wordFilePath: String?
-    /// Bookmark для доступа к файлу Word
-    var wordFileBookmark: Data?
-    /// Путь к проекту Scrivener
-    var scrivenerProjectPath: String?
-    /// Bookmark для доступа к проекту Scrivener
-    var scrivenerProjectBookmark: Data?
-    /// ID выбранного элемента Scrivener
-    var scrivenerItemID: String?
-    /// Последнее известное количество символов в Word
-    var lastWordCharacters: Int?
-    /// Последняя дата изменения Word
-    var lastWordModified: Date?
-    /// Последнее известное количество символов в Scrivener
-    var lastScrivenerCharacters: Int?
-    /// Последняя дата изменения Scrivener
-    var lastScrivenerModified: Date?
 
     init(title: String, goal: Int, deadline: Date? = nil, startProgress: Int) {
         self.title = title
@@ -37,16 +17,6 @@ class Stage: Identifiable {
         self.deadline = deadline
         self.startProgress = startProgress
         self.entries = []
-        self.syncType = nil
-        self.wordFilePath = nil
-        self.wordFileBookmark = nil
-        self.scrivenerProjectPath = nil
-        self.scrivenerProjectBookmark = nil
-        self.scrivenerItemID = nil
-        self.lastWordCharacters = nil
-        self.lastWordModified = nil
-        self.lastScrivenerCharacters = nil
-        self.lastScrivenerModified = nil
     }
 
     /// Записи этого этапа без повторов
