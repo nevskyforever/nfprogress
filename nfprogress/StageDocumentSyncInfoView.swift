@@ -1,10 +1,8 @@
 #if os(macOS)
 import SwiftUI
-import AppKit
 
 struct StageDocumentSyncInfoView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var settings: AppSettings
     @Bindable var stage: Stage
 
@@ -35,17 +33,6 @@ struct StageDocumentSyncInfoView: View {
         VStack(spacing: scaledSpacing()) {
             Text(info)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Toggle(settings.localized("pause_sync"), isOn: $stage.syncPaused)
-                .toggleStyle(.switch)
-                .onChange(of: stage.syncPaused) { value in
-                    if value { DocumentSyncManager.stopMonitoring(stage: stage) }
-                    else { DocumentSyncManager.startMonitoring(stage: stage) }
-                }
-            if stage.syncType == .scrivener {
-                Button(settings.localized("change")) { changeScrivenerItem() }
-            } else if stage.syncType == .word {
-                Button(settings.localized("change")) { changeWordFile() }
-            }
             Spacer()
             HStack {
                 Spacer()
@@ -62,28 +49,6 @@ struct StageDocumentSyncInfoView: View {
     private func unlink() {
         DocumentSyncManager.removeSync(stage: stage)
         dismiss()
-    }
-
-    private func changeScrivenerItem() {
-        guard let basePath = DocumentSyncManager.resolvedPath(bookmark: stage.scrivenerProjectBookmark,
-                                                               path: stage.scrivenerProjectPath) else { return }
-        let request = StageScrivenerSelectRequest(stageID: stage.id, projectPath: basePath)
-        openWindow(id: "stageSelectScrivenerItem", value: request)
-        dismiss()
-    }
-
-    private func changeWordFile() {
-        let panel = NSOpenPanel()
-        panel.allowedFileTypes = ["doc", "docx"]
-        panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK, let url = panel.url {
-            stage.syncType = .word
-            stage.wordFilePath = url.path
-            stage.wordFileBookmark = try? url.bookmarkData(options: .withSecurityScope)
-            try? stage.modelContext?.save()
-            DocumentSyncManager.startMonitoring(stage: stage)
-            dismiss()
-        }
     }
 }
 #endif
