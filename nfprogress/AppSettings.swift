@@ -152,14 +152,6 @@ final class AppSettings: ObservableObject {
     }
 #endif
 
-#if os(macOS)
-    private func applyToolbarCustomization() {
-        for window in NSApplication.shared.windows {
-            window.toolbar?.allowsUserCustomization = allowToolbarCustomization
-        }
-    }
-#endif
-
     init(userDefaults: UserDefaults = .standard) {
         defaults = userDefaults
         disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
