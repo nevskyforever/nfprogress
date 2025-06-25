@@ -158,12 +158,12 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        let count = attrString.string.count
-        if project.lastWordCharacters != count || project.lastWordModified != modDate {
-            let entry = Entry(date: modDate, characterCount: count)
+        let totalCount = attrString.string.count // абсолютное количество символов в файле
+        if project.lastWordCharacters != totalCount || project.lastWordModified != modDate {
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .word
             project.entries.append(entry)
-            project.lastWordCharacters = count
+            project.lastWordCharacters = totalCount
             project.lastWordModified = modDate
             try? DataController.mainContext.save()
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
@@ -266,19 +266,12 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        let count = attrString.string.count
-        if stage.lastWordCharacters != count || stage.lastWordModified != modDate {
-            let previous: Int
-            if let last = stage.lastWordCharacters {
-                previous = last
-            } else {
-                previous = stage.startProgress + stage.currentProgress
-            }
-            let delta = count - previous
-            let entry = Entry(date: modDate, characterCount: delta)
+        let totalCount = attrString.string.count // абсолютное количество символов в файле
+        if stage.lastWordCharacters != totalCount || stage.lastWordModified != modDate {
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .word
             stage.entries.append(entry)
-            stage.lastWordCharacters = count
+            stage.lastWordCharacters = totalCount
             stage.lastWordModified = modDate
             try? DataController.mainContext.save()
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
@@ -314,19 +307,12 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        let count = attrString.string.count
-        if stage.lastScrivenerCharacters != count || stage.lastScrivenerModified != modDate {
-            let previous: Int
-            if let last = stage.lastScrivenerCharacters {
-                previous = last
-            } else {
-                previous = stage.startProgress + stage.currentProgress
-            }
-            let delta = count - previous
-            let entry = Entry(date: modDate, characterCount: delta)
+        let totalCount = attrString.string.count // абсолютное количество символов в файле
+        if stage.lastScrivenerCharacters != totalCount || stage.lastScrivenerModified != modDate {
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .scrivener
             stage.entries.append(entry)
-            stage.lastScrivenerCharacters = count
+            stage.lastScrivenerCharacters = totalCount
             stage.lastScrivenerModified = modDate
             try? DataController.mainContext.save()
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
@@ -367,12 +353,12 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        let count = attrString.string.count
-        if project.lastScrivenerCharacters != count || project.lastScrivenerModified != modDate {
-            let entry = Entry(date: modDate, characterCount: count)
+        let totalCount = attrString.string.count // абсолютное количество символов в файле
+        if project.lastScrivenerCharacters != totalCount || project.lastScrivenerModified != modDate {
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .scrivener
             project.entries.append(entry)
-            project.lastScrivenerCharacters = count
+            project.lastScrivenerCharacters = totalCount
             project.lastScrivenerModified = modDate
             try? DataController.mainContext.save()
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)

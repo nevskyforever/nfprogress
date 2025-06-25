@@ -1,0 +1,12 @@
+name: Auto-merge disabled temporarily
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Do nothing
+        run: echo "Auto-merge is currently disabled"
