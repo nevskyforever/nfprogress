@@ -59,10 +59,14 @@ private struct SidebarWidthPersistence: NSViewRepresentable {
         }
 
         private func findSplitView() -> NSSplitView? {
-            var current = view
-            while let c = current {
-                if let split = c as? NSSplitView { return split }
-                current = c.superview
+            guard let root = view?.window?.contentView else { return nil }
+            return searchSplitView(root)
+        }
+
+        private func searchSplitView(_ current: NSView) -> NSSplitView? {
+            if let split = current as? NSSplitView { return split }
+            for subview in current.subviews {
+                if let split = searchSplitView(subview) { return split }
             }
             return nil
         }
