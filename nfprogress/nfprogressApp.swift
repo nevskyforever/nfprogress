@@ -42,6 +42,7 @@ struct nfprogressApp: App {
 #if os(macOS)
                 .windowTitle("NFProgress")
                 .persistentWindowFrame()
+                .persistentWindowSize()
                 .windowDefaultSize(width: 810, height: 530)
 #endif
         }
