@@ -69,6 +69,8 @@ enum ProgressCircleStyle {
 struct ProgressCircleView: View {
     var project: WritingProject
     var index: Int = 0
+    /// Общее число проектов для адаптации задержки анимации
+    var totalCount: Int = 1
     /// При значении `true` прогресс сохраняется через ``ProgressAnimationTracker``.
     /// Это нужно, чтобы запускать анимацию при возврате к списку проектов.
     var trackProgress: Bool = true
@@ -220,7 +222,9 @@ struct ProgressCircleView: View {
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-                let delay = max(0, 1 - elapsed) + Double(index) * 0.3
+                // Чем больше проектов, тем более растягиваем начало анимации
+                let step = 0.3 + Double(totalCount) * 0.02
+                let delay = max(0, 1 - elapsed) + Double(index) * step
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     updateProgress(to: progress)
                 }
