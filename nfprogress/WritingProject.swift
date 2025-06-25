@@ -63,12 +63,17 @@ class WritingProject {
     }
 
     func globalProgress(for entry: Entry) -> Int {
-        let entries = sortedEntries
-        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return 0 }
+        if let stage = stageForEntry(entry) {
+            guard let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) else { return stage.startProgress }
+            let sum = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
+            return stage.startProgress + sum
+        }
 
+        let sorted = entries.sorted { $0.date < $1.date }
+        guard let index = sorted.firstIndex(where: { $0.id == entry.id }) else { return 0 }
         var progress = 0
         for i in 0...index {
-            let e = entries[i]
+            let e = sorted[i]
             if e.syncSource != nil {
                 progress = e.characterCount
             } else {

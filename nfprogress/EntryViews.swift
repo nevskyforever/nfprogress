@@ -116,7 +116,6 @@ struct AddEntryView: View {
             } else {
                 project.entries.append(newEntry)
             }
-            try? project.modelContext?.save()
             NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
     }
