@@ -214,7 +214,7 @@ struct ProjectDetailView: View {
                         }
                         modelContext.delete(entry)
                         saveContext()
-                        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+                        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
                     } label: { Image(systemName: "trash") }
                 }
             }
@@ -319,7 +319,7 @@ struct ProjectDetailView: View {
                     }
                     modelContext.delete(entry)
                     saveContext()
-                    NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+                    NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -661,7 +661,7 @@ struct ProjectDetailView: View {
         }
         modelContext.delete(stage)
         saveContext()
-        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
     }
 
     // MARK: - Sheet Modifier
