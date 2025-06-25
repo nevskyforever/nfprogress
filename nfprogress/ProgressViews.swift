@@ -321,6 +321,7 @@ struct ProgressChartView: View {
                             .foregroundStyle(.blue)
                         }
                     }
+                    .chartXScale(domain: (project.sortedEntryDates.first ?? Date())...(project.sortedEntryDates.last ?? Date()))
                     .chartXAxis {
                         if let first = project.sortedEntryDates.first,
                            let last = project.sortedEntryDates.last {
