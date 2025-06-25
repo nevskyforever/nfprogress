@@ -37,4 +37,13 @@ jobs:
           echo "Repo allows auto merge: $repo_allows"
           echo "Checks status: $status_state"
 
-          if [ "$mergeable" = "true" ] && [ "$repo_allows" = "true" ] && [ "$status_state" = "success"_]()_]()
+          if [ "$mergeable" = "true" ] && [ "$repo_allows" = "true" ] && [ "$status_state" = "success" ]; then
+            echo "All conditions met — enabling auto-merge"
+            curl -s -X PUT \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/auto-merge \
+              -d '{ "merge_method": "squash" }'
+          else
+            echo "Auto-merge conditions not met"
+          fi
