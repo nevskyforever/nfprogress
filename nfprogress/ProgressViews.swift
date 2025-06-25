@@ -280,6 +280,8 @@ struct ProgressChartView: View {
 
     private let viewSpacing: CGFloat = scaledSpacing(1)
     private let chartHeight: CGFloat = layoutStep(25)
+    /// Минимальное расстояние между подписями оси X
+    private let minLabelSpacing: CGFloat = 80
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -299,7 +301,10 @@ struct ProgressChartView: View {
             if project.sortedEntries.count >= 2 {
 #if canImport(Charts)
                 GeometryReader { geo in
-                    Chart {
+                    let width = max(geo.size.width,
+                                    CGFloat(project.sortedEntryDates.count) * minLabelSpacing)
+                    ScrollView([.horizontal, .vertical]) {
+                        Chart {
                         // Целевая линия
                         RuleMark(y: .value(settings.localized("progress_chart_goal"), project.goal))
                             .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
@@ -321,23 +326,48 @@ struct ProgressChartView: View {
                             .foregroundStyle(.blue)
                         }
                     }
+                    .chartXScale(domain: {
+                        if let first = project.sortedEntries.first?.date,
+                           let last = project.sortedEntries.last?.date {
+                            let cal = Calendar.current
+                            let start = cal.startOfDay(for: first)
+                            let end = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: last)) ?? last
+                            return start...end
+                        } else {
+                            let now = Date()
+                            return now...now
+                        }
+                    }())
+                    .chartScrollableAxes(.horizontal)
+                    .chartXVisibleDomain(length: {
+                        if let first = project.sortedEntries.first?.date,
+                           let last = project.sortedEntries.last?.date {
+                            let cal = Calendar.current
+                            let start = cal.startOfDay(for: first)
+                            let end = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: last)) ?? last
+                            let days = cal.dateComponents([.day], from: start, to: end).day ?? 0
+                            let visible = min(days + 1, 7)
+                            return Double(visible) * 86_400
+                        } else {
+                            return 86_400
+                        }
+                    }())
                     .chartXAxis {
-                        if let first = project.sortedEntryDates.first,
-                           let last = project.sortedEntryDates.last {
-                            AxisMarks(values: [first, last]) { value in
-                                if let date = value.as(Date.self) {
-                                    AxisGridLine()
-                                    AxisTick()
-                                    AxisValueLabel {
-                                        Text(date.formatted(date: .numeric, time: .shortened))
-                                    }
+                        let info = project.entryAxisInfo
+                        AxisMarks(values: info.map { $0.date }) { value in
+                            if let date = value.as(Date.self), let pair = info.first(where: { $0.date == date }) {
+                                AxisGridLine()
+                                AxisTick()
+                                AxisValueLabel {
+                                    Text(pair.label)
                                 }
                             }
                         }
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(width: width, alignment: .leading)
                 }
                 .frame(height: chartHeight, alignment: .top)
+                }
 #else
                 Text("charts_framework_required")
                     .frame(height: chartHeight, alignment: .top)
