@@ -25,14 +25,6 @@ private struct WindowDefaultSizeSetter: NSViewRepresentable {
     private func apply(to view: NSView, coordinator: Coordinator) {
         guard let window = view.window, !coordinator.applied else { return }
         coordinator.applied = true
-
-        if !window.frameAutosaveName.isEmpty {
-            let key = "NSWindow Frame \(window.frameAutosaveName)"
-            if UserDefaults.standard.object(forKey: key) != nil {
-                return
-            }
-        }
-
         var frame = window.frame
         frame.size = NSSize(width: width, height: height)
         window.setFrame(frame, display: true)
