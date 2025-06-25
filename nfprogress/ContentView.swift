@@ -31,7 +31,6 @@ struct ContentView: View {
     get { CGFloat(sidebarWidthRaw) }
     nonmutating set { sidebarWidthRaw = Double(newValue) }
   }
-  @State private var didLoadSidebarWidth = false
 #endif
 
   private let circleHeight: CGFloat = layoutStep(10)
@@ -139,7 +138,6 @@ struct ContentView: View {
       .listStyle(.plain)
       .navigationTitle("my_texts")
       .toolbar { toolbarContent }
-      .background(SidebarWidthReader())
     }, detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
@@ -150,13 +148,7 @@ struct ContentView: View {
     })
 #if os(macOS)
     .navigationSplitViewColumnWidth(min: minWindowWidth, ideal: sidebarWidth, max: .infinity)
-    .onPreferenceChange(SidebarWidthKey.self) { width in
-      if didLoadSidebarWidth {
-        sidebarWidth = width
-      } else {
-        didLoadSidebarWidth = true
-      }
-    }
+    .persistentSidebarWidth()
 #endif
     .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
@@ -497,20 +489,4 @@ struct ContentView: View {
     try? modelContext.save()
   }
 }
-#if os(macOS)
-private struct SidebarWidthKey: PreferenceKey {
-  static var defaultValue: CGFloat = 405
-  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-    value = nextValue()
-  }
-}
-
-private struct SidebarWidthReader: View {
-  var body: some View {
-    GeometryReader { proxy in
-      Color.clear.preference(key: SidebarWidthKey.self, value: proxy.size.width)
-    }
-  }
-}
-#endif
 #endif
