@@ -29,3 +29,5 @@ let package = Package(
         )
     ]
 )
+
+// test auto-merge
