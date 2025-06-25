@@ -46,6 +46,12 @@ struct StageScrivenerItemSelectView: View {
 
     private func confirm() {
         guard let item = selection else { return }
+        if DocumentSyncManager.isScrivenerItemInUse(projectPath: projectURL.path, itemID: item.id) {
+            let alert = NSAlert()
+            alert.messageText = settings.localized("sync_already_linked")
+            alert.runModal()
+            return
+        }
         stage.syncType = .scrivener
         stage.scrivenerProjectPath = projectURL.path
         stage.scrivenerProjectBookmark = try? projectURL.bookmarkData(options: .withSecurityScope)

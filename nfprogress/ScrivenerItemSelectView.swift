@@ -46,6 +46,12 @@ struct ScrivenerItemSelectView: View {
 
     private func confirm() {
         guard let item = selection else { return }
+        if DocumentSyncManager.isScrivenerItemInUse(projectPath: projectURL.path, itemID: item.id) {
+            let alert = NSAlert()
+            alert.messageText = settings.localized("sync_already_linked")
+            alert.runModal()
+            return
+        }
         project.syncType = .scrivener
         project.scrivenerProjectPath = projectURL.path
         project.scrivenerProjectBookmark = try? projectURL.bookmarkData(options: .withSecurityScope)

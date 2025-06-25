@@ -19,16 +19,20 @@ let defaultShareTitleOffset: Double = 0
 
 
 enum AppLanguage: String, CaseIterable, Identifiable {
-    case system
     case en
     case ru
+
+    static var systemDefault: AppLanguage {
+        let preferred = Locale.preferredLanguages.first ?? "en"
+        let code = preferred.components(separatedBy: "-").first ?? "en"
+        return AppLanguage(rawValue: code) ?? .en
+    }
 
     var id: String { rawValue }
 
 #if canImport(SwiftUI)
     var description: LocalizedStringKey {
         switch self {
-        case .system: return "language_system"
         case .en: return "language_en"
         case .ru: return "language_ru"
         }
@@ -37,10 +41,6 @@ enum AppLanguage: String, CaseIterable, Identifiable {
 
     var resolvedIdentifier: String {
         switch self {
-        case .system:
-            let preferred = Locale.preferredLanguages.first ?? "en"
-            let code = preferred.components(separatedBy: "-").first ?? "en"
-            return Self.allCases.contains(where: { $0.rawValue == code }) ? code : "en"
         case .en:
             return "en"
         case .ru:
@@ -133,14 +133,40 @@ final class AppSettings: ObservableObject {
         }
     }
 
+    @Published var allowToolbarCustomization: Bool {
+        didSet {
+            defaults.set(allowToolbarCustomization, forKey: "allowToolbarCustomization")
+            #if os(macOS)
+            applyToolbarCustomization()
+            #endif
+        }
+    }
+
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
+
+#if os(macOS)
+    private func applyToolbarCustomization() {
+        for window in NSApplication.shared.windows {
+            window.toolbar?.allowsUserCustomization = allowToolbarCustomization
+        }
+    }
+#endif
+
+#if os(macOS)
+    private func applyToolbarCustomization() {
+        for window in NSApplication.shared.windows {
+            window.toolbar?.allowsUserCustomization = allowToolbarCustomization
+        }
+    }
+#endif
 
     init(userDefaults: UserDefaults = .standard) {
         defaults = userDefaults
         disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
         disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
-        let raw = defaults.string(forKey: "language") ?? AppLanguage.system.rawValue
-        language = AppLanguage(rawValue: raw) ?? .system
+        let defaultLang = AppLanguage.systemDefault.rawValue
+        let raw = defaults.string(forKey: "language") ?? defaultLang
+        language = AppLanguage(rawValue: raw) ?? AppLanguage.systemDefault
         let styleRaw = defaults.string(forKey: "projectListStyle") ?? ProjectListStyle.detailed.rawValue
         projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
         let sortRaw = defaults.string(forKey: "projectSortOrder") ?? ProjectSortOrder.title.rawValue
@@ -160,6 +186,10 @@ final class AppSettings: ObservableObject {
         let i = defaults.double(forKey: "syncInterval")
         syncInterval = i == 0 ? 2 : i
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")
+        allowToolbarCustomization = defaults.bool(forKey: "allowToolbarCustomization")
+#if os(macOS)
+        applyToolbarCustomization()
+#endif
     }
 }
 #else
@@ -244,14 +274,24 @@ final class AppSettings {
         }
     }
 
+    var allowToolbarCustomization: Bool {
+        didSet {
+            defaults.set(allowToolbarCustomization, forKey: "allowToolbarCustomization")
+            #if os(macOS)
+            applyToolbarCustomization()
+            #endif
+        }
+    }
+
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     init(userDefaults: UserDefaults = .standard) {
         defaults = userDefaults
         disableLaunchAnimations = defaults.bool(forKey: "disableLaunchAnimations")
         disableAllAnimations = defaults.bool(forKey: "disableAllAnimations")
-        let raw = defaults.string(forKey: "language") ?? AppLanguage.system.rawValue
-        language = AppLanguage(rawValue: raw) ?? .system
+        let defaultLang = AppLanguage.systemDefault.rawValue
+        let raw = defaults.string(forKey: "language") ?? defaultLang
+        language = AppLanguage(rawValue: raw) ?? AppLanguage.systemDefault
         let styleRaw = defaults.string(forKey: "projectListStyle") ?? ProjectListStyle.detailed.rawValue
         projectListStyle = ProjectListStyle(rawValue: styleRaw) ?? .detailed
         let sortRaw = defaults.string(forKey: "projectSortOrder") ?? ProjectSortOrder.title.rawValue
@@ -271,6 +311,10 @@ final class AppSettings {
         let i = defaults.double(forKey: "syncInterval")
         syncInterval = i == 0 ? 2 : i
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")
+        allowToolbarCustomization = defaults.bool(forKey: "allowToolbarCustomization")
+#if os(macOS)
+        applyToolbarCustomization()
+#endif
     }
 }
 #endif

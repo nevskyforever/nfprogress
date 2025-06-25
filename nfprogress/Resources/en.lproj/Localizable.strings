@@ -31,7 +31,6 @@
 "disable_launch_animations" = "Disable launch animations";
 "disable_all_animations" = "Disable all animations";
 "language" = "Language";
-"language_system" = "System";
 "language_en" = "English";
 "language_ru" = "Russian";
 "label_title_colon" = "Title:";
@@ -95,6 +94,8 @@
 "unlink" = "Unlink";
 "pause_sync" = "Pause sync";
 "pause_sync_all" = "Pause synchronization";
+"sync_already_linked" = "This file is already linked to another project or stage";
+"toolbar_customization" = "Allow toolbar customization";
 "change" = "Change";
 "sync_interval_prefix" = "Check every";
 "sync_interval_suffix" = "seconds";

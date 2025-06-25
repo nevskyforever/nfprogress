@@ -31,7 +31,6 @@
 "disable_launch_animations" = "Отключить анимации при запуске";
 "disable_all_animations" = "Отключить все анимации";
 "language" = "Язык";
-"language_system" = "Системный";
 "language_en" = "Английский";
 "language_ru" = "Русский";
 "label_title_colon" = "Название:";
@@ -95,6 +94,8 @@
 "unlink" = "Отвязать";
 "pause_sync" = "Приостановить синхронизацию";
 "pause_sync_all" = "Приостановить синхронизацию";
+"sync_already_linked" = "Этот файл уже привязан к другому этапу или проекту";
+"toolbar_customization" = "Разрешить настройку панели";
 "change" = "Изменить";
 "sync_interval_prefix" = "Отслеживать изменения каждые";
 "sync_interval_suffix" = "секунд";

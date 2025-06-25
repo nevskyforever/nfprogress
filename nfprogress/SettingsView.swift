@@ -31,6 +31,9 @@ struct SettingsView: View {
             Toggle("pause_sync_all", isOn: $settings.pauseAllSync)
                 .toggleStyle(.switch)
 
+            Toggle("toolbar_customization", isOn: $settings.allowToolbarCustomization)
+                .toggleStyle(.switch)
+
             HStack {
                 Text(settings.localized("sync_interval_prefix"))
                 SelectAllIntField(text: $intervalText, placeholder: "interval")
