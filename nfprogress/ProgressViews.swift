@@ -321,9 +321,10 @@ struct ProgressChartView: View {
                             .foregroundStyle(.blue)
                         }
                     }
+                    .chartXScale(domain: (project.sortedEntries.first?.date ?? Date())...(project.sortedEntries.last?.date ?? Date()))
                     .chartXAxis {
-                        if let first = project.sortedEntryDates.first,
-                           let last = project.sortedEntryDates.last {
+                        if let first = project.sortedEntries.first?.date,
+                           let last = project.sortedEntries.last?.date {
                             AxisMarks(values: [first, last]) { value in
                                 if let date = value.as(Date.self) {
                                     AxisGridLine()
