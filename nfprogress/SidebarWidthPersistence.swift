@@ -28,7 +28,7 @@ private struct SidebarWidthPersistence: NSViewRepresentable {
 
         init(key: String) {
             self.key = key
-            _storedWidth = AppStorage(key, defaultValue: 405)
+            _storedWidth = AppStorage(wrappedValue: 405, key)
         }
 
         deinit {
