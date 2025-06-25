@@ -29,7 +29,7 @@ struct ContentView: View {
   @AppStorage("sidebarWidth") private var sidebarWidthRaw: Double = 405
   private var sidebarWidth: CGFloat {
     get { CGFloat(sidebarWidthRaw) }
-    set { sidebarWidthRaw = Double(newValue) }
+    nonmutating set { sidebarWidthRaw = Double(newValue) }
   }
 #endif
 
