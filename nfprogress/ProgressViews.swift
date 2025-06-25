@@ -4,6 +4,9 @@ import SwiftUI
 #if canImport(Charts)
 import Charts
 #endif
+#if canImport(SwiftData)
+import SwiftData
+#endif
 
 /// Текстовое поле, плавно анимирующее изменение чисел.
 struct AnimatedCounterText: Animatable, View {
@@ -65,6 +68,7 @@ enum ProgressCircleStyle {
 
 struct ProgressCircleView: View {
     var project: WritingProject
+    var index: Int = 0
     /// При значении `true` прогресс сохраняется через ``ProgressAnimationTracker``.
     /// Это нужно, чтобы запускать анимацию при возврате к списку проектов.
     var trackProgress: Bool = true
@@ -216,7 +220,7 @@ struct ProgressCircleView: View {
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-                let delay = max(0, 1 - elapsed)
+                let delay = max(0, 1 - elapsed) + Double(index) * 0.3
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     updateProgress(to: progress)
                 }
@@ -251,12 +255,14 @@ struct ProgressCircleView: View {
                 updateProgress(to: progress, animated: !disableAllAnimations)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            if trackProgress && isVisible {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-            }
-            if isVisible {
-                updateProgress(to: progress, animated: !disableAllAnimations)
+        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { note in
+            if let id = note.object as? PersistentIdentifier, id == project.id {
+                if trackProgress && isVisible {
+                    ProgressAnimationTracker.setProgress(progress, for: project)
+                }
+                if isVisible {
+                    updateProgress(to: progress, animated: !disableAllAnimations)
+                }
             }
         }
     }

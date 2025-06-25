@@ -57,7 +57,7 @@ struct HistoryView: View {
                     }
                     modelContext.delete(entry)
                     try? modelContext.save()
-                    NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+                    NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
                 } label: {
                     Image(systemName: "trash")
                 }
