@@ -3,6 +3,7 @@ import SwiftUI
 
 struct DocumentSyncInfoView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var settings: AppSettings
     @Bindable var project: WritingProject
 
@@ -33,6 +34,14 @@ struct DocumentSyncInfoView: View {
         VStack(spacing: scaledSpacing()) {
             Text(info)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            Toggle(settings.localized("pause_sync"), isOn: $project.syncPaused)
+                .onChange(of: project.syncPaused) { value in
+                    if value { DocumentSyncManager.stopMonitoring(project: project) }
+                    else { DocumentSyncManager.startMonitoring(project: project) }
+                }
+            if project.syncType == .scrivener {
+                Button(settings.localized("change")) { changeItem() }
+            }
             Spacer()
             HStack {
                 Spacer()
@@ -48,6 +57,14 @@ struct DocumentSyncInfoView: View {
 
     private func unlink() {
         DocumentSyncManager.removeSync(project: project)
+        dismiss()
+    }
+
+    private func changeItem() {
+        guard let basePath = DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
+                                                               path: project.scrivenerProjectPath) else { return }
+        let request = ScrivenerSelectRequest(projectID: project.id, projectPath: basePath)
+        openWindow(id: "selectScrivenerItem", value: request)
         dismiss()
     }
 }
