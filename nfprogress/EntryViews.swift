@@ -110,13 +110,14 @@ struct AddEntryView: View {
 
         let newEntry = Entry(date: date, characterCount: delta)
         dismiss()
-        if let stage = targetStage {
-            stage.entries.append(newEntry)
-        } else {
-            project.entries.append(newEntry)
+        DispatchQueue.main.async {
+            if let stage = targetStage {
+                stage.entries.append(newEntry)
+            } else {
+                project.entries.append(newEntry)
+            }
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
-        try? project.modelContext?.save()
-        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
     }
 }
 
