@@ -39,3 +39,8 @@ jobs:
           else
             echo "Conditions not met, skipping auto-merge"
           fi
+
+          // test auto-merge
+
+Тест авто-мержа
+
