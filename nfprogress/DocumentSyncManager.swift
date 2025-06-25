@@ -160,11 +160,9 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let count = attrString.string.count
         if project.lastWordCharacters != count || project.lastWordModified != modDate {
-            if project.lastWordCharacters != nil {
-                let entry = Entry(date: modDate, characterCount: count)
-                entry.syncSource = .word
-                project.entries.append(entry)
-            }
+            let entry = Entry(date: modDate, characterCount: count)
+            entry.syncSource = .word
+            project.entries.append(entry)
             project.lastWordCharacters = count
             project.lastWordModified = modDate
             try? DataController.mainContext.save()
