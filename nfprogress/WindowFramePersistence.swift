@@ -17,6 +17,7 @@ private struct WindowFramePersistence: NSViewRepresentable {
 
     private func apply(to view: NSView) {
         guard let window = view.window else { return }
+        window.setFrameUsingName(id)
         window.setFrameAutosaveName(id)
     }
 }
