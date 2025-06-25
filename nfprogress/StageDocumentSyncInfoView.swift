@@ -3,7 +3,6 @@ import SwiftUI
 
 struct StageDocumentSyncInfoView: View {
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.openWindow) private var openWindow
     @EnvironmentObject private var settings: AppSettings
     @Bindable var stage: Stage
 
@@ -34,14 +33,6 @@ struct StageDocumentSyncInfoView: View {
         VStack(spacing: scaledSpacing()) {
             Text(info)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Toggle(settings.localized("pause_sync"), isOn: $stage.syncPaused)
-                .onChange(of: stage.syncPaused) { value in
-                    if value { DocumentSyncManager.stopMonitoring(stage: stage) }
-                    else { DocumentSyncManager.startMonitoring(stage: stage) }
-                }
-            if stage.syncType == .scrivener {
-                Button(settings.localized("change")) { changeItem() }
-            }
             Spacer()
             HStack {
                 Spacer()
@@ -57,14 +48,6 @@ struct StageDocumentSyncInfoView: View {
 
     private func unlink() {
         DocumentSyncManager.removeSync(stage: stage)
-        dismiss()
-    }
-
-    private func changeItem() {
-        guard let basePath = DocumentSyncManager.resolvedPath(bookmark: stage.scrivenerProjectBookmark,
-                                                               path: stage.scrivenerProjectPath) else { return }
-        let request = StageScrivenerSelectRequest(stageID: stage.id, projectPath: basePath)
-        openWindow(id: "stageSelectScrivenerItem", value: request)
         dismiss()
     }
 }
