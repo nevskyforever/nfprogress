@@ -26,13 +26,10 @@ struct ContentView: View {
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
 #if os(macOS)
-  @State private var sidebarWidth: CGFloat
-#endif
-
-#if os(macOS)
-  init() {
-    let w = UserDefaults.standard.double(forKey: "sidebarWidth")
-    _sidebarWidth = State(initialValue: w == 0 ? 405 : w)
+  @AppStorage("sidebarWidth") private var sidebarWidthRaw: Double = 405
+  private var sidebarWidth: CGFloat {
+    get { CGFloat(sidebarWidthRaw) }
+    set { sidebarWidthRaw = Double(newValue) }
   }
 #endif
 
@@ -154,7 +151,6 @@ struct ContentView: View {
     .navigationSplitViewColumnWidth(sidebarWidth)
     .onPreferenceChange(SidebarWidthKey.self) { width in
       sidebarWidth = width
-      UserDefaults.standard.set(width, forKey: "sidebarWidth")
     }
 #endif
     .navigationDestination(for: WritingProject.self) { project in
