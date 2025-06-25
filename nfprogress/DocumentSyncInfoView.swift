@@ -1,5 +1,6 @@
 #if os(macOS)
 import SwiftUI
+import AppKit
 
 struct DocumentSyncInfoView: View {
     @Environment(\.dismiss) private var dismiss
@@ -41,7 +42,9 @@ struct DocumentSyncInfoView: View {
                     else { DocumentSyncManager.startMonitoring(project: project) }
                 }
             if project.syncType == .scrivener {
-                Button(settings.localized("change")) { changeItem() }
+                Button(settings.localized("change")) { changeScrivenerItem() }
+            } else if project.syncType == .word {
+                Button(settings.localized("change")) { changeWordFile() }
             }
             Spacer()
             HStack {
@@ -61,12 +64,26 @@ struct DocumentSyncInfoView: View {
         dismiss()
     }
 
-    private func changeItem() {
+    private func changeScrivenerItem() {
         guard let basePath = DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
                                                                path: project.scrivenerProjectPath) else { return }
         let request = ScrivenerSelectRequest(projectID: project.id, projectPath: basePath)
         openWindow(id: "selectScrivenerItem", value: request)
         dismiss()
+    }
+
+    private func changeWordFile() {
+        let panel = NSOpenPanel()
+        panel.allowedFileTypes = ["doc", "docx"]
+        panel.allowsMultipleSelection = false
+        if panel.runModal() == .OK, let url = panel.url {
+            project.syncType = .word
+            project.wordFilePath = url.path
+            project.wordFileBookmark = try? url.bookmarkData(options: .withSecurityScope)
+            try? project.modelContext?.save()
+            DocumentSyncManager.startMonitoring(project: project)
+            dismiss()
+        }
     }
 }
 #endif
