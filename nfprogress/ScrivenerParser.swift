@@ -44,9 +44,9 @@ enum ScrivenerParser {
 
     private static func parseItem(_ element: XMLElement) -> ScrivenerItem? {
         let id = element.attribute(forName: "UUID")?.stringValue ??
-                     element.attribute(forName: "Uuid")?.stringValue ??
-                     element.attribute(forName: "uuid")?.stringValue ??
-                     element.attribute(forName: "ID")?.stringValue
+                 element.attribute(forName: "Uuid")?.stringValue ??
+                 element.attribute(forName: "uuid")?.stringValue ??
+                 element.attribute(forName: "ID")?.stringValue
         guard let id, let title = element.elements(forName: "Title").first?.stringValue else { return nil }
         let childContainer = element.elements(forName: "Children").first ??
                               element.elements(forName: "SubDocuments").first
@@ -54,15 +54,6 @@ enum ScrivenerParser {
                             element.elements(forName: "BinderItem")
         let children = childElements.compactMap { parseItem($0) }
         return ScrivenerItem(id: id, title: title, children: children)
-    }
-
-    /// Рекурсивный поиск элемента Binder по его идентификатору
-    static func findItem(withID id: String, in items: [ScrivenerItem]) -> ScrivenerItem? {
-        for item in items {
-            if item.id == id { return item }
-            if let found = findItem(withID: id, in: item.children) { return found }
-        }
-        return nil
     }
 }
 #endif

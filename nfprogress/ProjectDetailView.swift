@@ -122,14 +122,7 @@ struct ProjectDetailView: View {
                 }
             )
         ) {
-            StageEntriesView(
-                project: project,
-                stage: stage,
-                selectedEntry: $selectedEntry,
-                editingEntry: $editingEntry,
-                addEntryAction: { addEntry(stage: $0) }
-            )
-            .environmentObject(settings)
+            stageEntriesView(for: stage)
         } label: {
             StageHeaderView(
                 stage: stage,
@@ -141,111 +134,81 @@ struct ProjectDetailView: View {
         }
     }
 
-    /// Список записей для конкретного этапа
-    private struct StageEntriesView: View {
-        @Environment(\.modelContext) private var modelContext
-        @EnvironmentObject private var settings: AppSettings
-        @Bindable var project: WritingProject
-        @Bindable var stage: Stage
-        @Binding var selectedEntry: Entry?
-        @Binding var editingEntry: Entry?
-        var addEntryAction: (Stage) -> Void
-
-#if os(macOS)
-        @Environment(\.openWindow) private var openWindow
-#endif
-
-        var body: some View {
-            VStack(alignment: .leading) {
-                HStack {
-                    Button("add_entry_button") { addEntryAction(stage) }
-                    Spacer()
-                }
-                ForEach(stage.sortedEntries) { entry in
-                    entryRow(entry: entry)
-                }
-            }
+    @ViewBuilder
+    private func stageEntriesView(for stage: Stage) -> some View {
+        HStack {
+            Button("add_entry_button") { addEntry(stage: stage) }
+            Spacer()
         }
-
-        private func entryRow(entry: Entry) -> some View {
-            let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-            let cumulative = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
-            let clamped = max(cumulative, 0)
-            let percent = Double(clamped) / Double(max(stage.goal, 1)) * 100
-
-            let delta = entry.characterCount
-            let deltaPercent = Double(delta) / Double(max(stage.goal, 1)) * 100
-
-            let isSelected = selectedEntry?.id == entry.id
-
-            return HStack {
-                if entry.syncSource == .word {
-                    Image(systemName: "doc")
-                } else if entry.syncSource == .scrivener {
-                    Image(systemName: "doc.text")
-                }
-                VStack(alignment: .leading) {
-                    Text(settings.localized("characters_count", clamped))
-                        .fixedSize(horizontal: false, vertical: true)
-                    Text(settings.localized("stage_progress_format", percent))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .foregroundColor(progressColor(percent / 100))
-                    Text(settings.localized("change_format", delta, deltaPercent))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
-                    Text(entry.date.formatted(date: .numeric, time: .shortened))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .font(.caption)
-                        .foregroundColor(.gray)
-                }
-                Spacer()
-                if isSelected {
-                    Button {
-#if os(macOS)
-                        let req = EditEntryRequest(projectID: project.id, entryID: entry.id)
-                        openWindow(id: "editEntry", value: req)
-#else
-                        editingEntry = entry
-#endif
-                    } label: { Image(systemName: "pencil") }
-                    Button(role: .destructive) {
-                        if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
-                            stage.entries.remove(at: i)
-                        }
-                        modelContext.delete(entry)
-                        saveContext()
-                        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
-                    } label: { Image(systemName: "trash") }
-                }
-            }
-            .contentShape(Rectangle())
-            .scaledPadding(1, .vertical)
-            .frame(minHeight: layoutStep(10))
-            .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-            .onTapGesture {
-                if selectedEntry?.id == entry.id {
-                    selectedEntry = nil
-                } else {
-                    selectedEntry = entry
-                }
-            }
-        }
-
-        private func progressColor(_ percent: Double) -> Color {
-            let clamped = max(0, min(1, percent))
-            let hue = clamped * 0.33
-            return Color(hue: hue, saturation: 1, brightness: 1)
-        }
-
-        private func saveContext() {
-            do {
-                try modelContext.save()
-            } catch {
-                print("Ошибка сохранения: \(error)")
-            }
+        ForEach(stage.sortedEntries) { entry in
+            stageEntryRow(stage: stage, entry: entry)
         }
     }
 
+    @ViewBuilder
+    private func stageEntryRow(stage: Stage, entry: Entry) -> some View {
+        let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
+        let cumulative = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
+        let clamped = max(cumulative, 0)
+        let percent = Double(clamped) / Double(max(stage.goal, 1)) * 100
+
+        let delta = entry.characterCount
+        let deltaPercent = Double(delta) / Double(max(stage.goal, 1)) * 100
+
+        let isSelected = selectedEntry?.id == entry.id
+
+        HStack {
+            if entry.syncSource == .word {
+                Image(systemName: "doc")
+            } else if entry.syncSource == .scrivener {
+                Image(systemName: "doc.text")
+            }
+            VStack(alignment: .leading) {
+                Text(settings.localized("characters_count", clamped))
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(settings.localized("stage_progress_format", percent))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundColor(progressColor(percent / 100))
+                Text(settings.localized("change_format", delta, deltaPercent))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .foregroundColor(delta > 0 ? .green : (delta < 0 ? .red : .primary))
+                Text(entry.date.formatted(date: .numeric, time: .shortened))
+                    .fixedSize(horizontal: false, vertical: true)
+                    .font(.caption)
+                    .foregroundColor(.gray)
+            }
+            Spacer()
+            if isSelected {
+                Button {
+#if os(macOS)
+                    let req = EditEntryRequest(projectID: project.id, entryID: entry.id)
+                    openWindow(id: "editEntry", value: req)
+#else
+                    editingEntry = entry
+#endif
+                } label: { Image(systemName: "pencil") }
+                Button(role: .destructive) {
+                    if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
+                        stage.entries.remove(at: i)
+                    }
+                    modelContext.delete(entry)
+                    saveContext()
+                    NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+                } label: { Image(systemName: "trash") }
+            }
+        }
+        .contentShape(Rectangle())
+        .scaledPadding(1, .vertical)
+        .frame(minHeight: layoutStep(10))
+        .background(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+        .onTapGesture {
+            if selectedEntry?.id == entry.id {
+                selectedEntry = nil
+            } else {
+                selectedEntry = entry
+            }
+        }
+    }
 
     @ViewBuilder
     private var historySection: some View {
