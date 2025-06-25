@@ -77,6 +77,12 @@ struct DocumentSyncInfoView: View {
         panel.allowedFileTypes = ["doc", "docx"]
         panel.allowsMultipleSelection = false
         if panel.runModal() == .OK, let url = panel.url {
+            if DocumentSyncManager.isWordFileInUse(url.path, excludingProject: project.id) {
+                let alert = NSAlert()
+                alert.messageText = settings.localized("sync_already_linked")
+                alert.runModal()
+                return
+            }
             project.syncType = .word
             project.wordFilePath = url.path
             project.wordFileBookmark = try? url.bookmarkData(options: .withSecurityScope)

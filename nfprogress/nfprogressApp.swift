@@ -12,8 +12,9 @@ import AppKit
 struct nfprogressApp: App {
     init() {
 #if os(macOS)
-        let raw = UserDefaults.standard.string(forKey: "language") ?? AppLanguage.system.rawValue
-        let lang = AppLanguage(rawValue: raw) ?? .system
+        let defaultLang = AppLanguage.systemDefault.rawValue
+        let raw = UserDefaults.standard.string(forKey: "language") ?? defaultLang
+        let lang = AppLanguage(rawValue: raw) ?? AppLanguage.systemDefault
         DispatchQueue.main.async {
             Self.localizeMenus(language: lang)
         }

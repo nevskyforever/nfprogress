@@ -138,6 +138,40 @@ enum DocumentSyncManager {
         return nil
     }
 
+    static func isWordFileInUse(_ path: String, excludingProject: PersistentIdentifier? = nil, excludingStage: UUID? = nil) -> Bool {
+        let desc = FetchDescriptor<WritingProject>()
+        if let projects = try? DataController.mainContext.fetch(desc) {
+            for project in projects {
+                if project.id != excludingProject && project.wordFilePath == path && project.syncType == .word {
+                    return true
+                }
+                for stage in project.stages where stage.id != excludingStage {
+                    if stage.wordFilePath == path && stage.syncType == .word {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
+    static func isScrivenerItemInUse(projectPath: String, itemID: String, excludingProject: PersistentIdentifier? = nil, excludingStage: UUID? = nil) -> Bool {
+        let desc = FetchDescriptor<WritingProject>()
+        if let projects = try? DataController.mainContext.fetch(desc) {
+            for project in projects {
+                if project.id != excludingProject && project.scrivenerProjectPath == projectPath && project.scrivenerItemID == itemID && project.syncType == .scrivener {
+                    return true
+                }
+                for stage in project.stages where stage.id != excludingStage {
+                    if stage.scrivenerProjectPath == projectPath && stage.scrivenerItemID == itemID && stage.syncType == .scrivener {
+                        return true
+                    }
+                }
+            }
+        }
+        return false
+    }
+
     private static func fetchProject(id: PersistentIdentifier) -> WritingProject? {
         let descriptor = FetchDescriptor<WritingProject>(predicate: #Predicate { $0.id == id })
         return try? DataController.mainContext.fetch(descriptor).first
@@ -156,6 +190,7 @@ enum DocumentSyncManager {
         case .word:
             guard let url = resolveURL(bookmark: &project.wordFileBookmark,
                                        path: project.wordFilePath) else { return }
+            if isWordFileInUse(url.path, excludingProject: id) { return }
             project.wordFilePath = url.path
             url.startAccessingSecurityScopedResource()
             accessURLs[id] = url
@@ -164,6 +199,10 @@ enum DocumentSyncManager {
         case .scrivener:
             guard let base = resolveURL(bookmark: &project.scrivenerProjectBookmark,
                                         path: project.scrivenerProjectPath) else { return }
+            if let itemID = project.scrivenerItemID,
+               isScrivenerItemInUse(projectPath: base.path, itemID: itemID, excludingProject: id) {
+                return
+            }
             project.scrivenerProjectPath = base.path
             base.startAccessingSecurityScopedResource()
             accessURLs[id] = base
@@ -265,6 +304,7 @@ enum DocumentSyncManager {
         case .word:
             guard let url = resolveURL(bookmark: &stage.wordFileBookmark,
                                        path: stage.wordFilePath) else { return }
+            if isWordFileInUse(url.path, excludingStage: id) { return }
             stage.wordFilePath = url.path
             url.startAccessingSecurityScopedResource()
             stageAccessURLs[id] = url
@@ -273,6 +313,10 @@ enum DocumentSyncManager {
         case .scrivener:
             guard let base = resolveURL(bookmark: &stage.scrivenerProjectBookmark,
                                         path: stage.scrivenerProjectPath) else { return }
+            if let itemID = stage.scrivenerItemID,
+               isScrivenerItemInUse(projectPath: base.path, itemID: itemID, excludingStage: id) {
+                return
+            }
             stage.scrivenerProjectPath = base.path
             base.startAccessingSecurityScopedResource()
             stageAccessURLs[id] = base

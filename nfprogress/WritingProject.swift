@@ -121,8 +121,9 @@ class WritingProject {
     }
 
     private var languageIdentifier: String {
-        let raw = UserDefaults.standard.string(forKey: "language") ?? AppLanguage.system.rawValue
-        let lang = AppLanguage(rawValue: raw) ?? .system
+        let defaultLang = AppLanguage.systemDefault.rawValue
+        let raw = UserDefaults.standard.string(forKey: "language") ?? defaultLang
+        let lang = AppLanguage(rawValue: raw) ?? AppLanguage.systemDefault
         return lang.resolvedIdentifier
     }
 

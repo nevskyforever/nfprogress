@@ -286,6 +286,12 @@ struct StageHeaderView: View {
             panel.allowedFileTypes = ["doc", "docx"]
             panel.allowsMultipleSelection = false
             if panel.runModal() == .OK, let url = panel.url {
+                if DocumentSyncManager.isWordFileInUse(url.path) {
+                    let alert = NSAlert()
+                    alert.messageText = settings.localized("sync_already_linked")
+                    alert.runModal()
+                    return
+                }
                 stage.syncType = .word
                 stage.wordFilePath = url.path
                 stage.wordFileBookmark = try? url.bookmarkData(options: .withSecurityScope)
