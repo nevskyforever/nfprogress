@@ -220,7 +220,7 @@ struct ProgressCircleView: View {
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-                let delay = max(0, 1 - elapsed) + Double(index) * 0.3
+                let delay = max(0, 1 - elapsed) + Double(index) * 0.5
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     updateProgress(to: progress)
                 }
