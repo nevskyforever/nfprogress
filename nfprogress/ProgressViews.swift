@@ -349,6 +349,7 @@ struct ProgressChartView: View {
                     }
                     .frame(height: chartHeight, alignment: .top)
                 }
+                .frame(height: chartHeight)
                 #else
                 Text("charts_framework_required")
                     .frame(height: chartHeight, alignment: .top)
