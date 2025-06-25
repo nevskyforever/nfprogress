@@ -47,26 +47,5 @@ extension WritingProject {
         let dates = sortedEntries.map { calendar.startOfDay(for: $0.date) }
         return Array(Set(dates)).sorted()
     }
-
-    /// Подписи для оси графика в порядке записей.
-    /// Каждой записи соответствует текст, содержащий дату и время
-    /// (при нескольких записях в день показывается только время).
-    var entryAxisLabels: [String] {
-        let calendar = Calendar.current
-        var lastDay: Date?
-        var result: [String] = []
-        for entry in sortedEntries {
-            let day = calendar.startOfDay(for: entry.date)
-            let label: String
-            if day != lastDay {
-                label = entry.date.formatted(date: .numeric, time: .shortened)
-            } else {
-                label = entry.date.formatted(date: .omitted, time: .shortened)
-            }
-            result.append(label)
-            lastDay = day
-        }
-        return result
-    }
 }
 #endif
