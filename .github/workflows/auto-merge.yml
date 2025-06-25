@@ -3,6 +3,8 @@ name: Enable Auto Merge
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+  check_suite:
+    types: [completed]
 
 jobs:
   enable:
@@ -11,12 +13,16 @@ jobs:
       - name: Enable auto-merge if conditions met
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.check_suite.pull_requests[0].number }}
           REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.check_suite.head_sha }}
         run: |
           set -e
-          pr_data=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \ 
+          if [ -z "$PR_NUMBER" ]; then
+            echo "No pull request found for this event"
+            exit 0
+          fi
+          pr_data=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/$REPO/pulls/$PR_NUMBER)
           mergeable=$(echo "$pr_data" | jq -r '.mergeable')
           repo_allows=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \ 
