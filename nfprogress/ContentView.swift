@@ -13,9 +13,9 @@ import AppKit
 struct ContentView: View {
   @Environment(\.modelContext) private var modelContext
   @EnvironmentObject private var settings: AppSettings
-  #if os(macOS)
+#if os(macOS)
   @Environment(\.openWindow) private var openWindow
-  #endif
+#endif
   @Query(sort: [SortDescriptor(\WritingProject.order)]) private var projects: [WritingProject]
   @State private var selectedProject: WritingProject?
   /// Проект, открытый в навигационном стеке на iPhone
@@ -25,6 +25,16 @@ struct ContentView: View {
   @State private var showingAddProject = false
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
+#if os(macOS)
+  @State private var sidebarWidth: CGFloat
+#endif
+
+#if os(macOS)
+  init() {
+    let w = UserDefaults.standard.double(forKey: "sidebarWidth")
+    _sidebarWidth = State(initialValue: w == 0 ? 405 : w)
+  }
+#endif
 
   private let circleHeight: CGFloat = layoutStep(10)
 #if os(macOS)
@@ -131,6 +141,7 @@ struct ContentView: View {
       .listStyle(.plain)
       .navigationTitle("my_texts")
       .toolbar { toolbarContent }
+      .background(SidebarWidthReader())
     }, detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
@@ -140,7 +151,11 @@ struct ContentView: View {
       }
     })
 #if os(macOS)
-    .navigationSplitViewColumnWidth(405)
+    .navigationSplitViewColumnWidth(sidebarWidth)
+    .onPreferenceChange(SidebarWidthKey.self) { width in
+      sidebarWidth = width
+      UserDefaults.standard.set(width, forKey: "sidebarWidth")
+    }
 #endif
     .navigationDestination(for: WritingProject.self) { project in
       ProjectDetailView(project: project)
@@ -481,4 +496,20 @@ struct ContentView: View {
     try? modelContext.save()
   }
 }
+#if os(macOS)
+private struct SidebarWidthKey: PreferenceKey {
+  static var defaultValue: CGFloat = 405
+  static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+    value = nextValue()
+  }
+}
+
+private struct SidebarWidthReader: View {
+  var body: some View {
+    GeometryReader { proxy in
+      Color.clear.preference(key: SidebarWidthKey.self, value: proxy.size.width)
+    }
+  }
+}
+#endif
 #endif
