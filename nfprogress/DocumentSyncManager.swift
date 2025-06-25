@@ -14,6 +14,15 @@ enum DocumentSyncManager {
     private static var stageTimers: [UUID: Timer] = [:]
     private static var stageAccessURLs: [UUID: URL] = [:]
 
+    /// Возвращает идентификатор проекта, которому принадлежит этап
+    private static func projectID(for stage: Stage) -> PersistentIdentifier? {
+        let desc = FetchDescriptor<WritingProject>()
+        if let projects = try? DataController.mainContext.fetch(desc) {
+            return projects.first(where: { $0.stages.contains(where: { $0.id == stage.id }) })?.id
+        }
+        return nil
+    }
+
     private static func resolveURL(bookmark: inout Data?, path: String?) -> URL? {
         if let data = bookmark {
             var stale = false
@@ -166,7 +175,7 @@ enum DocumentSyncManager {
             project.lastWordCharacters = totalCount
             project.lastWordModified = modDate
             try? DataController.mainContext.save()
-            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
         }
     }
 
@@ -274,7 +283,8 @@ enum DocumentSyncManager {
             stage.lastWordCharacters = totalCount
             stage.lastWordModified = modDate
             try? DataController.mainContext.save()
-            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+            let pid = projectID(for: stage)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: pid)
         }
     }
 
@@ -315,7 +325,8 @@ enum DocumentSyncManager {
             stage.lastScrivenerCharacters = totalCount
             stage.lastScrivenerModified = modDate
             try? DataController.mainContext.save()
-            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+            let pid = projectID(for: stage)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: pid)
         }
     }
 
@@ -361,7 +372,7 @@ enum DocumentSyncManager {
             project.lastScrivenerCharacters = totalCount
             project.lastScrivenerModified = modDate
             try? DataController.mainContext.save()
-            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
         }
     }
 }
