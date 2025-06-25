@@ -3,39 +3,50 @@ name: Enable Auto Merge
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-  check_suite:
-    types: [completed]
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
 
 jobs:
   enable:
+    if: github.event_name == 'pull_request' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge if conditions met
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number || github.event.check_suite.pull_requests[0].number }}
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}
           REPO: ${{ github.repository }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.check_suite.head_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha }}
         run: |
           set -e
           if [ -z "$PR_NUMBER" ]; then
             echo "No pull request found for this event"
             exit 0
           fi
+
           pr_data=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/$REPO/pulls/$PR_NUMBER)
           mergeable=$(echo "$pr_data" | jq -r '.mergeable')
+
           repo_allows=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/$REPO | jq -r '.allow_auto_merge')
+
           status_state=$(curl -s -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/$REPO/commits/$HEAD_SHA/status | jq -r '.state')
+
           echo "Mergeable: $mergeable"
           echo "Repo allows auto merge: $repo_allows"
-          echo "Status: $status_state"
+          echo "Checks status: $status_state"
+
           if [ "$mergeable" = "true" ] && [ "$repo_allows" = "true" ] && [ "$status_state" = "success" ]; then
-            curl -X PUT -H "Authorization: Bearer $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" \
+            echo "All conditions met — enabling auto-merge"
+            curl -s -X PUT \
+              -H "Authorization: Bearer $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
               https://api.github.com/repos/$REPO/pulls/$PR_NUMBER/auto-merge \
-              -d '{"merge_method": "squash"}'
+              -d '{ "merge_method": "squash" }'
           else
-            echo "Conditions not met, skipping auto-merge"
+            echo "Auto-merge conditions not met"
           fi
