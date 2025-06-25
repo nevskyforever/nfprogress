@@ -65,7 +65,6 @@ enum ProgressCircleStyle {
 
 struct ProgressCircleView: View {
     var project: WritingProject
-    var index: Int = 0
     /// При значении `true` прогресс сохраняется через ``ProgressAnimationTracker``.
     /// Это нужно, чтобы запускать анимацию при возврате к списку проектов.
     var trackProgress: Bool = true
@@ -217,7 +216,7 @@ struct ProgressCircleView: View {
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-                let delay = max(0, 1 - elapsed) + Double(index) * 0.05
+                let delay = max(0, 1 - elapsed)
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     updateProgress(to: progress)
                 }
@@ -252,14 +251,12 @@ struct ProgressCircleView: View {
                 updateProgress(to: progress, animated: !disableAllAnimations)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { note in
-            if let id = note.object as? PersistentIdentifier, id == project.id {
-                if trackProgress && isVisible {
-                    ProgressAnimationTracker.setProgress(progress, for: project)
-                }
-                if isVisible {
-                    updateProgress(to: progress, animated: !disableAllAnimations)
-                }
+        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+            if trackProgress && isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
+            if isVisible {
+                updateProgress(to: progress, animated: !disableAllAnimations)
             }
         }
     }
