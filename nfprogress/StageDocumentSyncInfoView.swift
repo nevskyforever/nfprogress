@@ -11,7 +11,7 @@ struct StageDocumentSyncInfoView: View {
         case .word:
             let path = DocumentSyncManager.resolvedPath(bookmark: stage.wordFileBookmark,
                                                         path: stage.wordFilePath)
-            return String(format: settings.localized("sync_info_word"), path ?? "")
+            return settings.localized("sync_info_word", path ?? "")
         case .scrivener:
             let basePath = DocumentSyncManager.resolvedPath(bookmark: stage.scrivenerProjectBookmark,
                                                             path: stage.scrivenerProjectPath)
@@ -23,7 +23,7 @@ struct StageDocumentSyncInfoView: View {
                     name = item.title
                 }
             }
-            return String(format: settings.localized("sync_info_scrivener"), name, basePath ?? "")
+            return settings.localized("sync_info_scrivener", name, basePath ?? "")
         case .none:
             return ""
         }
