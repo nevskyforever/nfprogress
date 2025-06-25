@@ -11,7 +11,7 @@ struct DocumentSyncInfoView: View {
         case .word:
             let path = DocumentSyncManager.resolvedPath(bookmark: project.wordFileBookmark,
                                                         path: project.wordFilePath)
-            return String(format: settings.localized("sync_info_word"), path ?? "")
+            return settings.localized("sync_info_word", path ?? "")
         case .scrivener:
             let basePath = DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
                                                             path: project.scrivenerProjectPath)
@@ -19,11 +19,11 @@ struct DocumentSyncInfoView: View {
             if let basePath, let itemID = project.scrivenerItemID {
                 let url = URL(fileURLWithPath: basePath)
                 let items = ScrivenerParser.items(in: url)
-                if let item = items.first(where: { $0.id == itemID }) {
+                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
                     name = item.title
                 }
             }
-            return String(format: settings.localized("sync_info_scrivener"), name, basePath ?? "")
+            return settings.localized("sync_info_scrivener", name, basePath ?? "")
         case .none:
             return ""
         }
