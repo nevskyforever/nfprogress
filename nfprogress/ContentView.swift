@@ -148,7 +148,7 @@ struct ContentView: View {
       }
     })
 #if os(macOS)
-    .navigationSplitViewColumnWidth(sidebarWidth)
+    .navigationSplitViewColumnWidth(min: minWindowWidth, ideal: sidebarWidth, max: .infinity)
     .onPreferenceChange(SidebarWidthKey.self) { width in
       sidebarWidth = width
     }
