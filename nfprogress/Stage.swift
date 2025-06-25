@@ -60,7 +60,16 @@ class Stage: Identifiable {
     }
 
     var currentProgress: Int {
-        max(0, uniqueEntries.reduce(0) { $0 + $1.characterCount })
+        var progress = 0
+        let entries = sortedEntries
+        for entry in entries {
+            if entry.syncSource != nil {
+                progress = entry.characterCount
+            } else {
+                progress += entry.characterCount
+            }
+        }
+        return max(0, progress)
     }
 
     var progressPercentage: Double {

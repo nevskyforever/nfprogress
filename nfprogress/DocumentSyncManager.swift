@@ -268,14 +268,7 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let count = attrString.string.count
         if stage.lastWordCharacters != count || stage.lastWordModified != modDate {
-            let previous: Int
-            if let last = stage.lastWordCharacters {
-                previous = last
-            } else {
-                previous = stage.startProgress + stage.currentProgress
-            }
-            let delta = count - previous
-            let entry = Entry(date: modDate, characterCount: delta)
+            let entry = Entry(date: modDate, characterCount: count)
             entry.syncSource = .word
             stage.entries.append(entry)
             stage.lastWordCharacters = count
@@ -316,14 +309,7 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let count = attrString.string.count
         if stage.lastScrivenerCharacters != count || stage.lastScrivenerModified != modDate {
-            let previous: Int
-            if let last = stage.lastScrivenerCharacters {
-                previous = last
-            } else {
-                previous = stage.startProgress + stage.currentProgress
-            }
-            let delta = count - previous
-            let entry = Entry(date: modDate, characterCount: delta)
+            let entry = Entry(date: modDate, characterCount: count)
             entry.syncSource = .scrivener
             stage.entries.append(entry)
             stage.lastScrivenerCharacters = count
