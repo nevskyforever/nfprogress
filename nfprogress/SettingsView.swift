@@ -3,7 +3,6 @@ import SwiftUI
 
 struct SettingsView: View {
     @EnvironmentObject private var settings: AppSettings
-    @State private var intervalText: String = ""
     private let viewSpacing: CGFloat = scaledSpacing(2)
     /// "38" приблизительно соответствует прежней ширине 300pt,
     /// кратной шагу компоновки.
@@ -23,24 +22,8 @@ struct SettingsView: View {
             .pickerStyle(.segmented)
 
             Toggle("disable_launch_animations", isOn: $settings.disableLaunchAnimations)
-                .toggleStyle(.switch)
 
             Toggle("disable_all_animations", isOn: $settings.disableAllAnimations)
-                .toggleStyle(.switch)
-
-            Toggle("pause_sync_all", isOn: $settings.pauseAllSync)
-                .toggleStyle(.switch)
-
-            HStack {
-                Text(settings.localized("sync_interval_prefix"))
-                SelectAllIntField(text: $intervalText, placeholder: "interval")
-                    .frame(width: layoutStep(10))
-                Text(settings.localized("sync_interval_suffix"))
-            }
-            .onAppear { intervalText = String(Int(settings.syncInterval)) }
-            .onDisappear {
-                if let val = Double(intervalText) { settings.syncInterval = val }
-            }
 
             Spacer()
         }
