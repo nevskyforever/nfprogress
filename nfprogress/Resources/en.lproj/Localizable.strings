@@ -93,8 +93,3 @@
 "sync_info_scrivener" = "Scrivener item %@\nin project:\n%@";
 "close" = "Close";
 "unlink" = "Unlink";
-"pause_sync" = "Pause sync";
-"pause_sync_all" = "Pause synchronization";
-"change" = "Change";
-"sync_interval_prefix" = "Check every";
-"sync_interval_suffix" = "seconds";
