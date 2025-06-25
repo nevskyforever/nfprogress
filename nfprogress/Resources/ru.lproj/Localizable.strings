@@ -93,3 +93,8 @@
 "sync_info_scrivener" = "Элемент Scrivener %@\nв проекте:\n%@";
 "close" = "Закрыть";
 "unlink" = "Отвязать";
+"pause_sync" = "Приостановить синхронизацию";
+"pause_sync_all" = "Приостановить синхронизацию";
+"change" = "Изменить";
+"sync_interval_prefix" = "Отслеживать изменения каждые";
+"sync_interval_suffix" = "секунд";
