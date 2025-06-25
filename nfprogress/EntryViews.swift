@@ -117,7 +117,7 @@ struct AddEntryView: View {
                 project.entries.append(newEntry)
             }
             try? project.modelContext?.save()
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
     }
 }
@@ -198,10 +198,10 @@ struct EditEntryView: View {
         .onExitCommand { dismiss() }
 #endif
         .onDisappear {
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
         .onChange(of: entry.date) { _ in
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
         .onChange(of: selectedStageIndex) { newValue in
             guard !project.stages.isEmpty else { return }
@@ -218,7 +218,7 @@ struct EditEntryView: View {
             project.entries.remove(at: idx)
         }
         stage.entries.append(entry)
-        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
     }
 
     private static func progressAfterEntry(project: WritingProject, entry: Entry) -> Int {
@@ -248,7 +248,7 @@ struct EditEntryView: View {
     private func saveChanges() {
         let previous = Self.progressBeforeEntry(project: project, entry: entry)
         entry.characterCount = editedCount - previous
-        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
     }
 }
 
@@ -368,7 +368,7 @@ struct MenuBarEntryView: View {
         }
         try? modelContext.save()
         didSave = true
-        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         resetFields()
         return true
     }

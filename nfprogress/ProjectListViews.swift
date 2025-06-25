@@ -7,7 +7,6 @@ import SwiftData
 /// Анимированный текст с процентом прогресса для компактного списка проектов.
 struct ProjectPercentView: View {
     var project: WritingProject
-    var index: Int = 0
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
@@ -87,7 +86,7 @@ struct ProjectPercentView: View {
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-                let delay = max(0, 1 - elapsed) + Double(index) * 0.05
+                let delay = max(0, 1 - elapsed)
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     updateProgress(to: progress)
                 }
@@ -113,12 +112,10 @@ struct ProjectPercentView: View {
                 updateProgress(to: progress, animated: !disableAllAnimations)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { note in
-            if let id = note.object as? PersistentIdentifier, id == project.id {
-                if isVisible {
-                    ProgressAnimationTracker.setProgress(progress, for: project)
-                    updateProgress(to: progress, animated: !disableAllAnimations)
-                }
+        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+            if isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+                updateProgress(to: progress, animated: !disableAllAnimations)
             }
         }
     }
@@ -127,14 +124,13 @@ struct ProjectPercentView: View {
 /// Строка списка, показывающая только название проекта и процент прогресса.
 struct CompactProjectRow: View {
     var project: WritingProject
-    var index: Int
     var body: some View {
         HStack {
             Text(project.title)
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
-            ProjectPercentView(project: project, index: index)
+            ProjectPercentView(project: project)
         }
         .padding(.vertical, scaledSpacing(1))
     }
