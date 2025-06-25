@@ -677,7 +677,7 @@ struct ProjectDetailView: View {
 #if os(macOS)
             content
                 .sheet(item: $editingStage) { stage in
-                    EditStageView(stage: stage)
+                    EditStageView(stage: stage, project: project)
                 }
 #else
             content
@@ -694,7 +694,7 @@ struct ProjectDetailView: View {
                     EditEntryView(project: project, entry: entry)
                 }
                 .sheet(item: $editingStage) { stage in
-                    EditStageView(stage: stage)
+                    EditStageView(stage: stage, project: project)
                 }
 #endif
         }

@@ -80,6 +80,7 @@ import SwiftData
 struct EditStageView: View {
     @Environment(\.dismiss) private var dismiss
     @Bindable var stage: Stage
+    @Bindable var project: WritingProject
 
     private let viewSpacing: CGFloat = scaledSpacing(2)
     private let fieldWidth: CGFloat = layoutStep(25)
