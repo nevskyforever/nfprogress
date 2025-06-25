@@ -24,8 +24,12 @@ private struct SidebarWidthPersistence: NSViewRepresentable {
         weak var view: NSView?
         var observation: NSObjectProtocol?
         var initialApplied = false
+        @AppStorage var storedWidth: Double
 
-        init(key: String) { self.key = key }
+        init(key: String) {
+            self.key = key
+            _storedWidth = AppStorage(key, defaultValue: 405)
+        }
 
         deinit {
             if let observation { NotificationCenter.default.removeObserver(observation) }
@@ -33,12 +37,11 @@ private struct SidebarWidthPersistence: NSViewRepresentable {
 
         func setup() {
             guard let splitView = findSplitView() else { return }
-            let defaults = UserDefaults.standard
 
             if !initialApplied {
                 initialApplied = true
-                if defaults.object(forKey: key) != nil {
-                    let width = defaults.double(forKey: key)
+                if UserDefaults.standard.object(forKey: key) != nil {
+                    let width = storedWidth
                     DispatchQueue.main.async {
                         splitView.setPosition(width, ofDividerAt: 0)
                     }
@@ -68,7 +71,7 @@ private struct SidebarWidthPersistence: NSViewRepresentable {
         private func saveWidth() {
             guard let splitView = findSplitView() else { return }
             let width = splitView.subviews.first?.frame.width ?? 0
-            UserDefaults.standard.set(width, forKey: key)
+            storedWidth = width
         }
     }
 }
