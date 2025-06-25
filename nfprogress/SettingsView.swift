@@ -15,12 +15,16 @@ struct SettingsView: View {
             Text("appearance")
                 .font(.headline)
 
-            Picker("language", selection: $settings.language) {
-                ForEach(AppLanguage.allCases) { lang in
-                    Text(lang.description).tag(lang)
+            HStack {
+                Text("language")
+                Picker("", selection: $settings.language) {
+                    ForEach(AppLanguage.allCases) { lang in
+                        Text(lang.description).tag(lang)
+                    }
                 }
+                .labelsHidden()
+                .pickerStyle(.menu)
             }
-            .pickerStyle(.segmented)
 
             Toggle("disable_launch_animations", isOn: $settings.disableLaunchAnimations)
                 .toggleStyle(.switch)
