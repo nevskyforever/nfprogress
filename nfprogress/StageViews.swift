@@ -65,7 +65,7 @@ struct AddStageView: View {
             }
             project.stages.append(stage)
             try? project.modelContext?.save()
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
     }
 }
@@ -124,10 +124,10 @@ struct EditStageView: View {
         .onExitCommand { dismiss() }
 #endif
         .onDisappear {
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
         .onChange(of: stage.goal) { _ in
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+            NotificationCenter.default.post(name: .projectProgressChanged, object: nil)
         }
     }
 }
@@ -259,10 +259,8 @@ struct StageHeaderView: View {
         .onChange(of: stage.entries.map(\.characterCount)) { _ in
             updateProgress(to: progress)
         }
-        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { note in
-            if let id = note.object as? PersistentIdentifier, id == project.id {
-                updateProgress(to: progress)
-            }
+        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+            updateProgress(to: progress)
         }
     }
 
