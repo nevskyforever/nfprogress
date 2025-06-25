@@ -322,15 +322,13 @@ struct ProgressChartView: View {
                         }
                     }
                     .chartXAxis {
-                        if let first = project.sortedEntryDates.first,
-                           let last = project.sortedEntryDates.last {
-                            AxisMarks(values: [first, last]) { value in
-                                if let date = value.as(Date.self) {
-                                    AxisGridLine()
-                                    AxisTick()
-                                    AxisValueLabel {
-                                        Text(date.formatted(date: .numeric, time: .shortened))
-                                    }
+                        let comp = project.sortedEntryDates.stride(forWidth: geo.size.width)
+                        AxisMarks(values: .stride(by: comp)) { value in
+                            if let date = value.as(Date.self) {
+                                AxisGridLine()
+                                AxisTick()
+                                AxisValueLabel {
+                                    Text(date.formatted(date: .numeric, time: .shortened))
                                 }
                             }
                         }
