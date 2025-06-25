@@ -298,7 +298,7 @@ struct ProgressChartView: View {
 
             if project.sortedEntries.count >= 2 {
 #if canImport(Charts)
-                GeometryReader { geo in
+                ScrollView(.vertical) {
                     Chart {
                         // Целевая линия
                         RuleMark(y: .value(settings.localized("progress_chart_goal"), project.goal))
@@ -321,16 +321,15 @@ struct ProgressChartView: View {
                             .foregroundStyle(.blue)
                         }
                     }
+                    .chartXScale(domain: (project.sortedEntries.first?.date ?? Date())...(project.sortedEntries.last?.date ?? Date()))
                     .chartXAxis {
-                        if let first = project.sortedEntryDates.first,
-                           let last = project.sortedEntryDates.last {
-                            AxisMarks(values: [first, last]) { value in
-                                if let date = value.as(Date.self) {
-                                    AxisGridLine()
-                                    AxisTick()
-                                    AxisValueLabel {
-                                        Text(date.formatted(date: .numeric, time: .shortened))
-                                    }
+                        let info = project.entryAxisInfo
+                        AxisMarks(values: info.map { $0.date }) { value in
+                            if let date = value.as(Date.self), let pair = info.first(where: { $0.date == date }) {
+                                AxisGridLine()
+                                AxisTick()
+                                AxisValueLabel {
+                                    Text(pair.label)
                                 }
                             }
                         }
