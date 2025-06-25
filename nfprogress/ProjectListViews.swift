@@ -8,6 +8,8 @@ import SwiftData
 struct ProjectPercentView: View {
     var project: WritingProject
     var index: Int = 0
+    /// Общее число проектов в списке для подстройки задержки запуска анимации
+    var totalCount: Int = 1
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
@@ -87,7 +89,9 @@ struct ProjectPercentView: View {
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-                let delay = max(0, 1 - elapsed) + Double(index) * 0.3
+                // Чем больше проектов, тем больше пауза между анимациями
+                let step = 0.3 + Double(totalCount) * 0.02
+                let delay = max(0, 1 - elapsed) + Double(index) * step
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     updateProgress(to: progress)
                 }
@@ -128,13 +132,14 @@ struct ProjectPercentView: View {
 struct CompactProjectRow: View {
     var project: WritingProject
     var index: Int
+    var totalCount: Int
     var body: some View {
         HStack {
             Text(project.title)
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
-            ProjectPercentView(project: project, index: index)
+            ProjectPercentView(project: project, index: index, totalCount: totalCount)
         }
         .padding(.vertical, scaledSpacing(1))
     }

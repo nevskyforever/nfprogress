@@ -30,6 +30,8 @@ class Stage: Identifiable {
     var lastScrivenerCharacters: Int?
     /// Последняя дата изменения Scrivener
     var lastScrivenerModified: Date?
+    /// Приостановлена ли синхронизация
+    var syncPaused: Bool = false
 
     init(title: String, goal: Int, deadline: Date? = nil, startProgress: Int) {
         self.title = title
@@ -47,6 +49,7 @@ class Stage: Identifiable {
         self.lastWordModified = nil
         self.lastScrivenerCharacters = nil
         self.lastScrivenerModified = nil
+        self.syncPaused = false
     }
 
     /// Записи этого этапа без повторов

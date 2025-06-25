@@ -69,6 +69,8 @@ enum ProgressCircleStyle {
 struct ProgressCircleView: View {
     var project: WritingProject
     var index: Int = 0
+    /// Общее число проектов для адаптации задержки анимации
+    var totalCount: Int = 1
     /// При значении `true` прогресс сохраняется через ``ProgressAnimationTracker``.
     /// Это нужно, чтобы запускать анимацию при возврате к списку проектов.
     var trackProgress: Bool = true
@@ -220,7 +222,9 @@ struct ProgressCircleView: View {
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-                let delay = max(0, 1 - elapsed) + Double(index) * 0.3
+                // Чем больше проектов, тем более растягиваем начало анимации
+                let step = 0.3 + Double(totalCount) * 0.02
+                let delay = max(0, 1 - elapsed) + Double(index) * step
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
                     updateProgress(to: progress)
                 }
@@ -276,6 +280,8 @@ struct ProgressChartView: View {
 
     private let viewSpacing: CGFloat = scaledSpacing(1)
     private let chartHeight: CGFloat = layoutStep(25)
+    /// Минимальное расстояние между подписями оси X
+    private let minLabelSpacing: CGFloat = 80
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -295,50 +301,62 @@ struct ProgressChartView: View {
             if project.sortedEntries.count >= 2 {
 #if canImport(Charts)
                 GeometryReader { geo in
-                    Chart {
-                        // Целевая линия
-                        RuleMark(y: .value(settings.localized("progress_chart_goal"), project.goal))
-                            .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
-                            .foregroundStyle(.gray)
-                            .annotation(position: .top, alignment: .leading) {
-                            Text(settings.localized("goal_characters", project.goal))
-                                .font(.caption)
-                                .foregroundColor(.gray)
-                        }
+                    let labels = project.entryAxisLabels
+                    let entries = Array(project.sortedEntries.enumerated())
+                    let width = max(geo.size.width,
+                                    CGFloat(labels.count) * minLabelSpacing)
+                    ScrollView([.horizontal, .vertical]) {
+                        Chart {
+                            // Целевая линия
+                            RuleMark(y: .value(settings.localized("progress_chart_goal"), project.goal))
+                                .lineStyle(StrokeStyle(lineWidth: 1, dash: [4]))
+                                .foregroundStyle(.gray)
+                                .annotation(position: .top, alignment: .leading) {
+                                    Text(settings.localized("goal_characters", project.goal))
+                                        .font(.caption)
+                                        .foregroundColor(.gray)
+                                }
 
-                        // Линия прогресса
-                        ForEach(project.sortedEntries) { entry in
-                            LineMark(
-                                x: .value(settings.localized("date_field"), entry.date),
-                                y: .value(settings.localized("characters_field"), project.globalProgress(for: entry))
-                            )
-                            .interpolationMethod(.monotone)
-                            .symbol(.circle)
-                            .foregroundStyle(.blue)
+                            // Линия прогресса
+                            ForEach(entries, id: \.1.id) { index, entry in
+                                LineMark(
+                                    x: .value(settings.localized("date_field"), index),
+                                    y: .value(settings.localized("characters_field"), project.globalProgress(for: entry))
+                                )
+                                .interpolationMethod(.monotone)
+                                .symbol(.circle)
+                                .foregroundStyle(.blue)
+                            }
                         }
-                    }
-                    .chartXAxis {
-                        let comp = project.sortedEntryDates.stride(forWidth: geo.size.width)
-                        AxisMarks(values: .stride(by: comp)) { value in
-                            if let date = value.as(Date.self) {
-                                AxisGridLine()
-                                AxisTick()
-                                AxisValueLabel {
-                                    Text(date.formatted(date: .numeric, time: .shortened))
+                        .chartXScale(domain: 0...max(labels.count - 1, 0))
+                        .chartScrollableAxes(.horizontal)
+                        .chartXVisibleDomain(length: {
+                            let visible = min(labels.count, 7)
+                            return Double(max(visible - 1, 1))
+                        }())
+                        .chartXAxis {
+                            AxisMarks(values: Array(labels.indices)) { value in
+                                if let i = value.as(Int.self), i < labels.count {
+                                    AxisGridLine()
+                                    AxisTick()
+                                    AxisValueLabel {
+                                        Text(labels[i])
+                                    }
                                 }
                             }
                         }
+                        .frame(width: width, alignment: .leading)
                     }
-                    .frame(maxWidth: .infinity)
+                    .frame(height: chartHeight, alignment: .top)
                 }
-                .frame(height: chartHeight, alignment: .top)
-#else
+                .frame(height: chartHeight)
+                #else
                 Text("charts_framework_required")
                     .frame(height: chartHeight, alignment: .top)
 #endif
             }
         }
-        .scaledPadding(1, .top)
+        .scaledPadding()
     }
 }
 #endif
