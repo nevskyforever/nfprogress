@@ -31,6 +31,7 @@ struct ContentView: View {
     get { CGFloat(sidebarWidthRaw) }
     nonmutating set { sidebarWidthRaw = Double(newValue) }
   }
+  @State private var didLoadSidebarWidth = false
 #endif
 
   private let circleHeight: CGFloat = layoutStep(10)
@@ -59,9 +60,9 @@ struct ContentView: View {
       if UIDevice.current.userInterfaceIdiom == .pad {
         NavigationSplitView(sidebar: {
           List {
-            ForEach(sortedProjects) { project in
+            ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
               Button(action: { selectedProject = project }) {
-                projectRow(for: project)
+                projectRow(for: project, index: index)
                   .frame(maxWidth: .infinity, alignment: .leading)
                   .padding(.vertical, scaledSpacing(1))
                   .frame(minHeight: circleHeight + layoutStep(2))
@@ -89,7 +90,7 @@ struct ContentView: View {
       } else {
         NavigationStack {
           List {
-            ForEach(sortedProjects) { project in
+            ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
               Button {
                 if selectedProject === project {
                   openedProject = project
@@ -97,7 +98,7 @@ struct ContentView: View {
                   selectedProject = project
                 }
               } label: {
-                projectRow(for: project)
+                projectRow(for: project, index: index)
                   .frame(maxWidth: .infinity, alignment: .leading)
                   .padding(.vertical, scaledSpacing(1))
                   .frame(minHeight: (settings.projectListStyle == .detailed ? largeCircleHeight : circleHeight) + layoutStep(2))
@@ -122,9 +123,9 @@ struct ContentView: View {
 #else
     NavigationSplitView(sidebar: {
       List {
-        ForEach(sortedProjects) { project in
+        ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
           Button(action: { selectedProject = project }) {
-            projectRow(for: project)
+            projectRow(for: project, index: index)
               .frame(maxWidth: .infinity, alignment: .leading)
               .padding(.vertical, scaledSpacing(1))
               .frame(minHeight: circleHeight + layoutStep(2))
@@ -150,7 +151,11 @@ struct ContentView: View {
 #if os(macOS)
     .navigationSplitViewColumnWidth(min: minWindowWidth, ideal: sidebarWidth, max: .infinity)
     .onPreferenceChange(SidebarWidthKey.self) { width in
-      sidebarWidth = width
+      if didLoadSidebarWidth {
+        sidebarWidth = width
+      } else {
+        didLoadSidebarWidth = true
+      }
     }
 #endif
     .navigationDestination(for: WritingProject.self) { project in
@@ -160,7 +165,7 @@ struct ContentView: View {
   }
 
   @ViewBuilder
-  private func projectRow(for project: WritingProject) -> some View {
+  private func projectRow(for project: WritingProject, index: Int) -> some View {
     switch settings.projectListStyle {
     case .detailed:
       VStack(alignment: .leading) {
@@ -171,17 +176,17 @@ struct ContentView: View {
         HStack {
           Spacer()
 #if os(iOS)
-          ProgressCircleView(project: project, style: .large)
+          ProgressCircleView(project: project, index: index, style: .large)
             .frame(height: largeCircleHeight)
 #else
-          ProgressCircleView(project: project)
+          ProgressCircleView(project: project, index: index)
             .frame(height: circleHeight)
 #endif
           Spacer()
         }
       }
     case .compact:
-      CompactProjectRow(project: project)
+      CompactProjectRow(project: project, index: index)
     }
   }
 
