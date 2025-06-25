@@ -4,6 +4,9 @@ import SwiftUI
 #if canImport(Charts)
 import Charts
 #endif
+#if canImport(SwiftData)
+import SwiftData
+#endif
 
 /// Текстовое поле, плавно анимирующее изменение чисел.
 struct AnimatedCounterText: Animatable, View {
