@@ -115,6 +115,24 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(lastShareTitleOffset, forKey: "lastShareTitleOffset") }
     }
 
+    @Published var syncInterval: Double {
+        didSet {
+            defaults.set(syncInterval, forKey: "syncInterval")
+            #if os(macOS)
+            DocumentSyncManager.updateSyncInterval(to: syncInterval)
+            #endif
+        }
+    }
+
+    @Published var pauseAllSync: Bool {
+        didSet {
+            defaults.set(pauseAllSync, forKey: "pauseAllSync")
+            #if os(macOS)
+            DocumentSyncManager.setGlobalPause(pauseAllSync)
+            #endif
+        }
+    }
+
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     init(userDefaults: UserDefaults = .standard) {
@@ -139,6 +157,9 @@ final class AppSettings: ObservableObject {
         lastShareSpacing = s == 0 ? defaultShareSpacing : s
         let o = defaults.double(forKey: "lastShareTitleOffset")
         lastShareTitleOffset = o == 0 ? defaultShareTitleOffset : o
+        let i = defaults.double(forKey: "syncInterval")
+        syncInterval = i == 0 ? 2 : i
+        pauseAllSync = defaults.bool(forKey: "pauseAllSync")
     }
 }
 #else
@@ -205,6 +226,24 @@ final class AppSettings {
         didSet { defaults.set(lastShareTitleOffset, forKey: "lastShareTitleOffset") }
     }
 
+    var syncInterval: Double {
+        didSet {
+            defaults.set(syncInterval, forKey: "syncInterval")
+            #if os(macOS)
+            DocumentSyncManager.updateSyncInterval(to: syncInterval)
+            #endif
+        }
+    }
+
+    var pauseAllSync: Bool {
+        didSet {
+            defaults.set(pauseAllSync, forKey: "pauseAllSync")
+            #if os(macOS)
+            DocumentSyncManager.setGlobalPause(pauseAllSync)
+            #endif
+        }
+    }
+
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     init(userDefaults: UserDefaults = .standard) {
@@ -229,6 +268,9 @@ final class AppSettings {
         lastShareSpacing = s == 0 ? defaultShareSpacing : s
         let o = defaults.double(forKey: "lastShareTitleOffset")
         lastShareTitleOffset = o == 0 ? defaultShareTitleOffset : o
+        let i = defaults.double(forKey: "syncInterval")
+        syncInterval = i == 0 ? 2 : i
+        pauseAllSync = defaults.bool(forKey: "pauseAllSync")
     }
 }
 #endif
