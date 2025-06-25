@@ -70,6 +70,7 @@ class WritingProject {
         for i in 0...index {
             let e = entries[i]
             if e.syncSource != nil {
+                // Синхронизированные записи содержат абсолютное значение прогресса
                 progress = e.characterCount
             } else {
                 progress += e.characterCount

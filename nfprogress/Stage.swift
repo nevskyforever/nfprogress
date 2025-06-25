@@ -64,6 +64,8 @@ class Stage: Identifiable {
         let entries = sortedEntries
         for entry in entries {
             if entry.syncSource != nil {
+                // Записи из синхронизации содержат абсолютное
+                // количество символов на момент изменения файла
                 progress = entry.characterCount
             } else {
                 progress += entry.characterCount
