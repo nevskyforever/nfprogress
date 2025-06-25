@@ -73,10 +73,10 @@ extension nfprogressApp {
                 .windowDefaultSize(width: layoutStep(35), height: layoutStep(20))
 #endif
         }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
+        .modelContainer(DataController.shared)
 
         WindowGroup(id: "addStage", for: AddStageRequest.self) { binding in
-            let context = DataController.mainContext
+            let context = ModelContext(DataController.shared)
             if let request = binding.wrappedValue,
                let project = fetchProject(id: request.projectID, context: context) {
                 AddStageView(project: project)
@@ -88,10 +88,10 @@ extension nfprogressApp {
 #endif
             }
         }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
+        .modelContainer(DataController.shared)
 
         WindowGroup(id: "addEntry", for: AddEntryRequest.self) { binding in
-            let context = DataController.mainContext
+            let context = ModelContext(DataController.shared)
             if let request = binding.wrappedValue,
                let project = fetchProject(id: request.projectID, context: context) {
                 if let stageID = request.stageID,
@@ -114,10 +114,10 @@ extension nfprogressApp {
                 }
             }
         }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
+        .modelContainer(DataController.shared)
 
         WindowGroup(id: "editEntry", for: EditEntryRequest.self) { binding in
-            let context = DataController.mainContext
+            let context = ModelContext(DataController.shared)
             if let request = binding.wrappedValue,
                let project = fetchProject(id: request.projectID, context: context),
                let entry = fetchEntry(id: request.entryID, context: context) {
@@ -130,10 +130,10 @@ extension nfprogressApp {
 #endif
             }
         }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
+        .modelContainer(DataController.shared)
 
         WindowGroup(id: "sharePreview", for: SharePreviewRequest.self) { binding in
-            let context = DataController.mainContext
+            let context = ModelContext(DataController.shared)
             if let request = binding.wrappedValue,
                let project = fetchProject(id: request.projectID, context: context) {
                 ProgressSharePreview(project: project)
@@ -145,10 +145,10 @@ extension nfprogressApp {
 #endif
             }
         }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
+        .modelContainer(DataController.shared)
 
         WindowGroup(id: "selectScrivenerItem", for: ScrivenerSelectRequest.self) { binding in
-            let context = DataController.mainContext
+            let context = ModelContext(DataController.shared)
             if let request = binding.wrappedValue,
                let project = fetchProject(id: request.projectID, context: context) {
                 let url = URL(fileURLWithPath: request.projectPath)
@@ -157,10 +157,10 @@ extension nfprogressApp {
                     .environment(\.locale, settings.locale)
             }
         }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
+        .modelContainer(DataController.shared)
 
         WindowGroup(id: "stageSelectScrivenerItem", for: StageScrivenerSelectRequest.self) { binding in
-            let context = DataController.mainContext
+            let context = ModelContext(DataController.shared)
             if let request = binding.wrappedValue,
                let stage = fetchStage(id: request.stageID, context: context) {
                 let url = URL(fileURLWithPath: request.projectPath)
@@ -169,10 +169,10 @@ extension nfprogressApp {
                     .environment(\.locale, settings.locale)
             }
         }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
+        .modelContainer(DataController.shared)
 
         WindowGroup(id: "syncInfo", for: SyncInfoRequest.self) { binding in
-            let context = DataController.mainContext
+            let context = ModelContext(DataController.shared)
             if let request = binding.wrappedValue,
                let project = fetchProject(id: request.projectID, context: context) {
                 DocumentSyncInfoView(project: project)
@@ -180,10 +180,10 @@ extension nfprogressApp {
                     .environment(\.locale, settings.locale)
             }
         }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
+        .modelContainer(DataController.shared)
 
         WindowGroup(id: "stageSyncInfo", for: StageSyncInfoRequest.self) { binding in
-            let context = DataController.mainContext
+            let context = ModelContext(DataController.shared)
             if let request = binding.wrappedValue,
                let stage = fetchStage(id: request.stageID, context: context) {
                 StageDocumentSyncInfoView(stage: stage)
@@ -191,7 +191,7 @@ extension nfprogressApp {
                     .environment(\.locale, settings.locale)
             }
         }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
+        .modelContainer(DataController.shared)
     }
 }
 #endif
