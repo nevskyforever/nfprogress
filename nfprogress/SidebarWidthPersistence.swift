@@ -23,6 +23,7 @@ private struct SidebarWidthPersistence: NSViewRepresentable {
         let key: String
         weak var view: NSView?
         var observation: NSObjectProtocol?
+        var initialApplied = false
 
         init(key: String) { self.key = key }
 
@@ -34,11 +35,17 @@ private struct SidebarWidthPersistence: NSViewRepresentable {
             guard let splitView = findSplitView() else { return }
             let defaults = UserDefaults.standard
 
-            if observation == nil {
+            if !initialApplied {
+                initialApplied = true
                 if defaults.object(forKey: key) != nil {
                     let width = defaults.double(forKey: key)
-                    splitView.setPosition(width, ofDividerAt: 0)
+                    DispatchQueue.main.async {
+                        splitView.setPosition(width, ofDividerAt: 0)
+                    }
                 }
+            }
+
+            if observation == nil {
                 observation = NotificationCenter.default.addObserver(
                     forName: NSSplitView.didResizeSubviewsNotification,
                     object: splitView,
@@ -47,7 +54,6 @@ private struct SidebarWidthPersistence: NSViewRepresentable {
                     self?.saveWidth()
                 }
             }
-            saveWidth()
         }
 
         private func findSplitView() -> NSSplitView? {
