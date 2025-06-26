@@ -170,12 +170,7 @@ struct ProgressSharePreview: View {
                                          titleFontSize: titleSize,
                                          titleSpacing: spacing,
                                          titleOffset: titleOffset) else { return }
-        settings.lastShareCircleSize = Double(circleSize)
-        settings.lastShareRingWidth = Double(ringWidth)
-        settings.lastSharePercentSize = Double(percentSize)
-        settings.lastShareTitleSize = Double(titleSize)
-        settings.lastShareSpacing = Double(spacing)
-        settings.lastShareTitleOffset = Double(titleOffset)
+        saveShareParams()
 #if os(iOS)
         shareURL = url
         showingShareSheet = true
@@ -187,6 +182,34 @@ struct ProgressSharePreview: View {
         }
         // Не закрываем окно сразу, иначе диалог шеринга не появится
 #endif
+    }
+
+    private func copyProgress() {
+        guard let image = progressShareImage(for: project,
+                                             circleSize: circleSize,
+                                             ringWidth: ringWidth,
+                                             percentFontSize: percentSize,
+                                             titleFontSize: titleSize,
+                                             titleSpacing: spacing,
+                                             titleOffset: titleOffset) else { return }
+        saveShareParams()
+#if os(iOS)
+        UIPasteboard.general.image = image
+#else
+        let pb = NSPasteboard.general
+        pb.clearContents()
+        pb.writeObjects([image])
+#endif
+        dismiss()
+    }
+
+    private func saveShareParams() {
+        settings.lastShareCircleSize = Double(circleSize)
+        settings.lastShareRingWidth = Double(ringWidth)
+        settings.lastSharePercentSize = Double(percentSize)
+        settings.lastShareTitleSize = Double(titleSize)
+        settings.lastShareSpacing = Double(spacing)
+        settings.lastShareTitleOffset = Double(titleOffset)
     }
 
     @ViewBuilder
@@ -234,6 +257,9 @@ struct ProgressSharePreview: View {
         HStack {
             Button(settings.localized("cancel"), role: .cancel) { dismiss() }
             Spacer()
+
+            Button(settings.localized("copy")) { copyProgress() }
+
             Button(settings.localized("share")) { shareProgress() }
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
