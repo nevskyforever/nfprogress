@@ -133,25 +133,31 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var allowToolbarCustomization: Bool {
-        didSet {
-            defaults.set(allowToolbarCustomization, forKey: "allowToolbarCustomization")
-            #if os(macOS)
-            applyToolbarCustomization()
-            #endif
-        }
-    }
+    // Настройка панели инструментов всегда разрешена,
+    // поэтому дополнительных свойств не требуется
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
 #if os(macOS)
-    private func applyToolbarCustomization() {
+    func applyToolbarCustomization() {
+        for window in NSApplication.shared.windows {
+            window.toolbar?.allowsUserCustomization = true
+        }
+    }
+
+    /// Удалить все кнопки из панели, кроме добавления и удаления проекта
+    func setMinimalToolbar() {
+        let keep: [NSToolbarItem.Identifier] = [
+            NSToolbarItem.Identifier("add"),
+            NSToolbarItem.Identifier("delete")
+        ]
         for window in NSApplication.shared.windows {
             guard let toolbar = window.toolbar else { continue }
-            if !allowToolbarCustomization && toolbar.customizationPaletteIsRunning {
-                toolbar.runCustomizationPalette(nil)
+            for index in stride(from: toolbar.items.count - 1, through: 0, by: -1) {
+                if !keep.contains(toolbar.items[index].itemIdentifier) {
+                    toolbar.removeItem(at: index)
+                }
             }
-            toolbar.allowsUserCustomization = allowToolbarCustomization
         }
     }
 #endif
@@ -182,7 +188,6 @@ final class AppSettings: ObservableObject {
         let i = defaults.double(forKey: "syncInterval")
         syncInterval = i == 0 ? 2 : i
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")
-        allowToolbarCustomization = defaults.bool(forKey: "allowToolbarCustomization")
 #if os(macOS)
         applyToolbarCustomization()
 #endif
@@ -270,25 +275,14 @@ final class AppSettings {
         }
     }
 
-    var allowToolbarCustomization: Bool {
-        didSet {
-            defaults.set(allowToolbarCustomization, forKey: "allowToolbarCustomization")
-            #if os(macOS)
-            applyToolbarCustomization()
-            #endif
-        }
-    }
+    // Настройка панели инструментов включена всегда
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     #if os(macOS)
-    private func applyToolbarCustomization() {
+    func applyToolbarCustomization() {
         for window in NSApplication.shared.windows {
-            guard let toolbar = window.toolbar else { continue }
-            if !allowToolbarCustomization && toolbar.customizationPaletteIsRunning {
-                toolbar.runCustomizationPalette(nil)
-            }
-            toolbar.allowsUserCustomization = allowToolbarCustomization
+            window.toolbar?.allowsUserCustomization = true
         }
     }
     #endif
@@ -319,7 +313,6 @@ final class AppSettings {
         let i = defaults.double(forKey: "syncInterval")
         syncInterval = i == 0 ? 2 : i
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")
-        allowToolbarCustomization = defaults.bool(forKey: "allowToolbarCustomization")
 #if os(macOS)
         applyToolbarCustomization()
 #endif

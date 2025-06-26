@@ -196,8 +196,8 @@ struct ContentView: View {
       .help(settings.localized("add_project_tooltip"))
     }
 
-    if selectedProject != nil {
-      ToolbarItem(id: "delete", placement: .automatic) {
+    ToolbarItem(id: "delete", placement: .automatic) {
+      if selectedProject != nil {
         Button(action: deleteSelectedProject) {
           Label("delete", systemImage: "minus")
         }
@@ -207,37 +207,41 @@ struct ContentView: View {
     }
 
     ToolbarItem(id: "import", placement: .automatic) {
-      Button(action: importSelectedProject) {
-        Image(systemName: "square.and.arrow.down")
-      }
-      .accessibilityLabel(settings.localized("import"))
-      .help(settings.localized("import_project_tooltip"))
+        Button(action: importSelectedProject) {
+          Image(systemName: "square.and.arrow.down")
+        }
+        .accessibilityLabel(settings.localized("import"))
+        .help(settings.localized("import_project_tooltip"))
     }
 
-    if selectedProject != nil {
-      ToolbarItem(id: "export", placement: .automatic) {
-        Button(action: exportSelectedProject) {
-          Image(systemName: "square.and.arrow.up")
+    ToolbarItem(id: "export", placement: .automatic) {
+        if selectedProject != nil {
+          Button(action: exportSelectedProject) {
+            Image(systemName: "square.and.arrow.up")
+          }
+          .accessibilityLabel(settings.localized("export"))
+          .help(settings.localized("export_project_tooltip"))
         }
-        .accessibilityLabel(settings.localized("export"))
-        .help(settings.localized("export_project_tooltip"))
-      }
+    }
 
-      ToolbarItem(id: "toggleView", placement: .automatic) {
-        Button {
-          settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
-        } label: {
-          Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+    ToolbarItem(id: "toggleView", placement: .automatic) {
+        if selectedProject != nil {
+          Button {
+            settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+          } label: {
+            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+          }
+          .help(settings.localized("toggle_view_tooltip"))
         }
-        .help(settings.localized("toggle_view_tooltip"))
-      }
+    }
 
-      ToolbarItem(id: "toggleSort", placement: .automatic) {
-        Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-          Image(systemName: settings.projectSortOrder.iconName)
+    ToolbarItem(id: "toggleSort", placement: .automatic) {
+        if selectedProject != nil {
+          Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+            Image(systemName: settings.projectSortOrder.iconName)
+          }
+          .help(settings.localized("toggle_sort_tooltip"))
         }
-        .help(settings.localized("toggle_sort_tooltip"))
-      }
     }
   }
   #else
@@ -290,30 +294,30 @@ struct ContentView: View {
       }
     } else {
       ToolbarItem(placement: .navigationBarTrailing) {
-        Menu {
-          if selectedProject != nil {
-            Button(action: importSelectedProject) {
-              Label(settings.localized("import"), systemImage: "square.and.arrow.down")
+          Menu {
+            if selectedProject != nil {
+              Button(action: importSelectedProject) {
+                Label(settings.localized("import"), systemImage: "square.and.arrow.down")
+              }
+
+              Button(action: exportSelectedProject) {
+                Label(settings.localized("export"), systemImage: "square.and.arrow.up")
+              }
             }
 
-            Button(action: exportSelectedProject) {
-              Label(settings.localized("export"), systemImage: "square.and.arrow.up")
+            Button {
+              settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+            } label: {
+              Label(settings.localized("toggle_view_tooltip"), systemImage: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
             }
-          }
 
-          Button {
-            settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+            Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+              Label(settings.localized("toggle_sort_tooltip"), systemImage: settings.projectSortOrder.iconName)
+            }
           } label: {
-            Label(settings.localized("toggle_view_tooltip"), systemImage: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+            Image(systemName: "ellipsis.circle")
           }
-
-          Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-            Label(settings.localized("toggle_sort_tooltip"), systemImage: settings.projectSortOrder.iconName)
-          }
-        } label: {
-          Image(systemName: "ellipsis.circle")
         }
-      }
       ToolbarItem(placement: .primaryAction) {
         Button(action: addProject) {
           Label("add", systemImage: "plus")
@@ -431,6 +435,10 @@ struct ContentView: View {
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
     .windowMinWidth(minWindowWidth)
+    .onAppear { settings.applyToolbarCustomization() }
+    .onChange(of: selectedProject) { _ in
+      settings.applyToolbarCustomization()
+    }
 #endif
   }
 
