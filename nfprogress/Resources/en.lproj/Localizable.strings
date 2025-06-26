@@ -96,6 +96,7 @@
 "pause_sync_all" = "Pause synchronization";
 "sync_already_linked" = "This file is already linked to another project or stage";
 "toolbar_customization" = "Allow toolbar customization";
+"customize_toolbar" = "Customize Toolbar…";
 "change" = "Change";
 "sync_interval_prefix" = "Check every";
 "sync_interval_suffix" = "seconds";
