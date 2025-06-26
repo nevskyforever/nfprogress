@@ -49,12 +49,6 @@ struct SettingsView: View {
             }
             .toggleStyle(.switch)
 
-            Toggle(isOn: $settings.allowToolbarCustomization) {
-                Text("toolbar_customization")
-                    .frame(width: labelWidth, alignment: .leading)
-            }
-            .toggleStyle(.switch)
-
             HStack {
                 Text(settings.localized("sync_interval_prefix"))
                     .frame(width: labelWidth, alignment: .leading)
