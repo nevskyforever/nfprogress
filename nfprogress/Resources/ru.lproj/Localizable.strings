@@ -100,3 +100,4 @@
 "change" = "Изменить";
 "sync_interval_prefix" = "Отслеживать изменения каждые";
 "sync_interval_suffix" = "секунд";
+"sync_now_button" = "Синхронизация";
