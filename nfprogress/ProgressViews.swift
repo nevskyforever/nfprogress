@@ -298,11 +298,11 @@ struct ProgressChartView: View {
                 }
             }
 
-            if project.sortedEntries.count >= 2 {
+            if project.dailyProgress.count >= 2 {
 #if canImport(Charts)
                 GeometryReader { geo in
-                    let labels = project.entryAxisLabels
-                    let entries = Array(project.sortedEntries.enumerated())
+                    let labels = project.dailyAxisLabels
+                    let data = Array(project.dailyProgress.enumerated())
                     let width = max(geo.size.width,
                                     CGFloat(labels.count) * minLabelSpacing)
                     ScrollView([.horizontal, .vertical]) {
@@ -318,10 +318,10 @@ struct ProgressChartView: View {
                                 }
 
                             // Линия прогресса
-                            ForEach(entries, id: \.1.id) { index, entry in
+                            ForEach(data, id: \.1.date) { index, item in
                                 LineMark(
                                     x: .value(settings.localized("date_field"), index),
-                                    y: .value(settings.localized("characters_field"), project.globalProgress(for: entry))
+                                    y: .value(settings.localized("characters_field"), item.progress)
                                 )
                                 .interpolationMethod(.monotone)
                                 .symbol(.circle)
