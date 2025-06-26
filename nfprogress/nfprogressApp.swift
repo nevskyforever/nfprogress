@@ -48,7 +48,9 @@ struct nfprogressApp: App {
 #endif
         }
         .modelContainer(DataController.shared)
-        .commands { MainMenuCommands() }
+        .commands {
+            MainMenuCommands(settings: settings)
+        }
         #if os(macOS)
         .onChange(of: settings.language) { newLang in
             Self.localizeMenus(language: newLang)
