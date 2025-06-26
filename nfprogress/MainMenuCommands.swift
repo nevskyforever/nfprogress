@@ -44,11 +44,16 @@ struct MainMenuCommands: Commands {
 #if os(macOS)
         CommandGroup(after: .toolbar) {
             Button("customize_toolbar") {
+                settings.applyToolbarCustomization()
                 if let window = NSApplication.shared.keyWindow {
                     window.toolbar?.runCustomizationPalette(nil)
                 }
             }
-            .disabled(!settings.allowToolbarCustomization)
+
+            Button("minimal_toolbar") {
+                settings.setMinimalToolbar()
+            }
+            .disabled(!(NSApplication.shared.keyWindow?.toolbar?.customizationPaletteIsRunning ?? false))
         }
 #endif
 
