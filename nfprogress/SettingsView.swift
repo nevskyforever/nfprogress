@@ -24,6 +24,7 @@ struct SettingsView: View {
                 }
                 .labelsHidden()
                 .pickerStyle(.menu)
+                .fixedSize()
             }
 
             Toggle("disable_launch_animations", isOn: $settings.disableLaunchAnimations)
