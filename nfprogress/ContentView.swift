@@ -196,8 +196,8 @@ struct ContentView: View {
       .help(settings.localized("add_project_tooltip"))
     }
 
-    ToolbarItem(id: "delete", placement: .automatic) {
-      if selectedProject != nil {
+    if selectedProject != nil {
+      ToolbarItem(id: "delete", placement: .automatic) {
         Button(action: deleteSelectedProject) {
           Label("delete", systemImage: "minus")
         }
@@ -214,18 +214,16 @@ struct ContentView: View {
       .help(settings.localized("import_project_tooltip"))
     }
 
-    ToolbarItem(id: "export", placement: .automatic) {
-      if selectedProject != nil {
+    if selectedProject != nil {
+      ToolbarItem(id: "export", placement: .automatic) {
         Button(action: exportSelectedProject) {
           Image(systemName: "square.and.arrow.up")
         }
         .accessibilityLabel(settings.localized("export"))
         .help(settings.localized("export_project_tooltip"))
       }
-    }
 
-    ToolbarItem(id: "toggleView", placement: .automatic) {
-      if selectedProject != nil {
+      ToolbarItem(id: "toggleView", placement: .automatic) {
         Button {
           settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
         } label: {
@@ -233,10 +231,8 @@ struct ContentView: View {
         }
         .help(settings.localized("toggle_view_tooltip"))
       }
-    }
 
-    ToolbarItem(id: "toggleSort", placement: .automatic) {
-      if selectedProject != nil {
+      ToolbarItem(id: "toggleSort", placement: .automatic) {
         Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
           Image(systemName: settings.projectSortOrder.iconName)
         }
@@ -435,10 +431,6 @@ struct ContentView: View {
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
     .windowMinWidth(minWindowWidth)
-    .onAppear { settings.applyToolbarCustomization() }
-    .onChange(of: selectedProject) { _ in
-      settings.applyToolbarCustomization()
-    }
 #endif
   }
 
