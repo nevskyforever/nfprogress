@@ -145,7 +145,7 @@ final class AppSettings: ObservableObject {
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
 #if os(macOS)
-    func applyToolbarCustomization() {
+    private func applyToolbarCustomization() {
         for window in NSApplication.shared.windows {
             guard let toolbar = window.toolbar else { continue }
             if !allowToolbarCustomization && toolbar.customizationPaletteIsRunning {
@@ -282,7 +282,7 @@ final class AppSettings {
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     #if os(macOS)
-    func applyToolbarCustomization() {
+    private func applyToolbarCustomization() {
         for window in NSApplication.shared.windows {
             guard let toolbar = window.toolbar else { continue }
             if !allowToolbarCustomization && toolbar.customizationPaletteIsRunning {
