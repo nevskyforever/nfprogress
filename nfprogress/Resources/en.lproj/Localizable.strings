@@ -100,3 +100,4 @@
 "change" = "Change";
 "sync_interval_prefix" = "Check every";
 "sync_interval_suffix" = "seconds";
+"sync_now_button" = "Synchronize";
