@@ -25,6 +25,9 @@ struct ContentView: View {
   @State private var showingAddProject = false
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
+#if os(iOS) || os(macOS)
+  @State private var editMode: EditMode = .inactive
+#endif
 #if os(macOS)
   @AppStorage("sidebarWidth") private var sidebarWidthRaw: Double = 405
   private var sidebarWidth: CGFloat {
@@ -50,6 +53,8 @@ struct ContentView: View {
       return projects.sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
     case .progress:
       return projects.sorted { $0.progress > $1.progress }
+    case .custom:
+      return projects
     }
   }
 
@@ -61,18 +66,19 @@ struct ContentView: View {
           List {
             let count = sortedProjects.count
             ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
-              Button(action: { selectedProject = project }) {
-                projectRow(for: project, index: index, totalCount: count)
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .padding(.vertical, scaledSpacing(1))
-                  .frame(minHeight: circleHeight + layoutStep(2))
-                  .contentShape(Rectangle())
-              }
-              .listRowInsets(EdgeInsets())
-              .buttonStyle(.plain)
+              projectRow(for: project, index: index, totalCount: count)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, scaledSpacing(1))
+                .frame(minHeight: circleHeight + layoutStep(2))
+                .contentShape(Rectangle())
+                .onTapGesture { selectedProject = project }
+                .listRowInsets(EdgeInsets())
             }
             .onDelete(perform: deleteProjects)
+            .onMove(perform: moveProjects)
+            .moveDisabled(settings.projectSortOrder != .custom)
           }
+          .environment(\.editMode, $editMode)
           .listStyle(.plain)
           .navigationTitle("my_texts")
           .toolbar { toolbarContent }
@@ -92,25 +98,26 @@ struct ContentView: View {
           List {
             let count = sortedProjects.count
             ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
-              Button {
-                if selectedProject === project {
-                  openedProject = project
-                } else {
-                  selectedProject = project
+              projectRow(for: project, index: index, totalCount: count)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.vertical, scaledSpacing(1))
+                .frame(minHeight: (settings.projectListStyle == .detailed ? largeCircleHeight : circleHeight) + layoutStep(2))
+                .contentShape(Rectangle())
+                .onTapGesture {
+                  if selectedProject === project {
+                    openedProject = project
+                  } else {
+                    selectedProject = project
+                  }
                 }
-              } label: {
-                projectRow(for: project, index: index, totalCount: count)
-                  .frame(maxWidth: .infinity, alignment: .leading)
-                  .padding(.vertical, scaledSpacing(1))
-                  .frame(minHeight: (settings.projectListStyle == .detailed ? largeCircleHeight : circleHeight) + layoutStep(2))
-                  .contentShape(Rectangle())
-              }
-              .buttonStyle(.plain)
-              .listRowInsets(EdgeInsets())
-              .listRowBackground(selectedProject === project ? Color.accentColor.opacity(0.1) : Color.clear)
+                .listRowInsets(EdgeInsets())
+                .listRowBackground(selectedProject === project ? Color.accentColor.opacity(0.1) : Color.clear)
             }
             .onDelete(perform: deleteProjects)
+            .onMove(perform: moveProjects)
+            .moveDisabled(settings.projectSortOrder != .custom)
           }
+          .environment(\.editMode, $editMode)
           .listStyle(.plain)
           .navigationTitle("my_texts")
           .navigationBarTitleDisplayMode(.inline)
@@ -126,17 +133,17 @@ struct ContentView: View {
       List {
         let count = sortedProjects.count
         ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
-          Button(action: { selectedProject = project }) {
-            projectRow(for: project, index: index, totalCount: count)
-              .frame(maxWidth: .infinity, alignment: .leading)
-              .padding(.vertical, scaledSpacing(1))
-              .frame(minHeight: circleHeight + layoutStep(2))
-              .contentShape(Rectangle())
-          }
-          .listRowInsets(EdgeInsets())
-          .buttonStyle(.plain)
+          projectRow(for: project, index: index, totalCount: count)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.vertical, scaledSpacing(1))
+            .frame(minHeight: circleHeight + layoutStep(2))
+            .contentShape(Rectangle())
+            .onTapGesture { selectedProject = project }
+            .listRowInsets(EdgeInsets())
         }
         .onDelete(perform: deleteProjects)
+        .onMove(perform: moveProjects)
+        .moveDisabled(settings.projectSortOrder != .custom)
       }
       .listStyle(.plain)
       .navigationTitle("my_texts")
@@ -388,6 +395,7 @@ struct ContentView: View {
 
   var body: some View {
     splitView
+      .environment(\.editMode, $editMode)
       .fileExporter(
         isPresented: $isExporting,
         document: exportDocument,
@@ -436,6 +444,9 @@ struct ContentView: View {
     }
     .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
       exportSelectedProject()
+    }
+    .onChange(of: settings.projectSortOrder) { newValue in
+      editMode = newValue == .custom ? .active : .inactive
     }
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
