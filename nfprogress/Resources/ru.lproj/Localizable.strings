@@ -87,8 +87,6 @@
 "share_preview_percent_size" = "Размер процентов";
 "share_preview_title_size" = "Размер названия";
 "share_preview_spacing" = "Расстояние";
-"share_mode_progress" = "Прогресс";
-"share_mode_now" = "Сейчас";
 "charts_framework_required" = "Для отображения графика требуется фреймворк Charts";
 "scrivener_parse_error" = "Не удалось загрузить проект Scrivener";
 "sync_info_word" = "Файл Word:\n%@";
