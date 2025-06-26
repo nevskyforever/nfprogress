@@ -140,7 +140,7 @@ struct ContentView: View {
       }
       .listStyle(.plain)
       .navigationTitle("my_texts")
-      .toolbar { toolbarContent }
+      .toolbar(id: "mainToolbar") { toolbarContent }
     }, detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
@@ -185,6 +185,62 @@ struct ContentView: View {
     }
   }
 
+  #if os(macOS)
+  @ToolbarContentBuilder
+  private var toolbarContent: some CustomizableToolbarContent {
+    ToolbarItem(id: "add", placement: .automatic) {
+      Button(action: addProject) {
+        Label("add", systemImage: "plus")
+      }
+      .keyboardShortcut("N", modifiers: [.command, .shift])
+      .help(settings.localized("add_project_tooltip"))
+    }
+
+    if selectedProject != nil {
+      ToolbarItem(id: "delete", placement: .automatic) {
+        Button(action: deleteSelectedProject) {
+          Label("delete", systemImage: "minus")
+        }
+        .keyboardShortcut(.return, modifiers: .command)
+        .help(settings.localized("delete_project_tooltip"))
+      }
+    }
+
+    ToolbarItem(id: "import", placement: .automatic) {
+      Button(action: importSelectedProject) {
+        Image(systemName: "square.and.arrow.down")
+      }
+      .accessibilityLabel(settings.localized("import"))
+      .help(settings.localized("import_project_tooltip"))
+    }
+
+    if selectedProject != nil {
+      ToolbarItem(id: "export", placement: .automatic) {
+        Button(action: exportSelectedProject) {
+          Image(systemName: "square.and.arrow.up")
+        }
+        .accessibilityLabel(settings.localized("export"))
+        .help(settings.localized("export_project_tooltip"))
+      }
+
+      ToolbarItem(id: "toggleView", placement: .automatic) {
+        Button {
+          settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+        } label: {
+          Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+        }
+        .help(settings.localized("toggle_view_tooltip"))
+      }
+
+      ToolbarItem(id: "toggleSort", placement: .automatic) {
+        Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+          Image(systemName: settings.projectSortOrder.iconName)
+        }
+        .help(settings.localized("toggle_sort_tooltip"))
+      }
+    }
+  }
+  #else
   @ToolbarContentBuilder
   private var toolbarContent: some ToolbarContent {
 #if os(iOS)
@@ -319,6 +375,7 @@ struct ContentView: View {
     }
 #endif
   }
+  #endif
 
   var body: some View {
     splitView
@@ -374,6 +431,10 @@ struct ContentView: View {
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
     .windowMinWidth(minWindowWidth)
+    .onAppear { settings.applyToolbarCustomization() }
+    .onChange(of: selectedProject) { _ in
+      settings.applyToolbarCustomization()
+    }
 #endif
   }
 
