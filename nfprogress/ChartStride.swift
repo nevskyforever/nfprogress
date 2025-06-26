@@ -68,5 +68,22 @@ extension WritingProject {
         }
         return result
     }
+
+    /// Суммарный прогресс на конец каждого дня в порядке дат.
+    var dailyProgress: [(date: Date, progress: Int)] {
+        let calendar = Calendar.current
+        let groups = Dictionary(grouping: sortedEntries) { calendar.startOfDay(for: $0.date) }
+        let days = groups.keys.sorted()
+        return days.compactMap { day in
+            guard let entries = groups[day],
+                  let last = entries.max(by: { $0.date < $1.date }) else { return nil }
+            return (day, globalProgress(for: last))
+        }
+    }
+
+    /// Подписи для оси графика по дням.
+    var dailyAxisLabels: [String] {
+        dailyProgress.map { $0.date.formatted(date: .numeric, time: .omitted) }
+    }
 }
 #endif
