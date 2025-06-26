@@ -182,52 +182,6 @@ enum DocumentSyncManager {
         return try? DataController.mainContext.fetch(descriptor).first
     }
 
-    /// Выполняет синхронизацию проекта один раз независимо от состояния паузы.
-    /// Периодическая синхронизация не возобновляется автоматически.
-    static func syncNow(project: WritingProject) {
-        guard let type = project.syncType else { return }
-        let id = project.id
-        switch type {
-        case .word:
-            if let url = resolveURL(bookmark: &project.wordFileBookmark,
-                                   path: project.wordFilePath) {
-                url.startAccessingSecurityScopedResource()
-                defer { url.stopAccessingSecurityScopedResource() }
-                checkWordFile(for: id)
-            }
-        case .scrivener:
-            if let base = resolveURL(bookmark: &project.scrivenerProjectBookmark,
-                                     path: project.scrivenerProjectPath) {
-                base.startAccessingSecurityScopedResource()
-                defer { base.stopAccessingSecurityScopedResource() }
-                checkScrivenerFile(for: id)
-            }
-        }
-    }
-
-    /// Выполняет синхронизацию этапа один раз независимо от состояния паузы.
-    /// Периодическая синхронизация не возобновляется автоматически.
-    static func syncNow(stage: Stage) {
-        guard let type = stage.syncType else { return }
-        let id = stage.id
-        switch type {
-        case .word:
-            if let url = resolveURL(bookmark: &stage.wordFileBookmark,
-                                   path: stage.wordFilePath) {
-                url.startAccessingSecurityScopedResource()
-                defer { url.stopAccessingSecurityScopedResource() }
-                checkWordFile(stageID: id)
-            }
-        case .scrivener:
-            if let base = resolveURL(bookmark: &stage.scrivenerProjectBookmark,
-                                     path: stage.scrivenerProjectPath) {
-                base.startAccessingSecurityScopedResource()
-                defer { base.stopAccessingSecurityScopedResource() }
-                checkScrivenerFile(stageID: id)
-            }
-        }
-    }
-
     static func startMonitoring(project: WritingProject) {
         stopMonitoring(project: project)
         guard !globallyPaused, !project.syncPaused, let type = project.syncType else { return }
@@ -479,8 +433,6 @@ enum DocumentSyncManager {
               let base = resolveURL(bookmark: &stage.scrivenerProjectBookmark,
                                     path: stage.scrivenerProjectPath),
               let path = scrivenerFilePath(for: stage, baseURL: base) else { return }
-        base.startAccessingSecurityScopedResource()
-        defer { base.stopAccessingSecurityScopedResource() }
         let url = URL(fileURLWithPath: path)
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
@@ -528,8 +480,6 @@ enum DocumentSyncManager {
               let base = resolveURL(bookmark: &project.scrivenerProjectBookmark,
                                     path: project.scrivenerProjectPath),
               let path = scrivenerFilePath(for: project, baseURL: base) else { return }
-        base.startAccessingSecurityScopedResource()
-        defer { base.stopAccessingSecurityScopedResource() }
         let url = URL(fileURLWithPath: path)
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
