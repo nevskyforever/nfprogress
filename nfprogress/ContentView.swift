@@ -431,10 +431,6 @@ struct ContentView: View {
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
     .windowMinWidth(minWindowWidth)
-    .onAppear { settings.applyToolbarCustomization() }
-    .onChange(of: selectedProject) { _ in
-      settings.applyToolbarCustomization()
-    }
 #endif
   }
 
