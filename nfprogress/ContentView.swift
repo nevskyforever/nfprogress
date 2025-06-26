@@ -25,9 +25,6 @@ struct ContentView: View {
   @State private var showingAddProject = false
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
-#if os(iOS)
-  @State private var editMode: EditMode = .inactive
-#endif
 #if os(macOS)
   @AppStorage("sidebarWidth") private var sidebarWidthRaw: Double = 405
   private var sidebarWidth: CGFloat {
@@ -53,8 +50,6 @@ struct ContentView: View {
       return projects.sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
     case .progress:
       return projects.sorted { $0.progress > $1.progress }
-    case .custom:
-      return projects
     }
   }
 
@@ -77,8 +72,6 @@ struct ContentView: View {
               .buttonStyle(.plain)
             }
             .onDelete(perform: deleteProjects)
-            .onMove(perform: moveProjects)
-            .moveDisabled(settings.projectSortOrder != .custom)
           }
           .listStyle(.plain)
           .navigationTitle("my_texts")
@@ -117,8 +110,6 @@ struct ContentView: View {
               .listRowBackground(selectedProject === project ? Color.accentColor.opacity(0.1) : Color.clear)
             }
             .onDelete(perform: deleteProjects)
-            .onMove(perform: moveProjects)
-            .moveDisabled(settings.projectSortOrder != .custom)
           }
           .listStyle(.plain)
           .navigationTitle("my_texts")
@@ -146,8 +137,6 @@ struct ContentView: View {
           .buttonStyle(.plain)
         }
         .onDelete(perform: deleteProjects)
-        .onMove(perform: moveProjects)
-        .moveDisabled(settings.projectSortOrder != .custom)
       }
       .listStyle(.plain)
       .navigationTitle("my_texts")
@@ -399,9 +388,6 @@ struct ContentView: View {
 
   var body: some View {
     splitView
-#if os(iOS)
-      .environment(\.editMode, $editMode)
-#endif
       .fileExporter(
         isPresented: $isExporting,
         document: exportDocument,
@@ -451,11 +437,6 @@ struct ContentView: View {
     .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
       exportSelectedProject()
     }
-    #if os(iOS)
-    .onChange(of: settings.projectSortOrder) { newValue in
-      editMode = newValue == .custom ? .active : .inactive
-    }
-    #endif
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
     .windowMinWidth(minWindowWidth)
