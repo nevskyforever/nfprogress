@@ -19,6 +19,7 @@ struct ProgressSharePreview: View {
     @State private var titleFontPercent: Double = 100
     @State private var spacingPercent: Double = 100
     @State private var offsetPercent: Double = 0
+    @State private var showDelta = false
     @State private var initialized = false
 #if os(iOS)
     @State private var shareURL: URL?
@@ -69,12 +70,14 @@ struct ProgressSharePreview: View {
             VStack(spacing: scaledSpacing(1.5)) {
                 Spacer()
                 ProgressShareView(project: project,
+                                   showDelta: showDelta,
                                    circleSize: circleSize,
                                    ringWidth: ringWidth,
                                    percentFontSize: percentSize,
                                    titleFontSize: titleSize,
                                    titleSpacing: spacing,
                                    titleOffset: titleOffset)
+                    .environmentObject(settings)
                     .scaleEffect(orientationScale)
                     .frame(width: shareImageSize * orientationScale,
                            height: shareImageSize * orientationScale)
@@ -136,12 +139,14 @@ struct ProgressSharePreview: View {
                 VStack {
                     Spacer()
                    if let img = progressShareImage(for: project,
-                                                  circleSize: circleSize,
-                                                  ringWidth: ringWidth,
-                                                  percentFontSize: percentSize,
-                                                  titleFontSize: titleSize,
-                                                  titleSpacing: spacing,
-                                                  titleOffset: titleOffset) {
+                                                 circleSize: circleSize,
+                                                 ringWidth: ringWidth,
+                                                 percentFontSize: percentSize,
+                                                 titleFontSize: titleSize,
+                                                 titleSpacing: spacing,
+                                                 titleOffset: titleOffset,
+                                                 showDelta: showDelta,
+                                                 settings: settings) {
                         Image(osImage: img)
                             .resizable()
                             .interpolation(.high)
@@ -169,7 +174,9 @@ struct ProgressSharePreview: View {
                                          percentFontSize: percentSize,
                                          titleFontSize: titleSize,
                                          titleSpacing: spacing,
-                                         titleOffset: titleOffset) else { return }
+                                         titleOffset: titleOffset,
+                                         showDelta: showDelta,
+                                         settings: settings) else { return }
         saveShareParams()
 #if os(iOS)
         shareURL = url
@@ -191,7 +198,9 @@ struct ProgressSharePreview: View {
                                              percentFontSize: percentSize,
                                              titleFontSize: titleSize,
                                              titleSpacing: spacing,
-                                             titleOffset: titleOffset) else { return }
+                                             titleOffset: titleOffset,
+                                             showDelta: showDelta,
+                                             settings: settings) else { return }
         saveShareParams()
 #if os(iOS)
         UIPasteboard.general.image = image
@@ -210,6 +219,8 @@ struct ProgressSharePreview: View {
         settings.lastShareTitleSize = Double(titleSize)
         settings.lastShareSpacing = Double(spacing)
         settings.lastShareTitleOffset = Double(titleOffset)
+        let key = String(describing: project.id)
+        settings.lastShareProgress[key] = project.currentProgress
     }
 
     @ViewBuilder
@@ -253,9 +264,19 @@ struct ProgressSharePreview: View {
     }
 
     @ViewBuilder
+    private var progressModeButton: some View {
+        if showDelta {
+            Button(settings.localized("share_mode_now")) { showDelta = false }
+        } else {
+            Button(settings.localized("share_mode_progress")) { showDelta = true }
+        }
+    }
+
+    @ViewBuilder
     private var bottomControls: some View {
         HStack {
             Button(settings.localized("cancel"), role: .cancel) { dismiss() }
+            progressModeButton
             Spacer()
 
             Button(settings.localized("copy")) { copyProgress() }
