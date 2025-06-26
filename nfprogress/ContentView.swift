@@ -25,6 +25,7 @@ struct ContentView: View {
   @State private var showingAddProject = false
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
+  @State private var editMode: EditMode = .inactive
 #if os(macOS)
   @AppStorage("sidebarWidth") private var sidebarWidthRaw: Double = 405
   private var sidebarWidth: CGFloat {
@@ -50,6 +51,8 @@ struct ContentView: View {
       return projects.sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
     case .progress:
       return projects.sorted { $0.progress > $1.progress }
+    case .custom:
+      return projects
     }
   }
 
@@ -71,6 +74,8 @@ struct ContentView: View {
               .listRowInsets(EdgeInsets())
               .buttonStyle(.plain)
             }
+            .onMove(perform: moveProjects)
+            .moveDisabled(settings.projectSortOrder != .custom)
             .onDelete(perform: deleteProjects)
           }
           .listStyle(.plain)
@@ -109,6 +114,8 @@ struct ContentView: View {
               .listRowInsets(EdgeInsets())
               .listRowBackground(selectedProject === project ? Color.accentColor.opacity(0.1) : Color.clear)
             }
+            .onMove(perform: moveProjects)
+            .moveDisabled(settings.projectSortOrder != .custom)
             .onDelete(perform: deleteProjects)
           }
           .listStyle(.plain)
@@ -136,6 +143,8 @@ struct ContentView: View {
           .listRowInsets(EdgeInsets())
           .buttonStyle(.plain)
         }
+        .onMove(perform: moveProjects)
+        .moveDisabled(settings.projectSortOrder != .custom)
         .onDelete(perform: deleteProjects)
       }
       .listStyle(.plain)
@@ -388,6 +397,7 @@ struct ContentView: View {
 
   var body: some View {
     splitView
+      .environment(\.editMode, $editMode)
       .fileExporter(
         isPresented: $isExporting,
         document: exportDocument,
@@ -436,6 +446,9 @@ struct ContentView: View {
     }
     .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
       exportSelectedProject()
+    }
+    .onChange(of: settings.projectSortOrder) { newValue in
+      editMode = newValue == .custom ? .active : .inactive
     }
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
