@@ -145,7 +145,7 @@ final class AppSettings: ObservableObject {
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
 #if os(macOS)
-    private func applyToolbarCustomization() {
+    func applyToolbarCustomization() {
         for window in NSApplication.shared.windows {
             guard let toolbar = window.toolbar else { continue }
             if !allowToolbarCustomization && toolbar.customizationPaletteIsRunning {
@@ -182,7 +182,8 @@ final class AppSettings: ObservableObject {
         let i = defaults.double(forKey: "syncInterval")
         syncInterval = i == 0 ? 2 : i
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")
-        allowToolbarCustomization = defaults.bool(forKey: "allowToolbarCustomization")
+        let allow = defaults.object(forKey: "allowToolbarCustomization") as? Bool ?? true
+        allowToolbarCustomization = allow
 #if os(macOS)
         applyToolbarCustomization()
 #endif
@@ -282,7 +283,7 @@ final class AppSettings {
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     #if os(macOS)
-    private func applyToolbarCustomization() {
+    func applyToolbarCustomization() {
         for window in NSApplication.shared.windows {
             guard let toolbar = window.toolbar else { continue }
             if !allowToolbarCustomization && toolbar.customizationPaletteIsRunning {
@@ -319,7 +320,8 @@ final class AppSettings {
         let i = defaults.double(forKey: "syncInterval")
         syncInterval = i == 0 ? 2 : i
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")
-        allowToolbarCustomization = defaults.bool(forKey: "allowToolbarCustomization")
+        let allow = defaults.object(forKey: "allowToolbarCustomization") as? Bool ?? true
+        allowToolbarCustomization = allow
 #if os(macOS)
         applyToolbarCustomization()
 #endif
