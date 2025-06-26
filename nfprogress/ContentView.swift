@@ -140,8 +140,7 @@ struct ContentView: View {
       }
       .listStyle(.plain)
       .navigationTitle("my_texts")
-      .toolbar { fixedToolbarContent }
-      .toolbar(id: "mainToolbar") { customizableToolbarContent }
+      .toolbar(id: "mainToolbar") { toolbarContent }
     }, detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
@@ -187,9 +186,8 @@ struct ContentView: View {
   }
 
   #if os(macOS)
-  // Элементы панели, которые нельзя удалить
   @ToolbarContentBuilder
-  private var fixedToolbarContent: some ToolbarContent {
+  private var toolbarContent: some CustomizableToolbarContent {
     ToolbarItem(id: "add", placement: .automatic) {
       Button(action: addProject) {
         Label("add", systemImage: "plus")
@@ -198,55 +196,48 @@ struct ContentView: View {
       .help(settings.localized("add_project_tooltip"))
     }
 
-    ToolbarItem(id: "delete", placement: .automatic) {
-      Button(action: deleteSelectedProject) {
-        Label("delete", systemImage: "minus")
+    if selectedProject != nil {
+      ToolbarItem(id: "delete", placement: .automatic) {
+        Button(action: deleteSelectedProject) {
+          Label("delete", systemImage: "minus")
+        }
+        .keyboardShortcut(.return, modifiers: .command)
+        .help(settings.localized("delete_project_tooltip"))
       }
-      .keyboardShortcut(.return, modifiers: .command)
-      .help(settings.localized("delete_project_tooltip"))
-      .disabled(selectedProject == nil)
     }
-  }
 
-  // Кастомизируемые элементы панели
-  @ToolbarContentBuilder
-  private var customizableToolbarContent: some CustomizableToolbarContent {
     ToolbarItem(id: "import", placement: .automatic) {
-      Button(action: {
-        guard selectedProject != nil else { return }
-        importSelectedProject()
-      }) {
+      Button(action: importSelectedProject) {
         Image(systemName: "square.and.arrow.down")
       }
       .accessibilityLabel(settings.localized("import"))
       .help(settings.localized("import_project_tooltip"))
     }
 
-    ToolbarItem(id: "export", placement: .automatic) {
-      Button(action: {
-        guard selectedProject != nil else { return }
-        exportSelectedProject()
-      }) {
-        Image(systemName: "square.and.arrow.up")
+    if selectedProject != nil {
+      ToolbarItem(id: "export", placement: .automatic) {
+        Button(action: exportSelectedProject) {
+          Image(systemName: "square.and.arrow.up")
+        }
+        .accessibilityLabel(settings.localized("export"))
+        .help(settings.localized("export_project_tooltip"))
       }
-      .accessibilityLabel(settings.localized("export"))
-      .help(settings.localized("export_project_tooltip"))
-    }
 
-    ToolbarItem(id: "toggleView", placement: .automatic) {
-      Button {
-        settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
-      } label: {
-        Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+      ToolbarItem(id: "toggleView", placement: .automatic) {
+        Button {
+          settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+        } label: {
+          Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
+        }
+        .help(settings.localized("toggle_view_tooltip"))
       }
-      .help(settings.localized("toggle_view_tooltip"))
-    }
 
-    ToolbarItem(id: "toggleSort", placement: .automatic) {
-      Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-        Image(systemName: settings.projectSortOrder.iconName)
+      ToolbarItem(id: "toggleSort", placement: .automatic) {
+        Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+          Image(systemName: settings.projectSortOrder.iconName)
+        }
+        .help(settings.localized("toggle_sort_tooltip"))
       }
-      .help(settings.localized("toggle_sort_tooltip"))
     }
   }
   #else
