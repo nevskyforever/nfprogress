@@ -159,10 +159,6 @@ struct ProjectDetailView: View {
             VStack(alignment: .leading) {
                 HStack {
                     Button("add_entry_button") { addEntryAction(stage) }
-                    Button("sync_now_button") {
-                        DocumentSyncManager.syncNow(stage: stage)
-                    }
-                    .disabled(stage.syncType == nil)
                     Spacer()
                 }
                 ForEach(stage.sortedEntries) { entry in
@@ -256,15 +252,8 @@ struct ProjectDetailView: View {
         Text("entries_history")
             .font(.title3.bold())
         if project.stages.isEmpty {
-            HStack {
-                Button("add_entry_button") { addEntry() }
-                    .keyboardShortcut("n", modifiers: .command)
-                Button("sync_now_button") {
-                    DocumentSyncManager.syncNow(project: project)
-                }
-                .disabled(project.syncType == nil)
-                Spacer()
-            }
+            Button("add_entry_button") { addEntry() }
+                .keyboardShortcut("n", modifiers: .command)
         }
         ForEach(project.sortedEntries) { entry in
             historyEntryRow(entry: entry)
