@@ -21,39 +21,68 @@ let shareImageSize: CGFloat = 500 / deviceScale
 
 /// Снимок ``ProgressCircleView`` без анимаций.
 private struct ProgressCircleSnapshotView: View {
+    @EnvironmentObject private var settings: AppSettings
     var project: WritingProject
+    var showDelta: Bool
     var size: CGFloat
     var ringWidth: CGFloat
     var percentFontSize: CGFloat
 
-    private var progress: Double {
-        guard project.goal > 0 else { return 0 }
-        let value = Double(project.currentProgress) / Double(project.goal)
-        return min(max(value, 0), 1)
+    private var previousProgress: Int {
+        settings.lastShareProgress[String(describing: project.id)] ?? project.currentProgress
     }
 
-    private var color: Color { .interpolate(from: .red, to: .green, fraction: progress) }
+    private var previousFraction: Double {
+        guard project.goal > 0 else { return 0 }
+        return min(max(Double(previousProgress) / Double(project.goal), 0), 1)
+    }
+
+    private var deltaFraction: Double {
+        guard showDelta, project.goal > 0 else { return 0 }
+        let diff = max(project.currentProgress - previousProgress, 0)
+        return min(max(Double(diff) / Double(project.goal), 0), 1)
+    }
+
+    private var progressFraction: Double { previousFraction + deltaFraction }
+
+    private var baseColor: Color { .interpolate(from: .red, to: .green, fraction: progressFraction) }
+    private var previousColor: Color { baseColor.opacity(0.4) }
+    private var deltaColor: Color { baseColor.brightened(by: 1.2) }
 
     var body: some View {
         ZStack {
             Circle().stroke(Color.gray.opacity(0.3), lineWidth: ringWidth)
-            Circle()
-                .trim(from: 0, to: CGFloat(progress))
-                .stroke(color, style: StrokeStyle(lineWidth: ringWidth, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-            let percent = Int(ceil(progress * 100))
-            Text("\(percent)%")
+            if showDelta {
+                Circle()
+                    .trim(from: 0, to: CGFloat(previousFraction))
+                    .stroke(previousColor, style: StrokeStyle(lineWidth: ringWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                Circle()
+                    .trim(from: CGFloat(previousFraction), to: CGFloat(progressFraction))
+                    .stroke(deltaColor, style: StrokeStyle(lineWidth: ringWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            } else {
+                Circle()
+                    .trim(from: 0, to: CGFloat(progressFraction))
+                    .stroke(deltaColor, style: StrokeStyle(lineWidth: ringWidth, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            let percentValue = Int(ceil((showDelta ? deltaFraction : progressFraction) * 100))
+            let prefix = showDelta && project.currentProgress - previousProgress > 0 ? "+" : ""
+            Text("\(prefix)\(percentValue)%")
                 .font(.system(size: percentFontSize))
                 .monospacedDigit()
                 .bold()
-                .foregroundColor(color)
+                .foregroundColor(deltaColor)
         }
         .frame(width: size, height: size)
     }
 }
 
 struct ProgressShareView: View {
+    @EnvironmentObject private var settings: AppSettings
     var project: WritingProject
+    var showDelta: Bool = false
     var circleSize: CGFloat = CGFloat(defaultShareCircleSize)
     var ringWidth: CGFloat = CGFloat(defaultShareRingWidth)
     var percentFontSize: CGFloat = CGFloat(defaultSharePercentSize)
@@ -65,6 +94,7 @@ struct ProgressShareView: View {
         VStack(spacing: 0) {
             Spacer()
             ProgressCircleSnapshotView(project: project,
+                                       showDelta: showDelta,
                                        size: circleSize,
                                        ringWidth: ringWidth,
                                        percentFontSize: percentFontSize)
@@ -90,14 +120,18 @@ func progressShareImage(for project: WritingProject,
                         percentFontSize: CGFloat = CGFloat(defaultSharePercentSize),
                         titleFontSize: CGFloat = CGFloat(defaultShareTitleSize),
                         titleSpacing: CGFloat = CGFloat(defaultShareSpacing),
-                        titleOffset: CGFloat = CGFloat(defaultShareTitleOffset)) -> OSImage? {
+                        titleOffset: CGFloat = CGFloat(defaultShareTitleOffset),
+                        showDelta: Bool = false,
+                        settings: AppSettings) -> OSImage? {
     let view = ProgressShareView(project: project,
+                                 showDelta: showDelta,
                                  circleSize: circleSize,
                                  ringWidth: ringWidth,
                                  percentFontSize: percentFontSize,
                                  titleFontSize: titleFontSize,
                                  titleSpacing: titleSpacing,
                                  titleOffset: titleOffset)
+        .environmentObject(settings)
     let renderer = ImageRenderer(content: view)
 #if swift(>=5.9)
     renderer.proposedSize = ProposedViewSize(width: shareImageSize, height: shareImageSize)
@@ -121,14 +155,18 @@ func progressShareURL(for project: WritingProject,
                       percentFontSize: CGFloat = CGFloat(defaultSharePercentSize),
                       titleFontSize: CGFloat = CGFloat(defaultShareTitleSize),
                       titleSpacing: CGFloat = CGFloat(defaultShareSpacing),
-                      titleOffset: CGFloat = CGFloat(defaultShareTitleOffset)) -> URL? {
+                      titleOffset: CGFloat = CGFloat(defaultShareTitleOffset),
+                      showDelta: Bool = false,
+                      settings: AppSettings) -> URL? {
     guard let image = progressShareImage(for: project,
                                          circleSize: circleSize,
                                          ringWidth: ringWidth,
                                          percentFontSize: percentFontSize,
                                          titleFontSize: titleFontSize,
                                          titleSpacing: titleSpacing,
-                                         titleOffset: titleOffset) else { return nil }
+                                         titleOffset: titleOffset,
+                                         showDelta: showDelta,
+                                         settings: settings) else { return nil }
 #if canImport(UIKit)
     guard let data = image.pngData() else { return nil }
 #else

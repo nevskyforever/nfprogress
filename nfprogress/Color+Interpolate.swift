@@ -44,6 +44,15 @@ extension Color {
                      brightness: bri,
                      opacity: alpha)
     }
+
+    /// Увеличивает яркость цвета на указанный коэффициент.
+    func brightened(by factor: Double) -> Color {
+        let c = components()
+        return Color(hue: c.h,
+                     saturation: c.s,
+                     brightness: min(c.b * factor, 1),
+                     opacity: c.a)
+    }
 }
 #else
 public struct Color: Equatable, Sendable {
@@ -80,6 +89,13 @@ public struct Color: Equatable, Sendable {
                      saturation: sat,
                      brightness: bri,
                      opacity: alpha)
+    }
+
+    /// Увеличивает яркость цвета на указанный коэффициент.
+    public func brightened(by factor: Double) -> Color {
+        var result = self
+        result.brightness = min(result.brightness * factor, 1)
+        return result
     }
 }
 #endif
