@@ -123,14 +123,6 @@ final class AppSettings: ObservableObject {
         didSet { defaults.set(lastShareTitleOffset, forKey: "lastShareTitleOffset") }
     }
 
-    @Published var lastShareProgress: [String: Int] {
-        didSet {
-            if let data = try? JSONEncoder().encode(lastShareProgress) {
-                defaults.set(data, forKey: "lastShareProgress")
-            }
-        }
-    }
-
     @Published var syncInterval: Double {
         didSet {
             defaults.set(syncInterval, forKey: "syncInterval")
@@ -195,12 +187,6 @@ final class AppSettings: ObservableObject {
         lastShareSpacing = s == 0 ? defaultShareSpacing : s
         let o = defaults.double(forKey: "lastShareTitleOffset")
         lastShareTitleOffset = o == 0 ? defaultShareTitleOffset : o
-        if let data = defaults.data(forKey: "lastShareProgress"),
-           let saved = try? JSONDecoder().decode([String: Int].self, from: data) {
-            lastShareProgress = saved
-        } else {
-            lastShareProgress = [:]
-        }
         let i = defaults.double(forKey: "syncInterval")
         syncInterval = i == 0 ? 2 : i
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")
@@ -282,13 +268,6 @@ final class AppSettings {
     var lastShareTitleOffset: Double {
         didSet { defaults.set(lastShareTitleOffset, forKey: "lastShareTitleOffset") }
     }
-    var lastShareProgress: [String: Int] {
-        didSet {
-            if let data = try? JSONEncoder().encode(lastShareProgress) {
-                defaults.set(data, forKey: "lastShareProgress")
-            }
-        }
-    }
 
     var syncInterval: Double {
         didSet {
@@ -354,12 +333,6 @@ final class AppSettings {
         lastShareSpacing = s == 0 ? defaultShareSpacing : s
         let o = defaults.double(forKey: "lastShareTitleOffset")
         lastShareTitleOffset = o == 0 ? defaultShareTitleOffset : o
-        if let data = defaults.data(forKey: "lastShareProgress"),
-           let saved = try? JSONDecoder().decode([String: Int].self, from: data) {
-            lastShareProgress = saved
-        } else {
-            lastShareProgress = [:]
-        }
         let i = defaults.double(forKey: "syncInterval")
         syncInterval = i == 0 ? 2 : i
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")

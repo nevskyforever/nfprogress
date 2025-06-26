@@ -87,8 +87,6 @@
 "share_preview_percent_size" = "Percent size";
 "share_preview_title_size" = "Title size";
 "share_preview_spacing" = "Title spacing";
-"share_mode_progress" = "Progress";
-"share_mode_now" = "Now";
 "charts_framework_required" = "Charts framework is required";
 "scrivener_parse_error" = "Failed to load Scrivener project";
 "sync_info_word" = "Word file:\n%@";
