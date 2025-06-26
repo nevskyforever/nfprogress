@@ -9,6 +9,9 @@ struct SettingsView: View {
     /// кратной шагу компоновки.
     private let minWidth: CGFloat = layoutStep(38)
     private let minHeight: CGFloat = layoutStep(25)
+    /// Фиксированная ширина для подписи настройки,
+    /// чтобы переключатели располагались на одном уровне
+    private let labelWidth: CGFloat = layoutStep(30)
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -17,6 +20,7 @@ struct SettingsView: View {
 
             HStack {
                 Text("language")
+                    .frame(width: labelWidth, alignment: .leading)
                 Picker("", selection: $settings.language) {
                     ForEach(AppLanguage.allCases) { lang in
                         Text(lang.description).tag(lang)
@@ -27,20 +31,33 @@ struct SettingsView: View {
                 .fixedSize()
             }
 
-            Toggle("disable_launch_animations", isOn: $settings.disableLaunchAnimations)
-                .toggleStyle(.switch)
+            Toggle(isOn: $settings.disableLaunchAnimations) {
+                Text("disable_launch_animations")
+                    .frame(width: labelWidth, alignment: .leading)
+            }
+            .toggleStyle(.switch)
 
-            Toggle("disable_all_animations", isOn: $settings.disableAllAnimations)
-                .toggleStyle(.switch)
+            Toggle(isOn: $settings.disableAllAnimations) {
+                Text("disable_all_animations")
+                    .frame(width: labelWidth, alignment: .leading)
+            }
+            .toggleStyle(.switch)
 
-            Toggle("pause_sync_all", isOn: $settings.pauseAllSync)
-                .toggleStyle(.switch)
+            Toggle(isOn: $settings.pauseAllSync) {
+                Text("pause_sync_all")
+                    .frame(width: labelWidth, alignment: .leading)
+            }
+            .toggleStyle(.switch)
 
-            Toggle("toolbar_customization", isOn: $settings.allowToolbarCustomization)
-                .toggleStyle(.switch)
+            Toggle(isOn: $settings.allowToolbarCustomization) {
+                Text("toolbar_customization")
+                    .frame(width: labelWidth, alignment: .leading)
+            }
+            .toggleStyle(.switch)
 
             HStack {
                 Text(settings.localized("sync_interval_prefix"))
+                    .frame(width: labelWidth, alignment: .leading)
                 SelectAllIntField(text: $intervalText, placeholder: "interval")
                     .frame(width: layoutStep(10))
                 Text(settings.localized("sync_interval_suffix"))
