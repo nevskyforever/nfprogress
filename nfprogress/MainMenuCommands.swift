@@ -2,12 +2,6 @@
 import SwiftUI
 
 struct MainMenuCommands: Commands {
-    @ObservedObject var settings: AppSettings
-
-    init(settings: AppSettings) {
-        self._settings = ObservedObject(wrappedValue: settings)
-    }
-
     var body: some Commands {
         // Дополнительные команды в стандартном меню File
         CommandGroup(after: .newItem) {
@@ -40,17 +34,6 @@ struct MainMenuCommands: Commands {
             }
             .keyboardShortcut("n", modifiers: [.command, .option])
         }
-
-#if os(macOS)
-        CommandGroup(after: .toolbar) {
-            Button("customize_toolbar") {
-                if let window = NSApplication.shared.keyWindow {
-                    window.toolbar?.runCustomizationPalette(nil)
-                }
-            }
-            .disabled(!settings.allowToolbarCustomization)
-        }
-#endif
 
     }
 }
