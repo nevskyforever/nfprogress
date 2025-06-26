@@ -95,8 +95,8 @@
 "pause_sync" = "Приостановить синхронизацию";
 "pause_sync_all" = "Приостановить синхронизацию";
 "sync_already_linked" = "Этот файл уже привязан к другому этапу или проекту";
+"toolbar_customization" = "Разрешить настройку панели";
 "customize_toolbar" = "Настроить панель инструментов…";
-"minimal_toolbar" = "Только добавить/удалить";
 "change" = "Изменить";
 "sync_interval_prefix" = "Отслеживать изменения каждые";
 "sync_interval_suffix" = "секунд";
