@@ -140,11 +140,7 @@ struct ContentView: View {
       }
       .listStyle(.plain)
       .navigationTitle("my_texts")
-#if os(macOS)
-      .toolbar(id: "mainToolbar") { toolbarContent }
-#else
       .toolbar { toolbarContent }
-#endif
     }, detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
@@ -195,13 +191,11 @@ struct ContentView: View {
     if UIDevice.current.userInterfaceIdiom == .pad {
       ToolbarItem(placement: .navigationBarTrailing) {
         HStack {
-      ToolbarItem(id: "add") {
-        Button(action: addProject) {
-          Label("add", systemImage: "plus")
-        }
-        .keyboardShortcut("N", modifiers: [.command, .shift])
-        .help(settings.localized("add_project_tooltip"))
-      }
+          Button(action: addProject) {
+            Label("add", systemImage: "plus")
+          }
+          .keyboardShortcut("N", modifiers: [.command, .shift])
+          .help(settings.localized("add_project_tooltip"))
 
           if selectedProject != nil {
             Button(action: deleteSelectedProject) {
@@ -282,57 +276,45 @@ struct ContentView: View {
       }
     }
 #else
-    ToolbarItemGroup(id: "projectActions", placement: .automatic) {
-      ToolbarItem(id: "add") {
-        Button(action: addProject) {
-          Label("add", systemImage: "plus")
-        }
-        .keyboardShortcut("N", modifiers: [.command, .shift])
-        .help(settings.localized("add_project_tooltip"))
+    ToolbarItemGroup(placement: .automatic) {
+      Button(action: addProject) {
+        Label("add", systemImage: "plus")
       }
+      .keyboardShortcut("N", modifiers: [.command, .shift])
+      .help(settings.localized("add_project_tooltip"))
 
       if selectedProject != nil {
-        ToolbarItem(id: "delete") {
-          Button(action: deleteSelectedProject) {
-            Label("delete", systemImage: "minus")
-          }
-          .keyboardShortcut(.return, modifiers: .command)
-          .help(settings.localized("delete_project_tooltip"))
+        Button(action: deleteSelectedProject) {
+          Label("delete", systemImage: "minus")
         }
+        .keyboardShortcut(.return, modifiers: .command)
+        .help(settings.localized("delete_project_tooltip"))
       }
 
-      ToolbarItem(id: "import") {
-        Button(action: importSelectedProject) {
-          Image(systemName: "square.and.arrow.down")
-        }
-        .accessibilityLabel(settings.localized("import"))
-        .help(settings.localized("import_project_tooltip"))
+      Button(action: importSelectedProject) {
+        Image(systemName: "square.and.arrow.down")
       }
+      .accessibilityLabel(settings.localized("import"))
+      .help(settings.localized("import_project_tooltip"))
 
       if selectedProject != nil {
-        ToolbarItem(id: "export") {
-          Button(action: exportSelectedProject) {
-            Image(systemName: "square.and.arrow.up")
-          }
-          .accessibilityLabel(settings.localized("export"))
-          .help(settings.localized("export_project_tooltip"))
+        Button(action: exportSelectedProject) {
+          Image(systemName: "square.and.arrow.up")
         }
+        .accessibilityLabel(settings.localized("export"))
+        .help(settings.localized("export_project_tooltip"))
 
-        ToolbarItem(id: "viewStyle") {
-          Button {
-            settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
-          } label: {
-            Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
-          }
-          .help(settings.localized("toggle_view_tooltip"))
+        Button {
+          settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
+        } label: {
+          Image(systemName: settings.projectListStyle == .detailed ? "chart.pie" : "list.bullet")
         }
+        .help(settings.localized("toggle_view_tooltip"))
 
-        ToolbarItem(id: "sortOrder") {
-          Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-            Image(systemName: settings.projectSortOrder.iconName)
-          }
-          .help(settings.localized("toggle_sort_tooltip"))
+        Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+          Image(systemName: settings.projectSortOrder.iconName)
         }
+        .help(settings.localized("toggle_sort_tooltip"))
       }
     }
 #endif

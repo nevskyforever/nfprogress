@@ -147,11 +147,7 @@ final class AppSettings: ObservableObject {
 #if os(macOS)
     private func applyToolbarCustomization() {
         for window in NSApplication.shared.windows {
-            guard let toolbar = window.toolbar else { continue }
-            if !allowToolbarCustomization && toolbar.customizationPaletteIsRunning {
-                toolbar.runCustomizationPalette(nil)
-            }
-            toolbar.allowsUserCustomization = allowToolbarCustomization
+            window.toolbar?.allowsUserCustomization = allowToolbarCustomization
         }
     }
 #endif
@@ -284,11 +280,7 @@ final class AppSettings {
     #if os(macOS)
     private func applyToolbarCustomization() {
         for window in NSApplication.shared.windows {
-            guard let toolbar = window.toolbar else { continue }
-            if !allowToolbarCustomization && toolbar.customizationPaletteIsRunning {
-                toolbar.runCustomizationPalette(nil)
-            }
-            toolbar.allowsUserCustomization = allowToolbarCustomization
+            window.toolbar?.allowsUserCustomization = allowToolbarCustomization
         }
     }
     #endif
