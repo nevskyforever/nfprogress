@@ -92,11 +92,6 @@ struct ProgressSharePreview: View {
                     controlRow(title: settings.localized("share_preview_percent_size"), value: $percentFontPercent)
                     controlRow(title: settings.localized("share_preview_title_size"), value: $titleFontPercent)
                     controlRow(title: settings.localized("share_preview_spacing"), value: $spacingPercent)
-                    if showDelta {
-                        Button(settings.localized("share_mode_now")) { showDelta = false }
-                    } else {
-                        Button(settings.localized("share_mode_progress")) { showDelta = true }
-                    }
                 }
                 Spacer()
             }
@@ -269,9 +264,19 @@ struct ProgressSharePreview: View {
     }
 
     @ViewBuilder
+    private var progressModeButton: some View {
+        if showDelta {
+            Button(settings.localized("share_mode_now")) { showDelta = false }
+        } else {
+            Button(settings.localized("share_mode_progress")) { showDelta = true }
+        }
+    }
+
+    @ViewBuilder
     private var bottomControls: some View {
         HStack {
             Button(settings.localized("cancel"), role: .cancel) { dismiss() }
+            progressModeButton
             Spacer()
 
             Button(settings.localized("copy")) { copyProgress() }
