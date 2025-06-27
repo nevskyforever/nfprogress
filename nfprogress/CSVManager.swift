@@ -41,45 +41,6 @@ struct CSVManager {
         return lines.joined(separator: "\n")
     }
 
-    static func csvString(for projects: [WritingProject]) -> String {
-        var lines: [String] = ["Title,Goal,Deadline,Stage,StageGoal,StageDeadline,StageStart,Date,CharacterCount,ChangeSinceLast,ProgressPercent"]
-        let dateFormatter = ISO8601DateFormatter()
-        for project in projects {
-            let deadlineString = project.deadline.map { dateFormatter.string(from: $0) } ?? ""
-            var all: [(Entry, Stage?)] = project.entries.map { ($0, nil) }
-            var emptyStages: [Stage] = []
-            for stage in project.stages {
-                if stage.entries.isEmpty {
-                    emptyStages.append(stage)
-                } else {
-                    for e in stage.entries { all.append((e, stage)) }
-                }
-            }
-            if all.isEmpty && emptyStages.isEmpty {
-                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,,,,")
-            } else {
-                let sorted = all.sorted { $0.0.date < $1.0.date }
-                var cumulative = 0
-                for (entry, stage) in sorted {
-                    let dateStr = dateFormatter.string(from: entry.date)
-                    cumulative += entry.characterCount
-                    let total = cumulative
-                    let change = entry.characterCount
-                    let percent = Int(Double(total) / Double(max(project.goal, 1)) * 100)
-                    let stageTitle = stage?.title ?? ""
-                    let stageGoal = stage != nil ? String(stage!.goal) : ""
-                    let stageDeadline = stage?.deadline.map { dateFormatter.string(from: $0) } ?? ""
-                    let stageStart = stage != nil ? String(stage!.startProgress) : ""
-                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(total),\(change),\(percent)")
-                }
-                for stage in emptyStages {
-                    let stageDeadline = stage.deadline.map { dateFormatter.string(from: $0) } ?? ""
-                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stage.title)),\(stage.goal),\(stageDeadline),\(stage.startProgress),,,,")
-                }
-            }
-        }
-        return lines.joined(separator: "\n")
-    }
 
     static func importProjects(from csv: String) -> [WritingProject] {
         let lines = csv.components(separatedBy: "\n").dropFirst()
@@ -131,64 +92,6 @@ struct CSVManager {
         return Array(projectsDict.values)
     }
 
-    // MARK: - Экспорт/Импорт JSON
-
-    struct JSONEntry: Codable {
-        var date: Date
-        var characterCount: Int
-    }
-
-    struct JSONStage: Codable {
-        var title: String
-        var goal: Int
-        var deadline: Date?
-        var startProgress: Int
-        var entries: [JSONEntry]
-    }
-
-    struct JSONProject: Codable {
-        var title: String
-        var goal: Int
-        var deadline: Date?
-        var entries: [JSONEntry]
-        var stages: [JSONStage]
-    }
-
-    static func jsonData(for project: WritingProject) throws -> Data {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = .prettyPrinted
-        let p = JSONProject(
-            title: project.title,
-            goal: project.goal,
-            deadline: project.deadline,
-            entries: project.entries.map { JSONEntry(date: $0.date, characterCount: $0.characterCount) },
-            stages: project.stages.map { stage in
-                JSONStage(
-                    title: stage.title,
-                    goal: stage.goal,
-                    deadline: stage.deadline,
-                    startProgress: stage.startProgress,
-                    entries: stage.entries.map { JSONEntry(date: $0.date, characterCount: $0.characterCount) }
-                )
-            }
-        )
-        return try encoder.encode(p)
-    }
-
-    static func projects(fromJSON data: Data) throws -> [WritingProject] {
-        let decoder = JSONDecoder()
-        let projectsData = try decoder.decode([JSONProject].self, from: data)
-        return projectsData.enumerated().map { idx, jp in
-            let proj = WritingProject(title: jp.title, goal: jp.goal, deadline: jp.deadline, order: idx)
-            proj.entries = jp.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
-            proj.stages = jp.stages.map { js in
-                let st = Stage(title: js.title, goal: js.goal, deadline: js.deadline, startProgress: js.startProgress)
-                st.entries = js.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
-                return st
-            }
-            return proj
-        }
-    }
 
     // MARK: - Вспомогательные функции
     private static func escape(_ string: String) -> String {
