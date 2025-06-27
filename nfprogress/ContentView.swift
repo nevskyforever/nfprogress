@@ -280,7 +280,7 @@ struct ContentView: View {
         guard selectedProject != nil else { return }
         exportSelectedProject()
       }) {
-        Image(systemName: "square.and.arrow.up")
+        Image(systemName: "tray.full")
       }
       .accessibilityLabel(settings.localized("export"))
       .help(settings.localized("export_project_tooltip"))
@@ -331,7 +331,7 @@ struct ContentView: View {
 
           if selectedProject != nil {
             Button(action: exportSelectedProject) {
-              Image(systemName: "square.and.arrow.up")
+              Image(systemName: "tray.full")
             }
             .accessibilityLabel(settings.localized("export"))
             .help(settings.localized("export_project_tooltip"))
@@ -359,7 +359,7 @@ struct ContentView: View {
             }
 
             Button(action: exportSelectedProject) {
-              Label(settings.localized("export"), systemImage: "square.and.arrow.up")
+              Label(settings.localized("export"), systemImage: "tray.full")
             }
           }
 
@@ -417,7 +417,7 @@ struct ContentView: View {
 
       if selectedProject != nil {
         Button(action: exportSelectedProject) {
-          Image(systemName: "square.and.arrow.up")
+          Image(systemName: "tray.full")
         }
         .accessibilityLabel(settings.localized("export"))
         .help(settings.localized("export_project_tooltip"))
@@ -577,7 +577,7 @@ struct ContentView: View {
   // MARK: - Экспорт
   private func exportSelectedProject() {
 #if os(macOS)
-    showSavePanel()
+    openWindow(id: "exportProjects")
 #else
     isExporting = true
 #endif
