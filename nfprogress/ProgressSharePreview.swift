@@ -104,7 +104,7 @@ struct ProgressSharePreview: View {
         }
         .scaledPadding()
         #if os(macOS)
-        .frame(width: 560, height: 730)
+        .frame(minWidth: 560, minHeight: 730)
         .toolbar {
             ToolbarItemGroup { bottomControls }
         }
