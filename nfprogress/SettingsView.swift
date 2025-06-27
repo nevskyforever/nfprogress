@@ -61,6 +61,21 @@ struct SettingsView: View {
                 if let val = Double(intervalText) { settings.syncInterval = val }
             }
 
+            Toggle(isOn: $settings.deadlineReminders) {
+                Text("deadline_reminders")
+                    .frame(width: labelWidth, alignment: .leading)
+            }
+            .toggleStyle(.switch)
+
+            if settings.deadlineReminders {
+                HStack {
+                    Text("reminder_time")
+                        .frame(width: labelWidth, alignment: .leading)
+                    DatePicker("", selection: $settings.reminderTime, displayedComponents: .hourAndMinute)
+                        .labelsHidden()
+                }
+            }
+
             Spacer()
         }
         .scaledPadding()
