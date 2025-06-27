@@ -22,6 +22,11 @@ let package = Package(
                 .process("Resources")
             ]
         ),
+        .target(
+            name: "ProjectProgressWidget",
+            dependencies: ["nfprogress"],
+            path: "ProjectProgressWidget"
+        ),
         .testTarget(
             name: "nfprogressTests",
             dependencies: ["nfprogress"],
