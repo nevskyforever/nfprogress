@@ -512,6 +512,7 @@ struct ContentView: View {
     .onChange(of: selectedProject) { _ in
       settings.applyToolbarCustomization()
     }
+    .windowTitle(selectedProject?.title ?? "")
 #endif
   }
 
