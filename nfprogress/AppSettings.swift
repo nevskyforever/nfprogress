@@ -75,13 +75,25 @@ final class AppSettings: ObservableObject {
     enum ProjectSortOrder: String, CaseIterable, Identifiable {
         case title
         case progress
+        case deadline
         case custom
         var id: String { rawValue }
+#if canImport(SwiftUI)
+        var description: LocalizedStringKey {
+            switch self {
+            case .title: return "sort_title"
+            case .progress: return "sort_progress"
+            case .deadline: return "sort_deadline"
+            case .custom: return "sort_custom"
+            }
+        }
+#endif
 
         var iconName: String {
             switch self {
             case .title: return "textformat"
             case .progress: return "chart.bar"
+            case .deadline: return "calendar"
             case .custom: return "arrow.up.arrow.down"
             }
         }
@@ -89,7 +101,8 @@ final class AppSettings: ObservableObject {
         var next: ProjectSortOrder {
             switch self {
             case .title: return .progress
-            case .progress: return .custom
+            case .progress: return .deadline
+            case .deadline: return .custom
             case .custom: return .title
             }
         }
@@ -277,12 +290,23 @@ final class AppSettings {
     enum ProjectSortOrder: String {
         case title
         case progress
+        case deadline
         case custom
+
+        var description: String {
+            switch self {
+            case .title: return NSLocalizedString("sort_title", comment: "")
+            case .progress: return NSLocalizedString("sort_progress", comment: "")
+            case .deadline: return NSLocalizedString("sort_deadline", comment: "")
+            case .custom: return NSLocalizedString("sort_custom", comment: "")
+            }
+        }
 
         var iconName: String {
             switch self {
             case .title: return "textformat"
             case .progress: return "chart.bar"
+            case .deadline: return "calendar"
             case .custom: return "arrow.up.arrow.down"
             }
         }
@@ -290,7 +314,8 @@ final class AppSettings {
         var next: ProjectSortOrder {
             switch self {
             case .title: return .progress
-            case .progress: return .custom
+            case .progress: return .deadline
+            case .deadline: return .custom
             case .custom: return .title
             }
         }

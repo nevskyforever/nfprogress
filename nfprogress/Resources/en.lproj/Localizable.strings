@@ -76,6 +76,11 @@
 "export_project_tooltip" = "Export project";
 "import_project_tooltip" = "Import project";
 "toggle_sort_tooltip" = "Change sort order";
+"sort_title" = "By title";
+"sort_progress" = "By progress";
+"sort_deadline" = "By deadline";
+"sort_custom" = "Manual order";
+"sort_order" = "Sort order";
 "share_progress_tooltip" = "Share progress";
 "sync_document_tooltip" = "Sync document";
 "sync_type_prompt" = "Select sync source";
