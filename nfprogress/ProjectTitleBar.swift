@@ -45,14 +45,11 @@ struct OptionalProjectTitleBar: View {
     var project: WritingProject?
 
     var body: some View {
-        HStack {
-            Spacer(minLength: 0)
-            if let project {
-                ProjectTitleBar(project: project)
-            } else {
-                Text("nfprogress")
-                    .font(.headline)
-            }
+        if let project {
+            ProjectTitleBar(project: project)
+        } else {
+            Text("nfprogress")
+                .font(.headline)
         }
     }
 }

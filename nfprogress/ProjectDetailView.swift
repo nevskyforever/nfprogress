@@ -603,8 +603,14 @@ struct ProjectDetailView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: .principal) {
+            ToolbarItem(id: "leadingSpace", placement: .principal) {
+                ToolbarFlexibleSpace()
+            }
+            ToolbarItem(id: "projectTitle", placement: .principal) {
                 ProjectTitleBar(project: project)
+            }
+            ToolbarItem(id: "trailingSpace", placement: .principal) {
+                ToolbarFlexibleSpace()
             }
             ToolbarItem(placement: .primaryAction) {
                 shareToolbarButton()
