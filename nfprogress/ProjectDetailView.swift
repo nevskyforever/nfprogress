@@ -619,8 +619,8 @@ struct ProjectDetailView: View {
             }
 #endif
         }
-        .navigationTitle("")
 #if os(iOS)
+        .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
 #endif
         .modifier(SyncSheetsModifier(

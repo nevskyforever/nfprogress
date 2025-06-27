@@ -106,10 +106,10 @@ struct ContentView: View {
                     OptionalProjectTitleBar(project: selectedProject)
                     ToolbarFlexibleSpace()
                   }
-                }
               }
-              .navigationTitle("")
+            }
 #if os(iOS)
+              .navigationTitle("")
               .navigationBarTitleDisplayMode(.inline)
 #endif
           }
@@ -205,8 +205,8 @@ struct ContentView: View {
               }
             }
           }
-          .navigationTitle("")
 #if os(iOS)
+          .navigationTitle("")
           .navigationBarTitleDisplayMode(.inline)
 #endif
       }
