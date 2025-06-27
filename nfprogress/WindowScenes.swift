@@ -141,6 +141,8 @@ extension nfprogressApp {
                     .environment(\.locale, settings.locale)
 #if os(macOS)
                     .windowTitle(settings.localized("share"))
+                    .persistentWindowFrame(id: "sharePreview")
+                    .persistentWindowSize(id: "sharePreview")
                     .windowDefaultSize(width: 560, height: 730)
 #endif
             }
