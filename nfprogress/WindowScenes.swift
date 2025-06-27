@@ -194,13 +194,6 @@ extension nfprogressApp {
             }
         }
         .modelContainer(DataController.shared).modelContext(DataController.mainContext)
-
-        WindowGroup(id: "importExport") {
-            ImportExportView()
-                .environmentObject(settings)
-                .environment(\.locale, settings.locale)
-        }
-        .modelContainer(DataController.shared).modelContext(DataController.mainContext)
     }
 }
 #endif
