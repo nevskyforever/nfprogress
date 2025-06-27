@@ -44,7 +44,7 @@ struct nfprogressApp: App {
                 .environmentObject(settings)
                 .environment(\.locale, settings.locale)
 #if os(macOS)
-                .windowTitle("NFProgress")
+                .windowTitle("")
                 .persistentWindowFrame()
                 .persistentWindowSize()
                 .windowDefaultSize(width: 810, height: 530)
@@ -65,7 +65,7 @@ struct nfprogressApp: App {
             MenuBarEntryView()
                 .environmentObject(settings)
                 .environment(\.locale, settings.locale)
-                .windowTitle("NFProgress")
+                .windowTitle("")
         }
         .menuBarExtraStyle(.window)
         .modelContainer(DataController.shared)
