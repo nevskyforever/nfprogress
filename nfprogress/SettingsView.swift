@@ -31,6 +31,19 @@ struct SettingsView: View {
                 .fixedSize()
             }
 
+            HStack {
+                Text("sort_order")
+                    .frame(width: labelWidth, alignment: .leading)
+                Picker("", selection: $settings.projectSortOrder) {
+                    ForEach(AppSettings.ProjectSortOrder.allCases) { order in
+                        Text(order.description).tag(order)
+                    }
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .fixedSize()
+            }
+
             Toggle(isOn: $settings.disableLaunchAnimations) {
                 Text("disable_launch_animations")
                     .frame(width: labelWidth, alignment: .leading)

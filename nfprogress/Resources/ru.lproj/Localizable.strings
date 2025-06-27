@@ -76,6 +76,11 @@
 "export_project_tooltip" = "Экспортировать проект";
 "import_project_tooltip" = "Импортировать проект";
 "toggle_sort_tooltip" = "Изменить сортировку";
+"sort_title" = "По названию";
+"sort_progress" = "По прогрессу";
+"sort_deadline" = "По дедлайну";
+"sort_custom" = "Вручную";
+"sort_order" = "Сортировка";
 "share_progress_tooltip" = "Поделиться прогрессом";
 "sync_document_tooltip" = "Синхронизация";
 "sync_type_prompt" = "Выберите источник";
