@@ -615,6 +615,8 @@ struct ProjectDetailView: View {
             }
 #endif
         }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .modifier(SyncSheetsModifier(
             project: project,
             showingAddEntry: $showingAddEntry,
