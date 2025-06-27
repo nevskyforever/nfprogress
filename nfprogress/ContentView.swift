@@ -101,15 +101,11 @@ struct ContentView: View {
               .foregroundColor(.gray)
               .toolbar {
                 ToolbarItem(placement: .principal) {
-                  HStack {
-                    ToolbarFlexibleSpace()
-                    OptionalProjectTitleBar(project: selectedProject)
-                    ToolbarFlexibleSpace()
-                  }
+                  OptionalProjectTitleBar(project: selectedProject)
+                }
               }
-            }
-#if os(iOS)
               .navigationTitle("")
+#if os(iOS)
               .navigationBarTitleDisplayMode(.inline)
 #endif
           }
@@ -198,15 +194,11 @@ struct ContentView: View {
           .foregroundColor(.gray)
           .toolbar {
             ToolbarItem(placement: .principal) {
-              HStack {
-                ToolbarFlexibleSpace()
-                OptionalProjectTitleBar(project: selectedProject)
-                ToolbarFlexibleSpace()
-              }
+              OptionalProjectTitleBar(project: selectedProject)
             }
           }
-#if os(iOS)
           .navigationTitle("")
+#if os(iOS)
           .navigationBarTitleDisplayMode(.inline)
 #endif
       }

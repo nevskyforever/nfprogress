@@ -453,27 +453,6 @@ struct ProjectDetailView: View {
         #endif
     }
 
-#if os(macOS)
-    @ToolbarContentBuilder
-    private var macToolbarContent: some CustomizableToolbarContent {
-        ToolbarItem(id: "spaceBeforeTitle", placement: .automatic) {
-            ToolbarFlexibleSpace()
-        }
-        ToolbarItem(id: "projectTitle", placement: .automatic) {
-            ProjectTitleBar(project: project)
-        }
-        ToolbarItem(id: "spaceAfterTitle", placement: .automatic) {
-            ToolbarFlexibleSpace()
-        }
-        ToolbarItem(id: "sync", placement: .automatic) {
-            wordSyncToolbarButton()
-        }
-        ToolbarItem(id: "share", placement: .automatic) {
-            shareToolbarButton()
-        }
-    }
-#endif
-
     @ViewBuilder
     private var infoSection: some View {
         // Название, цель и дедлайн проекта
@@ -623,24 +602,21 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        .toolbar(id: "projectToolbar") {
-#if os(macOS)
-            macToolbarContent
-#else
+        .toolbar {
             ToolbarItem(placement: .principal) {
-                HStack {
-                    ToolbarFlexibleSpace()
-                    ProjectTitleBar(project: project)
-                    ToolbarFlexibleSpace()
-                }
+                ProjectTitleBar(project: project)
             }
             ToolbarItem(placement: .primaryAction) {
                 shareToolbarButton()
             }
+#if os(macOS)
+            ToolbarItem(placement: .primaryAction) {
+                wordSyncToolbarButton()
+            }
 #endif
         }
-#if os(iOS)
         .navigationTitle("")
+#if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
 #endif
         .modifier(SyncSheetsModifier(
