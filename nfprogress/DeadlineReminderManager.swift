@@ -41,7 +41,8 @@ enum DeadlineReminderManager {
                 content.title = project.title
                 content.body = String(format: NSLocalizedString("deadline_reminder_body", comment: ""), target)
                 content.sound = .default
-                let request = UNNotificationRequest(identifier: project.id.uuidString, content: content, trigger: trigger)
+                let identifier = String(describing: project.id)
+                let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
                 center.add(request)
             }
         }
