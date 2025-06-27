@@ -90,28 +90,13 @@ struct ContentView: View {
 #endif
           .listStyle(.plain)
           .navigationTitle("my_texts")
-          .toolbar {
-            toolbarContent
-          }
+          .toolbar { toolbarContent }
         }, detail: {
           if let project = selectedProject {
             ProjectDetailView(project: project)
           } else {
             Text("select_project")
               .foregroundColor(.gray)
-              .toolbar {
-                ToolbarItem(placement: .principal) {
-                  HStack {
-                    ToolbarFlexibleSpace()
-                    OptionalProjectTitleBar(project: selectedProject)
-                    ToolbarFlexibleSpace()
-                  }
-              }
-            }
-#if os(iOS)
-              .navigationTitle("")
-              .navigationBarTitleDisplayMode(.inline)
-#endif
           }
         })
         .navigationDestination(for: WritingProject.self) { project in
@@ -147,9 +132,7 @@ struct ContentView: View {
           .listStyle(.plain)
           .navigationTitle("my_texts")
           .navigationBarTitleDisplayMode(.inline)
-          .toolbar {
-            toolbarContent
-          }
+          .toolbar { toolbarContent }
           .navigationDestination(item: $openedProject) { project in
             ProjectDetailView(project: project)
           }
@@ -196,19 +179,6 @@ struct ContentView: View {
       } else {
         Text("select_project")
           .foregroundColor(.gray)
-          .toolbar {
-            ToolbarItem(placement: .principal) {
-              HStack {
-                ToolbarFlexibleSpace()
-                OptionalProjectTitleBar(project: selectedProject)
-                ToolbarFlexibleSpace()
-              }
-            }
-          }
-#if os(iOS)
-          .navigationTitle("")
-          .navigationBarTitleDisplayMode(.inline)
-#endif
       }
     })
 #if os(macOS)
