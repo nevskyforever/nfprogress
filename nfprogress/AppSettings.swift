@@ -479,6 +479,16 @@ final class AppSettings {
 }
 #endif
 
+#if os(macOS) && canImport(SwiftUI)
+func restartApp() {
+    let url = URL(fileURLWithPath: Bundle.main.bundlePath)
+    let task = Process()
+    task.launchPath = "/usr/bin/open"
+    task.arguments = [url.path]
+    try? task.run()
+    NSApplication.shared.terminate(nil)
+}
+#endif
 
 
 extension AppSettings {
