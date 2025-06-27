@@ -158,20 +158,6 @@ final class AppSettings: ObservableObject {
         }
     }
 
-    @Published var deadlineReminders: Bool {
-        didSet {
-            defaults.set(deadlineReminders, forKey: "deadlineReminders")
-            DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
-        }
-    }
-
-    @Published var reminderTime: Date {
-        didSet {
-            defaults.set(reminderTime, forKey: "reminderTime")
-            DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
-        }
-    }
-
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
 #if os(macOS)
@@ -220,10 +206,6 @@ final class AppSettings: ObservableObject {
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")
         let allow = defaults.object(forKey: "allowToolbarCustomization") as? Bool ?? true
         allowToolbarCustomization = allow
-        deadlineReminders = defaults.bool(forKey: "deadlineReminders")
-        let defaultTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!
-        reminderTime = defaults.object(forKey: "reminderTime") as? Date ?? defaultTime
-        DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
 #if os(macOS)
         applyToolbarCustomization()
 #endif
@@ -335,20 +317,6 @@ final class AppSettings {
         }
     }
 
-    var deadlineReminders: Bool {
-        didSet {
-            defaults.set(deadlineReminders, forKey: "deadlineReminders")
-            DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
-        }
-    }
-
-    var reminderTime: Date {
-        didSet {
-            defaults.set(reminderTime, forKey: "reminderTime")
-            DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
-        }
-    }
-
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
 
     #if os(macOS)
@@ -397,10 +365,6 @@ final class AppSettings {
         pauseAllSync = defaults.bool(forKey: "pauseAllSync")
         let allow = defaults.object(forKey: "allowToolbarCustomization") as? Bool ?? true
         allowToolbarCustomization = allow
-        deadlineReminders = defaults.bool(forKey: "deadlineReminders")
-        let defaultTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!
-        reminderTime = defaults.object(forKey: "reminderTime") as? Date ?? defaultTime
-        DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
 #if os(macOS)
         applyToolbarCustomization()
 #endif
