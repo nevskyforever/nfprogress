@@ -60,6 +60,11 @@ struct ProjectDetailView: View {
         return Color(hue: hue, saturation: 1, brightness: 1)
     }
 
+    private func progressColor(_ percent: Double) -> Color {
+        let clamped = max(0, min(1, percent))
+        let hue = clamped * 0.33
+        return Color(hue: hue, saturation: 1, brightness: 1)
+    }
 
 #if os(iOS)
     @ViewBuilder
@@ -230,8 +235,18 @@ struct ProjectDetailView: View {
             }
         }
 
+        private func progressColor(_ percent: Double) -> Color {
+            let clamped = max(0, min(1, percent))
+            let hue = clamped * 0.33
+            return Color(hue: hue, saturation: 1, brightness: 1)
+        }
+
         private func saveContext() {
-            saveContext(modelContext)
+            do {
+                try modelContext.save()
+            } catch {
+                print("Ошибка сохранения: \(error)")
+            }
         }
     }
 
@@ -641,7 +656,11 @@ struct ProjectDetailView: View {
 
     // MARK: - Save Context
     private func saveContext() {
-        saveContext(modelContext)
+        do {
+            try modelContext.save()
+        } catch {
+            print("Ошибка сохранения: \(error)")
+        }
     }
 
     // MARK: - Helpers
@@ -696,20 +715,6 @@ struct ProjectDetailView: View {
                 }
 #endif
         }
-    }
-}
-
-fileprivate func progressColor(_ percent: Double) -> Color {
-    let clamped = max(0, min(1, percent))
-    let hue = clamped * 0.33
-    return Color(hue: hue, saturation: 1, brightness: 1)
-}
-
-fileprivate func saveContext(_ context: ModelContext) {
-    do {
-        try context.save()
-    } catch {
-        print("Ошибка сохранения: \(error)")
     }
 }
 
