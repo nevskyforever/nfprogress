@@ -100,14 +100,12 @@ struct ContentView: View {
             Text("select_project")
               .foregroundColor(.gray)
               .toolbar {
-                ToolbarItem(id: "leadingSpace", placement: .principal) {
-                  ToolbarFlexibleSpace()
-                }
                 ToolbarItem(placement: .principal) {
-                  OptionalProjectTitleBar(project: selectedProject)
-                }
-                ToolbarItem(id: "trailingSpace", placement: .principal) {
-                  ToolbarFlexibleSpace()
+                  HStack {
+                    ToolbarFlexibleSpace()
+                    OptionalProjectTitleBar(project: selectedProject)
+                    ToolbarFlexibleSpace()
+                  }
                 }
               }
               .navigationTitle("")
@@ -199,14 +197,12 @@ struct ContentView: View {
         Text("select_project")
           .foregroundColor(.gray)
           .toolbar {
-            ToolbarItem(id: "leadingSpace", placement: .principal) {
-              ToolbarFlexibleSpace()
-            }
             ToolbarItem(placement: .principal) {
-              OptionalProjectTitleBar(project: selectedProject)
-            }
-            ToolbarItem(id: "trailingSpace", placement: .principal) {
-              ToolbarFlexibleSpace()
+              HStack {
+                ToolbarFlexibleSpace()
+                OptionalProjectTitleBar(project: selectedProject)
+                ToolbarFlexibleSpace()
+              }
             }
           }
           .navigationTitle("")

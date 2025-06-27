@@ -603,14 +603,12 @@ struct ProjectDetailView: View {
             }
         }
         .toolbar {
-            ToolbarItem(id: "leadingSpace", placement: .principal) {
-                ToolbarFlexibleSpace()
-            }
-            ToolbarItem(id: "projectTitle", placement: .principal) {
-                ProjectTitleBar(project: project)
-            }
-            ToolbarItem(id: "trailingSpace", placement: .principal) {
-                ToolbarFlexibleSpace()
+            ToolbarItem(placement: .principal) {
+                HStack {
+                    ToolbarFlexibleSpace()
+                    ProjectTitleBar(project: project)
+                    ToolbarFlexibleSpace()
+                }
             }
             ToolbarItem(placement: .primaryAction) {
                 shareToolbarButton()
