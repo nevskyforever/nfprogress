@@ -90,14 +90,7 @@ struct ContentView: View {
 #endif
           .listStyle(.plain)
           .navigationTitle("my_texts")
-          .toolbar {
-            toolbarContent
-          }
-          .toolbar {
-            ToolbarItem(placement: .principal) {
-              OptionalProjectTitleBar(project: selectedProject)
-            }
-          }
+          .toolbar { toolbarContent }
         }, detail: {
           if let project = selectedProject {
             ProjectDetailView(project: project)
@@ -139,14 +132,7 @@ struct ContentView: View {
           .listStyle(.plain)
           .navigationTitle("my_texts")
           .navigationBarTitleDisplayMode(.inline)
-          .toolbar {
-            toolbarContent
-          }
-          .toolbar {
-            ToolbarItem(placement: .principal) {
-              OptionalProjectTitleBar(project: selectedProject)
-            }
-          }
+          .toolbar { toolbarContent }
           .navigationDestination(item: $openedProject) { project in
             ProjectDetailView(project: project)
           }
@@ -187,11 +173,6 @@ struct ContentView: View {
       .navigationTitle("my_texts")
       .toolbar { fixedToolbarContent }
       .toolbar(id: "mainToolbar") { customizableToolbarContent }
-      .toolbar {
-        ToolbarItem(placement: .principal) {
-          OptionalProjectTitleBar(project: selectedProject)
-        }
-      }
     }, detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
