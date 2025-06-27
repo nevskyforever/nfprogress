@@ -74,6 +74,12 @@ struct SettingsView: View {
                     DatePicker("", selection: $settings.reminderTime, displayedComponents: .hourAndMinute)
                         .labelsHidden()
                 }
+
+                Toggle(isOn: $settings.remindersOnLaunch) {
+                    Text("reminders_on_launch")
+                        .frame(width: labelWidth, alignment: .leading)
+                }
+                .toggleStyle(.switch)
             }
 
             Spacer()

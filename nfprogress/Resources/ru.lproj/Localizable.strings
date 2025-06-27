@@ -106,4 +106,5 @@
 "sync_now_button" = "Синхронизация";
 "deadline_reminders" = "Напоминания о дедлайнах";
 "reminder_time" = "Время отправки";
+"reminders_on_launch" = "Присылать напоминания при запуске";
 "deadline_reminder_body" = "Продолжим путь к цели? Надо написать всего %d символов!";
