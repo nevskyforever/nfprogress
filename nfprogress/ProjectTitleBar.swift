@@ -48,7 +48,7 @@ struct OptionalProjectTitleBar: View {
         if let project {
             ProjectTitleBar(project: project)
         } else {
-            Text("nfprogress")
+            Text(" ")
                 .font(.headline)
         }
     }
