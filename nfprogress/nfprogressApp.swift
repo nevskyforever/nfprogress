@@ -31,9 +31,6 @@ struct nfprogressApp: App {
             }
         }
 #endif
-#if canImport(UserNotifications)
-        DeadlineReminderManager.scheduleReminders()
-#endif
     }
     /// Глобальные настройки приложения, доступные во всех сценах
     @StateObject var settings = AppSettings()
