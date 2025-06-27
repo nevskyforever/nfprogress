@@ -27,7 +27,6 @@ struct ProjectDetailView: View {
     @State private var tempDeadline: Date = Date()
     @State private var selectedEntry: Entry?
     // Состояние редактирования отдельных полей
-    @State private var isEditingTitle = false
     @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
     @FocusState private var focusedField: Field?
@@ -49,7 +48,7 @@ struct ProjectDetailView: View {
     }
 
     private enum Field: Hashable {
-        case title, goal, deadline
+        case goal, deadline
     }
 
     private func deadlineColor(daysLeft: Int) -> Color {
@@ -458,25 +457,6 @@ struct ProjectDetailView: View {
     private var infoSection: some View {
         // Название, цель и дедлайн проекта
         Grid(alignment: .leading, horizontalSpacing: viewSpacing / 2, verticalSpacing: viewSpacing / 2) {
-            GridRow {
-                Text("label_title_colon")
-                    .font(.title3.bold())
-                    .fixedSize(horizontal: false, vertical: true)
-                if isEditingTitle {
-                    TextField("", text: $project.title)
-                        .textFieldStyle(.roundedBorder)
-                        .submitLabel(.done)
-                        .focused($focusedField, equals: .title)
-                        .onSubmit { focusedField = nil }
-                } else {
-                    Text(project.title)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .onTapGesture {
-                            isEditingTitle = true
-                            focusedField = .title
-                        }
-                }
-            }
 
             GridRow {
                 Text("label_goal_colon")
@@ -612,10 +592,6 @@ struct ProjectDetailView: View {
             }
         }
         .onChange(of: focusedField) { newValue in
-            if newValue != .title && isEditingTitle {
-                isEditingTitle = false
-                saveContext()
-            }
             if newValue != .goal && isEditingGoal {
                 isEditingGoal = false
                 saveContext()
@@ -626,8 +602,10 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        // Заголовок проекта убран из панели инструментов для простоты интерфейса
         .toolbar {
+            ToolbarItem(placement: .principal) {
+                ProjectTitleBar(project: project)
+            }
             ToolbarItem(placement: .primaryAction) {
                 shareToolbarButton()
             }
@@ -637,6 +615,8 @@ struct ProjectDetailView: View {
             }
 #endif
         }
+        .navigationTitle("")
+        .navigationBarTitleDisplayMode(.inline)
         .modifier(SyncSheetsModifier(
             project: project,
             showingAddEntry: $showingAddEntry,
