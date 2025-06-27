@@ -43,7 +43,14 @@ private struct ProgressCircleSnapshotView: View {
         return min(max(Double(diff) / Double(project.goal), 0), 1)
     }
 
-    private var progressFraction: Double { previousFraction + deltaFraction }
+    private var currentFraction: Double {
+        guard project.goal > 0 else { return 0 }
+        return min(max(Double(project.currentProgress) / Double(project.goal), 0), 1)
+    }
+
+    private var progressFraction: Double {
+        showDelta ? previousFraction + deltaFraction : currentFraction
+    }
 
     private var baseColor: Color { .interpolate(from: .red, to: .green, fraction: progressFraction) }
     private var previousColor: Color { baseColor.opacity(0.4) }
