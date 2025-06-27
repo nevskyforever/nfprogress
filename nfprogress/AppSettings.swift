@@ -75,7 +75,6 @@ final class AppSettings: ObservableObject {
     enum ProjectSortOrder: String, CaseIterable, Identifiable {
         case title
         case progress
-        case deadline
         case custom
         var id: String { rawValue }
 
@@ -83,7 +82,6 @@ final class AppSettings: ObservableObject {
             switch self {
             case .title: return "textformat"
             case .progress: return "chart.bar"
-            case .deadline: return "calendar"
             case .custom: return "arrow.up.arrow.down"
             }
         }
@@ -91,8 +89,7 @@ final class AppSettings: ObservableObject {
         var next: ProjectSortOrder {
             switch self {
             case .title: return .progress
-            case .progress: return .deadline
-            case .deadline: return .custom
+            case .progress: return .custom
             case .custom: return .title
             }
         }
@@ -280,14 +277,12 @@ final class AppSettings {
     enum ProjectSortOrder: String {
         case title
         case progress
-        case deadline
         case custom
 
         var iconName: String {
             switch self {
             case .title: return "textformat"
             case .progress: return "chart.bar"
-            case .deadline: return "calendar"
             case .custom: return "arrow.up.arrow.down"
             }
         }
@@ -295,8 +290,7 @@ final class AppSettings {
         var next: ProjectSortOrder {
             switch self {
             case .title: return .progress
-            case .progress: return .deadline
-            case .deadline: return .custom
+            case .progress: return .custom
             case .custom: return .title
             }
         }

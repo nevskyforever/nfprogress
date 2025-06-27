@@ -54,12 +54,6 @@ struct ContentView: View {
       return projects.sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
     case .progress:
       return projects.sorted { $0.progress > $1.progress }
-    case .deadline:
-      return projects.sorted {
-        let d0 = $0.deadline == nil ? Int.max : $0.daysLeft
-        let d1 = $1.deadline == nil ? Int.max : $1.daysLeft
-        return d0 < d1
-      }
     case .custom:
       return projects
     }
