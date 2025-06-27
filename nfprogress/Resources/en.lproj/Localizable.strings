@@ -113,3 +113,8 @@
 "reminder_time" = "Notification time";
 "reminders_on_launch" = "Send reminders on launch";
 "deadline_reminder_body" = "Shall we keep moving toward the goal? Only %d characters to write!";
+"import_export" = "Import/Export";
+"import_conflict_question" = "The selected file contains projects that already exist. What would you like to do?";
+"keep_all" = "Keep All";
+"replace" = "Replace";
+"projects_imported_sync_saved" = "Projects imported, synchronization preserved";

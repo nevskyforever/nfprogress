@@ -4,6 +4,9 @@ import SwiftUI
 import SwiftData
 #endif
 import UniformTypeIdentifiers
+#if canImport(UserNotifications)
+import UserNotifications
+#endif
 #if os(iOS)
 import UIKit
 #elseif os(macOS)
@@ -25,6 +28,8 @@ struct ContentView: View {
   @State private var showingAddProject = false
   @State private var projectToDelete: WritingProject?
   @State private var showDeleteAlert = false
+  @State private var importConflictProjects: [WritingProject] = []
+  @State private var showImportConflictAlert = false
 #if os(iOS)
   @State private var editMode: EditMode = .inactive
 #endif
@@ -264,23 +269,12 @@ struct ContentView: View {
   // Кастомизируемые элементы панели
   @ToolbarContentBuilder
   private var customizableToolbarContent: some CustomizableToolbarContent {
-    ToolbarItem(id: "import", placement: .automatic) {
-      Button(action: {
-        guard selectedProject != nil else { return }
-        importSelectedProject()
-      }) {
-        Image(systemName: "square.and.arrow.down")
-      }
-      .accessibilityLabel(settings.localized("import"))
-      .help(settings.localized("import_project_tooltip"))
-    }
-
     ToolbarItem(id: "export", placement: .automatic) {
       Button(action: {
         guard selectedProject != nil else { return }
         exportSelectedProject()
       }) {
-        Image(systemName: "square.and.arrow.up")
+        Image(systemName: "tray.full")
       }
       .accessibilityLabel(settings.localized("export"))
       .help(settings.localized("export_project_tooltip"))
@@ -331,7 +325,7 @@ struct ContentView: View {
 
           if selectedProject != nil {
             Button(action: exportSelectedProject) {
-              Image(systemName: "square.and.arrow.up")
+              Image(systemName: "tray.full")
             }
             .accessibilityLabel(settings.localized("export"))
             .help(settings.localized("export_project_tooltip"))
@@ -359,7 +353,7 @@ struct ContentView: View {
             }
 
             Button(action: exportSelectedProject) {
-              Label(settings.localized("export"), systemImage: "square.and.arrow.up")
+              Label(settings.localized("export"), systemImage: "tray.full")
             }
           }
 
@@ -417,7 +411,7 @@ struct ContentView: View {
 
       if selectedProject != nil {
         Button(action: exportSelectedProject) {
-          Image(systemName: "square.and.arrow.up")
+          Image(systemName: "tray.full")
         }
         .accessibilityLabel(settings.localized("export"))
         .help(settings.localized("export_project_tooltip"))
@@ -490,6 +484,10 @@ struct ContentView: View {
           },
           secondaryButton: .cancel()
         )
+      }
+      .alert(settings.localized("import_conflict_question"), isPresented: $showImportConflictAlert) {
+        Button(settings.localized("keep_all")) { keepAllImport() }
+        Button(settings.localized("replace")) { replaceImport() }
       }
       .onReceive(NotificationCenter.default.publisher(for: .menuAddProject)) { _ in
         addProject()
@@ -577,7 +575,7 @@ struct ContentView: View {
   // MARK: - Экспорт
   private func exportSelectedProject() {
 #if os(macOS)
-    showSavePanel()
+    openWindow(id: "importExport")
 #else
     isExporting = true
 #endif
@@ -614,11 +612,87 @@ struct ContentView: View {
       let text = String(data: data, encoding: .utf8)
     else { return }
     let imported = CSVManager.importProjects(from: text)
-    for project in imported {
+    let existingTitles = Set(projects.map { $0.title })
+    if imported.contains(where: { existingTitles.contains($0.title) }) {
+      importConflictProjects = imported
+      showImportConflictAlert = true
+    } else {
+      for project in imported {
+        modelContext.insert(project)
+      }
+      try? modelContext.save()
+      isImporting = false
+    }
+  }
+
+  private func keepAllImport() {
+    let existingTitles = Set(projects.map { $0.title })
+    for project in importConflictProjects {
+      if existingTitles.contains(project.title) {
+        project.title += " — импорт"
+      }
       modelContext.insert(project)
     }
     try? modelContext.save()
+    importConflictProjects = []
+    showImportConflictAlert = false
     isImporting = false
+  }
+
+  private func replaceImport() {
+    let existing = projects
+    for imported in importConflictProjects {
+      if let current = existing.first(where: { $0.title == imported.title }) {
+        let syncType = current.syncType
+        let wordPath = current.wordFilePath
+        let wordBookmark = current.wordFileBookmark
+        let scrivenerPath = current.scrivenerProjectPath
+        let scrivenerBookmark = current.scrivenerProjectBookmark
+        let itemID = current.scrivenerItemID
+        let paused = current.syncPaused
+        let lastWordChars = current.lastWordCharacters
+        let lastScrivenerChars = current.lastScrivenerCharacters
+        let lastWordMod = current.lastWordModified
+        let lastScrivenerMod = current.lastScrivenerModified
+
+        current.goal = imported.goal
+        current.deadline = imported.deadline
+        current.entries = imported.entries
+        current.stages = imported.stages
+
+        current.syncType = syncType
+        current.wordFilePath = wordPath
+        current.wordFileBookmark = wordBookmark
+        current.scrivenerProjectPath = scrivenerPath
+        current.scrivenerProjectBookmark = scrivenerBookmark
+        current.scrivenerItemID = itemID
+        current.syncPaused = paused
+        current.lastWordCharacters = lastWordChars
+        current.lastScrivenerCharacters = lastScrivenerChars
+        current.lastWordModified = lastWordMod
+        current.lastScrivenerModified = lastScrivenerMod
+      } else {
+        modelContext.insert(imported)
+      }
+    }
+    try? modelContext.save()
+    importConflictProjects = []
+    showImportConflictAlert = false
+    isImporting = false
+    sendNotification()
+  }
+
+  private func sendNotification() {
+    #if canImport(UserNotifications)
+    let center = UNUserNotificationCenter.current()
+    center.requestAuthorization(options: [.alert]) { granted, _ in
+      guard granted else { return }
+      let content = UNMutableNotificationContent()
+      content.body = settings.localized("projects_imported_sync_saved")
+      let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+      center.add(request)
+    }
+    #endif
   }
 
   private func moveProjects(from source: IndexSet, to destination: Int) {
