@@ -93,17 +93,21 @@ struct ContentView: View {
           .toolbar {
             toolbarContent
           }
-          .toolbar {
-            ToolbarItem(placement: .principal) {
-              OptionalProjectTitleBar(project: selectedProject)
-            }
-          }
         }, detail: {
           if let project = selectedProject {
             ProjectDetailView(project: project)
           } else {
             Text("select_project")
               .foregroundColor(.gray)
+              .toolbar {
+                ToolbarItem(placement: .principal) {
+                  OptionalProjectTitleBar(project: selectedProject)
+                }
+              }
+              .navigationTitle("")
+#if os(iOS)
+              .navigationBarTitleDisplayMode(.inline)
+#endif
           }
         })
         .navigationDestination(for: WritingProject.self) { project in
@@ -141,11 +145,6 @@ struct ContentView: View {
           .navigationBarTitleDisplayMode(.inline)
           .toolbar {
             toolbarContent
-          }
-          .toolbar {
-            ToolbarItem(placement: .principal) {
-              OptionalProjectTitleBar(project: selectedProject)
-            }
           }
           .navigationDestination(item: $openedProject) { project in
             ProjectDetailView(project: project)
@@ -187,17 +186,21 @@ struct ContentView: View {
       .navigationTitle("my_texts")
       .toolbar { fixedToolbarContent }
       .toolbar(id: "mainToolbar") { customizableToolbarContent }
-      .toolbar {
-        ToolbarItem(placement: .principal) {
-          OptionalProjectTitleBar(project: selectedProject)
-        }
-      }
     }, detail: {
       if let project = selectedProject {
         ProjectDetailView(project: project)
       } else {
         Text("select_project")
           .foregroundColor(.gray)
+          .toolbar {
+            ToolbarItem(placement: .principal) {
+              OptionalProjectTitleBar(project: selectedProject)
+            }
+          }
+          .navigationTitle("")
+#if os(iOS)
+          .navigationBarTitleDisplayMode(.inline)
+#endif
       }
     })
 #if os(macOS)
