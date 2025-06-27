@@ -104,6 +104,3 @@
 "sync_interval_prefix" = "Отслеживать изменения каждые";
 "sync_interval_suffix" = "секунд";
 "sync_now_button" = "Синхронизация";
-"deadline_reminders" = "Напоминания о дедлайнах";
-"reminder_time" = "Время отправки";
-"deadline_reminder_body" = "Продолжим путь к цели? Надо написать всего %d символов!";
