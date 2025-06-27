@@ -164,6 +164,14 @@ final class AppSettings: ObservableObject {
 #if canImport(UserNotifications) && canImport(SwiftData)
             DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
 #endif
+            if deadlineReminders && !remindersOnLaunch {
+                remindersOnLaunch = true
+            }
+#if canImport(UserNotifications) && canImport(SwiftData)
+            if deadlineReminders && remindersOnLaunch {
+                DeadlineReminderManager.sendMissedRemindersIfNeeded()
+            }
+#endif
         }
     }
 
@@ -174,6 +182,10 @@ final class AppSettings: ObservableObject {
             DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
 #endif
         }
+    }
+
+    @Published var remindersOnLaunch: Bool {
+        didSet { defaults.set(remindersOnLaunch, forKey: "remindersOnLaunch") }
     }
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
@@ -225,10 +237,15 @@ final class AppSettings: ObservableObject {
         let allow = defaults.object(forKey: "allowToolbarCustomization") as? Bool ?? true
         allowToolbarCustomization = allow
         deadlineReminders = defaults.bool(forKey: "deadlineReminders")
+        let launchDefault = defaults.object(forKey: "remindersOnLaunch") as? Bool ?? true
+        remindersOnLaunch = launchDefault
         let defaultTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!
         reminderTime = defaults.object(forKey: "reminderTime") as? Date ?? defaultTime
         #if canImport(UserNotifications) && canImport(SwiftData)
         DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
+        if deadlineReminders && remindersOnLaunch {
+            DeadlineReminderManager.sendMissedRemindersIfNeeded()
+        }
         #endif
 #if os(macOS)
         applyToolbarCustomization()
@@ -347,6 +364,14 @@ final class AppSettings {
             #if canImport(UserNotifications) && canImport(SwiftData)
             DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
             #endif
+            if deadlineReminders && !remindersOnLaunch {
+                remindersOnLaunch = true
+            }
+            #if canImport(UserNotifications) && canImport(SwiftData)
+            if deadlineReminders && remindersOnLaunch {
+                DeadlineReminderManager.sendMissedRemindersIfNeeded()
+            }
+            #endif
         }
     }
 
@@ -357,6 +382,10 @@ final class AppSettings {
             DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
             #endif
         }
+    }
+
+    var remindersOnLaunch: Bool {
+        didSet { defaults.set(remindersOnLaunch, forKey: "remindersOnLaunch") }
     }
 
     var locale: Locale { Locale(identifier: language.resolvedIdentifier) }
@@ -408,10 +437,15 @@ final class AppSettings {
         let allow = defaults.object(forKey: "allowToolbarCustomization") as? Bool ?? true
         allowToolbarCustomization = allow
         deadlineReminders = defaults.bool(forKey: "deadlineReminders")
+        let launchDefault = defaults.object(forKey: "remindersOnLaunch") as? Bool ?? true
+        remindersOnLaunch = launchDefault
         let defaultTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!
         reminderTime = defaults.object(forKey: "reminderTime") as? Date ?? defaultTime
         #if canImport(UserNotifications) && canImport(SwiftData)
         DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
+        if deadlineReminders && remindersOnLaunch {
+            DeadlineReminderManager.sendMissedRemindersIfNeeded()
+        }
         #endif
 #if os(macOS)
         applyToolbarCustomization()

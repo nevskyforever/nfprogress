@@ -106,4 +106,5 @@
 "sync_now_button" = "Synchronize";
 "deadline_reminders" = "Deadline reminders";
 "reminder_time" = "Notification time";
+"reminders_on_launch" = "Send reminders on launch";
 "deadline_reminder_body" = "Shall we keep moving toward the goal? Only %d characters to write!";
