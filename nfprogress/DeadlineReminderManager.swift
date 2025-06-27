@@ -36,6 +36,7 @@ enum DeadlineReminderManager {
                 let t = Calendar.current.dateComponents([.hour, .minute], from: time)
                 comps.hour = t.hour
                 comps.minute = t.minute
+                comps.timeZone = Calendar.current.timeZone
                 let trigger = UNCalendarNotificationTrigger(dateMatching: comps, repeats: true)
                 let content = UNMutableNotificationContent()
                 content.title = project.title

@@ -161,14 +161,18 @@ final class AppSettings: ObservableObject {
     @Published var deadlineReminders: Bool {
         didSet {
             defaults.set(deadlineReminders, forKey: "deadlineReminders")
+#if canImport(UserNotifications) && canImport(SwiftData)
             DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
+#endif
         }
     }
 
     @Published var reminderTime: Date {
         didSet {
             defaults.set(reminderTime, forKey: "reminderTime")
+#if canImport(UserNotifications) && canImport(SwiftData)
             DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
+#endif
         }
     }
 
@@ -223,7 +227,9 @@ final class AppSettings: ObservableObject {
         deadlineReminders = defaults.bool(forKey: "deadlineReminders")
         let defaultTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!
         reminderTime = defaults.object(forKey: "reminderTime") as? Date ?? defaultTime
+        #if canImport(UserNotifications) && canImport(SwiftData)
         DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
+        #endif
 #if os(macOS)
         applyToolbarCustomization()
 #endif
@@ -338,14 +344,18 @@ final class AppSettings {
     var deadlineReminders: Bool {
         didSet {
             defaults.set(deadlineReminders, forKey: "deadlineReminders")
+            #if canImport(UserNotifications) && canImport(SwiftData)
             DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
+            #endif
         }
     }
 
     var reminderTime: Date {
         didSet {
             defaults.set(reminderTime, forKey: "reminderTime")
+            #if canImport(UserNotifications) && canImport(SwiftData)
             DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
+            #endif
         }
     }
 
@@ -400,7 +410,9 @@ final class AppSettings {
         deadlineReminders = defaults.bool(forKey: "deadlineReminders")
         let defaultTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())!
         reminderTime = defaults.object(forKey: "reminderTime") as? Date ?? defaultTime
+        #if canImport(UserNotifications) && canImport(SwiftData)
         DeadlineReminderManager.updateSettings(enabled: deadlineReminders, time: reminderTime)
+        #endif
 #if os(macOS)
         applyToolbarCustomization()
 #endif

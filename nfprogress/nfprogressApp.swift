@@ -31,7 +31,7 @@ struct nfprogressApp: App {
             }
         }
 #endif
-#if canImport(UserNotifications)
+#if canImport(UserNotifications) && canImport(SwiftData)
         DeadlineReminderManager.scheduleReminders()
 #endif
     }
