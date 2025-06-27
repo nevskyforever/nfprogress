@@ -73,7 +73,8 @@
 "toggle_view_tooltip" = "Переключить стиль списка";
 "add_project_tooltip" = "Добавить проект";
 "delete_project_tooltip" = "Удалить выбранный проект";
-"export_project_tooltip" = "Экспортировать проект";
+/* Подсказка для кнопки экспорта */
+"export_project_tooltip" = "Импорт/Экспорт";
 "import_project_tooltip" = "Импортировать проект";
 "toggle_sort_tooltip" = "Изменить сортировку";
 "sort_title" = "По названию";
@@ -113,3 +114,8 @@
 "reminder_time" = "Время отправки";
 "reminders_on_launch" = "Присылать напоминания при запуске";
 "deadline_reminder_body" = "Продолжим путь к цели? Надо написать всего %d символов!";
+"import_export" = "Импорт/Экспорт";
+"import_conflict_question" = "В выбранном файле есть проекты, которые уже имеются в приложении, что вы хотите сделать?";
+"keep_all" = "Оставить все";
+"replace" = "Заменить";
+"projects_imported_sync_saved" = "Проекты импортированы, синхронизация сохранена";
