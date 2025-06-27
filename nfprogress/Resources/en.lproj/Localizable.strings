@@ -104,3 +104,6 @@
 "sync_interval_prefix" = "Check every";
 "sync_interval_suffix" = "seconds";
 "sync_now_button" = "Synchronize";
+"deadline_reminders" = "Deadline reminders";
+"reminder_time" = "Notification time";
+"deadline_reminder_body" = "Shall we keep moving toward the goal? Only %d characters to write!";
