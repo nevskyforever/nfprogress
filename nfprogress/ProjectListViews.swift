@@ -125,12 +125,6 @@ struct ProjectPercentView: View {
                 }
             }
         }
-        .onChange(of: project.title) { _ in
-            if isVisible {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: false)
-            }
-        }
     }
 }
 
@@ -146,7 +140,6 @@ struct CompactProjectRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
             ProjectPercentView(project: project, index: index, totalCount: totalCount)
-                .id(project.id)
         }
         .padding(.vertical, scaledSpacing(1))
     }
