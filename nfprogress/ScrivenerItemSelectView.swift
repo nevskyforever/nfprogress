@@ -56,6 +56,7 @@ struct ScrivenerItemSelectView: View {
         project.scrivenerProjectPath = projectURL.path
         project.scrivenerProjectBookmark = try? projectURL.bookmarkData(options: .withSecurityScope)
         project.scrivenerItemID = item.id
+        project.scrivenerItemName = item.title
         try? project.modelContext?.save()
         DocumentSyncManager.startMonitoring(project: project)
         dismiss()
