@@ -71,7 +71,6 @@ struct ProjectDetailView: View {
         HStack {
             Spacer()
             ProgressCircleView(project: project, trackProgress: false, style: .large)
-                .id(project.id)
                 .frame(width: circleSize, height: circleSize)
             Spacer()
         }
