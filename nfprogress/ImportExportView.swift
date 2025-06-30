@@ -18,6 +18,7 @@ struct ImportExportView: View {
     @State private var isImporting = false
     @State private var pendingImport: [WritingProject] = []
     @State private var showConflictAlert = false
+    @State private var showImportFailedAlert = false
 
     private var selectedProjects: [WritingProject] {
         projects.filter { selection.contains($0.id) }
@@ -60,6 +61,9 @@ struct ImportExportView: View {
             Button(settings.localized("keep_all")) { keepAll() }
             Button(settings.localized("replace")) { replaceAll() }
         }
+        .alert(settings.localized("import_failed"), isPresented: $showImportFailedAlert) {
+            Button("OK", role: .cancel) { }
+        }
     }
 
     private func export() {
@@ -99,8 +103,15 @@ struct ImportExportView: View {
 
     private func importCSV(from url: URL) {
         guard let data = try? Data(contentsOf: url),
-              let text = String(data: data, encoding: .utf8) else { return }
+              let text = String(data: data, encoding: .utf8) else {
+            showImportFailedAlert = true
+            return
+        }
         let imported = CSVManager.importProjects(from: text)
+        guard !imported.isEmpty else {
+            showImportFailedAlert = true
+            return
+        }
         let existingTitles = Set(projects.map { $0.title })
         if imported.contains(where: { existingTitles.contains($0.title) }) {
             pendingImport = imported
@@ -110,6 +121,8 @@ struct ImportExportView: View {
                 context.insert(project)
             }
             try? context.save()
+            dismiss()
+            sendNotification(key: "import_success")
         }
     }
 
@@ -125,6 +138,7 @@ struct ImportExportView: View {
         pendingImport = []
         showConflictAlert = false
         dismiss()
+        sendNotification(key: "projects_imported_copies_marked")
     }
 
     private func replaceAll() {
@@ -189,16 +203,16 @@ struct ImportExportView: View {
         pendingImport = []
         showConflictAlert = false
         dismiss()
-        sendNotification()
+        sendNotification(key: "projects_imported_sync_saved")
     }
 
-    private func sendNotification() {
+    private func sendNotification(key: String) {
         #if canImport(UserNotifications)
         let center = UNUserNotificationCenter.current()
         center.requestAuthorization(options: [.alert]) { granted, _ in
             guard granted else { return }
             let content = UNMutableNotificationContent()
-            content.body = settings.localized("projects_imported_sync_saved")
+            content.body = settings.localized(key)
             let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
             center.add(request)
         }

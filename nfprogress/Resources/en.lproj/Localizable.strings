@@ -118,3 +118,6 @@
 "keep_all" = "Keep All";
 "replace" = "Replace";
 "projects_imported_sync_saved" = "Projects imported, synchronization preserved";
+"projects_imported_copies_marked" = "Projects imported, copies labeled separately";
+"import_success" = "Import completed successfully";
+"import_failed" = "Import failed";
