@@ -97,9 +97,8 @@
 "share_mode_now" = "Сейчас";
 "charts_framework_required" = "Для отображения графика требуется фреймворк Charts";
 "scrivener_parse_error" = "Не удалось загрузить проект Scrivener";
-"sync_info_word" = "Файл Word: %@";
-"sync_info_scrivener" = "Элемент Scrivener %@";
-"show_in_finder" = "Показать в Finder";
+"sync_info_word" = "Файл Word:\n%@";
+"sync_info_scrivener" = "Элемент Scrivener %@\nв проекте:\n%@";
 "close" = "Закрыть";
 "unlink" = "Отвязать";
 "pause_sync" = "Приостановить синхронизацию";
@@ -120,6 +119,3 @@
 "keep_all" = "Оставить все";
 "replace" = "Заменить";
 "projects_imported_sync_saved" = "Проекты импортированы, синхронизация сохранена";
-"projects_imported_copies_marked" = "Проекты импортированы, копии помечены отдельно";
-"import_success" = "Импорт успешно завершен";
-"import_failed" = "Импорт не состоялся";

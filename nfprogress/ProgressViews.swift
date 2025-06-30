@@ -74,8 +74,6 @@ struct ProgressCircleView: View {
     /// При значении `true` прогресс сохраняется через ``ProgressAnimationTracker``.
     /// Это нужно, чтобы запускать анимацию при возврате к списку проектов.
     var trackProgress: Bool = true
-    /// Выбран ли сейчас этот проект
-    var isSelected: Bool = false
     /// Визуальный стиль круга прогресса
     var style: ProgressCircleStyle = .regular
 
@@ -108,8 +106,6 @@ struct ProgressCircleView: View {
     @State private var duration: Double = 0.25
     /// Флаг, показывающий, что видимая часть сейчас на экране.
     @State private var isVisible = false
-    /// Последнее известное значение прогресса
-    @State private var lastProgress: Double?
 
     /// Преобразует значение прогресса в цвет от красного к зелёному
     private func color(for percent: Double) -> Color {
@@ -211,34 +207,58 @@ struct ProgressCircleView: View {
         }
         .onAppear {
             isVisible = true
-            let saved = trackProgress ? ProgressAnimationTracker.lastProgress(for: project) : lastProgress
+            let last = trackProgress ? ProgressAnimationTracker.lastProgress(for: project) : nil
 
             if disableLaunchAnimations || disableAllAnimations {
                 startProgress = progress
                 endProgress = progress
-            } else if let saved {
-                startProgress = saved
-                endProgress = saved
-                if abs(saved - progress) > 0.0001 {
-                    DispatchQueue.main.async { updateProgress(to: progress) }
+            } else if let last {
+                startProgress = last
+                endProgress = last
+                if abs(last - progress) > 0.0001 {
+                    DispatchQueue.main.async {
+                        updateProgress(to: progress)
+                    }
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
+                // Чем больше проектов, тем более растягиваем начало анимации
                 let step = 0.3 + Double(totalCount) * 0.02
                 let delay = max(0, 1 - elapsed) + Double(index) * step
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { updateProgress(to: progress) }
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    updateProgress(to: progress)
+                }
             }
 
-            lastProgress = progress
             if trackProgress {
                 ProgressAnimationTracker.setProgress(progress, for: project)
             }
-            ProgressAnimationTracker.updateAttributes(for: project)
         }
         .onDisappear { isVisible = false }
-        .onChange(of: progress) { _ in }
-        .onChange(of: project.entries.map { $0.id }) { _ in }
-        .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in }
+        .onChange(of: progress) { newValue in
+            if isVisible {
+                updateProgress(to: newValue, animated: !disableAllAnimations)
+            }
+            if trackProgress && isVisible {
+                ProgressAnimationTracker.setProgress(newValue, for: project)
+            }
+        }
+        .onChange(of: project.entries.map { $0.id }) { _ in
+            if trackProgress && isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
+            if isVisible {
+                updateProgress(to: progress, animated: !disableAllAnimations)
+            }
+        }
+        .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
+            if trackProgress && isVisible {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
+            if isVisible {
+                updateProgress(to: progress, animated: !disableAllAnimations)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { note in
             if let id = note.object as? PersistentIdentifier, id == project.id {
                 if trackProgress && isVisible {
@@ -247,20 +267,7 @@ struct ProgressCircleView: View {
                 if isVisible {
                     updateProgress(to: progress, animated: !disableAllAnimations)
                 }
-                lastProgress = progress
             }
-        }
-        .onChange(of: project.title) { newValue in
-            if let old = ProgressAnimationTracker.lastTitle(for: project), old == newValue { return }
-            ProgressAnimationTracker.setTitle(newValue, for: project)
-        }
-        .onChange(of: project.deadline) { newValue in
-            if let old = ProgressAnimationTracker.lastDeadline(for: project), old == newValue { return }
-            ProgressAnimationTracker.setDeadline(newValue, for: project)
-        }
-        .onChange(of: project.goal) { newValue in
-            if let old = ProgressAnimationTracker.lastGoal(for: project), old == newValue { return }
-            ProgressAnimationTracker.setGoal(newValue, for: project)
         }
     }
 }

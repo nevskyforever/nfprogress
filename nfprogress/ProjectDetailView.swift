@@ -70,8 +70,7 @@ struct ProjectDetailView: View {
     private var progressCircleSection: some View {
         HStack {
             Spacer()
-            ProgressCircleView(project: project, trackProgress: false, isSelected: true, style: .large)
-                .id(project.id)
+            ProgressCircleView(project: project, trackProgress: false, style: .large)
                 .frame(width: circleSize, height: circleSize)
             Spacer()
         }
@@ -216,9 +215,10 @@ struct ProjectDetailView: View {
                         if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
                             stage.entries.remove(at: i)
                         }
-                    modelContext.delete(entry)
-                    saveContext()
-                } label: { Image(systemName: "trash") }
+                        modelContext.delete(entry)
+                        saveContext()
+                        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+                    } label: { Image(systemName: "trash") }
                 }
             }
             .contentShape(Rectangle())
@@ -241,7 +241,11 @@ struct ProjectDetailView: View {
         }
 
         private func saveContext() {
-            // Изменения сохранятся при явном сохранении проекта
+            do {
+                try modelContext.save()
+            } catch {
+                print("Ошибка сохранения: \(error)")
+            }
         }
     }
 
@@ -325,6 +329,7 @@ struct ProjectDetailView: View {
                     }
                     modelContext.delete(entry)
                     saveContext()
+                    NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -558,7 +563,6 @@ struct ProjectDetailView: View {
                 DocumentSyncManager.startMonitoring(project: project)
             }
 #endif
-            ProgressAnimationTracker.updateAttributes(for: project)
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
             addEntry()
@@ -598,18 +602,6 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        .onChange(of: project.title) { newValue in
-            if let old = ProgressAnimationTracker.lastTitle(for: project), old == newValue { return }
-            ProgressAnimationTracker.setTitle(newValue, for: project)
-        }
-        .onChange(of: project.deadline) { newValue in
-            if let old = ProgressAnimationTracker.lastDeadline(for: project), old == newValue { return }
-            ProgressAnimationTracker.setDeadline(newValue, for: project)
-        }
-        .onChange(of: project.goal) { newValue in
-            if let old = ProgressAnimationTracker.lastGoal(for: project), old == newValue { return }
-            ProgressAnimationTracker.setGoal(newValue, for: project)
-        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ProjectTitleBar(project: project)
@@ -646,7 +638,11 @@ struct ProjectDetailView: View {
 
     // MARK: - Save Context
     private func saveContext() {
-        // Изменения сохранятся при явном сохранении проекта
+        do {
+            try modelContext.save()
+        } catch {
+            print("Ошибка сохранения: \(error)")
+        }
     }
 
     // MARK: - Helpers
@@ -664,6 +660,7 @@ struct ProjectDetailView: View {
         }
         modelContext.delete(stage)
         saveContext()
+        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
     }
 
     // MARK: - Sheet Modifier

@@ -8,16 +8,33 @@ struct DocumentSyncInfoView: View {
     @EnvironmentObject private var settings: AppSettings
     @Bindable var project: WritingProject
 
-    @State private var infoText = ""
-    @State private var syncURL: URL?
+    private var info: String {
+        switch project.syncType {
+        case .word:
+            let path = DocumentSyncManager.resolvedPath(bookmark: project.wordFileBookmark,
+                                                        path: project.wordFilePath)
+            return settings.localized("sync_info_word", path ?? "")
+        case .scrivener:
+            let basePath = DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
+                                                            path: project.scrivenerProjectPath)
+            var name = project.scrivenerItemID ?? ""
+            if let basePath, let itemID = project.scrivenerItemID {
+                let url = URL(fileURLWithPath: basePath)
+                let items = ScrivenerParser.items(in: url)
+                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
+                    name = item.title
+                }
+            }
+            return settings.localized("sync_info_scrivener", name, basePath ?? "")
+        case .none:
+            return ""
+        }
+    }
 
     var body: some View {
         VStack(spacing: scaledSpacing()) {
-            Text(infoText)
+            Text(info)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if let url = syncURL {
-                Button(settings.localized("show_in_finder")) { showInFinder(url) }
-            }
             Toggle(settings.localized("pause_sync"), isOn: $project.syncPaused)
                 .toggleStyle(.switch)
                 .onChange(of: project.syncPaused) { value in
@@ -40,7 +57,6 @@ struct DocumentSyncInfoView: View {
         .scaledPadding()
         .frame(minWidth: layoutStep(40), minHeight: layoutStep(20))
         .windowTitle(settings.localized("sync_document_tooltip"))
-        .onAppear { updateInfo() }
     }
 
     private func unlink() {
@@ -74,47 +90,6 @@ struct DocumentSyncInfoView: View {
             DocumentSyncManager.startMonitoring(project: project)
             dismiss()
         }
-    }
-
-    private func updateInfo() {
-        switch project.syncType {
-        case .word:
-            syncURL = DocumentSyncManager.syncFileURL(for: project)
-            let name = syncURL?.lastPathComponent ?? ""
-            infoText = settings.localized("sync_info_word", name)
-        case .scrivener:
-            var name = project.scrivenerItemName ?? project.scrivenerItemID ?? ""
-            var url: URL?
-            if name.isEmpty || project.scrivenerItemName == nil,
-               let base = DocumentSyncManager.resolveURL(bookmark: &project.scrivenerProjectBookmark,
-                                                        path: project.scrivenerProjectPath),
-               let itemID = project.scrivenerItemID {
-                base.startAccessingSecurityScopedResource()
-                let items = ScrivenerParser.items(in: base)
-                base.stopAccessingSecurityScopedResource()
-                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
-                    name = item.title
-                    project.scrivenerItemName = name
-                    try? project.modelContext?.save()
-                }
-                if let path = DocumentSyncManager.scrivenerFilePath(for: project, baseURL: base) {
-                    url = URL(fileURLWithPath: path)
-                }
-            } else if let basePath = DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
-                                                                     path: project.scrivenerProjectPath),
-                      let path = DocumentSyncManager.scrivenerFilePath(for: project, baseURL: URL(fileURLWithPath: basePath)) {
-                url = URL(fileURLWithPath: path)
-            }
-            syncURL = url
-            infoText = settings.localized("sync_info_scrivener", name)
-        case .none:
-            infoText = ""
-            syncURL = nil
-        }
-    }
-
-    private func showInFinder(_ url: URL) {
-        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }
 #endif

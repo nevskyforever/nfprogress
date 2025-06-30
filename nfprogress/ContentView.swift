@@ -30,7 +30,6 @@ struct ContentView: View {
   @State private var showDeleteAlert = false
   @State private var importConflictProjects: [WritingProject] = []
   @State private var showImportConflictAlert = false
-  @State private var showImportFailedAlert = false
 #if os(iOS)
   @State private var editMode: EditMode = .inactive
 #endif
@@ -78,7 +77,7 @@ struct ContentView: View {
         NavigationSplitView(sidebar: {
           List {
             let count = sortedProjects.count
-            ForEach(Array(sortedProjects.enumerated()), id: \.element.id) { index, project in
+            ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
               projectRow(for: project, index: index, totalCount: count)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, scaledSpacing(1))
@@ -123,7 +122,7 @@ struct ContentView: View {
         NavigationStack {
           List {
             let count = sortedProjects.count
-            ForEach(Array(sortedProjects.enumerated()), id: \.element.id) { index, project in
+            ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
               projectRow(for: project, index: index, totalCount: count)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, scaledSpacing(1))
@@ -162,7 +161,7 @@ struct ContentView: View {
     NavigationSplitView(sidebar: {
       List {
         let count = sortedProjects.count
-        ForEach(Array(sortedProjects.enumerated()), id: \.element.id) { index, project in
+        ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
           projectRow(for: project, index: index, totalCount: count)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, scaledSpacing(1))
@@ -231,20 +230,17 @@ struct ContentView: View {
         HStack {
           Spacer()
 #if os(iOS)
-          ProgressCircleView(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project, style: .large)
-            .id(project.id)
+          ProgressCircleView(project: project, index: index, totalCount: totalCount, style: .large)
             .frame(height: largeCircleHeight)
 #else
-          ProgressCircleView(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project)
-            .id(project.id)
+          ProgressCircleView(project: project, index: index, totalCount: totalCount)
             .frame(height: circleHeight)
 #endif
           Spacer()
         }
       }
     case .compact:
-      CompactProjectRow(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project)
-        .id(project.id)
+      CompactProjectRow(project: project, index: index, totalCount: totalCount)
     }
   }
 
@@ -490,9 +486,6 @@ struct ContentView: View {
         Button(settings.localized("keep_all")) { keepAllImport() }
         Button(settings.localized("replace")) { replaceImport() }
       }
-      .alert(settings.localized("import_failed"), isPresented: $showImportFailedAlert) {
-        Button("OK", role: .cancel) { }
-      }
       .onReceive(NotificationCenter.default.publisher(for: .menuAddProject)) { _ in
         addProject()
       }
@@ -502,9 +495,6 @@ struct ContentView: View {
       .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
         exportSelectedProject()
       }
-      .onReceive(NotificationCenter.default.publisher(for: .menuSave)) { _ in
-        DataController.saveAndNotify(project: selectedProject)
-      }
 #if os(iOS)
     .onChange(of: settings.projectSortOrder) { newValue in
       editMode = newValue == .custom ? .active : .inactive
@@ -513,14 +503,7 @@ struct ContentView: View {
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
     .windowMinWidth(minWindowWidth)
-#endif
-    .onAppear {
-      settings.applyToolbarCustomization()
-#if canImport(SwiftData)
-      ProgressAnimationTracker.initialize(with: projects)
-#endif
-    }
-#if os(macOS)
+    .onAppear { settings.applyToolbarCustomization() }
     .onChange(of: selectedProject) { _ in
       settings.applyToolbarCustomization()
     }
@@ -555,9 +538,6 @@ struct ContentView: View {
 
   private func deleteProject(_ project: WritingProject) {
     modelContext.delete(project)
-#if canImport(SwiftData)
-    ProgressAnimationTracker.removeProject(project)
-#endif
     if selectedProject === project {
       selectedProject = nil
     }
@@ -628,17 +608,8 @@ struct ContentView: View {
   private func importCSV(from url: URL) {
     guard let data = try? Data(contentsOf: url),
       let text = String(data: data, encoding: .utf8)
-    else {
-      showImportFailedAlert = true
-      isImporting = false
-      return
-    }
+    else { return }
     let imported = CSVManager.importProjects(from: text)
-    guard !imported.isEmpty else {
-      showImportFailedAlert = true
-      isImporting = false
-      return
-    }
     let existingTitles = Set(projects.map { $0.title })
     if imported.contains(where: { existingTitles.contains($0.title) }) {
       importConflictProjects = imported
@@ -649,7 +620,6 @@ struct ContentView: View {
       }
       try? modelContext.save()
       isImporting = false
-      sendNotification(key: "import_success")
     }
   }
 
@@ -665,7 +635,6 @@ struct ContentView: View {
     importConflictProjects = []
     showImportConflictAlert = false
     isImporting = false
-    sendNotification(key: "projects_imported_copies_marked")
   }
 
   private func replaceImport() {
@@ -677,10 +646,9 @@ struct ContentView: View {
         let wordPath = current.wordFilePath
         let wordBookmark = current.wordFileBookmark
         let scrivenerPath = current.scrivenerProjectPath
-       let scrivenerBookmark = current.scrivenerProjectBookmark
-       let itemID = current.scrivenerItemID
-        let itemName = current.scrivenerItemName
-       let paused = current.syncPaused
+        let scrivenerBookmark = current.scrivenerProjectBookmark
+        let itemID = current.scrivenerItemID
+        let paused = current.syncPaused
         let lastWordChars = current.lastWordCharacters
         let lastScrivenerChars = current.lastScrivenerCharacters
         let lastWordMod = current.lastWordModified
@@ -697,10 +665,9 @@ struct ContentView: View {
             stage.wordFilePath = old.wordFilePath
             stage.wordFileBookmark = old.wordFileBookmark
             stage.scrivenerProjectPath = old.scrivenerProjectPath
-           stage.scrivenerProjectBookmark = old.scrivenerProjectBookmark
-           stage.scrivenerItemID = old.scrivenerItemID
-          stage.scrivenerItemName = old.scrivenerItemName
-           stage.syncPaused = old.syncPaused
+            stage.scrivenerProjectBookmark = old.scrivenerProjectBookmark
+            stage.scrivenerItemID = old.scrivenerItemID
+            stage.syncPaused = old.syncPaused
             stage.lastWordCharacters = old.lastWordCharacters
             stage.lastWordModified = old.lastWordModified
             stage.lastScrivenerCharacters = old.lastScrivenerCharacters
@@ -711,11 +678,10 @@ struct ContentView: View {
         current.syncType = syncType
         current.wordFilePath = wordPath
         current.wordFileBookmark = wordBookmark
-       current.scrivenerProjectPath = scrivenerPath
-       current.scrivenerProjectBookmark = scrivenerBookmark
-       current.scrivenerItemID = itemID
-      current.scrivenerItemName = itemName
-       current.syncPaused = paused
+        current.scrivenerProjectPath = scrivenerPath
+        current.scrivenerProjectBookmark = scrivenerBookmark
+        current.scrivenerItemID = itemID
+        current.syncPaused = paused
         current.lastWordCharacters = lastWordChars
         current.lastScrivenerCharacters = lastScrivenerChars
         current.lastWordModified = lastWordMod
@@ -728,16 +694,16 @@ struct ContentView: View {
     importConflictProjects = []
     showImportConflictAlert = false
     isImporting = false
-    sendNotification(key: "projects_imported_sync_saved")
+    sendNotification()
   }
 
-  private func sendNotification(key: String) {
+  private func sendNotification() {
     #if canImport(UserNotifications)
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert]) { granted, _ in
       guard granted else { return }
       let content = UNMutableNotificationContent()
-      content.body = settings.localized(key)
+      content.body = settings.localized("projects_imported_sync_saved")
       let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
       center.add(request)
     }

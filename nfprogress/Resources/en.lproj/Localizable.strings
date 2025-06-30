@@ -96,9 +96,8 @@
 "share_mode_now" = "Now";
 "charts_framework_required" = "Charts framework is required";
 "scrivener_parse_error" = "Failed to load Scrivener project";
-"sync_info_word" = "Word file: %@";
-"sync_info_scrivener" = "Scrivener item %@";
-"show_in_finder" = "Show in Finder";
+"sync_info_word" = "Word file:\n%@";
+"sync_info_scrivener" = "Scrivener item %@\nin project:\n%@";
 "close" = "Close";
 "unlink" = "Unlink";
 "pause_sync" = "Pause sync";
@@ -119,6 +118,3 @@
 "keep_all" = "Keep All";
 "replace" = "Replace";
 "projects_imported_sync_saved" = "Projects imported, synchronization preserved";
-"projects_imported_copies_marked" = "Projects imported, copies labeled separately";
-"import_success" = "Import completed successfully";
-"import_failed" = "Import failed";
