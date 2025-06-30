@@ -30,6 +30,7 @@ struct ContentView: View {
   @State private var showDeleteAlert = false
   @State private var importConflictProjects: [WritingProject] = []
   @State private var showImportConflictAlert = false
+  @State private var showImportFailedAlert = false
 #if os(iOS)
   @State private var editMode: EditMode = .inactive
 #endif
@@ -77,7 +78,7 @@ struct ContentView: View {
         NavigationSplitView(sidebar: {
           List {
             let count = sortedProjects.count
-            ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
+            ForEach(Array(sortedProjects.enumerated()), id: \.element.id) { index, project in
               projectRow(for: project, index: index, totalCount: count)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, scaledSpacing(1))
@@ -122,7 +123,7 @@ struct ContentView: View {
         NavigationStack {
           List {
             let count = sortedProjects.count
-            ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
+            ForEach(Array(sortedProjects.enumerated()), id: \.element.id) { index, project in
               projectRow(for: project, index: index, totalCount: count)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.vertical, scaledSpacing(1))
@@ -161,7 +162,7 @@ struct ContentView: View {
     NavigationSplitView(sidebar: {
       List {
         let count = sortedProjects.count
-        ForEach(Array(sortedProjects.enumerated()), id: \.element) { index, project in
+        ForEach(Array(sortedProjects.enumerated()), id: \.element.id) { index, project in
           projectRow(for: project, index: index, totalCount: count)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, scaledSpacing(1))
@@ -231,9 +232,11 @@ struct ContentView: View {
           Spacer()
 #if os(iOS)
           ProgressCircleView(project: project, index: index, totalCount: totalCount, style: .large)
+            .id(project.id)
             .frame(height: largeCircleHeight)
 #else
           ProgressCircleView(project: project, index: index, totalCount: totalCount)
+            .id(project.id)
             .frame(height: circleHeight)
 #endif
           Spacer()
@@ -241,6 +244,7 @@ struct ContentView: View {
       }
     case .compact:
       CompactProjectRow(project: project, index: index, totalCount: totalCount)
+        .id(project.id)
     }
   }
 
@@ -486,6 +490,9 @@ struct ContentView: View {
         Button(settings.localized("keep_all")) { keepAllImport() }
         Button(settings.localized("replace")) { replaceImport() }
       }
+      .alert(settings.localized("import_failed"), isPresented: $showImportFailedAlert) {
+        Button("OK", role: .cancel) { }
+      }
       .onReceive(NotificationCenter.default.publisher(for: .menuAddProject)) { _ in
         addProject()
       }
@@ -608,8 +615,17 @@ struct ContentView: View {
   private func importCSV(from url: URL) {
     guard let data = try? Data(contentsOf: url),
       let text = String(data: data, encoding: .utf8)
-    else { return }
+    else {
+      showImportFailedAlert = true
+      isImporting = false
+      return
+    }
     let imported = CSVManager.importProjects(from: text)
+    guard !imported.isEmpty else {
+      showImportFailedAlert = true
+      isImporting = false
+      return
+    }
     let existingTitles = Set(projects.map { $0.title })
     if imported.contains(where: { existingTitles.contains($0.title) }) {
       importConflictProjects = imported
@@ -620,6 +636,7 @@ struct ContentView: View {
       }
       try? modelContext.save()
       isImporting = false
+      sendNotification(key: "import_success")
     }
   }
 
@@ -635,6 +652,7 @@ struct ContentView: View {
     importConflictProjects = []
     showImportConflictAlert = false
     isImporting = false
+    sendNotification(key: "projects_imported_copies_marked")
   }
 
   private func replaceImport() {
@@ -697,16 +715,16 @@ struct ContentView: View {
     importConflictProjects = []
     showImportConflictAlert = false
     isImporting = false
-    sendNotification()
+    sendNotification(key: "projects_imported_sync_saved")
   }
 
-  private func sendNotification() {
+  private func sendNotification(key: String) {
     #if canImport(UserNotifications)
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert]) { granted, _ in
       guard granted else { return }
       let content = UNMutableNotificationContent()
-      content.body = settings.localized("projects_imported_sync_saved")
+      content.body = settings.localized(key)
       let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
       center.add(request)
     }
