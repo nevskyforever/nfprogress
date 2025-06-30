@@ -15,15 +15,11 @@ struct ProjectTitleBar: View {
     var body: some View {
         Group {
             if isEditing {
-                TextField("", text: $project.title, onEditingChanged: { editing in
-                        if !editing { save() }
-                    }, onCommit: save)
+                TextField("", text: $project.title)
                     .textFieldStyle(.roundedBorder)
                     .focused($isFocused)
+                    .onSubmit(save)
                     .onAppear { isFocused = true }
-#if os(macOS)
-                    .onExitCommand { save() }
-#endif
                     .frame(maxWidth: 200)
             } else {
                 Text(project.title)
@@ -33,9 +29,6 @@ struct ProjectTitleBar: View {
                         isFocused = true
                     }
             }
-        }
-        .onDisappear {
-            if isEditing { save() }
         }
     }
 
