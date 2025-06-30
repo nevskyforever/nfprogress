@@ -221,6 +221,7 @@ struct ProgressSharePreview: View {
         settings.lastShareTitleOffset = Double(titleOffset)
         let key = String(describing: project.id)
         settings.lastShareProgress[key] = project.currentProgress
+        project.lastShareProgress = project.currentProgress
     }
 
     @ViewBuilder
