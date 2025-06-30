@@ -88,8 +88,14 @@ struct CSVManager {
     }
 
     static func importProjects(from csv: String) -> [WritingProject] {
-        let rows = csv.components(separatedBy: "\n")
+        var rows = csv.components(separatedBy: CharacterSet.newlines)
         guard !rows.isEmpty else { return [] }
+
+        var delimiter: Character = ","
+        if let first = rows.first?.lowercased(), first.hasPrefix("sep="), let d = rows.first?.last {
+            delimiter = d
+            rows.removeFirst()
+        }
 
         var dataRows: ArraySlice<String> = rows[...]
         if let first = rows.first?.lowercased(),
@@ -101,7 +107,7 @@ struct CSVManager {
         let dateFormatter = ISO8601DateFormatter()
 
         for line in dataRows where !line.trimmingCharacters(in: .whitespaces).isEmpty {
-            let components = parseCSVLine(line)
+            let components = parseCSVLine(line, delimiter: delimiter)
             guard let title = components[safe: 0], !title.isEmpty else { continue }
             let goal = components[safe: 1].flatMap(Int.init) ?? 0
             let deadlineStr = components[safe: 2] ?? ""
@@ -248,7 +254,7 @@ struct CSVManager {
         return escaped
     }
 
-    private static func parseCSVLine(_ line: String) -> [String] {
+    private static func parseCSVLine(_ line: String, delimiter: Character = ",") -> [String] {
         var result: [String] = []
         var current = ""
         var inQuotes = false
@@ -267,7 +273,7 @@ struct CSVManager {
                 } else {
                     inQuotes = true
                 }
-            } else if char == "," && !inQuotes {
+            } else if char == delimiter && !inQuotes {
                 result.append(current)
                 current = ""
             } else {
