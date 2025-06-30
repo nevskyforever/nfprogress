@@ -29,7 +29,7 @@ private struct ProgressCircleSnapshotView: View {
     var percentFontSize: CGFloat
 
     private var previousProgress: Int {
-        settings.lastShareProgress[String(describing: project.id)] ?? project.currentProgress
+        project.lastShareProgress ?? settings.lastShareProgress[String(describing: project.id)] ?? project.currentProgress
     }
 
     private var previousFraction: Double {
