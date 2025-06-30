@@ -120,3 +120,6 @@
 "keep_all" = "Оставить все";
 "replace" = "Заменить";
 "projects_imported_sync_saved" = "Проекты импортированы, синхронизация сохранена";
+"projects_imported_copies_marked" = "Проекты импортированы, копии помечены отдельно";
+"import_success" = "Импорт успешно завершен";
+"import_failed" = "Импорт не состоялся";
