@@ -99,7 +99,7 @@ enum DocumentSyncManager {
         return nil
     }
 
-    static func resolveURL(bookmark: inout Data?, path: String?) -> URL? {
+    private static func resolveURL(bookmark: inout Data?, path: String?) -> URL? {
         if let data = bookmark {
             var stale = false
             if let url = try? URL(resolvingBookmarkData: data,
@@ -297,7 +297,6 @@ enum DocumentSyncManager {
         mainProject.scrivenerProjectPath = nil
         mainProject.scrivenerProjectBookmark = nil
         mainProject.scrivenerItemID = nil
-        mainProject.scrivenerItemName = nil
         mainProject.lastWordCharacters = nil
         mainProject.lastWordModified = nil
         mainProject.lastScrivenerCharacters = nil
@@ -411,7 +410,6 @@ enum DocumentSyncManager {
         mainStage.scrivenerProjectPath = nil
         mainStage.scrivenerProjectBookmark = nil
         mainStage.scrivenerItemID = nil
-        mainStage.scrivenerItemName = nil
         mainStage.lastWordCharacters = nil
         mainStage.lastWordModified = nil
         mainStage.lastScrivenerCharacters = nil
