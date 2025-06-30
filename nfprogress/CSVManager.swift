@@ -93,17 +93,17 @@ struct CSVManager {
         let dateFormatter = ISO8601DateFormatter()
         for line in lines where !line.trimmingCharacters(in: .whitespaces).isEmpty {
             let components = parseCSVLine(line)
-            guard let title = components[safe: 0], !title.isEmpty else { continue }
-
-            let goal = components[safe: 1].flatMap(Int.init) ?? 0
-            let deadlineStr = components[safe: 2] ?? ""
-            let stageTitle = components[safe: 3] ?? ""
-            let stageGoal = components[safe: 4].flatMap(Int.init) ?? 0
-            let stageDeadlineStr = components[safe: 5] ?? ""
-            let stageStart = components[safe: 6].flatMap(Int.init) ?? 0
-            let dateStr = components[safe: 7]
-            let countColumn = components[safe: 8].flatMap(Int.init) ?? 0
-            let changeColumn = components[safe: 9].flatMap(Int.init)
+            guard components.count >= 9 else { continue }
+            let title = components[0]
+            let goal = Int(components[1]) ?? 0
+            let deadlineStr = components[2]
+            let stageTitle = components[3]
+            let stageGoal = Int(components[4]) ?? 0
+            let stageDeadlineStr = components[5]
+            let stageStart = Int(components[6]) ?? 0
+            let dateStr = components[7]
+            let countColumn = Int(components[8]) ?? 0
+            let changeColumn = components.count > 9 ? Int(components[9]) : nil
             let count = changeColumn ?? countColumn
             let shareProgress = components.count > 11 ? Int(components[11]) : nil
 
@@ -131,8 +131,7 @@ struct CSVManager {
                 }
             }
 
-            if let dateStr,
-               let date = dateFormatter.date(from: dateStr) {
+            if let date = dateFormatter.date(from: dateStr) {
                 let entry = Entry(date: date, characterCount: count)
                 if let stage {
                     stage.entries.append(entry)
