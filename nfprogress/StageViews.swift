@@ -64,8 +64,6 @@ struct AddStageView: View {
                 project.entries.removeAll()
             }
             project.stages.append(stage)
-            try? project.modelContext?.save()
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
         }
     }
 }
@@ -124,12 +122,8 @@ struct EditStageView: View {
 #if os(macOS)
         .onExitCommand { dismiss() }
 #endif
-        .onDisappear {
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
-        }
-        .onChange(of: stage.goal) { _ in
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
-        }
+        .onDisappear { }
+        .onChange(of: stage.goal) { _ in }
     }
 }
 
@@ -248,18 +242,10 @@ struct StageHeaderView: View {
                 updateProgress(to: progress)
             }
         }
-        .onChange(of: progress) { newValue in
-            updateProgress(to: newValue)
-        }
-        .onChange(of: stage.goal) { _ in
-            updateProgress(to: progress)
-        }
-        .onChange(of: stage.entries.map(\.id)) { _ in
-            updateProgress(to: progress)
-        }
-        .onChange(of: stage.entries.map(\.characterCount)) { _ in
-            updateProgress(to: progress)
-        }
+        .onChange(of: progress) { _ in }
+        .onChange(of: stage.goal) { _ in }
+        .onChange(of: stage.entries.map(\.id)) { _ in }
+        .onChange(of: stage.entries.map(\.characterCount)) { _ in }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { note in
             if let id = note.object as? PersistentIdentifier, id == project.id {
                 updateProgress(to: progress)
