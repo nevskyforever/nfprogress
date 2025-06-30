@@ -41,9 +41,9 @@ struct ProjectTitleBar: View {
 
     private func save() {
         isEditing = false
-        #if canImport(SwiftData)
+#if canImport(SwiftData)
         ProgressAnimationTracker.setProgress(project.progress, for: project)
-        #endif
+#endif
         do {
             try modelContext.save()
         } catch {
