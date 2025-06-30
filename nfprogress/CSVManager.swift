@@ -88,20 +88,24 @@ struct CSVManager {
     }
 
     static func importProjects(from csv: String) -> [WritingProject] {
-        let rows = csv.components(separatedBy: "\n")
-        guard !rows.isEmpty else { return [] }
-        let dataRows = rows.dropFirst()
-
+        let lines = csv.components(separatedBy: "\n").dropFirst()
         var projectsDict: [String: WritingProject] = [:]
         let dateFormatter = ISO8601DateFormatter()
-
-        for line in dataRows where !line.trimmingCharacters(in: .whitespaces).isEmpty {
+        for line in lines where !line.trimmingCharacters(in: .whitespaces).isEmpty {
             let components = parseCSVLine(line)
-            guard components.count >= 5 else { continue }
-
+            guard components.count >= 9 else { continue }
             let title = components[0]
             let goal = Int(components[1]) ?? 0
             let deadlineStr = components[2]
+            let stageTitle = components[3]
+            let stageGoal = Int(components[4]) ?? 0
+            let stageDeadlineStr = components[5]
+            let stageStart = Int(components[6]) ?? 0
+            let dateStr = components[7]
+            let countColumn = Int(components[8]) ?? 0
+            let changeColumn = components.count > 9 ? Int(components[9]) : nil
+            let count = changeColumn ?? countColumn
+            let shareProgress = components.count > 11 ? Int(components[11]) : nil
 
             let project: WritingProject
             if let existing = projectsDict[title] {
@@ -111,62 +115,31 @@ struct CSVManager {
                 project = WritingProject(title: title, goal: goal, deadline: deadline, order: projectsDict.count)
                 projectsDict[title] = project
             }
+            if let shareProgress {
+                project.lastShareProgress = shareProgress
+            }
 
-            // Determine format based on number of columns
-            if components.count >= 9 {
-                // New format with stages
-                let stageTitle = components[3]
-                let stageGoal = Int(components[4]) ?? 0
-                let stageDeadlineStr = components[5]
-                let stageStart = Int(components[6]) ?? 0
-                let dateStr = components[7]
-                let countColumn = Int(components[8]) ?? 0
-                let changeColumn = components.count > 9 ? Int(components[9]) : nil
-                let count = changeColumn ?? countColumn
-                let shareProgress = components.count > 11 ? Int(components[11]) : nil
-
-                if let shareProgress { project.lastShareProgress = shareProgress }
-
-                var stage: Stage?
-                if !stageTitle.isEmpty {
-                    if let existing = project.stages.first(where: { $0.title == stageTitle }) {
-                        stage = existing
-                    } else {
-                        let stageDeadline = dateFormatter.date(from: stageDeadlineStr)
-                        let newStage = Stage(title: stageTitle, goal: stageGoal, deadline: stageDeadline, startProgress: stageStart)
-                        project.stages.append(newStage)
-                        stage = newStage
-                    }
+            var stage: Stage? = nil
+            if !stageTitle.isEmpty {
+                if let existing = project.stages.first(where: { $0.title == stageTitle }) {
+                    stage = existing
+                } else {
+                    let stageDeadline = dateFormatter.date(from: stageDeadlineStr)
+                    let newStage = Stage(title: stageTitle, goal: stageGoal, deadline: stageDeadline, startProgress: stageStart)
+                    project.stages.append(newStage)
+                    stage = newStage
                 }
+            }
 
-                if let date = dateFormatter.date(from: dateStr) {
-                    let entry = Entry(date: date, characterCount: count)
-                    if let stage {
-                        stage.entries.append(entry)
-                    } else {
-                        project.entries.append(entry)
-                    }
-                }
-            } else if components.count == 7 {
-                // Format with change and percent columns
-                let dateStr = components[3]
-                let count = Int(components[4]) ?? 0
-                // columns[5] changeSinceLast, [6] percent - ignored
-                if let date = dateFormatter.date(from: dateStr) {
-                    let entry = Entry(date: date, characterCount: count)
-                    project.entries.append(entry)
-                }
-            } else if components.count >= 5 {
-                // Oldest format
-                let dateStr = components[3]
-                let count = Int(components[4]) ?? 0
-                if let date = dateFormatter.date(from: dateStr) {
-                    let entry = Entry(date: date, characterCount: count)
+            if let date = dateFormatter.date(from: dateStr) {
+                let entry = Entry(date: date, characterCount: count)
+                if let stage {
+                    stage.entries.append(entry)
+                } else {
                     project.entries.append(entry)
                 }
             }
         }
-
         return Array(projectsDict.values)
     }
 
