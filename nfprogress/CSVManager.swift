@@ -21,12 +21,12 @@ struct CSVManager {
             lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,,,,,,\(share)")
         } else {
             let sorted = all.sorted { $0.0.date < $1.0.date }
-            var lastProgress = 0
+            var cumulative = 0
             for (entry, stage) in sorted {
                 let dateStr = dateFormatter.string(from: entry.date)
-                let total = project.globalProgress(for: entry)
-                let change = total - lastProgress
-                lastProgress = total
+                cumulative += entry.characterCount
+                let total = cumulative
+                let change = entry.characterCount
                 let percent = Int(Double(total) / Double(max(project.goal, 1)) * 100)
                 let stageTitle = stage?.title ?? ""
                 let stageGoal = stage != nil ? String(stage!.goal) : ""
@@ -63,12 +63,12 @@ struct CSVManager {
                 lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,,,,,,\(share)")
             } else {
                 let sorted = all.sorted { $0.0.date < $1.0.date }
-                var lastProgress = 0
+                var cumulative = 0
                 for (entry, stage) in sorted {
                     let dateStr = dateFormatter.string(from: entry.date)
-                    let total = project.globalProgress(for: entry)
-                    let change = total - lastProgress
-                    lastProgress = total
+                    cumulative += entry.characterCount
+                    let total = cumulative
+                    let change = entry.characterCount
                     let percent = Int(Double(total) / Double(max(project.goal, 1)) * 100)
                     let stageTitle = stage?.title ?? ""
                     let stageGoal = stage != nil ? String(stage!.goal) : ""
