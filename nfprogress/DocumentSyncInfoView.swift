@@ -11,23 +11,34 @@ struct DocumentSyncInfoView: View {
     private var info: String {
         switch project.syncType {
         case .word:
-            let path = DocumentSyncManager.resolvedPath(bookmark: project.wordFileBookmark,
-                                                        path: project.wordFilePath)
-            return settings.localized("sync_info_word", path ?? "")
+            return settings.localized("sync_info_word")
         case .scrivener:
-            let basePath = DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
-                                                            path: project.scrivenerProjectPath)
             var name = project.scrivenerItemID ?? ""
-            if let basePath, let itemID = project.scrivenerItemID {
+            if let basePath = DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
+                                                               path: project.scrivenerProjectPath),
+               let itemID = project.scrivenerItemID {
                 let url = URL(fileURLWithPath: basePath)
                 let items = ScrivenerParser.items(in: url)
                 if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
                     name = item.title
                 }
             }
-            return settings.localized("sync_info_scrivener", name, basePath ?? "")
+            return settings.localized("sync_info_scrivener", name)
         case .none:
             return ""
+        }
+    }
+
+    private var syncPath: String? {
+        switch project.syncType {
+        case .word:
+            return DocumentSyncManager.resolvedPath(bookmark: project.wordFileBookmark,
+                                                    path: project.wordFilePath)
+        case .scrivener:
+            return DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
+                                                    path: project.scrivenerProjectPath)
+        case .none:
+            return nil
         }
     }
 
@@ -35,6 +46,9 @@ struct DocumentSyncInfoView: View {
         VStack(spacing: scaledSpacing()) {
             Text(info)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            if let path = syncPath {
+                Button(settings.localized("show_in_finder")) { showInFinder(path) }
+            }
             Toggle(settings.localized("pause_sync"), isOn: $project.syncPaused)
                 .toggleStyle(.switch)
                 .onChange(of: project.syncPaused) { value in
@@ -90,6 +104,10 @@ struct DocumentSyncInfoView: View {
             DocumentSyncManager.startMonitoring(project: project)
             dismiss()
         }
+    }
+
+    private func showInFinder(_ path: String) {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
     }
 }
 #endif

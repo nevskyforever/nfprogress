@@ -97,8 +97,9 @@
 "share_mode_now" = "Сейчас";
 "charts_framework_required" = "Для отображения графика требуется фреймворк Charts";
 "scrivener_parse_error" = "Не удалось загрузить проект Scrivener";
-"sync_info_word" = "Файл Word:\n%@";
-"sync_info_scrivener" = "Элемент Scrivener %@\nв проекте:\n%@";
+"sync_info_word" = "Файл Word:";
+"sync_info_scrivener" = "Элемент Scrivener %@";
+"show_in_finder" = "Показать в Finder";
 "close" = "Закрыть";
 "unlink" = "Отвязать";
 "pause_sync" = "Приостановить синхронизацию";
