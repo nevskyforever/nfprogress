@@ -41,14 +41,7 @@ struct ProjectTitleBar: View {
 
     private func save() {
         isEditing = false
-        #if canImport(SwiftData)
-        ProgressAnimationTracker.setProgress(project.progress, for: project)
-        #endif
-        do {
-            try modelContext.save()
-        } catch {
-            print("Ошибка сохранения: \(error)")
-        }
+        // Изменения сохранятся при явном сохранении проекта
     }
 }
 
