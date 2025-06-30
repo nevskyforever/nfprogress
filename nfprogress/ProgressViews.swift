@@ -108,12 +108,6 @@ struct ProgressCircleView: View {
     @State private var isVisible = false
     /// Последнее известное значение прогресса
     @State private var lastProgress: Double?
-    /// Предыдущее название проекта
-    @State private var lastTitle: String = ""
-    /// Предыдущий дедлайн проекта
-    @State private var lastDeadline: Date?
-    /// Предыдущая цель проекта
-    @State private var lastGoal: Int = 0
 
     /// Преобразует значение прогресса в цвет от красного к зелёному
     private func color(for percent: Double) -> Color {
@@ -237,9 +231,6 @@ struct ProgressCircleView: View {
             if trackProgress {
                 ProgressAnimationTracker.setProgress(progress, for: project)
             }
-            lastTitle = project.title
-            lastDeadline = project.deadline
-            lastGoal = project.goal
         }
         .onDisappear { isVisible = false }
         .onChange(of: progress) { newValue in
@@ -280,9 +271,7 @@ struct ProgressCircleView: View {
                 lastProgress = progress
             }
         }
-        .onChange(of: project.title) { newValue in
-            guard newValue != lastTitle else { return }
-            lastTitle = newValue
+        .onChange(of: project.title) { _ in
             if trackProgress {
                 ProgressAnimationTracker.setProgress(progress, for: project)
             }
@@ -290,9 +279,7 @@ struct ProgressCircleView: View {
             endProgress = progress
             lastProgress = progress
         }
-        .onChange(of: project.deadline) { newValue in
-            guard newValue != lastDeadline else { return }
-            lastDeadline = newValue
+        .onChange(of: project.deadline) { _ in
             if trackProgress {
                 ProgressAnimationTracker.setProgress(progress, for: project)
             }
@@ -300,9 +287,7 @@ struct ProgressCircleView: View {
             endProgress = progress
             lastProgress = progress
         }
-        .onChange(of: project.goal) { newValue in
-            guard newValue != lastGoal else { return }
-            lastGoal = newValue
+        .onChange(of: project.goal) { _ in
             if trackProgress {
                 ProgressAnimationTracker.setProgress(0, for: project)
             }
