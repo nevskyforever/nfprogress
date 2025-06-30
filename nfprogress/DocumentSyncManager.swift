@@ -297,6 +297,7 @@ enum DocumentSyncManager {
         mainProject.scrivenerProjectPath = nil
         mainProject.scrivenerProjectBookmark = nil
         mainProject.scrivenerItemID = nil
+        mainProject.scrivenerItemName = nil
         mainProject.lastWordCharacters = nil
         mainProject.lastWordModified = nil
         mainProject.lastScrivenerCharacters = nil
@@ -410,6 +411,7 @@ enum DocumentSyncManager {
         mainStage.scrivenerProjectPath = nil
         mainStage.scrivenerProjectBookmark = nil
         mainStage.scrivenerItemID = nil
+        mainStage.scrivenerItemName = nil
         mainStage.lastWordCharacters = nil
         mainStage.lastWordModified = nil
         mainStage.lastScrivenerCharacters = nil
