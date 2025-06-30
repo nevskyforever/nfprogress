@@ -197,8 +197,12 @@ struct EditEntryView: View {
 #if os(macOS)
         .onExitCommand { dismiss() }
 #endif
-        .onDisappear { }
-        .onChange(of: entry.date) { _ in }
+        .onDisappear {
+            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+        }
+        .onChange(of: entry.date) { _ in
+            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+        }
         .onChange(of: selectedStageIndex) { newValue in
             guard !project.stages.isEmpty else { return }
             moveEntry(to: project.stages[newValue])
@@ -214,6 +218,7 @@ struct EditEntryView: View {
             project.entries.remove(at: idx)
         }
         stage.entries.append(entry)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
     }
 
     private static func progressAfterEntry(project: WritingProject, entry: Entry) -> Int {
@@ -243,6 +248,7 @@ struct EditEntryView: View {
     private func saveChanges() {
         let previous = Self.progressBeforeEntry(project: project, entry: entry)
         entry.characterCount = editedCount - previous
+        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
     }
 }
 

@@ -9,5 +9,4 @@ extension Notification.Name {
     static let menuAddStage = Notification.Name("menuAddStage")
     static let menuImport = Notification.Name("menuImport")
     static let menuExport = Notification.Name("menuExport")
-    static let menuSave = Notification.Name("menuSave")
 }
