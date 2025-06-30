@@ -41,9 +41,7 @@ struct ProjectTitleBar: View {
 
     private func save() {
         isEditing = false
-#if canImport(SwiftData)
-        ProgressAnimationTracker.setProgress(project.progress, for: project)
-#endif
+        // Изменение названия проекта не должно влиять на прогресс
         do {
             try modelContext.save()
         } catch {
