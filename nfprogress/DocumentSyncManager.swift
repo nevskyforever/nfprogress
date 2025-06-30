@@ -330,6 +330,87 @@ enum DocumentSyncManager {
         }
     }
 
+    /// Создаёт запись синхронизации для проекта
+    private static func recordSync(
+        project: WritingProject,
+        totalCount: Int,
+        modDate: Date,
+        lastCountKey: ReferenceWritableKeyPath<WritingProject, Int?>,
+        lastModKey: ReferenceWritableKeyPath<WritingProject, Date?>,
+        source: SyncDocumentType
+    ) {
+        let delta = computeDelta(totalCount: totalCount,
+                                last: project[keyPath: lastCountKey],
+                                current: project.currentProgress)
+        let entry = Entry(date: modDate, characterCount: delta)
+        entry.syncSource = source
+        project.entries.append(entry)
+        project[keyPath: lastCountKey] = totalCount
+        project[keyPath: lastModKey] = modDate
+        try? DataController.mainContext.save()
+        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+    }
+
+    /// Создаёт запись синхронизации для проекта, используя абсолютное значение
+    private static func recordAbsoluteSync(
+        project: WritingProject,
+        totalCount: Int,
+        modDate: Date,
+        lastCountKey: ReferenceWritableKeyPath<WritingProject, Int?>,
+        lastModKey: ReferenceWritableKeyPath<WritingProject, Date?>,
+        source: SyncDocumentType
+    ) {
+        let entry = Entry(date: modDate, characterCount: totalCount)
+        entry.syncSource = source
+        project.entries.append(entry)
+        project[keyPath: lastCountKey] = totalCount
+        project[keyPath: lastModKey] = modDate
+        try? DataController.mainContext.save()
+        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+    }
+
+    /// Создаёт запись синхронизации для этапа
+    private static func recordSync(
+        stage: Stage,
+        totalCount: Int,
+        modDate: Date,
+        lastCountKey: ReferenceWritableKeyPath<Stage, Int?>,
+        lastModKey: ReferenceWritableKeyPath<Stage, Date?>,
+        source: SyncDocumentType
+    ) {
+        let current = stage.startProgress + stage.currentProgress
+        let delta = computeDelta(totalCount: totalCount,
+                                last: stage[keyPath: lastCountKey],
+                                current: current)
+        let entry = Entry(date: modDate, characterCount: delta)
+        entry.syncSource = source
+        stage.entries.append(entry)
+        stage[keyPath: lastCountKey] = totalCount
+        stage[keyPath: lastModKey] = modDate
+        try? DataController.mainContext.save()
+        let pid = projectID(for: stage)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: pid)
+    }
+
+    /// Создаёт запись синхронизации для этапа, используя абсолютное значение
+    private static func recordAbsoluteSync(
+        stage: Stage,
+        totalCount: Int,
+        modDate: Date,
+        lastCountKey: ReferenceWritableKeyPath<Stage, Int?>,
+        lastModKey: ReferenceWritableKeyPath<Stage, Date?>,
+        source: SyncDocumentType
+    ) {
+        let entry = Entry(date: modDate, characterCount: totalCount)
+        entry.syncSource = source
+        stage.entries.append(entry)
+        stage[keyPath: lastCountKey] = totalCount
+        stage[keyPath: lastModKey] = modDate
+        try? DataController.mainContext.save()
+        let pid = projectID(for: stage)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: pid)
+    }
+
     static func checkWordFile(for id: PersistentIdentifier) {
         guard let project = fetchProject(id: id),
               let url = resolveURL(bookmark: &project.wordFileBookmark,
@@ -338,18 +419,14 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        let totalCount = attrString.string.count // абсолютное количество символов в файле
+        let totalCount = attrString.string.utf16.count // абсолютное количество символов в файле
         if project.lastWordCharacters != totalCount || project.lastWordModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: project.lastWordCharacters,
-                                  current: project.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
-            entry.syncSource = .word
-            project.entries.append(entry)
-            project.lastWordCharacters = totalCount
-            project.lastWordModified = modDate
-            try? DataController.mainContext.save()
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+            recordAbsoluteSync(project: project,
+                               totalCount: totalCount,
+                               modDate: modDate,
+                               lastCountKey: \WritingProject.lastWordCharacters,
+                               lastModKey: \WritingProject.lastWordModified,
+                               source: .word)
         }
     }
 
@@ -454,19 +531,14 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        let totalCount = attrString.string.count // абсолютное количество символов в файле
+        let totalCount = attrString.string.utf16.count // абсолютное количество символов в файле
         if stage.lastWordCharacters != totalCount || stage.lastWordModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: stage.lastWordCharacters,
-                                  current: stage.startProgress + stage.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
-            entry.syncSource = .word
-            stage.entries.append(entry)
-            stage.lastWordCharacters = totalCount
-            stage.lastWordModified = modDate
-            try? DataController.mainContext.save()
-            let pid = projectID(for: stage)
-            NotificationCenter.default.post(name: .projectProgressChanged, object: pid)
+            recordAbsoluteSync(stage: stage,
+                               totalCount: totalCount,
+                               modDate: modDate,
+                               lastCountKey: \Stage.lastWordCharacters,
+                               lastModKey: \Stage.lastWordModified,
+                               source: .word)
         }
     }
 
@@ -503,17 +575,12 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if stage.lastScrivenerCharacters != totalCount || stage.lastScrivenerModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: stage.lastScrivenerCharacters,
-                                  current: stage.startProgress + stage.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
-            entry.syncSource = .scrivener
-            stage.entries.append(entry)
-            stage.lastScrivenerCharacters = totalCount
-            stage.lastScrivenerModified = modDate
-            try? DataController.mainContext.save()
-            let pid = projectID(for: stage)
-            NotificationCenter.default.post(name: .projectProgressChanged, object: pid)
+            recordSync(stage: stage,
+                       totalCount: totalCount,
+                       modDate: modDate,
+                       lastCountKey: \Stage.lastScrivenerCharacters,
+                       lastModKey: \Stage.lastScrivenerModified,
+                       source: .scrivener)
         }
     }
 
@@ -555,16 +622,12 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if project.lastScrivenerCharacters != totalCount || project.lastScrivenerModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: project.lastScrivenerCharacters,
-                                  current: project.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
-            entry.syncSource = .scrivener
-            project.entries.append(entry)
-            project.lastScrivenerCharacters = totalCount
-            project.lastScrivenerModified = modDate
-            try? DataController.mainContext.save()
-            NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+            recordSync(project: project,
+                       totalCount: totalCount,
+                       modDate: modDate,
+                       lastCountKey: \WritingProject.lastScrivenerCharacters,
+                       lastModKey: \WritingProject.lastScrivenerModified,
+                       source: .scrivener)
         }
     }
 }
