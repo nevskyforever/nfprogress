@@ -138,6 +138,7 @@ struct ImportExportView: View {
                 let scrivenerPath = current.scrivenerProjectPath
                 let scrivenerBookmark = current.scrivenerProjectBookmark
                 let itemID = current.scrivenerItemID
+                let itemName = current.scrivenerItemName
                 let paused = current.syncPaused
                 let lastWordChars = current.lastWordCharacters
                 let lastScrivenerChars = current.lastScrivenerCharacters
@@ -159,6 +160,7 @@ struct ImportExportView: View {
                         stage.scrivenerProjectPath = old.scrivenerProjectPath
                         stage.scrivenerProjectBookmark = old.scrivenerProjectBookmark
                         stage.scrivenerItemID = old.scrivenerItemID
+                        stage.scrivenerItemName = old.scrivenerItemName
                         stage.syncPaused = old.syncPaused
                         stage.lastWordCharacters = old.lastWordCharacters
                         stage.lastWordModified = old.lastWordModified
@@ -173,6 +175,7 @@ struct ImportExportView: View {
                 current.scrivenerProjectPath = scrivenerPath
                 current.scrivenerProjectBookmark = scrivenerBookmark
                 current.scrivenerItemID = itemID
+                current.scrivenerItemName = itemName
                 current.syncPaused = paused
                 current.lastWordCharacters = lastWordChars
                 current.lastScrivenerCharacters = lastScrivenerChars
