@@ -351,6 +351,24 @@ enum DocumentSyncManager {
         NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
     }
 
+    /// Создаёт запись синхронизации для проекта, используя абсолютное значение
+    private static func recordAbsoluteSync(
+        project: WritingProject,
+        totalCount: Int,
+        modDate: Date,
+        lastCountKey: ReferenceWritableKeyPath<WritingProject, Int?>,
+        lastModKey: ReferenceWritableKeyPath<WritingProject, Date?>,
+        source: SyncDocumentType
+    ) {
+        let entry = Entry(date: modDate, characterCount: totalCount)
+        entry.syncSource = source
+        project.entries.append(entry)
+        project[keyPath: lastCountKey] = totalCount
+        project[keyPath: lastModKey] = modDate
+        try? DataController.mainContext.save()
+        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+    }
+
     /// Создаёт запись синхронизации для этапа
     private static func recordSync(
         stage: Stage,
@@ -374,6 +392,25 @@ enum DocumentSyncManager {
         NotificationCenter.default.post(name: .projectProgressChanged, object: pid)
     }
 
+    /// Создаёт запись синхронизации для этапа, используя абсолютное значение
+    private static func recordAbsoluteSync(
+        stage: Stage,
+        totalCount: Int,
+        modDate: Date,
+        lastCountKey: ReferenceWritableKeyPath<Stage, Int?>,
+        lastModKey: ReferenceWritableKeyPath<Stage, Date?>,
+        source: SyncDocumentType
+    ) {
+        let entry = Entry(date: modDate, characterCount: totalCount)
+        entry.syncSource = source
+        stage.entries.append(entry)
+        stage[keyPath: lastCountKey] = totalCount
+        stage[keyPath: lastModKey] = modDate
+        try? DataController.mainContext.save()
+        let pid = projectID(for: stage)
+        NotificationCenter.default.post(name: .projectProgressChanged, object: pid)
+    }
+
     static func checkWordFile(for id: PersistentIdentifier) {
         guard let project = fetchProject(id: id),
               let url = resolveURL(bookmark: &project.wordFileBookmark,
@@ -384,12 +421,12 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if project.lastWordCharacters != totalCount || project.lastWordModified != modDate {
-            recordSync(project: project,
-                       totalCount: totalCount,
-                       modDate: modDate,
-                       lastCountKey: \WritingProject.lastWordCharacters,
-                       lastModKey: \WritingProject.lastWordModified,
-                       source: .word)
+            recordAbsoluteSync(project: project,
+                               totalCount: totalCount,
+                               modDate: modDate,
+                               lastCountKey: \WritingProject.lastWordCharacters,
+                               lastModKey: \WritingProject.lastWordModified,
+                               source: .word)
         }
     }
 
@@ -496,12 +533,12 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if stage.lastWordCharacters != totalCount || stage.lastWordModified != modDate {
-            recordSync(stage: stage,
-                       totalCount: totalCount,
-                       modDate: modDate,
-                       lastCountKey: \Stage.lastWordCharacters,
-                       lastModKey: \Stage.lastWordModified,
-                       source: .word)
+            recordAbsoluteSync(stage: stage,
+                               totalCount: totalCount,
+                               modDate: modDate,
+                               lastCountKey: \Stage.lastWordCharacters,
+                               lastModKey: \Stage.lastWordModified,
+                               source: .word)
         }
     }
 
