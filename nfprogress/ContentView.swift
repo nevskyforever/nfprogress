@@ -231,11 +231,11 @@ struct ContentView: View {
         HStack {
           Spacer()
 #if os(iOS)
-          ProgressCircleView(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project, style: .large)
+          ProgressCircleView(project: project, index: index, totalCount: totalCount, style: .large)
             .id(project.id)
             .frame(height: largeCircleHeight)
 #else
-          ProgressCircleView(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project)
+          ProgressCircleView(project: project, index: index, totalCount: totalCount)
             .id(project.id)
             .frame(height: circleHeight)
 #endif
@@ -243,7 +243,7 @@ struct ContentView: View {
         }
       }
     case .compact:
-      CompactProjectRow(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project)
+      CompactProjectRow(project: project, index: index, totalCount: totalCount)
         .id(project.id)
     }
   }
@@ -552,9 +552,6 @@ struct ContentView: View {
 
   private func deleteProject(_ project: WritingProject) {
     modelContext.delete(project)
-#if canImport(SwiftData)
-    ProgressAnimationTracker.removeProject(project)
-#endif
     if selectedProject === project {
       selectedProject = nil
     }
