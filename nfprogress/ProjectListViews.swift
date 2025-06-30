@@ -131,22 +131,6 @@ struct ProjectPercentView: View {
                 updateProgress(to: progress, animated: false)
             }
         }
-        .onChange(of: project.deadline) { _ in
-            if isVisible {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: false)
-            }
-        }
-        .onChange(of: project.goal) { _ in
-            if isVisible {
-                ProgressAnimationTracker.setProgress(0, for: project)
-                startProgress = 0
-                endProgress = 0
-                DispatchQueue.main.async { updateProgress(to: progress) }
-            } else {
-                ProgressAnimationTracker.setProgress(0, for: project)
-            }
-        }
     }
 }
 
