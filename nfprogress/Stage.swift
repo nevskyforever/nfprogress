@@ -63,8 +63,18 @@ class Stage: Identifiable {
     }
 
     var currentProgress: Int {
-        let total = sortedEntries.reduce(0) { $0 + $1.characterCount }
-        return max(0, total)
+        var progress = 0
+        let entries = sortedEntries
+        for entry in entries {
+            if entry.syncSource != nil {
+                // Записи из синхронизации содержат абсолютное
+                // количество символов на момент изменения файла
+                progress = entry.characterCount
+            } else {
+                progress += entry.characterCount
+            }
+        }
+        return max(0, progress)
     }
 
     var progressPercentage: Double {

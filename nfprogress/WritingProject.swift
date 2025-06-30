@@ -73,7 +73,13 @@ class WritingProject {
 
         var progress = 0
         for i in 0...index {
-            progress += entries[i].characterCount
+            let e = entries[i]
+            if e.syncSource != nil {
+                // Синхронизированные записи содержат абсолютное значение прогресса
+                progress = e.characterCount
+            } else {
+                progress += e.characterCount
+            }
         }
         return progress
     }
@@ -87,14 +93,14 @@ class WritingProject {
     }
 
     var currentProgress: Int {
-        let total = sortedEntries.reduce(0) { $0 + $1.characterCount }
-        return max(0, total)
+        guard let last = sortedEntries.last else { return 0 }
+        return max(0, globalProgress(for: last))
     }
 
     var previousProgress: Int {
         guard sortedEntries.count >= 2 else { return 0 }
-        let prevEntries = sortedEntries.dropLast()
-        return prevEntries.reduce(0) { $0 + $1.characterCount }
+        let prev = sortedEntries[sortedEntries.count - 2]
+        return globalProgress(for: prev)
     }
 
     /// Сумма символов по всем этапам

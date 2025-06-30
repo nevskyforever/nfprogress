@@ -320,16 +320,6 @@ enum DocumentSyncManager {
         RunLoop.main.add(timer, forMode: .common)
     }
 
-    /// Вычисляет изменение прогресса исходя из абсолютного значения в файле,
-    /// предыдущего сохранённого значения и текущего прогресса проекта или этапа.
-    private static func computeDelta(totalCount: Int, last: Int?, current: Int) -> Int {
-        if let last {
-            return totalCount - last
-        } else {
-            return totalCount - current
-        }
-    }
-
     static func checkWordFile(for id: PersistentIdentifier) {
         guard let project = fetchProject(id: id),
               let url = resolveURL(bookmark: &project.wordFileBookmark,
@@ -340,10 +330,7 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if project.lastWordCharacters != totalCount || project.lastWordModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: project.lastWordCharacters,
-                                  current: project.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .word
             project.entries.append(entry)
             project.lastWordCharacters = totalCount
@@ -456,10 +443,7 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if stage.lastWordCharacters != totalCount || stage.lastWordModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: stage.lastWordCharacters,
-                                  current: stage.startProgress + stage.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .word
             stage.entries.append(entry)
             stage.lastWordCharacters = totalCount
@@ -503,10 +487,7 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if stage.lastScrivenerCharacters != totalCount || stage.lastScrivenerModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: stage.lastScrivenerCharacters,
-                                  current: stage.startProgress + stage.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .scrivener
             stage.entries.append(entry)
             stage.lastScrivenerCharacters = totalCount
@@ -555,10 +536,7 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if project.lastScrivenerCharacters != totalCount || project.lastScrivenerModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: project.lastScrivenerCharacters,
-                                  current: project.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .scrivener
             project.entries.append(entry)
             project.lastScrivenerCharacters = totalCount
