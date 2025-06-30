@@ -29,6 +29,7 @@ struct ProjectDetailView: View {
     // Состояние редактирования отдельных полей
     @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
+    @State private var goalChanged = false
     @FocusState private var focusedField: Field?
 #if os(iOS)
     @State private var showingSharePreview = false
@@ -216,9 +217,10 @@ struct ProjectDetailView: View {
                         if let i = stage.entries.firstIndex(where: { $0.id == entry.id }) {
                             stage.entries.remove(at: i)
                         }
-                    modelContext.delete(entry)
-                    saveContext()
-                } label: { Image(systemName: "trash") }
+                        modelContext.delete(entry)
+                        saveContext()
+                        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
+                    } label: { Image(systemName: "trash") }
                 }
             }
             .contentShape(Rectangle())
@@ -241,7 +243,14 @@ struct ProjectDetailView: View {
         }
 
         private func saveContext() {
-            // Изменения сохранятся при явном сохранении проекта
+            do {
+                try modelContext.save()
+#if canImport(SwiftData)
+                ProgressAnimationTracker.setProgress(project.progress, for: project)
+#endif
+            } catch {
+                print("Ошибка сохранения: \(error)")
+            }
         }
     }
 
@@ -325,6 +334,7 @@ struct ProjectDetailView: View {
                     }
                     modelContext.delete(entry)
                     saveContext()
+                    NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
                 } label: {
                     Image(systemName: "trash")
                 }
@@ -617,6 +627,7 @@ struct ProjectDetailView: View {
             ProgressAnimationTracker.setGoal(newValue, for: project)
 #if canImport(SwiftData)
             ProgressAnimationTracker.setProgress(0, for: project)
+            goalChanged = true
 #endif
         }
         .toolbar {
@@ -655,7 +666,19 @@ struct ProjectDetailView: View {
 
     // MARK: - Save Context
     private func saveContext() {
-        // Изменения сохранятся при явном сохранении проекта
+        do {
+            try modelContext.save()
+#if canImport(SwiftData)
+            if goalChanged {
+                ProgressAnimationTracker.setProgress(0, for: project)
+                goalChanged = false
+            } else {
+                ProgressAnimationTracker.setProgress(project.progress, for: project)
+            }
+#endif
+        } catch {
+            print("Ошибка сохранения: \(error)")
+        }
     }
 
     // MARK: - Helpers
@@ -673,6 +696,7 @@ struct ProjectDetailView: View {
         }
         modelContext.delete(stage)
         saveContext()
+        NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
     }
 
     // MARK: - Sheet Modifier
