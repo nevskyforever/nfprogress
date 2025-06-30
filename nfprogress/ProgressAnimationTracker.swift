@@ -4,14 +4,14 @@ import SwiftData
 
 @MainActor
 enum ProgressAnimationTracker {
-    private static var progressMap: [ObjectIdentifier: Double] = [:]
+    private static var progressMap: [PersistentIdentifier: Double] = [:]
 
     static func lastProgress(for project: WritingProject) -> Double? {
-        progressMap[ObjectIdentifier(project)]
+        progressMap[project.id]
     }
 
     static func setProgress(_ value: Double, for project: WritingProject) {
-        progressMap[ObjectIdentifier(project)] = value
+        progressMap[project.id] = value
     }
 }
 #endif

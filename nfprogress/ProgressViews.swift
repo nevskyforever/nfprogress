@@ -106,6 +106,8 @@ struct ProgressCircleView: View {
     @State private var duration: Double = 0.25
     /// Флаг, показывающий, что видимая часть сейчас на экране.
     @State private var isVisible = false
+    /// Последнее известное значение прогресса
+    @State private var lastProgress: Double?
 
     /// Преобразует значение прогресса в цвет от красного к зелёному
     private func color(for percent: Double) -> Color {
@@ -207,29 +209,25 @@ struct ProgressCircleView: View {
         }
         .onAppear {
             isVisible = true
-            let last = trackProgress ? ProgressAnimationTracker.lastProgress(for: project) : nil
+            let saved = trackProgress ? ProgressAnimationTracker.lastProgress(for: project) : lastProgress
 
             if disableLaunchAnimations || disableAllAnimations {
                 startProgress = progress
                 endProgress = progress
-            } else if let last {
-                startProgress = last
-                endProgress = last
-                if abs(last - progress) > 0.0001 {
-                    DispatchQueue.main.async {
-                        updateProgress(to: progress)
-                    }
+            } else if let saved {
+                startProgress = saved
+                endProgress = saved
+                if abs(saved - progress) > 0.0001 {
+                    DispatchQueue.main.async { updateProgress(to: progress) }
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-                // Чем больше проектов, тем более растягиваем начало анимации
                 let step = 0.3 + Double(totalCount) * 0.02
                 let delay = max(0, 1 - elapsed) + Double(index) * step
-                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                    updateProgress(to: progress)
-                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) { updateProgress(to: progress) }
             }
 
+            lastProgress = progress
             if trackProgress {
                 ProgressAnimationTracker.setProgress(progress, for: project)
             }
@@ -242,6 +240,7 @@ struct ProgressCircleView: View {
             if trackProgress && isVisible {
                 ProgressAnimationTracker.setProgress(newValue, for: project)
             }
+            lastProgress = newValue
         }
         .onChange(of: project.entries.map { $0.id }) { _ in
             if trackProgress && isVisible {
@@ -250,6 +249,7 @@ struct ProgressCircleView: View {
             if isVisible {
                 updateProgress(to: progress, animated: !disableAllAnimations)
             }
+            lastProgress = progress
         }
         .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
             if trackProgress && isVisible {
@@ -258,6 +258,7 @@ struct ProgressCircleView: View {
             if isVisible {
                 updateProgress(to: progress, animated: !disableAllAnimations)
             }
+            lastProgress = progress
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { note in
             if let id = note.object as? PersistentIdentifier, id == project.id {
@@ -267,7 +268,16 @@ struct ProgressCircleView: View {
                 if isVisible {
                     updateProgress(to: progress, animated: !disableAllAnimations)
                 }
+                lastProgress = progress
             }
+        }
+        .onChange(of: project.title) { _ in
+            if trackProgress {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
+            startProgress = progress
+            endProgress = progress
+            lastProgress = progress
         }
     }
 }
