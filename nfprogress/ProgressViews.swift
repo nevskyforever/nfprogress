@@ -222,7 +222,6 @@ struct ProgressCircleView: View {
                 }
             } else {
                 let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
-                // Чем больше проектов, тем более растягиваем начало анимации
                 let step = 0.3 + Double(totalCount) * 0.02
                 let delay = max(0, 1 - elapsed) + Double(index) * step
                 DispatchQueue.main.asyncAfter(deadline: .now() + delay) { updateProgress(to: progress) }
