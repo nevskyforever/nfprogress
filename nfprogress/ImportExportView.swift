@@ -143,11 +143,13 @@ struct ImportExportView: View {
                 let lastScrivenerChars = current.lastScrivenerCharacters
                 let lastWordMod = current.lastWordModified
                 let lastScrivenerMod = current.lastScrivenerModified
+                let lastShare = current.lastShareProgress
 
                 current.goal = imported.goal
                 current.deadline = imported.deadline
                 current.entries = imported.entries
                 current.stages = imported.stages
+                current.lastShareProgress = imported.lastShareProgress
 
                 for stage in current.stages {
                     if let old = stageSyncInfo[stage.title] {
@@ -176,6 +178,9 @@ struct ImportExportView: View {
                 current.lastScrivenerCharacters = lastScrivenerChars
                 current.lastWordModified = lastWordMod
                 current.lastScrivenerModified = lastScrivenerMod
+                if current.lastShareProgress == nil {
+                    current.lastShareProgress = lastShare
+                }
             } else {
                 context.insert(imported)
             }
