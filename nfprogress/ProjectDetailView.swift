@@ -34,6 +34,12 @@ struct ProjectDetailView: View {
 #if os(iOS)
     @State private var showingSharePreview = false
 #endif
+    /// Предыдущее значение названия проекта
+    @State private var lastTitle: String = ""
+    /// Предыдущее значение дедлайна проекта
+    @State private var lastDeadline: Date?
+    /// Предыдущее значение цели проекта
+    @State private var lastGoal: Int = 0
 
     /// Базовый отступ между секциями истории и этапов.
     private let viewSpacing: CGFloat = scaledSpacing(2)
@@ -568,6 +574,9 @@ struct ProjectDetailView: View {
                 DocumentSyncManager.startMonitoring(project: project)
             }
 #endif
+            lastTitle = project.title
+            lastDeadline = project.deadline
+            lastGoal = project.goal
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
             addEntry()
@@ -607,17 +616,23 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        .onChange(of: project.title) { _ in
+        .onChange(of: project.title) { newValue in
+            guard newValue != lastTitle else { return }
+            lastTitle = newValue
 #if canImport(SwiftData)
             ProgressAnimationTracker.setProgress(project.progress, for: project)
 #endif
         }
-        .onChange(of: project.deadline) { _ in
+        .onChange(of: project.deadline) { newValue in
+            guard newValue != lastDeadline else { return }
+            lastDeadline = newValue
 #if canImport(SwiftData)
             ProgressAnimationTracker.setProgress(project.progress, for: project)
 #endif
         }
-        .onChange(of: project.goal) { _ in
+        .onChange(of: project.goal) { newValue in
+            guard newValue != lastGoal else { return }
+            lastGoal = newValue
 #if canImport(SwiftData)
             ProgressAnimationTracker.setProgress(0, for: project)
             goalChanged = true

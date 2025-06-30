@@ -25,6 +25,12 @@ struct ProjectPercentView: View {
     @State private var duration: Double = 0.25
     /// Показывает, что представление в данный момент видно.
     @State private var isVisible = false
+    /// Предыдущее значение названия проекта
+    @State private var lastTitle: String = ""
+    /// Предыдущее значение дедлайна проекта
+    @State private var lastDeadline: Date?
+    /// Предыдущее значение цели проекта
+    @State private var lastGoal: Int = 0
 
     private let minDuration = 0.25
     private let maxDuration = 3.0
@@ -97,6 +103,9 @@ struct ProjectPercentView: View {
                 }
             }
             ProgressAnimationTracker.setProgress(progress, for: project)
+            lastTitle = project.title
+            lastDeadline = project.deadline
+            lastGoal = project.goal
         }
         .onDisappear { isVisible = false }
         .onChange(of: progress) { newValue in
@@ -125,19 +134,23 @@ struct ProjectPercentView: View {
                 }
             }
         }
-        .onChange(of: project.title) { _ in
+        .onChange(of: project.title) { newValue in
+            guard newValue != lastTitle else { return }
+            lastTitle = newValue
             if isVisible {
                 ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: false)
             }
         }
-        .onChange(of: project.deadline) { _ in
+        .onChange(of: project.deadline) { newValue in
+            guard newValue != lastDeadline else { return }
+            lastDeadline = newValue
             if isVisible {
                 ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: false)
             }
         }
-        .onChange(of: project.goal) { _ in
+        .onChange(of: project.goal) { newValue in
+            guard newValue != lastGoal else { return }
+            lastGoal = newValue
             if isVisible {
                 ProgressAnimationTracker.setProgress(0, for: project)
                 startProgress = 0
