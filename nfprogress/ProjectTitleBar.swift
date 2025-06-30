@@ -15,15 +15,11 @@ struct ProjectTitleBar: View {
     var body: some View {
         Group {
             if isEditing {
-                TextField("", text: $project.title, onEditingChanged: { editing in
-                        if !editing { save() }
-                    }, onCommit: save)
+                TextField("", text: $project.title)
                     .textFieldStyle(.roundedBorder)
                     .focused($isFocused)
+                    .onSubmit(save)
                     .onAppear { isFocused = true }
-#if os(macOS)
-                    .onExitCommand { save() }
-#endif
                     .frame(maxWidth: 200)
             } else {
                 Text(project.title)
@@ -34,19 +30,11 @@ struct ProjectTitleBar: View {
                     }
             }
         }
-        .onDisappear {
-            if isEditing { save() }
-        }
     }
 
     private func save() {
         isEditing = false
-        do {
-            try modelContext.save()
-            #if canImport(SwiftData)
-            ProgressAnimationTracker.setProgress(project.progress, for: project)
-            #endif
-        } catch {
+        do { try modelContext.save() } catch {
             print("Ошибка сохранения: \(error)")
         }
     }
