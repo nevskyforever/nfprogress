@@ -98,10 +98,7 @@ struct ProjectPercentView: View {
             }
             ProgressAnimationTracker.setProgress(progress, for: project)
         }
-        .onDisappear {
-            isVisible = false
-            ProgressAnimationTracker.setProgress(progress, for: project)
-        }
+        .onDisappear { isVisible = false }
         .onChange(of: progress) { newValue in
             if isVisible {
                 ProgressAnimationTracker.setProgress(newValue, for: project)
