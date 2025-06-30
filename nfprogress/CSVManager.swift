@@ -88,24 +88,26 @@ struct CSVManager {
     }
 
     static func importProjects(from csv: String) -> [WritingProject] {
-        let lines = csv.components(separatedBy: "\n").dropFirst()
+        let rows = csv.components(separatedBy: "\n")
+        guard !rows.isEmpty else { return [] }
+
+        var dataRows: ArraySlice<String> = rows[...]
+        if let first = rows.first?.lowercased(),
+           first.contains("title") && first.contains("goal") {
+            dataRows = rows.dropFirst()
+        }
+
         var projectsDict: [String: WritingProject] = [:]
         let dateFormatter = ISO8601DateFormatter()
-        for line in lines where !line.trimmingCharacters(in: .whitespaces).isEmpty {
+
+        for line in dataRows where !line.trimmingCharacters(in: .whitespaces).isEmpty {
             let components = parseCSVLine(line)
-            guard components.count >= 9 else { continue }
+            guard components.count >= 1 else { continue }
+
             let title = components[0]
-            let goal = Int(components[1]) ?? 0
-            let deadlineStr = components[2]
-            let stageTitle = components[3]
-            let stageGoal = Int(components[4]) ?? 0
-            let stageDeadlineStr = components[5]
-            let stageStart = Int(components[6]) ?? 0
-            let dateStr = components[7]
-            let countColumn = Int(components[8]) ?? 0
-            let changeColumn = components.count > 9 ? Int(components[9]) : nil
-            let count = changeColumn ?? countColumn
-            let shareProgress = components.count > 11 ? Int(components[11]) : nil
+            guard !title.isEmpty else { continue }
+            let goal = components.count > 1 ? Int(components[1]) ?? 0 : 0
+            let deadlineStr = components.count > 2 ? components[2] : ""
 
             let project: WritingProject
             if let existing = projectsDict[title] {
@@ -115,31 +117,72 @@ struct CSVManager {
                 project = WritingProject(title: title, goal: goal, deadline: deadline, order: projectsDict.count)
                 projectsDict[title] = project
             }
-            if let shareProgress {
-                project.lastShareProgress = shareProgress
-            }
 
-            var stage: Stage? = nil
-            if !stageTitle.isEmpty {
-                if let existing = project.stages.first(where: { $0.title == stageTitle }) {
-                    stage = existing
-                } else {
-                    let stageDeadline = dateFormatter.date(from: stageDeadlineStr)
-                    let newStage = Stage(title: stageTitle, goal: stageGoal, deadline: stageDeadline, startProgress: stageStart)
-                    project.stages.append(newStage)
-                    stage = newStage
+            // Determine format based on number of columns
+            if components.count >= 9 {
+                // New format with stages
+                let stageTitle = components[3]
+                let stageGoal = Int(components[4]) ?? 0
+                let stageDeadlineStr = components[5]
+                let stageStart = Int(components[6]) ?? 0
+                let dateStr = components[7]
+                let countColumn = Int(components[8]) ?? 0
+                let changeColumn = components.count > 9 ? Int(components[9]) : nil
+                let count = changeColumn ?? countColumn
+                let shareProgress = components.count > 11 ? Int(components[11]) : nil
+
+                if let shareProgress { project.lastShareProgress = shareProgress }
+
+                var stage: Stage?
+                if !stageTitle.isEmpty {
+                    if let existing = project.stages.first(where: { $0.title == stageTitle }) {
+                        stage = existing
+                    } else {
+                        let stageDeadline = dateFormatter.date(from: stageDeadlineStr)
+                        let newStage = Stage(title: stageTitle, goal: stageGoal, deadline: stageDeadline, startProgress: stageStart)
+                        project.stages.append(newStage)
+                        stage = newStage
+                    }
                 }
-            }
 
-            if let date = dateFormatter.date(from: dateStr) {
-                let entry = Entry(date: date, characterCount: count)
-                if let stage {
-                    stage.entries.append(entry)
-                } else {
+                if let date = dateFormatter.date(from: dateStr) {
+                    let entry = Entry(date: date, characterCount: count)
+                    if let stage {
+                        stage.entries.append(entry)
+                    } else {
+                        project.entries.append(entry)
+                    }
+                }
+            } else if components.count == 7 {
+                // Format with change and percent columns
+                let dateStr = components[3]
+                let count = Int(components[4]) ?? 0
+                // columns[5] changeSinceLast, [6] percent - ignored
+                if let date = dateFormatter.date(from: dateStr) {
+                    let entry = Entry(date: date, characterCount: count)
                     project.entries.append(entry)
                 }
+            } else if components.count >= 5 {
+                // Oldest format with deadline column
+                let dateStr = components[3]
+                let count = Int(components[4]) ?? 0
+                if let date = dateFormatter.date(from: dateStr) {
+                    let entry = Entry(date: date, characterCount: count)
+                    project.entries.append(entry)
+                }
+            } else if components.count == 4 {
+                // Very old format without deadline column
+                let dateStr = components[2]
+                let count = Int(components[3]) ?? 0
+                if let date = dateFormatter.date(from: dateStr) {
+                    let entry = Entry(date: date, characterCount: count)
+                    project.entries.append(entry)
+                }
+            } else {
+                // Only project info available; nothing else to import
             }
         }
+
         return Array(projectsDict.values)
     }
 
@@ -242,7 +285,7 @@ struct CSVManager {
             index = line.index(after: index)
         }
         result.append(current)
-        return result
+        return result.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     }
 }
 #endif
