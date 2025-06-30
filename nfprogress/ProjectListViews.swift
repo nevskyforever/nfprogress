@@ -140,6 +140,7 @@ struct CompactProjectRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
             ProjectPercentView(project: project, index: index, totalCount: totalCount)
+                .id(project.id)
         }
         .padding(.vertical, scaledSpacing(1))
     }
