@@ -510,7 +510,14 @@ struct ContentView: View {
 #if os(macOS)
     .onExitCommand { selectedProject = nil }
     .windowMinWidth(minWindowWidth)
-    .onAppear { settings.applyToolbarCustomization() }
+#endif
+    .onAppear {
+      settings.applyToolbarCustomization()
+#if canImport(SwiftData)
+      ProgressAnimationTracker.initialize(with: projects)
+#endif
+    }
+#if os(macOS)
     .onChange(of: selectedProject) { _ in
       settings.applyToolbarCustomization()
     }
