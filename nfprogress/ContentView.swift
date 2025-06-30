@@ -231,11 +231,11 @@ struct ContentView: View {
         HStack {
           Spacer()
 #if os(iOS)
-          ProgressCircleView(project: project, index: index, totalCount: totalCount, style: .large)
+          ProgressCircleView(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project, style: .large)
             .id(project.id)
             .frame(height: largeCircleHeight)
 #else
-          ProgressCircleView(project: project, index: index, totalCount: totalCount)
+          ProgressCircleView(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project)
             .id(project.id)
             .frame(height: circleHeight)
 #endif
@@ -243,7 +243,7 @@ struct ContentView: View {
         }
       }
     case .compact:
-      CompactProjectRow(project: project, index: index, totalCount: totalCount)
+      CompactProjectRow(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project)
         .id(project.id)
     }
   }
@@ -517,6 +517,11 @@ struct ContentView: View {
       ProgressAnimationTracker.initialize(with: projects)
 #endif
     }
+#if canImport(SwiftData)
+    .onChange(of: projects.map { $0.id }) { _ in
+      ProgressAnimationTracker.initialize(with: projects)
+    }
+#endif
 #if os(macOS)
     .onChange(of: selectedProject) { _ in
       settings.applyToolbarCustomization()
@@ -552,6 +557,9 @@ struct ContentView: View {
 
   private func deleteProject(_ project: WritingProject) {
     modelContext.delete(project)
+#if canImport(SwiftData)
+    ProgressAnimationTracker.removeProject(project)
+#endif
     if selectedProject === project {
       selectedProject = nil
     }
