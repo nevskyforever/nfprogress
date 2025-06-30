@@ -99,7 +99,7 @@ enum DocumentSyncManager {
         return nil
     }
 
-    static func resolveURL(bookmark: inout Data?, path: String?) -> URL? {
+    private static func resolveURL(bookmark: inout Data?, path: String?) -> URL? {
         if let data = bookmark {
             var stale = false
             if let url = try? URL(resolvingBookmarkData: data,
@@ -136,48 +136,6 @@ enum DocumentSyncManager {
             }
         }
         return nil
-    }
-
-    /// URL файла, используемого для синхронизации проекта
-    static func syncFileURL(for project: WritingProject) -> URL? {
-        switch project.syncType {
-        case .word:
-            return resolveURL(bookmark: &project.wordFileBookmark,
-                              path: project.wordFilePath)
-        case .scrivener:
-            guard let base = resolveURL(bookmark: &project.scrivenerProjectBookmark,
-                                        path: project.scrivenerProjectPath),
-                  let path = scrivenerFilePath(for: project, baseURL: base) else { return nil }
-            return URL(fileURLWithPath: path)
-        case .none:
-            return nil
-        }
-    }
-
-    /// URL файла, используемого для синхронизации этапа
-    static func syncFileURL(for stage: Stage) -> URL? {
-        switch stage.syncType {
-        case .word:
-            return resolveURL(bookmark: &stage.wordFileBookmark,
-                              path: stage.wordFilePath)
-        case .scrivener:
-            guard let base = resolveURL(bookmark: &stage.scrivenerProjectBookmark,
-                                        path: stage.scrivenerProjectPath),
-                  let path = scrivenerFilePath(for: stage, baseURL: base) else { return nil }
-            return URL(fileURLWithPath: path)
-        case .none:
-            return nil
-        }
-    }
-
-    /// Имя файла, используемого для синхронизации проекта
-    static func syncFileName(for project: WritingProject) -> String? {
-        syncFileURL(for: project)?.lastPathComponent
-    }
-
-    /// Имя файла, используемого для синхронизации этапа
-    static func syncFileName(for stage: Stage) -> String? {
-        syncFileURL(for: stage)?.lastPathComponent
     }
 
     static func isWordFileInUse(_ path: String, excludingProject: PersistentIdentifier? = nil, excludingStage: UUID? = nil) -> Bool {
@@ -339,7 +297,6 @@ enum DocumentSyncManager {
         mainProject.scrivenerProjectPath = nil
         mainProject.scrivenerProjectBookmark = nil
         mainProject.scrivenerItemID = nil
-        mainProject.scrivenerItemName = nil
         mainProject.lastWordCharacters = nil
         mainProject.lastWordModified = nil
         mainProject.lastScrivenerCharacters = nil
@@ -453,7 +410,6 @@ enum DocumentSyncManager {
         mainStage.scrivenerProjectPath = nil
         mainStage.scrivenerProjectBookmark = nil
         mainStage.scrivenerItemID = nil
-        mainStage.scrivenerItemName = nil
         mainStage.lastWordCharacters = nil
         mainStage.lastWordModified = nil
         mainStage.lastScrivenerCharacters = nil
@@ -498,7 +454,7 @@ enum DocumentSyncManager {
         }
     }
 
-    static func scrivenerFilePath(for stage: Stage, baseURL: URL) -> String? {
+    private static func scrivenerFilePath(for stage: Stage, baseURL: URL) -> String? {
         guard let itemID = stage.scrivenerItemID else { return nil }
         let dataURL = baseURL.appendingPathComponent("Files/Data/\(itemID)/content.rtf")
         if FileManager.default.fileExists(atPath: dataURL.path) {
@@ -542,7 +498,7 @@ enum DocumentSyncManager {
         }
     }
 
-    static func scrivenerFilePath(for project: WritingProject, baseURL: URL) -> String? {
+    private static func scrivenerFilePath(for project: WritingProject, baseURL: URL) -> String? {
         guard let itemID = project.scrivenerItemID else { return nil }
         // Modern Scrivener projects store documents in Files/Data/<UUID>/content.rtf
         let dataURL = baseURL.appendingPathComponent("Files/Data/\(itemID)/content.rtf")

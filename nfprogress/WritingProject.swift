@@ -25,8 +25,6 @@ class WritingProject {
     var scrivenerProjectBookmark: Data?
     /// Выбранный ID элемента Scrivener
     var scrivenerItemID: String?
-    /// Название выбранного элемента Scrivener
-    var scrivenerItemName: String?
     /// Приостановлена ли синхронизация
     var syncPaused: Bool = false
     /// Количество символов в файле при последней проверке
@@ -47,7 +45,6 @@ class WritingProject {
         self.order = order
         self.isChartCollapsed = isChartCollapsed
         self.syncPaused = false
-        self.scrivenerItemName = nil
     }
 
     /// Все записи проекта и этапов без повторов
