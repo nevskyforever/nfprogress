@@ -102,24 +102,9 @@ struct ProjectPercentView: View {
             ProgressAnimationTracker.updateAttributes(for: project)
         }
         .onDisappear { isVisible = false }
-        .onChange(of: progress) { newValue in
-            if isVisible {
-                ProgressAnimationTracker.setProgress(newValue, for: project)
-                updateProgress(to: newValue, animated: !disableAllAnimations)
-            }
-        }
-        .onChange(of: project.entries.map { $0.id }) { _ in
-            if isVisible {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: !disableAllAnimations)
-            }
-        }
-        .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in
-            if isVisible {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: !disableAllAnimations)
-            }
-        }
+        .onChange(of: progress) { _ in }
+        .onChange(of: project.entries.map { $0.id }) { _ in }
+        .onChange(of: project.stages.flatMap { $0.entries }.map { $0.id }) { _ in }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { note in
             if let id = note.object as? PersistentIdentifier, id == project.id {
                 if isVisible {
@@ -131,34 +116,14 @@ struct ProjectPercentView: View {
         .onChange(of: project.title) { newValue in
             if let old = ProgressAnimationTracker.lastTitle(for: project), old == newValue { return }
             ProgressAnimationTracker.setTitle(newValue, for: project)
-            if isVisible && isSelected {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-                startProgress = progress
-                endProgress = progress
-                updateProgress(to: progress, animated: false)
-            }
         }
         .onChange(of: project.deadline) { newValue in
             if let old = ProgressAnimationTracker.lastDeadline(for: project), old == newValue { return }
             ProgressAnimationTracker.setDeadline(newValue, for: project)
-            if isVisible && isSelected {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-                startProgress = progress
-                endProgress = progress
-                updateProgress(to: progress, animated: false)
-            }
         }
         .onChange(of: project.goal) { newValue in
             if let old = ProgressAnimationTracker.lastGoal(for: project), old == newValue { return }
             ProgressAnimationTracker.setGoal(newValue, for: project)
-            if isVisible && isSelected {
-                ProgressAnimationTracker.setProgress(0, for: project)
-                startProgress = 0
-                endProgress = 0
-                DispatchQueue.main.async { updateProgress(to: progress) }
-            } else {
-                ProgressAnimationTracker.setProgress(0, for: project)
-            }
         }
     }
 }
