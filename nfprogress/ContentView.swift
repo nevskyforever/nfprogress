@@ -231,11 +231,11 @@ struct ContentView: View {
         HStack {
           Spacer()
 #if os(iOS)
-          ProgressCircleView(project: project, index: index, totalCount: totalCount, style: .large)
+          ProgressCircleView(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project, style: .large)
             .id(project.id)
             .frame(height: largeCircleHeight)
 #else
-          ProgressCircleView(project: project, index: index, totalCount: totalCount)
+          ProgressCircleView(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project)
             .id(project.id)
             .frame(height: circleHeight)
 #endif
@@ -243,7 +243,7 @@ struct ContentView: View {
         }
       }
     case .compact:
-      CompactProjectRow(project: project, index: index, totalCount: totalCount)
+      CompactProjectRow(project: project, index: index, totalCount: totalCount, isSelected: selectedProject === project)
         .id(project.id)
     }
   }

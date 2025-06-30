@@ -10,6 +10,8 @@ struct ProjectPercentView: View {
     var index: Int = 0
     /// Общее число проектов в списке для подстройки задержки запуска анимации
     var totalCount: Int = 1
+    /// Выбран ли сейчас этот проект
+    var isSelected: Bool = false
 
     @AppStorage("disableLaunchAnimations") private var disableLaunchAnimations = false
     @AppStorage("disableAllAnimations") private var disableAllAnimations = false
@@ -97,6 +99,7 @@ struct ProjectPercentView: View {
                 }
             }
             ProgressAnimationTracker.setProgress(progress, for: project)
+            ProgressAnimationTracker.updateAttributes(for: project)
         }
         .onDisappear { isVisible = false }
         .onChange(of: progress) { newValue in
@@ -125,20 +128,24 @@ struct ProjectPercentView: View {
                 }
             }
         }
-        .onChange(of: project.title) { _ in
-            if isVisible {
+        .onChange(of: project.title) { newValue in
+            if let old = ProgressAnimationTracker.lastTitle(for: project), old == newValue { return }
+            ProgressAnimationTracker.setTitle(newValue, for: project)
+            if isVisible && isSelected {
                 ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: false)
             }
         }
-        .onChange(of: project.deadline) { _ in
-            if isVisible {
+        .onChange(of: project.deadline) { newValue in
+            if let old = ProgressAnimationTracker.lastDeadline(for: project), old == newValue { return }
+            ProgressAnimationTracker.setDeadline(newValue, for: project)
+            if isVisible && isSelected {
                 ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: false)
             }
         }
-        .onChange(of: project.goal) { _ in
-            if isVisible {
+        .onChange(of: project.goal) { newValue in
+            if let old = ProgressAnimationTracker.lastGoal(for: project), old == newValue { return }
+            ProgressAnimationTracker.setGoal(newValue, for: project)
+            if isVisible && isSelected {
                 ProgressAnimationTracker.setProgress(0, for: project)
                 startProgress = 0
                 endProgress = 0
@@ -155,13 +162,14 @@ struct CompactProjectRow: View {
     var project: WritingProject
     var index: Int
     var totalCount: Int
+    var isSelected: Bool
     var body: some View {
         HStack {
             Text(project.title)
                 .font(.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .fixedSize(horizontal: false, vertical: true)
-            ProjectPercentView(project: project, index: index, totalCount: totalCount)
+            ProjectPercentView(project: project, index: index, totalCount: totalCount, isSelected: isSelected)
                 .id(project.id)
         }
         .padding(.vertical, scaledSpacing(1))
