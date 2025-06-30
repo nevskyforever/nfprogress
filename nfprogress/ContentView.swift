@@ -271,7 +271,6 @@ struct ContentView: View {
   private var customizableToolbarContent: some CustomizableToolbarContent {
     ToolbarItem(id: "export", placement: .automatic) {
       Button(action: {
-        guard selectedProject != nil else { return }
         exportSelectedProject()
       }) {
         Image(systemName: "tray.full")
@@ -323,13 +322,13 @@ struct ContentView: View {
           .accessibilityLabel(settings.localized("import"))
           .help(settings.localized("import_project_tooltip"))
 
-          if selectedProject != nil {
-            Button(action: exportSelectedProject) {
-              Image(systemName: "tray.full")
-            }
-            .accessibilityLabel(settings.localized("export"))
-            .help(settings.localized("export_project_tooltip"))
+          Button(action: exportSelectedProject) {
+            Image(systemName: "tray.full")
+          }
+          .accessibilityLabel(settings.localized("export"))
+          .help(settings.localized("export_project_tooltip"))
 
+          if selectedProject != nil {
             Button {
               settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
             } label: {
@@ -347,14 +346,12 @@ struct ContentView: View {
     } else {
       ToolbarItem(placement: .navigationBarTrailing) {
         Menu {
-          if selectedProject != nil {
-            Button(action: importSelectedProject) {
-              Label(settings.localized("import"), systemImage: "square.and.arrow.down")
-            }
+          Button(action: importSelectedProject) {
+            Label(settings.localized("import"), systemImage: "square.and.arrow.down")
+          }
 
-            Button(action: exportSelectedProject) {
-              Label(settings.localized("export"), systemImage: "tray.full")
-            }
+          Button(action: exportSelectedProject) {
+            Label(settings.localized("export"), systemImage: "tray.full")
           }
 
           Button {
@@ -409,13 +406,13 @@ struct ContentView: View {
       .accessibilityLabel(settings.localized("import"))
       .help(settings.localized("import_project_tooltip"))
 
-      if selectedProject != nil {
-        Button(action: exportSelectedProject) {
-          Image(systemName: "tray.full")
-        }
-        .accessibilityLabel(settings.localized("export"))
-        .help(settings.localized("export_project_tooltip"))
+      Button(action: exportSelectedProject) {
+        Image(systemName: "tray.full")
+      }
+      .accessibilityLabel(settings.localized("export"))
+      .help(settings.localized("export_project_tooltip"))
 
+      if selectedProject != nil {
         Button {
           settings.projectListStyle = settings.projectListStyle == .detailed ? .compact : .detailed
         } label: {

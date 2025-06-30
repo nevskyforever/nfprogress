@@ -33,6 +33,8 @@ class WritingProject {
     /// Дата последнего изменения файла Word
     var lastWordModified: Date?
     var lastScrivenerModified: Date?
+    /// Прогресс в момент последнего шеринга
+    var lastShareProgress: Int?
 
     init(title: String, goal: Int, deadline: Date? = nil, order: Int = 0, isChartCollapsed: Bool = false) {
         self.title = title
