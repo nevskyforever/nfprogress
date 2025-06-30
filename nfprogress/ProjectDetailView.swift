@@ -29,7 +29,6 @@ struct ProjectDetailView: View {
     // Состояние редактирования отдельных полей
     @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
-    @State private var goalChanged = false
     @FocusState private var focusedField: Field?
 #if os(iOS)
     @State private var showingSharePreview = false
@@ -242,18 +241,10 @@ struct ProjectDetailView: View {
             return Color(hue: hue, saturation: 1, brightness: 1)
         }
 
-    private func saveContext() {
-        do {
-            try modelContext.save()
-#if canImport(SwiftData)
-            if goalChanged {
-                ProgressAnimationTracker.setProgress(0, for: project)
-                goalChanged = false
-            } else {
-                ProgressAnimationTracker.setProgress(project.progress, for: project)
-            }
-#endif
-        } catch {
+        private func saveContext() {
+            do {
+                try modelContext.save()
+            } catch {
                 print("Ошибка сохранения: \(error)")
             }
         }
@@ -612,22 +603,6 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        .onChange(of: project.title) { _ in
-#if canImport(SwiftData)
-            ProgressAnimationTracker.setProgress(project.progress, for: project)
-#endif
-        }
-        .onChange(of: project.deadline) { _ in
-#if canImport(SwiftData)
-            ProgressAnimationTracker.setProgress(project.progress, for: project)
-#endif
-        }
-        .onChange(of: project.goal) { _ in
-#if canImport(SwiftData)
-            ProgressAnimationTracker.setProgress(0, for: project)
-            goalChanged = true
-#endif
-        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ProjectTitleBar(project: project)
@@ -666,14 +641,6 @@ struct ProjectDetailView: View {
     private func saveContext() {
         do {
             try modelContext.save()
-#if canImport(SwiftData)
-            if goalChanged {
-                ProgressAnimationTracker.setProgress(0, for: project)
-                goalChanged = false
-            } else {
-                ProgressAnimationTracker.setProgress(project.progress, for: project)
-            }
-#endif
         } catch {
             print("Ошибка сохранения: \(error)")
         }
