@@ -20,12 +20,6 @@ struct ProjectTitleBar: View {
                     .focused($isFocused)
                     .onSubmit(save)
                     .onAppear { isFocused = true }
-                    .onChange(of: isFocused) { focused in
-                        if !focused { save() }
-                    }
-#if os(macOS)
-                    .onExitCommand { save() }
-#endif
                     .frame(maxWidth: 200)
             } else {
                 Text(project.title)
@@ -35,9 +29,6 @@ struct ProjectTitleBar: View {
                         isFocused = true
                     }
             }
-        }
-        .onDisappear {
-            if isEditing { save() }
         }
     }
 
