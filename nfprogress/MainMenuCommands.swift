@@ -29,6 +29,13 @@ struct MainMenuCommands: Commands {
             .keyboardShortcut("e", modifiers: .command)
         }
 
+        CommandGroup(replacing: .saveItem) {
+            Button("save") {
+                NotificationCenter.default.post(name: .menuSave, object: nil)
+            }
+            .keyboardShortcut("s", modifiers: .command)
+        }
+
         CommandMenu("menu_project") {
             Button("new_entry") {
                 NotificationCenter.default.post(name: .menuAddEntry, object: nil)

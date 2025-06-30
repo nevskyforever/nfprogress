@@ -502,6 +502,9 @@ struct ContentView: View {
       .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
         exportSelectedProject()
       }
+      .onReceive(NotificationCenter.default.publisher(for: .menuSave)) { _ in
+        DataController.saveAndNotify(project: selectedProject)
+      }
 #if os(iOS)
     .onChange(of: settings.projectSortOrder) { newValue in
       editMode = newValue == .custom ? .active : .inactive
