@@ -279,6 +279,14 @@ struct ProgressCircleView: View {
             endProgress = progress
             lastProgress = progress
         }
+        .onChange(of: project.deadline) { _ in
+            if trackProgress {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
+            startProgress = progress
+            endProgress = progress
+            lastProgress = progress
+        }
     }
 }
 
