@@ -244,9 +244,6 @@ struct ProjectDetailView: View {
         private func saveContext() {
             do {
                 try modelContext.save()
-                #if canImport(SwiftData)
-                ProgressAnimationTracker.setProgress(project.progress, for: project)
-                #endif
             } catch {
                 print("Ошибка сохранения: \(error)")
             }
@@ -606,21 +603,6 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        .onChange(of: project.title) { _ in
-#if canImport(SwiftData)
-            ProgressAnimationTracker.setProgress(project.progress, for: project)
-#endif
-        }
-        .onChange(of: project.deadline) { _ in
-#if canImport(SwiftData)
-            ProgressAnimationTracker.setProgress(project.progress, for: project)
-#endif
-        }
-        .onChange(of: project.goal) { _ in
-#if canImport(SwiftData)
-            ProgressAnimationTracker.setProgress(project.progress, for: project)
-#endif
-        }
         .toolbar {
             ToolbarItem(placement: .principal) {
                 ProjectTitleBar(project: project)
@@ -659,9 +641,6 @@ struct ProjectDetailView: View {
     private func saveContext() {
         do {
             try modelContext.save()
-            #if canImport(SwiftData)
-            ProgressAnimationTracker.setProgress(project.progress, for: project)
-            #endif
         } catch {
             print("Ошибка сохранения: \(error)")
         }
