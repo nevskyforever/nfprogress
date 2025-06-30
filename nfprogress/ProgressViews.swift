@@ -278,22 +278,8 @@ struct ProgressCircleView: View {
                 lastProgress = progress
             }
         }
-        .onChange(of: project.title) { _ in
-            if trackProgress {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-            }
-            startProgress = progress
-            endProgress = progress
-            lastProgress = progress
-        }
-        .onChange(of: project.deadline) { _ in
-            if trackProgress {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-            }
-            startProgress = progress
-            endProgress = progress
-            lastProgress = progress
-        }
+        // Название и дедлайн проекта не влияют на прогресс,
+        // поэтому игнорируем их изменения
     }
 }
 

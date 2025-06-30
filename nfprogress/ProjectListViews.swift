@@ -128,18 +128,8 @@ struct ProjectPercentView: View {
                 }
             }
         }
-        .onChange(of: project.title) { _ in
-            if isVisible {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: false)
-            }
-        }
-        .onChange(of: project.deadline) { _ in
-            if isVisible {
-                ProgressAnimationTracker.setProgress(progress, for: project)
-                updateProgress(to: progress, animated: false)
-            }
-        }
+        // Изменения названия и дедлайна проекта не влияют на прогресс,
+        // поэтому не обновляем его и не запускаем анимацию
     }
 }
 
