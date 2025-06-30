@@ -55,6 +55,7 @@ struct AddProjectView: View {
 #if canImport(SwiftData)
         ProgressAnimationTracker.addProject(newProject)
 #endif
+        try? modelContext.save()
         dismiss()
     }
 }
