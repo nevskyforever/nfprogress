@@ -88,23 +88,24 @@ struct CSVManager {
     }
 
     static func importProjects(from csv: String) -> [WritingProject] {
-        let rows = csv.components(separatedBy: "\n")
-        guard !rows.isEmpty else { return [] }
-
-        var dataRows: ArraySlice<String> = rows[...]
-        if let first = rows.first?.lowercased(),
-           first.contains("title") && first.contains("goal") {
-            dataRows = rows.dropFirst()
-        }
-
+        let lines = csv.components(separatedBy: "\n").dropFirst()
         var projectsDict: [String: WritingProject] = [:]
         let dateFormatter = ISO8601DateFormatter()
-
-        for line in dataRows where !line.trimmingCharacters(in: .whitespaces).isEmpty {
+        for line in lines where !line.trimmingCharacters(in: .whitespaces).isEmpty {
             let components = parseCSVLine(line)
-            guard let title = components[safe: 0], !title.isEmpty else { continue }
-            let goal = components[safe: 1].flatMap(Int.init) ?? 0
-            let deadlineStr = components[safe: 2] ?? ""
+            guard components.count >= 9 else { continue }
+            let title = components[0]
+            let goal = Int(components[1]) ?? 0
+            let deadlineStr = components[2]
+            let stageTitle = components[3]
+            let stageGoal = Int(components[4]) ?? 0
+            let stageDeadlineStr = components[5]
+            let stageStart = Int(components[6]) ?? 0
+            let dateStr = components[7]
+            let countColumn = Int(components[8]) ?? 0
+            let changeColumn = components.count > 9 ? Int(components[9]) : nil
+            let count = changeColumn ?? countColumn
+            let shareProgress = components.count > 11 ? Int(components[11]) : nil
 
             let project: WritingProject
             if let existing = projectsDict[title] {
@@ -114,66 +115,31 @@ struct CSVManager {
                 project = WritingProject(title: title, goal: goal, deadline: deadline, order: projectsDict.count)
                 projectsDict[title] = project
             }
+            if let shareProgress {
+                project.lastShareProgress = shareProgress
+            }
 
-            if components.count >= 9 {
-                let stageTitle = components[safe: 3] ?? ""
-                let stageGoal = components[safe: 4].flatMap(Int.init) ?? 0
-                let stageDeadlineStr = components[safe: 5] ?? ""
-                let stageStart = components[safe: 6].flatMap(Int.init) ?? 0
-                let dateStr = components[safe: 7] ?? ""
-                let countColumn = components[safe: 8].flatMap(Int.init) ?? 0
-                let changeColumn = components[safe: 9].flatMap(Int.init)
-                let count = changeColumn ?? countColumn
-                let shareProgress = components.count > 11 ? Int(components[11]) : nil
-
-                if let shareProgress { project.lastShareProgress = shareProgress }
-
-                var stage: Stage?
-                if !stageTitle.isEmpty {
-                    if let existing = project.stages.first(where: { $0.title == stageTitle }) {
-                        stage = existing
-                    } else {
-                        let stageDeadline = dateFormatter.date(from: stageDeadlineStr)
-                        let newStage = Stage(title: stageTitle, goal: stageGoal, deadline: stageDeadline, startProgress: stageStart)
-                        project.stages.append(newStage)
-                        stage = newStage
-                    }
+            var stage: Stage? = nil
+            if !stageTitle.isEmpty {
+                if let existing = project.stages.first(where: { $0.title == stageTitle }) {
+                    stage = existing
+                } else {
+                    let stageDeadline = dateFormatter.date(from: stageDeadlineStr)
+                    let newStage = Stage(title: stageTitle, goal: stageGoal, deadline: stageDeadline, startProgress: stageStart)
+                    project.stages.append(newStage)
+                    stage = newStage
                 }
+            }
 
-                if let date = dateFormatter.date(from: dateStr) {
-                    let entry = Entry(date: date, characterCount: count)
-                    if let stage {
-                        stage.entries.append(entry)
-                    } else {
-                        project.entries.append(entry)
-                    }
-                }
-            } else if components.count == 7 {
-                let dateStr = components[safe: 3] ?? ""
-                let count = components[safe: 4].flatMap(Int.init) ?? 0
-                if let date = dateFormatter.date(from: dateStr) {
-                    let entry = Entry(date: date, characterCount: count)
+            if let date = dateFormatter.date(from: dateStr) {
+                let entry = Entry(date: date, characterCount: count)
+                if let stage {
+                    stage.entries.append(entry)
+                } else {
                     project.entries.append(entry)
                 }
-            } else if components.count >= 5 {
-                let dateStr = components[safe: 3] ?? ""
-                let count = components[safe: 4].flatMap(Int.init) ?? 0
-                if let date = dateFormatter.date(from: dateStr) {
-                    let entry = Entry(date: date, characterCount: count)
-                    project.entries.append(entry)
-                }
-            } else if components.count == 4 {
-                let dateStr = components[safe: 2] ?? ""
-                let count = components[safe: 3].flatMap(Int.init) ?? 0
-                if let date = dateFormatter.date(from: dateStr) {
-                    let entry = Entry(date: date, characterCount: count)
-                    project.entries.append(entry)
-                }
-            } else {
-                // Only project info available; nothing else to import
             }
         }
-
         return Array(projectsDict.values)
     }
 
@@ -276,7 +242,7 @@ struct CSVManager {
             index = line.index(after: index)
         }
         result.append(current)
-        return result.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+        return result
     }
 }
 #endif
