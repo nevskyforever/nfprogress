@@ -11,40 +11,30 @@ struct StageDocumentSyncInfoView: View {
     private var info: String {
         switch stage.syncType {
         case .word:
-            let name = DocumentSyncManager.syncFileName(for: stage) ?? ""
-            return settings.localized("sync_info_word", name)
-       case .scrivener:
-            var name = stage.scrivenerItemName ?? stage.scrivenerItemID ?? ""
-            if name.isEmpty,
-               let baseURL = DocumentSyncManager.resolveURL(bookmark: &stage.scrivenerProjectBookmark,
-                                                            path: stage.scrivenerProjectPath),
-               let itemID = stage.scrivenerItemID {
-                baseURL.startAccessingSecurityScopedResource()
-                let items = ScrivenerParser.items(in: baseURL)
-                baseURL.stopAccessingSecurityScopedResource()
+            let path = DocumentSyncManager.resolvedPath(bookmark: stage.wordFileBookmark,
+                                                        path: stage.wordFilePath)
+            return settings.localized("sync_info_word", path ?? "")
+        case .scrivener:
+            let basePath = DocumentSyncManager.resolvedPath(bookmark: stage.scrivenerProjectBookmark,
+                                                            path: stage.scrivenerProjectPath)
+            var name = stage.scrivenerItemID ?? ""
+            if let basePath, let itemID = stage.scrivenerItemID {
+                let url = URL(fileURLWithPath: basePath)
+                let items = ScrivenerParser.items(in: url)
                 if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
                     name = item.title
-                    stage.scrivenerItemName = name
-                    try? stage.modelContext?.save()
                 }
             }
-            return settings.localized("sync_info_scrivener", name)
+            return settings.localized("sync_info_scrivener", name, basePath ?? "")
         case .none:
             return ""
         }
-    }
-
-    private var syncURL: URL? {
-        DocumentSyncManager.syncFileURL(for: stage)
     }
 
     var body: some View {
         VStack(spacing: scaledSpacing()) {
             Text(info)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            if let url = syncURL {
-                Button(settings.localized("show_in_finder")) { showInFinder(url) }
-            }
             Toggle(settings.localized("pause_sync"), isOn: $stage.syncPaused)
                 .toggleStyle(.switch)
                 .onChange(of: stage.syncPaused) { value in
@@ -100,10 +90,6 @@ struct StageDocumentSyncInfoView: View {
             DocumentSyncManager.startMonitoring(stage: stage)
             dismiss()
         }
-    }
-
-    private func showInFinder(_ url: URL) {
-        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }
 #endif
