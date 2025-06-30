@@ -97,7 +97,6 @@ struct ProjectPercentView: View {
                 }
             }
             ProgressAnimationTracker.setProgress(progress, for: project)
-            ProgressAnimationTracker.updateAttributes(for: project)
         }
         .onDisappear { isVisible = false }
         .onChange(of: progress) { newValue in
@@ -126,23 +125,19 @@ struct ProjectPercentView: View {
                 }
             }
         }
-        .onChange(of: project.title) { newValue in
-            if let old = ProgressAnimationTracker.lastTitle(for: project), old == newValue { return }
-            ProgressAnimationTracker.setTitle(newValue, for: project)
+        .onChange(of: project.title) { _ in
             if isVisible {
                 ProgressAnimationTracker.setProgress(progress, for: project)
+                updateProgress(to: progress, animated: false)
             }
         }
-        .onChange(of: project.deadline) { newValue in
-            if let old = ProgressAnimationTracker.lastDeadline(for: project), old == newValue { return }
-            ProgressAnimationTracker.setDeadline(newValue, for: project)
+        .onChange(of: project.deadline) { _ in
             if isVisible {
                 ProgressAnimationTracker.setProgress(progress, for: project)
+                updateProgress(to: progress, animated: false)
             }
         }
-        .onChange(of: project.goal) { newValue in
-            if let old = ProgressAnimationTracker.lastGoal(for: project), old == newValue { return }
-            ProgressAnimationTracker.setGoal(newValue, for: project)
+        .onChange(of: project.goal) { _ in
             if isVisible {
                 ProgressAnimationTracker.setProgress(0, for: project)
                 startProgress = 0
