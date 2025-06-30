@@ -52,9 +52,6 @@ struct AddProjectView: View {
         let maxOrder = projects.map(\.order).max() ?? -1
         let newProject = WritingProject(title: name, goal: goal, order: maxOrder + 1)
         modelContext.insert(newProject)
-#if canImport(SwiftData)
-        ProgressAnimationTracker.addProject(newProject)
-#endif
         try? modelContext.save()
         dismiss()
     }

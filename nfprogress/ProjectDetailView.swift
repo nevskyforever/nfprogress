@@ -71,7 +71,7 @@ struct ProjectDetailView: View {
     private var progressCircleSection: some View {
         HStack {
             Spacer()
-            ProgressCircleView(project: project, trackProgress: false, isSelected: true, style: .large)
+            ProgressCircleView(project: project, trackProgress: false, style: .large)
                 .id(project.id)
                 .frame(width: circleSize, height: circleSize)
             Spacer()
@@ -568,7 +568,6 @@ struct ProjectDetailView: View {
                 DocumentSyncManager.startMonitoring(project: project)
             }
 #endif
-            ProgressAnimationTracker.updateAttributes(for: project)
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuAddEntry)) { _ in
             addEntry()
@@ -608,23 +607,17 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        .onChange(of: project.title) { newValue in
-            if let old = ProgressAnimationTracker.lastTitle(for: project), old == newValue { return }
-            ProgressAnimationTracker.setTitle(newValue, for: project)
+        .onChange(of: project.title) { _ in
 #if canImport(SwiftData)
             ProgressAnimationTracker.setProgress(project.progress, for: project)
 #endif
         }
-        .onChange(of: project.deadline) { newValue in
-            if let old = ProgressAnimationTracker.lastDeadline(for: project), old == newValue { return }
-            ProgressAnimationTracker.setDeadline(newValue, for: project)
+        .onChange(of: project.deadline) { _ in
 #if canImport(SwiftData)
             ProgressAnimationTracker.setProgress(project.progress, for: project)
 #endif
         }
-        .onChange(of: project.goal) { newValue in
-            if let old = ProgressAnimationTracker.lastGoal(for: project), old == newValue { return }
-            ProgressAnimationTracker.setGoal(newValue, for: project)
+        .onChange(of: project.goal) { _ in
 #if canImport(SwiftData)
             ProgressAnimationTracker.setProgress(0, for: project)
             goalChanged = true
