@@ -232,7 +232,13 @@ struct ProgressCircleView: View {
                 ProgressAnimationTracker.setProgress(progress, for: project)
             }
         }
-        .onDisappear { isVisible = false }
+        .onDisappear {
+            isVisible = false
+            if trackProgress {
+                ProgressAnimationTracker.setProgress(progress, for: project)
+            }
+            lastProgress = progress
+        }
         .onChange(of: progress) { newValue in
             if isVisible {
                 updateProgress(to: newValue, animated: !disableAllAnimations)
