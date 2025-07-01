@@ -26,9 +26,7 @@ struct ProjectDetailView: View {
     @State private var stageToDelete: Stage?
     @State private var tempDeadline: Date = Date()
     @State private var selectedEntry: Entry?
-#if os(macOS)
     @State private var draggedStage: Stage?
-#endif
     // Состояние редактирования отдельных полей
     @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
@@ -111,7 +109,6 @@ struct ProjectDetailView: View {
         if !project.stages.isEmpty {
             ForEach(project.stages) { stage in
                 stageDisclosureView(for: stage)
-#if os(macOS)
                     .onDrag {
                         draggedStage = stage
                         return NSItemProvider(object: NSString(string: stage.title))
@@ -122,7 +119,6 @@ struct ProjectDetailView: View {
                         stages: project.stages,
                         moveAction: moveStages
                     ))
-#endif
             }
         }
     }
@@ -721,7 +717,6 @@ struct ProjectDetailView: View {
         }
     }
 
-#if os(macOS)
     private struct StageDropDelegate: DropDelegate {
         let target: Stage
         @Binding var draggedItem: Stage?
@@ -741,7 +736,6 @@ struct ProjectDetailView: View {
             return true
         }
     }
-#endif
 }
 
 #endif
