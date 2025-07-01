@@ -42,13 +42,13 @@ struct DocumentSyncInfoView: View {
     var body: some View {
         VStack(spacing: scaledSpacing()) {
             if project.syncType == .word {
-                Text(String(format: settings.localized("sync_word_label"), wordName ?? ""))
+                Text(settings.localized("sync_word_label", wordName ?? ""))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let path = wordPath {
                     Button(settings.localized("show_in_finder")) { showInFinder(path) }
                 }
             } else if project.syncType == .scrivener {
-                Text(String(format: settings.localized("sync_scrivener_label"), scrivenerName))
+                Text(settings.localized("sync_scrivener_label", scrivenerName))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let path = scrivenerPath {
                     Button(settings.localized("show_in_finder")) { showInFinder(path) }
