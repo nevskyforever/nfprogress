@@ -27,6 +27,8 @@ struct StageDocumentSyncInfoView: View {
         if let title = stage.scrivenerItemTitle { return title }
         if let base = scrivenerPath, let itemID = stage.scrivenerItemID {
             let url = URL(fileURLWithPath: base)
+            url.startAccessingSecurityScopedResource()
+            defer { url.stopAccessingSecurityScopedResource() }
             let items = ScrivenerParser.items(in: url)
             if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
                 stage.scrivenerItemTitle = item.title

@@ -27,6 +27,8 @@ struct DocumentSyncInfoView: View {
         if let title = project.scrivenerItemTitle { return title }
         if let base = scrivenerPath, let itemID = project.scrivenerItemID {
             let url = URL(fileURLWithPath: base)
+            url.startAccessingSecurityScopedResource()
+            defer { url.stopAccessingSecurityScopedResource() }
             let items = ScrivenerParser.items(in: url)
             if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
                 project.scrivenerItemTitle = item.title
