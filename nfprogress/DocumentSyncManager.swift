@@ -249,13 +249,6 @@ enum DocumentSyncManager {
                isScrivenerItemInUse(projectPath: base.path, itemID: itemID, excludingProject: id) {
                 return
             }
-            if project.scrivenerItemTitle == nil, let itemID = project.scrivenerItemID {
-                let items = ScrivenerParser.items(in: base)
-                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
-                    project.scrivenerItemTitle = item.title
-                    try? DataController.mainContext.save()
-                }
-            }
             project.scrivenerProjectPath = base.path
             base.startAccessingSecurityScopedResource()
             accessURLs[id] = base
@@ -304,7 +297,6 @@ enum DocumentSyncManager {
         mainProject.scrivenerProjectPath = nil
         mainProject.scrivenerProjectBookmark = nil
         mainProject.scrivenerItemID = nil
-        mainProject.scrivenerItemTitle = nil
         mainProject.lastWordCharacters = nil
         mainProject.lastWordModified = nil
         mainProject.lastScrivenerCharacters = nil
@@ -385,13 +377,6 @@ enum DocumentSyncManager {
                isScrivenerItemInUse(projectPath: base.path, itemID: itemID, excludingStage: id) {
                 return
             }
-            if stage.scrivenerItemTitle == nil, let itemID = stage.scrivenerItemID {
-                let items = ScrivenerParser.items(in: base)
-                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
-                    stage.scrivenerItemTitle = item.title
-                    try? DataController.mainContext.save()
-                }
-            }
             stage.scrivenerProjectPath = base.path
             base.startAccessingSecurityScopedResource()
             stageAccessURLs[id] = base
@@ -439,7 +424,6 @@ enum DocumentSyncManager {
         mainStage.scrivenerProjectPath = nil
         mainStage.scrivenerProjectBookmark = nil
         mainStage.scrivenerItemID = nil
-        mainStage.scrivenerItemTitle = nil
         mainStage.lastWordCharacters = nil
         mainStage.lastWordModified = nil
         mainStage.lastScrivenerCharacters = nil
