@@ -8,33 +8,52 @@ struct StageDocumentSyncInfoView: View {
     @EnvironmentObject private var settings: AppSettings
     @Bindable var stage: Stage
 
-    private var info: String {
-        switch stage.syncType {
-        case .word:
-            let path = DocumentSyncManager.resolvedPath(bookmark: stage.wordFileBookmark,
-                                                        path: stage.wordFilePath)
-            return settings.localized("sync_info_word", path ?? "")
-        case .scrivener:
-            let basePath = DocumentSyncManager.resolvedPath(bookmark: stage.scrivenerProjectBookmark,
-                                                            path: stage.scrivenerProjectPath)
-            var name = stage.scrivenerItemID ?? ""
-            if let basePath, let itemID = stage.scrivenerItemID {
-                let url = URL(fileURLWithPath: basePath)
-                let items = ScrivenerParser.items(in: url)
-                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
-                    name = item.title
-                }
+    private var wordPath: String? {
+        DocumentSyncManager.resolvedPath(bookmark: stage.wordFileBookmark,
+                                         path: stage.wordFilePath)
+    }
+
+    private var wordName: String? {
+        if let path = wordPath { return URL(fileURLWithPath: path).lastPathComponent }
+        return nil
+    }
+
+    private var scrivenerPath: String? {
+        DocumentSyncManager.resolvedPath(bookmark: stage.scrivenerProjectBookmark,
+                                         path: stage.scrivenerProjectPath)
+    }
+
+    private var scrivenerName: String {
+        if let title = stage.scrivenerItemTitle { return title }
+        if let base = scrivenerPath, let itemID = stage.scrivenerItemID {
+            let url = URL(fileURLWithPath: base)
+            url.startAccessingSecurityScopedResource()
+            defer { url.stopAccessingSecurityScopedResource() }
+            let items = ScrivenerParser.items(in: url)
+            if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
+                stage.scrivenerItemTitle = item.title
+                try? stage.modelContext?.save()
+                return item.title
             }
-            return settings.localized("sync_info_scrivener", name, basePath ?? "")
-        case .none:
-            return ""
         }
+        return stage.scrivenerItemID ?? ""
     }
 
     var body: some View {
         VStack(spacing: scaledSpacing()) {
-            Text(info)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            if stage.syncType == .word {
+                Text(settings.localized("sync_word_label", wordName ?? ""))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let path = wordPath {
+                    Button(settings.localized("show_in_finder")) { showInFinder(path) }
+                }
+            } else if stage.syncType == .scrivener {
+                Text(settings.localized("sync_scrivener_label", scrivenerName))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                if let path = scrivenerPath {
+                    Button(settings.localized("show_in_finder")) { showInFinder(path) }
+                }
+            }
             Toggle(settings.localized("pause_sync"), isOn: $stage.syncPaused)
                 .toggleStyle(.switch)
                 .onChange(of: stage.syncPaused) { value in
@@ -90,6 +109,11 @@ struct StageDocumentSyncInfoView: View {
             DocumentSyncManager.startMonitoring(stage: stage)
             dismiss()
         }
+    }
+
+    private func showInFinder(_ path: String) {
+        let url = URL(fileURLWithPath: path)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }
 #endif

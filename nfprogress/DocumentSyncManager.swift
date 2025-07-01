@@ -249,9 +249,16 @@ enum DocumentSyncManager {
                isScrivenerItemInUse(projectPath: base.path, itemID: itemID, excludingProject: id) {
                 return
             }
-            project.scrivenerProjectPath = base.path
             base.startAccessingSecurityScopedResource()
             accessURLs[id] = base
+            if project.scrivenerItemTitle == nil, let itemID = project.scrivenerItemID {
+                let items = ScrivenerParser.items(in: base)
+                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
+                    project.scrivenerItemTitle = item.title
+                    try? DataController.mainContext.save()
+                }
+            }
+            project.scrivenerProjectPath = base.path
             guard let path = scrivenerFilePath(for: project, baseURL: base) else {
                 stopMonitoring(project: project)
                 return
@@ -297,6 +304,7 @@ enum DocumentSyncManager {
         mainProject.scrivenerProjectPath = nil
         mainProject.scrivenerProjectBookmark = nil
         mainProject.scrivenerItemID = nil
+        mainProject.scrivenerItemTitle = nil
         mainProject.lastWordCharacters = nil
         mainProject.lastWordModified = nil
         mainProject.lastScrivenerCharacters = nil
@@ -377,9 +385,16 @@ enum DocumentSyncManager {
                isScrivenerItemInUse(projectPath: base.path, itemID: itemID, excludingStage: id) {
                 return
             }
-            stage.scrivenerProjectPath = base.path
             base.startAccessingSecurityScopedResource()
             stageAccessURLs[id] = base
+            if stage.scrivenerItemTitle == nil, let itemID = stage.scrivenerItemID {
+                let items = ScrivenerParser.items(in: base)
+                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
+                    stage.scrivenerItemTitle = item.title
+                    try? DataController.mainContext.save()
+                }
+            }
+            stage.scrivenerProjectPath = base.path
             guard let path = scrivenerFilePath(for: stage, baseURL: base) else {
                 stopMonitoring(stage: stage)
                 return
@@ -424,6 +439,7 @@ enum DocumentSyncManager {
         mainStage.scrivenerProjectPath = nil
         mainStage.scrivenerProjectBookmark = nil
         mainStage.scrivenerItemID = nil
+        mainStage.scrivenerItemTitle = nil
         mainStage.lastWordCharacters = nil
         mainStage.lastWordModified = nil
         mainStage.lastScrivenerCharacters = nil
