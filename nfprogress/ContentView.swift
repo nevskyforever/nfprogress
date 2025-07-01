@@ -436,37 +436,35 @@ struct ContentView: View {
 
   @ViewBuilder
   private var mainContent: some View {
-    Group {
 #if os(iOS)
-      splitView
-        .environment(\.editMode, $editMode)
-        .fileExporter(
-          isPresented: $isExporting,
-          document: exportDocument,
-          contentType: .commaSeparatedText,
-          defaultFilename: exportFileName
-        ) { result in
-          if case .failure(let error) = result {
-            print("Export failed: \(error.localizedDescription)")
-          }
-          isExporting = false
+    splitView
+      .environment(\.editMode, $editMode)
+      .fileExporter(
+        isPresented: $isExporting,
+        document: exportDocument,
+        contentType: .commaSeparatedText,
+        defaultFilename: exportFileName
+      ) { result in
+        if case .failure(let error) = result {
+          print("Export failed: \(error.localizedDescription)")
         }
-        .fileImporter(
-          isPresented: $isImporting,
-          allowedContentTypes: [.commaSeparatedText]
-        ) { result in
-          switch result {
-          case .success(let url):
-            importCSV(from: url)
-          case .failure(let error):
-            print("Import failed: \(error.localizedDescription)")
-          }
-          isImporting = false
+        isExporting = false
+      }
+      .fileImporter(
+        isPresented: $isImporting,
+        allowedContentTypes: [.commaSeparatedText]
+      ) { result in
+        switch result {
+        case .success(let url):
+          importCSV(from: url)
+        case .failure(let error):
+          print("Import failed: \(error.localizedDescription)")
         }
+        isImporting = false
+      }
 #else
-      splitView
+    splitView
 #endif
-    }
 #if !os(macOS)
     .sheet(isPresented: $showingAddProject) {
       AddProjectView()

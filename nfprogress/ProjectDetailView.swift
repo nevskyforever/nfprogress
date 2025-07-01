@@ -26,8 +26,6 @@ struct ProjectDetailView: View {
     @State private var stageToDelete: Stage?
     @State private var tempDeadline: Date = Date()
     @State private var selectedEntry: Entry?
-    @State private var draggedStage: Stage?
-    @State private var dropTargetStage: Stage?
     // Состояние редактирования отдельных полей
     @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
@@ -108,20 +106,8 @@ struct ProjectDetailView: View {
             .fixedSize(horizontal: false, vertical: true)
         Button("add_stage") { addStage() }
         if !project.stages.isEmpty {
-            ForEach(project.stages.sorted { $0.order < $1.order }) { stage in
+            ForEach(project.stages) { stage in
                 stageDisclosureView(for: stage)
-                    .onDrag {
-                        draggedStage = stage
-                        dropTargetStage = nil
-                        return NSItemProvider(object: NSString(string: stage.title))
-                    }
-                    .onDrop(of: [.text], delegate: StageDropDelegate(
-                        target: stage,
-                        draggedItem: $draggedStage,
-                        lastTarget: $dropTargetStage,
-                        getStages: { project.stages.sorted { $0.order < $1.order } },
-                        moveAction: moveStages
-                    ))
             }
         }
     }
@@ -173,12 +159,10 @@ struct ProjectDetailView: View {
             VStack(alignment: .leading) {
                 HStack {
                     Button("add_entry_button") { addEntryAction(stage) }
-#if os(macOS)
                     Button("sync_now_button") {
                         DocumentSyncManager.syncNow(stage: stage)
                     }
                     .disabled(stage.syncType == nil)
-#endif
                     Spacer()
                 }
                 ForEach(stage.sortedEntries) { entry in
@@ -276,12 +260,10 @@ struct ProjectDetailView: View {
             HStack {
                 Button("add_entry_button") { addEntry() }
                     .keyboardShortcut("n", modifiers: .command)
-#if os(macOS)
                 Button("sync_now_button") {
                     DocumentSyncManager.syncNow(project: project)
                 }
                 .disabled(project.syncType == nil)
-#endif
                 Spacer()
             }
         }
@@ -677,27 +659,10 @@ struct ProjectDetailView: View {
         stage.entries.removeAll()
         if let index = project.stages.firstIndex(where: { $0.id == stage.id }) {
             project.stages.remove(at: index)
-            for (idx, st) in project.stages.enumerated() {
-                st.order = idx
-            }
-        }
-        // Удаляем возможную ссылку на удаляемый этап
-        if draggedStage?.id == stage.id {
-            draggedStage = nil
         }
         modelContext.delete(stage)
         saveContext()
         NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
-    }
-
-    private func moveStages(from source: IndexSet, to destination: Int) {
-        var updated = project.stages
-        updated.move(fromOffsets: source, toOffset: destination)
-        project.stages = updated
-        for (index, stage) in project.stages.enumerated() {
-            stage.order = index
-        }
-        try? modelContext.save()
     }
 
     // MARK: - Sheet Modifier
@@ -733,38 +698,6 @@ struct ProjectDetailView: View {
                     EditStageView(stage: stage, project: project)
                 }
 #endif
-        }
-    }
-
-    private struct StageDropDelegate: DropDelegate {
-        let target: Stage
-        @Binding var draggedItem: Stage?
-        @Binding var lastTarget: Stage?
-        /// Актуальный список этапов
-        var getStages: () -> [Stage]
-        /// Действие по перемещению этапов
-        let moveAction: (IndexSet, Int) -> Void
-
-        func dropEntered(info: DropInfo) {
-            if lastTarget?.id == target.id { return }
-            lastTarget = target
-
-            let stages = getStages()
-            guard let dragged = draggedItem,
-                  dragged != target,
-                  let from = stages.firstIndex(where: { $0.id == dragged.id }),
-                  let to = stages.firstIndex(where: { $0.id == target.id }) else { return }
-            moveAction(IndexSet(integer: from), to > from ? to + 1 : to)
-        }
-
-        func dropUpdated(info: DropInfo) -> DropProposal? {
-            DropProposal(operation: .move)
-        }
-
-        func performDrop(info: DropInfo) -> Bool {
-            draggedItem = nil
-            lastTarget = nil
-            return true
         }
     }
 }
