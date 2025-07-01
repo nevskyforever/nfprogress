@@ -55,7 +55,7 @@ struct AddStageView: View {
     private func addStage() {
         let name = title.isEmpty ? settings.localized("stage_placeholder") : title
         let start = (project.stages.isEmpty && !project.entries.isEmpty) ? 0 : project.currentProgress
-        let stage = Stage(title: name, goal: goal, startProgress: start)
+        let stage = Stage(title: name, goal: goal, startProgress: start, order: project.stages.count)
         let moveEntries = project.stages.isEmpty && !project.entries.isEmpty
         dismiss()
         DispatchQueue.main.async {
@@ -171,9 +171,21 @@ struct StageHeaderView: View {
 
     /// Текущий процент прогресса для этапа по количеству символов
     private var progress: Double {
-        guard stage.goal > 0 else { return 0 }
+        guard stage.modelContext != nil, stage.goal > 0 else { return 0 }
         let percent = Double(stage.currentProgress) / Double(stage.goal)
         return min(max(percent, 0), 1.0)
+    }
+
+    /// ID записей этапа (или пустой массив, если этап удалён)
+    private var entryIDs: [UUID] {
+        guard stage.modelContext != nil else { return [] }
+        return stage.entries.map { $0.id }
+    }
+
+    /// Количество символов в записях этапа
+    private var entryCounts: [Int] {
+        guard stage.modelContext != nil else { return [] }
+        return stage.entries.map { $0.characterCount }
     }
 
     /// Обновляет параметры анимации прогресса
@@ -245,7 +257,9 @@ struct StageHeaderView: View {
             let elapsed = Date().timeIntervalSince(AppLaunch.launchDate)
             let delay = max(0, 1 - elapsed)
             DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
-                updateProgress(to: progress)
+                if stage.modelContext != nil {
+                    updateProgress(to: progress)
+                }
             }
         }
         .onChange(of: progress) { newValue in
@@ -254,10 +268,10 @@ struct StageHeaderView: View {
         .onChange(of: stage.goal) { _ in
             updateProgress(to: progress)
         }
-        .onChange(of: stage.entries.map(\.id)) { _ in
+        .onChange(of: entryIDs) { _ in
             updateProgress(to: progress)
         }
-        .onChange(of: stage.entries.map(\.characterCount)) { _ in
+        .onChange(of: entryCounts) { _ in
             updateProgress(to: progress)
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { note in

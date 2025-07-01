@@ -9,6 +9,8 @@ class Stage: Identifiable {
     var goal: Int
     var deadline: Date?
     var startProgress: Int
+    /// Порядок этапа в списке
+    var order: Int = 0
     var entries: [Entry]
     /// Тип синхронизации документа для этапа
     var syncType: SyncDocumentType?
@@ -35,11 +37,12 @@ class Stage: Identifiable {
     /// Приостановлена ли синхронизация
     var syncPaused: Bool = false
 
-    init(title: String, goal: Int, deadline: Date? = nil, startProgress: Int) {
+    init(title: String, goal: Int, deadline: Date? = nil, startProgress: Int, order: Int = 0) {
         self.title = title
         self.goal = goal
         self.deadline = deadline
         self.startProgress = startProgress
+        self.order = order
         self.entries = []
         self.syncType = nil
         self.wordFilePath = nil
@@ -57,15 +60,18 @@ class Stage: Identifiable {
 
     /// Записи этого этапа без повторов
     private var uniqueEntries: [Entry] {
+        guard modelContext != nil else { return [] }
         var seen = Set<UUID>()
         return entries.filter { seen.insert($0.id).inserted }
     }
 
     var sortedEntries: [Entry] {
-        uniqueEntries.sorted { $0.date < $1.date }
+        guard modelContext != nil else { return [] }
+        return uniqueEntries.sorted { $0.date < $1.date }
     }
 
     var currentProgress: Int {
+        guard modelContext != nil else { return 0 }
         let total = sortedEntries.cumulativeProgress()
         return max(0, total)
     }
