@@ -107,6 +107,9 @@
 "toolbar_customization" = "Разрешить настройку панели";
 "customize_toolbar" = "Настроить панель инструментов…";
 "change" = "Изменить";
+"sync_word_label" = "Файл Word %@";
+"sync_scrivener_label" = "Элемент Scrivener %@";
+"show_in_finder" = "Показать в Finder";
 "sync_interval_prefix" = "Отслеживать изменения каждые";
 "sync_interval_suffix" = "секунд";
 "sync_now_button" = "Синхронизация";
