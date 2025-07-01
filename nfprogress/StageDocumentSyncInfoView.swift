@@ -13,19 +13,34 @@ struct StageDocumentSyncInfoView: View {
                                          path: stage.wordFilePath)
     }
 
+    private var wordName: String? {
+        if let path = wordPath { return URL(fileURLWithPath: path).lastPathComponent }
+        return nil
+    }
+
     private var scrivenerPath: String? {
         DocumentSyncManager.resolvedPath(bookmark: stage.scrivenerProjectBookmark,
                                          path: stage.scrivenerProjectPath)
     }
 
     private var scrivenerName: String {
-        stage.scrivenerItemTitle ?? stage.scrivenerItemID ?? ""
+        if let title = stage.scrivenerItemTitle { return title }
+        if let base = scrivenerPath, let itemID = stage.scrivenerItemID {
+            let url = URL(fileURLWithPath: base)
+            let items = ScrivenerParser.items(in: url)
+            if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
+                stage.scrivenerItemTitle = item.title
+                try? stage.modelContext?.save()
+                return item.title
+            }
+        }
+        return stage.scrivenerItemID ?? ""
     }
 
     var body: some View {
         VStack(spacing: scaledSpacing()) {
             if stage.syncType == .word {
-                Text(settings.localized("sync_word_label"))
+                Text(String(format: settings.localized("sync_word_label"), wordName ?? ""))
                     .frame(maxWidth: .infinity, alignment: .leading)
                 if let path = wordPath {
                     Button(settings.localized("show_in_finder")) { showInFinder(path) }

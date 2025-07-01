@@ -249,6 +249,13 @@ enum DocumentSyncManager {
                isScrivenerItemInUse(projectPath: base.path, itemID: itemID, excludingProject: id) {
                 return
             }
+            if project.scrivenerItemTitle == nil, let itemID = project.scrivenerItemID {
+                let items = ScrivenerParser.items(in: base)
+                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
+                    project.scrivenerItemTitle = item.title
+                    try? DataController.mainContext.save()
+                }
+            }
             project.scrivenerProjectPath = base.path
             base.startAccessingSecurityScopedResource()
             accessURLs[id] = base
@@ -377,6 +384,13 @@ enum DocumentSyncManager {
             if let itemID = stage.scrivenerItemID,
                isScrivenerItemInUse(projectPath: base.path, itemID: itemID, excludingStage: id) {
                 return
+            }
+            if stage.scrivenerItemTitle == nil, let itemID = stage.scrivenerItemID {
+                let items = ScrivenerParser.items(in: base)
+                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
+                    stage.scrivenerItemTitle = item.title
+                    try? DataController.mainContext.save()
+                }
             }
             stage.scrivenerProjectPath = base.path
             base.startAccessingSecurityScopedResource()
