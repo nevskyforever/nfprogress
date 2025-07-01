@@ -55,7 +55,7 @@ struct AddStageView: View {
     private func addStage() {
         let name = title.isEmpty ? settings.localized("stage_placeholder") : title
         let start = (project.stages.isEmpty && !project.entries.isEmpty) ? 0 : project.currentProgress
-        let stage = Stage(title: name, goal: goal, startProgress: start)
+        let stage = Stage(title: name, goal: goal, startProgress: start, order: project.stages.count)
         let moveEntries = project.stages.isEmpty && !project.entries.isEmpty
         dismiss()
         DispatchQueue.main.async {
