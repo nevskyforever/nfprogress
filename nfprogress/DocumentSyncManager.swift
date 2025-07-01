@@ -338,7 +338,10 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        let totalCount = attrString.string.count // абсолютное количество символов в файле
+        var totalCount = attrString.string.utf16.count // абсолютное количество символов в файле
+        if let lastChar = attrString.string.last, lastChar.isNewline {
+            totalCount -= 1
+        }
         if project.lastWordCharacters != totalCount || project.lastWordModified != modDate {
             let delta = computeDelta(totalCount: totalCount,
                                   last: project.lastWordCharacters,
@@ -454,7 +457,10 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        let totalCount = attrString.string.count // абсолютное количество символов в файле
+        var totalCount = attrString.string.utf16.count // абсолютное количество символов в файле
+        if let lastChar = attrString.string.last, lastChar.isNewline {
+            totalCount -= 1
+        }
         if stage.lastWordCharacters != totalCount || stage.lastWordModified != modDate {
             let delta = computeDelta(totalCount: totalCount,
                                   last: stage.lastWordCharacters,
