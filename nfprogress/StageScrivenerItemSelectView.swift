@@ -56,6 +56,7 @@ struct StageScrivenerItemSelectView: View {
         stage.scrivenerProjectPath = projectURL.path
         stage.scrivenerProjectBookmark = try? projectURL.bookmarkData(options: .withSecurityScope)
         stage.scrivenerItemID = item.id
+        stage.scrivenerItemTitle = item.title
         try? stage.modelContext?.save()
         DocumentSyncManager.startMonitoring(stage: stage)
         dismiss()
