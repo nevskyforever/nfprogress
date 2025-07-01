@@ -106,9 +106,6 @@
 "toolbar_customization" = "Allow toolbar customization";
 "customize_toolbar" = "Customize Toolbar…";
 "change" = "Change";
-"sync_word_label" = "Word file:";
-"sync_scrivener_label" = "Scrivener item %@";
-"show_in_finder" = "Show in Finder";
 "sync_interval_prefix" = "Check every";
 "sync_interval_suffix" = "seconds";
 "sync_now_button" = "Synchronize";
