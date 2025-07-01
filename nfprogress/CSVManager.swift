@@ -125,7 +125,7 @@ struct CSVManager {
                     stage = existing
                 } else {
                     let stageDeadline = dateFormatter.date(from: stageDeadlineStr)
-                    let newStage = Stage(title: stageTitle, goal: stageGoal, deadline: stageDeadline, startProgress: stageStart, order: project.stages.count)
+                    let newStage = Stage(title: stageTitle, goal: stageGoal, deadline: stageDeadline, startProgress: stageStart)
                     project.stages.append(newStage)
                     stage = newStage
                 }
@@ -155,7 +155,6 @@ struct CSVManager {
         var goal: Int
         var deadline: Date?
         var startProgress: Int
-        var order: Int
         var entries: [JSONEntry]
     }
 
@@ -177,13 +176,12 @@ struct CSVManager {
             deadline: project.deadline,
             lastShareProgress: project.lastShareProgress,
             entries: project.entries.map { JSONEntry(date: $0.date, characterCount: $0.characterCount) },
-            stages: project.stages.enumerated().map { idx, stage in
+            stages: project.stages.map { stage in
                 JSONStage(
                     title: stage.title,
                     goal: stage.goal,
                     deadline: stage.deadline,
                     startProgress: stage.startProgress,
-                    order: stage.order,
                     entries: stage.entries.map { JSONEntry(date: $0.date, characterCount: $0.characterCount) }
                 )
             }
@@ -198,10 +196,10 @@ struct CSVManager {
             let proj = WritingProject(title: jp.title, goal: jp.goal, deadline: jp.deadline, order: idx)
             proj.entries = jp.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
             proj.stages = jp.stages.map { js in
-                let st = Stage(title: js.title, goal: js.goal, deadline: js.deadline, startProgress: js.startProgress, order: js.order)
+                let st = Stage(title: js.title, goal: js.goal, deadline: js.deadline, startProgress: js.startProgress)
                 st.entries = js.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
                 return st
-            }.sorted { $0.order < $1.order }
+            }
             proj.lastShareProgress = jp.lastShareProgress
             return proj
         }
