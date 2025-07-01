@@ -22,8 +22,6 @@ class Stage: Identifiable {
     var scrivenerProjectBookmark: Data?
     /// ID выбранного элемента Scrivener
     var scrivenerItemID: String?
-    /// Название выбранного элемента Scrivener
-    var scrivenerItemTitle: String?
     /// Последнее известное количество символов в Word
     var lastWordCharacters: Int?
     /// Последняя дата изменения Word
@@ -47,7 +45,6 @@ class Stage: Identifiable {
         self.scrivenerProjectPath = nil
         self.scrivenerProjectBookmark = nil
         self.scrivenerItemID = nil
-        self.scrivenerItemTitle = nil
         self.lastWordCharacters = nil
         self.lastWordModified = nil
         self.lastScrivenerCharacters = nil
