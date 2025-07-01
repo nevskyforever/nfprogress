@@ -173,11 +173,12 @@ struct ProjectDetailView: View {
 
         private func entryRow(entry: Entry) -> some View {
             let index = stage.sortedEntries.firstIndex(where: { $0.id == entry.id }) ?? 0
-            let cumulative = stage.sortedEntries.prefix(index + 1).reduce(0) { $0 + $1.characterCount }
+            let cumulative = stage.sortedEntries.prefix(index + 1).cumulativeProgress()
             let clamped = max(cumulative, 0)
             let percent = Double(clamped) / Double(max(stage.goal, 1)) * 100
 
-            let delta = entry.characterCount
+            let previous = stage.sortedEntries.prefix(index).cumulativeProgress()
+            let delta = cumulative - previous
             let deltaPercent = Double(delta) / Double(max(stage.goal, 1)) * 100
 
             let isSelected = selectedEntry?.id == entry.id

@@ -338,10 +338,8 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        var totalCount = attrString.string.utf16.count // абсолютное количество символов в файле
-        if let lastChar = attrString.string.last, lastChar.isNewline {
-            totalCount -= 1
-        }
+        let trimmed = attrString.string.trimmingCharacters(in: .newlines)
+        let totalCount = trimmed.utf16.count // абсолютное количество символов в файле
         if project.lastWordCharacters != totalCount || project.lastWordModified != modDate {
             let delta = computeDelta(totalCount: totalCount,
                                   last: project.lastWordCharacters,
@@ -457,10 +455,8 @@ enum DocumentSyncManager {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
               let modDate = attrs[.modificationDate] as? Date else { return }
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
-        var totalCount = attrString.string.utf16.count // абсолютное количество символов в файле
-        if let lastChar = attrString.string.last, lastChar.isNewline {
-            totalCount -= 1
-        }
+        let trimmed = attrString.string.trimmingCharacters(in: .newlines)
+        let totalCount = trimmed.utf16.count // абсолютное количество символов в файле
         if stage.lastWordCharacters != totalCount || stage.lastWordModified != modDate {
             let delta = computeDelta(totalCount: totalCount,
                                   last: stage.lastWordCharacters,
@@ -509,10 +505,7 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if stage.lastScrivenerCharacters != totalCount || stage.lastScrivenerModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: stage.lastScrivenerCharacters,
-                                  current: stage.startProgress + stage.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .scrivener
             stage.entries.append(entry)
             stage.lastScrivenerCharacters = totalCount
@@ -561,10 +554,7 @@ enum DocumentSyncManager {
         guard let attrString = try? NSAttributedString(url: url, options: [:], documentAttributes: nil) else { return }
         let totalCount = attrString.string.count // абсолютное количество символов в файле
         if project.lastScrivenerCharacters != totalCount || project.lastScrivenerModified != modDate {
-            let delta = computeDelta(totalCount: totalCount,
-                                  last: project.lastScrivenerCharacters,
-                                  current: project.currentProgress)
-            let entry = Entry(date: modDate, characterCount: delta)
+            let entry = Entry(date: modDate, characterCount: totalCount)
             entry.syncSource = .scrivener
             project.entries.append(entry)
             project.lastScrivenerCharacters = totalCount
