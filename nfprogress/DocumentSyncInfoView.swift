@@ -8,35 +8,33 @@ struct DocumentSyncInfoView: View {
     @EnvironmentObject private var settings: AppSettings
     @Bindable var project: WritingProject
 
-    private var wordPath: String? {
-        DocumentSyncManager.resolvedPath(bookmark: project.wordFileBookmark,
-                                         path: project.wordFilePath)
-    }
-
-    private var scrivenerPath: String? {
-        DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
-                                         path: project.scrivenerProjectPath)
-    }
-
-    private var scrivenerName: String {
-        project.scrivenerItemTitle ?? project.scrivenerItemID ?? ""
+    private var info: String {
+        switch project.syncType {
+        case .word:
+            let path = DocumentSyncManager.resolvedPath(bookmark: project.wordFileBookmark,
+                                                        path: project.wordFilePath)
+            return settings.localized("sync_info_word", path ?? "")
+        case .scrivener:
+            let basePath = DocumentSyncManager.resolvedPath(bookmark: project.scrivenerProjectBookmark,
+                                                            path: project.scrivenerProjectPath)
+            var name = project.scrivenerItemID ?? ""
+            if let basePath, let itemID = project.scrivenerItemID {
+                let url = URL(fileURLWithPath: basePath)
+                let items = ScrivenerParser.items(in: url)
+                if let item = ScrivenerParser.findItem(withID: itemID, in: items) {
+                    name = item.title
+                }
+            }
+            return settings.localized("sync_info_scrivener", name, basePath ?? "")
+        case .none:
+            return ""
+        }
     }
 
     var body: some View {
         VStack(spacing: scaledSpacing()) {
-            if project.syncType == .word {
-                Text(settings.localized("sync_word_label"))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if let path = wordPath {
-                    Button(settings.localized("show_in_finder")) { showInFinder(path) }
-                }
-            } else if project.syncType == .scrivener {
-                Text(String(format: settings.localized("sync_scrivener_label"), scrivenerName))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                if let path = scrivenerPath {
-                    Button(settings.localized("show_in_finder")) { showInFinder(path) }
-                }
-            }
+            Text(info)
+                .frame(maxWidth: .infinity, alignment: .leading)
             Toggle(settings.localized("pause_sync"), isOn: $project.syncPaused)
                 .toggleStyle(.switch)
                 .onChange(of: project.syncPaused) { value in
@@ -92,11 +90,6 @@ struct DocumentSyncInfoView: View {
             DocumentSyncManager.startMonitoring(project: project)
             dismiss()
         }
-    }
-
-    private func showInFinder(_ path: String) {
-        let url = URL(fileURLWithPath: path)
-        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 }
 #endif
