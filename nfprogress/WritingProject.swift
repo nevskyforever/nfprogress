@@ -70,11 +70,7 @@ class WritingProject {
     func globalProgress(for entry: Entry) -> Int {
         let entries = sortedEntries
         guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return 0 }
-
-        var progress = 0
-        for i in 0...index {
-            progress += entries[i].characterCount
-        }
+        let progress = entries.prefix(index + 1).cumulativeProgress()
         return progress
     }
 
@@ -87,19 +83,19 @@ class WritingProject {
     }
 
     var currentProgress: Int {
-        let total = sortedEntries.reduce(0) { $0 + $1.characterCount }
+        let total = sortedEntries.cumulativeProgress()
         return max(0, total)
     }
 
     var previousProgress: Int {
         guard sortedEntries.count >= 2 else { return 0 }
         let prevEntries = sortedEntries.dropLast()
-        return prevEntries.reduce(0) { $0 + $1.characterCount }
+        return prevEntries.cumulativeProgress()
     }
 
     /// Сумма символов по всем этапам
     var totalStageCharacters: Int {
-        stages.flatMap(\.entries).reduce(0) { $0 + $1.characterCount }
+        stages.reduce(0) { $0 + $1.sortedEntries.cumulativeProgress() }
     }
 
     /// Общий прогресс проекта в диапазоне 0...1
