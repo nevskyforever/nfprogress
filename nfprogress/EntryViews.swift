@@ -225,11 +225,11 @@ struct EditEntryView: View {
         if let stage = project.stageForEntry(entry) {
             let sorted = stage.sortedEntries.sorted { $0.date < $1.date }
             guard let idx = sorted.firstIndex(where: { $0.id == entry.id }) else { return entry.characterCount }
-            return sorted.prefix(idx + 1).reduce(0) { $0 + $1.characterCount }
+            return sorted.prefix(idx + 1).cumulativeProgress()
         } else {
             let sorted = project.entries.sorted { $0.date < $1.date }
             guard let idx = sorted.firstIndex(where: { $0.id == entry.id }) else { return entry.characterCount }
-            return sorted.prefix(idx + 1).reduce(0) { $0 + $1.characterCount }
+            return sorted.prefix(idx + 1).cumulativeProgress()
         }
     }
 
@@ -237,11 +237,11 @@ struct EditEntryView: View {
         if let stage = project.stageForEntry(entry) {
             let sorted = stage.sortedEntries.sorted { $0.date < $1.date }
             guard let idx = sorted.firstIndex(where: { $0.id == entry.id }) else { return 0 }
-            return sorted.prefix(idx).reduce(0) { $0 + $1.characterCount }
+            return sorted.prefix(idx).cumulativeProgress()
         } else {
             let sorted = project.entries.sorted { $0.date < $1.date }
             guard let idx = sorted.firstIndex(where: { $0.id == entry.id }) else { return 0 }
-            return sorted.prefix(idx).reduce(0) { $0 + $1.characterCount }
+            return sorted.prefix(idx).cumulativeProgress()
         }
     }
 

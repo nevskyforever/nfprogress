@@ -63,7 +63,7 @@ class Stage: Identifiable {
     }
 
     var currentProgress: Int {
-        let total = sortedEntries.reduce(0) { $0 + $1.characterCount }
+        let total = sortedEntries.cumulativeProgress()
         return max(0, total)
     }
 
