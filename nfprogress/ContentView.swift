@@ -43,8 +43,6 @@ struct ContentView: View {
   }
 #endif
 
-  @State private var progressToken = UUID()
-
   private let circleHeight: CGFloat = layoutStep(10)
 #if os(macOS)
   /// Минимальная ширина основного окна
@@ -71,12 +69,6 @@ struct ContentView: View {
     case .custom:
       return projects
     }
-  }
-
-  /// Сумма символов, написанных сегодня во всех проектах
-  private var writtenToday: Int {
-    _ = progressToken
-    return projects.charactersWrittenToday()
   }
 
   private var splitView: some View {
@@ -276,11 +268,6 @@ struct ContentView: View {
       .help(settings.localized("delete_project_tooltip"))
       .disabled(selectedProject == nil)
     }
-
-    ToolbarItem(id: "writtenToday", placement: .status) {
-      Text(settings.localized("written_today", writtenToday))
-        .monospacedDigit()
-    }
   }
 
   // Кастомизируемые элементы панели
@@ -353,13 +340,11 @@ struct ContentView: View {
             }
             .help(settings.localized("toggle_view_tooltip"))
 
-          Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-            Image(systemName: settings.projectSortOrder.iconName)
+            Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+              Image(systemName: settings.projectSortOrder.iconName)
+            }
+            .help(settings.localized("toggle_sort_tooltip"))
           }
-          .help(settings.localized("toggle_sort_tooltip"))
-          }
-          Text(settings.localized("written_today", writtenToday))
-            .monospacedDigit()
         }
       }
     } else {
@@ -401,10 +386,6 @@ struct ContentView: View {
           .keyboardShortcut(.return, modifiers: .command)
           .help(settings.localized("delete_project_tooltip"))
         }
-      }
-      ToolbarItem(placement: .navigationBarLeading) {
-        Text(settings.localized("written_today", writtenToday))
-          .monospacedDigit()
       }
     }
 #else
@@ -448,8 +429,6 @@ struct ContentView: View {
         }
         .help(settings.localized("toggle_sort_tooltip"))
       }
-      Text(settings.localized("written_today", writtenToday))
-        .monospacedDigit()
     }
 #endif
   }
@@ -524,9 +503,6 @@ struct ContentView: View {
       }
       .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
         exportSelectedProject()
-      }
-      .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-        progressToken = UUID()
       }
 #if os(iOS)
     .onChange(of: settings.projectSortOrder) { newValue in
