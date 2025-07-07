@@ -71,6 +71,7 @@ struct ContentView: View {
     }
   }
 
+
   private var splitView: some View {
 #if os(iOS)
     Group {
@@ -268,6 +269,7 @@ struct ContentView: View {
       .help(settings.localized("delete_project_tooltip"))
       .disabled(selectedProject == nil)
     }
+
   }
 
   // Кастомизируемые элементы панели
@@ -340,10 +342,10 @@ struct ContentView: View {
             }
             .help(settings.localized("toggle_view_tooltip"))
 
-            Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
-              Image(systemName: settings.projectSortOrder.iconName)
-            }
-            .help(settings.localized("toggle_sort_tooltip"))
+          Button { settings.projectSortOrder = settings.projectSortOrder.next } label: {
+            Image(systemName: settings.projectSortOrder.iconName)
+          }
+          .help(settings.localized("toggle_sort_tooltip"))
           }
         }
       }
