@@ -271,20 +271,6 @@ class WritingProject {
         return Int(Double(progressLastWeek) / Double(goal) * 100)
     }
 
-    /// Количество символов, изменённых сегодня во всех записях проекта
-    var charactersWrittenToday: Int {
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: .now)
-        let todayEntries = sortedEntries.filter { calendar.isDate($0.date, inSameDayAs: today) }
-        var total = 0
-        for entry in todayEntries {
-            let current = globalProgress(for: entry)
-            let previous = previousGlobalProgress(before: entry)
-            total += current - previous
-        }
-        return total
-    }
-
     /// Соответствие ``Identifiable`` и ``Hashable`` позволяет
     /// использовать ``WritingProject`` в навигации.
 }
@@ -310,13 +296,6 @@ class Entry: Identifiable {
     init(date: Date, characterCount: Int) {
         self.date = date
         self.characterCount = characterCount
-    }
-}
-
-extension Sequence where Element == WritingProject {
-    /// Суммарное количество символов, написанных сегодня во всех проектах
-    func charactersWrittenToday() -> Int {
-        self.reduce(0) { $0 + $1.charactersWrittenToday }
     }
 }
 
