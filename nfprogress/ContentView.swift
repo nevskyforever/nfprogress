@@ -31,14 +31,6 @@ struct ContentView: View {
   @State private var importConflictProjects: [WritingProject] = []
   @State private var showImportConflictAlert = false
   @State private var showImportFailedAlert = false
-#if os(macOS)
-  @State private var progressToken = UUID()
-  /// Суммарное количество символов, написанных сегодня во всех проектах
-  private var writtenToday: Int {
-    _ = progressToken
-    return projects.charactersWrittenToday()
-  }
-#endif
 #if os(iOS)
   @State private var editMode: EditMode = .inactive
 #endif
@@ -278,11 +270,6 @@ struct ContentView: View {
       .disabled(selectedProject == nil)
     }
 
-    ToolbarItem(id: "writtenToday", placement: .status) {
-      Text(settings.localized("written_today", writtenToday))
-        .monospacedDigit()
-    }
-
   }
 
   // Кастомизируемые элементы панели
@@ -519,11 +506,6 @@ struct ContentView: View {
       .onReceive(NotificationCenter.default.publisher(for: .menuExport)) { _ in
         exportSelectedProject()
       }
-#if os(macOS)
-      .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-        progressToken = UUID()
-      }
-#endif
 #if os(iOS)
     .onChange(of: settings.projectSortOrder) { newValue in
       editMode = newValue == .custom ? .active : .inactive
