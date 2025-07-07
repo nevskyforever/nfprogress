@@ -261,10 +261,7 @@ import SwiftData
 struct MenuBarEntryView: View {
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
-    @EnvironmentObject private var settings: AppSettings
     @Query private var projects: [WritingProject]
-
-    @State private var progressToken = UUID()
 
     @State private var selectedIndex: Int = 0
     @State private var selectedStageIndex: Int = 0
@@ -288,12 +285,6 @@ struct MenuBarEntryView: View {
     private let fieldWidth: CGFloat = layoutStep(20)
     private let minWidth: CGFloat = layoutStep(25)
     private let minHeight: CGFloat = layoutStep(20)
-
-    /// Сумма символов, написанных сегодня во всех проектах
-    private var writtenToday: Int {
-        _ = progressToken
-        return projects.charactersWrittenToday()
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: viewSpacing) {
@@ -345,12 +336,6 @@ struct MenuBarEntryView: View {
         }
         .scaledPadding()
         .frame(minWidth: minWidth, minHeight: minHeight)
-        .toolbar {
-            ToolbarItem(placement: .status) {
-                Text(settings.localized("written_today", writtenToday))
-                    .monospacedDigit()
-            }
-        }
         .onDisappear {
             _ = maybeSave()
         }
@@ -359,9 +344,6 @@ struct MenuBarEntryView: View {
         }
         .onChange(of: selectedIndex) { _ in
             selectedStageIndex = 0
-        }
-        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
-            progressToken = UUID()
         }
     }
 
