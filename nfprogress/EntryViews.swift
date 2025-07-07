@@ -6,6 +6,9 @@ import SwiftData
 
 struct AddEntryView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var settings: AppSettings
+    @Query(sort: [SortDescriptor(\WritingProject.order)]) private var projects: [WritingProject]
+    @State private var progressToken = UUID()
     @Bindable var project: WritingProject
     /// Этап, в который будет добавлена запись, если он указан.
     /// При его наличии выбор этапа скрывается, и запись автоматически назначается этому этапу.
@@ -46,6 +49,12 @@ struct AddEntryView: View {
     private let minWidth: CGFloat = layoutStep(35)
     private let minHeight: CGFloat = layoutStep(20)
 
+    /// Сумма символов, написанных сегодня во всех проектах
+    private var writtenToday: Int {
+        _ = progressToken
+        return projects.charactersWrittenToday()
+    }
+
     var body: some View {
         VStack(spacing: viewSpacing) {
             DatePicker("date_time", selection: $date)
@@ -83,11 +92,20 @@ struct AddEntryView: View {
         .frame(minWidth: minWidth, minHeight: minHeight)
 #if os(macOS)
         .onExitCommand { dismiss() }
+        .toolbar {
+            ToolbarItem(placement: .status) {
+                Text(settings.localized("written_today", writtenToday))
+                    .monospacedDigit()
+            }
+        }
 #endif
         .onChange(of: selectedStageIndex) { newValue in
             guard fixedStage == nil,
                   project.stages.indices.contains(newValue) else { return }
             characterText = ""
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
+            progressToken = UUID()
         }
     }
 
