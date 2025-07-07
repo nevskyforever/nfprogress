@@ -124,3 +124,4 @@
 "projects_imported_copies_marked" = "Projects imported, copies labeled separately";
 "import_success" = "Import completed successfully";
 "import_failed" = "Import failed";
+"written_today" = "Written today %d characters";
