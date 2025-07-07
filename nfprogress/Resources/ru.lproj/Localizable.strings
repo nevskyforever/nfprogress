@@ -125,3 +125,4 @@
 "projects_imported_copies_marked" = "Проекты импортированы, копии помечены отдельно";
 "import_success" = "Импорт успешно завершен";
 "import_failed" = "Импорт не состоялся";
+"written_today" = "Написано сегодня %d символов";
