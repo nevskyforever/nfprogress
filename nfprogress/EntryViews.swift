@@ -319,8 +319,6 @@ struct MenuBarEntryView: View {
                 let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
                 if !project.stages.isEmpty {
                     Picker("stage_picker", selection: $selectedStageIndex) {
-                        Text("no_stage")
-                            .tag(0)
                         ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                             Text(stage.title)
                                 .tag(idx + 1)
@@ -353,9 +351,15 @@ struct MenuBarEntryView: View {
         }
         .onAppear {
             didSave = false
+            if let project = projects.first, !project.stages.isEmpty {
+                selectedStageIndex = 1
+            } else {
+                selectedStageIndex = 0
+            }
         }
         .onChange(of: selectedIndex) { _ in
-            selectedStageIndex = 0
+            let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
+            selectedStageIndex = project.stages.isEmpty ? 0 : 1
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
             progressToken = UUID()
