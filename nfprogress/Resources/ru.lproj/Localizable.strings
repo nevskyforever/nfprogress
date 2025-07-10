@@ -112,7 +112,7 @@
 "show_in_finder" = "Показать в Finder";
 "sync_interval_prefix" = "Отслеживать изменения каждые";
 "sync_interval_suffix" = "секунд";
-"sync_now_button" = "Синхронизация";
+"sync_now_button" = "Синхронизировать";
 "deadline_reminders" = "Напоминания о дедлайнах";
 "reminder_time" = "Время отправки";
 "reminders_on_launch" = "Присылать напоминания при запуске";
