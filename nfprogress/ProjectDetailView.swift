@@ -106,7 +106,15 @@ struct ProjectDetailView: View {
         Text("stages")
             .font(.title3.bold())
             .fixedSize(horizontal: false, vertical: true)
-        Button("add_stage") { addStage() }
+        HStack {
+            Button("add_stage") { addStage() }
+#if os(macOS)
+            if project.hasStageSync {
+                Button("sync_now_button") { syncAllStages() }
+            }
+#endif
+            Spacer()
+        }
         if !project.stages.isEmpty {
             ForEach(project.stages.sorted { $0.order < $1.order }) { stage in
                 stageDisclosureView(for: stage)
@@ -173,12 +181,6 @@ struct ProjectDetailView: View {
             VStack(alignment: .leading) {
                 HStack {
                     Button("add_entry_button") { addEntryAction(stage) }
-#if os(macOS)
-                    Button("sync_now_button") {
-                        DocumentSyncManager.syncNow(stage: stage)
-                    }
-                    .disabled(stage.syncType == nil)
-#endif
                     Spacer()
                 }
                 ForEach(stage.sortedEntries) { entry in
@@ -472,6 +474,14 @@ struct ProjectDetailView: View {
         showingAddStage = true
         #endif
     }
+
+#if os(macOS)
+    private func syncAllStages() {
+        for stage in project.stages where stage.syncType != nil {
+            DocumentSyncManager.syncNow(stage: stage)
+        }
+    }
+#endif
 
     @ViewBuilder
     private var infoSection: some View {
