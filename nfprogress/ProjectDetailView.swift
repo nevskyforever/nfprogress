@@ -107,9 +107,6 @@ struct ProjectDetailView: View {
             .font(.title3.bold())
             .fixedSize(horizontal: false, vertical: true)
         HStack {
-            if !project.stages.isEmpty {
-                Button("add_entry_button") { addEntry() }
-            }
             Button("add_stage") { addStage() }
 #if os(macOS)
             if project.hasStageSync {
