@@ -21,10 +21,10 @@ struct AddEntryView: View {
         if let fixedStage {
             return fixedStage.currentProgress
         }
-        if project.sortedStages.isEmpty {
+        if project.stages.isEmpty {
             return project.currentProgress
         }
-        let stage = project.sortedStages[min(max(selectedStageIndex, 0), project.sortedStages.count - 1)]
+        let stage = project.stages[min(max(selectedStageIndex, 0), project.stages.count - 1)]
         return stage.currentProgress
     }
 
@@ -33,7 +33,7 @@ struct AddEntryView: View {
         self.fixedStage = stage
         let initialIndex: Int
         if let stage,
-           let found = project.sortedStages.firstIndex(where: { $0.id == stage.id }) {
+           let found = project.stages.firstIndex(where: { $0.id == stage.id }) {
             initialIndex = found
         } else {
             initialIndex = 0
@@ -51,18 +51,14 @@ struct AddEntryView: View {
             DatePicker("date_time", selection: $date)
                 .labelsHidden()
 
-            if fixedStage == nil && !project.sortedStages.isEmpty {
+            if fixedStage == nil && !project.stages.isEmpty {
                 Picker("stage", selection: $selectedStageIndex) {
-                    ForEach(Array(project.sortedStages.enumerated()), id: \.offset) { idx, stage in
+                    ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                         Text(stage.title)
                             .tag(idx)
                     }
                 }
                 .labelsHidden()
-#if os(macOS)
-                .pickerStyle(.menu)
-                .fixedSize()
-#endif
             }
 
             SelectAllIntField(text: $characterText,
@@ -90,7 +86,7 @@ struct AddEntryView: View {
 #endif
         .onChange(of: selectedStageIndex) { newValue in
             guard fixedStage == nil,
-                  project.sortedStages.indices.contains(newValue) else { return }
+                  project.stages.indices.contains(newValue) else { return }
             characterText = ""
         }
     }
@@ -106,8 +102,8 @@ struct AddEntryView: View {
             if let fixedStage {
                 targetStage = fixedStage
             } else {
-                let index = min(max(selectedStageIndex, 0), project.sortedStages.count - 1)
-                targetStage = project.sortedStages[index]
+                let index = min(max(selectedStageIndex, 0), project.stages.count - 1)
+                targetStage = project.stages[index]
             }
             delta = entered - (targetStage?.currentProgress ?? 0)
         }
@@ -143,7 +139,7 @@ struct EditEntryView: View {
         self.project = project
         self.entry = entry
         if let stage = project.stageForEntry(entry),
-           let idx = project.sortedStages.firstIndex(where: { $0.id == stage.id }) {
+           let idx = project.stages.firstIndex(where: { $0.id == stage.id }) {
             _selectedStageIndex = State(initialValue: idx)
         }
         _editedCount = State(initialValue: Self.progressAfterEntry(project: project, entry: entry))
@@ -173,18 +169,14 @@ struct EditEntryView: View {
             DatePicker("date_time", selection: $entry.date)
                 .labelsHidden()
 
-            if !project.sortedStages.isEmpty {
+            if !project.stages.isEmpty {
                 Picker("stage", selection: $selectedStageIndex) {
-                    ForEach(Array(project.sortedStages.enumerated()), id: \.offset) { idx, stage in
+                    ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                         Text(stage.title)
                             .tag(idx)
                     }
                 }
                 .labelsHidden()
-#if os(macOS)
-                .pickerStyle(.menu)
-                .fixedSize()
-#endif
             }
 
             TextField("characters", value: $editedCount, format: .number)
@@ -212,8 +204,8 @@ struct EditEntryView: View {
             NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
         }
         .onChange(of: selectedStageIndex) { newValue in
-            guard !project.sortedStages.isEmpty else { return }
-            moveEntry(to: project.sortedStages[newValue])
+            guard !project.stages.isEmpty else { return }
+            moveEntry(to: project.stages[newValue])
         }
     }
 
@@ -285,8 +277,8 @@ struct MenuBarEntryView: View {
     private var previousProgress: Int {
         guard !projects.isEmpty else { return 0 }
         let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
-        if selectedStageIndex > 0 && selectedStageIndex - 1 < project.sortedStages.count {
-            return project.sortedStages[selectedStageIndex - 1].currentProgress
+        if selectedStageIndex > 0 && selectedStageIndex - 1 < project.stages.count {
+            return project.stages[selectedStageIndex - 1].currentProgress
         } else {
             return project.currentProgress
         }
@@ -324,23 +316,17 @@ struct MenuBarEntryView: View {
                     }
                 }
                 .labelsHidden()
-#if os(macOS)
-                .pickerStyle(.menu)
-                .fixedSize()
-#endif
                 let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
-                if !project.sortedStages.isEmpty {
+                if !project.stages.isEmpty {
                     Picker("stage_picker", selection: $selectedStageIndex) {
-                        ForEach(Array(project.sortedStages.enumerated()), id: \.offset) { idx, stage in
+                        Text("no_stage")
+                            .tag(0)
+                        ForEach(Array(project.stages.enumerated()), id: \.offset) { idx, stage in
                             Text(stage.title)
                                 .tag(idx + 1)
                         }
                     }
                     .labelsHidden()
-#if os(macOS)
-                    .pickerStyle(.menu)
-                    .fixedSize()
-#endif
                 }
                 TextField("characters_field", text: $characterText, prompt: Text(String(previousProgress)))
                     .textFieldStyle(.roundedBorder)
@@ -367,15 +353,9 @@ struct MenuBarEntryView: View {
         }
         .onAppear {
             didSave = false
-            if let project = projects.first, !project.sortedStages.isEmpty {
-                selectedStageIndex = 1
-            } else {
-                selectedStageIndex = 0
-            }
         }
         .onChange(of: selectedIndex) { _ in
-            let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
-            selectedStageIndex = project.sortedStages.isEmpty ? 0 : 1
+            selectedStageIndex = 0
         }
         .onReceive(NotificationCenter.default.publisher(for: .projectProgressChanged)) { _ in
             progressToken = UUID()
@@ -388,8 +368,8 @@ struct MenuBarEntryView: View {
         let project = projects[index]
 
         let entry: Entry
-        if selectedStageIndex > 0 && selectedStageIndex - 1 < project.sortedStages.count {
-            let stage = project.sortedStages[selectedStageIndex - 1]
+        if selectedStageIndex > 0 && selectedStageIndex - 1 < project.stages.count {
+            let stage = project.stages[selectedStageIndex - 1]
             // Преобразуем введённый прогресс в дельту относительно выбранного этапа
             guard let value = Int(characterText) else { return false }
             let delta = value - stage.currentProgress
@@ -415,12 +395,7 @@ struct MenuBarEntryView: View {
     private func resetFields() {
         characterText = ""
         date = .now
-        if !projects.isEmpty {
-            let project = projects[min(max(selectedIndex, 0), projects.count - 1)]
-            selectedStageIndex = project.sortedStages.isEmpty ? 0 : 1
-        } else {
-            selectedStageIndex = 0
-        }
+        selectedStageIndex = 0
     }
 }
 

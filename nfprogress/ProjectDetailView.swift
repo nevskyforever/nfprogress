@@ -107,9 +107,6 @@ struct ProjectDetailView: View {
             .font(.title3.bold())
             .fixedSize(horizontal: false, vertical: true)
         HStack {
-            if !project.stages.isEmpty {
-                Button("add_entry_button") { addEntry() }
-            }
             Button("add_stage") { addStage() }
 #if os(macOS)
             if project.hasStageSync {
@@ -118,8 +115,8 @@ struct ProjectDetailView: View {
 #endif
             Spacer()
         }
-        if !project.sortedStages.isEmpty {
-            ForEach(project.sortedStages) { stage in
+        if !project.stages.isEmpty {
+            ForEach(project.stages.sorted { $0.order < $1.order }) { stage in
                 stageDisclosureView(for: stage)
                     .onDrag {
                         draggedStage = stage
@@ -130,7 +127,7 @@ struct ProjectDetailView: View {
                         target: stage,
                         draggedItem: $draggedStage,
                         lastTarget: $dropTargetStage,
-                        getStages: { project.sortedStages },
+                        getStages: { project.stages.sorted { $0.order < $1.order } },
                         moveAction: moveStages
                     ))
             }
