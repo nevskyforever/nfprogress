@@ -106,6 +106,11 @@ class WritingProject {
         stages.contains { $0.syncType != nil }
     }
 
+    /// Этапы, отсортированные по своему порядку в проекте
+    var sortedStages: [Stage] {
+        stages.sorted { $0.order < $1.order }
+    }
+
     /// Общий прогресс проекта в диапазоне 0...1
     var progress: Double {
         guard goal > 0 else { return 0 }
