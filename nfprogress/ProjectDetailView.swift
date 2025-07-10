@@ -630,8 +630,10 @@ struct ProjectDetailView: View {
                 shareToolbarButton()
             }
 #if os(macOS)
-            ToolbarItem(placement: .primaryAction) {
-                wordSyncToolbarButton()
+            if !project.hasStageSync {
+                ToolbarItem(placement: .primaryAction) {
+                    wordSyncToolbarButton()
+                }
             }
 #endif
         }

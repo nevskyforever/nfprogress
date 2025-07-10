@@ -101,6 +101,11 @@ class WritingProject {
         stages.reduce(0) { $0 + $1.sortedEntries.cumulativeProgress() }
     }
 
+    /// Есть ли синхронизация хотя бы у одного этапа
+    var hasStageSync: Bool {
+        stages.contains { $0.syncType != nil }
+    }
+
     /// Общий прогресс проекта в диапазоне 0...1
     var progress: Double {
         guard goal > 0 else { return 0 }
