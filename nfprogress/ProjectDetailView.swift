@@ -107,6 +107,9 @@ struct ProjectDetailView: View {
             .font(.title3.bold())
             .fixedSize(horizontal: false, vertical: true)
         HStack {
+            if !project.stages.isEmpty {
+                Button("add_entry_button") { addEntry() }
+            }
             Button("add_stage") { addStage() }
 #if os(macOS)
             if project.hasStageSync {
@@ -115,8 +118,8 @@ struct ProjectDetailView: View {
 #endif
             Spacer()
         }
-        if !project.stages.isEmpty {
-            ForEach(project.stages.sorted { $0.order < $1.order }) { stage in
+        if !project.sortedStages.isEmpty {
+            ForEach(project.sortedStages) { stage in
                 stageDisclosureView(for: stage)
                     .onDrag {
                         draggedStage = stage
@@ -127,7 +130,7 @@ struct ProjectDetailView: View {
                         target: stage,
                         draggedItem: $draggedStage,
                         lastTarget: $dropTargetStage,
-                        getStages: { project.stages.sorted { $0.order < $1.order } },
+                        getStages: { project.sortedStages },
                         moveAction: moveStages
                     ))
             }
@@ -148,8 +151,7 @@ struct ProjectDetailView: View {
                 project: project,
                 stage: stage,
                 selectedEntry: $selectedEntry,
-                editingEntry: $editingEntry,
-                addEntryAction: { addEntry(stage: $0) }
+                editingEntry: $editingEntry
             )
             .environmentObject(settings)
         } label: {
@@ -171,7 +173,6 @@ struct ProjectDetailView: View {
         @Bindable var stage: Stage
         @Binding var selectedEntry: Entry?
         @Binding var editingEntry: Entry?
-        var addEntryAction: (Stage) -> Void
 
 #if os(macOS)
         @Environment(\.openWindow) private var openWindow
@@ -179,10 +180,6 @@ struct ProjectDetailView: View {
 
         var body: some View {
             VStack(alignment: .leading) {
-                HStack {
-                    Button("add_entry_button") { addEntryAction(stage) }
-                    Spacer()
-                }
                 ForEach(stage.sortedEntries) { entry in
                     entryRow(entry: entry)
                 }
