@@ -48,5 +48,26 @@ final class SyncProgressTests: XCTestCase {
         XCTAssertEqual(total2, 75)
         XCTAssertEqual(total2 - total1, 25)
     }
+
+    func testProgressAcrossMultipleStages() {
+        let project = WritingProject(title: "Test", goal: 2000)
+        let stage1 = Stage(title: "Stage1", goal: 1000, deadline: nil, startProgress: 0)
+        let stage2 = Stage(title: "Stage2", goal: 1000, deadline: nil, startProgress: 0)
+        project.stages.append(stage1)
+        project.stages.append(stage2)
+
+        let date1 = Date()
+        let entry1 = Entry(date: date1, characterCount: 1000)
+        entry1.syncSource = .scrivener
+        stage1.entries.append(entry1)
+
+        let date2 = date1.addingTimeInterval(60)
+        let entry2 = Entry(date: date2, characterCount: 500)
+        entry2.syncSource = .scrivener
+        stage2.entries.append(entry2)
+
+        XCTAssertEqual(project.globalProgress(for: entry1), 1000)
+        XCTAssertEqual(project.globalProgress(for: entry2), 1500)
+    }
 }
 #endif
