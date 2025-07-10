@@ -70,30 +70,45 @@ class WritingProject {
         return nil
     }
 
+    /// Общий прогресс проекта до указанной записи. Если `includeEntry` равно
+    /// `true`, учитывает и саму запись.
+    private func cumulativeProjectProgress(upto entry: Entry, includeEntry: Bool) -> Int {
+        var total = 0
+        for e in sortedEntries {
+            if e.id == entry.id && !includeEntry { break }
+
+            if e.syncSource == .scrivener {
+                if let stage = stageForEntry(e) {
+                    total = stage.startProgress + e.characterCount
+                } else {
+                    total = e.characterCount
+                }
+            } else {
+                total += e.characterCount
+            }
+
+            if e.id == entry.id && includeEntry { break }
+        }
+        return total
+    }
+
     func globalProgress(for entry: Entry) -> Int {
-        let entries = sortedEntries
-        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return 0 }
-        let progress = entries.prefix(index + 1).cumulativeProgress()
-        return progress
+        cumulativeProjectProgress(upto: entry, includeEntry: true)
     }
 
     func previousGlobalProgress(before entry: Entry) -> Int {
-        let entries = sortedEntries
-        guard let idx = entries.firstIndex(where: { $0.id == entry.id }) else { return 0 }
-        if idx == 0 { return 0 }
-        let prev = entries[idx - 1]
-        return globalProgress(for: prev)
+        cumulativeProjectProgress(upto: entry, includeEntry: false)
     }
 
     var currentProgress: Int {
-        let total = sortedEntries.cumulativeProgress()
-        return max(0, total)
+        guard let last = sortedEntries.last else { return 0 }
+        return globalProgress(for: last)
     }
 
     var previousProgress: Int {
         guard sortedEntries.count >= 2 else { return 0 }
-        let prevEntries = sortedEntries.dropLast()
-        return prevEntries.cumulativeProgress()
+        let prev = sortedEntries[sortedEntries.count - 2]
+        return globalProgress(for: prev)
     }
 
     /// Сумма символов по всем этапам
