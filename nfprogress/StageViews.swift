@@ -250,7 +250,6 @@ struct StageHeaderView: View {
             Button(action: onDelete) {
                 Image(systemName: "trash")
             }
-            .buttonStyle(.borderless)
         }
         .font(.headline)
         .onAppear {
