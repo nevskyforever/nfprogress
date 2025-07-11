@@ -37,6 +37,8 @@ class WritingProject {
     var lastScrivenerModified: Date?
     /// Прогресс в момент последнего шеринга
     var lastShareProgress: Int?
+    /// Завершён ли проект
+    var isFinished: Bool = false
 
     init(title: String, goal: Int, deadline: Date? = nil, order: Int = 0, isChartCollapsed: Bool = false) {
         self.title = title

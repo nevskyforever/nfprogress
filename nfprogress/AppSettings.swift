@@ -77,6 +77,7 @@ final class AppSettings: ObservableObject {
         case progress
         case deadline
         case custom
+        case finished
         var id: String { rawValue }
 #if canImport(SwiftUI)
         var description: LocalizedStringKey {
@@ -85,6 +86,7 @@ final class AppSettings: ObservableObject {
             case .progress: return "sort_progress"
             case .deadline: return "sort_deadline"
             case .custom: return "sort_custom"
+            case .finished: return "sort_finished"
             }
         }
 #endif
@@ -95,6 +97,7 @@ final class AppSettings: ObservableObject {
             case .progress: return "chart.bar"
             case .deadline: return "calendar"
             case .custom: return "arrow.up.arrow.down"
+            case .finished: return "checkmark"
             }
         }
 
@@ -103,7 +106,8 @@ final class AppSettings: ObservableObject {
             case .title: return .progress
             case .progress: return .deadline
             case .deadline: return .custom
-            case .custom: return .title
+            case .custom: return .finished
+            case .finished: return .title
             }
         }
     }
@@ -292,6 +296,7 @@ final class AppSettings {
         case progress
         case deadline
         case custom
+        case finished
 
         var description: String {
             switch self {
@@ -299,6 +304,7 @@ final class AppSettings {
             case .progress: return NSLocalizedString("sort_progress", comment: "")
             case .deadline: return NSLocalizedString("sort_deadline", comment: "")
             case .custom: return NSLocalizedString("sort_custom", comment: "")
+            case .finished: return NSLocalizedString("sort_finished", comment: "")
             }
         }
 
@@ -308,6 +314,7 @@ final class AppSettings {
             case .progress: return "chart.bar"
             case .deadline: return "calendar"
             case .custom: return "arrow.up.arrow.down"
+            case .finished: return "checkmark"
             }
         }
 
@@ -316,7 +323,8 @@ final class AppSettings {
             case .title: return .progress
             case .progress: return .deadline
             case .deadline: return .custom
-            case .custom: return .title
+            case .custom: return .finished
+            case .finished: return .title
             }
         }
     }
