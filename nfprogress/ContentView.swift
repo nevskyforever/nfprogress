@@ -55,22 +55,19 @@ struct ContentView: View {
 
 
   private var sortedProjects: [WritingProject] {
-    let active = projects.filter { !$0.isFinished }
     switch settings.projectSortOrder {
     case .title:
-      return active.sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
+      return projects.sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
     case .progress:
-      return active.sorted { $0.progress > $1.progress }
+      return projects.sorted { $0.progress > $1.progress }
     case .deadline:
-      return active.sorted {
+      return projects.sorted {
         let d0 = $0.deadline == nil ? Int.max : $0.daysLeft
         let d1 = $1.deadline == nil ? Int.max : $1.daysLeft
         return d0 < d1
       }
     case .custom:
-      return active
-    case .finished:
-      return projects.filter { $0.isFinished }.sorted { $0.title.localizedCompare($1.title) == .orderedAscending }
+      return projects
     }
   }
 
