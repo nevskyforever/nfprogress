@@ -36,8 +36,6 @@ class Stage: Identifiable {
     var lastScrivenerModified: Date?
     /// Приостановлена ли синхронизация
     var syncPaused: Bool = false
-    /// Завершён ли этап
-    var isFinished: Bool = false
 
     init(title: String, goal: Int, deadline: Date? = nil, startProgress: Int, order: Int = 0) {
         self.title = title
@@ -75,15 +73,11 @@ class Stage: Identifiable {
     var currentProgress: Int {
         guard modelContext != nil else { return 0 }
         let total = sortedEntries.cumulativeProgress()
-        if isFinished {
-            return max(goal, total)
-        }
         return max(0, total)
     }
 
     var progressPercentage: Double {
         guard goal > 0 else { return 0 }
-        if isFinished { return 1.0 }
         let percent = Double(currentProgress) / Double(goal)
         return min(max(percent, 0), 1.0)
     }
