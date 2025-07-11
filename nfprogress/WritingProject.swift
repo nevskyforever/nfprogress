@@ -37,6 +37,10 @@ class WritingProject {
     var lastScrivenerModified: Date?
     /// Прогресс в момент последнего шеринга
     var lastShareProgress: Int?
+    /// Завершён ли проект
+    var isFinished: Bool = false
+    /// Дата завершения проекта
+    var finishDate: Date?
 
     init(title: String, goal: Int, deadline: Date? = nil, order: Int = 0, isChartCollapsed: Bool = false) {
         self.title = title
@@ -109,8 +113,24 @@ class WritingProject {
     }
 
     var currentProgress: Int {
-        guard let last = sortedEntries.last else { return 0 }
-        return globalProgress(for: last)
+        let base: Int
+        if let last = sortedEntries.last {
+            base = globalProgress(for: last)
+        } else {
+            base = 0
+        }
+
+        let stageBonus = stages.reduce(0) { partial, stage in
+            guard stage.isFinished else { return partial }
+            let written = stage.startProgress + stage.sortedEntries.cumulativeProgress()
+            return partial + max(stage.goal - written, 0)
+        }
+
+        var total = base + stageBonus
+        if isFinished {
+            total = max(total, goal)
+        }
+        return total
     }
 
     var previousProgress: Int {
@@ -137,6 +157,7 @@ class WritingProject {
     /// Общий прогресс проекта в диапазоне 0...1
     var progress: Double {
         guard goal > 0 else { return 0 }
+        if isFinished { return 1.0 }
         return min(Double(currentProgress) / Double(goal), 1.0)
     }
 
