@@ -28,6 +28,7 @@ struct ProjectDetailView: View {
     @State private var selectedEntry: Entry?
     @State private var draggedStage: Stage?
     @State private var dropTargetStage: Stage?
+    @State private var showFinishAlert = false
     // Состояние редактирования отдельных полей
     @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
@@ -109,8 +110,10 @@ struct ProjectDetailView: View {
         HStack {
             if !project.stages.isEmpty {
                 Button("add_entry_button") { addEntry() }
+                    .disabled(project.isFinished)
             }
             Button("add_stage") { addStage() }
+                .disabled(project.isFinished)
 #if os(macOS)
             if project.hasStageSync {
                 Button("sync_now_button") { syncAllStages() }
@@ -275,6 +278,7 @@ struct ProjectDetailView: View {
             HStack {
                 Button("add_entry_button") { addEntry() }
                     .keyboardShortcut("n", modifiers: .command)
+                    .disabled(project.isFinished)
 #if os(macOS)
                 Button("sync_now_button") {
                     DocumentSyncManager.syncNow(project: project)
@@ -597,6 +601,15 @@ struct ProjectDetailView: View {
         .onReceive(NotificationCenter.default.publisher(for: .menuAddStage)) { _ in
             addStage()
         }
+        .alert(settings.localized("finish_project_confirm"), isPresented: $showFinishAlert) {
+            Button(settings.localized("finish")) {
+                project.isFinished = true
+                try? modelContext.save()
+            }
+            Button(settings.localized("cancel"), role: .cancel) { }
+        } message: {
+            Text("finish_project_message")
+        }
         .alert(item: $stageToDelete) { stage in
             if project.stages.count == 1 {
                 return Alert(
@@ -635,6 +648,16 @@ struct ProjectDetailView: View {
             }
             ToolbarItem(placement: .primaryAction) {
                 shareToolbarButton()
+            }
+            ToolbarItem(placement: .primaryAction) {
+                if project.isFinished {
+                    Image(systemName: "checkmark")
+                } else {
+                    Button(action: { showFinishAlert = true }) {
+                        Image(systemName: "checkmark")
+                    }
+                    .help(settings.localized("finish_project_tooltip"))
+                }
             }
 #if os(macOS)
             if !project.hasStageSync {

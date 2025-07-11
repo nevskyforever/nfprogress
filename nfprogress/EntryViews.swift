@@ -16,15 +16,20 @@ struct AddEntryView: View {
     /// Текст, введённый пользователем для нового значения прогресса.
     @State private var characterText = ""
 
+    /// Стадии, доступные для добавления записей
+    private var availableStages: [Stage] {
+        project.sortedStages.filter { !$0.isFinished }
+    }
+
     /// Текущий прогресс выбранного этапа или всего проекта.
     private var previousProgress: Int {
         if let fixedStage {
             return fixedStage.currentProgress
         }
-        if project.sortedStages.isEmpty {
+        if availableStages.isEmpty {
             return project.currentProgress
         }
-        let stage = project.sortedStages[min(max(selectedStageIndex, 0), project.sortedStages.count - 1)]
+        let stage = availableStages[min(max(selectedStageIndex, 0), availableStages.count - 1)]
         return stage.currentProgress
     }
 
@@ -33,7 +38,7 @@ struct AddEntryView: View {
         self.fixedStage = stage
         let initialIndex: Int
         if let stage,
-           let found = project.sortedStages.firstIndex(where: { $0.id == stage.id }) {
+           let found = availableStages.firstIndex(where: { $0.id == stage.id }) {
             initialIndex = found
         } else {
             initialIndex = 0
@@ -51,9 +56,9 @@ struct AddEntryView: View {
             DatePicker("date_time", selection: $date)
                 .labelsHidden()
 
-            if fixedStage == nil && !project.sortedStages.isEmpty {
+            if fixedStage == nil && !availableStages.isEmpty {
                 Picker("stage", selection: $selectedStageIndex) {
-                    ForEach(Array(project.sortedStages.enumerated()), id: \.offset) { idx, stage in
+                    ForEach(Array(availableStages.enumerated()), id: \.offset) { idx, stage in
                         Text(stage.title)
                             .tag(idx)
                     }
@@ -81,6 +86,7 @@ struct AddEntryView: View {
             .buttonStyle(.borderedProminent)
             .keyboardShortcut(.defaultAction)
             .scaledPadding(1, .bottom)
+            .disabled(project.isFinished || fixedStage?.isFinished == true)
         }
         .scaledPadding(1, [.horizontal, .bottom])
         .scaledPadding(2, .top)
@@ -90,7 +96,7 @@ struct AddEntryView: View {
 #endif
         .onChange(of: selectedStageIndex) { newValue in
             guard fixedStage == nil,
-                  project.sortedStages.indices.contains(newValue) else { return }
+                  availableStages.indices.contains(newValue) else { return }
             characterText = ""
         }
     }
@@ -106,11 +112,13 @@ struct AddEntryView: View {
             if let fixedStage {
                 targetStage = fixedStage
             } else {
-                let index = min(max(selectedStageIndex, 0), project.sortedStages.count - 1)
-                targetStage = project.sortedStages[index]
+                let index = min(max(selectedStageIndex, 0), availableStages.count - 1)
+                targetStage = availableStages[index]
             }
             delta = entered - (targetStage?.currentProgress ?? 0)
         }
+
+        guard !project.isFinished, targetStage?.isFinished != true else { return }
 
         let newEntry = Entry(date: date, characterCount: delta)
         dismiss()
