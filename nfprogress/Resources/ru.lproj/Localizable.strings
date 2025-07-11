@@ -126,9 +126,3 @@
 "import_success" = "Импорт успешно завершен";
 "import_failed" = "Импорт не состоялся";
 "written_today" = "Написано сегодня %d символов";
-"finish_project_confirm" = "Вы хотите завершить проект?";
-"finish_project_message" = "После завершения его можно будет только просматривать";
-"finish" = "Завершить";
-"finish_project_tooltip" = "Завершить проект";
-"finish_stage_tooltip" = "Завершить этап";
-"sort_finished" = "Завершенные";
