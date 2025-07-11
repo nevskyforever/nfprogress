@@ -36,8 +36,6 @@ class Stage: Identifiable {
     var lastScrivenerModified: Date?
     /// Приостановлена ли синхронизация
     var syncPaused: Bool = false
-    /// Завершён ли этап
-    var isFinished: Bool = false
 
     init(title: String, goal: Int, deadline: Date? = nil, startProgress: Int, order: Int = 0) {
         self.title = title
