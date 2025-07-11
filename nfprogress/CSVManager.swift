@@ -4,7 +4,7 @@ import SwiftData
 
 struct CSVManager {
     static func csvString(for project: WritingProject) -> String {
-        var lines: [String] = ["Title,Goal,Deadline,Stage,StageGoal,StageDeadline,StageStart,Date,CharacterCount,ChangeSinceLast,ProgressPercent,LastShareProgress"]
+        var lines: [String] = ["Title,Goal,Deadline,Stage,StageGoal,StageDeadline,StageStart,Date,CharacterCount,ChangeSinceLast,ProgressPercent,LastShareProgress,ProjectFinished,StageFinished,ProjectFinishDate,StageFinishDate"]
         let dateFormatter = ISO8601DateFormatter()
         let deadlineString = project.deadline.map { dateFormatter.string(from: $0) } ?? ""
         var all: [(Entry, Stage?)] = project.entries.map { ($0, nil) }
@@ -18,7 +18,8 @@ struct CSVManager {
         }
         if all.isEmpty && emptyStages.isEmpty {
             let share = project.lastShareProgress.map(String.init) ?? ""
-            lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,,,,,,\(share)")
+            let projFinish = project.finishDate.map { dateFormatter.string(from: $0) } ?? ""
+            lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),,,,,,,,\(share),\(project.isFinished),,\(projFinish),")
         } else {
             let sorted = all.sorted { $0.0.date < $1.0.date }
             var cumulative = 0
@@ -33,19 +34,23 @@ struct CSVManager {
                 let stageDeadline = stage?.deadline.map { dateFormatter.string(from: $0) } ?? ""
                 let stageStart = stage != nil ? String(stage!.startProgress) : ""
                 let share = project.lastShareProgress.map(String.init) ?? ""
-                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(total),\(change),\(percent),\(share)")
+                let projFinish = project.finishDate.map { dateFormatter.string(from: $0) } ?? ""
+                let stageFinish = stage?.finishDate.map { dateFormatter.string(from: $0) } ?? ""
+                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(total),\(change),\(percent),\(share),\(project.isFinished),\(stage?.isFinished ?? false),\(projFinish),\(stageFinish)")
             }
             for stage in emptyStages {
                 let stageDeadline = stage.deadline.map { dateFormatter.string(from: $0) } ?? ""
                 let share = project.lastShareProgress.map(String.init) ?? ""
-                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stage.title)),\(stage.goal),\(stageDeadline),\(stage.startProgress),,,,,\(share)")
+                let projFinish = project.finishDate.map { dateFormatter.string(from: $0) } ?? ""
+                let stageFinish = stage.finishDate.map { dateFormatter.string(from: $0) } ?? ""
+                lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stage.title)),\(stage.goal),\(stageDeadline),\(stage.startProgress),,,,,\(share),\(project.isFinished),\(stage.isFinished),\(projFinish),\(stageFinish)")
             }
         }
         return lines.joined(separator: "\n")
     }
 
     static func csvString(for projects: [WritingProject]) -> String {
-        var lines: [String] = ["Title,Goal,Deadline,Stage,StageGoal,StageDeadline,StageStart,Date,CharacterCount,ChangeSinceLast,ProgressPercent,LastShareProgress"]
+        var lines: [String] = ["Title,Goal,Deadline,Stage,StageGoal,StageDeadline,StageStart,Date,CharacterCount,ChangeSinceLast,ProgressPercent,LastShareProgress,ProjectFinished,StageFinished,ProjectFinishDate,StageFinishDate"]
         let dateFormatter = ISO8601DateFormatter()
         for project in projects {
             let deadlineString = project.deadline.map { dateFormatter.string(from: $0) } ?? ""
@@ -75,12 +80,16 @@ struct CSVManager {
                     let stageDeadline = stage?.deadline.map { dateFormatter.string(from: $0) } ?? ""
                     let stageStart = stage != nil ? String(stage!.startProgress) : ""
                     let share = project.lastShareProgress.map(String.init) ?? ""
-                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(total),\(change),\(percent),\(share)")
+                    let projFinish = project.finishDate.map { dateFormatter.string(from: $0) } ?? ""
+                    let stageFinish = stage?.finishDate.map { dateFormatter.string(from: $0) } ?? ""
+                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stageTitle)),\(stageGoal),\(stageDeadline),\(stageStart),\(dateStr),\(total),\(change),\(percent),\(share),\(project.isFinished),\(stage?.isFinished ?? false),\(projFinish),\(stageFinish)")
                 }
                 for stage in emptyStages {
                     let stageDeadline = stage.deadline.map { dateFormatter.string(from: $0) } ?? ""
                     let share = project.lastShareProgress.map(String.init) ?? ""
-                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stage.title)),\(stage.goal),\(stageDeadline),\(stage.startProgress),,,,,\(share)")
+                    let projFinish = project.finishDate.map { dateFormatter.string(from: $0) } ?? ""
+                    let stageFinish = stage.finishDate.map { dateFormatter.string(from: $0) } ?? ""
+                    lines.append("\(escape(project.title)),\(project.goal),\(deadlineString),\(escape(stage.title)),\(stage.goal),\(stageDeadline),\(stage.startProgress),,,,,\(share),\(project.isFinished),\(stage.isFinished),\(projFinish),\(stageFinish)")
                 }
             }
         }
@@ -106,6 +115,12 @@ struct CSVManager {
             let changeColumn = components.count > 9 ? Int(components[9]) : nil
             let count = changeColumn ?? countColumn
             let shareProgress = components.count > 11 ? Int(components[11]) : nil
+            let projectFinished = components.count > 12 ? (components[12].lowercased() == "true") : false
+            let stageFinished = components.count > 13 ? (components[13].lowercased() == "true") : false
+            let projectFinishDateStr = components.count > 14 ? components[14] : ""
+            let stageFinishDateStr = components.count > 15 ? components[15] : ""
+            let projectFinishDate = dateFormatter.date(from: projectFinishDateStr)
+            let stageFinishDate = dateFormatter.date(from: stageFinishDateStr)
 
             let project: WritingProject
             if let existing = projectsDict[title] {
@@ -118,6 +133,8 @@ struct CSVManager {
             if let shareProgress {
                 project.lastShareProgress = shareProgress
             }
+            project.isFinished = projectFinished
+            project.finishDate = projectFinishDate
 
             var stage: Stage? = nil
             if !stageTitle.isEmpty {
@@ -128,6 +145,10 @@ struct CSVManager {
                     let newStage = Stage(title: stageTitle, goal: stageGoal, deadline: stageDeadline, startProgress: stageStart, order: project.stages.count)
                     project.stages.append(newStage)
                     stage = newStage
+                }
+                stage?.isFinished = stageFinished
+                if let stage {
+                    stage.finishDate = stageFinishDate
                 }
             }
 
@@ -156,6 +177,8 @@ struct CSVManager {
         var deadline: Date?
         var startProgress: Int
         var order: Int
+        var isFinished: Bool?
+        var finishDate: Date?
         var entries: [JSONEntry]
     }
 
@@ -164,6 +187,8 @@ struct CSVManager {
         var goal: Int
         var deadline: Date?
         var lastShareProgress: Int?
+        var isFinished: Bool?
+        var finishDate: Date?
         var entries: [JSONEntry]
         var stages: [JSONStage]
     }
@@ -176,7 +201,9 @@ struct CSVManager {
             goal: project.goal,
             deadline: project.deadline,
             lastShareProgress: project.lastShareProgress,
+            isFinished: project.isFinished,
             entries: project.entries.map { JSONEntry(date: $0.date, characterCount: $0.characterCount) },
+            finishDate: project.finishDate,
             stages: project.stages.enumerated().map { idx, stage in
                 JSONStage(
                     title: stage.title,
@@ -184,6 +211,8 @@ struct CSVManager {
                     deadline: stage.deadline,
                     startProgress: stage.startProgress,
                     order: stage.order,
+                    isFinished: stage.isFinished,
+                    finishDate: stage.finishDate,
                     entries: stage.entries.map { JSONEntry(date: $0.date, characterCount: $0.characterCount) }
                 )
             }
@@ -200,9 +229,13 @@ struct CSVManager {
             proj.stages = jp.stages.map { js in
                 let st = Stage(title: js.title, goal: js.goal, deadline: js.deadline, startProgress: js.startProgress, order: js.order)
                 st.entries = js.entries.map { Entry(date: $0.date, characterCount: $0.characterCount) }
+                st.isFinished = js.isFinished ?? false
+                st.finishDate = js.finishDate
                 return st
             }.sorted { $0.order < $1.order }
             proj.lastShareProgress = jp.lastShareProgress
+            proj.isFinished = jp.isFinished ?? false
+            proj.finishDate = jp.finishDate
             return proj
         }
     }
