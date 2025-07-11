@@ -125,10 +125,3 @@
 "import_success" = "Import completed successfully";
 "import_failed" = "Import failed";
 "written_today" = "Written today %d characters";
-"finish_project_confirm" = "Finish this project?";
-"finish_project_message" = "After finishing it, you will only be able to view it.";
-"finish" = "Finish";
-"finish_project_tooltip" = "Finish project";
-"finish_stage_tooltip" = "Finish stage";
-"sort_finished" = "Finished";
-"finished_label" = "Finished";
