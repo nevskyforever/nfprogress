@@ -43,7 +43,6 @@ struct AddStageView: View {
                 .buttonStyle(.borderedProminent)
                 .keyboardShortcut(.defaultAction)
                 .scaledPadding(1, .bottom)
-                .disabled(project.isFinished)
         }
         .scaledPadding(1, [.horizontal, .bottom])
         .scaledPadding(2, .top)
@@ -54,7 +53,6 @@ struct AddStageView: View {
     }
 
     private func addStage() {
-        guard !project.isFinished else { return }
         let name = title.isEmpty ? settings.localized("stage_placeholder") : title
         let start = (project.stages.isEmpty && !project.entries.isEmpty) ? 0 : project.currentProgress
         let stage = Stage(title: name, goal: goal, startProgress: start, order: project.stages.count)
@@ -108,12 +106,10 @@ struct EditStageView: View {
             TextField("project_name", text: $stage.title)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: fieldWidth)
-                .disabled(project.isFinished || stage.isFinished)
 
             TextField("project_goal", value: $stage.goal, format: .number)
                 .textFieldStyle(.roundedBorder)
                 .frame(width: fieldWidth)
-                .disabled(project.isFinished || stage.isFinished)
 
             Spacer()
 
@@ -122,7 +118,6 @@ struct EditStageView: View {
             }
             .buttonStyle(.borderedProminent)
             .scaledPadding(1, .bottom)
-            .disabled(project.isFinished || stage.isFinished)
         }
         .scaledPadding()
         .frame(minWidth: minWidth, minHeight: minHeight)
@@ -154,8 +149,6 @@ struct StageHeaderView: View {
 #if os(macOS)
     @Environment(\.openWindow) private var openWindow
 #endif
-
-    @State private var showFinishAlert = false
 
     /// Значение прогресса в начале анимации
     @State private var startProgress: Double = 0
@@ -254,14 +247,6 @@ struct StageHeaderView: View {
             Button(action: onEdit) {
                 Image(systemName: "pencil")
             }
-            if stage.isFinished {
-                Image(systemName: "checkmark")
-            } else {
-                Button(action: { showFinishAlert = true }) {
-                    Image(systemName: "checkmark")
-                }
-                .help(settings.localized("finish_stage_tooltip"))
-            }
             Button(action: onDelete) {
                 Image(systemName: "trash")
             }
@@ -292,16 +277,6 @@ struct StageHeaderView: View {
             if let id = note.object as? PersistentIdentifier, id == project.id {
                 updateProgress(to: progress)
             }
-        }
-        .alert(settings.localized("finish_project_confirm"), isPresented: $showFinishAlert) {
-            Button(settings.localized("finish")) {
-                stage.isFinished = true
-                try? stage.modelContext?.save()
-                NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
-            }
-            Button(settings.localized("cancel"), role: .cancel) { }
-        } message: {
-            Text("finish_project_message")
         }
     }
 
