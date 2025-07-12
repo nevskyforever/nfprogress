@@ -164,6 +164,7 @@ struct ImportExportView: View {
                 current.entries = imported.entries
                 current.stages = imported.stages
                 current.lastShareProgress = imported.lastShareProgress
+                current.isFinished = imported.isFinished
 
                 for stage in current.stages {
                     if let old = stageSyncInfo[stage.title] {
@@ -178,6 +179,9 @@ struct ImportExportView: View {
                         stage.lastWordModified = old.lastWordModified
                         stage.lastScrivenerCharacters = old.lastScrivenerCharacters
                         stage.lastScrivenerModified = old.lastScrivenerModified
+                    }
+                    if let importedStage = imported.stages.first(where: { $0.title == stage.title }) {
+                        stage.isFinished = importedStage.isFinished
                     }
                 }
 
