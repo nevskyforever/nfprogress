@@ -651,7 +651,7 @@ struct ProjectDetailView: View {
                 saveContext()
             }
         }
-        .toolbar {
+        .toolbar(id: "projectDetail") {
             ToolbarItem(placement: .principal) {
                 ProjectTitleBar(project: project)
             }
