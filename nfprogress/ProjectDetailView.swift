@@ -28,7 +28,6 @@ struct ProjectDetailView: View {
     @State private var selectedEntry: Entry?
     @State private var draggedStage: Stage?
     @State private var dropTargetStage: Stage?
-    @State private var showFinishAlert = false
     // Состояние редактирования отдельных полей
     @State private var isEditingGoal = false
     @State private var isEditingDeadline = false
@@ -110,10 +109,8 @@ struct ProjectDetailView: View {
         HStack {
             if !project.stages.isEmpty {
                 Button("add_entry_button") { addEntry() }
-                    .disabled(project.isFinished)
             }
             Button("add_stage") { addStage() }
-                .disabled(project.isFinished)
 #if os(macOS)
             if project.hasStageSync {
                 Button("sync_now_button") { syncAllStages() }
@@ -278,7 +275,6 @@ struct ProjectDetailView: View {
             HStack {
                 Button("add_entry_button") { addEntry() }
                     .keyboardShortcut("n", modifiers: .command)
-                    .disabled(project.isFinished)
 #if os(macOS)
                 Button("sync_now_button") {
                     DocumentSyncManager.syncNow(project: project)
@@ -571,7 +567,7 @@ struct ProjectDetailView: View {
     }
 
     var body: some View {
-        ScrollView(.vertical) {
+        ScrollView {
             LazyVStack(alignment: .leading, spacing: scaledSpacing(1.5)) {
                 infoSection
                 progressCircleSection
@@ -600,24 +596,6 @@ struct ProjectDetailView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .menuAddStage)) { _ in
             addStage()
-        }
-        .alert(settings.localized("finish_project_confirm"), isPresented: $showFinishAlert) {
-            Button(settings.localized("finish")) {
-                let now = Date()
-                for stage in project.stages {
-                    if !stage.isFinished {
-                        stage.isFinished = true
-                        stage.finishDate = now
-                    }
-                }
-                project.isFinished = true
-                project.finishDate = now
-                try? modelContext.save()
-                NotificationCenter.default.post(name: .projectProgressChanged, object: project.id)
-            }
-            Button(settings.localized("cancel"), role: .cancel) { }
-        } message: {
-            Text("finish_project_message")
         }
         .alert(item: $stageToDelete) { stage in
             if project.stages.count == 1 {
@@ -665,22 +643,6 @@ struct ProjectDetailView: View {
                 }
             }
 #endif
-            ToolbarItem(placement: .primaryAction) {
-                if project.isFinished {
-                    if let date = project.finishDate {
-                        let formatter = DateFormatter()
-                        formatter.dateFormat = "dd.MM.yyyy"
-                        Text("\(settings.localized("finished_label")) \(formatter.string(from: date))")
-                    } else {
-                        Text(settings.localized("finished_label"))
-                    }
-                } else {
-                    Button(action: { showFinishAlert = true }) {
-                        Image(systemName: "checkmark")
-                    }
-                    .help(settings.localized("finish_project_tooltip"))
-                }
-            }
         }
         .navigationTitle("")
 #if os(iOS)
