@@ -2,7 +2,6 @@ import math
 
 projects = []
 
-
 def project_progress(data):
     if len(data) == 0:
         print("Нет проектов для добавления записей!")
@@ -80,7 +79,6 @@ def project_add(data):
             break
 
     projects_view(data)
-
 
 # Запуск программы
 projects_view(projects)
