@@ -1,20 +1,24 @@
 import math
 
+# Словарь для хранения проектов
+# Структура: {название_проекта: {цель: [запись1, запись2, ...]}}
 projects = {}
 
 
 def calc_progress(records, goal):
-    """Подсчёт общего прогресса проекта"""
-    total = sum(records)
+    """Вычисление прогресса проекта в процентах и суммарного количества символов"""
+    total = sum(records)  # суммируем все записи
     progress = math.ceil(total / goal * 100) if goal > 0 else 0
     return progress, total
 
 
 def project_progress(data):
+    """Управление выбранным проектом: добавление или просмотр записей"""
     if len(data) == 0:
         print("Нет проектов для добавления записей!")
         return
 
+    # Выводим список всех проектов с текущим прогрессом
     print("Доступные проекты:")
     for i, (name, info) in enumerate(data.items(), 1):
         goal = list(info.keys())[0]
@@ -23,38 +27,42 @@ def project_progress(data):
         print(f'№{i} Название: {name} Цель: {goal} символов Прогресс: {progress}% ({total}/{goal})')
 
     try:
+        # Выбор проекта пользователем
         project_names = list(data.keys())
         fp = int(input('Введите номер проекта из списка: '))
         if fp < 1 or fp > len(project_names):
             print("Неверный номер проекта!")
             return
-
         selected_project = project_names[fp - 1]
     except ValueError:
         print("Введите корректный номер!")
         return
 
+    # Получаем цель и список записей выбранного проекта
     goal = list(data[selected_project].keys())[0]
     records = data[selected_project][goal]
 
     while True:
+        # Меню управления выбранным проектом
         print("\n1 - Добавить запись")
         print("2 - Просмотреть записи")
         print("3 - Вернуться в меню")
         action = input("Выберите действие (1-3): ").strip()
 
         if action == '1':
+            # Добавление новой записи
             try:
                 new_entry = int(input("Введите количество написанных символов: "))
                 if new_entry < 0:
                     print("Количество символов не может быть отрицательным!")
                     continue
-                records.append(new_entry)
+                records.append(new_entry)  # добавляем запись в список
                 progress, total = calc_progress(records, goal)
                 print(f"Текущий прогресс: {progress}% ({total}/{goal})")
             except ValueError:
                 print("Введите корректное число!")
         elif action == '2':
+            # Просмотр всех записей проекта
             print("\nЗаписи проекта:")
             if not records:
                 print("Пока нет записей.")
@@ -62,12 +70,14 @@ def project_progress(data):
                 for i, r in enumerate(records, 1):
                     print(f"  {i}) {r} символов")
         elif action == '3':
+            # Выход в главное меню
             break
         else:
             print("Неверный выбор!")
 
 
 def projects_view(data):
+    """Вывод краткого обзора всех проектов"""
     print('\n' + '=' * 50)
     print('ОБЗОР ПРОЕКТОВ')
     print('=' * 50)
@@ -86,6 +96,7 @@ def projects_view(data):
 
 
 def project_add(data):
+    """Добавление нового проекта в систему"""
     while True:
         print('\n' + '-' * 30)
         print('ДОБАВЛЕНИЕ НОВОГО ПРОЕКТА')
@@ -108,6 +119,7 @@ def project_add(data):
             print("Введите корректное число!")
             continue
 
+        # Создаём проект с пустым списком записей
         data[name] = {goal: []}
         print(f'✅ Проект "{name}" успешно создан!')
 
@@ -117,6 +129,7 @@ def project_add(data):
 
 
 def main_menu():
+    """Главное меню программы"""
     while True:
         projects_view(projects)
 
