@@ -1,23 +1,18 @@
 import math
 from datetime import datetime
 
-# Словарь для хранения проектов
-# Структура: {название_проекта: {цель: [запись1, запись2, ...]}}
 projects = {}
 
 def calc_progress(records, goal):
-    """Вычисление прогресса проекта в процентах и суммарного количества символов"""
-    total = sum(r["count"] for r in records)  # суммируем все записи
+    total = sum(r["count"] for r in records)
     progress = math.ceil(total / goal * 100) if goal > 0 else 0
     return progress, total
 
 def project_progress(data):
-    """Управление выбранным проектом: добавление или просмотр записей"""
     if not data:
-        print("Нет проектов для добавления записей!")
+        print("Нет проектов для управления!")
         return
 
-    # Выводим список всех проектов с текущим прогрессом
     print("Доступные проекты:")
     for i, (name, info) in enumerate(data.items(), 1):
         goal = list(info.keys())[0]
@@ -42,8 +37,10 @@ def project_progress(data):
     while True:
         print("\n1 - Добавить запись")
         print("2 - Просмотреть записи")
-        print("3 - Вернуться в меню")
-        action = input("Выберите действие (1-3): ").strip()
+        print("3 - Удалить запись")
+        print("4 - Удалить проект")
+        print("5 - Вернуться в меню")
+        action = input("Выберите действие (1-5): ").strip()
 
         if action == '1':
             try:
@@ -51,7 +48,6 @@ def project_progress(data):
                 if new_entry < 0:
                     print("Количество символов не может быть отрицательным!")
                     continue
-                # Добавляем запись с текущей датой и временем
                 records.append({
                     "count": new_entry,
                     "datetime": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -68,12 +64,32 @@ def project_progress(data):
                 for i, r in enumerate(records, 1):
                     print(f"  {i}) {r['count']} символов | Дата: {r['datetime']}")
         elif action == '3':
+            if not records:
+                print("Нет записей для удаления.")
+                continue
+            for i, r in enumerate(records, 1):
+                print(f"  {i}) {r['count']} символов | Дата: {r['datetime']}")
+            try:
+                del_index = int(input("Введите номер записи для удаления: "))
+                if del_index < 1 or del_index > len(records):
+                    print("Неверный номер записи!")
+                    continue
+                removed = records.pop(del_index - 1)
+                print(f"Удалена запись: {removed['count']} символов | {removed['datetime']}")
+            except ValueError:
+                print("Введите корректный номер!")
+        elif action == '4':
+            confirm = input(f"Вы уверены, что хотите удалить проект '{selected_project}'? (y/n): ").lower()
+            if confirm == 'y':
+                del data[selected_project]
+                print(f"Проект '{selected_project}' удалён.")
+                break
+        elif action == '5':
             break
         else:
             print("Неверный выбор!")
 
 def projects_view(data):
-    """Вывод краткого обзора всех проектов"""
     print('\n' + '=' * 50)
     print('ОБЗОР ПРОЕКТОВ')
     print('=' * 50)
@@ -91,7 +107,6 @@ def projects_view(data):
     print('\n' + '-' * 50)
 
 def project_add(data):
-    """Добавление нового проекта в систему"""
     while True:
         print('\n' + '-' * 30)
         print('ДОБАВЛЕНИЕ НОВОГО ПРОЕКТА')
@@ -114,7 +129,6 @@ def project_add(data):
             print("Введите корректное число!")
             continue
 
-        # Создаём проект с пустым списком записей
         data[name] = {goal: []}
         print(f'✅ Проект "{name}" успешно создан!')
 
@@ -123,12 +137,11 @@ def project_add(data):
             break
 
 def main_menu():
-    """Главное меню программы"""
     while True:
         projects_view(projects)
 
         print("\nЧто вы хотите сделать?")
-        print("1 - Управление проектом (добавить/просмотреть записи)")
+        print("1 - Управление проектом (добавить/просмотреть/удалять)")
         print("2 - Добавить новый проект")
         print("3 - Выйти из программы")
 
@@ -146,3 +159,4 @@ def main_menu():
 
 if __name__ == "__main__":
     main_menu()
+2
