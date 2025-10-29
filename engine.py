@@ -7,6 +7,35 @@ PROJECTS_FILE = "projects.txt"
 projects = {}
 
 
+def show_menu(title, options, show_back_option=True):
+    """Универсальная функция для отображения меню"""
+    print(f'\n{"-" * 30}')
+    print(title)
+    print('-' * 30)
+
+    for key, description in options.items():
+        print(f"{key} - {description}")
+
+    if show_back_option:
+        last_key = str(len(options) + 1)
+        print(f"{last_key} - Вернуться назад")
+        return last_key
+    return None
+
+
+def get_user_choice(max_value, prompt="Выберите действие: "):
+    """Получает и проверяет выбор пользователя"""
+    try:
+        choice = input(prompt).strip()
+        if 1 <= int(choice) <= max_value:
+            return choice
+        print(f"Неверный выбор! Введите число от 1 до {max_value}")
+        return None
+    except ValueError:
+        print("Введите корректное число!")
+        return None
+
+
 def load_projects():
     """Загружает проекты из файла"""
     global projects
@@ -119,19 +148,11 @@ def delete_project(data, selected_project):
     return False
 
 
-def project_progress(data):
-    """Управление прогрессом проекта"""
+def select_project(data):
+    """Выбор проекта из списка"""
     if not data:
         print("Нет проектов для управления!")
-        return
-
-    # Словарь функций для управления проектом
-    project_actions = {
-        '1': add_record,
-        '2': view_records,
-        '3': delete_record,
-        '4': delete_project
-    }
+        return None
 
     print("Доступные проекты:")
     for i, (name, info) in enumerate(data.items(), 1):
@@ -142,41 +163,59 @@ def project_progress(data):
 
     try:
         project_names = list(data.keys())
-        fp = int(input('Введите номер проекта из списка: '))
-        if fp < 1 or fp > len(project_names):
-            print("Неверный номер проекта!")
-            return
-        selected_project = project_names[fp - 1]
-    except ValueError:
-        print("Введите корректный номер!")
+        choice = get_user_choice(len(project_names), "Введите номер проекта из списка: ")
+        if not choice:
+            return None
+
+        selected_project = project_names[int(choice) - 1]
+        return selected_project
+    except (ValueError, IndexError):
+        print("Ошибка выбора проекта!")
+        return None
+
+
+def project_progress(data):
+    """Управление прогрессом проекта"""
+    selected_project = select_project(data)
+    if not selected_project:
         return
 
     goal = list(data[selected_project].keys())[0]
     project_data = data[selected_project]
 
-    while True:
-        print("\n1 - Добавить запись")
-        print("2 - Просмотреть записи")
-        print("3 - Удалить запись")
-        print("4 - Удалить проект")
-        print("5 - Вернуться в меню")
-        action = input("Выберите действие (1-5): ").strip()
+    # Словарь функций для управления проектом
+    project_actions = {
+        '1': add_record,
+        '2': view_records,
+        '3': delete_record,
+        '4': delete_project
+    }
 
-        if action == '5':
+    # Опции меню управления проектом
+    project_options = {
+        '1': 'Добавить запись',
+        '2': 'Просмотреть записи',
+        '3': 'Удалить запись',
+        '4': 'Удалить проект'
+    }
+
+    while True:
+        back_key = show_menu("УПРАВЛЕНИЕ ПРОЕКТОМ", project_options)
+
+        choice = get_user_choice(len(project_options))
+        if not choice:
+            continue
+
+        if choice == back_key:
             break
 
-        if action in project_actions:
-            if action in ['1', '2', '3']:
+        if choice in project_actions:
+            if choice in ['1', '2', '3']:
                 # Для действий с записями передаем project_data и goal
-                if action == '1':
-                    project_actions[action](project_data, goal)
-                elif action == '2':
-                    project_actions[action](project_data, goal)
-                elif action == '3':
-                    project_actions[action](project_data, goal)
-            elif action == '4':
+                project_actions[choice](project_data, goal)
+            elif choice == '4':
                 # Для удаления проекта передаем data и selected_project
-                if project_actions[action](data, selected_project):
+                if project_actions[choice](data, selected_project):
                     break
         else:
             print("Неверный выбор!")
@@ -204,9 +243,7 @@ def projects_view(data):
 def project_add(data):
     """Добавляет новый проект"""
     while True:
-        print('\n' + '-' * 30)
-        print('ДОБАВЛЕНИЕ НОВОГО ПРОЕКТА')
-        print('-' * 30)
+        show_menu("ДОБАВЛЕНИЕ НОВОГО ПРОЕКТА", {}, show_back_option=False)
 
         name = input('Введите название проекта: ').strip()
         if not name:
@@ -241,30 +278,30 @@ def main_menu():
     # Загружаем проекты при запуске
     load_projects()
 
-    # Словарь функций главного меню
-    menu_actions = {
-        '1': project_progress,
-        '2': project_add
+    # Опции главного меню
+    main_options = {
+        '1': 'Управление проектом (добавить/просмотреть/удалять)',
+        '2': 'Добавить новый проект'
     }
 
     while True:
         projects_view(projects)
 
-        print("\nЧто вы хотите сделать?")
-        print("1 - Управление проектом (добавить/просмотреть/удалять)")
-        print("2 - Добавить новый проект")
-        print("3 - Выйти из программы")
+        back_key = show_menu("ГЛАВНОЕ МЕНЮ", main_options, show_back_option=False)
 
-        choice = input("\nВведите номер действия (1-3): ").strip()
+        choice = get_user_choice(len(main_options), "Введите номер действия (1-3): ")
+        if not choice:
+            continue
 
-        if choice == '3':
+        if choice == '1':
+            project_progress(projects)
+        elif choice == '2':
+            project_add(projects)
+        elif choice == '3':
             # Сохраняем перед выходом
             save_projects()
             print("✅ Данные сохранены. До свидания!")
             break
-
-        if choice in menu_actions:
-            menu_actions[choice](projects)
         else:
             print("Неверный выбор! Пожалуйста, введите 1, 2 или 3")
 
