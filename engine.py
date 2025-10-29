@@ -1,7 +1,41 @@
 import math
 from datetime import datetime
+import json
+import os
 
+PROJECTS_FILE = "projects.txt"
 projects = {}
+
+
+def load_projects():
+    """Загружает проекты из файла"""
+    global projects
+    if os.path.exists(PROJECTS_FILE):
+        try:
+            with open(PROJECTS_FILE, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                # Конвертируем ключи целей обратно в int (при сохранении в JSON они становятся str)
+                converted_data = {}
+                for project_name, project_info in data.items():
+                    for goal_str, records in project_info.items():
+                        converted_data[project_name] = {int(goal_str): records}
+                projects = converted_data
+            print("✅ Данные проектов загружены!")
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            print(f"⚠️ Ошибка загрузки файла: {e}. Будет создан новый файл.")
+            projects = {}
+    else:
+        print("📁 Файл projects.txt не найден. Будет создан новый при сохранении.")
+
+
+def save_projects():
+    """Сохраняет проекты в файл"""
+    try:
+        with open(PROJECTS_FILE, 'w', encoding='utf-8') as f:
+            json.dump(projects, f, ensure_ascii=False, indent=2)
+        print("✅ Данные проектов сохранены!")
+    except Exception as e:
+        print(f"❌ Ошибка сохранения файла: {e}")
 
 
 def calc_progress(records, goal):
@@ -26,6 +60,9 @@ def add_record(project_data, goal):
         })
         progress, total = calc_progress(records, goal)
         print(f"Текущий прогресс: {progress}% ({total}/{goal})")
+
+        # Сохраняем изменения
+        save_projects()
         return True
     except ValueError:
         print("Введите корректное число!")
@@ -60,6 +97,9 @@ def delete_record(project_data, goal):
 
         removed = records.pop(del_index - 1)
         print(f"Удалена запись: {removed['count']} символов | {removed['datetime']}")
+
+        # Сохраняем изменения
+        save_projects()
         return True
     except ValueError:
         print("Введите корректный номер!")
@@ -72,6 +112,9 @@ def delete_project(data, selected_project):
     if confirm == 'y':
         del data[selected_project]
         print(f"Проект '{selected_project}' удалён.")
+
+        # Сохраняем изменения
+        save_projects()
         return True
     return False
 
@@ -185,6 +228,9 @@ def project_add(data):
         data[name] = {goal: []}
         print(f'✅ Проект "{name}" успешно создан!')
 
+        # Сохраняем изменения
+        save_projects()
+
         another = input('\nДобавить еще один проект? (y/n): ').lower()
         if another != 'y':
             break
@@ -192,6 +238,9 @@ def project_add(data):
 
 def main_menu():
     """Главное меню программы"""
+    # Загружаем проекты при запуске
+    load_projects()
+
     # Словарь функций главного меню
     menu_actions = {
         '1': project_progress,
@@ -209,7 +258,9 @@ def main_menu():
         choice = input("\nВведите номер действия (1-3): ").strip()
 
         if choice == '3':
-            print("До свидания!")
+            # Сохраняем перед выходом
+            save_projects()
+            print("✅ Данные сохранены. До свидания!")
             break
 
         if choice in menu_actions:
