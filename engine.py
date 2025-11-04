@@ -5,7 +5,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': delete_project}
 
         # Вывод меню
-        ch = input('nfprogress 0.0.2\n'
+        ch = input('nfprogress 0.1.0\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть проекты\n'
@@ -56,6 +56,7 @@ def view_projects():
     projects = read_file()
     if len(projects) == 0:
         print('Проектов пока нет.')
+        main_menu()
     else:
         print('Список проектов:'
               '\n')
@@ -70,6 +71,9 @@ def view_projects():
 def choice_project():
     # Создаем нумерованный список проектов (с правильными названиями)
     projects = read_file()
+    if len(projects) == 0:
+        print('Проектов пока нет\n')
+        main_menu()
     project_list = list(projects.keys())
     print('Ваши проекты:\n')
     for i, project_name in enumerate(project_list, 1):
@@ -78,8 +82,9 @@ def choice_project():
         print(f"{i} - {display_name}")
 
     print()
-    choice = input('Введите номер проекта: ')
-
+    choice = input('Введите номер проекта или "0" для выхода: ')
+    if choice == '0':
+        main_menu()
     # Получаем выбранный проект (оригинальный ключ с _)
     selected_project = project_list[int(choice) - 1]
     return selected_project
