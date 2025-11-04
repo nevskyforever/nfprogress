@@ -1,20 +1,8 @@
-def read_file(filename):
-    with open(filename, 'r', encoding='UTF-8') as f:
-        data = f.readlines()
-        if data:
-            projects_lines = [line.replace('\n', '') for line in data]
-            return projects_lines
-    return []  # обязательно возвращаем пустой список
-
-def write_file(filename, pr_out):
-    with open(filename, 'w', encoding='UTF-8') as f:
-        f.write(pr_out)
-
 def main_menu():
     ch = False
     while ch == False:
         # Словарь функций
-        menu = {'1': view_projects, '2': new_project}
+        menu = {'1': view_projects, '2': new_project, '3': new_note, '4': delete_project}
 
         # Вывод меню
         ch = input('nfprogress 0.0.2\n'
@@ -22,59 +10,112 @@ def main_menu():
             'Что вы хотите сделать?\n'
             '1 - просмотреть проекты\n'
             '2 - добавить проект\n'
+            '3 - добавить запись\n'
+            '4 - удалить проект\n'
             '\n'
             'Выбор: ')
-        if ch in menu:
-            menu[ch]()
+        menu[ch]()
+    pass
+
+def read_file(filename='projects.txt'):
+    with open(filename, 'r', encoding='UTF-8') as f:
+        projects = {}
+        file = f.readlines()
+        if len(file) == 0:
+            return projects
         else:
-            print('Неверный выбор')
-            main_menu()
+            for line in file:
+                line = line.strip().split()
+                if '_' in line[0]:  # правильная проверка
+                    name = line[0].replace('_', ' ')  # подчеркивания обратно в пробелы
+                    projects[name] = line[1:]
+                else:
+                    projects[line[0]] = line[1:]
+            return projects # возврат после обработки ВСЕХ строк
+
+def write_file(data, filename='projects.txt'):
+    with open(filename, 'w', encoding='UTF-8') as f:
+        for project_name, project_data in data.items():
+            # Преобразуем список данных в строку через пробел
+            notes_str = ' '.join(str(item) for item in project_data)
+            f.write(f'{project_name} {notes_str}\n')
 
 def new_project():
-    print('Новый проект')
-    name = input('Название: ')
-    goal = input('Цель (в символах): ')
-
-    with open('projects.txt', 'a', encoding='utf-8') as f:
-        f.write(f"{name} {goal}\n")
-
-    print('Проект сохранен.')
-
+    projects = read_file()
+    print('Создание проекта')
+    name = input('Введите название: ').replace(' ', '_')  # пробелы в подчеркивания
+    goal = input('Введите цель (в символах): ')
+    projects[name] = [goal, '0']  # сохраняем как список
+    write_file(projects)
+    print('\n'
+          'Проект сохранен'
+          '\n')
     main_menu()
 
 def view_projects():
-    projects = read_file('projects.txt')
-    if projects:
-        for project in projects:
-            pr_out = project.split(' ')
-            if len(pr_out) >= 2:  # проверяем что есть хотя бы название и цель
-                if len(pr_out) > 2:  # если есть написанные символы
-                    written = round(sum([int(i) for i in pr_out[2:]]) / int(pr_out[1]) * 100)
-                else:  # если нет написанных символов
-                    written = 0
-                print(f'Название: {pr_out[0]}, цель: {pr_out[1]}, написано: {written}%')
-        choice = input('Что вы хотите сделать?\n'
-                       '1 - новая запись\n'
-                       '2 - выйти в меню\n'
-                       '\n'
-                       'Выбор: ')
-        menu = {'1': new_note, '2': main_menu}
-        if choice in menu:
-            menu[choice]()
+    projects = read_file()
+    if len(projects) == 0:
+        print('Проектов пока нет.')
     else:
-        print('Проектов пока нет')
-        menu = {'д': new_project, 'н': main_menu}
-        ch = input('Создать первый проект? (д/н): ')
-        if ch in menu:
-            menu[ch]()
+        print('Список проектов:'
+              '\n')
+        for project_name, project_data in projects.items():
+            goal = int(project_data[0])
+            current = int(project_data[1])
+            progress = round((current / goal) * 100) if goal > 0 else 0
+            print(f'{project_name}: цель {goal}, написано: {progress}%')
+            print()
+            main_menu()
 
-def open_project():
-    pass
+def choice_project():
+    # Создаем нумерованный список проектов (с правильными названиями)
+    projects = read_file()
+    project_list = list(projects.keys())
+    print('Ваши проекты:\n')
+    for i, project_name in enumerate(project_list, 1):
+        # Показываем названия с пробелами для пользователя
+        display_name = project_name.replace('_', ' ')
+        print(f"{i} - {display_name}")
+
+    print()
+    choice = input('Введите номер проекта: ')
+
+    # Получаем выбранный проект (оригинальный ключ с _)
+    selected_project = project_list[int(choice) - 1]
+    return selected_project
 
 def delete_project():
-    pass
+    projects = read_file()
+
+    print('Удаление проекта\n')
+
+    selected_project = choice_project()
+
+    del projects[selected_project]
+
+    write_file(projects)
+
+    print('Проект удален')
+
+    main_menu()
 
 def new_note():
-    pass
+    projects = read_file()
+
+    print('\nДобавление записи\n')
+
+    selected_project = choice_project()
+
+    # Добавляем запись в список проекта
+    new_symbols = input('Введите кол-во символов: ')
+
+    # Обновляем прогресс
+    current_progress = int(projects[selected_project][1])
+    new_progress = current_progress + int(new_symbols)
+    projects[selected_project][1] = str(new_progress)
+
+    write_file(projects)
+    print('Запись добавлена.')
+    main_menu()
 
 main_menu()
