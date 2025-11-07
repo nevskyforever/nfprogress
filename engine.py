@@ -131,7 +131,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu}
 
         # Вывод меню
-        ch = input('nfprogress 0.3.1.1\n'
+        ch = input('nfprogress 0.3.1.3\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть проекты\n'
