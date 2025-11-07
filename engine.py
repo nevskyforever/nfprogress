@@ -1,3 +1,5 @@
+import json
+
 def main_menu():
     ch = False
     while ch == False:
@@ -5,7 +7,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': delete_project}
 
         # Вывод меню
-        ch = input('nfprogress 0.1.0\n'
+        ch = input('nfprogress 0.2.0\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть проекты\n'
@@ -17,28 +19,17 @@ def main_menu():
         menu[ch]()
     pass
 
-def read_file(filename='projects.txt'):
-    with open(filename, 'r', encoding='UTF-8') as f:
-        projects = {}
-        file = f.readlines()
-        if len(file) == 0:
-            return projects
-        else:
-            for line in file:
-                line = line.strip().split()
-                if '_' in line[0]:  # правильная проверка
-                    name = line[0].replace('_', ' ')  # подчеркивания обратно в пробелы
-                    projects[name] = line[1:]
-                else:
-                    projects[line[0]] = line[1:]
-            return projects # возврат после обработки ВСЕХ строк
+def read_file(filename='projects.json'):
+    with open(filename, 'r') as f:
+        content = f.read().strip()
+        if not content:  # если файл пустой
+            return {}
+        data = json.load(f)
+        return data
 
-def write_file(data, filename='projects.txt'):
-    with open(filename, 'w', encoding='UTF-8') as f:
-        for project_name, project_data in data.items():
-            # Преобразуем список данных в строку через пробел
-            notes_str = ' '.join(str(item) for item in project_data)
-            f.write(f'{project_name} {notes_str}\n')
+def write_file(data, filename='projects.json'):
+    with open(filename, 'w') as f:
+        json.dump(data, f)
 
 def new_project():
     projects = read_file()
