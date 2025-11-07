@@ -89,6 +89,7 @@ def change_project_menu():
         del projects[selected_project]
         write_file(projects)
         print('Проект удален')
+        change_project_menu()
 
     def change_name():
         projects = read_file()
@@ -99,6 +100,7 @@ def change_project_menu():
         del projects[selected_project]
         write_file(projects)
         print('Имя проекта успешно изменено')
+        change_project_menu()
 
     def change_goal():
         projects = read_file()
@@ -107,6 +109,7 @@ def change_project_menu():
         projects[selected_project]['goal'] = int(input('Введите новую цель (в символах): '))
         write_file(projects)
         print(f'Цель {selected_project} успешно изменена!')
+        change_project_menu()
 
     change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': main_menu}
 
@@ -114,7 +117,8 @@ def change_project_menu():
                               '1 - удалить проект\n'
                               '2 - переименовать проект\n'
                               '3 - изменить цель проекта\n'
-                              '4 - выйти в главное меню')
+                              '4 - выйти в главное меню\n'
+                              'Выбор: ')
 
     change_menu[choice_for_change]()
 
