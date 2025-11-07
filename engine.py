@@ -4,16 +4,15 @@ def main_menu():
     ch = False
     while ch == False:
         # Словарь функций
-        menu = {'1': view_projects, '2': new_project, '3': new_note, '4': delete_project}
+        menu = {'1': view_projects, '2': new_project, '3': new_note}
 
         # Вывод меню
-        ch = input('nfprogress 0.2.0\n'
+        ch = input('nfprogress 0.3.0\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть проекты\n'
             '2 - добавить проект\n'
             '3 - добавить запись\n'
-            '4 - удалить проект\n'
             '\n'
             'Выбор: ')
         menu[ch]()
@@ -24,6 +23,7 @@ def read_file(filename='projects.json'):
         content = f.read().strip()
         if not content:  # если файл пустой
             return {}
+        f.seek(0)
         data = json.load(f)
         return data
 
@@ -36,7 +36,7 @@ def new_project():
     print('Создание проекта')
     name = input('Введите название: ').replace(' ', '_')  # пробелы в подчеркивания
     goal = input('Введите цель (в символах): ')
-    projects[name] = [goal, '0']  # сохраняем как список
+    projects[name] = {'goal': int(goal), 'symbols': 0, 'progress': 0}  # сохраняем как список
     write_file(projects)
     print('\n'
           'Проект сохранен'
@@ -46,18 +46,16 @@ def new_project():
 def view_projects():
     projects = read_file()
     if len(projects) == 0:
-        print('Проектов пока нет.')
-        main_menu()
+        print('Проектов пока нет.\n')
     else:
-        print('Список проектов:'
-              '\n')
-        for project_name, project_data in projects.items():
-            goal = int(project_data[0])
-            current = int(project_data[1])
-            progress = round((current / goal) * 100) if goal > 0 else 0
-            print(f'{project_name}: цель {goal}, написано: {progress}%')
-            print()
-            main_menu()
+        print('Список проектов:\n')
+        for name, data in projects.items():
+            display_name = name.replace('_', ' ')
+            goal = data['goal']
+            symbols = data['symbols']
+            progress = (symbols / goal * 100) if goal > 0 else 0
+            print(f'Название: {display_name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%)')
+        print()
 
 def choice_project():
     # Создаем нумерованный список проектов (с правильными названиями)
@@ -106,9 +104,7 @@ def new_note():
     new_symbols = input('Введите кол-во символов: ')
 
     # Обновляем прогресс
-    current_progress = int(projects[selected_project][1])
-    new_progress = current_progress + int(new_symbols)
-    projects[selected_project][1] = str(new_progress)
+    projects[selected_project]['symbols'] = int(projects[selected_project]['symbols']) + int(new_symbols)
 
     write_file(projects)
     print('Запись добавлена.')
