@@ -71,7 +71,9 @@ def new_note():
     selected_project = choice_project()
 
     # Добавляем запись в список проекта
-    new_symbols = input('Введите кол-во символов: ')
+    new_symbols = input('Введите кол-во символов или "0" для выхода: ')
+    if new_symbols == '0':
+        main_menu()
 
     # Обновляем прогресс
     projects[selected_project]['symbols'] = int(projects[selected_project]['symbols']) + int(new_symbols)
