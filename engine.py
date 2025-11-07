@@ -38,6 +38,9 @@ def view_projects():
             progress = (symbols / goal * 100) if goal > 0 else 0
             print(f'Название: {display_name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%)')
         print()
+        choice = input('Вернуться в главное меню? (введите 0): ')
+        if choice == '0':
+            main_menu()
 
 def choice_project():
     # Создаем нумерованный список проектов (с правильными названиями)
