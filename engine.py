@@ -1,23 +1,5 @@
 import json
 
-def main_menu():
-    ch = False
-    while ch == False:
-        # Словарь функций
-        menu = {'1': view_projects, '2': new_project, '3': new_note}
-
-        # Вывод меню
-        ch = input('nfprogress 0.3.0\n'
-              '\n'
-            'Что вы хотите сделать?\n'
-            '1 - просмотреть проекты\n'
-            '2 - добавить проект\n'
-            '3 - добавить запись\n'
-            '\n'
-            'Выбор: ')
-        menu[ch]()
-    pass
-
 def read_file(filename='projects.json'):
     with open(filename, 'r') as f:
         content = f.read().strip()
@@ -78,21 +60,6 @@ def choice_project():
     selected_project = project_list[int(choice) - 1]
     return selected_project
 
-def delete_project():
-    projects = read_file()
-
-    print('Удаление проекта\n')
-
-    selected_project = choice_project()
-
-    del projects[selected_project]
-
-    write_file(projects)
-
-    print('Проект удален')
-
-    main_menu()
-
 def new_note():
     projects = read_file()
 
@@ -109,5 +76,61 @@ def new_note():
     write_file(projects)
     print('Запись добавлена.')
     main_menu()
+
+def change_project_menu():
+
+    def delete_project():
+        print('Удаление проекта\n')
+        projects = read_file()
+        selected_project = choice_project()
+        del projects[selected_project]
+        write_file(projects)
+        print('Проект удален')
+
+    def change_name():
+        projects = read_file()
+        print('Переименование проекта\n')
+        selected_project = choice_project()
+        new_name = input('Введите новое имя проекта: ')
+        projects[new_name] = projects[selected_project]
+        del projects[selected_project]
+        write_file(projects)
+        print('Имя проекта успешно изменено')
+
+    def change_goal():
+        projects = read_file()
+        print('Изменение цели проекта')
+        selected_project = choice_project()
+        projects[selected_project]['goal'] = int(input('Введите новую цель (в символах): '))
+        write_file(projects)
+        print(f'Цель {selected_project} успешно изменена!')
+
+    change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': main_menu}
+
+    choice_for_change = input('Что вы хотите сделать?\n'
+                              '1 - удалить проект\n'
+                              '2 - переименовать проект\n'
+                              '3 - изменить цель проекта\n'
+                              '4 - выйти в главное меню')
+
+    change_menu[choice_for_change]()
+
+def main_menu():
+    ch = False
+    while ch == False:
+        # Словарь функций
+        menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu}
+
+        # Вывод меню
+        ch = input('nfprogress 0.3.1\n'
+              '\n'
+            'Что вы хотите сделать?\n'
+            '1 - просмотреть проекты\n'
+            '2 - добавить проект\n'
+            '3 - добавить запись\n'
+            '4 - изменить проекты'
+            '\n'
+            'Выбор: ')
+        menu[ch]()
 
 main_menu()
