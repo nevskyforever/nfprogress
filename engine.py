@@ -14,11 +14,15 @@ def write_file(data, filename='projects.json'):
         json.dump(data, f)
 
 def new_project():
+    import datetime
     projects = read_file()
     print('Создание проекта')
-    name = input('Введите название: ').replace(' ', '_')  # пробелы в подчеркивания
+    name = input('Введите название: ')  # пробелы в подчеркивания
     goal = input('Введите цель (в символах): ')
-    projects[name] = {'goal': int(goal), 'symbols': 0, 'progress': 0}  # сохраняем как список
+    projects[name] = {'goal': int(goal),
+                      'symbols': 0,
+                      'deadline': 'Нет',
+                      'created': f'{datetime.date.today()}'}  # сохраняем как словарь
     write_file(projects)
     print('\n'
           'Проект сохранен'
@@ -36,11 +40,49 @@ def view_projects():
             goal = data['goal']
             symbols = data['symbols']
             progress = (symbols / goal * 100) if goal > 0 else 0
-            print(f'Название: {display_name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%)')
+            print(f'Название: {display_name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
+                  f' дедлайн: {data["deadline"]}')
         print()
         choice = input('Вернуться в главное меню? (введите 0): ')
         if choice == '0':
             main_menu()
+
+def more_about_projects():
+    from datetime import datetime
+    print('Детальный просмотр проекта\n')
+    projects = read_file()
+    project_name = choice_project()  # choice_project возвращает имя проекта (строку)
+
+    # Получаем данные проекта по имени
+    project_data = projects[project_name]
+
+    # Отображаем название с пробелами вместо подчеркиваний
+    display_name = project_name.replace('_', ' ')
+
+    print(f'Название: {display_name}\n'
+          f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
+
+    # Проверяем наличие дедлайна
+    if 'deadline' not in project_data or project_data['deadline'] == 'Нет':
+        print('Дедлайн: не установлен')
+    else:
+        # Преобразуем строку с дедлайном в объект datetime
+        deadline_date = datetime.strptime(project_data['deadline'], '%d.%m.%Y').date()
+        today = datetime.today().date()
+
+        # Считаем разницу в днях
+        days_difference = (deadline_date - today).days
+
+        if days_difference > 0:
+            print(f'Дедлайн: осталось {days_difference} дней')
+        elif days_difference < 0:
+            print(f'Дедлайн: просрочен на {days_difference} дней')
+        else:
+            print('Дедлайн: сегодня!')
+
+    ext = int(input('Для выхода меню выбора проектов введите "0": '))
+    if ext == 0:
+        more_about_projects()
 
 def choice_project():
     # Создаем нумерованный список проектов (с правильными названиями)
@@ -113,13 +155,26 @@ def change_project_menu():
         print(f'Цель {selected_project} успешно изменена!')
         change_project_menu()
 
-    change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': main_menu}
+    def project_deadline():
+        from datetime import datetime
+        print('Установка/изменение дедлайна\n')
+        projects = read_file()
+        selected_project = choice_project()
+        date_input = input("Введите дату (дд.мм.гггг): ")
+        given_date = datetime.strptime(date_input, '%d.%m.%Y')
+        deadline = given_date.strftime('%d.%m.%Y')
+        projects[selected_project]['deadline'] = deadline
+        write_file(projects)
+        change_project_menu()
+
+    change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': project_deadline, '5': main_menu}
 
     choice_for_change = input('Что вы хотите сделать?\n'
                               '1 - удалить проект\n'
                               '2 - переименовать проект\n'
                               '3 - изменить цель проекта\n'
-                              '4 - выйти в главное меню\n'
+                              '4 - изменить дедлайн проекта\n'
+                              '5 - выйти в главное меню\n'
                               'Выбор: ')
 
     change_menu[choice_for_change]()
@@ -128,16 +183,17 @@ def main_menu():
     ch = False
     while ch == False:
         # Словарь функций
-        menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu}
+        menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
 
         # Вывод меню
-        ch = input('nfprogress 0.3.1.3\n'
+        ch = input('nfprogress 0.4\n'
               '\n'
             'Что вы хотите сделать?\n'
-            '1 - просмотреть проекты\n'
+            '1 - просмотреть список проектов\n'
             '2 - добавить проект\n'
             '3 - добавить запись\n'
-            '4 - изменить проекты'
+            '4 - изменить проекты\n'
+            '5 - посмотреть подробности проектов\n'
             '\n'
             'Выбор: ')
         menu[ch]()
