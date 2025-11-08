@@ -130,9 +130,14 @@ def change_project_menu():
         print('Удаление проекта\n')
         projects = read_file()
         selected_project = choice_project()
-        del projects[selected_project]
-        write_file(projects)
-        print('Проект удален')
+        done = int(input('Подтвердите удаление (введите 0 для отмены или 1 для удаления): '))
+        if done == 1:
+            del projects[selected_project]
+            write_file(projects)
+            print('\nПроект удален\n')
+            change_project_menu()
+        else:
+            print('\nУдаление отменено\n')
         change_project_menu()
 
     def change_name():
@@ -143,7 +148,7 @@ def change_project_menu():
         projects[new_name] = projects[selected_project]
         del projects[selected_project]
         write_file(projects)
-        print('Имя проекта успешно изменено')
+        print('\nИмя проекта успешно изменено\n')
         change_project_menu()
 
     def change_goal():
@@ -152,7 +157,7 @@ def change_project_menu():
         selected_project = choice_project()
         projects[selected_project]['goal'] = int(input('Введите новую цель (в символах): '))
         write_file(projects)
-        print(f'Цель {selected_project} успешно изменена!')
+        print(f'\nЦель {selected_project} успешно изменена!\n')
         change_project_menu()
 
     def project_deadline():
@@ -160,12 +165,18 @@ def change_project_menu():
         print('Установка/изменение дедлайна\n')
         projects = read_file()
         selected_project = choice_project()
-        date_input = input("Введите дату (дд.мм.гггг): ")
-        given_date = datetime.strptime(date_input, '%d.%m.%Y')
-        deadline = given_date.strftime('%d.%m.%Y')
-        projects[selected_project]['deadline'] = deadline
-        write_file(projects)
-        change_project_menu()
+        date_input = input('Введите дату (дд.мм.гггг) или "0" для ее удаления: ')
+        if date_input == '0':
+            projects[selected_project]['deadline'] = 'Нет'
+            write_file(projects)
+            print('\nДедлайн удален\n')
+            change_project_menu()
+        else:
+            given_date = datetime.strptime(date_input, '%d.%m.%Y')
+            deadline = given_date.strftime('%d.%m.%Y')
+            projects[selected_project]['deadline'] = deadline
+            write_file(projects)
+            change_project_menu()
 
     change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': project_deadline, '5': main_menu}
 
@@ -186,7 +197,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
 
         # Вывод меню
-        ch = input('nfprogress 0.4\n'
+        ch = input('nfprogress 0.4.1\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть список проектов\n'
