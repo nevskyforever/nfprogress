@@ -71,7 +71,8 @@ def more_about_projects():
     # Отображаем название с пробелами вместо подчеркиваний
     display_name = project_name.replace('_', ' ')
 
-    print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}\n')
+    print(f'\nНазвание: {display_name}')
+    print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
 
     # Проверяем наличие дедлайна
     if 'deadline' not in project_data or project_data['deadline'] == 'Нет':
@@ -90,6 +91,8 @@ def more_about_projects():
             print(f'Дедлайн: просрочен на {days_difference} дней')
         else:
             print('Дедлайн: сегодня!')
+
+    print(f'Дата создания: {project_data["created"]}\n')
 
     ext = int(input('Для выхода меню выбора проектов введите "0": '))
     if ext == 0:
@@ -197,14 +200,14 @@ def change_project_menu():
             write_file(projects)
             change_project_menu()
 
-    change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': project_deadline, '5': main_menu}
+    change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': project_deadline, '0': main_menu}
 
     choice_for_change = input('Что вы хотите сделать?\n'
                               '1 - удалить проект\n'
                               '2 - переименовать проект\n'
                               '3 - изменить цель проекта\n'
                               '4 - изменить дедлайн проекта\n'
-                              '5 - выйти в главное меню\n'
+                              '0 - выйти в главное меню\n'
                               'Выбор: ')
 
     change_menu[choice_for_change]()
@@ -216,7 +219,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
 
         # Вывод меню
-        ch = input('nfprogress 0.5\n'
+        ch = input('nfprogress 0.5.1\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть список проектов\n'
