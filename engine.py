@@ -1,17 +1,18 @@
-import json
+import pickle
 
-def read_file(filename='projects.json'):
-    with open(filename, 'r') as f:
-        content = f.read().strip()
-        if not content:  # если файл пустой
-            return {}
-        f.seek(0)
-        data = json.load(f)
-        return data
+def read_file(filename='projects.pkl'):
+    try:
+        with open(filename, 'rb') as f:
+            data = pickle.load(f)
+            return data
+    except (FileNotFoundError, EOFError):
+        # FileNotFoundError - файла нет
+        # EOFError - файл пустой
+        return {}
 
-def write_file(data, filename='projects.json'):
-    with open(filename, 'w') as f:
-        json.dump(data, f)
+def write_file(data, filename='projects.pkl'):
+    with open(filename, 'wb') as f:
+        pickle.dump(data, f)
 
 def new_project():
     import datetime
@@ -21,26 +22,37 @@ def new_project():
     goal = input('Введите цель (в символах): ')
     projects[name] = {'goal': int(goal),
                       'symbols': 0,
+                      'notes': [],
                       'deadline': 'Нет',
-                      'created': f'{datetime.date.today()}'}  # сохраняем как словарь
+                      'created': f'{datetime.date.today().strftime('%d.%m.%Y')}'}  # сохраняем как словарь
     write_file(projects)
     print('\n'
           'Проект сохранен'
           '\n')
     main_menu()
 
+def calculate_progress():
+    projects = read_file()
+    for name, data in projects.items():
+        total = 0
+        notes = data['notes']
+        for note in notes:
+            total += note[0]
+        projects[name]['symbols'] = total
+    write_file(projects)
+
 def view_projects():
     projects = read_file()
     if len(projects) == 0:
         print('Проектов пока нет.\n')
+        main_menu()
     else:
         print('Список проектов:\n')
         for name, data in projects.items():
-            display_name = name.replace('_', ' ')
             goal = data['goal']
             symbols = data['symbols']
             progress = (symbols / goal * 100) if goal > 0 else 0
-            print(f'Название: {display_name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
+            print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
                   f' дедлайн: {data["deadline"]}')
         print()
         choice = input('Вернуться в главное меню? (введите 0): ')
@@ -59,8 +71,7 @@ def more_about_projects():
     # Отображаем название с пробелами вместо подчеркиваний
     display_name = project_name.replace('_', ' ')
 
-    print(f'Название: {display_name}\n'
-          f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
+    print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}\n')
 
     # Проверяем наличие дедлайна
     if 'deadline' not in project_data or project_data['deadline'] == 'Нет':
@@ -106,6 +117,8 @@ def choice_project():
     return selected_project
 
 def new_note():
+    import datetime
+
     projects = read_file()
 
     print('\nДобавление записи\n')
@@ -118,9 +131,14 @@ def new_note():
         main_menu()
 
     # Обновляем прогресс
-    projects[selected_project]['symbols'] = int(projects[selected_project]['symbols']) + int(new_symbols)
+
+    notes = projects[selected_project]['notes']
+    notes.append([int(new_symbols), datetime.date.today().strftime('%d.%m.%Y')])
+    projects[selected_project]['notes'] = notes
 
     write_file(projects)
+    calculate_progress()
+
     print('Запись добавлена.')
     main_menu()
 
@@ -156,6 +174,7 @@ def change_project_menu():
         print('Изменение цели проекта')
         selected_project = choice_project()
         projects[selected_project]['goal'] = int(input('Введите новую цель (в символах): '))
+        calculate_progress()
         write_file(projects)
         print(f'\nЦель {selected_project} успешно изменена!\n')
         change_project_menu()
@@ -197,7 +216,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
 
         # Вывод меню
-        ch = input('nfprogress 0.4.1\n'
+        ch = input('nfprogress 0.5\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть список проектов\n'
