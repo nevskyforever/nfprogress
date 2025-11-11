@@ -1,4 +1,6 @@
 import pickle
+from itertools import count
+
 
 def read_file(filename='projects.pkl'):
     try:
@@ -22,6 +24,7 @@ def new_project():
     goal = input('Введите цель (в символах): ')
     projects[name] = {'goal': int(goal),
                       'symbols': 0,
+                      'progress': 0,
                       'notes': [],
                       'deadline': 'Нет',
                       'created': f'{datetime.date.today().strftime('%d.%m.%Y')}'}  # сохраняем как словарь
@@ -39,6 +42,8 @@ def calculate_progress():
         for note in notes:
             total += note[0]
         projects[name]['symbols'] = total
+    for name, data in projects.items():
+        projects[name]['progress'] = (data['symbols'] / data['goal'] * 100) if data['goal'] > 0 else 0
     write_file(projects)
 
 def view_projects():
@@ -51,7 +56,7 @@ def view_projects():
         for name, data in projects.items():
             goal = data['goal']
             symbols = data['symbols']
-            progress = (symbols / goal * 100) if goal > 0 else 0
+            progress = data['progress']
             print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
                   f' дедлайн: {data["deadline"]}')
         print()
@@ -59,45 +64,42 @@ def view_projects():
         if choice == '0':
             main_menu()
 
+
 def more_about_projects():
     from datetime import datetime
     print('Детальный просмотр проекта\n')
     projects = read_file()
-    project_name = choice_project()  # choice_project возвращает имя проекта (строку)
+    project_name = choice_project()
 
-    # Получаем данные проекта по имени
+    # Получаем данные выбранного проекта
     project_data = projects[project_name]
 
-    # Отображаем название с пробелами вместо подчеркиваний
-    display_name = project_name.replace('_', ' ')
+    print(f'Название: {project_name}\n'
+          f'Дедлайн: {project_data["deadline"]}\n'
+          f'Прогресс: {project_data["progress"]:.1f}%\n'
+          f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}\n'
+          f'Дата создания: {project_data["created"]}\n'
+          f'Кол-во записей: {len(project_data["notes"])}\n')
 
-    print(f'\nНазвание: {display_name}')
-    print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
-
-    # Проверяем наличие дедлайна
-    if 'deadline' not in project_data or project_data['deadline'] == 'Нет':
-        print('Дедлайн: не установлен')
-    else:
-        # Преобразуем строку с дедлайном в объект datetime
-        deadline_date = datetime.strptime(project_data['deadline'], '%d.%m.%Y').date()
-        today = datetime.today().date()
-
-        # Считаем разницу в днях
-        days_difference = (deadline_date - today).days
-
-        if days_difference > 0:
-            print(f'Дедлайн: осталось {days_difference} дней')
-        elif days_difference < 0:
-            print(f'Дедлайн: просрочен на {days_difference} дней')
-        else:
-            print('Дедлайн: сегодня!')
-
-    print(f'Дата создания: {project_data["created"]}\n')
-
-    ext = int(input('Для выхода меню выбора проектов введите "0": '))
-    if ext == 0:
+    ext = input('Для выхода в меню выбора проектов введите "0"\n'
+                'Для просмотра записей выбранного проекта введите "1": ')
+    if ext == '0':
         more_about_projects()
+    else:
+        print(f'Просмотр записей {project_name}\n')
 
+        # Проверяем записи только выбранного проекта
+        if len(project_data['notes']) == 0:
+            print('Записей пока нет\n')
+            more_about_projects()
+        else:
+            # Выводим ВСЕ записи сразу
+            for i, note in enumerate(project_data['notes'], 1):
+                print(f'{i}. {note[1]}: {note[0]} символов')
+
+            # Запрос выхода только после показа всех записей
+            cancel = input('\nНажмите Enter для возврата в меню проектов: ')
+            more_about_projects()
 def choice_project():
     # Создаем нумерованный список проектов (с правильными названиями)
     projects = read_file()
@@ -120,7 +122,7 @@ def choice_project():
     return selected_project
 
 def new_note():
-    import datetime
+    from datetime import datetime
 
     projects = read_file()
 
@@ -136,7 +138,7 @@ def new_note():
     # Обновляем прогресс
 
     notes = projects[selected_project]['notes']
-    notes.append([int(new_symbols), datetime.date.today().strftime('%d.%m.%Y')])
+    notes.append([int(new_symbols), datetime.now().strftime('%d.%m.%Y %H:%M')])
     projects[selected_project]['notes'] = notes
 
     write_file(projects)
