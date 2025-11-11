@@ -60,10 +60,9 @@ def view_projects():
             print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
                   f' дедлайн: {data["deadline"]}')
         print()
-        choice = input('Вернуться в главное меню? (введите 0): ')
-        if choice == '0':
+        choice = input('Нажмите Enter для возврата в главное меню: ')
+        if choice == '':
             main_menu()
-
 
 def more_about_projects():
     from datetime import datetime
@@ -81,9 +80,9 @@ def more_about_projects():
           f'Дата создания: {project_data["created"]}\n'
           f'Кол-во записей: {len(project_data["notes"])}\n')
 
-    ext = input('Для выхода в меню выбора проектов введите "0"\n'
+    ext = input('Нажмите Enter для выхода в меню выбора проектов\n'
                 'Для просмотра записей выбранного проекта введите "1": ')
-    if ext == '0':
+    if ext == '':
         more_about_projects()
     else:
         print(f'Просмотр записей {project_name}\n')
@@ -99,7 +98,9 @@ def more_about_projects():
 
             # Запрос выхода только после показа всех записей
             cancel = input('\nНажмите Enter для возврата в меню проектов: ')
-            more_about_projects()
+            if cancel == '':
+                more_about_projects()
+
 def choice_project():
     # Создаем нумерованный список проектов (с правильными названиями)
     projects = read_file()
@@ -114,8 +115,8 @@ def choice_project():
         print(f"{i} - {display_name}")
 
     print()
-    choice = input('Введите номер проекта или "0" для выхода: ')
-    if choice == '0':
+    choice = input('Введите номер проекта или нажмите Enter для выхода: ')
+    if choice == '':
         main_menu()
     # Получаем выбранный проект (оригинальный ключ с _)
     selected_project = project_list[int(choice) - 1]
@@ -131,8 +132,8 @@ def new_note():
     selected_project = choice_project()
 
     # Добавляем запись в список проекта
-    new_symbols = input('Введите кол-во символов или "0" для выхода: ')
-    if new_symbols == '0':
+    new_symbols = input('Введите кол-во символов или нажмите Enter для выхода: ')
+    if new_symbols == '':
         main_menu()
 
     # Обновляем прогресс
@@ -153,8 +154,8 @@ def change_project_menu():
         print('Удаление проекта\n')
         projects = read_file()
         selected_project = choice_project()
-        done = int(input('Подтвердите удаление (введите 0 для отмены или 1 для удаления): '))
-        if done == 1:
+        done = input('Подтвердите удаление (нажмите Enter для отмены или введите "1" для удаления): ')
+        if done == '1':
             del projects[selected_project]
             write_file(projects)
             print('\nПроект удален\n')
@@ -189,8 +190,8 @@ def change_project_menu():
         print('Установка/изменение дедлайна\n')
         projects = read_file()
         selected_project = choice_project()
-        date_input = input('Введите дату (дд.мм.гггг) или "0" для ее удаления: ')
-        if date_input == '0':
+        date_input = input('Введите дату (дд.мм.гг) или нажмите Enter для ее удаления: ')
+        if date_input == '':
             projects[selected_project]['deadline'] = 'Нет'
             write_file(projects)
             print('\nДедлайн удален\n')
@@ -202,14 +203,14 @@ def change_project_menu():
             write_file(projects)
             change_project_menu()
 
-    change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': project_deadline, '0': main_menu}
+    change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': project_deadline, '': main_menu}
 
     choice_for_change = input('Что вы хотите сделать?\n'
                               '1 - удалить проект\n'
                               '2 - переименовать проект\n'
                               '3 - изменить цель проекта\n'
                               '4 - изменить дедлайн проекта\n'
-                              '0 - выйти в главное меню\n'
+                              'Нажмите Enter для выхода в главное меню\n'
                               'Выбор: ')
 
     change_menu[choice_for_change]()
@@ -221,7 +222,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
 
         # Вывод меню
-        ch = input('nfprogress 0.6.1\n'
+        ch = input('nfprogress 0.6.2\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть список проектов\n'
