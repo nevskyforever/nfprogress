@@ -27,7 +27,7 @@ def new_project():
                       'progress': 0,
                       'notes': [],
                       'deadline': 'Нет',
-                      'created': f'{datetime.date.today().strftime('%d.%m.%Y')}'}  # сохраняем как словарь
+                      'created': f'{datetime.date.today().strftime('%d.%m.%y')}'}  # сохраняем как словарь
     write_file(projects)
     print('\n'
           'Проект сохранен'
@@ -138,7 +138,7 @@ def new_note():
     # Обновляем прогресс
 
     notes = projects[selected_project]['notes']
-    notes.append([int(new_symbols), datetime.now().strftime('%d.%m.%Y %H:%M')])
+    notes.append([int(new_symbols), datetime.now().strftime('%d.%m.%y %H:%M')])
     projects[selected_project]['notes'] = notes
 
     write_file(projects)
@@ -196,8 +196,8 @@ def change_project_menu():
             print('\nДедлайн удален\n')
             change_project_menu()
         else:
-            given_date = datetime.strptime(date_input, '%d.%m.%Y')
-            deadline = given_date.strftime('%d.%m.%Y')
+            given_date = datetime.strptime(date_input, '%d.%m.%y')
+            deadline = given_date.strftime('%d.%m.%y')
             projects[selected_project]['deadline'] = deadline
             write_file(projects)
             change_project_menu()
@@ -221,7 +221,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
 
         # Вывод меню
-        ch = input('nfprogress 0.5.1\n'
+        ch = input('nfprogress 0.6.1\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть список проектов\n'
