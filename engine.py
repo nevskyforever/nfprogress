@@ -78,7 +78,8 @@ def more_about_projects():
           f'Прогресс: {project_data["progress"]:.1f}%\n'
           f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}\n'
           f'Дата создания: {project_data["created"]}\n'
-          f'Кол-во записей: {len(project_data["notes"])}\n')
+          f'Кол-во записей: {len(project_data["notes"])}\n'
+          f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
 
     ext = input('Нажмите Enter для выхода в меню выбора проектов\n'
                 'Для просмотра записей выбранного проекта введите "1": ')
@@ -222,7 +223,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
 
         # Вывод меню
-        ch = input('nfprogress 0.6.2\n'
+        ch = input('nfprogress 0.6.3\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть список проектов\n'
