@@ -76,8 +76,12 @@ def view_projects():
             goal = data['goal']
             symbols = data['symbols']
             progress = data['progress']
-            print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
+            if data['deadline'] != 'Нет':
+                print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
                   f' дедлайн: {data["deadline"]} - {data["deadline_flag"]}')
+            else:
+                print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
+                      f' дедлайн: {data["deadline"]}')
         print()
         choice = input('Нажмите Enter для возврата в главное меню: ')
         if choice == '':
