@@ -1,6 +1,6 @@
 import pickle
-from itertools import count
-
+import locale
+locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 
 def read_file(filename='projects.pkl'):
     try:
@@ -34,7 +34,7 @@ def new_project():
           '\n')
     main_menu()
 
-def calculate_progress():
+def upd_projects():
     projects = read_file()
     for name, data in projects.items():
         total = 0
@@ -73,13 +73,28 @@ def more_about_projects():
     # Получаем данные выбранного проекта
     project_data = projects[project_name]
 
-    print(f'Название: {project_name}\n'
-          f'Дедлайн: {project_data["deadline"]}\n'
-          f'Прогресс: {project_data["progress"]:.1f}%\n'
-          f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}\n'
-          f'Дата создания: {project_data["created"]}\n'
-          f'Кол-во записей: {len(project_data["notes"])}\n'
-          f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
+    print(f'Название: {project_name}')
+
+    deadline_str = project_data["deadline"]
+    if deadline_str != 'Нет':
+        deadline_date = datetime.strptime(deadline_str, '%d.%m.%y')
+        days_left = (deadline_date - datetime.today()).days
+        if days_left > 0:
+            print(f'Дедлайн: {project_data["deadline"]} - осталось {days_left} дней')
+        else:
+            print(f'Дедлайн: {project_data["deadline"]} - просрочено на {abs(days_left)} дней')
+        print(f'Прогресс: {project_data["progress"]:.1f}%')
+        print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
+        print(f'Дата создания: {project_data["created"]}')
+        print(f'Кол-во записей: {len(project_data["notes"])}')
+        print(f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
+    else:
+        print(f'Дедлайн: {project_data['deadline']}')
+        print(f'Прогресс: {project_data["progress"]:.1f}%')
+        print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
+        print(f'Дата создания: {project_data["created"]}')
+        print(f'Кол-во записей: {len(project_data["notes"])}')
+        print(f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
 
     ext = input('Нажмите Enter для выхода в меню выбора проектов\n'
                 'Для просмотра записей выбранного проекта введите "1": ')
@@ -144,7 +159,7 @@ def new_note():
     projects[selected_project]['notes'] = notes
 
     write_file(projects)
-    calculate_progress()
+    update_projects()
 
     print('Запись добавлена.')
     main_menu()
@@ -181,7 +196,7 @@ def change_project_menu():
         print('Изменение цели проекта')
         selected_project = choice_project()
         projects[selected_project]['goal'] = int(input('Введите новую цель (в символах): '))
-        calculate_progress()
+        update_projects()
         write_file(projects)
         print(f'\nЦель {selected_project} успешно изменена!\n')
         change_project_menu()
