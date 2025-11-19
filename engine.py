@@ -252,6 +252,7 @@ def change_project_menu():
     change_menu[choice_for_change]()
 
 def main_menu():
+    upd_projects()
     ch = False
     while ch == False:
         # Словарь функций
@@ -270,5 +271,4 @@ def main_menu():
             'Выбор: ')
         menu[ch]()
 
-upd_projects()
 main_menu()
