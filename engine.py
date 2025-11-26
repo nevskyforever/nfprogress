@@ -50,11 +50,11 @@ def upd_projects():
 
     # Подсчет дней дедлайна
     for name, data in projects.items():
-        deadline_str = data['deadline']  # ОШИБКА: было deadline = projects[name]['deadline']
+        deadline_str = data['deadline']
         if deadline_str == 'Нет':
             continue
         else:
-            deadline = datetime.strptime(deadline_str, '%d.%m.%y')  # ОШИБКА: было deadline_str вместо deadline_str
+            deadline = datetime.strptime(deadline_str, '%d.%m.%y')
             deadline_days = (deadline - datetime.today()).days
             if deadline_days > 0:
                 projects[name]['deadline_days'] = deadline_days
@@ -76,9 +76,12 @@ def view_projects():
             goal = data['goal']
             symbols = data['symbols']
             progress = data['progress']
+            last_note = data['notes'][-1]
+            last_note = f'{last_note[1]}'
             if data['deadline'] != 'Нет':
                 print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
-                  f' дедлайн: {data["deadline"]} - {data["deadline_flag"]}')
+                      f' дедлайн: {data["deadline"]} - {data["deadline_flag"]}, '
+                      f'дата последней записи: {last_note}')
             else:
                 print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
                       f' дедлайн: {data["deadline"]}')
@@ -96,6 +99,9 @@ def more_about_projects():
     # Получаем данные выбранного проекта
     project_data = projects[project_name]
 
+    last_note = project_data['notes'][-1]
+    last_note = f'{last_note[1]} - {last_note[0]} символов'
+
     print(f'Название: {project_name}')
 
     if project_data["deadline"] != 'Нет':
@@ -106,6 +112,7 @@ def more_about_projects():
         print(f'Прогресс: {project_data["progress"]:.1f}%')
         print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
         print(f'Дата создания: {project_data["created"]}')
+        print(f'Последняя запись: {last_note}')
         print(f'Кол-во записей: {len(project_data["notes"])}')
         print(f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
     else:
@@ -113,6 +120,7 @@ def more_about_projects():
         print(f'Прогресс: {project_data["progress"]:.1f}%')
         print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
         print(f'Дата создания: {project_data["created"]}')
+        print(f'Последняя запись: {last_note}')
         print(f'Кол-во записей: {len(project_data["notes"])}')
         print(f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
 
@@ -223,21 +231,31 @@ def change_project_menu():
 
     def project_deadline():
         from datetime import datetime
+        from datetime import timedelta
         print('Установка/изменение дедлайна\n')
         projects = read_file()
         selected_project = choice_project()
-        date_input = input('Введите дату (дд.мм.гг) или нажмите Enter для ее удаления: ')
+        date_input = input('Введите дату (дд.мм.гг) / количество дней (число) или нажмите Enter для ее удаления: ')
         if date_input == '':
             projects[selected_project]['deadline'] = 'Нет'
             write_file(projects)
             print('\nДедлайн удален\n')
             change_project_menu()
         else:
-            given_date = datetime.strptime(date_input, '%d.%m.%y')
-            deadline = given_date.strftime('%d.%m.%y')
-            projects[selected_project]['deadline'] = deadline
-            write_file(projects)
-            change_project_menu()
+            if date_input.isdigit():
+                deadline = datetime.now() + timedelta(days=int(date_input))
+                deadline = deadline.strftime('%d.%m.%y')
+                projects[selected_project]['deadline'] = deadline
+                write_file(projects)
+                print('Дата дедлайна сохранена!')
+                change_project_menu()
+            else:
+                given_date = datetime.strptime(date_input, '%d.%m.%y')
+                deadline = given_date.strftime('%d.%m.%y')
+                projects[selected_project]['deadline'] = deadline
+                write_file(projects)
+                print('Дата дедлайна сохранена!')
+                change_project_menu()
 
     change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': project_deadline, '': main_menu}
 
@@ -259,7 +277,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
 
         # Вывод меню
-        ch = input('nfprogress 0.6.6\n'
+        ch = input('nfprogress 0.6.8\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть список проектов\n'
