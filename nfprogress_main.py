@@ -1,14 +1,14 @@
-"""
-NFProgress - Cross-platform Task Progress Tracker
+"""NFProgress - Cross-platform Task Progress Tracker
 PyQt6 application for tracking task progress with threading support
 Compatible with Windows and macOS
+Version 0.7.0
 """
 
 import sys
 import json
 import os
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import List, Optional
 import threading
 import time
@@ -19,12 +19,11 @@ from PyQt6.QtWidgets import (
     QDoubleSpinBox, QComboBox, QLabel, QProgressBar, QDialog,
     QDialogButtonBox, QMessageBox, QHeaderView, QTabWidget, QMenuBar,
     QMenu, QStatusBar, QSplitter, QListWidget, QListWidgetItem,
-    QStyleFactory, QFileDialog, QCheckBox, QSpinBox
+    QStyleFactory, QFileDialog, QCheckBox, QDateEdit
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize, QSettings
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QTimer, QSize, QSettings, QDate
 from PyQt6.QtGui import QColor, QIcon, QFont, QAction
 from PyQt6.QtCharts import QChart, QChartView, QBarSeries, QBarSet, QBarCategoryAxis, QValueAxis
-from PyQt6.QtCore import QTimer, Qt
 
 
 class ProgressTask:
@@ -38,11 +37,43 @@ class ProgressTask:
         self.created_at = datetime.now().isoformat()
         self.completed = current >= total
         self.notes = ""
+        self.deadline = None  # Новое поле для дедлайна
+        self.deadline_days = 0  # Оставшиеся дни
+        self.deadline_flag = ""  # Флаг статуса дедлайна
+        self.progress_entries = []  # Список записей с датами [(symbols, date), ...]
 
     def get_progress_percent(self) -> float:
         if self.total == 0:
             return 0
         return (self.current / self.total) * 100
+
+    def update_deadline_status(self):
+        """Обновить статус дедлайна"""
+        if not self.deadline:
+            self.deadline_days = 0
+            self.deadline_flag = ""
+            return
+        
+        try:
+            deadline_date = datetime.fromisoformat(self.deadline)
+            delta = (deadline_date - datetime.now()).days
+            
+            if delta > 0:
+                self.deadline_days = delta
+                self.deadline_flag = "ВРЕМЯ ЕСТЬ"
+            else:
+                self.deadline_days = abs(delta)
+                self.deadline_flag = "ПРОСРОЧЕН!"
+        except:
+            self.deadline_days = 0
+            self.deadline_flag = ""
+
+    def get_average_symbols_per_entry(self) -> int:
+        """Получить среднее количество символов в записи"""
+        if not self.progress_entries:
+            return 0
+        total = sum(entry[0] for entry in self.progress_entries)
+        return int(total / len(self.progress_entries))
 
     def to_dict(self) -> dict:
         return {
@@ -53,7 +84,11 @@ class ProgressTask:
             'category': self.category,
             'created_at': self.created_at,
             'completed': self.completed,
-            'notes': self.notes
+            'notes': self.notes,
+            'deadline': self.deadline,
+            'deadline_days': self.deadline_days,
+            'deadline_flag': self.deadline_flag,
+            'progress_entries': self.progress_entries
         }
 
     @staticmethod
@@ -63,6 +98,11 @@ class ProgressTask:
         task.created_at = data['created_at']
         task.completed = data['completed']
         task.notes = data.get('notes', '')
+        task.deadline = data.get('deadline')
+        task.deadline_days = data.get('deadline_days', 0)
+        task.deadline_flag = data.get('deadline_flag', '')
+        task.progress_entries = data.get('progress_entries', [])
+        task.update_deadline_status()
         return task
 
 
@@ -92,7 +132,7 @@ class AddTaskDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Add New Task")
-        self.setGeometry(100, 100, 400, 250)
+        self.setGeometry(100, 100, 400, 300)
         self.init_ui()
 
     def init_ui(self):
@@ -118,6 +158,25 @@ class AddTaskDialog(QDialog):
         self.category_combo.addItems(["General", "Work", "Personal", "Study", "Other"])
         layout.addWidget(self.category_combo)
 
+        # Deadline
+        layout.addWidget(QLabel("Deadline (опционально):"))
+        deadline_layout = QHBoxLayout()
+        
+        self.deadline_days_input = QSpinBox()
+        self.deadline_days_input.setMinimum(0)
+        self.deadline_days_input.setMaximum(365)
+        self.deadline_days_input.setSpecialValueText("Нет дедлайна")
+        deadline_layout.addWidget(QLabel("Дней:"))
+        deadline_layout.addWidget(self.deadline_days_input)
+        
+        self.deadline_date_input = QDateEdit()
+        self.deadline_date_input.setCalendarPopup(True)
+        self.deadline_date_input.setDate(QDate.currentDate())
+        deadline_layout.addWidget(QLabel("или Дата:"))
+        deadline_layout.addWidget(self.deadline_date_input)
+        
+        layout.addLayout(deadline_layout)
+
         # Notes
         layout.addWidget(QLabel("Notes:"))
         self.notes_input = QLineEdit()
@@ -137,11 +196,21 @@ class AddTaskDialog(QDialog):
         self.setLayout(layout)
 
     def get_task_data(self) -> dict:
+        deadline = None
+        if self.deadline_days_input.value() > 0:
+            deadline_date = datetime.now() + timedelta(days=self.deadline_days_input.value())
+            deadline = deadline_date.isoformat()
+        elif self.deadline_date_input.date() != QDate.currentDate():
+            qdate = self.deadline_date_input.date()
+            deadline_date = datetime(qdate.year(), qdate.month(), qdate.day())
+            deadline = deadline_date.isoformat()
+        
         return {
             'name': self.name_input.text(),
             'total': self.total_input.value(),
             'category': self.category_combo.currentText(),
-            'notes': self.notes_input.text()
+            'notes': self.notes_input.text(),
+            'deadline': deadline
         }
 
 
@@ -149,7 +218,7 @@ class NFProgressApp(QMainWindow):
     """Main application window"""
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("NFProgress - Task Progress Tracker")
+        self.setWindowTitle("NFProgress - Task Progress Tracker v0.7.0")
         self.setGeometry(100, 100, 1200, 700)
         
         self.tasks: List[ProgressTask] = []
@@ -163,6 +232,11 @@ class NFProgressApp(QMainWindow):
         self.init_ui()
         self.load_tasks()
         self.apply_theme('dark')
+        
+        # Таймер для обновления статуса дедлайнов
+        self.update_timer = QTimer()
+        self.update_timer.timeout.connect(self.update_all_deadlines)
+        self.update_timer.start(60000)  # Каждую минуту
 
     def init_ui(self):
         """Initialize user interface"""
@@ -201,6 +275,11 @@ class NFProgressApp(QMainWindow):
         self.task_name_label.setFont(QFont("Arial", 14, QFont.Weight.Bold))
         right_layout.addWidget(self.task_name_label)
         
+        # Deadline info
+        self.deadline_label = QLabel("Дедлайн: Нет")
+        self.deadline_label.setFont(QFont("Arial", 10))
+        right_layout.addWidget(self.deadline_label)
+        
         # Progress bar
         self.progress_bar = QProgressBar()
         self.progress_bar.setValue(0)
@@ -233,6 +312,10 @@ class NFProgressApp(QMainWindow):
         delete_btn.clicked.connect(self.delete_task)
         control_layout.addWidget(delete_btn)
         
+        edit_deadline_btn = QPushButton("Edit Deadline")
+        edit_deadline_btn.clicked.connect(self.edit_deadline)
+        control_layout.addWidget(edit_deadline_btn)
+        
         right_layout.addLayout(control_layout)
         
         # Statistics
@@ -240,12 +323,18 @@ class NFProgressApp(QMainWindow):
         self.stats_label = QLabel("Created: N/A\nProgress: 0%\nCategory: N/A")
         right_layout.addWidget(self.stats_label)
         
+        # Progress entries
+        right_layout.addWidget(QLabel("Progress Entries"))
+        self.entries_list = QListWidget()
+        self.entries_list.setMaximumHeight(150)
+        right_layout.addWidget(self.entries_list)
+        
         # Tasks table
         right_layout.addWidget(QLabel("All Tasks"))
         
         self.tasks_table = QTableWidget()
-        self.tasks_table.setColumnCount(6)
-        self.tasks_table.setHorizontalHeaderLabels(["Name", "Progress", "Current/Total", "Category", "Status", "Actions"])
+        self.tasks_table.setColumnCount(7)
+        self.tasks_table.setHorizontalHeaderLabels(["Name", "Progress", "Current/Total", "Category", "Deadline", "Status", "Actions"])
         self.tasks_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
         right_layout.addWidget(self.tasks_table)
         
@@ -321,6 +410,8 @@ class NFProgressApp(QMainWindow):
             data = dialog.get_task_data()
             task = ProgressTask(data['name'], data['total'], 0, data['category'])
             task.notes = data['notes']
+            task.deadline = data['deadline']
+            task.update_deadline_status()
             self.tasks.append(task)
             self.refresh_task_list()
             self.save_tasks()
@@ -340,19 +431,42 @@ class NFProgressApp(QMainWindow):
             return
         
         task = self.current_task
+        task.update_deadline_status()
+        
         self.task_name_label.setText(task.name)
+        
+        # Deadline info
+        if task.deadline:
+            deadline_date = datetime.fromisoformat(task.deadline).strftime("%d.%m.%y")
+            if task.deadline_flag == "ВРЕМЯ ЕСТЬ":
+                self.deadline_label.setText(f"Дедлайн: {deadline_date} - осталось {task.deadline_days} дней")
+            else:
+                self.deadline_label.setText(f"Дедлайн: {deadline_date} - {task.deadline_flag}")
+        else:
+            self.deadline_label.setText("Дедлайн: Нет")
+        
         self.progress_bar.setValue(int(task.get_progress_percent()))
         self.progress_label.setText(f"{task.current} / {task.total} ({task.get_progress_percent():.1f}%)")
         
-        created_date = datetime.fromisoformat(task.created_at).strftime("%Y-%m-%d %H:%M")
+        created_date = datetime.fromisoformat(task.created_at).strftime("%d.%m.%y %H:%M")
         status = "Completed" if task.completed else "In Progress"
+        
+        avg_symbols = task.get_average_symbols_per_entry() if task.progress_entries else 0
+        entries_count = len(task.progress_entries)
         
         self.stats_label.setText(
             f"Created: {created_date}\n"
             f"Progress: {task.get_progress_percent():.1f}%\n"
             f"Category: {task.category}\n"
-            f"Status: {status}"
+            f"Status: {status}\n"
+            f"Entries: {entries_count}\n"
+            f"Avg symbols per entry: {avg_symbols}"
         )
+        
+        # Update entries list
+        self.entries_list.clear()
+        for i, entry in enumerate(task.progress_entries, 1):
+            self.entries_list.addItem(f"{i}. {entry[1]}: {entry[0]} symbols")
         
         self.refresh_table()
 
@@ -364,6 +478,10 @@ class NFProgressApp(QMainWindow):
         
         increment = self.increment_spinbox.value()
         self.current_task.current = min(self.current_task.current + increment, self.current_task.total)
+        
+        # Add progress entry with timestamp
+        timestamp = datetime.now().strftime('%d.%m.%y %H:%M')
+        self.current_task.progress_entries.append([increment, timestamp])
         
         if self.current_task.current >= self.current_task.total:
             self.current_task.completed = True
@@ -382,6 +500,7 @@ class NFProgressApp(QMainWindow):
         if reply == QMessageBox.StandardButton.Yes:
             self.current_task.current = 0
             self.current_task.completed = False
+            self.current_task.progress_entries.clear()
             self.update_task_details()
             self.save_tasks()
 
@@ -397,12 +516,75 @@ class NFProgressApp(QMainWindow):
             self.refresh_task_list()
             self.save_tasks()
 
+    def edit_deadline(self):
+        """Edit task deadline"""
+        if not self.current_task:
+            QMessageBox.warning(self, "Warning", "Please select a task first")
+            return
+        
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Edit Deadline")
+        layout = QVBoxLayout()
+        
+        layout.addWidget(QLabel("Set new deadline:"))
+        
+        days_input = QSpinBox()
+        days_input.setMinimum(0)
+        days_input.setMaximum(365)
+        days_input.setSpecialValueText("Удалить дедлайн")
+        layout.addWidget(QLabel("Дней от сегодня:"))
+        layout.addWidget(days_input)
+        
+        date_input = QDateEdit()
+        date_input.setCalendarPopup(True)
+        date_input.setDate(QDate.currentDate())
+        layout.addWidget(QLabel("Или выберите дату:"))
+        layout.addWidget(date_input)
+        
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(dialog.accept)
+        button_box.rejected.connect(dialog.reject)
+        layout.addWidget(button_box)
+        
+        dialog.setLayout(layout)
+        
+        if dialog.exec() == QDialog.DialogCode.Accepted:
+            if days_input.value() == 0:
+                self.current_task.deadline = None
+            elif days_input.value() > 0:
+                deadline_date = datetime.now() + timedelta(days=days_input.value())
+                self.current_task.deadline = deadline_date.isoformat()
+            else:
+                qdate = date_input.date()
+                deadline_date = datetime(qdate.year(), qdate.month(), qdate.day())
+                self.current_task.deadline = deadline_date.isoformat()
+            
+            self.current_task.update_deadline_status()
+            self.update_task_details()
+            self.save_tasks()
+            self.statusBar().showMessage("Deadline updated")
+
+    def update_all_deadlines(self):
+        """Update deadline status for all tasks"""
+        for task in self.tasks:
+            task.update_deadline_status()
+        if self.current_task:
+            self.update_task_details()
+        self.refresh_task_list()
+        self.refresh_table()
+
     def refresh_task_list(self):
         """Refresh task list widget"""
         self.task_list.clear()
         for task in self.tasks:
             progress = f"{task.get_progress_percent():.0f}%"
-            item = QListWidgetItem(f"{task.name} ({progress})")
+            deadline_info = ""
+            if task.deadline:
+                if task.deadline_flag == "ПРОСРОЧЕН!":
+                    deadline_info = " ⚠️"
+                else:
+                    deadline_info = f" ({task.deadline_days}d)"
+            item = QListWidgetItem(f"{task.name} ({progress}){deadline_info}")
             self.task_list.addItem(item)
 
     def refresh_table(self):
@@ -423,14 +605,22 @@ class NFProgressApp(QMainWindow):
             # Category
             self.tasks_table.setItem(row, 3, QTableWidgetItem(task.category))
             
+            # Deadline
+            if task.deadline:
+                deadline_date = datetime.fromisoformat(task.deadline).strftime("%d.%m.%y")
+                deadline_text = f"{deadline_date} - {task.deadline_flag}"
+            else:
+                deadline_text = "Нет"
+            self.tasks_table.setItem(row, 4, QTableWidgetItem(deadline_text))
+            
             # Status
             status = "✓ Completed" if task.completed else "In Progress"
-            self.tasks_table.setItem(row, 4, QTableWidgetItem(status))
+            self.tasks_table.setItem(row, 5, QTableWidgetItem(status))
             
             # Actions button
             action_btn = QPushButton("Edit")
             action_btn.clicked.connect(lambda checked, t=task: self.on_task_selected(self.task_list.item(self.tasks.index(t))))
-            self.tasks_table.setCellWidget(row, 5, action_btn)
+            self.tasks_table.setCellWidget(row, 6, action_btn)
 
     def save_tasks(self):
         """Save tasks to file"""
@@ -445,6 +635,7 @@ class NFProgressApp(QMainWindow):
                 with open(self.data_file, 'r') as f:
                     data = json.load(f)
                     self.tasks = [ProgressTask.from_dict(item) for item in data]
+                    self.update_all_deadlines()
                     self.refresh_task_list()
                     self.refresh_table()
             except Exception as e:
@@ -458,10 +649,12 @@ class NFProgressApp(QMainWindow):
         
         try:
             with open(file_path, 'w') as f:
-                f.write("Name,Progress (%),Current,Total,Category,Status\n")
+                f.write("Name,Progress (%),Current,Total,Category,Deadline,Status,Entries\n")
                 for task in self.tasks:
                     status = "Completed" if task.completed else "In Progress"
-                    f.write(f"{task.name},{task.get_progress_percent():.1f},{task.current},{task.total},{task.category},{status}\n")
+                    deadline = datetime.fromisoformat(task.deadline).strftime("%d.%m.%y") if task.deadline else "Нет"
+                    entries_count = len(task.progress_entries)
+                    f.write(f"{task.name},{task.get_progress_percent():.1f},{task.current},{task.total},{task.category},{deadline},{status},{entries_count}\n")
             QMessageBox.information(self, "Success", f"Tasks exported to {file_path}")
         except Exception as e:
             QMessageBox.warning(self, "Error", f"Export failed: {e}")
@@ -494,9 +687,14 @@ class NFProgressApp(QMainWindow):
         QMessageBox.about(
             self,
             "About NFProgress",
-            "NFProgress v1.0\n\n"
+            "NFProgress v0.7.0\n\n"
             "A cross-platform task progress tracker\n"
             "Built with PyQt6\n\n"
+            "New in 0.7.0:\n"
+            "- Deadline support with days/date input\n"
+            "- Progress entries with timestamps\n"
+            "- Average symbols per entry\n"
+            "- Automatic deadline status updates\n\n"
             "Compatible with Windows and macOS"
         )
 
