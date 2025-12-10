@@ -48,7 +48,7 @@ def upd_projects():
     for name, data in projects.items():
         projects[name]['progress'] = (data['symbols'] / data['goal'] * 100) if data['goal'] > 0 else 0
 
-    # Подсчет дней дедлайна
+    # Подсчет дней дедлайна и ежедневной цели
     for name, data in projects.items():
         deadline_str = data['deadline']
         if deadline_str == 'Нет':
@@ -58,8 +58,10 @@ def upd_projects():
             deadline_days = (deadline - datetime.today()).days
             if deadline_days > 0:
                 projects[name]['deadline_days'] = deadline_days
+                projects[name]['day_goal'] = int(projects[name]['goal'] / projects[name]['deadline_days'])
             else:
                 projects[name]['deadline_days'] = 0
+                projects[name]['day_goal'] = 0
 
     write_file(projects)
 
@@ -272,10 +274,10 @@ def main_menu():
     ch = False
     while ch == False:
         # Словарь функций
-        menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
+        menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects, '6': day_goals}
 
         # Вывод меню
-        ch = input('nfprogress 0.6.8\n'
+        ch = input('nfprogress 0.7\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть список проектов\n'
@@ -283,8 +285,28 @@ def main_menu():
             '3 - добавить запись\n'
             '4 - изменить проекты\n'
             '5 - посмотреть подробности проектов\n'
+            '6 - посмотреть ежедневные цели'
             '\n'
             'Выбор: ')
         menu[ch]()
+
+def day_goals():
+    # TODO Добавить подменю "Цели по дедлайнам"
+    projects = read_file()
+    if len(projects) == 0:
+        print('Проектов пока нет.\n')
+        main_menu()
+    else:
+        print('Список проектов:\n')
+        cnt = 0
+        for name, data in projects.items():
+            if data.get('day_goal', 0) > 0:
+                print(f"{name}: Ежедневная цель {data['day_goal']} сим.")
+                cnt += 1
+            else:
+                continue
+        if cnt == 0:
+            print('Проектов с целью нет.\n')
+            main_menu()
 
 main_menu()
