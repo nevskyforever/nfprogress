@@ -27,7 +27,7 @@ def new_project():
                       'progress': 0,
                       'notes': [],
                       'deadline': 'Нет',
-                      'created': f'{datetime.date.today().strftime('%d.%m.%y')}'}  # сохраняем как словарь
+                      'created': f'{datetime.date.today().strftime("%d.%m.%y")}'}
     write_file(projects)
     print('\n'
           'Проект сохранен'
@@ -58,10 +58,8 @@ def upd_projects():
             deadline_days = (deadline - datetime.today()).days
             if deadline_days > 0:
                 projects[name]['deadline_days'] = deadline_days
-                projects[name]['deadline_flag'] = 'ВРЕМЯ ЕСТЬ'
             else:
                 projects[name]['deadline_days'] = 0
-                projects[name]['deadline_flag'] = 'ПРОСРОЧЕН!'
 
     write_file(projects)
 
@@ -76,15 +74,16 @@ def view_projects():
             goal = data['goal']
             symbols = data['symbols']
             progress = data['progress']
-            last_note = data['notes'][-1]
-            last_note = f'{last_note[1]}'
-            if data['deadline'] != 'Нет':
-                print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
-                      f' дедлайн: {data["deadline"]} - {data["deadline_flag"]}, '
-                      f'дата последней записи: {last_note}')
-            else:
+            if data['notes'] == [] and data['deadline'] == 'Нет':
                 print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
                       f' дедлайн: {data["deadline"]}')
+            else:
+                last_note = data['notes'][-1]
+                last_note = f'{last_note[0]} символов добавлены {last_note[1]}'
+                print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%), '
+                      f'дедлайн: {data["deadline"]}, '
+                      f'последняя запись - {last_note}')
+
         print()
         choice = input('Нажмите Enter для возврата в главное меню: ')
         if choice == '':
@@ -105,10 +104,10 @@ def more_about_projects():
     print(f'Название: {project_name}')
 
     if project_data["deadline"] != 'Нет':
-        if project_data['deadline_days'] > 0:
-            print(f'Дедлайн: {project_data["deadline"]} - осталось {project_data['deadline_days']} дней')
+        if project_data.get('deadline_days', 0) > 0:
+            print(f'Дедлайн: {project_data["deadline"]} - осталось {project_data["deadline_days"]} дней')
         else:
-            print(f'Дедлайн: {project_data["deadline"]} - {project_data["deadline_flag"]}')
+            print(f'Дедлайн: {project_data["deadline"]}')
         print(f'Прогресс: {project_data["progress"]:.1f}%')
         print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
         print(f'Дата создания: {project_data["created"]}')
@@ -116,7 +115,7 @@ def more_about_projects():
         print(f'Кол-во записей: {len(project_data["notes"])}')
         print(f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
     else:
-        print(f'Дедлайн: {project_data['deadline']}')
+        print(f'Дедлайн: {project_data["deadline"]}')
         print(f'Прогресс: {project_data["progress"]:.1f}%')
         print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
         print(f'Дата создания: {project_data["created"]}')
@@ -181,7 +180,6 @@ def new_note():
         main_menu()
 
     # Обновляем прогресс
-
     notes = projects[selected_project]['notes']
     notes.append([int(new_symbols), datetime.now().strftime('%d.%m.%y %H:%M')])
     projects[selected_project]['notes'] = notes
@@ -277,7 +275,7 @@ def main_menu():
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects}
 
         # Вывод меню
-        ch = input('nfprogress 0.6.7\n'
+        ch = input('nfprogress 0.6.8\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - просмотреть список проектов\n'
