@@ -1,5 +1,8 @@
 import pickle
 import locale
+
+from dateutil.utils import today
+
 locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 
 def read_file(filename='projects.pkl'):
@@ -8,8 +11,6 @@ def read_file(filename='projects.pkl'):
             data = pickle.load(f)
             return data
     except (FileNotFoundError, EOFError):
-        # FileNotFoundError - файла нет
-        # EOFError - файл пустой
         return {}
 
 def write_file(data, filename='projects.pkl'):
@@ -20,12 +21,12 @@ def new_project():
     import datetime
     projects = read_file()
     print('Создание проекта')
-    name = input('Введите название: ')  # пробелы в подчеркивания
+    name = input('Введите название: ')
     goal = input('Введите цель (в символах): ')
     projects[name] = {'goal': int(goal),
                       'symbols': 0,
                       'progress': 0,
-                      'notes': [],
+                      'notes': {},
                       'deadline': 'Нет',
                       'created': f'{datetime.date.today().strftime("%d.%m.%y")}'}
     write_file(projects)
@@ -38,17 +39,15 @@ def upd_projects():
     from datetime import datetime
     projects = read_file()
 
-    # Подсчет прогресса
     for name, data in projects.items():
         total = 0
         notes = data['notes']
-        for note in notes:
-            total += note[0]
+        for note in notes.values():
+            total += note
         projects[name]['symbols'] = total
     for name, data in projects.items():
         projects[name]['progress'] = (data['symbols'] / data['goal'] * 100) if data['goal'] > 0 else 0
 
-    # Подсчет дней дедлайна и ежедневной цели
     for name, data in projects.items():
         deadline_str = data['deadline']
         if deadline_str == 'Нет':
@@ -76,15 +75,7 @@ def view_projects():
             goal = data['goal']
             symbols = data['symbols']
             progress = data['progress']
-            if data['notes'] == [] and data['deadline'] == 'Нет':
-                print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%),'
-                      f' дедлайн: {data["deadline"]}')
-            else:
-                last_note = data['notes'][-1]
-                last_note = f'{last_note[0]} символов добавлены {last_note[1]}'
-                print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%), '
-                      f'дедлайн: {data["deadline"]}, '
-                      f'последняя запись - {last_note}')
+            print(f'Название: {name}, цель: {goal}, прогресс: {symbols}/{goal} ({progress:.1f}%), дедлайн: {data["deadline"]}')
 
         print()
         choice = input('Нажмите Enter для возврата в главное меню: ')
@@ -96,12 +87,7 @@ def more_about_projects():
     print('Детальный просмотр проекта\n')
     projects = read_file()
     project_name = choice_project()
-
-    # Получаем данные выбранного проекта
     project_data = projects[project_name]
-
-    last_note = project_data['notes'][-1]
-    last_note = f'{last_note[1]} - {last_note[0]} символов'
 
     print(f'Название: {project_name}')
 
@@ -113,17 +99,17 @@ def more_about_projects():
         print(f'Прогресс: {project_data["progress"]:.1f}%')
         print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
         print(f'Дата создания: {project_data["created"]}')
-        print(f'Последняя запись: {last_note}')
         print(f'Кол-во записей: {len(project_data["notes"])}')
-        print(f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
+        if len(project_data["notes"]) > 0:
+            print(f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
     else:
         print(f'Дедлайн: {project_data["deadline"]}')
         print(f'Прогресс: {project_data["progress"]:.1f}%')
         print(f'Цель/написано: {project_data["goal"]}/{project_data["symbols"]}')
         print(f'Дата создания: {project_data["created"]}')
-        print(f'Последняя запись: {last_note}')
         print(f'Кол-во записей: {len(project_data["notes"])}')
-        print(f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
+        if len(project_data["notes"]) > 0:
+            print(f'Среднее кол-во символов в записи: {int(project_data["symbols"] / len(project_data["notes"]))} символов\n')
 
     ext = input('Нажмите Enter для выхода в меню выбора проектов\n'
                 'Для просмотра записей выбранного проекта введите "1": ')
@@ -131,23 +117,17 @@ def more_about_projects():
         more_about_projects()
     else:
         print(f'Просмотр записей {project_name}\n')
-
-        # Проверяем записи только выбранного проекта
         if len(project_data['notes']) == 0:
             print('Записей пока нет\n')
             more_about_projects()
         else:
-            # Выводим ВСЕ записи сразу
-            for i, note in enumerate(project_data['notes'], 1):
-                print(f'{i}. {note[1]}: {note[0]} символов')
-
-            # Запрос выхода только после показа всех записей
+            for i, (date, symbols) in enumerate(project_data['notes'].items(), 1):
+                print(f'{i}. {date}: {symbols} символов')
             cancel = input('\nНажмите Enter для возврата в меню проектов: ')
             if cancel == '':
                 more_about_projects()
 
 def choice_project():
-    # Создаем нумерованный список проектов (с правильными названиями)
     projects = read_file()
     if len(projects) == 0:
         print('Проектов пока нет\n')
@@ -155,45 +135,33 @@ def choice_project():
     project_list = list(projects.keys())
     print('Ваши проекты:\n')
     for i, project_name in enumerate(project_list, 1):
-        # Показываем названия с пробелами для пользователя
         display_name = project_name.replace('_', ' ')
         print(f"{i} - {display_name}")
-
     print()
     choice = input('Введите номер проекта или нажмите Enter для выхода: ')
     if choice == '':
         main_menu()
-    # Получаем выбранный проект (оригинальный ключ с _)
     selected_project = project_list[int(choice) - 1]
     return selected_project
 
 def new_note():
     from datetime import datetime
-
     projects = read_file()
-
     print('\nДобавление записи\n')
-
     selected_project = choice_project()
-
-    # Добавляем запись в список проекта
     new_symbols = input('Введите кол-во символов или нажмите Enter для выхода: ')
     if new_symbols == '':
         main_menu()
-
-    # Обновляем прогресс
-    notes = projects[selected_project]['notes']
-    notes.append([int(new_symbols), datetime.now().strftime('%d.%m.%y %H:%M')])
-    projects[selected_project]['notes'] = notes
-
+    today = datetime.now().strftime('%d.%m.%y')
+    if today not in projects[selected_project]['notes']:
+        projects[selected_project]['notes'][today] = 0
+    projects[selected_project]['notes'][today] += int(new_symbols)
     write_file(projects)
     upd_projects()
-
     print('Запись добавлена.')
     main_menu()
 
 def change_project_menu():
-
     def delete_project():
         print('Удаление проекта\n')
         projects = read_file()
@@ -230,8 +198,7 @@ def change_project_menu():
         change_project_menu()
 
     def project_deadline():
-        from datetime import datetime
-        from datetime import timedelta
+        from datetime import datetime, timedelta
         print('Установка/изменение дедлайна\n')
         projects = read_file()
         selected_project = choice_project()
@@ -258,7 +225,6 @@ def change_project_menu():
                 change_project_menu()
 
     change_menu = {'1': delete_project, '2': change_name, '3': change_goal, '4': project_deadline, '': main_menu}
-
     choice_for_change = input('Что вы хотите сделать?\n'
                               '1 - удалить проект\n'
                               '2 - переименовать проект\n'
@@ -266,17 +232,13 @@ def change_project_menu():
                               '4 - изменить дедлайн проекта\n'
                               'Нажмите Enter для выхода в главное меню\n'
                               'Выбор: ')
-
     change_menu[choice_for_change]()
 
 def main_menu():
     upd_projects()
     ch = False
     while ch == False:
-        # Словарь функций
         menu = {'1': view_projects, '2': new_project, '3': new_note, '4': change_project_menu, '5': more_about_projects, '6': day_goals}
-
-        # Вывод меню
         ch = input('nfprogress 0.7\n'
               '\n'
             'Что вы хотите сделать?\n'
@@ -291,7 +253,6 @@ def main_menu():
         menu[ch]()
 
 def day_goals():
-    # TODO Добавить подменю "Цели по дедлайнам"
     projects = read_file()
     if len(projects) == 0:
         print('Проектов пока нет.\n')
@@ -303,8 +264,6 @@ def day_goals():
             if data.get('day_goal', 0) > 0:
                 print(f"{name}: Ежедневная цель {data['day_goal']} сим.")
                 cnt += 1
-            else:
-                continue
         if cnt == 0:
             print('Проектов с целью нет.\n')
             main_menu()
