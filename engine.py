@@ -515,7 +515,7 @@ def main_menu():
             '5': more_about_projects,
             '6': today_goals
         }
-        ch = input('nfprogress 0.7\n'
+        ch = input('nfprogress 0.8\n'
               '\n'
             'Что вы хотите сделать?\n'
             '1 - добавить запись\n'
