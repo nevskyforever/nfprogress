@@ -3,7 +3,7 @@ import locale
 
 locale.setlocale(locale.LC_ALL, 'ru_RU.UTF-8')
 
-def read_file(filename='projects.pkl'):
+def read_projects(filename='projects.pkl'):
     try:
         with open(filename, 'rb') as f:
             data = pickle.load(f)
@@ -11,7 +11,7 @@ def read_file(filename='projects.pkl'):
     except (FileNotFoundError, EOFError):
         return {}
 
-def write_file(data, filename='projects.pkl'):
+def save_prohects(data, filename='projects.pkl'):
     with open(filename, 'wb') as f:
         pickle.dump(data, f)
 
@@ -19,7 +19,7 @@ def new_project():
     import datetime
     from datetime import timedelta
 
-    projects = read_file()
+    projects = read_projects()
     print('Создание проекта')
     name = input('Введите название: ')
     goal = input('Введите цель (в символах): ')
@@ -50,13 +50,13 @@ def new_project():
             deadline = given_date.strftime('%d.%m.%y')
         projects[name]['deadline'] = deadline
 
-    write_file(projects)
+    save_prohects(projects)
     print('\nПроект сохранен\n')
     main_menu()
 
 def upd_projects():
     from datetime import datetime, timedelta   # ← добавлен timedelta
-    projects = read_file()
+    projects = read_projects()
 
     # Расчет прогресса
     for name, data in projects.items():
@@ -97,11 +97,11 @@ def upd_projects():
         projects[name]['streak'] = streak
         projects[name]['max_streak'] = max(projects[name].get('max_streak', 0), streak)
 
-    write_file(projects)
+    save_prohects(projects)
 
 
 def view_projects():
-    projects = read_file()
+    projects = read_projects()
     if len(projects) == 0:
         print('\nПроектов пока нет.\n')
         main_menu()
@@ -123,7 +123,7 @@ def view_projects():
             main_menu()
 
 def choice_project():
-    projects = read_file()
+    projects = read_projects()
     if len(projects) == 0:
         print('Проектов пока нет\n')
         main_menu()
@@ -143,7 +143,7 @@ def choice_project():
 def more_about_projects():
     from datetime import datetime
     print('Детальный просмотр проекта\n')
-    projects = read_file()
+    projects = read_projects()
     project_name = choice_project()
     project_data = projects[project_name]
 
@@ -206,7 +206,7 @@ def more_about_projects():
 
 def new_note():
     from datetime import datetime
-    projects = read_file()
+    projects = read_projects()
     print('\nДобавление записи\n')
     selected_project = choice_project()
 
@@ -269,7 +269,7 @@ def new_note():
     else:
         projects[selected_project]['symbols'] = 0
 
-    write_file(projects)
+    save_prohects(projects)
     upd_projects()
     print('Запись добавлена.')
     main_menu()
@@ -278,47 +278,47 @@ def change_project_menu():
 
     def delete_project():
         print('Удаление проекта\n')
-        projects = read_file()
+        projects = read_projects()
         selected_project = choice_project()
         done = input('Подтвердите удаление (нажмите Enter для отмены или введите "1" для удаления): ')
         if done == '1':
             del projects[selected_project]
-            write_file(projects)
+            save_prohects(projects)
             print('\nПроект удален\n')
         else:
             print('\nУдаление отменено\n')
         change_project_menu()
 
     def change_name():
-        projects = read_file()
+        projects = read_projects()
         print('Переименование проекта\n')
         selected_project = choice_project()
         new_name = input('Введите новое имя проекта: ')
         projects[new_name] = projects[selected_project]
         del projects[selected_project]
-        write_file(projects)
+        save_prohects(projects)
         print('\nИмя проекта успешно изменено\n')
         change_project_menu()
 
     def change_goal():
-        projects = read_file()
+        projects = read_projects()
         print('Изменение цели проекта')
         selected_project = choice_project()
         projects[selected_project]['goal'] = int(input('Введите новую цель (в символах): '))
         upd_projects()
-        write_file(projects)
+        save_prohects(projects)
         print(f'\nЦель {selected_project} успешно изменена!\n')
         change_project_menu()
 
     def project_deadline():
         from datetime import datetime, timedelta
         print('Установка/изменение дедлайна\n')
-        projects = read_file()
+        projects = read_projects()
         selected_project = choice_project()
         date_input = input('Введите дату (дд.мм.гг) / количество дней (число) или нажмите Enter для ее удаления: ')
         if date_input == '':
             projects[selected_project]['deadline'] = 'Нет'
-            write_file(projects)
+            save_prohects(projects)
             print('\nДедлайн удален\n')
         else:
             if date_input.isdigit():
@@ -328,13 +328,13 @@ def change_project_menu():
                 given_date = datetime.strptime(date_input, '%d.%m.%y')
                 deadline = given_date.strftime('%d.%m.%y')
             projects[selected_project]['deadline'] = deadline
-            write_file(projects)
+            save_prohects(projects)
             print('Дата дедлайна сохранена!')
         change_project_menu()
 
     def edit_notes():
         from datetime import datetime
-        projects = read_file()
+        projects = read_projects()
         print('Изменение/удаление записей\n')
         selected_project = choice_project()
         notes = projects[selected_project].get('notes', {})
@@ -415,7 +415,7 @@ def change_project_menu():
                 for v in notes.values()
             )
 
-            write_file(projects)
+            save_prohects(projects)
             upd_projects()
             print('\nЗапись изменена.\n')
             change_project_menu()
@@ -430,7 +430,7 @@ def change_project_menu():
                 )
             else:
                 projects[selected_project]['symbols'] = 0
-            write_file(projects)
+            save_prohects(projects)
             upd_projects()
             print('\nЗапись удалена.\n')
             change_project_menu()
@@ -460,7 +460,7 @@ def change_project_menu():
 def today_goals():
     from datetime import datetime
 
-    projects = read_file()
+    projects = read_projects()
     if len(projects) == 0:
         print('Проектов пока нет.\n')
         main_menu()
@@ -502,6 +502,79 @@ def today_goals():
             if choice == '':
                 main_menu()
 
+def load_game():
+    try:
+        with open('game_data.pkl', 'rb') as f:
+            game_data = pickle.load(f)
+            return game_data
+    except FileNotFoundError:
+        return None
+
+def save_game(data):
+    with open('game_data.pkl', 'wb') as f:
+        pickle.dump(data, f)
+
+def game_menu():
+    about = ('\nИгровой режим это возможность повысить свою мотивацию'
+             '\nДобавляя записи, вы зарабатываете 1 монету за каждые 100 символов'
+             '\nЗа монеты можно купить Заморозки'
+             '\nЗаморозки позволяют восстановить стрик и применяются автоматически,'
+             '\nесли в какой-то день вы не выполнили цель.')
+    print('\nИГРОВОЙ РЕЖИМ\n')
+    if load_game() is None:
+        print('Игровой режим не активирован\n'
+              'Для активации игрового режима введите "1"\n'
+              'Для выхода в основное меню нажмите Enter\n'
+              'Для просмотра подробностей о режиме введите "?"\n')
+        choice = input()
+        if choice == '1':
+            data = {'coins': 0,
+                    'freeze': 0}
+            save_game(data)
+            print('\nИГРОВОЙ РЕЖИМ АКТИВИРОВАН!\n')
+            game_menu()
+        if choice == '':
+            main_menu()
+        if choice == '?':
+            print(about)
+    else:
+        data = load_game()
+        print(f'Монеты: {data['coins']}'
+              f'\nЗаморозки: {data["freeze"]}\n')
+        print('Купить заморозку (10 монет) - введите "1"')
+        print('Для просмотра подробностей о режиме введите "?"')
+        print('Для редактирования параметров введите "*"')
+        choice = input()
+        if choice == '1':
+            if data['coins'] < 10:
+                print('\nНЕДОСТАТОЧНО МОНЕТ!\n')
+                game_menu()
+            else:
+                data['coins'] -= 10
+                data['freeze'] += 1
+                save_game(data)
+                print('/nЗАМОРОЗКА КУПЛЕНА/n')
+                game_menu()
+        if choice == '?':
+            print(about)
+            game_menu()
+        if choice == '*':
+            key = ''
+            if input('Введите пароль:') == key:
+                print('Выберите параметр для редактирования:')
+                parameters = list(data.keys())
+                for i in range(len(parameters)):
+                    print(f'{i + 1} - {parameters[i]}')
+                choice = int(input('Введите номер параметра: '))
+                data[parameters[choice]] = int(input(f'Введите значение параметра {parameters[choice]}: '))
+                save_game(data)
+                print('/nПАРАМЕТР ИЗМЕНЕН/n')
+                game_menu()
+            else:
+                print('\nПАРОЛЬ НЕВЕРНЫЙ! РЕДЖКТИРОВАНИЕ ПАРАМЕТРОВ НЕДОСТУПНО.\n')
+                game_menu()
+
+
 def main_menu():
     upd_projects()
     ch = False
@@ -513,7 +586,8 @@ def main_menu():
             '3': new_project,
             '4': change_project_menu,
             '5': more_about_projects,
-            '6': today_goals
+            '6': today_goals,
+            '7': game_menu,
         }
         ch = input('nfprogress 0.8\n'
               '\n'
@@ -523,10 +597,15 @@ def main_menu():
             '3 - добавить проект\n'
             '4 - изменить проекты\n'
             '5 - посмотреть подробности проектов\n'
-            '6 - посмотреть ежедневные цели'
+            '6 - посмотреть ежедневные цели\n'
+            '7 - игровой режим'
             '\n'
             'Выбор: ')
-        menu[ch]()
+        try:
+            menu[ch]()
+        except KeyError:
+            print('\nНЕКОРРЕКТНЫЙ ВЫБОР\n')
+            main_menu()
 
 
 main_menu()
