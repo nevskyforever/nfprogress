@@ -28,8 +28,8 @@ def new_project():
     projects[name] = {'goal': int(goal),
                       'symbols': 0,
                       'progress': 0,
-                      'notes': [[datetime.date.today(), 0, 0, 0]], # Дата, текущие, разница, дневная цель
-                      'streak': 0,      # текущий стри
+                      'notes': {}
+                      'streak': 0,      # текущий стрик
                       'max_streak': 0,  # максимальный стрик
                       'deadline': 'Нет',
                       'created': f'{datetime.date.today().strftime("%d.%m.%y")}'}
@@ -55,36 +55,7 @@ def new_project():
     main_menu()
 
 def upd_projects():
-    from datetime import datetime, timedelta   # ← добавлен timedelta
-
-    # Получение проектов
-
-    projects = read_projects()
-    projects_names = projects.keys()
-
-    # Расчет разницы записей
-
-    for project in projects_names:
-        notes = sorted(projects[project]['notes'], key=lambda x: x[0], reverse=True)
-        for note1 in notes:
-            for note2 in notes:
-                note1[2] = note1[2] - note2[2]
-        projects[project]['notes'] = notes
-
-
-    # Расчет прогресса
-
-    for project in projects_names:
-        symbols = projects[project]['symbols']
-        goal = projects[project]['goal']
-        progress = round(symbols / goal * 100) + 0.5
-        projects[project]['progress'] = progress
-
-    # Расчет ежедневной цели
-
-    # Расчет стриков
-
-    save_projects(projects)
+   pass
 
 
 def view_projects():
