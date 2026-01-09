@@ -114,12 +114,14 @@ def new_note(choice = None):
     if choice is None:
         choice = choice_project()
     today = date.today()
+    last_total = projects[choice]['total symbols']
     try:
         new_symbols = int(input(f'Введите текущее кол-во символов в {choice}: '))
     except ValueError:
         print('НЕКОРРЕКТНОЕ ЗНАЧЕНЕ.'
               '\n Введите число.')
         new_symbols = int(input('Введите текущее кол-во символов: '))
+    symbol_progress = new_symbols - last_total
     projects[choice]['notes'][today] = new_symbols
     projects[choice]['total symbols'] = new_symbols
 
@@ -134,8 +136,11 @@ def new_note(choice = None):
         save_projects(projects)
 
     save_projects(projects)
-    print(f'\nЗапись добавлена в {choice}, прогресс: {progress}%\n')
-    main_menu()
+
+    do = input(f'\nЗапись добавлена в {choice}, прогресс: {progress}% и {symbol_progress} символов\n'
+               f'\nВыйти в главное меню - Enter.')
+    if do == '':
+        main_menu()
 
 def change_project():
     print('\nИЗМЕНЕНИЕ ПРОЕКТА\n')
