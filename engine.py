@@ -18,7 +18,7 @@ def update_project():
     pass
 
 def main_menu():
-    print('nfprogress 0.9.1\n')
+    print('nfprogress 0.10\n')
     print('Что вы хотите сделать?\n')
     print('1 - Новая запись')
     print('2 - Просмотр проектов')
