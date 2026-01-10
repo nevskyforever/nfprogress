@@ -22,6 +22,7 @@ def main_menu():
     print('3 - Новый проект')
     print('4 - Изменить проект')
     print('5 - Игровой режим')
+    print('6 - Подробности о проекте')
     last = load_data()['last']
     if last is not None:
         print(f'\nЗапись в последний проект ({last}) - Enter')
@@ -29,7 +30,8 @@ def main_menu():
     '2': view_projects,
     '3': new_project,
     '4': change_project,
-    '5': game.menu}
+    '5': game.menu,
+    '6': more_details}
     do = input('\nВыберите пункт из меню: ')
     if do != '':
         try:
@@ -318,5 +320,35 @@ def change_project():
     except KeyError:
         print('НЕПРАВИЛЬНЫЙ ВЫБОР')
         change_project()
+
+def more_details():
+    print('\n ПРОСМОТР ДЕТАЛЕЙ ПРОЕКТА \n')
+    # Получаем данные
+    choice = choice_project()
+    project = load_data()['projects'][choice]
+    notes = project['notes']
+
+    # Считаем среднее кол-во символов
+    if len(notes) > 0:
+        total_symbols = sum(note['symbol_progress'] for note in notes.values())
+        avg_symbols = round(total_symbols / len(notes))
+    else:
+        avg_symbols = 0
+
+    print(f'Название: {choice}\n'
+          f'Цель: {project["goal"]}\n'
+          f'Написано: {project["total symbols"]} символов\n'
+          f'Прогресс: {project["progress"]}%\n'
+          f'Среднее символов в записи: {avg_symbols}\n'
+          f'Дедлайн: {project["deadline"]["date"]}\n')
+
+    if project["deadline"]["date"] != 'Нет':
+        print(f'Стрик: {len(project["streaks"])} дней\n')
+
+    print(f'Кол-во записей: {len(notes)}')
+
+    input('\nДля выхода нажмите Enter.')
+    main_menu()
+
 
 main_menu()
