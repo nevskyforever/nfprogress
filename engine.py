@@ -14,11 +14,8 @@ def save_data(data):
     with open('data.pkl', 'wb') as f:
         pickle.dump(data, f)
 
-def update_project():
-    pass
-
 def main_menu():
-    print('nfprogress 0.11.1\n')
+    print('nfprogress 0.11.2\n')
     print('Что вы хотите сделать?\n')
     print('1 - Новая запись')
     print('2 - Просмотр проектов')
@@ -27,13 +24,12 @@ def main_menu():
     print('5 - Игровой режим')
     last = load_data()['last']
     if last is not None:
-        print(f'Запись в последний проект ({last}) - Enter')
+        print(f'\nЗапись в последний проект ({last}) - Enter')
     do_list = {'1': new_note,
     '2': view_projects,
     '3': new_project,
     '4': change_project,
     '5': game.menu}
-    update_project()
     do = input('\nВыберите пункт из меню: ')
     if do != '':
         try:
@@ -47,19 +43,37 @@ def main_menu():
 def new_project():
     data = load_data()
     print('\nСОЗДАНИЕ ПРОЕКТА\n')
-    name = input('Введите имя проекта: ')
+    name = input('Введите имя проекта или Enter для выхода: ')
+    if name == '':
+        print('\n СОЗДАНИЕ ПРОЕКТА ОТМЕНЕНО \n')
+        main_menu()
     try:
-        goal = int(input('Введите цель по проекту в символах: '))
+        goal = input('Введите цель по проекту в символах или Enter для выхода: ')
+        if goal == '':
+            print('\n СОЗДАНИЕ ПРОЕКТА ОТМЕНЕНО \n')
+            main_menu()
+        goal = int(goal)
     except ValueError:
         print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ!\nВведите число.')
         goal = int(input('Введите цель по проекту в символах: '))
+    try:
+        deadline = datetime.strptime(input('Введите дедлайн проекта в формате дд.мм.гг '
+                                           '\n или Enter, чтобы пропустить: '), '%d.%m.%y')
+        if deadline == '':
+            deadline = 'Нет'
+    except ValueError:
+        print('\n ЗНАЧЕНИЕ НЕКОРРЕКТНО \n')
+        deadline = datetime.strptime(input('Введите дедлайн проекта в формате дд.мм.гг '
+                                           '\n или Enter, чтобы пропустить: '), '%d.%m.%y')
+        if deadline == '':
+            deadline = 'Нет'
     data['projects'][name] = {'goal': goal,
     'created': date.today(),
     'total symbols': 0,
     'progress': 0,
     'notes': {},
     'streaks': [],
-    'deadline': {'date': 'Нет', 'days left': 0}}
+    'deadline': {'date': deadline, 'days left': 0}}
     data['last'] = name
     save_data(data)
     print(f'\nПроект {name} создан\n')
@@ -161,7 +175,15 @@ def new_note(choice=None):
         today_goal = (goal - last_symbols) // days_left
         print(f'Цель на сегодня: {today_goal} символов')
     # Запрашиваем символы
-    new_symbols = int(input('Введите кол-во текущих символов: '))
+    try:
+        new_symbols = input('Введите кол-во текущих символов или Enter для выхода:  ')
+        if new_symbols == '':
+            main_menu()
+        else:
+            new_symbols = int(new_symbols)
+    except ValueError:
+        print('\n ЗНАЧЕНИЕ НЕКОРРЕКТНО \n')
+        main_menu()
     # Считаем прогресс в процентах
     progress = round(new_symbols / goal * 100)
     # Считаем прогресс в символах
@@ -169,6 +191,7 @@ def new_note(choice=None):
     # Пишем прогресс в проект
     project['notes'][today] = {'symbol_progress': symbol_progress}
     project['progress'] = progress
+    project['total symbols'] = new_symbols
     # Сохраняем все
     save_data(data)
     print(f'Запись добавлена в {choice}\n'
@@ -205,18 +228,21 @@ def new_note(choice=None):
     else:
         main_menu()
 
+
 def change_project():
     print('\nИЗМЕНЕНИЕ ПРОЕКТА\n')
-    data = load_data()
     choice = choice_project()
     if choice is None:
         return
 
     def change_name():
+        data = load_data()
         new_name = input(f'Введите новое имя проекта {choice} или Enter для выхода: ')
         if new_name != '':
             data['projects'][new_name] = data['projects'][choice]
             del data['projects'][choice]
+            if data['last'] == choice:
+                data['last'] = new_name
             save_data(data)
             print(f'\nИмя изменено на {new_name}.\n')
             main_menu()
@@ -227,9 +253,10 @@ def change_project():
         try:
             new_goal = int(input(f'Введите новую цель для {choice} или Enter для выхода: '))
             if new_goal > 0:
+                data = load_data()
                 data['projects'][choice]['goal'] = new_goal
                 save_data(data)
-                print(f'Цель {choice} изменена на {new_goal}')
+                print(f'Цель {choice} изменена на {new_goal}\n')
                 main_menu()
             else:
                 print('Цель должна быть больше 0')
@@ -245,12 +272,13 @@ def change_project():
             return
         try:
             new_deadline = datetime.strptime(deadline_str, '%d.%m.%y')
+            data = load_data()
             data['projects'][choice]['deadline'] = {
-            'date': new_deadline.date(),
-            'days left': (new_deadline.date() - date.today()).days
+                'date': new_deadline.date(),
+                'days left': (new_deadline.date() - date.today()).days
             }
             save_data(data)
-            print(f'\nДедлайн {choice} изменён на {deadline_str}.')
+            print(f'\nДедлайн {choice} изменён на {deadline_str}.\n')
             main_menu()
         except ValueError:
             print('Формат: дд.мм.гг')
@@ -263,55 +291,32 @@ def change_project():
         try:
             approve = int(input(f'Подтвердите удаление введя {key}: '))
             if approve == key:
+                data = load_data()
                 print(f'\n {choice} удален. \n')
                 del data['projects'][choice]
+                if data['last'] == choice:
+                    data['last'] = None
                 save_data(data)
                 main_menu()
             else:
                 print('\n УДАЛЕНИЕ НЕ ПОДТВЕРЖДЕНО \n')
                 main_menu()
         except ValueError:
-            print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ')
+            print('\n НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ \n')
             main_menu()
 
-    def change_total_symbols():
-        print('Это изменение меняет текущий прогресс напрямую.')
-        try:
-            new_symbols = int(input(f'Введите новое кол-во символов в {choice}: '))
-            if new_symbols >= 0:
-                data['projects'][choice]['total symbols'] = new_symbols
-                goal = data['projects'][choice]['goal']
-                progress = new_symbols // goal * 100 if goal > 0 else 0
-                data['projects'][choice]['progress'] = progress
-                save_data(data)
-                print('\n ИЗМЕНЕНИЯ ПРИМЕНЕНЫ \n')
-                main_menu()
-            else:
-                print('Количество символов не может быть отрицательным')
-                change_total_symbols()
-        except ValueError:
-            print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ!\nВведите число.')
-            change_total_symbols()
+    print('1 - Изменить имя')
+    print('2 - Изменить цель')
+    print('3 - Изменить дедлайн')
+    print('4 - Удалить проект')
 
-    change_list = {'1': change_name,
-    '2': change_goal,
-    '3': change_deadline,
-    '4': delete_project,
-    '5': change_total_symbols}
+    do = input('\nВыберите действие: ')
+    actions = {'1': change_name, '2': change_goal, '3': change_deadline, '4': delete_project}
 
-    print(f'1 - изменить имя проекта {choice}')
-    print(f'2 - изменить цель проекта {choice}')
-    print(f'3 - изменить дедлайн проекта {choice}')
-    print(f'4 - удалить проект {choice}')
-    print(f'5 - Изменить общее кол-во символов в {choice}')
-    print(f'\nВыйти в главное меню - Enter\n')
-    do = input('Выберите пункт из меню: ')
-    if do == '':
-        main_menu()
-    elif do in change_list:
-        change_list[do]()
-    else:
+    try:
+        actions[do]()
+    except KeyError:
         print('НЕПРАВИЛЬНЫЙ ВЫБОР')
-        main_menu()
+        change_project()
 
 main_menu()
