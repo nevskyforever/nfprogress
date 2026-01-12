@@ -1,3 +1,6 @@
+from random import randint
+from datetime import datetime
+
 import game
 
 gamer = {'level': 1,
@@ -8,8 +11,10 @@ gamer = {'level': 1,
 'items': {'health_recovery': 0, 'health_add': 0}}
 
 about_mode = ('Игровой режим позволяет улучшить мотивацию, сделав из писательства игру.\n'
-'При написании текста за каждые 100 символов вы получаете 1 монету\n'
-'Монеты можно тратить на Заморозки, которые позволяют пропустить один день стрика.')
+              '1. При написании текста за каждые 100 символов вы получаете 1 монету, а так же бонус за достигнутый уровень на данный момент\n'
+              '2. Монеты можно тратить на предметы, которые улучшают ваш игровой опыт.\n'
+              '3. В зависимости от вашего уровня вы можете получить бонус в виде монет и опыта на каждые 100 символов\m'
+              'Бонус считается исходя из коэффициентов вашего уровня, их можно посмотреть в отдельном меню.')
 
 levels = [0, 4000, 16000, 36000, 64000, 100000, 144000, 196000, 256000, 324000, 400000, 484000, 576000, 676000, 784000, 900000, 1024000, 1156000, 1296000, 1444000, 1600000, 1764000, 1936000, 2116000, 2304000, 2500000, 2704000, 2916000, 3136000, 3364000, 3600000, 3844000, 4096000, 4356000, 4624000, 4900000, 5184000, 5476000, 5776000, 6084000, 6400000, 6724000, 7056000, 7396000, 7744000, 8100000, 8464000, 8836000, 9216000, 9604000, 10000000]
 
@@ -20,55 +25,112 @@ cf_coins = [1.0, 1.0625, 1.125, 1.1875, 1.25, 1.3125, 1.375, 1.4375, 1.5, 1.5625
 lvl_coins_bonus = [0, 25, 50, 75, 100, 125, 150, 175, 200, 225, 250, 275, 300, 325, 350, 375, 400, 425, 450, 475, 500, 525, 550, 575, 600, 625, 650, 675, 700, 725, 750, 775, 800, 825, 850, 875, 900, 925, 950, 975, 1000, 1025, 1050, 1075, 1100, 1125, 1150, 1175, 1200, 1225, 1250, 1275, 1300, 1325, 1350, 1375, 1400, 1425, 1450, 1475, 1500, 1525, 1550, 1575, 1600, 1625, 1650, 1675, 1700, 1725, 1750, 1775, 1800, 1825, 1850, 1875, 1900, 1925, 1950, 1975, 2000, 2025, 2050, 2075, 2100, 2125, 2150, 2175, 2200, 2225, 2250, 2275, 2300, 2325, 2350, 2375, 2400, 2425, 2450, 2475, 2500]
 
 def health_recovery(do):
-	gamer = game.load_game()
-	if gamer is None:
-		return 'Игровой режим не активирован'
-	coins = gamer['coins']
-	price = 100
-	if do == 'buy':
-		if coins < price:
-			return f'Недостаточно монет для покупки, нужно минимум {price} монет'
-		else:
-			gamer['coins'] -= price
-			if 'health_recovery' not in gamer['items']:
-				gamer['items']['health_recovery'] = 0
-			gamer['items']['health_recovery'] += 1
-			game.save_game(gamer)
-			return f'Куплено зелье воскрешения! Осталось монет: {gamer["coins"]}'
-	elif do == 'use':
-		items = gamer['items'].get('health_recovery', 0)
-		if items == 0:
-			return 'Зелья воскрешения нет в инвентаре'
-		else:
-			gamer['items']['health_recovery'] -= 1
-			gamer['health'] = 100
-			game.save_game(gamer)
-			return '\n ПРИМЕНЕНО ЗЕЛЬЕ ВОСКРЕШЕНИЯ \n'
+    gamer = game.load_game()
+    if gamer is None:
+        return 'Игровой режим не активирован'
+    coins = gamer['coins']
+    price = 100
+    if do == 'buy':
+        if coins < price:
+            return f'Недостаточно монет для покупки, нужно минимум {price} монет'
+        else:
+            gamer['coins'] -= price
+            if 'health_recovery' not in gamer['items']:
+                gamer['items']['health_recovery'] = 0
+            gamer['items']['health_recovery'] += 1
+            game.save_game(gamer)
+            return f'Куплено зелье воскрешения! Осталось монет: {gamer["coins"]}'
+    elif do == 'use':
+        items = gamer['items'].get('health_recovery', 0)
+        if items == 0:
+            return 'Зелья воскрешения нет в инвентаре'
+        else:
+            gamer['items']['health_recovery'] -= 1
+            gamer['health'] = 100
+            game.save_game(gamer)
+            return '\n ПРИМЕНЕНО ЗЕЛЬЕ ВОСКРЕШЕНИЯ \n'
+    elif do == '?':
+        return ('\nЗелье восстанавливает здоровье до 109 единиц'
+                f'\nСтоимость {price} монет')
 
 def health_add(do):
-	gamer = game.load_game()
-	if gamer is None:
-		return 'Игровой режим не активирован'
-	coins = gamer['coins']
-	price = 25
-	if do == 'buy':
-		if coins < price:
-			return f'Недостаточно монет для покупки, нужно минимум {price} монет'
-		else:
-			gamer['coins'] -= price
-			if 'health_add' not in gamer['items']:
-				gamer['items']['health_add'] = 0
-			gamer['items']['health_add'] += 1
-			game.save_game(gamer)
-			return f'Куплено зелье восстановления! Осталось монет: {gamer["coins"]}'
-	elif do == 'use':
-		items = gamer['items'].get('health_add', 0)
-		if items == 0:
-			return 'Зелья восстановления нет в инвентаре'
-		else:
-			gamer['items']['health_add'] -= 1
-			gamer['health'] += 10
-			if gamer['health'] > 100:
-				gamer['health'] = 100
-			game.save_game(gamer)
-			return '\n ПРИМЕНЕНО ЗЕЛЬЕ ВОССТАНОВЛЕНИЯ \n'
+    gamer = game.load_game()
+    if gamer is None:
+        return 'Игровой режим не активирован'
+    coins = gamer['coins']
+    price = 25
+    if do == 'buy':
+        if coins < price:
+            return f'Недостаточно монет для покупки, нужно минимум {price} монет'
+        else:
+            gamer['coins'] -= price
+            if 'health_add' not in gamer['items']:
+                gamer['items']['health_add'] = 0
+            gamer['items']['health_add'] += 1
+            game.save_game(gamer)
+            return f'Куплено зелье восстановления! Осталось монет: {gamer["coins"]}'
+    elif do == 'use':
+        items = gamer['items'].get('health_add', 0)
+        if items == 0:
+            return 'Зелья восстановления нет в инвентаре'
+        else:
+            gamer['items']['health_add'] -= 1
+            gamer['health'] += 10
+            if gamer['health'] > 100:
+                gamer['health'] = 100
+            game.save_game(gamer)
+            return '\n ПРИМЕНЕНО ЗЕЛЬЕ ВОССТАНОВЛЕНИЯ \n'
+    elif do == '?':
+        return ('\nЗелье восстанавливает здоровье на 10 единиц, но не выше 100 единиц'
+                f'\nСтоимость {price} монет')
+
+def lottery_ticket(do):
+    gamer = game.load_game()
+    if gamer is None:
+        return 'Игровой режим не активирован'
+    coins = gamer['coins']
+    price = 15
+    if do == 'buy':
+        if coins < price:
+            return f'Недостаточно монет для покупки, нужно минимум {price} монет'
+        else:
+            gamer['coins'] -= price
+            if 'lottery_ticket' not in gamer['items']:
+                gamer['items']['lottery_ticket'] = 0
+            gamer['items']['lottery_ticket'] += 1
+            game.save_game(gamer)
+            return f'Куплен Лотерейный билет! Осталось монет: {gamer["coins"]}'
+    elif do == 'use':
+        items = gamer['items'].get('lottery_ticket', 0)
+        if items == 0:
+            return 'Лотерейного билета нет в инвентаре'
+        else:
+            print('\n Пусть удача всегда будет с вами! \n')
+            gamer['items']['lottery_ticket'] -= 1
+            if datetime.today().weekday() == 3:
+                chance = randint(1, 10)
+                win = randint(1, 10)
+                if chance == win:
+                    win_coins = price * 100
+                    gamer['coins'] += win_coins
+                    print(f'\n ВЫ ВЫИГРАЛИ! \n'
+                          f'\n Ваш выигрыш - {win_coins}\n')
+                else:
+                    print('В этот раз не повезло :(')
+            else:
+                chance = randint(1, 10)
+                win = randint(1, 10)
+                if chance == win:
+                    win_coins = price * 10
+                    gamer['coins'] += win_coins
+                    print(f'\n ВЫ ВЫИГРАЛИ! \n'
+                          f'\n Ваш выигрыш - {win_coins}\n')
+                else:
+                    print('В этот раз не повезло :(')
+            game.save_game(gamer)
+            return '\n ИСПОЛЬЗОВАН ЛОТЕРЕЙНЫЙ БИЛЕТ \n'
+    elif do == '?':
+        return ('\nЛотерейный билет дает возможность выиграть 150 монет с вероятностью в 10%'
+                '\nПо четвергам выигрыш 1500 монет :)'
+                f'\nСтоимость {price} монет')
+    game.menu()

@@ -15,7 +15,7 @@ def save_data(data):
         pickle.dump(data, f)
 
 def main_menu():
-    print('nfprogress 0.11.2\n')
+    print('nfprogress 1.0.1\n')
     print('Что вы хотите сделать?\n')
     print('1 - Новая запись')
     print('2 - Просмотр проектов')
@@ -167,10 +167,11 @@ def new_note(choice=None):
     project = data['projects'][choice]
     goal = project['goal']
     last_symbols = project['total symbols']
-    today = date.today()
+    today = datetime.today()
     today_goal = 0
     game_status = game.load_game()
     deadline = project['deadline']['date']
+    print(f'Текущее кол-во символов: {last_symbols} символов')
     if deadline != 'Нет':
         # Считаем дни до дедлайна и цель на сегодня
         days_left = (deadline - today).days
@@ -307,13 +308,30 @@ def change_project():
             print('\n НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ \n')
             main_menu()
 
+    def change_symbols():
+        print(f'\n ИЗМЕНЕНИЕ КОЛ-ВА СИМВОЛОВ В {choice} \n')
+        if game.load_game() is not None:
+            print('Это изменениек НЕ влияет на игровой режим, вы не получите опыт и монеты')
+        try:
+            print(f'Текущее кол-во символов в {choice}: {date['projects'][choice]['total symbols']} \n')
+            new_symbols = int(input('\nВведите новое кол-во символов в проекте или Enter для выхода: '))
+            data = load_data()
+            data['projects'][choice]['total symbols'] = new_symbols
+            data['projects'][choice]['progress'] = round(new_symbols / data['projects'][choice]['goal'] * 100)
+            save_data(data)
+            print('\n ИЗМЕНЕНИЯ СОХРАНЕНЫ \n')
+        except ValueError:
+            print('\n НЕКОРРЕКТНОЕ ЗНАЧЕНИЕ! \n')
+            change_symbols()
+
     print('1 - Изменить имя')
     print('2 - Изменить цель')
     print('3 - Изменить дедлайн')
     print('4 - Удалить проект')
+    print('5 - Изменить кол-во текущих символов')
 
     do = input('\nВыберите действие: ')
-    actions = {'1': change_name, '2': change_goal, '3': change_deadline, '4': delete_project}
+    actions = {'1': change_name, '2': change_goal, '3': change_deadline, '4': delete_project, '5': change_symbols}
 
     try:
         actions[do]()

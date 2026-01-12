@@ -136,6 +136,8 @@ def menu():
             print('Для применения предмета введите его номер или Enter для выхода \n')
             print(f'1 - Зелья воскрешения: {gamer["items"].get("health_recovery", 0)}')
             print(f'2 - Зелья восстановления: {gamer["items"].get("health_add", 0)}')
+            print(f'3 - Лотерейный билет: {gamer["items"].get("lottery_ticket", 0)}')
+            print('Чтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
             do = input('\n Выбор: ')
             if do == '1':
                 print(game_data.health_recovery('use'))
@@ -143,11 +145,24 @@ def menu():
             elif do == '2':
                 print(game_data.health_add('use'))
                 menu()
+            elif do == '3':
+                print(game_data.lottery_ticket('use'))
+                menu()
+            elif do == '1?':
+                print(game_data.health_add('?'))
+                menu()
+            elif do == '2?':
+                print(game_data.health_recovery('?'))
+                menu()
+            elif do == '3?':
+                print(game_data.lottery_ticket('?'))
             elif do == '':
                 menu()
         elif do == '5':
             print('\n МАНАЗИН \n')
             print('1 - Зелья')
+            print('2 - Лотерейный билет (15 монет)')
+            print('Чтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
             do = input('Выбор: ')
             if do == '1':
                 print('1 - Зелье восстановления (+10 здоровья) - 10 монет')
@@ -159,6 +174,17 @@ def menu():
                 if do == '2':
                     print(game_data.health_recovery('buy'))
                     menu()
+                if do == '1?':
+                    print(game_data.health_add('?'))
+                    menu()
+                if do == '2?':
+                    print(game_data.health_recovery('?'))
+                    menu()
+            if do == '2':
+                print(game_data.lottery_ticket('buy'))
+                menu()
+            elif do == '2?':
+                print(game_data.lottery_ticket('?'))
         elif do == '':
             from engine import main_menu
             main_menu()
@@ -195,7 +221,6 @@ def give_streak_bonus(streak_status):
     level = gamer['level']
     health = gamer['health']
     cf = game_data.cf_exp[level] if level < len(game_data.cf_exp) else game_data.cf_exp[-1]
-    coins = 0
 
     if streak_status == 'Go':
         coins = int(10 * (cf + 0.5))
