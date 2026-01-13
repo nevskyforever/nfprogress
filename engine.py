@@ -18,7 +18,7 @@ def save_data(data):
 
 
 def main_menu():
-    print('nfprogress 1.0.2\n')
+    print('nfprogress 1.0.4\n')
     print('Что вы хотите сделать?\n')
     print('1 - Новая запись')
     print('2 - Просмотр проектов')
@@ -241,6 +241,7 @@ def new_note(choice=None):
 
     goal = project['goal']
     last_symbols = project['total symbols']
+    last_progress = project['progress']
     today_dt = datetime.today()  # datetime для расчетов
     today_date = date.today()  # date для ключей словаря notes
 
@@ -280,7 +281,7 @@ def new_note(choice=None):
     data['projects']['active'][choice] = project
     save_data(data)
 
-    print(f'Добавлено: {symbol_progress} симв., Прогресс: {progress}%\n')
+    print(f'Добавлено: {symbol_progress} симв., Прогресс: {progress}%, +{progress - last_progress}%\n')
 
     # Логика стриков и игры
     if today_goal > 0 and symbol_progress >= today_goal:
@@ -398,6 +399,7 @@ def change_project():
 
             save_data(data)
             print('\nИЗМЕНЕНИЯ СОХРАНЕНЫ\n')
+            main_menu()
         except ValueError:
             print('\nНужно число!\n')
 
