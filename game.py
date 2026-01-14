@@ -3,6 +3,9 @@ import game_data
 from random import randint
 from os import remove
 
+from game_data import cf_exp
+
+
 def load_game():
     try:
         with open('game_mode.pkl', 'rb') as f:
@@ -138,7 +141,7 @@ def menu():
             print(f'2 - Зелья восстановления: {gamer["items"].get("health_add", 0)}')
             print(f'3 - Лотерейный билет: {gamer["items"].get("lottery_ticket", 0)}')
             print('Чтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
-            do = input('\n Выбор: ')
+            do = input('\nВыбор: ')
             if do == '1':
                 print(game_data.health_recovery('use'))
                 menu()
@@ -213,17 +216,17 @@ def give_exps(symbols):
     save_game(gamer)
     return exps
 
-def give_streak_bonus(streak_status):
+def give_streak_bonus(streak_status, total_symbols):
     gamer = load_game()
     if gamer is None:
         return 'Игровой режим не активирован'
 
     level = gamer['level']
     health = gamer['health']
-    cf = game_data.cf_exp[level] if level < len(game_data.cf_exp) else game_data.cf_exp[-1]
-
+    cf_coins = game_data.cf_coins[level] if level < len(game_data.cf_coins) else game_data.cf_coins[-1]
+    cf_exp = game_data.cf_exp[level] if level < len(game_data.cf_exp) else game_data.cf_exp[-1]
     if streak_status == 'Go':
-        coins = int(10 * (cf + 0.5))
+        coins = int(10 * (cf_coins + 0.5))
         gamer['coins'] += coins
         save_game(gamer)
         return f'Вы продлили стрик и получили {coins} монет! \n Так держать!'
@@ -231,8 +234,17 @@ def give_streak_bonus(streak_status):
     elif streak_status == 'Done':
         return f'Cтрик сегодня уже продлен, но символы лишними не будут ;)'
 
+    elif streak_status == 'Complete':
+        exps = int(1000 * (total_symbols / 1000) * (cf_exp + 4))
+        coins = int((10 * (cf_coins + 2)) + 100)
+        gamer['coins'] += coins
+        gamer['exp'] += exps
+        save_game(gamer)
+        return (f'Вы завершили работу над проектом вовремя и получили дополнительный бонус в {coins} монет и {exps} опыта!'
+                f'\nЭто просто потрясающе!')
+
     elif streak_status == 'Start':
-        coins = int(10 * (cf + 0.25))
+        coins = int(10 * (cf_coins + 0.25))
         gamer['coins'] += coins
         save_game(gamer)
         return f'Вы получили {coins} монет за старт стрика! \n Отличное начало!'
@@ -252,4 +264,22 @@ def give_streak_bonus(streak_status):
         except (ValueError, IndexError):
             return 'Ошибка при обработке потери стрика'
 
+    return ''
+
+def give_complete_bonus(complete_status, total_symbols):
+    gamer = load_game()
+    level = gamer['level']
+    cf_coins = game_data.cf_coins[level] if level < len(game_data.cf_coins) else game_data.cf_coins[-1]
+    cf_exp = game_data.cf_exp[level] if level < len(game_data.cf_exp) else game_data.cf_exp[-1]
+    if gamer is None:
+        return 'Игровой режим не активирован'
+    else:
+        if complete_status is True:
+            exps = int(1000 * (total_symbols / 1000) * (cf_exp + 2))
+            coins = int((10 * (cf_coins + 1.5)) + 100)
+            gamer['coins'] += coins
+            gamer['exp'] += exps
+            save_game(gamer)
+            return (f'Вы завершили работу над проектом и получили бонус в {coins} монет и {exps} опыта!'
+                f'\nЭто того стоило!')
     return ''

@@ -1,6 +1,7 @@
 import pickle
 import game
 from datetime import date, datetime, timedelta
+from random import randint
 
 
 def load_data():
@@ -18,7 +19,7 @@ def save_data(data):
 
 
 def main_menu():
-    print('nfprogress 1.0.4\n')
+    print('nfprogress 1.1\n')
     print('Что вы хотите сделать?\n')
     print('1 - Новая запись')
     print('2 - Просмотр проектов')
@@ -127,13 +128,21 @@ def view_projects():
                       f'дедлайн: {deadline_str}, дней: {days_left}, стрик: {streaks}')
 
     archived = data['projects'].get('archive', {})
+    completed = data['projects'].get('complete', {})
 
-    print('\n Для выхода нажмите Enter')
+    print('\nДля выхода нажмите Enter\n')
+
     if len(archived) > 0:
         print('Для просмотра проектов в архиве введите 1')
+    if len(completed) > 0:
+        print('Для просмотра завершенных проектов введите 2')
+
+    if len(archived) > 0 or len(completed) > 0:
+        print()  # Пустая строка для отступа
 
     do = input('Выбор: ')
 
+    # === ПРОСМОТР АРХИВА ===
     if do == '1' and len(archived) > 0:
         print('\n ПРОЕКТЫ В АРХИВЕ \n')
         for name in archived.keys():
@@ -146,8 +155,8 @@ def view_projects():
             print(
                 f'Название: {name}, прогресс: {progress}%, написано/цель: {symbols}/{goal}, архивирован: {archived_date}')
 
-        print('\n Для выхода нажмите Enter')
-        print('Или введите номер проекта для восстановления:')
+        print('\nДля выхода нажмите Enter')
+        print('Или введите номер проекта для восстановления: ')
 
         projects_names = list(archived.keys())
         for i in range(len(projects_names)):
@@ -172,6 +181,57 @@ def view_projects():
             except (ValueError, IndexError):
                 print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ!')
                 main_menu()
+
+    # === ПРОСМОТР ЗАВЕРШЕННЫХ (НОВОЕ) ===
+    elif do == '2' and len(completed) > 0:
+        print('\n ЗАВЕРШЕННЫЕ ПРОЕКТЫ \n')
+        for name in completed.keys():
+            proj = completed[name]
+            goal = proj['goal']
+            progress = proj['progress']
+            symbols = proj['total symbols']
+            streaks = len(proj.get('streaks', []))
+
+            print(
+                f'Название: {name}, прогресс: {progress}%, написано/цель: {symbols}/{goal}, итоговый стрик: {streaks}')
+
+        print('\nДля выхода нажмите Enter')
+        print('Или введите номер проекта для удаления из завершенных: ')
+
+        projects_names = list(completed.keys())
+        for i in range(len(projects_names)):
+            print(f'{i + 1} - {projects_names[i]}')
+
+        delete = input('Выбор: ')
+        if delete == '':
+            main_menu()
+        else:
+            try:
+                choice = int(delete)
+                choice_name = projects_names[choice - 1]
+                print(f'\nВыбран проект: {choice_name}\n')
+
+                from random import randint
+                key = randint(1000, 9999)
+                print(f'Удаление "{choice_name}" необратимо!')
+
+                try:
+                    approve = int(input(f'Для подтверждения введите {key}: '))
+                    if approve == key:
+                        data = load_data()
+                        del data['projects']['complete'][choice_name]  # Удаляем из complete, не active
+                        save_data(data)
+                        print(f'\nПроект удален из завершенных.\n')
+                    else:
+                        print('\nНеверный код.\n')
+                except ValueError:
+                    print('\nОшибка.\n')
+
+                main_menu()
+            except (ValueError, IndexError):
+                print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ')
+                main_menu()
+
     else:
         main_menu()
 
@@ -179,31 +239,49 @@ def choice_project():
     data = load_data()
     projects = data['projects']['active']
     if len(projects) == 0:
-        print('\nАктивных проектов пока нет.')
-        input('\nДля выхода нажмите Enter.')
-        main_menu()
-        return None
+        print('\nПроектов пока нет.')
+        do = input('\nДля выхода нажмите Enter.')
+        if do == '':
+            main_menu()
     else:
-        projects_names = list(projects.keys())
+        projects_names = list(data['projects']['active'].keys())
         print('ВЫБЕРИТЕ ПРОЕКТ:\n')
         for i in range(len(projects_names)):
             print(f'{i + 1} - {projects_names[i]}')
         try:
-            choice = int(input('\nВведите номер или Enter для выхода: '))
-            choice_name = projects_names[choice - 1]
-            print(f'\nВыбран проект: {choice_name}\n')
-            return choice_name
+            choice = int(input('\nВведите номер выбранного проекта '
+            '\nили введите Enter для выхода в главное меню: '))
+            choice = projects_names[choice - 1]
+            print(f'\nВыбран проект: {choice}\n')
+            return choice
         except (ValueError, IndexError):
-            print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ!')
+            print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ!\nВведите число.')
             main_menu()
-            return None
 
 
 def chek_streak(project_name):
     data = load_data()
     streaks = data['projects']['active'][project_name]['streaks']
     today = date.today()
+    deadline = data['projects']['active'][project_name]['deadline']['date']
+    goal = data['projects']['active'][project_name]['goal']
+    total = data['projects']['active'][project_name]['total symbols']
 
+    # Нормализация даты дедлайна для сравнения
+    if isinstance(deadline, datetime):
+        deadline_date = deadline.date()
+    elif deadline == 'Нет':
+        deadline_date = None
+    else:
+        deadline_date = deadline
+
+    # ПРОВЕРКА НА ЗАВЕРШЕНИЕ
+    # Если цель достигнута И (дедлайна нет ИЛИ дедлайн еще не прошел)
+    if total >= goal:
+        if deadline_date is None or today <= deadline_date:
+            return 'Complete'
+
+    # Обычная логика стриков
     if len(streaks) == 0:
         streaks.append(today)
         streak_status = 'Start'
@@ -230,7 +308,6 @@ def new_note(choice=None):
 
     data = load_data()
 
-    # Проверка на случай, если "last" проект был удален
     if choice not in data['projects']['active']:
         print("Ошибка: Проект не найден (возможно, удален).")
         main_menu()
@@ -242,19 +319,19 @@ def new_note(choice=None):
     goal = project['goal']
     last_symbols = project['total symbols']
     last_progress = project['progress']
-    today_dt = datetime.today()  # datetime для расчетов
-    today_date = date.today()  # date для ключей словаря notes
+    today_dt = datetime.today()
+    today_date = date.today()
 
     deadline = project['deadline']['date']
 
-    print(f'Текущее кол-во символов: {last_symbols}')
+    print(f'Текущее кол-во символов в {choice}: {last_symbols} сим.')
 
     today_goal = 0
     if deadline != 'Нет':
         days_left = (deadline - today_dt).days
         if days_left > 0:
             today_goal = (goal - last_symbols) // days_left
-            print(f'Цель на сегодня: {today_goal} символов')
+            print(f'Цель на сегодня: {today_goal} сим.')
         else:
             print('Дедлайн прошел или сегодня!')
 
@@ -272,23 +349,21 @@ def new_note(choice=None):
     progress = round(new_symbols / goal * 100)
     symbol_progress = new_symbols - last_symbols
 
-    # Записываем в словарь
     project['notes'][today_date] = {'symbol_progress': symbol_progress}
     project['progress'] = progress
     project['total symbols'] = new_symbols
-
-    # Обновляем структуру в data
     data['projects']['active'][choice] = project
     save_data(data)
+    print(f'Добавлено: {symbol_progress} симв., Прогресс: {progress}%, добавлено {progress - last_progress}%\n')
 
-    print(f'Добавлено: {symbol_progress} симв., Прогресс: {progress}%, +{progress - last_progress}%\n')
+    if game.load_game() is not None and symbol_progress > 0:
+        print(f'\n Получено {game.give_coins(symbol_progress)} монет и {game.give_exps(symbol_progress)} опыта')
 
-    # Логика стриков и игры
-    if today_goal > 0 and symbol_progress >= today_goal:
+    if symbol_progress > 0:
         streak_status = chek_streak(choice)
-
-        # Перезагружаем, чтобы получить обновленные стрики
         data = load_data()
+
+        # Обычная логика стриков
         current_streak = len(data['projects']['active'][choice]['streaks'])
 
         if streak_status == 'Go':
@@ -299,16 +374,29 @@ def new_note(choice=None):
         elif streak_status == 'Start':
             print('Старт стрика!')
 
-        # Игровой бонус
+        # Бонус за стрик
         if game.load_game() is not None:
-            # Тут нужна аккуратность с типами дат, используем today_date
+            data = load_data()
             notes = data['projects']['active'][choice]['notes']
-            # Если записи создаются с ключом-датой, используем его
             if today_date in notes:
                 if not notes[today_date].get('streak_bonus', False):
-                    print(game.give_streak_bonus(streak_status))
+                    print(game.give_streak_bonus(streak_status, new_symbols))
                     notes[today_date]['streak_bonus'] = True
                     save_data(data)
+
+    # Завершение проекта
+    if goal <= new_symbols:
+        print('Работа над проектом завершена!')
+        if game.load_game() is not None:
+            print(game.give_complete_bonus(True, new_symbols))
+
+        if 'complete' not in data['projects']:
+            data['projects']['complete'] = {}
+        data['projects']['complete'][choice] = data['projects']['active'][choice]
+        del data['projects']['active'][choice]
+        save_data(data)
+        main_menu()
+        return
 
     main_menu()
 
@@ -366,7 +454,6 @@ def change_project():
         main_menu()
 
     def delete_project():
-        from random import randint
         key = randint(1000, 9999)
         print(f'Удаление "{choice}" необратимо!')
         try:
