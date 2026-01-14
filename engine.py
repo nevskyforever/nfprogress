@@ -3,7 +3,7 @@ import game
 from datetime import date, datetime, timedelta
 from random import randint
 
-TEST_DATE = date(2026, 1, 13)  # Меняй здесь для тестов
+TEST_DATE = None
 
 def today_for_test():
     if TEST_DATE is None or TEST_DATE < date.today():
@@ -26,7 +26,7 @@ def save_data(data):
 
 
 def main_menu():
-    print('nfprogress 1.1.3\n')
+    print('nfprogress 1.1.4\n')
     print(f'Сегодня: {today_for_test().strftime("%d.%m.%y")}')
     print('Что вы хотите сделать?\n')
     print('1 - Новая запись')
@@ -441,8 +441,6 @@ def new_note(choice=None):
             notes = data['projects']['active'][choice]['notes']
             if today_date in notes:
                 if not notes[today_date].get('streak_bonus', False):
-                    # Бонус даем, только если статус положительный или Done
-                    if streak_status in ['Start', 'Go', 'Done']:
                         print(game.give_streak_bonus(streak_status, new_symbols))
                         notes[today_date]['streak_bonus'] = True
                         save_data(data)
