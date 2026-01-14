@@ -3,6 +3,13 @@ import game
 from datetime import date, datetime, timedelta
 from random import randint
 
+TEST_DATE = date(2026, 1, 13)  # Меняй здесь для тестов
+
+def today_for_test():
+    if TEST_DATE is None or TEST_DATE < date.today():
+        return date.today()
+    else:
+        return TEST_DATE
 
 def load_data():
     try:
@@ -19,7 +26,8 @@ def save_data(data):
 
 
 def main_menu():
-    print('nfprogress 1.1.1\n')
+    print('nfprogress 1.1.3\n')
+    print(f'Сегодня: {today_for_test().strftime("%d.%m.%y")}')
     print('Что вы хотите сделать?\n')
     print('1 - Новая запись')
     print('2 - Просмотр проектов')
@@ -88,7 +96,7 @@ def new_project():
 
     data['projects']['active'][name] = {
         'goal': goal,
-        'created': date.today(),
+        'created': today_for_test(),
         'total symbols': 0,
         'progress': 0,
         'notes': {},
@@ -261,7 +269,7 @@ def choice_project():
 
 def chek_streak(project_name, symbol_progress, today_goal=0):
     data = load_data()
-    today = date.today()
+    today = today_for_test()
     project = data['projects']['active'][project_name]
     streaks = project['streaks']
     deadline = project['deadline']['date']
@@ -333,11 +341,15 @@ def new_note(choice=None):
     project = data['projects']['active'][choice]
 
     goal = project['goal']
-    last_symbols = project['total symbols']
-    last_progress = project['progress']
+    last_symbols = project['total symbols']  # Сколько было до ввода
     need_symbols = goal - last_symbols
-    today_dt = datetime.today()
-    today_date = date.today()
+    today_dt = today_for_test()  # Используем тестовую дату
+
+    # Делаем today_dt объектом date, если он вдруг datetime (для ключей словаря)
+    if isinstance(today_dt, datetime):
+        today_date = today_dt.date()
+    else:
+        today_date = today_dt
 
     deadline = project['deadline']['date']
 
@@ -347,7 +359,11 @@ def new_note(choice=None):
     # === ВЫЧИСЛЯЕМ ЦЕЛЬ НА СЕГОДНЯ ===
     today_goal = 0
     if deadline != 'Нет':
-        days_left = (deadline - today_dt).days
+        # Приводим deadline к date для вычитания
+        d_date = deadline.date() if isinstance(deadline, datetime) else deadline
+        t_date = today_dt.date() if isinstance(today_dt, datetime) else today_dt
+
+        days_left = (d_date - t_date).days
         if days_left > 0:
             today_goal = need_symbols // days_left
             print(f'Цель на сегодня: {today_goal} сим.')
@@ -365,22 +381,47 @@ def new_note(choice=None):
         main_menu()
         return
 
-    progress = round(new_symbols / goal * 100)
-    symbol_progress = new_symbols - last_symbols
+    # 1. Считаем, сколько добавили ПРЯМО СЕЙЧАС (для опыта и монет)
+    session_added = new_symbols - last_symbols
 
-    project['notes'][today_date] = {'symbol_progress': symbol_progress}
+    # Если ввели меньше, чем было - значит удалили текст, опыт не даем
+    if session_added < 0:
+        session_added = 0
+
+    # 2. Считаем прогресс ЗА ВЕСЬ ДЕНЬ (для записи в лог и стриков)
+    # Если сегодня уже писали, берем старое значение за сегодня и добавляем новое
+    current_today_progress = 0
+    if today_date in project['notes']:
+        current_today_progress = project['notes'][today_date].get('symbol_progress', 0)
+
+    today_total_progress = current_today_progress + session_added
+
+    progress = round(new_symbols / goal * 100)
+
+    # Записываем в лог именно дневной прогресс
+    project['notes'][today_date] = {
+        'symbol_progress': today_total_progress,
+        'last_total': new_symbols
+    }
     project['progress'] = progress
     project['total symbols'] = new_symbols
     data['projects']['active'][choice] = project
     save_data(data)
-    print(f'\nДобавлено: {symbol_progress} сим., Прогресс: {progress}%, добавлено {progress - last_progress}%\n')
 
-    if game.load_game() is not None and symbol_progress > 0:
-        print(f'Получено {game.give_coins(symbol_progress)} монет и {game.give_exps(symbol_progress)} опыта\n')
+    print(f'\nДобавлено сейчас: {session_added} сим.')
+    print(f'Всего за сегодня: {today_total_progress} сим.')
+    print(f'Общий прогресс: {progress}%\n')
+
+    # Опыт даем только за то, что добавили сейчас
+    if game.load_game() is not None and session_added > 0:
+        print(f'Получено {game.give_coins(session_added)} монет и {game.give_exps(session_added)} опыта\n')
 
     # === ПРОВЕРКА СТРИКА ===
-    if symbol_progress > 0:
-        streak_status = chek_streak(choice, symbol_progress, today_goal)
+    # Проверяем стрик на основе ВСЕГО написанного за сегодня (today_total_progress)
+    if session_added > 0 or today_total_progress > 0:
+        streak_status = chek_streak(choice, today_total_progress, today_goal)
+
+        # Перезагружаем data, так как chek_streak мог её обновить
         data = load_data()
         current_streak = len(data['projects']['active'][choice]['streaks'])
 
@@ -396,13 +437,15 @@ def new_note(choice=None):
 
         # === БОНУС ЗА СТРИК ===
         if game.load_game() is not None and streak_status:
-            data = load_data()
+            # Обновляем notes локально, чтобы не затереть флаг бонуса
             notes = data['projects']['active'][choice]['notes']
             if today_date in notes:
                 if not notes[today_date].get('streak_bonus', False):
-                    print(game.give_streak_bonus(streak_status, new_symbols))
-                    notes[today_date]['streak_bonus'] = True
-                    save_data(data)
+                    # Бонус даем, только если статус положительный или Done
+                    if streak_status in ['Start', 'Go', 'Done']:
+                        print(game.give_streak_bonus(streak_status, new_symbols))
+                        notes[today_date]['streak_bonus'] = True
+                        save_data(data)
 
     # === ЗАВЕРШЕНИЕ ПРОЕКТА ===
     if goal <= new_symbols:
@@ -581,6 +624,7 @@ def more_details():
     print(f'Написано: {project["total symbols"]}')
     print(f'Прогресс: {project["progress"]}%')
     print(f'Среднее за сессию: {avg_symbols}')
+    print(f'Создан: {project['created'].strftime("%d.%m.%y")}')
 
     dd = project["deadline"]["date"]
     if dd != 'Нет':
