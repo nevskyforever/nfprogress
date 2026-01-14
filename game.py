@@ -232,7 +232,7 @@ def give_streak_bonus(streak_status, total_symbols):
         return f'Вы продлили стрик и получили {coins} монет! \n Так держать!'
 
     elif streak_status == 'Done':
-        return f'Cтрик сегодня уже продлен, но символы лишними не будут ;)'
+        return f'Бонус за стрик сегодня уже получен, но символы лишними не будут ;)'
 
     elif streak_status == 'Complete':
         exps = int(1000 * (total_symbols / 1000) * (cf_exp + 4))
@@ -251,7 +251,7 @@ def give_streak_bonus(streak_status, total_symbols):
 
     elif streak_status.split()[0] == 'Lose':
         try:
-            lose_days = int(streak_status.split()[-1])
+            lose_days = int(streak_status.split()[1])
             health -= 5 * lose_days
             if health <= 0:
                 gamer['health'] = 0

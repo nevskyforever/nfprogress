@@ -259,16 +259,16 @@ def choice_project():
             main_menu()
 
 
-def chek_streak(project_name, symbol_progress, today_goal):
+def chek_streak(project_name, symbol_progress, today_goal=0):
     data = load_data()
     today = date.today()
-    streaks = data['projects']['active'][project_name]['streaks']
-    today_progress = data['projects']['active'][project_name]['notes'][today].get('symbol_progress', 0)
-    deadline = data['projects']['active'][project_name]['deadline']['date']
-    goal = data['projects']['active'][project_name]['goal']
-    total = data['projects']['active'][project_name]['total symbols']
+    project = data['projects']['active'][project_name]
+    streaks = project['streaks']
+    deadline = project['deadline']['date']
+    goal = project['goal']
+    total = project['total symbols']
 
-    # Нормализация даты дедлайна для сравнения
+    # Нормализация дедлайна
     if isinstance(deadline, datetime):
         deadline_date = deadline.date()
     elif deadline == 'Нет':
@@ -276,26 +276,41 @@ def chek_streak(project_name, symbol_progress, today_goal):
     else:
         deadline_date = deadline
 
-    # ПРОВЕРКА НА ЗАВЕРШЕНИЕ
-    # Если цель достигнута И (дедлайна нет ИЛИ дедлайн еще не прошел)
+    # === ПРОВЕРКА ЗАВЕРШЕНИЯ ===
     if total >= goal:
         if deadline_date is None or today <= deadline_date:
             return 'Complete'
 
-    # Обычная логика стриков
-    if len(streaks) == 0 and today_goal <= symbol_progress:
+    # === ЛОГИКА СТРИКОВ ===
+    yesterday = today - timedelta(days=1)
+
+    # Если дедлайна нет или цель на сегодня не установлена
+    if today_goal <= 0:
+        return None
+
+    # === ПОВТОР В ДЕНЬ (ПРОВЕРИТЬ ДО ПРОВЕРКИ КОЛИЧЕСТВА) ===
+    if len(streaks) > 0 and streaks[-1] == today:
+        return 'Done'
+
+    # Достаточно символов в этой сессии?
+    if symbol_progress < today_goal:
+        return None  # Цель не достигнута, ничего не делаем
+
+    # === НАЧАЛО НОВОГО СТРИКА ===
+    if len(streaks) == 0:
         streaks.append(today)
         streak_status = 'Start'
-    else:
-        yesterday = today - timedelta(days=1)
-        if streaks[-1] == yesterday and today_goal <= symbol_progress:
-            streaks.append(today)
-            streak_status = 'Go'
-        elif streaks[-1] == today and today_goal <= today_progress:
-            streak_status = 'Done'
-        else:
-            streak_status = f'Lose {len(streaks)}'
-            streaks = [today]
+
+    # === ПРОДОЛЖЕНИЕ СТРИКА ===
+    elif streaks[-1] == yesterday:
+        streaks.append(today)
+        streak_status = 'Go'
+
+    # === ПОТЕРЯ СТРИКА ===
+    else:  # Разрыв цепи
+        lost_days = len(streaks)
+        streaks = [today]  # Начинаем заново
+        streak_status = f'Lose {lost_days}'
 
     data['projects']['active'][project_name]['streaks'] = streaks
     save_data(data)
@@ -329,6 +344,8 @@ def new_note(choice=None):
     print(f'Текущее кол-во символов в {choice}: {last_symbols} сим.')
     print(f'Осталось написать до цели: {need_symbols} сим.')
 
+    # === ВЫЧИСЛЯЕМ ЦЕЛЬ НА СЕГОДНЯ ===
+    today_goal = 0
     if deadline != 'Нет':
         days_left = (deadline - today_dt).days
         if days_left > 0:
@@ -356,28 +373,29 @@ def new_note(choice=None):
     project['total symbols'] = new_symbols
     data['projects']['active'][choice] = project
     save_data(data)
-    print(f'Добавлено: {symbol_progress} сим., Прогресс: {progress}%, добавлено {progress - last_progress}%\n')
+    print(f'\nДобавлено: {symbol_progress} сим., Прогресс: {progress}%, добавлено {progress - last_progress}%\n')
 
     if game.load_game() is not None and symbol_progress > 0:
-        print(f'\n Получено {game.give_coins(symbol_progress)} монет и {game.give_exps(symbol_progress)} опыта')
+        print(f'Получено {game.give_coins(symbol_progress)} монет и {game.give_exps(symbol_progress)} опыта\n')
 
+    # === ПРОВЕРКА СТРИКА ===
     if symbol_progress > 0:
         streak_status = chek_streak(choice, symbol_progress, today_goal)
         data = load_data()
-
-        # Обычная логика стриков
         current_streak = len(data['projects']['active'][choice]['streaks'])
 
-        if streak_status == 'Go':
-            print(f'Стрик продлен! Дней подряд: {current_streak}')
-        elif streak_status.startswith('Lose'):
+        if streak_status == 'Start':
+            print('Старт стрика!\n')
+        elif streak_status == 'Go':
+            print(f'Стрик продлен! Дней подряд: {current_streak}\n')
+        elif streak_status == 'Done':
+            print('Цель на сегодня уже выполнена, ты хорошо постарался!\n')
+        elif streak_status and streak_status.startswith('Lose'):
             lost = streak_status.split()[1]
-            print(f'Стрик прерван (потеряно {lost} дн). Новый старт.')
-        elif streak_status == 'Start':
-            print('Старт стрика!')
+            print(f'Стрик прерван (потеряно {lost} дн). Начнем снова?\n')
 
-        # Бонус за стрик
-        if game.load_game() is not None:
+        # === БОНУС ЗА СТРИК ===
+        if game.load_game() is not None and streak_status:
             data = load_data()
             notes = data['projects']['active'][choice]['notes']
             if today_date in notes:
@@ -386,12 +404,13 @@ def new_note(choice=None):
                     notes[today_date]['streak_bonus'] = True
                     save_data(data)
 
-    # Завершение проекта
+    # === ЗАВЕРШЕНИЕ ПРОЕКТА ===
     if goal <= new_symbols:
         print('Работа над проектом завершена!')
         if game.load_game() is not None:
             print(game.give_complete_bonus(True, new_symbols))
 
+        data = load_data()
         if 'complete' not in data['projects']:
             data['projects']['complete'] = {}
         data['projects']['complete'][choice] = data['projects']['active'][choice]
