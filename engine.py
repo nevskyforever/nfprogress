@@ -19,7 +19,7 @@ def save_data(data):
 
 
 def main_menu():
-    print('nfprogress 1.1\n')
+    print('nfprogress 1.1.1\n')
     print('Что вы хотите сделать?\n')
     print('1 - Новая запись')
     print('2 - Просмотр проектов')
@@ -259,10 +259,11 @@ def choice_project():
             main_menu()
 
 
-def chek_streak(project_name):
+def chek_streak(project_name, symbol_progress, today_goal):
     data = load_data()
-    streaks = data['projects']['active'][project_name]['streaks']
     today = date.today()
+    streaks = data['projects']['active'][project_name]['streaks']
+    today_progress = data['projects']['active'][project_name]['notes'][today].get('symbol_progress', 0)
     deadline = data['projects']['active'][project_name]['deadline']['date']
     goal = data['projects']['active'][project_name]['goal']
     total = data['projects']['active'][project_name]['total symbols']
@@ -282,15 +283,15 @@ def chek_streak(project_name):
             return 'Complete'
 
     # Обычная логика стриков
-    if len(streaks) == 0:
+    if len(streaks) == 0 and today_goal <= symbol_progress:
         streaks.append(today)
         streak_status = 'Start'
     else:
         yesterday = today - timedelta(days=1)
-        if streaks[-1] == yesterday:
+        if streaks[-1] == yesterday and today_goal <= symbol_progress:
             streaks.append(today)
             streak_status = 'Go'
-        elif streaks[-1] == today:
+        elif streaks[-1] == today and today_goal <= today_progress:
             streak_status = 'Done'
         else:
             streak_status = f'Lose {len(streaks)}'
@@ -319,18 +320,19 @@ def new_note(choice=None):
     goal = project['goal']
     last_symbols = project['total symbols']
     last_progress = project['progress']
+    need_symbols = goal - last_symbols
     today_dt = datetime.today()
     today_date = date.today()
 
     deadline = project['deadline']['date']
 
     print(f'Текущее кол-во символов в {choice}: {last_symbols} сим.')
+    print(f'Осталось написать до цели: {need_symbols} сим.')
 
-    today_goal = 0
     if deadline != 'Нет':
         days_left = (deadline - today_dt).days
         if days_left > 0:
-            today_goal = (goal - last_symbols) // days_left
+            today_goal = need_symbols // days_left
             print(f'Цель на сегодня: {today_goal} сим.')
         else:
             print('Дедлайн прошел или сегодня!')
@@ -354,13 +356,13 @@ def new_note(choice=None):
     project['total symbols'] = new_symbols
     data['projects']['active'][choice] = project
     save_data(data)
-    print(f'Добавлено: {symbol_progress} симв., Прогресс: {progress}%, добавлено {progress - last_progress}%\n')
+    print(f'Добавлено: {symbol_progress} сим., Прогресс: {progress}%, добавлено {progress - last_progress}%\n')
 
     if game.load_game() is not None and symbol_progress > 0:
         print(f'\n Получено {game.give_coins(symbol_progress)} монет и {game.give_exps(symbol_progress)} опыта')
 
     if symbol_progress > 0:
-        streak_status = chek_streak(choice)
+        streak_status = chek_streak(choice, symbol_progress, today_goal)
         data = load_data()
 
         # Обычная логика стриков
