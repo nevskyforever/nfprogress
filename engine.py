@@ -436,7 +436,6 @@ def new_note(choice=None):
         new_notifications.append(game_notification)
         print(f'📌 {game_notification}\n')
 
-    # === ПЕРЕМЕННАЯ ДЛЯ ОТСЛЕЖИВАНИЯ СТРИКА ===
     streak_status = None
 
     if session_added > 0 or today_total_progress > 0:
@@ -462,6 +461,13 @@ def new_note(choice=None):
             new_notifications.append(lose_notification)
             print(f'📌 {lose_notification}\n')
 
+        # === БОНУС ЗА СТРИК ПРИ ПРОДОЛЖЕНИИ РАБОТЫ ===
+        if game.load_game() is not None and deadline != 'Нет' and streak_status in ['Start', 'Go']:
+            bonus_msg = game.give_streak_bonus(streak_status, new_symbols)
+            bonus_notification = f'{timestamp} в {choice}: 🎁 {bonus_msg}'
+            new_notifications.append(bonus_notification)
+            print(f'📌 {bonus_notification}\n')
+
     # === ПРОВЕРКА ЗАВЕРШЕНИЯ ПРОЕКТА ===
     if goal <= new_symbols:
         print(f'\n🎯 Проект "{choice}" достиг цели ({new_symbols}/{goal} сим.)!\n')
@@ -475,15 +481,7 @@ def new_note(choice=None):
                 new_notifications.append(complete_notification)
                 print(f'📌 {complete_notification}')
 
-                # === БОНУСЫ ВЫДАЮТСЯ ТОЛЬКО ЗДЕСЬ ПРИ ПОДТВЕРЖДЕНИИ ===
                 if game.load_game() is not None:
-                    # Бонус за стрик только если есть дедлайн и статус стрика
-                    if deadline != 'Нет' and streak_status:
-                        bonus_msg = game.give_streak_bonus(streak_status, new_symbols)
-                        bonus_notification = f'{timestamp} в {choice}: 🎁 {bonus_msg}'
-                        new_notifications.append(bonus_notification)
-                        print(f'📌 {bonus_notification}\n')
-
                     # Бонус за завершение
                     complete_bonus = game.give_complete_bonus(True, new_symbols)
                     bonus_notification = f'{timestamp} в {choice}: 🎉 {complete_bonus}'
@@ -523,12 +521,10 @@ def new_note(choice=None):
                     new_notifications.append(goal_notification)
                     print(f'📌 {goal_notification}\n')
 
-                    # === ПРОВЕРКА ДЕДЛАЙНА ===
                     if deadline != 'Нет':
                         d_date = deadline.date() if isinstance(deadline, datetime) else deadline
                         t_date = today_dt.date() if isinstance(today_dt, datetime) else today_dt
 
-                        # Показываем только если дедлайн еще не прошел
                         if d_date >= t_date:
                             deadline_str = deadline.strftime('%d.%m.%y')
                             print(f'Текущий дедлайн: {deadline_str}\n')
@@ -571,6 +567,7 @@ def new_note(choice=None):
     data['notifications'] = notifications
     save_data(data)
     main_menu()
+
 
 
 def change_project():
