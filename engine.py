@@ -4,7 +4,7 @@ import game
 from datetime import date, datetime, timedelta
 from random import randint
 
-TEST_DATE = date(2026, 1,17)
+TEST_DATE = date(2026, 1,15)
 version = '1.2.6.3'
 last_update = '15.01.26'
 
