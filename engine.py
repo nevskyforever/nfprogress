@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from random import randint
 
 TEST_DATE = None
-version = '1.2.4'
+version = '1.2.4.1'
 last_update = '15.01.26'
 
 def today_for_test():
@@ -31,6 +31,8 @@ def about_program():
     print('Автор: nevskyforever')
     print(f'Версия приложения: {version}')
     print(f'Дата последнего обновления: {last_update}')
+    input('\nДля выхода в главное меню нажмите Enter: ')
+    main_menu()
 
 
 def notifications_view():
