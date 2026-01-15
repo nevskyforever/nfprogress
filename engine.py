@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from random import randint
 
 TEST_DATE = None
-version = '1.2.4.1'
+version = '1.2.4.2'
 last_update = '15.01.26'
 
 def today_for_test():
@@ -114,7 +114,7 @@ def new_project():
         'progress': 0,
         'notes': {},
         'streaks': [],
-        'deadline': {'date': deadline, 'days left': 0}
+        'deadline': {'date': deadline, 'days left': (deadline.date() - date.today()).days}
     }
     data['last'] = name
     save_data(data)
@@ -154,13 +154,13 @@ def view_projects():
             deadline = proj['deadline']['date']
 
             if deadline == 'Нет':
-                print(f'Название: {name}, прогресс: {progress}%, написано/цель: {symbols}/{goal}')
+                print(f'Название: {name}, прогресс: {progress}%, написано/цель: {symbols}/{goal}\n')
             else:
                 deadline_str = datetime.strftime(deadline, '%d.%m.%y')
                 days_left = proj['deadline']['days left']
                 streaks = len(proj['streaks'])
                 print(f'Название: {name}, прогресс: {progress}%, написано: {symbols}/{goal}, '
-                      f'дедлайн: {deadline_str}, дней: {days_left}, стрик: {streaks}')
+                      f'дедлайн: {deadline_str}, дней: {days_left}, стрик: {streaks}\n')
 
     archived = data['projects'].get('archive', {})
     completed = data['projects'].get('complete', {})
