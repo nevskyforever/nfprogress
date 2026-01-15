@@ -6,7 +6,7 @@ from datetime import date, datetime, timedelta
 from random import randint
 
 TEST_DATE = None
-version = '1.2'
+version = '1.2.2'
 last_update = '15.01.26'
 
 def today_for_test():
@@ -63,6 +63,7 @@ def notifications_view():
         data['notifications'] = notifications
         save_data(data)  # ✅ Сохраняем полные данные!
         print('\nПрочитанные уведомления очищены.\n')
+        main_menu()
     else:
         notifications['read'].extend(notifications['new'])
         notifications['new'] = []
