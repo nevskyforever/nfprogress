@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from random import randint
 
 TEST_DATE = None
-version = '1.2.4.3'
+version = '1.2.5'
 last_update = '15.01.26'
 
 def today_for_test():
@@ -59,17 +59,16 @@ def notifications_view():
                '\nДля выхода введите Enter: ')
 
     if do == '1':
-        # Перемещаем новые в прочитанные, затем очищаем новые
         notifications['read'] = []
         data['notifications'] = notifications
-        save_data(data)  # ✅ Сохраняем полные данные!
+        save_data(data)
         print('\nПрочитанные уведомления очищены.\n')
         main_menu()
     else:
         notifications['read'].extend(notifications['new'])
         notifications['new'] = []
         data['notifications'] = notifications
-        save_data(data)  # ✅ Сохраняем полные данные!
+        save_data(data)
         main_menu()
 
 
@@ -99,9 +98,11 @@ def new_project():
         if deadline_input == '':
             deadline = 'Нет'
             deadline_str = 'Нет'
+            days_left = 0
         else:
             deadline = datetime.strptime(deadline_input, '%d.%m.%y')
             deadline_str = deadline.strftime('%d.%m.%y')
+            days_left = (deadline.date() - date.today()).days
     except ValueError:
         print('\n ЗНАЧЕНИЕ НЕКОРРЕКТНО (Дедлайн установлен как "Нет") \n')
         deadline = 'Нет'
@@ -114,18 +115,16 @@ def new_project():
         'progress': 0,
         'notes': {},
         'streaks': [],
-        'deadline': {'date': deadline, 'days left': (deadline.date() - date.today()).days}
+        'deadline': {'date': deadline, 'days left': days_left}
     }
     data['last'] = name
     save_data(data)
     print(f'\nПроект {name} создан\n')
 
-    # === УВЕДОМЛЕНИЕ О СОЗДАНИИ ===
     timestamp = datetime.now().strftime('%H:%M %d.%m.%y')
     notification_text = f'🆕 Проект "{name}" создан (цель: {goal} сим., дедлайн: {deadline_str})'
     notification = f'{timestamp}: {notification_text}'
 
-    # Добавляем в уведомления
     notifications = data.get('notifications', {'new': [], 'read': []})
     notifications['new'].append(notification)
     data['notifications'] = notifications
@@ -175,11 +174,10 @@ def view_projects():
         print('Для просмотра завершенных проектов введите 2')
 
     if len(archived) > 0 or len(completed) > 0:
-        print()  # Пустая строка для отступа
+        print()
 
     do = input('Выбор: ')
 
-    # === ПРОСМОТР АРХИВА ===
     if do == '1' and len(archived) > 0:
         print('\n ПРОЕКТЫ В АРХИВЕ \n')
         for name in archived.keys():
@@ -219,7 +217,6 @@ def view_projects():
                 print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ!')
                 main_menu()
 
-    # === ПРОСМОТР ЗАВЕРШЕННЫХ (НОВОЕ) ===
     elif do == '2' and len(completed) > 0:
         print('\n ЗАВЕРШЕННЫЕ ПРОЕКТЫ \n')
         for name in completed.keys():
@@ -256,7 +253,7 @@ def view_projects():
                     approve = int(input(f'Для подтверждения введите {key}: '))
                     if approve == key:
                         data = load_data()
-                        del data['projects']['complete'][choice_name]  # Удаляем из complete, не active
+                        del data['projects']['complete'][choice_name]
                         save_data(data)
                         print(f'\nПроект удален из завершенных.\n')
                     else:
@@ -306,7 +303,6 @@ def chek_streak(project_name, symbol_progress, today_goal=0):
     goal = project['goal']
     total = project['total symbols']
 
-    # Нормализация дедлайна
     if isinstance(deadline, datetime):
         deadline_date = deadline.date()
     elif deadline == 'Нет':
@@ -314,40 +310,32 @@ def chek_streak(project_name, symbol_progress, today_goal=0):
     else:
         deadline_date = deadline
 
-    # === ПРОВЕРКА ЗАВЕРШЕНИЯ ===
     if total >= goal:
         if deadline_date is None or today <= deadline_date:
             return 'Complete'
 
-    # === ЛОГИКА СТРИКОВ ===
     yesterday = today - timedelta(days=1)
 
-    # Если дедлайна нет или цель на сегодня не установлена
     if today_goal <= 0:
         return None
 
-    # === ПОВТОР В ДЕНЬ (ПРОВЕРИТЬ ДО ПРОВЕРКИ КОЛИЧЕСТВА) ===
     if len(streaks) > 0 and streaks[-1] == today:
         return 'Done'
 
-    # Достаточно символов в этой сессии?
     if symbol_progress < today_goal:
-        return None  # Цель не достигнута, ничего не делаем
+        return None
 
-    # === НАЧАЛО НОВОГО СТРИКА ===
     if len(streaks) == 0:
         streaks.append(today)
         streak_status = 'Start'
 
-    # === ПРОДОЛЖЕНИЕ СТРИКА ===
     elif streaks[-1] == yesterday:
         streaks.append(today)
         streak_status = 'Go'
 
-    # === ПОТЕРЯ СТРИКА ===
-    else:  # Разрыв цепи
+    else:
         lost_days = len(streaks)
-        streaks = [today]  # Начинаем заново
+        streaks = [today]
         streak_status = f'Lose {lost_days}'
 
     data['projects']['active'][project_name]['streaks'] = streaks
@@ -435,13 +423,11 @@ def new_note(choice=None):
     print(f'Всего за сегодня: {today_total_progress} сим.')
     print(f'Общий прогресс: {progress}%\n')
 
-    # === УВЕДОМЛЕНИЕ: НОВАЯ ЗАПИСЬ ===
     timestamp = datetime.now().strftime('%H:%M %d.%m.%y')
     entry_notification = f'{timestamp} в {choice}: ✏️ Добавлено {session_added} сим.'
     new_notifications.append(entry_notification)
     print(f'📌 {entry_notification}')
 
-    # === ИГРОВЫЕ БОНУСЫ ===
     if game.load_game() is not None and session_added > 0:
         coins = game.give_coins(session_added)
         exps = game.give_exps(session_added)
@@ -450,13 +436,14 @@ def new_note(choice=None):
         new_notifications.append(game_notification)
         print(f'📌 {game_notification}\n')
 
-    # === ПРОВЕРКА СТРИКА ===
+    # === ПЕРЕМЕННАЯ ДЛЯ ОТСЛЕЖИВАНИЯ СТРИКА ===
+    streak_status = None
+
     if session_added > 0 or today_total_progress > 0:
         streak_status = chek_streak(choice, today_total_progress, today_goal)
         data = load_data()
         current_streak = len(data['projects']['active'][choice]['streaks'])
 
-        # === УВЕДОМЛЕНИЯ ПО СТРИКУ ===
         if streak_status == 'Start':
             streak_notification = f'{timestamp} в {choice}: 🔥 Старт стрика!'
             new_notifications.append(streak_notification)
@@ -475,41 +462,112 @@ def new_note(choice=None):
             new_notifications.append(lose_notification)
             print(f'📌 {lose_notification}\n')
 
-        # === БОНУС ЗА СТРИК ===
-        if game.load_game() is not None and streak_status:
-            notes = data['projects']['active'][choice]['notes']
-            if today_date in notes:
-                if not notes[today_date].get('streak_bonus', False):
-                    bonus_msg = game.give_streak_bonus(streak_status, new_symbols)
-                    bonus_notification = f'{timestamp} в {choice}: 🎁 {bonus_msg}'
+    # === ПРОВЕРКА ЗАВЕРШЕНИЯ ПРОЕКТА ===
+    if goal <= new_symbols:
+        print(f'\n🎯 Проект "{choice}" достиг цели ({new_symbols}/{goal} сим.)!\n')
+
+        while True:
+            choice_complete = input(
+                'Что вы хотите сделать?\n1 - Завершить проект\n2 - Изменить цель и продолжить\n> ').strip()
+
+            if choice_complete == '1':
+                complete_notification = f'{timestamp} в {choice}: 🏆 Проект завершен!'
+                new_notifications.append(complete_notification)
+                print(f'📌 {complete_notification}')
+
+                # === БОНУСЫ ВЫДАЮТСЯ ТОЛЬКО ЗДЕСЬ ПРИ ПОДТВЕРЖДЕНИИ ===
+                if game.load_game() is not None:
+                    # Бонус за стрик только если есть дедлайн и статус стрика
+                    if deadline != 'Нет' and streak_status:
+                        bonus_msg = game.give_streak_bonus(streak_status, new_symbols)
+                        bonus_notification = f'{timestamp} в {choice}: 🎁 {bonus_msg}'
+                        new_notifications.append(bonus_notification)
+                        print(f'📌 {bonus_notification}\n')
+
+                    # Бонус за завершение
+                    complete_bonus = game.give_complete_bonus(True, new_symbols)
+                    bonus_notification = f'{timestamp} в {choice}: 🎉 {complete_bonus}'
                     new_notifications.append(bonus_notification)
                     print(f'📌 {bonus_notification}\n')
-                    notes[today_date]['streak_bonus'] = True
+
+                data = load_data()
+                if 'complete' not in data['projects']:
+                    data['projects']['complete'] = {}
+                data['projects']['complete'][choice] = data['projects']['active'][choice]
+                del data['projects']['active'][choice]
+                data['notifications'] = notifications
+                save_data(data)
+                main_menu()
+                return
+
+            elif choice_complete == '2':
+                try:
+                    new_goal = input('Введите новую цель по символам: ').strip()
+                    if new_goal == '':
+                        print('Отменено.\n')
+                        break
+                    new_goal = int(new_goal)
+
+                    if new_goal <= new_symbols:
+                        print('⚠️ Новая цель должна быть больше текущего кол-ва символов!\n')
+                        continue
+
+                    data = load_data()
+                    data['projects']['active'][choice]['goal'] = new_goal
+                    new_progress = round(new_symbols / new_goal * 100)
+                    data['projects']['active'][choice]['progress'] = new_progress
+                    data['notifications'] = notifications
                     save_data(data)
 
-    # === ЗАВЕРШЕНИЕ ПРОЕКТА ===
-    if goal <= new_symbols:
-        complete_notification = f'{timestamp} в {choice}: 🏆 Проект завершен!'
-        new_notifications.append(complete_notification)
-        print(f'📌 {complete_notification}')
+                    goal_notification = f'{timestamp} в {choice}: 🎯 Цель изменена на {new_goal} сим.'
+                    new_notifications.append(goal_notification)
+                    print(f'📌 {goal_notification}\n')
 
-        if game.load_game() is not None:
-            complete_bonus = game.give_complete_bonus(True, new_symbols)
-            bonus_notification = f'{timestamp} в {choice}: 🎉 {complete_bonus}'
-            new_notifications.append(bonus_notification)
-            print(f'📌 {bonus_notification}\n')
+                    # === ПРОВЕРКА ДЕДЛАЙНА ===
+                    if deadline != 'Нет':
+                        d_date = deadline.date() if isinstance(deadline, datetime) else deadline
+                        t_date = today_dt.date() if isinstance(today_dt, datetime) else today_dt
 
-        data = load_data()
-        if 'complete' not in data['projects']:
-            data['projects']['complete'] = {}
-        data['projects']['complete'][choice] = data['projects']['active'][choice]
-        del data['projects']['active'][choice]
-        data['notifications'] = notifications
-        save_data(data)
-        main_menu()
-        return
+                        # Показываем только если дедлайн еще не прошел
+                        if d_date >= t_date:
+                            deadline_str = deadline.strftime('%d.%m.%y')
+                            print(f'Текущий дедлайн: {deadline_str}\n')
 
-    # === СОХРАНЯЕМ ВСЕ УВЕДОМЛЕНИЯ ===
+                            change_deadline_input = input(
+                                'Изменить дедлайн? (введите новую дату дд.мм.гг или Enter для пропуска): ').strip()
+
+                            if change_deadline_input != '':
+                                try:
+                                    new_deadline = datetime.strptime(change_deadline_input, '%d.%m.%y')
+                                    old_deadline_str = deadline.strftime('%d.%m.%y')
+                                    new_deadline_str = new_deadline.strftime('%d.%m.%y')
+
+                                    data['projects']['active'][choice]['deadline'] = {
+                                        'date': new_deadline,
+                                        'days left': (new_deadline.date() - date.today()).days
+                                    }
+                                    data['notifications'] = notifications
+                                    save_data(data)
+
+                                    deadline_notification = f'{timestamp} в {choice}: 📅 Дедлайн изменен: {old_deadline_str} → {new_deadline_str}'
+                                    new_notifications.append(deadline_notification)
+                                    print(f'📌 {deadline_notification}\n')
+
+                                except ValueError:
+                                    print('⚠️ Ошибка формата даты. Дедлайн не изменен.\n')
+
+                    data['notifications'] = notifications
+                    save_data(data)
+                    main_menu()
+                    return
+
+                except ValueError:
+                    print('⚠️ Введите корректное число.\n')
+                    continue
+            else:
+                print('⚠️ Выберите 1 или 2.\n')
+                continue
+
     data['notifications'] = notifications
     save_data(data)
     main_menu()
@@ -573,7 +631,6 @@ def change_project():
             data = load_data()
             old_deadline = data['projects']['active'][choice]['deadline']['date']
 
-            # Форматируем для вывода
             old_deadline_str = old_deadline.strftime('%d.%m.%y') if old_deadline != 'Нет' else 'Нет'
             new_deadline_str = new_deadline.strftime('%d.%m.%y')
 
@@ -628,7 +685,6 @@ def change_project():
             save_data(data)
             print('\nИЗМЕНЕНИЯ СОХРАНЕНЫ\n')
 
-            # Уведомление с направлением изменения
             if diff > 0:
                 add_notification(
                     f'➕ Символы в "{choice}": +{diff} сим. ({old_symbols} → {new_symbols}, прогресс {old_progress}% → {new_progress}%)')
@@ -727,7 +783,6 @@ def more_details():
     main_menu()
 
 def main_menu():
-    # === ПОСЛЕДНЕЕ УВЕДОМЛЕНИЕ ===
     data = load_data()
     notifications = data.get('notifications', {'new': [], 'read': []})
     new_notifs = notifications['new']
@@ -744,7 +799,6 @@ def main_menu():
     print('3 - Новый проект')
     print('4 - Изменить проект')
     print('5 - Игровой режим')
-    # === СЧЕТЧИК УВЕДОМЛЕНИЙ ===
     print(f'6 - Уведомления ({count_new} новых)' if count_new > 0 else '6 - Уведомления')
     print('7 - Подробности о проекте')
     print('8 - О программе')
