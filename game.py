@@ -38,7 +38,7 @@ def update_gamer():
             gamer['cf']['coins'] = game_data.cf_coins[level]
             gamer['cf']['exp'] = game_data.cf_exp[level]
             save_game(gamer)
-            new_notification = f'ПОЛУЧЕН НОВЫЙ {new_level} УРОВЕНЬ! \n Ваш бонус: {coins_bonus} монет \n'
+            new_notification = f'ПОЛУЧЕН НОВЫЙ {new_level} УРОВЕНЬ! Ваш бонус: {coins_bonus} монет'
             print(new_notification)
             notifications['new'].append(new_notification)
             engine.save_data(data)
@@ -244,7 +244,7 @@ def give_coins(symbols):
         return 0
     level = gamer['level']
     cf = game_data.cf_coins[level] if level < len(game_data.cf_coins) else game_data.cf_coins[-1]
-    coins = int(symbols / 100)
+    coins = symbols / 100
     gamer['coins'] += coins * cf
     save_game(gamer)
     return coins * cf
