@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from random import randint
 
 TEST_DATE = None
-version = '1.2.4.2'
+version = '1.2.4.3'
 last_update = '15.01.26'
 
 def today_for_test():
@@ -139,6 +139,8 @@ def new_project():
 def view_projects():
     data = load_data()
     projects = data['projects']['active']
+
+    print('\nПРОСМОТР ПРОЕКТОВ\n')
 
     if len(projects) == 0:
         print('\nАктивных проектов пока нет.')
