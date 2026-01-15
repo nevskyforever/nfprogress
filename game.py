@@ -5,8 +5,6 @@ import game_data
 from random import randint
 from os import remove
 
-from game_data import cf_exp
-
 
 def load_game():
     try:
@@ -15,9 +13,11 @@ def load_game():
     except FileNotFoundError:
         return None
 
+
 def save_game(gamer):
     with open('game_mode.pkl', 'wb') as f:
         pickle.dump(gamer, f)
+
 
 def update_gamer():
     gamer = load_game()
@@ -27,7 +27,7 @@ def update_gamer():
         health = gamer['health']
         data = engine.load_data()
         notifications = data.get('notifications', {'new': [], 'read': []})
-        # Получение нового уровня
+
         if level < len(game_data.levels) - 1 and exp >= game_data.levels[level]:
             new_level = level + 1
             gamer['level'] = new_level
@@ -42,7 +42,7 @@ def update_gamer():
             print(new_notification)
             notifications['new'].append(new_notification)
             engine.save_data(data)
-        # Если потеряно здоровье
+
         if health == 0:
             print('КРИТИЧЕСКИЙ УРОВЕНЬ ЗДОРОВЬЯ\n')
             health_recovery = gamer['items']['health_recovery']
@@ -50,33 +50,51 @@ def update_gamer():
                 do = input('1 - Применить зелье восстановления: ')
                 if do == '1':
                     print(game_data.health_recovery('use'))
-                    load_game()
+                    gamer = load_game()
+                    gamer['health'] = 100
+                    save_game(gamer)
                     new_notification = 'ПЕРСОНАЖ СПАСЕН!'
                     notifications['new'].append(new_notification)
+                    data['notifications'] = notifications
                     engine.save_data(data)
                     menu()
-
             else:
                 if gamer['coins'] >= 100:
                     do = input('1 - Купить и применить зелье восстановления: ')
                     if do == '1':
                         print(game_data.health_recovery('buy'))
                         print(game_data.health_recovery('use'))
-                        load_game()
+                        gamer = load_game()
+                        gamer['health'] = 100
+                        save_game(gamer)
                         new_notification = 'ПЕРСОНАЖ СПАСЕН!'
                         notifications['new'].append(new_notification)
+                        data['notifications'] = notifications
                         engine.save_data(data)
                         menu()
                 else:
                     print('У ВАС НЕТ НИ ЗЕЛЕЙ ВОСКРЕШЕНИЯ, НИ МОНЕТ НА ИХ ПОКУПКУ! ИГРОВОЙ ПРОГРЕСС ПОТЕРЯН!')
                     new_notification = 'ПЕРСОНАЖ ПОГИБ!'
                     notifications['new'].append(new_notification)
+                    data['notifications'] = notifications
                     engine.save_data(data)
-                    gamer = game_data.gamer
+                    gamer = game_data.gamer.copy()
+                    gamer['items'] = {'health_recovery': 0, 'health_add': 0, 'lottery_ticket': 0}
+                    gamer['last_used'] = None
+                    gamer['last_bought'] = None
                     save_game(gamer)
                     menu()
         else:
             print('Приключения ждут!\n')
+
+
+# === ФУНКЦИИ МЕНЮ ===
+
+def show_about():
+    print(game_data.about_mode)
+    input('\nДля возврата в игровое меню нажмите Enter')
+    menu()
+
 
 def gamer_editor():
     password = ''
@@ -90,7 +108,7 @@ def gamer_editor():
             print(f' {i + 1}. {params[i]}')
         try:
             choice = int(input('Введите номер параметра: '))
-            if params[choice - 1] not in ['cf', 'items']:
+            if params[choice - 1] not in ['cf', 'items', 'last_used', 'last_bought']:
                 gamer[params[choice - 1]] = int(input(f'Введите значение параметра {params[choice - 1]}: '))
                 save_game(gamer)
                 print(f'Параметр {params[choice - 1]} изменен на {gamer[params[choice - 1]]}.')
@@ -103,16 +121,191 @@ def gamer_editor():
         print('НЕПРАВИЛЬНЫЙ ПАРОЛЬ')
         menu()
 
+
+def show_characteristics():
+    gamer = load_game()
+    cf_exp_val = gamer['cf']['exp']
+    cf_coins = gamer['cf']['coins']
+    print('\n КОЭФФИЦИЕНТЫ ПЕРСОНАЖА \n')
+    print(f'Коэффициент умножения опыта: {cf_exp_val}')
+    print(f'Коэффициент умножения монет: {cf_coins}')
+    print('\n Коэффициенты умножения дают бонус к зарабатываемым монетам и опыту')
+    print('Они зависят от уровня, предметов в инвентаре и примененных предметов')
+    input("\nВыйти в игровое меню - Enter: ")
+    menu()
+
+
+def show_inventory():
+    gamer = load_game()
+    print('\n ИНВЕНТАРЬ \n')
+    print('Для применения предмета введите его номер или Enter для выхода \n')
+
+    print(f'1 - Зелья воскрешения: {gamer["items"].get("health_recovery", 0)}')
+    print(f'2 - Зелья восстановления: {gamer["items"].get("health_add", 0)}')
+    print(f'3 - Лотерейный билет: {gamer["items"].get("lottery_ticket", 0)}')
+
+    print('\nЧтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
+
+    do = input('\nВыбор: ')
+
+    if do == '1':
+        use_item('health_recovery')
+    elif do == '2':
+        use_item('health_add')
+    elif do == '3':
+        use_item('lottery_ticket')
+    elif do == '1?':
+        print(game_data.health_recovery('?'))
+    elif do == '2?':
+        print(game_data.health_add('?'))
+    elif do == '3?':
+        print(game_data.lottery_ticket('?'))
+    elif do != '':
+        print('Неправильный выбор')
+
+    menu()
+
+
+def use_item(item_id):
+    """Использовать предмет из инвентаря"""
+    item_map = {
+        'health_recovery': game_data.health_recovery,
+        'health_add': game_data.health_add,
+        'lottery_ticket': game_data.lottery_ticket,
+    }
+
+    if item_id in item_map:
+        print(item_map[item_id]('use'))
+        gamer = load_game()
+        gamer['last_used'] = item_id
+        save_game(gamer)
+
+
+def show_shop():
+    print('\n МАГАЗИН \n')
+    print('1 - Зелья')
+    print('2 - Лотерейный билет (15 монет)')
+    print('Чтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
+
+    do = input('Выбор: ')
+
+    if do == '1':
+        shop_potions()
+    elif do == '2':
+        buy_item('lottery_ticket', 15)
+        menu()
+    elif do == '2?':
+        print(game_data.lottery_ticket('?'))
+        menu()
+    elif do != '':
+        print('Неправильный выбор')
+        menu()
+    else:
+        menu()
+
+
+def shop_potions():
+    gamer = load_game()
+    print('\n ЗЕЛЬЯ \n')
+    print('1 - Зелье восстановления (+10 здоровья) - 10 монет')
+    print('2 - Зелье воскрешения (восстановление здоровья) - 100 монет')
+
+    do = input('\nВыбор: ')
+
+    if do == '1':
+        buy_item('health_add', 10)
+    elif do == '2':
+        buy_item('health_recovery', 100)
+    elif do == '1?':
+        print(game_data.health_add('?'))
+    elif do == '2?':
+        print(game_data.health_recovery('?'))
+    elif do != '':
+        print('Неправильный выбор')
+
+    menu()
+
+
+def buy_item(item_id, cost):
+    """Купить предмет в магазине"""
+    item_map = {
+        'health_add': game_data.health_add,
+        'health_recovery': game_data.health_recovery,
+        'lottery_ticket': game_data.lottery_ticket,
+    }
+
+    if item_id in item_map:
+        print(item_map[item_id]('buy'))
+        gamer = load_game()
+        gamer['last_bought'] = item_id
+        save_game(gamer)
+
+
+def use_last_item():
+    """Использовать последний использованный предмет"""
+    gamer = load_game()
+    last_used = gamer.get('last_used', None)
+
+    if last_used:
+        use_item(last_used)
+    else:
+        print('Нет последнего использованного предмета')
+
+    menu()
+
+
+def buy_last_item():
+    """Купить последний купленный предмет"""
+    gamer = load_game()
+    last_bought = gamer.get('last_bought', None)
+
+    item_costs = {
+        'health_add': 10,
+        'health_recovery': 100,
+        'lottery_ticket': 15,
+    }
+
+    if last_bought and last_bought in item_costs:
+        cost = item_costs[last_bought]
+        buy_item(last_bought, cost)
+    else:
+        print('Нет последней покупки')
+
+    menu()
+
+
+def disable_mode():
+    key = randint(1000, 9999)
+    print('Если вы выключите режим, все его данные будут удалены без возможности восстановления \n'
+          'При активации режима вам придется начинать сначала.')
+    try:
+        approve = int(input(f'Подтвердите удаление введя {key}: '))
+        if approve == key:
+            remove('game_mode.pkl')
+            print('\n Игровой режим удален \n')
+            from engine import main_menu
+            main_menu()
+        else:
+            print('ОТМЕНЕНО')
+            menu()
+    except ValueError:
+        print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ')
+        menu()
+
+
+# === ГЛАВНОЕ МЕНЮ ===
+
 def menu():
     data = engine.load_data()
-    notifications = data.get('notifications', {'new': [], 'read': []})
-    print('\nИГРОВОЕ МЕНЮ\n')
+
     if load_game() is None:
         do = input('ИГРОВОЙ РЕЖИМ НЕ АКТИВИРОВАН \n'
-        '\n Для активации режима введите 1, для выхода в главное меню - Enter: ')
+                   '\n Для активации режима введите 1, для выхода в главное меню - Enter: ')
         if do == '1':
             gamer = game_data.gamer.copy()
-            gamer['items'] = {'health_recovery': 0, 'health_add': 0}
+            gamer['items'] = {'health_recovery': 0, 'health_add': 0, 'lottery_ticket': 0}
+            gamer['last_used'] = None
+            gamer['last_bought'] = None
             save_game(gamer)
             menu()
         elif do == '':
@@ -120,123 +313,75 @@ def menu():
             main_menu()
         else:
             menu()
+        return
+
+    update_gamer()
+    gamer = load_game()
+    level = gamer['level']
+    max_exp = game_data.levels[level] if level < len(game_data.levels) else game_data.levels[-1]
+
+    print(f'\nУровень: {gamer["level"]}')
+    print(f'Здоровье: {gamer["health"]}')
+    print(f'Монеты: {int(gamer["coins"])}')
+    print(f'Опыт: {int(gamer["exp"])}/{max_exp}\n')
+
+    print('1 - О режиме')
+    print('2 - Редактор персонажа')
+    print('3 - Характеристики персонажа')
+    print('4 - Инвентарь')
+    print('5 - Магазин')
+
+    # Показываем последний использованный предмет
+    last_used = gamer.get('last_used', None)
+    item_names = {
+        'health_recovery': 'Зелья воскрешения',
+        'health_add': 'Зелья восстановления',
+        'lottery_ticket': 'Лотерейный билет',
+    }
+
+    if last_used and last_used in item_names:
+        count = gamer['items'].get(last_used, 0)
+        print(f'6 - Снова использовать - {item_names[last_used]} ({count})')
+
+    # Показываем последнюю покупку
+    last_bought = gamer.get('last_bought', None)
+    item_costs = {
+        'health_add': 10,
+        'health_recovery': 100,
+        'lottery_ticket': 15,
+    }
+
+    if last_bought and last_bought in item_costs:
+        cost = item_costs[last_bought]
+        count = gamer['items'].get(last_bought, 0)
+        print(f'7 - Купить еще - {item_names.get(last_bought, "Предмет")} ({count}) - {cost} монет')
+
+    print('8 - Выключить режим')
+    print('Enter - Выйти в главное меню\n')
+
+    do_list = {
+        '1': show_about,
+        '2': gamer_editor,
+        '3': show_characteristics,
+        '4': show_inventory,
+        '5': show_shop,
+        '6': use_last_item,
+        '7': buy_last_item,
+        '8': disable_mode,
+    }
+
+    do = input("Выбор: ")
+
+    if do in do_list:
+        do_list[do]()
+    elif do == '':
+        from engine import main_menu
+        main_menu()
     else:
-        # Проверяем здоровье и повышение уровня
-        update_gamer()
-        gamer = load_game()
-        level = gamer['level']
-        max_exp = game_data.levels[level] if level < len(game_data.levels) else game_data.levels[-1]
-        print(f'Уровень: {gamer["level"]}')
-        print(f'Здоровье: {gamer["health"]}')
-        print(f'Монеты: {gamer["coins"]}')
-        print(f'Опыт: {gamer["exp"]}/{max_exp}\n')
+        menu()
 
-        print('1 - О режиме')
-        print('2 - Редактор персонажа')
-        print('3 - Характеристики персонажа')
-        print('4 - Инвентарь')
-        print('5 - Магазин')
-        print('off - Выключить режим')
-        print('Enter - Выйти в главное меню\n')
 
-        do = input("Выбор: ")
-
-        if do == '1':
-            print(game_data.about_mode)
-            do = input('\nДля возврата в игровое меню нажмите Enter')
-            if do == '':
-                menu()
-        elif do == '2':
-            gamer_editor()
-        elif do == 'off':
-            key = randint(1000, 9999)
-            print('Если вы выключите режим, все его данные будут удалены без возможности восстановления \n'
-            'При активации режима вам придется начинать сначала.')
-            try:
-                approve = int(input(f'Подтвердите удаление введя {key}: '))
-                if approve == key:
-                    remove('game_mode.pkl')
-                    print('\n Игровой режим удален \n')
-                    from engine import main_menu
-                    main_menu()
-                else:
-                    print('ОТМЕНО')
-                    menu()
-            except ValueError:
-                print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ')
-                menu()
-        elif do == '3':
-            gamer = load_game()
-            cf_exp = gamer['cf']['exp']
-            cf_coins = gamer['cf']['coins']
-            print('\n КОЭФФИЦИЕНТЫ ПЕРСОНАЖА \n')
-            print(f'Коэффициент умножения опыта: {cf_exp}')
-            print(f'Коэффициент умножения монет: {cf_coins}')
-            print('\n Коэффициенты умножения дают бонус к зарабатываемым монетам и опыту')
-            print('Они зависят от уровня, предметов в инвентаре и примененных предметов')
-            do = input("\nВыйти в игровое меню - Enter: ")
-            if do == '':
-                menu()
-        elif do == '4':
-            gamer = load_game()
-            print('\n ИНВЕНТАРЬ \n')
-            print('Для применения предмета введите его номер или Enter для выхода \n')
-            print(f'1 - Зелья воскрешения: {gamer["items"].get("health_recovery", 0)}')
-            print(f'2 - Зелья восстановления: {gamer["items"].get("health_add", 0)}')
-            print(f'3 - Лотерейный билет: {gamer["items"].get("lottery_ticket", 0)}')
-            print('Чтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
-            do = input('\nВыбор: ')
-            if do == '1':
-                print(game_data.health_recovery('use'))
-                menu()
-            elif do == '2':
-                print(game_data.health_add('use'))
-                menu()
-            elif do == '3':
-                print(game_data.lottery_ticket('use'))
-                menu()
-            elif do == '1?':
-                print(game_data.health_add('?'))
-                menu()
-            elif do == '2?':
-                print(game_data.health_recovery('?'))
-                menu()
-            elif do == '3?':
-                print(game_data.lottery_ticket('?'))
-            elif do == '':
-                menu()
-        elif do == '5':
-            print('\n МАНАЗИН \n')
-            print('1 - Зелья')
-            print('2 - Лотерейный билет (15 монет)')
-            print('Чтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
-            do = input('Выбор: ')
-            if do == '1':
-                print('1 - Зелье восстановления (+10 здоровья) - 10 монет')
-                print('2 - Зелье воскрешения (восстановление здоровья) - 100 монет')
-                do = input('Выбор: ')
-                if do == '1':
-                    print(game_data.health_add('buy'))
-                    menu()
-                if do == '2':
-                    print(game_data.health_recovery('buy'))
-                    menu()
-                if do == '1?':
-                    print(game_data.health_add('?'))
-                    menu()
-                if do == '2?':
-                    print(game_data.health_recovery('?'))
-                    menu()
-            if do == '2':
-                print(game_data.lottery_ticket('buy'))
-                menu()
-            elif do == '2?':
-                print(game_data.lottery_ticket('?'))
-        elif do == '':
-            from engine import main_menu
-            main_menu()
-        else:
-            menu()
+# === ИГРОВЫЕ БОНУСЫ ===
 
 def give_coins(symbols):
     gamer = load_game()
@@ -247,7 +392,8 @@ def give_coins(symbols):
     coins = symbols / 100
     gamer['coins'] += coins * cf
     save_game(gamer)
-    return coins * cf
+    return int(coins * cf)
+
 
 def give_exps(symbols):
     gamer = load_game()
@@ -258,7 +404,8 @@ def give_exps(symbols):
     exps = symbols * cf
     gamer['exp'] += exps
     save_game(gamer)
-    return exps
+    return int(exps)
+
 
 def give_streak_bonus(streak_status, total_symbols):
     gamer = load_game()
@@ -268,7 +415,8 @@ def give_streak_bonus(streak_status, total_symbols):
     level = gamer['level']
     health = gamer['health']
     cf_coins = game_data.cf_coins[level] if level < len(game_data.cf_coins) else game_data.cf_coins[-1]
-    cf_exp = game_data.cf_exp[level] if level < len(game_data.cf_exp) else game_data.cf_exp[-1]
+    cf_exp_val = game_data.cf_exp[level] if level < len(game_data.cf_exp) else game_data.cf_exp[-1]
+
     if streak_status == 'Go':
         coins = int(10 * (cf_coins + 0.5))
         gamer['coins'] += coins
@@ -279,13 +427,14 @@ def give_streak_bonus(streak_status, total_symbols):
         return f'Бонус за стрик сегодня уже получен, но символы лишними не будут ;)'
 
     elif streak_status == 'Complete':
-        exps = int(1000 * (total_symbols / 1000) * (cf_exp + 4))
+        exps = int(1000 * (total_symbols / 1000) * (cf_exp_val + 4))
         coins = int((10 * (cf_coins + 2)) + 100)
         gamer['coins'] += coins
         gamer['exp'] += exps
         save_game(gamer)
-        return (f'Вы завершили работу над проектом вовремя и получили дополнительный бонус в {coins} монет и {exps} опыта!'
-                f'\nЭто просто потрясающе!')
+        return (
+            f'Вы завершили работу над проектом вовремя и получили дополнительный бонус в {coins} монет и {exps} опыта!'
+            f'\nЭто просто потрясающе!')
 
     elif streak_status == 'Start':
         coins = int(10 * (cf_coins + 0.25))
@@ -310,20 +459,23 @@ def give_streak_bonus(streak_status, total_symbols):
 
     return ''
 
+
 def give_complete_bonus(complete_status, total_symbols):
     gamer = load_game()
-    level = gamer['level']
-    cf_coins = game_data.cf_coins[level] if level < len(game_data.cf_coins) else game_data.cf_coins[-1]
-    cf_exp = game_data.cf_exp[level] if level < len(game_data.cf_exp) else game_data.cf_exp[-1]
     if gamer is None:
         return 'Игровой режим не активирован'
-    else:
-        if complete_status is True:
-            exps = int(1000 * (total_symbols / 1000) * (cf_exp + 2))
-            coins = int((10 * (cf_coins + 1.5)) + 100)
-            gamer['coins'] += coins
-            gamer['exp'] += exps
-            save_game(gamer)
-            return (f'Вы завершили работу над проектом и получили бонус в {coins} монет и {exps} опыта!'
+
+    level = gamer['level']
+    cf_coins = game_data.cf_coins[level] if level < len(game_data.cf_coins) else game_data.cf_coins[-1]
+    cf_exp_val = game_data.cf_exp[level] if level < len(game_data.cf_exp) else game_data.cf_exp[-1]
+
+    if complete_status is True:
+        exps = int(1000 * (total_symbols / 1000) * (cf_exp_val + 2))
+        coins = int((10 * (cf_coins + 1.5)) + 100)
+        gamer['coins'] += coins
+        gamer['exp'] += exps
+        save_game(gamer)
+        return (f'Вы завершили работу над проектом и получили бонус в {coins} монет и {exps} опыта!'
                 f'\nЭто того стоило!')
+
     return ''
