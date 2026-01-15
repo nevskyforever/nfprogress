@@ -48,7 +48,7 @@ def health_recovery(do):
             gamer['items']['health_recovery'] -= 1
             gamer['health'] = 100
             game.save_game(gamer)
-            return '\n ПРИМЕНЕНО ЗЕЛЬЕ ВОСКРЕШЕНИЯ \n'
+            return '\nПРИМЕНЕНО ЗЕЛЬЕ ВОСКРЕШЕНИЯ'
     elif do == '?':
         return ('\nЗелье восстанавливает здоровье до 109 единиц'
                 f'\nСтоимость {price} монет')
@@ -79,7 +79,7 @@ def health_add(do):
             if gamer['health'] > 100:
                 gamer['health'] = 100
             game.save_game(gamer)
-            return '\n ПРИМЕНЕНО ЗЕЛЬЕ ВОССТАНОВЛЕНИЯ \n'
+            return '\nПРИМЕНЕНО ЗЕЛЬЕ ВОССТАНОВЛЕНИЯ'
     elif do == '?':
         return ('\nЗелье восстанавливает здоровье на 10 единиц, но не выше 100 единиц'
                 f'\nСтоимость {price} монет')
