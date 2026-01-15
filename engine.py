@@ -1,12 +1,11 @@
 import pickle
-from sqlite3 import complete_statement
 
 import game
 from datetime import date, datetime, timedelta
 from random import randint
 
 TEST_DATE = None
-version = '1.2.3'
+version = '1.2.4'
 last_update = '15.01.26'
 
 def today_for_test():
