@@ -4,8 +4,8 @@ import game
 from datetime import date, datetime, timedelta
 from random import randint
 
-TEST_DATE = None
-version = '1.2.6'
+TEST_DATE = date(2026, 1,17)
+version = '1.2.6.3'
 last_update = '15.01.26'
 
 def today_for_test():
@@ -462,9 +462,9 @@ def new_note(choice=None):
             print(f'📌 {lose_notification}\n')
 
         # === БОНУС ЗА СТРИК ПРИ ПРОДОЛЖЕНИИ РАБОТЫ ===
-        if game.load_game() is not None and deadline != 'Нет' and streak_status in ['Start', 'Go']:
+        if game.load_game() is not None and deadline != 'Нет' and streak_status.split()[0] in ['Start', 'Go', 'Lose']:
             bonus_msg = game.give_streak_bonus(streak_status, new_symbols)
-            bonus_notification = f'{timestamp} в {choice}: 🎁 {bonus_msg}'
+            bonus_notification = f'{timestamp} в {choice}: 🔥 {bonus_msg}'
             new_notifications.append(bonus_notification)
             print(f'📌 {bonus_notification}\n')
 
