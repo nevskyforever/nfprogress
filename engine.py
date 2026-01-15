@@ -728,7 +728,7 @@ def main_menu():
     notifications = data.get('notifications', {'new': [], 'read': []})
     new_notifs = notifications['new']
     count_new = len(new_notifs)
-    print(f'nfprogress {version}\n')
+    print(f'nfprogress\n')
     print(f'Сегодня: {today_for_test().strftime("%d.%m.%y")}')
     if new_notifs:
         last_notification = new_notifs[-1]
