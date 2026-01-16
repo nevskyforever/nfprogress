@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from random import randint
 
 TEST_DATE = date(2026, 1,15)
-version = '1.2.6.3'
+version = '1.2.6.4'
 last_update = '15.01.26'
 
 def today_for_test():
@@ -317,7 +317,7 @@ def chek_streak(project_name, symbol_progress, today_goal=0):
     yesterday = today - timedelta(days=1)
 
     if today_goal <= 0:
-        return None
+        return 'Today'
 
     if len(streaks) > 0 and streaks[-1] == today:
         return 'Done'
@@ -485,6 +485,11 @@ def new_note(choice=None):
                     # Бонус за завершение
                     complete_bonus = game.give_complete_bonus(True, new_symbols)
                     bonus_notification = f'{timestamp} в {choice}: 🎉 {complete_bonus}'
+                    new_notifications.append(bonus_notification)
+                    print(f'📌 {bonus_notification}\n')
+                if game.load_game() is not None:
+                    bonus_msg = game.give_streak_bonus(streak_status, new_symbols)
+                    bonus_notification = f'{timestamp} в {choice}: 🔥 {bonus_msg}'
                     new_notifications.append(bonus_notification)
                     print(f'📌 {bonus_notification}\n')
 

@@ -23,6 +23,7 @@ def update_gamer():
     gamer = load_game()
     if gamer is not None:
         level = gamer['level']
+        old_level = level
         exp = gamer['exp']
         health = gamer['health']
         data = engine.load_data()
@@ -31,7 +32,7 @@ def update_gamer():
         if level < len(game_data.levels) - 1 and exp >= game_data.levels[level]:
             new_level = level + 1
             gamer['level'] = new_level
-            gamer['exp'] = 0
+            gamer['exp'] = exp - game_data.levels[old_level]
             gamer['health'] = 100
             coins_bonus = game_data.lvl_coins_bonus[level]
             gamer['coins'] += coins_bonus
@@ -401,7 +402,7 @@ def give_exps(symbols):
         return 0
     level = gamer['level']
     cf = game_data.cf_exp[level] if level < len(game_data.cf_exp) else game_data.cf_exp[-1]
-    exps = symbols * cf
+    exps = symbols * 2 * cf
     gamer['exp'] += exps
     save_game(gamer)
     return int(exps)
