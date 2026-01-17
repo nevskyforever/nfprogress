@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from random import randint
 
 TEST_DATE = date(2026, 1,15)
-version = '1.2.7.2'
+version = '1.2.8'
 last_update = '17.01.26'
 
 def today_for_test():
@@ -144,6 +144,21 @@ def view_projects():
     if len(projects) == 0:
         print('\nАктивных проектов пока нет.')
     else:
+        if 'settings' not in data:
+            data['settings'] = {}
+        if 'view_projects' not in data['settings']:
+            data['settings']['view_projects'] = None
+        save_data(data)
+
+        view_settings = data['settings']['view_projects']
+
+        if view_settings == 'progress':
+            print('Сортировка: по прогрессу (от меньшего к большему)\n')
+            projects = dict(sorted(projects.items(), key=lambda item: item[1]['progress']))
+        elif view_settings == 'deadline':
+            print('Сортировка: по дедлайну (от большего к меньшему)\n')
+            projects = dict(sorted(projects.items(), key=lambda item: item[1]['deadline']['days left']))
+
         for name in projects.keys():
             if not isinstance(projects[name], dict):
                 continue
@@ -172,11 +187,29 @@ def view_projects():
         print('Для просмотра проектов в архиве введите 1')
     if len(completed) > 0:
         print('Для просмотра завершенных проектов введите 2')
+    print('Для сортировки проектов по прогрессу введите p')
+    print('Для сортировки проектов по дедлайну введите d\n')
 
     if len(archived) > 0 or len(completed) > 0:
         print()
 
     do = input('Выбор: ')
+
+    if do == '':
+        main_menu()
+        return
+
+    if do == 'p':
+        data['settings']['view_projects'] = 'progress'
+        save_data(data)
+        view_projects()
+        return
+
+    if do == 'd':
+        data['settings']['view_projects'] = 'deadline'
+        save_data(data)
+        view_projects()
+        return
 
     if do == '1' and len(archived) > 0:
         print('\n ПРОЕКТЫ В АРХИВЕ \n')
@@ -266,8 +299,6 @@ def view_projects():
                 print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ')
                 main_menu()
 
-    else:
-        main_menu()
 
 def choice_project():
     data = load_data()
