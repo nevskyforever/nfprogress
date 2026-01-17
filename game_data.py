@@ -89,7 +89,7 @@ def lottery_ticket(do):
     if gamer is None:
         return 'Игровой режим не активирован'
     coins = gamer['coins']
-    price = 15
+    price = 10
     if do == 'buy':
         if coins < price:
             return f'Недостаточно монет для покупки, нужно минимум {price} монет'
