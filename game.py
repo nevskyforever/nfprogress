@@ -440,7 +440,7 @@ def give_streak_bonus(streak_status, total_symbols):
         gamer['exp'] += exps
         save_game(gamer)
         return (
-            f'Вы завершили работу над проектом вовремя и получили дополнительный бонус в {coins} монет и {exps} опыта!'
+            f'Вы вовремя завершили проект и получили дополнительный бонус в {coins} монет и {exps} опыта!'
             f'\nЭто просто потрясающе!')
 
     elif streak_status == 'Start':
