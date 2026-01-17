@@ -29,20 +29,26 @@ def update_gamer():
         data = engine.load_data()
         notifications = data.get('notifications', {'new': [], 'read': []})
 
-        if level < len(game_data.levels) - 1 and exp >= game_data.levels[level]:
+        while level < len(game_data.levels) - 1 and exp >= game_data.levels[level]:
             new_level = level + 1
-            gamer['level'] = new_level
-            gamer['exp'] = exp - game_data.levels[old_level]
-            gamer['health'] = 100
             coins_bonus = game_data.lvl_coins_bonus[level]
+
+            gamer['level'] = new_level
+            gamer['exp'] = exp - game_data.levels[level]
+            gamer['health'] = 100
             gamer['coins'] += coins_bonus
             gamer['cf']['coins'] = game_data.cf_coins[level]
             gamer['cf']['exp'] = game_data.cf_exp[level]
-            save_game(gamer)
+
             new_notification = f'ПОЛУЧЕН НОВЫЙ {new_level} УРОВЕНЬ! Ваш бонус: {coins_bonus} монет'
             print(new_notification)
             notifications['new'].append(new_notification)
-            engine.save_data(data)
+
+            exp = gamer['exp']  # Обнови exp для следующей итерации
+            level = new_level  # Обнови level для проверки условия
+
+        save_game(gamer)
+        engine.save_data(data)
 
         if health == 0:
             print('КРИТИЧЕСКИЙ УРОВЕНЬ ЗДОРОВЬЯ\n')

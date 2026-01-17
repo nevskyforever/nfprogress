@@ -5,8 +5,8 @@ from datetime import date, datetime, timedelta
 from random import randint
 
 TEST_DATE = date(2026, 1,15)
-version = '1.2.6.4'
-last_update = '15.01.26'
+version = '1.2.7'
+last_update = '17.01.26'
 
 def today_for_test():
     if TEST_DATE is None or TEST_DATE < date.today():
