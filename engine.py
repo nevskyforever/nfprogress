@@ -354,7 +354,7 @@ def chek_streak(project_name, symbol_progress, today_goal=0):
         return 'Done'
 
     if symbol_progress < today_goal:
-        return None
+        return 'No'
 
     if len(streaks) == 0:
         streaks.append(today)

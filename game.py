@@ -1,9 +1,13 @@
 import pickle
+from time import strptime
+
+from dateutil.utils import today
 
 import engine
 import game_data
 from random import randint
 from os import remove
+from datetime import date
 
 
 def load_game():
@@ -128,6 +132,62 @@ def gamer_editor():
         print('НЕПРАВИЛЬНЫЙ ПАРОЛЬ')
         menu()
 
+def bank():
+    print('БАНК')
+    # Получение данных
+    gamer = load_game()
+    gamer_coins = gamer.get('coins', 0)
+    if gamer.get('bank', None):
+        gamer['bank'] = {'chek': None, 'deposit': {'date': None, 'coins': None, 'income': None}, 'loan': {'date': None, 'coins': None, 'return': None}}
+        save_game(gamer)
+    deposit_coins = gamer['bank']['deposit']['coins']
+    deposit_date = gamer['bank']['deposit']['date']
+    loan_coins = gamer['bank']['loan']['coins']
+    loan_date = gamer['bank']['loan']['date']
+    chek_date = gamer['bank']['chek']
+    # Расчет процентов по вкладу, если он старый.
+    if chek_date is not None and chek_date > today():
+        deposit_income = deposit_coins / 100 * (deposit_date - today()).days
+        loan_return = (deposit_coins / 100) * 2 * (deposit_date - today()).days
+        gamer['bank']['deposit']['income'] = deposit_income
+        gamer['bank']['loan']['return'] = loan_return
+        gamer['bank']['chek'] = today()
+        save_game(gamer)
+    # Вывод данных
+    print(f'Ваши наличные монеты: {gamer_coins}')
+    if deposit_coins is None:
+        print('В банке нет вклада.')
+    else:
+        print(f'Есть вклад на сумму: {loan_coins} можно снять: {deposit_date}, доход: {deposit_coins - deposit_income} монет')
+    if loan_coins is None:
+        print('В банке нет кредита.')
+    else:
+        print(f'Есть кредит на сумму: {loan_coins}, надо вернуть до: {loan_date}, проценты: {loan_coins - loan_return} монет')
+    if deposit_coins is None:
+        print('1 - Сделать вклад')
+    if loan_coins is None:
+        print('2 - Взять кредит')
+    do = input('Выбор: ')
+    # Сделать вклад, если его нет
+    if do == '1' and deposit_coins is None:
+        print('\nВНЕСЕНИЕ ВКЛАДА\n')
+        print('Условия вклада:\n'
+              '1. Вклад дает базовый доход в 1% в день\n'
+              '2. Срок и сумма вклада не ограничены'
+              '3. Вклад можно забрать досрочно, но с потерей дохода (процентов)')
+        deposit_coins = int(input('Введите кол-во монет: '))
+        if deposit_coins < gamer_coins:
+            print('НЕДОСТАТОЧНО ДЕНЕГ ДЛЯ ДЕПОЗИТА')
+        else:
+            gamer_coins -= deposit_coins
+        deposit_date = strptime(input('Введите дату возврата вклада в формате дд.мм.гг: '), '%d.%m.%y')
+        gamer['bank']['deposit']['date'] = deposit_date
+        gamer['bank']['deposit']['coins'] = deposit_coins
+        save_game(gamer)
+        print(f'\nСДЕЛАН ВКЛАД В РАЗМЕРЕ {deposit_coins} МОНЕТ ДО {deposit_date}.\n')
+        bank()
+
+    # Взять кредит, если его нет
 
 def show_characteristics():
     gamer = load_game()
@@ -191,7 +251,7 @@ def use_item(item_id):
 def show_shop():
     print('\n МАГАЗИН \n')
     print('1 - Зелья')
-    print('2 - Лотерейный билет (15 монет)')
+    print('2 - Лотерейный билет (10 монет)')
     print('Чтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
 
     do = input('Выбор: ')
