@@ -2,7 +2,6 @@ import pickle
 from datetime import datetime
 from datetime import timedelta
 
-
 import engine
 import game_data
 from random import randint
@@ -47,8 +46,8 @@ def update_gamer():
             print(new_notification)
             notifications['new'].append(new_notification)
 
-            exp = gamer['exp']  # Обнови exp для следующей итерации
-            level = new_level  # Обнови level для проверки условия
+            exp = gamer['exp']
+            level = new_level
 
         save_game(gamer)
         engine.save_data(data)
@@ -98,6 +97,49 @@ def update_gamer():
             print('Приключения ждут!\n')
 
 
+def check_loan_penalty():
+    """Проверяет просрочку кредита и наносит урон"""
+    gamer = load_game()
+    if gamer is None:
+        return
+
+    if not gamer.get('bank', None):
+        return
+
+    data = engine.load_data()
+    notifications = data.get('notifications', {'new': [], 'read': []})
+
+    loan_created = gamer['bank']['loan'].get('created_date')
+    loan_return_date = gamer['bank']['loan'].get('return_date')
+    last_penalty_date = gamer['bank']['loan'].get('last_penalty_date')
+
+    if loan_created is None or loan_return_date is None:
+        return
+
+    today = engine.today_for_test()
+
+    if today > loan_return_date:
+        if last_penalty_date is None:
+            days_to_penalize = (today - loan_return_date).days
+        else:
+            days_to_penalize = (today - last_penalty_date).days
+
+        if days_to_penalize > 0:
+            damage = days_to_penalize * 10
+            gamer_health = gamer['health']
+            gamer_health -= damage
+            gamer['health'] = max(0, gamer_health)
+
+            penalty_msg = f'⚠️ ШТРАФ ЗА ПРОСРОЧКУ КРЕДИТА: -{damage} ❤️ (Осталось: {gamer["health"]} ❤️)'
+            print(penalty_msg)
+            notifications['new'].append(penalty_msg)
+            data['notifications'] = notifications
+            engine.save_data(data)
+
+            gamer['bank']['loan']['last_penalty_date'] = today
+            save_game(gamer)
+
+
 # === ФУНКЦИИ МЕНЮ ===
 
 def show_about():
@@ -131,13 +173,13 @@ def gamer_editor():
         print('НЕПРАВИЛЬНЫЙ ПАРОЛЬ')
         menu()
 
+
 def bank():
     print('БАНК')
     gamer = load_game()
     data = engine.load_data()
     notifications = data.get('notifications', {'new': [], 'read': []})
     gamer_coins = gamer.get('coins', 0)
-    gamer_health = gamer['health']  # Получаем здоровье
 
     if not gamer.get('bank', None):
         gamer['bank'] = {
@@ -152,7 +194,7 @@ def bank():
                 'return_date': None,
                 'coins': 0,
                 'return': 0,
-                'last_penalty_date': None  # Дата последнего штрафа за просрочку
+                'last_penalty_date': None
             }
         }
         save_game(gamer)
@@ -167,34 +209,6 @@ def bank():
     loan_return = gamer['bank']['loan']['return']
     loan_created = gamer['bank']['loan'].get('created_date')
     loan_return_date = gamer['bank']['loan'].get('return_date')
-    last_penalty_date = gamer['bank']['loan'].get('last_penalty_date')
-
-    # === ПРОВЕРКА ПРОСРОЧКИ И ШТРАФ ===
-    if loan_created is not None and loan_return_date and today > loan_return_date:
-        # Кредит просрочен
-        # Считаем, сколько дней нужно начислить штраф
-        if last_penalty_date is None:
-            # Первый день просрочки
-            days_to_penalize = (today - loan_return_date).days
-        else:
-            # Штрафуем только за новые дни
-            days_to_penalize = (today - last_penalty_date).days
-
-        if days_to_penalize > 0:
-            # Начисляем урон: 10 здоровья за каждый день просрочки
-            damage = days_to_penalize * 10
-            gamer_health -= damage
-            gamer['health'] = max(0, gamer_health)  # Здоровье не может быть меньше 0
-
-            print(f'⚠️ ШТРАФ ЗА ПРОСРОЧКУ КРЕДИТА: -{damage} ❤️')
-            notifications['new'].append(f'⚠️ ШТРАФ ЗА ПРОСРОЧКУ КРЕДИТА: -{damage} ❤️')
-            data['notifications'] = notifications
-            engine.save_data(data)
-            print(f'Осталось здоровья: {gamer["health"]} ❤️\n')
-
-            # Обновляем дату последнего штрафа
-            gamer['bank']['loan']['last_penalty_date'] = today
-            save_game(gamer)
 
     # === РАСЧЕТ ПРОЦЕНТОВ ПО ВКЛАДУ ===
     if deposit_created is not None:
@@ -341,7 +355,7 @@ def bank():
             gamer['bank']['loan']['return_date'] = return_date
             gamer['bank']['loan']['coins'] = loan_coins
             gamer['bank']['loan']['return'] = 0
-            gamer['bank']['loan']['last_penalty_date'] = None  # Инициализируем
+            gamer['bank']['loan']['last_penalty_date'] = None
             save_game(gamer)
 
             print(f'\nКредит {loan_coins} монет взят')
@@ -564,6 +578,7 @@ def disable_mode():
         print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ')
         menu()
 
+
 def give_exps(symbols):
     gamer = load_game()
     if gamer is None:
@@ -649,6 +664,7 @@ def give_complete_bonus(complete_status, total_symbols):
 
     return ''
 
+
 def menu():
     if load_game() is None:
         do = input('ИГРОВОЙ РЕЖИМ НЕ АКТИВИРОВАН \n'
@@ -667,6 +683,9 @@ def menu():
             menu()
         return
 
+    # ПРОВЕРКА ШТРАФА ЗА ПРОСРОЧКУ КРЕДИТА
+    check_loan_penalty()
+
     update_gamer()
     gamer = load_game()
     level = gamer['level']
@@ -684,7 +703,6 @@ def menu():
     print('5 - Магазин')
     print('6 - Банк')
 
-    # Показываем последний использованный предмет
     last_used = gamer.get('last_used', None)
     item_names = {
         'health_recovery': 'Зелья воскрешения',
@@ -696,7 +714,6 @@ def menu():
         count = gamer['items'].get(last_used, 0)
         print(f'u - Снова использовать - {item_names[last_used]} ({count})')
 
-    # Показываем последнюю покупку
     last_bought = gamer.get('last_bought', None)
     item_costs = {
         'health_add': 10,
@@ -733,6 +750,7 @@ def menu():
         main_menu()
     else:
         menu()
+
 
 # === ИГРОВЫЕ БОНУСЫ ===
 
