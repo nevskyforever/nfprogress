@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 from random import randint
 
 version = '1.2.9'
-last_update = '17.01.26'
+last_update = '19.01.26'
 
 def today_for_test():
     TEST_DATE = datetime(2026, 1, 3)
