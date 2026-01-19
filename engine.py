@@ -8,7 +8,7 @@ version = '1.2.8'
 last_update = '17.01.26'
 
 def today_for_test():
-    TEST_DATE = datetime(2026, 1, 20)
+    TEST_DATE = datetime(2026, 1, 30)
     if TEST_DATE is None or TEST_DATE < datetime.today():
         return datetime.today()
     else:
