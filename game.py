@@ -134,6 +134,8 @@ def gamer_editor():
 def bank():
     print('БАНК')
     gamer = load_game()
+    data = engine.load_data()
+    notifications = data.get('notifications', {'new': [], 'read': []})
     gamer_coins = gamer.get('coins', 0)
     gamer_health = gamer['health']  # Получаем здоровье
 
@@ -185,6 +187,9 @@ def bank():
             gamer['health'] = max(0, gamer_health)  # Здоровье не может быть меньше 0
 
             print(f'⚠️ ШТРАФ ЗА ПРОСРОЧКУ КРЕДИТА: -{damage} ❤️')
+            notifications['new'].append(f'⚠️ ШТРАФ ЗА ПРОСРОЧКУ КРЕДИТА: -{damage} ❤️')
+            data['notifications'] = notifications
+            engine.save_data(data)
             print(f'Осталось здоровья: {gamer["health"]} ❤️\n')
 
             # Обновляем дату последнего штрафа
@@ -214,7 +219,7 @@ def bank():
     save_game(gamer)
 
     # === ПОКАЗЫВАЕМ ИНФОРМАЦИЮ ===
-    print(f'Ваши наличные монеты: {gamer_coins}')
+    print(f'Ваши наличные монеты: {int(gamer_coins)}')
 
     if deposit_created is None:
         print('В банке нет вклада.')
@@ -269,6 +274,9 @@ def bank():
             save_game(gamer)
 
             print(f'\nВклад {deposit_coins} монет создан')
+            notifications['new'].append(f'Вклад {deposit_coins} монет создан до {withdrawal_date.strftime("%d.%m.%y")}')
+            data['notifications'] = notifications
+            engine.save_data(data)
             print(f'Дата снятия: {withdrawal_date.strftime("%d.%m.%y")}\n')
             return bank()
         except ValueError:
@@ -294,6 +302,9 @@ def bank():
                 gamer['bank']['deposit'] = {'created_date': None, 'withdrawal_date': None, 'coins': 0, 'income': 0}
                 save_game(gamer)
                 print(f'\nСнято {deposit_coins} монет (проценты потеряны)\n')
+                notifications['new'].append(f'Снято {deposit_coins} монет со вклада (проценты потеряны)')
+                data['notifications'] = notifications
+                engine.save_data(data)
             else:
                 print('Отмена\n')
             return bank()
@@ -303,6 +314,9 @@ def bank():
             gamer['bank']['deposit'] = {'created_date': None, 'withdrawal_date': None, 'coins': 0, 'income': 0}
             save_game(gamer)
             print(f'Снято {total:.0f} монет (основная сумма: {deposit_coins}, доход: {deposit_income:.0f})\n')
+            notifications['new'].append(f'Снято {total} молнет со вклада с учетом доходов')
+            data['notifications'] = notifications
+            engine.save_data(data)
             return bank()
 
     # === КРЕДИТ: ВЗЯТИЕ ===
@@ -332,6 +346,9 @@ def bank():
 
             print(f'\nКредит {loan_coins} монет взят')
             print(f'Срок возврата: {return_date.strftime("%d.%m.%y")}\n')
+            notifications['new'].append(f'Взят кредит в {loan_coins} монет до {return_date.strftime("%d.%m.%y")}')
+            data['notifications'] = notifications
+            engine.save_data(data)
             return bank()
         except ValueError:
             print('Ошибка ввода')
@@ -368,6 +385,9 @@ def bank():
             save_game(gamer)
             status = "(с просрочкой)" if is_overdue else ""
             print(f'\n✓ Кредит погашен {status}. Выплачено {total_to_pay:.0f} монет\n')
+            notifications['new'].append(f'✓ Кредит погашен {status}. Выплачено {total_to_pay:.0f} монет')
+            data['notifications'] = notifications
+            engine.save_data(data)
         return bank()
 
     if do == '':

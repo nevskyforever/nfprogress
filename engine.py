@@ -8,7 +8,7 @@ version = '1.2.8'
 last_update = '17.01.26'
 
 def today_for_test():
-    TEST_DATE = datetime(2026, 2, 4)
+    TEST_DATE = datetime(2026, 2, 10)
     if TEST_DATE is None or TEST_DATE < datetime.today():
         return datetime.today()
     else:
@@ -47,11 +47,11 @@ def notifications_view():
     else:
         print('НОВЫЕ УВЕДОМЛЕННИЯ\n')
         if len(new) == 0:
-            print('Новых пока нет.\n')
+            print('Новых пока нет.')
         for i in new:
             print(i)
     if len(read) != 0:
-        print('ПРОЧИТАННЫЕ УВЕДОМЛЕННИЯ\n')
+        print('\nПРОЧИТАННЫЕ УВЕДОМЛЕННИЯ\n')
         for i in read:
             print(i)
 
