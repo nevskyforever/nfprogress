@@ -1,7 +1,7 @@
 import pickle
-from time import strptime
+from datetime import datetime
+from datetime import timedelta
 
-from dateutil.utils import today
 
 import engine
 import game_data
@@ -27,7 +27,6 @@ def update_gamer():
     gamer = load_game()
     if gamer is not None:
         level = gamer['level']
-        old_level = level
         exp = gamer['exp']
         health = gamer['health']
         data = engine.load_data()
@@ -134,58 +133,101 @@ def gamer_editor():
 
 def bank():
     print('БАНК')
-    # Получение данных
     gamer = load_game()
     gamer_coins = gamer.get('coins', 0)
-    if gamer.get('bank', None):
-        gamer['bank'] = {'chek': None, 'deposit': {'date': None, 'coins': None, 'income': None}, 'loan': {'date': None, 'coins': None, 'return': None}}
+
+    if not gamer.get('bank', None):
+        gamer['bank'] = {'chek': None, 'deposit': {'date': None, 'coins': 0, 'income': 0},
+                         'loan': {'date': None, 'coins': 0, 'return': 0}}
         save_game(gamer)
+    today = engine.today_for_test()
     deposit_coins = gamer['bank']['deposit']['coins']
-    deposit_date = gamer['bank']['deposit']['date']
+    deposit_date = gamer['bank']['deposit'].get('date', 'Нет')
+    deposit_income = gamer['bank']['deposit']['income']
     loan_coins = gamer['bank']['loan']['coins']
-    loan_date = gamer['bank']['loan']['date']
+    loan_return = gamer['bank']['loan']
+    loan_date = gamer['bank']['loan'].get('date', 'Нет')
     chek_date = gamer['bank']['chek']
     # Расчет процентов по вкладу, если он старый.
-    if chek_date is not None and chek_date > today():
-        deposit_income = deposit_coins / 100 * (deposit_date - today()).days
-        loan_return = (deposit_coins / 100) * 2 * (deposit_date - today()).days
+    if chek_date is not None and chek_date > today:
+        deposit_income = deposit_coins / 100 * (deposit_date - datetime.today().date()).days
+        loan_return = (loan_return / 100) * 2 * (loan_date - datetime.today().date()).days
         gamer['bank']['deposit']['income'] = deposit_income
         gamer['bank']['loan']['return'] = loan_return
-        gamer['bank']['chek'] = today()
+        gamer['bank']['chek'] = today
         save_game(gamer)
     # Вывод данных
     print(f'Ваши наличные монеты: {gamer_coins}')
-    if deposit_coins is None:
+    if deposit_date is None:
         print('В банке нет вклада.')
     else:
-        print(f'Есть вклад на сумму: {loan_coins} можно снять: {deposit_date}, доход: {deposit_coins - deposit_income} монет')
-    if loan_coins is None:
+        print(f'Есть вклад на сумму: {deposit_coins} можно снять: {deposit_date.strftime('%d.%m.%y')}, доход: {deposit_income} монет')
+    if loan_date is None:
         print('В банке нет кредита.')
     else:
         print(f'Есть кредит на сумму: {loan_coins}, надо вернуть до: {loan_date}, проценты: {loan_coins - loan_return} монет')
-    if deposit_coins is None:
+    if deposit_date is None:
         print('1 - Сделать вклад')
-    if loan_coins is None:
+    else:
+        print('d - Снять депозит')
+    if loan_date is None:
         print('2 - Взять кредит')
     do = input('Выбор: ')
+    print('Для возврата в игровое меню введите Enter')
     # Сделать вклад, если его нет
-    if do == '1' and deposit_coins is None:
+    if do == '1' and deposit_date is None:
         print('\nВНЕСЕНИЕ ВКЛАДА\n')
         print('Условия вклада:\n'
               '1. Вклад дает базовый доход в 1% в день\n'
-              '2. Срок и сумма вклада не ограничены'
+              '2. Срок и сумма вклада не ограничены\n'
               '3. Вклад можно забрать досрочно, но с потерей дохода (процентов)')
         deposit_coins = int(input('Введите кол-во монет: '))
-        if deposit_coins < gamer_coins:
+        if deposit_coins > gamer_coins:
             print('НЕДОСТАТОЧНО ДЕНЕГ ДЛЯ ДЕПОЗИТА')
         else:
             gamer_coins -= deposit_coins
-        deposit_date = strptime(input('Введите дату возврата вклада в формате дд.мм.гг: '), '%d.%m.%y')
+            gamer['coins'] = gamer_coins
+            save_game(gamer)
+        deposit_date = datetime.strptime(input('Введите дату возврата вклада в формате дд.мм.гг: '), '%d.%m.%y')
         gamer['bank']['deposit']['date'] = deposit_date
         gamer['bank']['deposit']['coins'] = deposit_coins
+        deposit_income = deposit_coins / 100 * (deposit_date - today).days
+        gamer['bank']['deposit']['income'] = deposit_income
         save_game(gamer)
         print(f'\nСДЕЛАН ВКЛАД В РАЗМЕРЕ {deposit_coins} МОНЕТ ДО {deposit_date}.\n')
         bank()
+    if do == '2':
+        print('Кредит временно недоступен')
+        menu()
+    if do == 'd':
+        print('\nСНЯТИЕ ДЕПОЗИТА\n')
+        # Если срок вклада не наступил
+        if today < deposit_date:
+            print(f'Срок вклада еще не наступил.\n'
+                  f'Досрочное снятие приведет к потере дохода в размере {deposit_income} монет.')
+            do = input('Введите 1 для снятия, Enter для отмены')
+            if do == '1':
+                gamer['coins'] += deposit_coins
+                gamer['bank']['deposit']['coins'] = 0
+                gamer['bank']['deposit']['income'] = 0
+                gamer['bank']['deposit']['date'] = None
+                save_game(gamer)
+                print('\nДЕПОЗИТ СНЯТ\n')
+                bank()
+            if do == '':
+                print('\nДЕПОЗИТ СОХРАНЕН\n')
+                bank()
+        else:
+            gamer['coins'] += deposit_coins + deposit_income
+            gamer['bank']['deposit']['coins'] = 0
+            gamer['bank']['deposit']['income'] = 0
+            gamer['bank']['deposit']['date'] = None
+            save_game(gamer)
+            print('\nДЕПОЗИТ СНЯТ\n')
+            bank()
+
+        if do == '':
+            menu()
 
     # Взять кредит, если его нет
 
@@ -359,109 +401,6 @@ def disable_mode():
         print('НЕПРАВИЛЬНОЕ ЗНАЧЕНИЕ')
         menu()
 
-
-# === ГЛАВНОЕ МЕНЮ ===
-
-def menu():
-    data = engine.load_data()
-
-    if load_game() is None:
-        do = input('ИГРОВОЙ РЕЖИМ НЕ АКТИВИРОВАН \n'
-                   '\n Для активации режима введите 1, для выхода в главное меню - Enter: ')
-        if do == '1':
-            gamer = game_data.gamer.copy()
-            gamer['items'] = {'health_recovery': 0, 'health_add': 0, 'lottery_ticket': 0}
-            gamer['last_used'] = None
-            gamer['last_bought'] = None
-            save_game(gamer)
-            menu()
-        elif do == '':
-            from engine import main_menu
-            main_menu()
-        else:
-            menu()
-        return
-
-    update_gamer()
-    gamer = load_game()
-    level = gamer['level']
-    max_exp = game_data.levels[level] if level < len(game_data.levels) else game_data.levels[-1]
-
-    print(f'\nУровень: {gamer["level"]}')
-    print(f'Здоровье: {gamer["health"]}')
-    print(f'Монеты: {int(gamer["coins"])}')
-    print(f'Опыт: {int(gamer["exp"])}/{max_exp}\n')
-
-    print('1 - О режиме')
-    print('2 - Редактор персонажа')
-    print('3 - Характеристики персонажа')
-    print('4 - Инвентарь')
-    print('5 - Магазин')
-
-    # Показываем последний использованный предмет
-    last_used = gamer.get('last_used', None)
-    item_names = {
-        'health_recovery': 'Зелья воскрешения',
-        'health_add': 'Зелья восстановления',
-        'lottery_ticket': 'Лотерейный билет',
-    }
-
-    if last_used and last_used in item_names:
-        count = gamer['items'].get(last_used, 0)
-        print(f'6 - Снова использовать - {item_names[last_used]} ({count})')
-
-    # Показываем последнюю покупку
-    last_bought = gamer.get('last_bought', None)
-    item_costs = {
-        'health_add': 10,
-        'health_recovery': 100,
-        'lottery_ticket': 15,
-    }
-
-    if last_bought and last_bought in item_costs:
-        cost = item_costs[last_bought]
-        count = gamer['items'].get(last_bought, 0)
-        print(f'7 - Купить еще - {item_names.get(last_bought, "Предмет")} ({count}) - {cost} монет')
-
-    print('8 - Выключить режим')
-    print('Enter - Выйти в главное меню\n')
-
-    do_list = {
-        '1': show_about,
-        '2': gamer_editor,
-        '3': show_characteristics,
-        '4': show_inventory,
-        '5': show_shop,
-        '6': use_last_item,
-        '7': buy_last_item,
-        '8': disable_mode,
-    }
-
-    do = input("Выбор: ")
-
-    if do in do_list:
-        do_list[do]()
-    elif do == '':
-        from engine import main_menu
-        main_menu()
-    else:
-        menu()
-
-
-# === ИГРОВЫЕ БОНУСЫ ===
-
-def give_coins(symbols):
-    gamer = load_game()
-    if gamer is None:
-        return 0
-    level = gamer['level']
-    cf = game_data.cf_coins[level] if level < len(game_data.cf_coins) else game_data.cf_coins[-1]
-    coins = symbols / 100
-    gamer['coins'] += coins * cf
-    save_game(gamer)
-    return int(coins * cf)
-
-
 def give_exps(symbols):
     gamer = load_game()
     if gamer is None:
@@ -546,3 +485,101 @@ def give_complete_bonus(complete_status, total_symbols):
                 f'\nЭто того стоило!')
 
     return ''
+
+def menu():
+    if load_game() is None:
+        do = input('ИГРОВОЙ РЕЖИМ НЕ АКТИВИРОВАН \n'
+                   '\n Для активации режима введите 1, для выхода в главное меню - Enter: ')
+        if do == '1':
+            gamer = game_data.gamer.copy()
+            gamer['items'] = {'health_recovery': 0, 'health_add': 0, 'lottery_ticket': 0}
+            gamer['last_used'] = None
+            gamer['last_bought'] = None
+            save_game(gamer)
+            menu()
+        elif do == '':
+            from engine import main_menu
+            main_menu()
+        else:
+            menu()
+        return
+
+    update_gamer()
+    gamer = load_game()
+    level = gamer['level']
+    max_exp = game_data.levels[level] if level < len(game_data.levels) else game_data.levels[-1]
+
+    print(f'\nУровень: {gamer["level"]}')
+    print(f'Здоровье: {gamer["health"]}')
+    print(f'Монеты: {int(gamer["coins"])}')
+    print(f'Опыт: {int(gamer["exp"])}/{max_exp}\n')
+
+    print('1 - О режиме')
+    print('2 - Редактор персонажа')
+    print('3 - Характеристики персонажа')
+    print('4 - Инвентарь')
+    print('5 - Магазин')
+    print('6 - Банк')
+
+    # Показываем последний использованный предмет
+    last_used = gamer.get('last_used', None)
+    item_names = {
+        'health_recovery': 'Зелья воскрешения',
+        'health_add': 'Зелья восстановления',
+        'lottery_ticket': 'Лотерейный билет',
+    }
+
+    if last_used and last_used in item_names:
+        count = gamer['items'].get(last_used, 0)
+        print(f'u - Снова использовать - {item_names[last_used]} ({count})')
+
+    # Показываем последнюю покупку
+    last_bought = gamer.get('last_bought', None)
+    item_costs = {
+        'health_add': 10,
+        'health_recovery': 100,
+        'lottery_ticket': 15,
+    }
+
+    if last_bought and last_bought in item_costs:
+        cost = item_costs[last_bought]
+        count = gamer['items'].get(last_bought, 0)
+        print(f'b - Купить еще - {item_names.get(last_bought, "Предмет")} ({count}) - {cost} монет')
+
+    print('8 - Выключить режим')
+    print('Enter - Выйти в главное меню\n')
+
+    do_list = {
+        '1': show_about,
+        '2': gamer_editor,
+        '3': show_characteristics,
+        '4': show_inventory,
+        '5': show_shop,
+        '6': bank,
+        'u': use_last_item,
+        'b': buy_last_item,
+        '8': disable_mode,
+    }
+
+    do = input("Выбор: ")
+
+    if do in do_list:
+        do_list[do]()
+    elif do == '':
+        from engine import main_menu
+        main_menu()
+    else:
+        menu()
+
+# === ИГРОВЫЕ БОНУСЫ ===
+
+def give_coins(symbols):
+    gamer = load_game()
+    if gamer is None:
+        return 0
+    level = gamer['level']
+    cf = game_data.cf_coins[level] if level < len(game_data.cf_coins) else game_data.cf_coins[-1]
+    coins = symbols / 100
+    gamer['coins'] += coins * cf
+    save_game(gamer)
+    return int(coins * cf)
