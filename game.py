@@ -132,75 +132,90 @@ def gamer_editor():
         menu()
 
 def bank():
-    # === ИНИЦИАЛИЗАЦИЯ ===
     print('БАНК')
-    gamer = load_game()  # Загружаем данные игрока
-    gamer_coins = gamer.get('coins', 0)  # Берём текущие монеты (или 0)
+    gamer = load_game()
+    gamer_coins = gamer.get('coins', 0)
+    gamer_health = gamer['health']  # Получаем здоровье
 
-    # Если банка нет - создаём структуру
     if not gamer.get('bank', None):
         gamer['bank'] = {
-            'deposit': {  # Вклад (депозит)
-                'created_date': None,  # Когда открыли
-                'withdrawal_date': None,  # Когда снимем
-                'coins': 0,  # Сумма вклада
-                'income': 0  # Заработанные проценты
+            'deposit': {
+                'created_date': None,
+                'withdrawal_date': None,
+                'coins': 0,
+                'income': 0
             },
-            'loan': {  # Кредит
-                'created_date': None,  # Когда взяли
-                'return_date': None,  # Когда вернуть
-                'coins': 0,  # Сумма кредита
-                'return': 0  # Проценты к возврату
+            'loan': {
+                'created_date': None,
+                'return_date': None,
+                'coins': 0,
+                'return': 0,
+                'last_penalty_date': None  # Дата последнего штрафа за просрочку
             }
         }
         save_game(gamer)
 
-    # === ПОЛУЧАЕМ ТЕКУЩИЕ ЗНАЧЕНИЯ ===
-    today = engine.today_for_test()  # Сегодняшняя дата в игре
-
-    # Вклад
+    today = engine.today_for_test()
     deposit_coins = gamer['bank']['deposit']['coins']
     deposit_created = gamer['bank']['deposit'].get('created_date')
     deposit_withdrawal = gamer['bank']['deposit'].get('withdrawal_date')
     deposit_income = gamer['bank']['deposit']['income']
 
-    # Кредит
     loan_coins = gamer['bank']['loan']['coins']
     loan_return = gamer['bank']['loan']['return']
     loan_created = gamer['bank']['loan'].get('created_date')
     loan_return_date = gamer['bank']['loan'].get('return_date')
+    last_penalty_date = gamer['bank']['loan'].get('last_penalty_date')
+
+    # === ПРОВЕРКА ПРОСРОЧКИ И ШТРАФ ===
+    if loan_created is not None and loan_return_date and today > loan_return_date:
+        # Кредит просрочен
+        # Считаем, сколько дней нужно начислить штраф
+        if last_penalty_date is None:
+            # Первый день просрочки
+            days_to_penalize = (today - loan_return_date).days
+        else:
+            # Штрафуем только за новые дни
+            days_to_penalize = (today - last_penalty_date).days
+
+        if days_to_penalize > 0:
+            # Начисляем урон: 10 здоровья за каждый день просрочки
+            damage = days_to_penalize * 10
+            gamer_health -= damage
+            gamer['health'] = max(0, gamer_health)  # Здоровье не может быть меньше 0
+
+            print(f'⚠️ ШТРАФ ЗА ПРОСРОЧКУ КРЕДИТА: -{damage} ❤️')
+            print(f'Осталось здоровья: {gamer["health"]} ❤️\n')
+
+            # Обновляем дату последнего штрафа
+            gamer['bank']['loan']['last_penalty_date'] = today
+            save_game(gamer)
 
     # === РАСЧЕТ ПРОЦЕНТОВ ПО ВКЛАДУ ===
-    if deposit_created is not None:  # Если вклад открыт
-        days_passed = (today - deposit_created).days  # Сколько дней прошло
+    if deposit_created is not None:
+        days_passed = (today - deposit_created).days
         if days_passed > 0:
-            # 1% в день от суммы
             deposit_income = deposit_coins * 0.01 * days_passed
-        gamer['bank']['deposit']['income'] = deposit_income  # Сохраняем доход
+        gamer['bank']['deposit']['income'] = deposit_income
 
     # === РАСЧЕТ ПРОЦЕНТОВ ПО КРЕДИТУ ===
-    if loan_created is not None:  # Если кредит взят
-        days_passed = (today - loan_created).days  # Сколько дней прошло
+    if loan_created is not None:
+        days_passed = (today - loan_created).days
         if days_passed > 0:
-            # Проверяем просрочку
             if loan_return_date and today > loan_return_date:
-                # Кредит просрочен - считаем по-разному
-                days_overdue = (today - loan_return_date).days  # Дней просрочки
-                days_ontime = days_passed - days_overdue  # Дней в срок
-                # 1% в срок + 2% за просрочку
+                days_overdue = (today - loan_return_date).days
+                days_ontime = days_passed - days_overdue
                 loan_return = (loan_coins * 0.01 * days_ontime) + (loan_coins * 0.02 * days_overdue)
             else:
-                # Нет просрочки - просто 1% в день
                 loan_return = loan_coins * 0.01 * days_passed
         gamer['bank']['loan']['return'] = loan_return
 
-    gamer['bank']['chek'] = today  # Отметка времени проверки
-    save_game(gamer)  # Сохраняем обновлённые данные
+    gamer['bank']['chek'] = today
+    save_game(gamer)
 
     # === ПОКАЗЫВАЕМ ИНФОРМАЦИЮ ===
     print(f'Ваши наличные монеты: {gamer_coins}')
 
-    # Информация о вкладе
     if deposit_created is None:
         print('В банке нет вклада.')
     else:
@@ -209,20 +224,16 @@ def bank():
             print(f'  Дата снятия: {deposit_withdrawal.strftime("%d.%m.%y")}')
         print(f'  Доход: {deposit_income:.0f} монет')
 
-    # Информация о кредите
     if loan_created is None:
         print('В банке нет кредита.')
     else:
         print(f'Кредит: {loan_coins} монет (взят {loan_created.strftime("%d.%m.%y")})')
         if loan_return_date:
-            # Проверяем просрочку и показываем статус
             status = "✓ В срок" if today <= loan_return_date else "⚠ ПРОСРОЧЕН"
             print(f'  Дата возврата: {loan_return_date.strftime("%d.%m.%y")} {status}')
         print(f'  Проценты: {loan_return:.0f} монет')
 
-    print()  # Пустая строка
-
-    # === МЕНЮ ===
+    print()
     if deposit_created is None:
         print('1 - Сделать вклад')
     else:
@@ -232,7 +243,7 @@ def bank():
     else:
         print('c - Погасить кредит')
 
-    do = input('Выбор: ').strip()  # Читаем выбор пользователя
+    do = input('Выбор: ').strip()
 
     # === ВКЛАД: ВНЕСЕНИЕ ===
     if do == '1' and deposit_created is None:
@@ -241,27 +252,25 @@ def bank():
 
         try:
             deposit_coins = int(input('Сумма: '))
-            if deposit_coins > gamer_coins:  # Проверяем, хватает ли денег
+            if deposit_coins > gamer_coins:
                 print('Недостаточно денег')
                 return bank()
 
-            # Запрашиваем, через сколько дней снимать
             print('\nУкажите желаемую дату снятия вклада (дни от сегодня):')
             days_until_withdrawal = int(input('Через сколько дней: '))
             withdrawal_date = today + timedelta(days=days_until_withdrawal)
 
-            # Обновляем данные
-            gamer_coins -= deposit_coins  # Снимаем с наличных
+            gamer_coins -= deposit_coins
             gamer['coins'] = gamer_coins
             gamer['bank']['deposit']['created_date'] = today
             gamer['bank']['deposit']['withdrawal_date'] = withdrawal_date
             gamer['bank']['deposit']['coins'] = deposit_coins
-            gamer['bank']['deposit']['income'] = 0  # Доход ещё не начисли
+            gamer['bank']['deposit']['income'] = 0
             save_game(gamer)
 
             print(f'\nВклад {deposit_coins} монет создан')
             print(f'Дата снятия: {withdrawal_date.strftime("%d.%m.%y")}\n')
-            return bank()  # Возвращаемся в меню банка
+            return bank()
         except ValueError:
             print('Ошибка ввода')
             return bank()
@@ -270,10 +279,9 @@ def bank():
     if do == 'd':
         print('\nСНЯТИЕ ДЕПОЗИТА\n')
 
-        is_early_withdrawal = today < deposit_withdrawal  # Снимаем раньше срока?
+        is_early_withdrawal = today < deposit_withdrawal
 
         if is_early_withdrawal:
-            # Ранее снятие - теряем проценты
             print(f'⚠ ВНИМАНИЕ: Вы снимаете вклад раньше срока!')
             print(f'Плановая дата: {deposit_withdrawal.strftime("%d.%m.%y")}')
             print(f'Если снять раньше, проценты БУДУТ ПОТЕРЯНЫ!')
@@ -282,8 +290,7 @@ def bank():
             confirm = input('\n1 - Снять раньше срока (потерять проценты)\n2 - Отмена\nВыбор: ')
 
             if confirm == '1':
-                gamer['coins'] += deposit_coins  # Добавляем только основу
-                # Очищаем вклад
+                gamer['coins'] += deposit_coins
                 gamer['bank']['deposit'] = {'created_date': None, 'withdrawal_date': None, 'coins': 0, 'income': 0}
                 save_game(gamer)
                 print(f'\nСнято {deposit_coins} монет (проценты потеряны)\n')
@@ -291,10 +298,8 @@ def bank():
                 print('Отмена\n')
             return bank()
         else:
-            # По плану - получаем основу + проценты
             total = deposit_coins + deposit_income
             gamer['coins'] += total
-            # Очищаем вклад
             gamer['bank']['deposit'] = {'created_date': None, 'withdrawal_date': None, 'coins': 0, 'income': 0}
             save_game(gamer)
             print(f'Снято {total:.0f} монет (основная сумма: {deposit_coins}, доход: {deposit_income:.0f})\n')
@@ -306,23 +311,23 @@ def bank():
         print('Условия:')
         print('1. Проценты 1% в день до срока возврата')
         print('2. При просрочке - 2% в день (двойной размер)')
-        print('3. Досрочное погашение без штрафа\n')
+        print('3. За каждый день просрочки - -10 ❤️ здоровья')
+        print('4. Досрочное погашение без штрафа\n')
 
         try:
             loan_coins = int(input('Сумма кредита: '))
 
-            # Запрашиваем срок возврата
             print('\nУкажите планируемую дату возврата (дни от сегодня):')
             days_until_return = int(input('Через сколько дней: '))
             return_date = today + timedelta(days=days_until_return)
 
-            # Обновляем данные
-            gamer_coins += loan_coins  # Добавляем деньги в наличные
+            gamer_coins += loan_coins
             gamer['coins'] = gamer_coins
             gamer['bank']['loan']['created_date'] = today
             gamer['bank']['loan']['return_date'] = return_date
             gamer['bank']['loan']['coins'] = loan_coins
-            gamer['bank']['loan']['return'] = 0  # Проценты считаются дальше
+            gamer['bank']['loan']['return'] = 0
+            gamer['bank']['loan']['last_penalty_date'] = None  # Инициализируем
             save_game(gamer)
 
             print(f'\nКредит {loan_coins} монет взят')
@@ -336,8 +341,8 @@ def bank():
     if do == 'c':
         print('\nПОГАШЕНИЕ КРЕДИТА\n')
 
-        total_to_pay = loan_coins + loan_return  # Сумма + проценты
-        is_overdue = loan_return_date and today > loan_return_date  # Просрочка?
+        total_to_pay = loan_coins + loan_return
+        is_overdue = loan_return_date and today > loan_return_date
 
         print(f'Основная сумма: {loan_coins} монет')
         print(f'Проценты: {loan_return:.0f} монет')
@@ -349,7 +354,6 @@ def bank():
         print(f'ВСЕГО К ВОЗВРАТУ: {total_to_pay:.0f} монет')
         print(f'У вас есть: {gamer_coins} монет\n')
 
-        # Проверяем, хватает ли денег
         if gamer_coins < total_to_pay:
             shortage = total_to_pay - gamer_coins
             print(f'❌ Недостаточно денег. Не хватает {shortage:.0f} монет')
@@ -358,15 +362,14 @@ def bank():
         confirm = input('1 - Погасить кредит, Enter - отмена: ').strip()
 
         if confirm == '1':
-            gamer['coins'] -= total_to_pay  # Снимаем деньги
-            # Очищаем кредит
-            gamer['bank']['loan'] = {'created_date': None, 'return_date': None, 'coins': 0, 'return': 0}
+            gamer['coins'] -= total_to_pay
+            gamer['bank']['loan'] = {'created_date': None, 'return_date': None, 'coins': 0, 'return': 0,
+                                     'last_penalty_date': None}
             save_game(gamer)
             status = "(с просрочкой)" if is_overdue else ""
             print(f'\n✓ Кредит погашен {status}. Выплачено {total_to_pay:.0f} монет\n')
         return bank()
 
-    # Пустой ввод - возвращаемся в главное меню
     if do == '':
         return menu()
 
