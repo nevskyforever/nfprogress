@@ -4,8 +4,8 @@ import game
 from datetime import date, datetime, timedelta
 from random import randint
 
-version = '1.2.9.2'
-last_update = '19.01.26'
+version = '1.2.9.3'
+last_update = '23.01.26'
 
 def today_for_test():
     TEST_DATE = datetime(2026, 1, 3)
@@ -850,12 +850,15 @@ def main_menu():
     notifications = data.get('notifications', {'new': [], 'read': []})
     new_notifs = notifications['new']
     count_new = len(new_notifs)
+
     print(f'nfprogress\n')
     print(f'Сегодня: {today_for_test().strftime("%d.%m.%y")}')
+
     if new_notifs:
         last_notification = new_notifs[-1]
         print(f'\n📌 Последнее уведомление:'
               f'\n{last_notification}')
+
     print('\nЧто вы хотите сделать?\n')
     print('1 - Новая запись')
     print('2 - Просмотр проектов')
@@ -866,10 +869,16 @@ def main_menu():
     print('7 - Подробности о проекте')
     print('8 - О программе')
 
+    # --- ПРОВЕРКА ПОСЛЕДНЕГО ПРОЕКТА ---
     last = data.get('last', None)
+
+    # Если проект есть в памяти "last", но его нет в активных проектах - сбрасываем
+    if last is not None and last not in data['projects']['active']:
+        last = None
 
     if last is not None:
         print(f'\nЗапись в последний проект ({last}) - Enter')
+    # -----------------------------------
 
     do_list = {
         '1': new_note,
@@ -883,6 +892,7 @@ def main_menu():
     }
 
     do = input('\nВыберите пункт из меню: ')
+
     if do != '':
         try:
             do_list[do]()
@@ -890,7 +900,11 @@ def main_menu():
             print('НЕПРАВИЛЬНЫЙ ВЫБОР')
             main_menu()
     else:
-        new_note(last)
+        # Если нажали Enter, проверяем, есть ли валидный последний проект
+        if last is not None:
+            new_note(last)
+        else:
+            main_menu()
 
 if __name__ == '__main__':
     main_menu()
