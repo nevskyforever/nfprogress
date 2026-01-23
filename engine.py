@@ -4,7 +4,7 @@ import game
 from datetime import date, datetime, timedelta
 from random import randint
 
-version = '1.2.9'
+version = '1.2.9.2'
 last_update = '19.01.26'
 
 def today_for_test():
@@ -138,6 +138,36 @@ def new_project():
 def view_projects():
     data = load_data()
     projects = data['projects']['active']
+
+    # --- БЛОК ОБНОВЛЕНИЯ ДЕДЛАЙНОВ ---
+    # Получаем актуальную дату через вашу функцию
+    today = today_for_test().date()
+    updated = False
+
+    for name in projects:
+        proj = projects[name]
+        # Проверяем, установлен ли дедлайн
+        if proj['deadline']['date'] != 'Нет':
+            deadline_val = proj['deadline']['date']
+
+            # Если в pickle дедлайн сохранился как datetime, берем .date(), если как date - оставляем
+            if isinstance(deadline_val, datetime):
+                d_date = deadline_val.date()
+            else:
+                d_date = deadline_val
+
+            # Считаем актуальную разницу
+            actual_days_left = (d_date - today).days
+
+            # Если значение отличается от сохраненного, обновляем
+            if proj['deadline']['days left'] != actual_days_left:
+                proj['deadline']['days left'] = actual_days_left
+                updated = True
+
+    # Если были изменения, сохраняем их в файл перед показом
+    if updated:
+        save_data(data)
+    # ---------------------------------
 
     print('\nПРОСМОТР ПРОЕКТОВ\n')
 
