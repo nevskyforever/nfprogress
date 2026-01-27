@@ -107,30 +107,28 @@ def lottery_ticket(do):
         else:
             print('\n Пусть удача всегда будет с вами! \n')
             gamer['items']['lottery_ticket'] -= 1
-            if datetime.today().weekday() == 3:
-                chance = randint(1, 10)
-                win = randint(1, 10)
-                if chance == win:
-                    win_coins = price * 100
-                    gamer['coins'] += win_coins
-                    print(f'\n ВЫ ВЫИГРАЛИ! \n'
-                          f'\n Ваш выигрыш - {win_coins}\n')
-                else:
-                    print('В этот раз не повезло :(')
-            else:
-                chance = randint(1, 10)
-                win = randint(1, 10)
-                if chance == win:
-                    win_coins = price * 10
-                    gamer['coins'] += win_coins
-                    print(f'\n ВЫ ВЫИГРАЛИ! \n'
-                          f'\n Ваш выигрыш - {win_coins}\n')
-                else:
-                    print('В этот раз не повезло :(')
+            # Генерируем числа
+            chance = [randint(1, 10) for _ in range(3)]
+            win = [randint(1, 10) for _ in range(3)]
+            # Проверяем числа
+            cnt = 0
+            for i in chance:
+                if i in win:
+                    cnt += 1
+            if cnt == 0:
+                print('В этот раз не повезло :(')
+            if cnt == 1:
+                win_prize = price * 10
+                print(f'ВЫ ВЫИГРАЛИ {win_prize} МОНЕТ! Совпало 1 число из 3.')
+            if cnt == 2:
+                win_prize = price * 100
+                print(f'ВЫ ВЫИГРАЛИ {win_prize} МОНЕТ! Совпало 2 числа из 3.')
+            if cnt == 3:
+                win_prize = price * 1000
+                print(f'ВЫ ВЫИГРАЛИ СУПЕРПРИЗ {win_prize} МОНЕТ! Совпало 3 число из 3.')
             game.save_game(gamer)
             return '\n ИСПОЛЬЗОВАН ЛОТЕРЕЙНЫЙ БИЛЕТ \n'
     elif do == '?':
-        return ('\nЛотерейный билет дает возможность выиграть 150 монет с вероятностью в 10%'
-                '\nПо четвергам выигрыш 1500 монет :)'
+        return ('\nЛотерейный билет состоят из трех цифр и можно выиграть 100 монет при совпадении'
+                '\n1 числа, 1000 монет при 2 и 10000, если совпало 3 числа :)'
                 f'\nСтоимость {price} монет')
-    game.menu()

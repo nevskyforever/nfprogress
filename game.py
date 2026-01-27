@@ -262,7 +262,7 @@ def bank():
     else:
         print('c - Погасить кредит')
 
-    do = input('Выбор: ').strip()
+    do = input('Выбор (или Enter для выхода): ').strip()
 
     # === ВКЛАД: ВНЕСЕНИЕ ===
     if do == '1' and deposit_created is None:
