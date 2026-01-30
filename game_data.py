@@ -107,9 +107,12 @@ def lottery_ticket(do):
         else:
             print('\n Пусть удача всегда будет с вами! \n')
             gamer['items']['lottery_ticket'] -= 1
-            # Генерируем числа
-            chance = [randint(1, 10) for _ in range(3)]
-            win = [randint(1, 10) for _ in range(3)]
+            # Генерируем неодинаковые числа
+            chance = set()
+            win = set()
+            while len(chance) != 3 and len(win) != 3:
+                chance.add(randint(1, 10))
+                win.add(randint(1, 10))
             # Проверяем числа
             cnt = 0
             win_prize = 0
