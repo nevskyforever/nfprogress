@@ -4,11 +4,11 @@ import game
 from datetime import date, datetime, timedelta
 from random import randint
 
-version = '1.2.9.8'
+version = '1.2.9.9'
 last_update = '30.01.26'
 
 def today_for_test():
-    TEST_DATE = datetime(2026, 1, 3)
+    TEST_DATE = datetime(2026, 1, 30)
     if TEST_DATE is None or TEST_DATE < datetime.today():
         return datetime.today()
     else:
@@ -357,13 +357,18 @@ def choice_project():
 
 def chek_streak(project_name, symbol_progress, today_goal=0):
     data = load_data()
-    today = today_for_test()
+
+    # 1. Получаем "сегодня" и сразу очищаем от времени
+    today_raw = today_for_test()
+    today = today_raw.date() if isinstance(today_raw, datetime) else today_raw
+
     project = data['projects']['active'][project_name]
     streaks = project['streaks']
     deadline = project['deadline']['date']
     goal = project['goal']
     total = project['total symbols']
 
+    # Нормализация дедлайна
     if isinstance(deadline, datetime):
         deadline_date = deadline.date()
     elif deadline == 'Нет':
@@ -371,36 +376,54 @@ def chek_streak(project_name, symbol_progress, today_goal=0):
     else:
         deadline_date = deadline
 
+    # Проверка на завершение всего проекта
     if total >= goal:
+        # Если дедлайна нет или мы уложились в него
         if deadline_date is None or today <= deadline_date:
             return 'Complete'
 
+    # 2. Определяем "вчера" (тоже чистая дата)
     yesterday = today - timedelta(days=1)
 
     if today_goal <= 0:
         return 'Today'
 
-    if len(streaks) > 0 and streaks[-1] == today:
+    # 3. Получаем дату ПОСЛЕДНЕГО стрика (чистую)
+    last_streak_date = None
+    if len(streaks) > 0:
+        last = streaks[-1]
+        last_streak_date = last.date() if isinstance(last, datetime) else last
+
+    # --- ГЛАВНАЯ ПРОВЕРКА ---
+    # Если сегодня уже записано в стрик -> цель выполнена
+    if last_streak_date == today:
         return 'Done'
 
+    # Если прогресс еще не достигнут -> стрик не трогаем
     if symbol_progress < today_goal:
         return 'No'
+
+    # --- ЛОГИКА ОБНОВЛЕНИЯ СТРИКА ---
+    streak_status = None
 
     if len(streaks) == 0:
         streaks.append(today)
         streak_status = 'Start'
 
-    elif streaks[-1] == yesterday:
+    elif last_streak_date == yesterday:
         streaks.append(today)
         streak_status = 'Go'
 
     else:
+        # Стрик прерван (прошло больше 1 дня)
         lost_days = len(streaks)
-        streaks = [today]
+        streaks = [today]  # Начинаем новый стрик с сегодняшнего дня
         streak_status = f'Lose {lost_days}'
 
+    # Сохраняем обновленный список
     data['projects']['active'][project_name]['streaks'] = streaks
     save_data(data)
+
     return streak_status
 
 
@@ -443,7 +466,9 @@ def new_note(choice=None):
 
         days_left = (d_date - t_date).days
         if days_left > 0:
-            today_goal = need_symbols // days_left
+            # Гарантируем, что цель хотя бы 1 символ, если остаток > 0
+            raw_goal = need_symbols // days_left
+            today_goal = raw_goal if raw_goal > 0 else 1
             print(f'Цель на сегодня: {today_goal} сим.')
         else:
             print('Дедлайн прошел или сегодня!')
@@ -635,7 +660,6 @@ def new_note(choice=None):
     main_menu()
 
 
-
 def change_project():
     print('\nИЗМЕНЕНИЕ ПРОЕКТА\n')
     choice = choice_project()
@@ -786,12 +810,119 @@ def change_project():
             print('\n ДЕЙСТВИЕ ОТМЕНЕНО \n')
             main_menu()
 
+    def add_custom_date_note():
+        print(f'\n ДОБАВЛЕНИЕ ЗАПИСИ С ПРОИЗВОЛЬНОЙ ДАТОЙ \n')
+        data = load_data()
+        project = data['projects']['active'][choice]
+        notes = project.get('notes', {})
+
+        date_str = input('Введите дату записи (дд.мм.гг) или Enter для отмены: ')
+        if date_str == '':
+            print('\n ДЕЙСТВИЕ ОТМЕНЕНО \n')
+            main_menu()
+            return
+
+        try:
+            custom_date = datetime.strptime(date_str, '%d.%m.%y').date()
+        except ValueError:
+            print('\n ОШИБКА ФОРМАТА ДАТЫ \n')
+            main_menu()
+            return
+
+        # --- ПОИСК ПРЕДЫДУЩЕГО ЗНАЧЕНИЯ ---
+        # Сортируем даты, чтобы найти ближайшую предыдущую
+        sorted_dates = sorted(notes.keys())
+        prev_date = None
+        prev_total = 0
+
+        for d in sorted_dates:
+            if d < custom_date:
+                prev_date = d
+                # Берем last_total из предыдущей записи
+                if isinstance(notes[d], dict) and 'last_total' in notes[d]:
+                    prev_total = notes[d]['last_total']
+            else:
+                # Как только дошли до даты >= custom_date, останавливаемся
+                break
+
+        # --- ВЫВОД КОНТЕКСТА ---
+        print(f'\n--- КОНТЕКСТ ---')
+        if prev_date:
+            print(f'Предыдущая запись от {prev_date.strftime("%d.%m.%y")}: всего {prev_total} сим.')
+        else:
+            print(f'Предыдущих записей нет. Начальный отсчет: 0 сим.')
+
+        # Если запись на эту дату уже есть, покажем её
+        if custom_date in notes:
+            current_record_total = notes[custom_date].get('last_total', 0)
+            print(f'⚠️ На дату {date_str} уже записано: всего {current_record_total} сим.')
+
+        print('----------------')
+
+        # --- ВВОД НОВОГО ЗНАЧЕНИЯ ---
+        try:
+            input_total = int(input(f'Введите ОБЩЕЕ кол-во символов, которое было {date_str}: '))
+        except ValueError:
+            print('\n НУЖНО ЧИСЛО \n')
+            main_menu()
+            return
+
+        # --- РАСЧЕТ ПРОГРЕССА ---
+        # Прогресс за этот день = (Тотал на этот день) - (Тотал на предыдущий день)
+        session_added = input_total - prev_total
+
+        if session_added < 0:
+            print(f'\n⚠️ Внимание: введенное значение ({input_total}) меньше предыдущего ({prev_total}).')
+            print('Прогресс за день будет отрицательным. Если это ошибка, повторите ввод.\n')
+            confirm = input('Нажмите Enter для продолжения или введите что-угодно для отмены: ')
+            if confirm != '':
+                main_menu()
+                return
+
+        # --- СОХРАНЕНИЕ ---
+        notes[custom_date] = {
+            'symbol_progress': session_added,
+            'last_total': input_total
+        }
+
+        project['notes'] = notes
+
+        # --- ОБНОВЛЕНИЕ ГЛОБАЛЬНОГО СОСТОЯНИЯ ПРОЕКТА ---
+        # Обновляем "текущие" показатели проекта только если:
+        # 1. Мы редактируем сегодняшнюю/будущую дату
+        # 2. ИЛИ введенное значение больше того, что сейчас в проекте (чтобы не откатить прогресс случайно)
+        # 3. ИЛИ эта дата является самой последней в списке
+
+        latest_date = sorted(notes.keys())[-1]
+        current_project_total = project['total symbols']
+
+        if custom_date == latest_date or input_total > current_project_total:
+            project['total symbols'] = input_total
+            goal = project['goal']
+            new_progress = round(input_total / goal * 100)
+            project['progress'] = new_progress
+            updated_msg = f'(Общий прогресс проекта обновлен: {new_progress}%)'
+        else:
+            updated_msg = '(Общий прогресс проекта не изменен, так как запись историческая)'
+
+        data['projects']['active'][choice] = project
+        save_data(data)
+
+        print(f'\n✅ Запись сохранена: {date_str}')
+        print(f'Всего на тот момент: {input_total} сим.')
+        print(f'Записано в этот день ("symbol_progress"): {session_added} сим.')
+        print(updated_msg + '\n')
+
+        add_notification(f'📝 Ручная запись в "{choice}" за {date_str}: +{session_added} сим. (всего {input_total})')
+        main_menu()
+
     print('1 - Изменить имя')
     print('2 - Изменить цель')
     print('3 - Изменить дедлайн')
     print('4 - Удалить проект')
     print('5 - Изменить кол-во символов (ручная правка)')
     print('6 - Отправить в архив')
+    print('7 - Добавить запись с произвольной датой')
 
     do = input('\nВыберите действие: ')
     actions = {
@@ -801,6 +932,7 @@ def change_project():
         '4': delete_project,
         '5': change_symbols,
         '6': send_to_archive,
+        '7': add_custom_date_note,
     }
 
     try:
