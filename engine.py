@@ -7,12 +7,14 @@ from random import randint
 version = '1.2.9.9'
 last_update = '30.01.26'
 
+
 def today_for_test():
-    TEST_DATE = datetime(2026, 1, 30)
-    if TEST_DATE is None or TEST_DATE < datetime.today():
-        return datetime.today()
+    TEST_DATE = date(2026, 1, 31)
+    if TEST_DATE is None:
+        return date.today()
     else:
         return TEST_DATE
+
 
 def load_data():
     try:
@@ -26,6 +28,7 @@ def load_data():
 def save_data(data):
     with open('data.pkl', 'wb') as f:
         pickle.dump(data, f)
+
 
 def about_program():
     print('Автор: nevskyforever')
@@ -100,13 +103,14 @@ def new_project():
             deadline_str = 'Нет'
             days_left = 0
         else:
-            deadline = datetime.strptime(deadline_input, '%d.%m.%y')
+            deadline = datetime.strptime(deadline_input, '%d.%m.%y').date()
             deadline_str = deadline.strftime('%d.%m.%y')
-            days_left = (deadline.date() - date.today()).days
+            days_left = (deadline - date.today()).days
     except ValueError:
         print('\n ЗНАЧЕНИЕ НЕКОРРЕКТНО (Дедлайн установлен как "Нет") \n')
         deadline = 'Нет'
         deadline_str = 'Нет'
+        days_left = 0
 
     data['projects']['active'][name] = {
         'goal': goal,
@@ -140,31 +144,26 @@ def view_projects():
     projects = data['projects']['active']
 
     # --- БЛОК ОБНОВЛЕНИЯ ДЕДЛАЙНОВ ---
-    # Получаем актуальную дату через вашу функцию
-    today = today_for_test().date()
+    today = today_for_test()
     updated = False
 
     for name in projects:
         proj = projects[name]
-        # Проверяем, установлен ли дедлайн
         if proj['deadline']['date'] != 'Нет':
             deadline_val = proj['deadline']['date']
 
-            # Если в pickle дедлайн сохранился как datetime, берем .date(), если как date - оставляем
+            # Приводим к date если это datetime
             if isinstance(deadline_val, datetime):
-                d_date = deadline_val.date()
-            else:
-                d_date = deadline_val
+                deadline_val = deadline_val.date()
+                proj['deadline']['date'] = deadline_val
+                updated = True
 
-            # Считаем актуальную разницу
-            actual_days_left = (d_date - today).days
+            actual_days_left = (deadline_val - today).days
 
-            # Если значение отличается от сохраненного, обновляем
             if proj['deadline']['days left'] != actual_days_left:
                 proj['deadline']['days left'] = actual_days_left
                 updated = True
 
-    # Если были изменения, сохраняем их в файл перед показом
     if updated:
         save_data(data)
     # ---------------------------------
@@ -202,7 +201,7 @@ def view_projects():
             if deadline == 'Нет':
                 print(f'Название: {name}, прогресс: {progress}%, написано/цель: {symbols}/{goal}\n')
             else:
-                deadline_str = datetime.strftime(deadline, '%d.%m.%y')
+                deadline_str = deadline.strftime('%d.%m.%y')
                 days_left = proj['deadline']['days left']
                 streaks = len(proj['streaks'])
                 print(f'Название: {name}, прогресс: {progress}%, написано: {symbols}/{goal}, '
@@ -308,7 +307,6 @@ def view_projects():
                 choice_name = projects_names[choice - 1]
                 print(f'\nВыбран проект: {choice_name}\n')
 
-                from random import randint
                 key = randint(1000, 9999)
                 print(f'Удаление "{choice_name}" необратимо!')
 
@@ -345,7 +343,7 @@ def choice_project():
             print(f'{i + 1} - {projects_names[i]}')
         try:
             choice = int(input('\nВведите номер выбранного проекта '
-            '\nили введите Enter для выхода в главное меню: '))
+                               '\nили введите Enter для выхода в главное меню: '))
             choice = projects_names[choice - 1]
             print(f'\nВыбран проект: {choice}\n')
             return choice
@@ -358,10 +356,7 @@ def choice_project():
 def chek_streak(project_name, symbol_progress, today_goal=0):
     data = load_data()
 
-    # 1. Получаем "сегодня" и сразу очищаем от времени
-    today_raw = today_for_test()
-    today = today_raw.date() if isinstance(today_raw, datetime) else today_raw
-
+    today = today_for_test()
     project = data['projects']['active'][project_name]
     streaks = project['streaks']
     deadline = project['deadline']['date']
@@ -370,36 +365,34 @@ def chek_streak(project_name, symbol_progress, today_goal=0):
 
     # Нормализация дедлайна
     if isinstance(deadline, datetime):
-        deadline_date = deadline.date()
-    elif deadline == 'Нет':
-        deadline_date = None
-    else:
-        deadline_date = deadline
+        deadline = deadline.date()
+        project['deadline']['date'] = deadline
+
+    deadline_date = None if deadline == 'Нет' else deadline
 
     # Проверка на завершение всего проекта
     if total >= goal:
-        # Если дедлайна нет или мы уложились в него
         if deadline_date is None or today <= deadline_date:
             return 'Complete'
 
-    # 2. Определяем "вчера" (тоже чистая дата)
     yesterday = today - timedelta(days=1)
 
     if today_goal <= 0:
         return 'Today'
 
-    # 3. Получаем дату ПОСЛЕДНЕГО стрика (чистую)
+    # Получаем дату ПОСЛЕДНЕГО стрика
     last_streak_date = None
     if len(streaks) > 0:
         last = streaks[-1]
-        last_streak_date = last.date() if isinstance(last, datetime) else last
+        if isinstance(last, datetime):
+            last_streak_date = last.date()
+        else:
+            last_streak_date = last
 
     # --- ГЛАВНАЯ ПРОВЕРКА ---
-    # Если сегодня уже записано в стрик -> цель выполнена
     if last_streak_date == today:
         return 'Done'
 
-    # Если прогресс еще не достигнут -> стрик не трогаем
     if symbol_progress < today_goal:
         return 'No'
 
@@ -415,12 +408,10 @@ def chek_streak(project_name, symbol_progress, today_goal=0):
         streak_status = 'Go'
 
     else:
-        # Стрик прерван (прошло больше 1 дня)
         lost_days = len(streaks)
-        streaks = [today]  # Начинаем новый стрик с сегодняшнего дня
+        streaks = [today]
         streak_status = f'Lose {lost_days}'
 
-    # Сохраняем обновленный список
     data['projects']['active'][project_name]['streaks'] = streaks
     save_data(data)
 
@@ -447,26 +438,22 @@ def new_note(choice=None):
     goal = project['goal']
     last_symbols = project['total symbols']
     need_symbols = goal - last_symbols
-    today_dt = today_for_test()
-
-    if isinstance(today_dt, datetime):
-        today_date = today_dt.date()
-    else:
-        today_date = today_dt
+    today_date = today_for_test()
 
     deadline = project['deadline']['date']
+
+    # Нормализация дедлайна
+    if isinstance(deadline, datetime):
+        deadline = deadline.date()
+        project['deadline']['date'] = deadline
 
     print(f'Текущее кол-во символов в {choice}: {last_symbols} сим.')
     print(f'Осталось написать до цели: {need_symbols} сим.')
 
     today_goal = 0
     if deadline != 'Нет':
-        d_date = deadline.date() if isinstance(deadline, datetime) else deadline
-        t_date = today_dt.date() if isinstance(today_dt, datetime) else today_dt
-
-        days_left = (d_date - t_date).days
+        days_left = (deadline - today_date).days
         if days_left > 0:
-            # Гарантируем, что цель хотя бы 1 символ, если остаток > 0
             raw_goal = need_symbols // days_left
             today_goal = raw_goal if raw_goal > 0 else 1
             print(f'Цель на сегодня: {today_goal} сим.')
@@ -547,7 +534,6 @@ def new_note(choice=None):
             new_notifications.append(lose_notification)
             print(f'📌 {lose_notification}\n')
 
-        # === БОНУС ЗА СТРИК ПРИ ПРОДОЛЖЕНИИ РАБОТЫ ===
         if game.load_game() is not None and deadline != 'Нет' and streak_status.split()[0] in ['Start', 'Go', 'Lose']:
             bonus_msg = game.give_streak_bonus(streak_status, new_symbols)
             bonus_notification = f'{timestamp} в {choice}: 🔥 {bonus_msg}'
@@ -568,7 +554,6 @@ def new_note(choice=None):
                 print(f'📌 {complete_notification}')
 
                 if game.load_game() is not None:
-                    # Бонус за завершение
                     complete_bonus = game.give_complete_bonus(True, new_symbols)
                     bonus_notification = f'{timestamp} в {choice}: 🎉 {complete_bonus}'
                     new_notifications.append(bonus_notification)
@@ -613,10 +598,7 @@ def new_note(choice=None):
                     print(f'📌 {goal_notification}\n')
 
                     if deadline != 'Нет':
-                        d_date = deadline.date() if isinstance(deadline, datetime) else deadline
-                        t_date = today_dt.date() if isinstance(today_dt, datetime) else today_dt
-
-                        if d_date >= t_date:
+                        if deadline >= today_date:
                             deadline_str = deadline.strftime('%d.%m.%y')
                             print(f'Текущий дедлайн: {deadline_str}\n')
 
@@ -625,13 +607,13 @@ def new_note(choice=None):
 
                             if change_deadline_input != '':
                                 try:
-                                    new_deadline = datetime.strptime(change_deadline_input, '%d.%m.%y')
+                                    new_deadline = datetime.strptime(change_deadline_input, '%d.%m.%y').date()
                                     old_deadline_str = deadline.strftime('%d.%m.%y')
                                     new_deadline_str = new_deadline.strftime('%d.%m.%y')
 
                                     data['projects']['active'][choice]['deadline'] = {
                                         'date': new_deadline,
-                                        'days left': (new_deadline.date() - date.today()).days
+                                        'days left': (new_deadline - date.today()).days
                                     }
                                     data['notifications'] = notifications
                                     save_data(data)
@@ -714,7 +696,7 @@ def change_project():
             main_menu()
             return
         try:
-            new_deadline = datetime.strptime(deadline_str, '%d.%m.%y')
+            new_deadline = datetime.strptime(deadline_str, '%d.%m.%y').date()
             data = load_data()
             old_deadline = data['projects']['active'][choice]['deadline']['date']
 
@@ -723,7 +705,7 @@ def change_project():
 
             data['projects']['active'][choice]['deadline'] = {
                 'date': new_deadline,
-                'days left': (new_deadline.date() - date.today()).days
+                'days left': (new_deadline - date.today()).days
             }
             save_data(data)
             print(f'\nДедлайн изменён.\n')
@@ -829,37 +811,35 @@ def change_project():
             main_menu()
             return
 
-        # --- ПОИСК ПРЕДЫДУЩЕГО ЗНАЧЕНИЯ ---
-        # Сортируем даты, чтобы найти ближайшую предыдущую
+        # Сортируем даты
         sorted_dates = sorted(notes.keys())
         prev_date = None
         prev_total = 0
 
         for d in sorted_dates:
+            # Нормализуем дату если это datetime
+            if isinstance(d, datetime):
+                d = d.date()
+
             if d < custom_date:
                 prev_date = d
-                # Берем last_total из предыдущей записи
                 if isinstance(notes[d], dict) and 'last_total' in notes[d]:
                     prev_total = notes[d]['last_total']
             else:
-                # Как только дошли до даты >= custom_date, останавливаемся
                 break
 
-        # --- ВЫВОД КОНТЕКСТА ---
         print(f'\n--- КОНТЕКСТ ---')
         if prev_date:
             print(f'Предыдущая запись от {prev_date.strftime("%d.%m.%y")}: всего {prev_total} сим.')
         else:
             print(f'Предыдущих записей нет. Начальный отсчет: 0 сим.')
 
-        # Если запись на эту дату уже есть, покажем её
         if custom_date in notes:
             current_record_total = notes[custom_date].get('last_total', 0)
             print(f'⚠️ На дату {date_str} уже записано: всего {current_record_total} сим.')
 
         print('----------------')
 
-        # --- ВВОД НОВОГО ЗНАЧЕНИЯ ---
         try:
             input_total = int(input(f'Введите ОБЩЕЕ кол-во символов, которое было {date_str}: '))
         except ValueError:
@@ -867,8 +847,6 @@ def change_project():
             main_menu()
             return
 
-        # --- РАСЧЕТ ПРОГРЕССА ---
-        # Прогресс за этот день = (Тотал на этот день) - (Тотал на предыдущий день)
         session_added = input_total - prev_total
 
         if session_added < 0:
@@ -879,19 +857,12 @@ def change_project():
                 main_menu()
                 return
 
-        # --- СОХРАНЕНИЕ ---
         notes[custom_date] = {
             'symbol_progress': session_added,
             'last_total': input_total
         }
 
         project['notes'] = notes
-
-        # --- ОБНОВЛЕНИЕ ГЛОБАЛЬНОГО СОСТОЯНИЯ ПРОЕКТА ---
-        # Обновляем "текущие" показатели проекта только если:
-        # 1. Мы редактируем сегодняшнюю/будущую дату
-        # 2. ИЛИ введенное значение больше того, что сейчас в проекте (чтобы не откатить прогресс случайно)
-        # 3. ИЛИ эта дата является самой последней в списке
 
         latest_date = sorted(notes.keys())[-1]
         current_project_total = project['total symbols']
@@ -962,11 +933,17 @@ def more_details():
     print(f'Написано: {project["total symbols"]}')
     print(f'Прогресс: {project["progress"]}%')
     print(f'Среднее за сессию: {avg_symbols}')
-    print(f'Создан: {project['created'].strftime("%d.%m.%y")}')
+
+    created = project['created']
+    if isinstance(created, datetime):
+        created = created.date()
+    print(f'Создан: {created.strftime("%d.%m.%y")}')
 
     dd = project["deadline"]["date"]
     if dd != 'Нет':
-        dd_str = datetime.strftime(dd, '%d.%m.%y')
+        if isinstance(dd, datetime):
+            dd = dd.date()
+        dd_str = dd.strftime('%d.%m.%y')
         print(f'Дедлайн: {dd_str}')
         print(f'Дней в стрике: {len(project["streaks"])}')
     else:
@@ -976,6 +953,7 @@ def more_details():
 
     input('\nДля выхода нажмите Enter.')
     main_menu()
+
 
 def main_menu():
     data = load_data()
@@ -1001,16 +979,13 @@ def main_menu():
     print('7 - Подробности о проекте')
     print('8 - О программе')
 
-    # --- ПРОВЕРКА ПОСЛЕДНЕГО ПРОЕКТА ---
     last = data.get('last', None)
 
-    # Если проект есть в памяти "last", но его нет в активных проектах - сбрасываем
     if last is not None and last not in data['projects']['active']:
         last = None
 
     if last is not None:
         print(f'\nЗапись в последний проект ({last}) - Enter')
-    # -----------------------------------
 
     do_list = {
         '1': new_note,
@@ -1032,11 +1007,11 @@ def main_menu():
             print('НЕПРАВИЛЬНЫЙ ВЫБОР')
             main_menu()
     else:
-        # Если нажали Enter, проверяем, есть ли валидный последний проект
         if last is not None:
             new_note(last)
         else:
             main_menu()
+
 
 if __name__ == '__main__':
     main_menu()
