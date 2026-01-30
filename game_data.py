@@ -112,6 +112,7 @@ def lottery_ticket(do):
             win = [randint(1, 10) for _ in range(3)]
             # Проверяем числа
             cnt = 0
+            win_prize = 0
             for i in chance:
                 if i in win:
                     cnt += 1
@@ -126,6 +127,7 @@ def lottery_ticket(do):
             if cnt == 3:
                 win_prize = price * 1000
                 print(f'ВЫ ВЫИГРАЛИ СУПЕРПРИЗ {win_prize} МОНЕТ! Совпало 3 число из 3.')
+            gamer['coins'] += win_prize
             game.save_game(gamer)
             return '\n ИСПОЛЬЗОВАН ЛОТЕРЕЙНЫЙ БИЛЕТ \n'
     elif do == '?':
