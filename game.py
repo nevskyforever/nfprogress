@@ -548,7 +548,7 @@ def buy_last_item():
     item_costs = {
         'health_add': 10,
         'health_recovery': 100,
-        'lottery_ticket': 15,
+        'lottery_ticket': 10,
     }
 
     if last_bought and last_bought in item_costs:
