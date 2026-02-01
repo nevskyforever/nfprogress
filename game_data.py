@@ -1,6 +1,7 @@
 from random import randint
 from datetime import datetime
 
+import engine
 import game
 
 gamer = {'level': 1,
@@ -137,3 +138,38 @@ def lottery_ticket(do):
         return ('\nЛотерейный билет состоят из трех цифр и можно выиграть 100 монет при совпадении'
                 '\n1 числа, 1000 монет при 2 и 10000, если совпало 3 числа :)'
                 f'\nСтоимость {price} монет')
+
+def freeze(do):
+    gamer = game.load_game()
+    coins = gamer['coins']
+    price = 100
+    if do == 'buy':
+        if coins < price:
+            return f'Недостаточно монет для покупки, нужно минимум {price} монет'
+        else:
+            gamer['coins'] -= price
+            if 'freeze' not in gamer['items']:
+                gamer['items']['freeze'] = 0
+            gamer['items']['freeze'] += 1
+            game.save_game(gamer)
+            return f'Куплена Заморозка! Осталось монет: {gamer["coins"]}'
+    elif do == 'use':
+        items = gamer['items'].get('freeze', 0)
+        if items == 0:
+            return 'Заморозок нет в инвентаре'
+        else:
+            choice = engine.choice_project()
+            data = engine.load_data()
+            project = data['projects']['active'][choice]
+            streaks = project['streaks']
+            today = engine.today_for_test()
+            if project['deadline'] != "Нет":
+                streaks.append(today)
+                engine.save_data(data)
+                gamer['items']['freeze'] -= 1
+                game.save_game(gamer)
+                return f'Применена заморозка для {choice}'
+            else:
+                return 'У этого проекта ннт дедлайна!'
+    elif do == '?':
+        return 'Заморозка позволяет пропустить один день в стрике'

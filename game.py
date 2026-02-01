@@ -429,6 +429,7 @@ def show_inventory():
     print(f'1 - Зелья воскрешения: {gamer["items"].get("health_recovery", 0)}')
     print(f'2 - Зелья восстановления: {gamer["items"].get("health_add", 0)}')
     print(f'3 - Лотерейный билет: {gamer["items"].get("lottery_ticket", 0)}')
+    print(f'4 - Заморозка: {gamer["items"].get("freeze", 0)}')
 
     print('\nЧтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
 
@@ -440,12 +441,16 @@ def show_inventory():
         use_item('health_add')
     elif do == '3':
         use_item('lottery_ticket')
+    elif do == '4':
+        use_item('freeze')
     elif do == '1?':
         print(game_data.health_recovery('?'))
     elif do == '2?':
         print(game_data.health_add('?'))
     elif do == '3?':
         print(game_data.lottery_ticket('?'))
+    elif do == '4?':
+        print(game_data.freeze('?'))
     elif do != '':
         print('Неправильный выбор')
 
@@ -458,6 +463,7 @@ def use_item(item_id):
         'health_recovery': game_data.health_recovery,
         'health_add': game_data.health_add,
         'lottery_ticket': game_data.lottery_ticket,
+        'freeze': game_data.freeze,
     }
 
     if item_id in item_map:
@@ -471,6 +477,7 @@ def show_shop():
     print('\n МАГАЗИН \n')
     print('1 - Зелья')
     print('2 - Лотерейный билет (10 монет)')
+    print('3 - Заморозка (100 монет)')
     print('Чтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
 
     do = input('Выбор: ')
@@ -482,6 +489,12 @@ def show_shop():
         menu()
     elif do == '2?':
         print(game_data.lottery_ticket('?'))
+        menu()
+    elif do == '3':
+        buy_item('freeze', 100)
+        menu()
+    elif do == '3?':
+        print(game_data.freeze('?'))
         menu()
     elif do != '':
         print('Неправильный выбор')
@@ -518,6 +531,7 @@ def buy_item(item_id, cost):
         'health_add': game_data.health_add,
         'health_recovery': game_data.health_recovery,
         'lottery_ticket': game_data.lottery_ticket,
+        'freeze': game_data.freeze,
     }
 
     if item_id in item_map:
@@ -549,6 +563,7 @@ def buy_last_item():
         'health_add': 10,
         'health_recovery': 100,
         'lottery_ticket': 10,
+        'freeze': 100,
     }
 
     if last_bought and last_bought in item_costs:
