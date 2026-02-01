@@ -164,11 +164,14 @@ def freeze(do):
             streaks = project['streaks']
             today = engine.today_for_test()
             if project['deadline'] != "Нет":
-                streaks.append(today)
-                engine.save_data(data)
-                gamer['items']['freeze'] -= 1
-                game.save_game(gamer)
-                return f'Применена заморозка для {choice}'
+                if today not in streaks:
+                    streaks.append(today)
+                    engine.save_data(data)
+                    gamer['items']['freeze'] -= 1
+                    game.save_game(gamer)
+                    return f'Применена заморозка для {choice}'
+                else:
+                    return f'Сегодня цель уже выполнена'
             else:
                 return 'У этого проекта ннт дедлайна!'
     elif do == '?':
