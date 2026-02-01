@@ -4,12 +4,12 @@ import game
 from datetime import date, datetime, timedelta
 from random import randint
 
-version = '1.2.9.10'
+version = '1.2.10'
 last_update = '01.02.26'
 
 
 def today_for_test():
-    TEST_DATE = date(2026, 1, 31)
+    TEST_DATE = None #date(2026, 1, 31)
     if TEST_DATE is None:
         return date.today()
     else:
