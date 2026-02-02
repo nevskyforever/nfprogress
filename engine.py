@@ -438,6 +438,7 @@ def new_note(choice=None):
     goal = project['goal']
     last_symbols = project['total symbols']
     need_symbols = goal - last_symbols
+    streaks = project['streaks']
     today_date = today_for_test()
 
     deadline = project['deadline']['date']
@@ -448,7 +449,10 @@ def new_note(choice=None):
         project['deadline']['date'] = deadline
 
     print(f'Текущее кол-во символов в {choice}: {last_symbols} сим.')
-    print(f'Осталось написать до цели: {need_symbols} сим.')
+    if today_date not in streaks:
+        print(f'Осталось написать до цели: {need_symbols} сим.')
+    else:
+        print('Цель на сегодня уже выполнена.')
 
     today_goal = 0
     if deadline != 'Нет':
