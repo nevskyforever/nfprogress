@@ -383,7 +383,7 @@ def bank():
             print(f'⚠ ПРОСРОЧКА: {days_overdue} дн. (проценты удвоены!)')
 
         print(f'ВСЕГО К ВОЗВРАТУ: {total_to_pay:.0f} монет')
-        print(f'У вас есть: {gamer_coins} монет\n')
+        print(f'У вас есть: {int(gamer_coins)} монет\n')
 
         if gamer_coins < total_to_pay:
             shortage = total_to_pay - gamer_coins
