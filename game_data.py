@@ -110,10 +110,11 @@ def freeze_func(do, price, add=None):
         return 'Заморозка позволяет пропустить один день в стрике'
 
 class Item:
-    def __init__(self, tag, price, level=0):
+    def __init__(self, tag, price, level=0, description='У предмета пока нет описания'):
+        self.tag = tag
         self.price = price
         self.level = level
-        self.tag = tag
+        self.description = description
     def buy(self):
         gamer = game.load_game()
         coins = gamer['coins']
@@ -128,8 +129,8 @@ class Item:
 
 
 class FuncItem(Item):
-    def __init__(self,tag, func=None, price=0, add=None, level=0):
-        super().__init__(price, level)
+    def __init__(self, tag, price, func=None, add=None, **kwargs):
+        super().__init__(tag, price, **kwargs)
         self._func = func        # храним внешнюю функцию
 
     def use(self, do='use', add=None):           # отдельный метод для вызова
@@ -137,12 +138,18 @@ class FuncItem(Item):
 
 # Инициализация объектов
 
-freeze = FuncItem(func=freeze_func, price=100, level=2)
-lottery_ticket = FuncItem(1, func=lottery_ticket_func, price=10)
-health_potion_5 = FuncItem(2, func=health_add_func, price=10, add=5)
-health_potion_25 = FuncItem(3,func=health_add_func, price=50, add=25)
-health_potion_50 = FuncItem(4,func=health_add_func, price=100, add=50)
-health_recovery = FuncItem(5,func=health_add_func, price=200, add=100)
+freeze = FuncItem(0, func=freeze_func, price=100, level=2,
+                  description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном')
+lottery_ticket = FuncItem(1, func=lottery_ticket_func, price=10,
+                          description='Лотерейный билет позволяет выиграть от 100 до 10К монет')
+health_potion_5 = FuncItem(2, func=health_add_func, price=10, add=5,
+                           description='Восстанавливает здоровье на 5 единиц')
+health_potion_25 = FuncItem(3,func=health_add_func, price=50, add=25,
+                            description='Восстанавливает здоровье на 25 единиц')
+health_potion_50 = FuncItem(4,func=health_add_func, price=100, add=50,
+                            description='Восстанавливает здоровье на 50 единиц')
+health_recovery = FuncItem(5,func=health_add_func, price=200, add=100,
+                           description='Полностью восстанавливает здоровье')
 
 
 # Реестр предметов
