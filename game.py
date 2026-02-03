@@ -459,18 +459,7 @@ def show_inventory():
 
 def use_item(item_id):
     """Использовать предмет из инвентаря"""
-    item_map = {
-        'health_recovery': game_data.health_recovery,
-        'health_add': game_data.health_add,
-        'lottery_ticket': game_data.lottery_ticket,
-        'freeze': game_data.freeze,
-    }
-
-    if item_id in item_map:
-        print(item_map[item_id]('use'))
-        gamer = load_game()
-        gamer['last_used'] = item_id
-        save_game(gamer)
+    pass
 
 
 def show_shop():
@@ -527,18 +516,7 @@ def shop_potions():
 
 def buy_item(item_id, cost):
     """Купить предмет в магазине"""
-    item_map = {
-        'health_add': game_data.health_add,
-        'health_recovery': game_data.health_recovery,
-        'lottery_ticket': game_data.lottery_ticket,
-        'freeze': game_data.freeze,
-    }
-
-    if item_id in item_map:
-        print(item_map[item_id]('buy'))
-        gamer = load_game()
-        gamer['last_bought'] = item_id
-        save_game(gamer)
+    pass
 
 
 def use_last_item():
