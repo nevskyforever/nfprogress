@@ -25,36 +25,8 @@ cf_coins = [0, 1.0, 1.0625, 1.125, 1.1875, 1.25, 1.3125, 1.375, 1.4375, 1.5, 1.5
 
 lvl_coins_bonus = [0, 250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3250, 3500, 3750, 4000, 4250, 4500, 4750, 5000, 5250, 5500, 5750, 6000, 6250, 6500, 6750, 7000, 7250, 7500, 7750, 8000, 8250, 8500, 8750, 9000, 9250, 9500, 9750, 10000, 10250, 10500, 10750, 11000, 11250, 11500, 11750, 12000, 12250, 12500, 12750, 13000, 13250, 13500, 13750, 14000, 14250, 14500, 14750, 15000, 15250, 15500, 15750, 16000, 16250, 16500, 16750, 17000, 17250, 17500, 17750, 18000, 18250, 18500, 18750, 19000, 19250, 19500, 19750, 20000, 20250, 20500, 20750, 21000, 21250, 21500, 21750, 22000, 22250, 22500, 22750, 23000, 23250, 23500, 23750, 24000, 24250, 24500, 24750, 25000]
 
-def health_recovery(do):
-    gamer = game.load_game()
-    if gamer is None:
-        return 'Игровой режим не активирован'
-    coins = gamer['coins']
-    price = 100
-    if do == 'buy':
-        if coins < price:
-            return f'Недостаточно монет для покупки, нужно минимум {price} монет'
-        else:
-            gamer['coins'] -= price
-            if 'health_recovery' not in gamer['items']:
-                gamer['items']['health_recovery'] = 0
-            gamer['items']['health_recovery'] += 1
-            game.save_game(gamer)
-            return f'Куплено зелье воскрешения! Осталось монет: {gamer["coins"]}'
-    elif do == 'use':
-        items = gamer['items'].get('health_recovery', 0)
-        if items == 0:
-            return 'Зелья воскрешения нет в инвентаре'
-        else:
-            gamer['items']['health_recovery'] -= 1
-            gamer['health'] = 100
-            game.save_game(gamer)
-            return '\nПРИМЕНЕНО ЗЕЛЬЕ ВОСКРЕШЕНИЯ'
-    elif do == '?':
-        return ('\nЗелье восстанавливает здоровье до 109 единиц'
-                f'\nСтоимость {price} монет')
 
-def health_add(do):
+def health_add(do, add):
     gamer = game.load_game()
     if gamer is None:
         return 'Игровой режим не активирован'
@@ -76,7 +48,7 @@ def health_add(do):
             return 'Зелья восстановления нет в инвентаре'
         else:
             gamer['items']['health_add'] -= 1
-            gamer['health'] += 10
+            gamer['health'] += add
             if gamer['health'] > 100:
                 gamer['health'] = 100
             game.save_game(gamer)
@@ -85,12 +57,11 @@ def health_add(do):
         return ('\nЗелье восстанавливает здоровье на 10 единиц, но не выше 100 единиц'
                 f'\nСтоимость {price} монет')
 
-def lottery_ticket(do):
+def lottery_ticket(do, price):
     gamer = game.load_game()
     if gamer is None:
         return 'Игровой режим не активирован'
     coins = gamer['coins']
-    price = 10
     if do == 'buy':
         if coins < price:
             return f'Недостаточно монет для покупки, нужно минимум {price} монет'
@@ -139,10 +110,9 @@ def lottery_ticket(do):
                 '\n1 числа, 1000 монет при 2 и 10000, если совпало 3 числа :)'
                 f'\nСтоимость {price} монет')
 
-def freeze(do):
+def freeze(do, price):
     gamer = game.load_game()
     coins = gamer['coins']
-    price = 100
     if do == 'buy':
         if coins < price:
             return f'Недостаточно монет для покупки, нужно минимум {price} монет'
