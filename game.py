@@ -421,102 +421,124 @@ def show_characteristics():
     menu()
 
 
-def show_inventory():
+def inventory():
+    """Инвентарь для просмотра и использования предметов"""
+    # Грузим данные персонажа
     gamer = load_game()
-    print('\n ИНВЕНТАРЬ \n')
-    print('Для применения предмета введите его номер или Enter для выхода \n')
+    coins = gamer['coins']
+    items = gamer.get('items', {})
 
-    print(f'1 - Зелья воскрешения: {gamer["items"].get("health_recovery", 0)}')
-    print(f'2 - Зелья восстановления: {gamer["items"].get("health_add", 0)}')
-    print(f'3 - Лотерейный билет: {gamer["items"].get("lottery_ticket", 0)}')
-    print(f'4 - Заморозка: {gamer["items"].get("freeze", 0)}')
+    print('ИНВЕНТАРЬ')
+    print(f'\n Баланс: {int(coins)}')
 
-    print('\nЧтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
+    # Проверяем, есть ли предметы в инвентаре
+    if items == {}:
+        print('\nВаш инвентарь пуст!')
+        return
 
-    do = input('\nВыбор: ')
+    # Получаем реестр всех предметов
+    registry = game_data.ITEM_REGISTRY
 
-    if do == '1':
-        use_item('health_recovery')
-    elif do == '2':
-        use_item('health_add')
-    elif do == '3':
-        use_item('lottery_ticket')
-    elif do == '4':
-        use_item('freeze')
-    elif do == '1?':
-        print(game_data.health_recovery('?'))
-    elif do == '2?':
-        print(game_data.health_add('?'))
-    elif do == '3?':
-        print(game_data.lottery_ticket('?'))
-    elif do == '4?':
-        print(game_data.freeze('?'))
-    elif do != '':
-        print('Неправильный выбор')
+    # Группируем предметы из инвентаря по категориям
+    inventory_by_category = {}
+    for item_name in items:
+        # Ищем предмет в реестре и определяем его категорию
+        for category, category_items in registry.items():
+            if item_name in category_items:
+                if category not in inventory_by_category:
+                    inventory_by_category[category] = []
+                inventory_by_category[category].append(item_name)
+                break
 
-    menu()
+    # Показываем категории, которые есть в инвентаре
+    categories = list(inventory_by_category.keys())
+    print('\nКатегории предметов:')
+    for i, category in enumerate(categories, 1):
+        print(f'{i}. {category}')
+
+    # Получаем желаемый номер категории
+    try:
+        choice_category = int(input('Введите номер нужной категории: ')) - 1
+    except ValueError:
+        print('Некорректный номер категории!')
+        return
+
+    if choice_category < 0 or choice_category >= len(categories):
+        print('Категория не найдена!')
+        return
+
+    # Получаем выбранную категорию
+    selected_category = categories[choice_category]
+    items_in_category = inventory_by_category[selected_category]
+
+    # Показываем предметы в выбранной категории
+    print(f'\nПредметы в категории "{selected_category}":')
+    for i, item_name in enumerate(items_in_category, 1):
+        print(f'{i}. {item_name}')
+
+    # Получаем номер желаемого предмета
+    try:
+        choice_item = int(input('Введите номер предмета для использования: ')) - 1
+    except ValueError:
+        print('Некорректный номер предмета!')
+        return
+
+    if choice_item < 0 or choice_item >= len(items_in_category):
+        print('Предмет не найден!')
+        return
+
+    # Получаем объект предмета
+    selected_item_name = items_in_category[choice_item]
+    item_obj = registry[selected_category][selected_item_name]
+
+    # Используем предмет
+    print(item_obj.use())
 
 
-def use_item(item_id):
-    """Использовать предмет из инвентаря"""
-    pass
-
-
-def show_shop():
-    print('\n МАГАЗИН \n')
-    print('1 - Зелья')
-    print('2 - Лотерейный билет (10 монет)')
-    print('3 - Заморозка (100 монет)')
-    print('Чтобы прочитать информацию о предмете, добавьте к его номеру знак вопроса')
-
-    do = input('Выбор: ')
-
-    if do == '1':
-        shop_potions()
-    elif do == '2':
-        buy_item('lottery_ticket', 15)
-        menu()
-    elif do == '2?':
-        print(game_data.lottery_ticket('?'))
-        menu()
-    elif do == '3':
-        buy_item('freeze', 100)
-        menu()
-    elif do == '3?':
-        print(game_data.freeze('?'))
-        menu()
-    elif do != '':
-        print('Неправильный выбор')
-        menu()
-    else:
-        menu()
-
-
-def shop_potions():
+def shop():
+    """Магазин для покупки предметов"""
+    # Грузим данные персонажа
     gamer = load_game()
-    print('\n ЗЕЛЬЯ \n')
-    print('1 - Зелье восстановления (+10 здоровья) - 10 монет')
-    print('2 - Зелье воскрешения (восстановление здоровья) - 100 монет')
+    coins = gamer['coins']
+    items = gamer.get('items', {})
+    print('МАГАЗИН')
+    print(f'\n Баланс: {int(coins)}')
 
-    do = input('\nВыбор: ')
+    # Показ категорий в магазине
+    registry = game_data.ITEM_REGISTRY
+    categories = list(registry.keys())
+    for i, category in enumerate(categories, 1):
+        print(f'{i}. {category}')
 
-    if do == '1':
-        buy_item('health_add', 10)
-    elif do == '2':
-        buy_item('health_recovery', 100)
-    elif do == '1?':
-        print(game_data.health_add('?'))
-    elif do == '2?':
-        print(game_data.health_recovery('?'))
-    elif do != '':
-        print('Неправильный выбор')
+    # Получаем желаемый номер категории
+    try:
+        choice_category = int(input('Введите номер нужной категории: ')) - 1
+    except ValueError:
+        print('Некорректный номер категории товара!')
+        choice_category = int(input('Введите номер нужной категории: ')) - 1
 
-    menu()
+    # Получаем выбранную категорию
+    selected_category = categories[choice_category]
+    items_in_category = registry[selected_category]
 
+    # Показываем товары в выбранной категории
+    item_names = list(items_in_category.keys())
+    for i, item_name in enumerate(item_names, 1):
+        print(f'{i}. {item_name}')
 
-def buy_item(item_id, cost):
-    """Купить предмет в магазине"""
-    pass
+    # Получаем номер желаемого товара
+    try:
+        choice_item = int(input('Введите номер нужного товара: ')) - 1
+    except ValueError:
+        print('Некорректный номер товара!')
+        choice_item = int(input('Введите номер нужного товара: ')) - 1
+
+    # Получаем объект товара
+    selected_item_name = item_names[choice_item]
+    item_obj = items_in_category[selected_item_name]
+    print(item_obj.buy())
+
+    shop()
 
 
 def use_last_item():
@@ -726,8 +748,8 @@ def menu():
         '1': show_about,
         '2': gamer_editor,
         '3': show_characteristics,
-        '4': show_inventory,
-        '5': show_shop,
+        '4': inventory,
+        '5': shop,
         '6': bank,
         'u': use_last_item,
         'b': buy_last_item,

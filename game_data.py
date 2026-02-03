@@ -8,8 +8,7 @@ gamer = {'level': 1,
 'health': 100,
 'exp': 0,
 'coins': 0,
-'cf': {'coins': 1.0, 'exp': 1.0},
-'items': {'health_recovery': 0, 'health_add': 0}}
+'cf': {'coins': 1.0, 'exp': 1.0},}
 
 about_mode = ('Игровой режим позволяет улучшить мотивацию, сделав из писательства игру.\n'
               '1. При написании текста за каждые 100 символов вы получаете 1 монету, а так же бонус за достигнутый уровень на данный момент\n'
@@ -110,7 +109,7 @@ def freeze_func(do, price, add=None):
         return 'Заморозка позволяет пропустить один день в стрике'
 
 class Item:
-    def __init__(self, tag, price, level=0, description='У предмета пока нет описания'):
+    def __init__(self, tag, price, level=1, description='У предмета пока нет описания'):
         self.tag = tag
         self.price = price
         self.level = level
@@ -138,7 +137,7 @@ class FuncItem(Item):
 
 # Инициализация объектов
 
-freeze = FuncItem(0, func=freeze_func, price=100, level=2,
+freeze = FuncItem(0, func=freeze_func, price=100, level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном')
 lottery_ticket = FuncItem(1, func=lottery_ticket_func, price=10,
                           description='Лотерейный билет позволяет выиграть от 100 до 10К монет')
@@ -154,10 +153,9 @@ health_recovery = FuncItem(5,func=health_add_func, price=200, add=100,
 
 # Реестр предметов
 ITEM_REGISTRY = {'Зелья':
-                           {'Зелья здоровья':
-                                {'Малое зелье здоровья': health_potion_5,
-                                 'Среднее зелье здоровья': health_potion_25,
-                                 'Большое зелье здоровья': health_potion_50,
-                                 'Зелье воскрешения': health_recovery,}},
-                 'Заморозка': freeze,
-                 'Лотерейный билет': lottery_ticket,}
+                     {'Малое зелье здоровья': health_potion_5,
+                      'Среднее зелье здоровья': health_potion_25,
+                      'Большое зелье здоровья': health_potion_50,
+                      'Зелье воскрешения': health_recovery,},
+                 'Предметы': {'Заморозка': freeze,
+                              'Лотерейный билет': lottery_ticket,}}
