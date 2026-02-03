@@ -176,3 +176,17 @@ def freeze(do):
                 return 'У этого проекта ннт дедлайна!'
     elif do == '?':
         return 'Заморозка позволяет пропустить один день в стрике'
+
+class Item:
+    def __init__(self, price, level=0):
+        self.price = price
+        self.level = level
+
+
+class FuncItem(Item):
+    def __init__(self, func, do, price=0, level=0):
+        super().__init__(price, level)
+        self._func = func        # храним внешнюю функцию
+
+    def run(self, do):           # отдельный метод для вызова
+        return self._func(do)

@@ -4,8 +4,8 @@ import game
 from datetime import date, datetime, timedelta
 from random import randint
 
-version = '1.2.10'
-last_update = '01.02.26'
+version = '1.3'
+last_update = '03.02.26'
 
 
 def today_for_test():
