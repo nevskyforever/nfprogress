@@ -128,21 +128,21 @@ class Item:
 
 
 class FuncItem(Item):
-    def __init__(self, func, price=0, add=None, level=0):
+    def __init__(self,tag, func=None, price=0, add=None, level=0):
         super().__init__(price, level)
         self._func = func        # храним внешнюю функцию
 
-    def run(self, do='use', price, add):           # отдельный метод для вызова
-        return self._func(do, price, add)
+    def use(self, do='use', add=None):           # отдельный метод для вызова
+        return self._func(do, add)
 
 # Инициализация объектов
 
-freeze = FuncItem(freeze_func, price=100, level=2)
-lottery_ticket = FuncItem(lottery_ticket_func, price=10)
-health_potion_5 = FuncItem(health_add_func, price=10, add=5)
-health_potion_25 = FuncItem(health_add_func, price=50, add=25)
-health_potion_50 = FuncItem(health_add_func, price=100, add=50)
-health_recovery = FuncItem(health_add_func, price=200, add=100)
+freeze = FuncItem(func=freeze_func, price=100, level=2)
+lottery_ticket = FuncItem(1, func=lottery_ticket_func, price=10)
+health_potion_5 = FuncItem(2, func=health_add_func, price=10, add=5)
+health_potion_25 = FuncItem(3,func=health_add_func, price=50, add=25)
+health_potion_50 = FuncItem(4,func=health_add_func, price=100, add=50)
+health_recovery = FuncItem(5,func=health_add_func, price=200, add=100)
 
 
 # Реестр предметов
