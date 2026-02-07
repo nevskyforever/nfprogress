@@ -44,7 +44,9 @@ class Item:
             game.save_game(gamer)
             return 'Предмет куплен'
     def about(self):
-        return f'Описание предмета: {self.description}'
+        return (f'Стоимость предмета: {self.price}'
+                f'Уровень, с которого доступен предмет: {self.level}'
+                f'\nОписание предмета: {self.description}')
 
 
 class FuncItem(Item):

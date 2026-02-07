@@ -7,7 +7,6 @@ from random import randint
 version = '1.3'
 last_update = '03.02.26'
 
-
 def today_for_test():
     TEST_DATE = None #date(2026, 1, 31)
     if TEST_DATE is None:
@@ -15,6 +14,25 @@ def today_for_test():
     else:
         return TEST_DATE
 
+class Project:
+    def __init__(self, name, goal,
+                 create_date=today_for_test(),
+                 total_symbols=0, progress=0,
+                 notes=None, streaks=None, deadline=None,
+                 status='active'):
+        self.name = name
+        self.goal = goal
+        self.create_date = create_date
+        self.total_symbols = total_symbols
+        self.progress = progress
+        self.notes = notes
+        self.streaks = streaks
+        self.deadline = deadline
+        self.status = status
+class Note:
+    def __init__(self, new_symbols, date_create=today_for_test()):
+        self.date_create = date_create
+        self.new_symbols = new_symbols
 
 def load_data():
     try:
