@@ -14,6 +14,11 @@ def today_for_test():
     else:
         return TEST_DATE
 
+class Note:
+    def __init__(self, new_symbols, date_create=today_for_test()):
+        self.date_create = date_create
+        self.new_symbols = new_symbols
+
 class Project:
     def __init__(self, name, goal,
                  create_date=today_for_test(),
@@ -29,10 +34,57 @@ class Project:
         self.streaks = streaks
         self.deadline = deadline
         self.status = status
-class Note:
-    def __init__(self, new_symbols, date_create=today_for_test()):
-        self.date_create = date_create
-        self.new_symbols = new_symbols
+    def set_name(self):
+        name = input('Введите имя проекта: ')
+        if name != '':
+            self.name = name
+            return 'Имя проекта изменено'
+        else:
+            raise ValueError('Некорректное имя проекта!')
+    def set_goal(self):
+        try:
+            goal = int(input('Введите цель по проекту в символах: '))
+            self.goal = goal
+            return f'Установлена цель в {self.goal} символов'
+        except:
+            raise ValueError('Некорректное значение для цели, введите число!')
+    def set_deadline(self):
+        try:
+            deadline = datetime.strptime(input('Введите дату в формате дд.мм.гг'), '%d.%m.%y')
+            self.deadline = deadline
+            return 'Дедлайн проекта установлен.'
+        except:
+            raise ValueError('Неправильный формат даты для дедлайна!')
+    def set_status(self, status):
+        self.status = status
+        if status == 'active':
+            return 'Проект снова активен.'
+        elif status == 'archived':
+            return ('Проект архивирован.'
+                    '\nВы можете вернуть его из архива, когда он снова понадобится.')
+        elif status == 'completed':
+            return 'Проект завершен, поздравляем!'
+        return None
+    def update_total_symbols(self):
+        # Создаем переменные
+        old_total_symbols = self.total_symbols
+        new_total_symbols = 0
+        # Считаем символы в проекте
+        for note in self.notes: new_total_symbols += note.new_symbols
+        symbol_added = new_total_symbols - old_total_symbols
+        # Сохраняем результаты
+        self.total_symbols = new_total_symbols
+        return (f'Добавлено символов: {symbol_added}'
+                f'\nТекущее кол-во символов: {self.total_symbols}.')
+    def added_today(self):
+        today = today_for_test()
+        notes = self.notes
+        today_added = [i.new_symbols for i in notes if i.create_date == today]
+        if today_added:
+            today_added = sum(today_added)
+        else:
+            today_added = 0
+        return f'Написано сегодня: {today_added}'
 
 def load_data():
     try:
