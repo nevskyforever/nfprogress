@@ -24,7 +24,39 @@ cf_coins = [0, 1.0, 1.0625, 1.125, 1.1875, 1.25, 1.3125, 1.375, 1.4375, 1.5, 1.5
 
 lvl_coins_bonus = [0, 250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3250, 3500, 3750, 4000, 4250, 4500, 4750, 5000, 5250, 5500, 5750, 6000, 6250, 6500, 6750, 7000, 7250, 7500, 7750, 8000, 8250, 8500, 8750, 9000, 9250, 9500, 9750, 10000, 10250, 10500, 10750, 11000, 11250, 11500, 11750, 12000, 12250, 12500, 12750, 13000, 13250, 13500, 13750, 14000, 14250, 14500, 14750, 15000, 15250, 15500, 15750, 16000, 16250, 16500, 16750, 17000, 17250, 17500, 17750, 18000, 18250, 18500, 18750, 19000, 19250, 19500, 19750, 20000, 20250, 20500, 20750, 21000, 21250, 21500, 21750, 22000, 22250, 22500, 22750, 23000, 23250, 23500, 23750, 24000, 24250, 24500, 24750, 25000]
 
+# Классы объектов
+class Item:
+    """Основной класс для создания игровых объектов"""
+    def __init__(self, tag, price, level=1, description='У предмета пока нет описания'):
+        self.tag = tag
+        self.price = price
+        self.level = level
+        self.description = description
+    def buy(self):
+        gamer = game.load_game()
+        coins = gamer['coins']
+        amount = gamer['items'].get(self.tag, 0)
+        if coins < self.price:
+            return 'Недостаточно монет для покупки'
+        else:
+            coins -= self.price
+            amount += 1
+            game.save_game(gamer)
+            return 'Предмет куплен'
+    def about(self):
+        return f'Описание предмета: {self.description}'
 
+
+class FuncItem(Item):
+    """Подкласс для объектов с индивидуальными функциями"""
+    def __init__(self, tag, price, func=None, add=None, **kwargs):
+        super().__init__(tag, price, **kwargs)
+        self._func = func        # храним внешнюю функцию
+
+    def use(self, do='use', add=None):           # отдельный метод для вызова
+        return self._func(do, add)
+
+# Функции для объектов-функций
 def health_add_func(do, price, add):
     gamer = game.load_game()
     if gamer is None:
@@ -107,33 +139,6 @@ def freeze_func(do, price, add=None):
                 return 'У этого проекта ннт дедлайна!'
     elif do == '?':
         return 'Заморозка позволяет пропустить один день в стрике'
-
-class Item:
-    def __init__(self, tag, price, level=1, description='У предмета пока нет описания'):
-        self.tag = tag
-        self.price = price
-        self.level = level
-        self.description = description
-    def buy(self):
-        gamer = game.load_game()
-        coins = gamer['coins']
-        amount = gamer['items'].get(self.tag, 0)
-        if coins < self.price:
-            return 'Недостаточно монет для покупки'
-        else:
-            coins -= self.price
-            amount += 1
-            game.save_game(gamer)
-            return 'Предмет куплен'
-
-
-class FuncItem(Item):
-    def __init__(self, tag, price, func=None, add=None, **kwargs):
-        super().__init__(tag, price, **kwargs)
-        self._func = func        # храним внешнюю функцию
-
-    def use(self, do='use', add=None):           # отдельный метод для вызова
-        return self._func(do, add)
 
 # Инициализация объектов
 
