@@ -15,7 +15,12 @@ def today_for_test():
         return TEST_DATE
 
 class Note:
-    def __init__(self, new_symbols, date_create=today_for_test()):
+    def __init__(self, new_symbols,
+                 date_create=datetime(day=today_for_test().day,
+                                      month=today_for_test().month,
+                                      year=today_for_test().year,
+                                      hour=datetime.now().hour,
+                                      minute=datetime.now().minute,)):
         self.date_create = date_create
         self.new_symbols = new_symbols
 
@@ -23,7 +28,7 @@ class Project:
     def __init__(self, name, goal,
                  create_date=today_for_test(),
                  total_symbols=0, progress=0,
-                 notes=None, streaks=None, deadline=None,
+                 notes=None, streaks=None, deadline='Нет',
                  status='active'):
         self.name = name
         self.goal = goal
@@ -79,7 +84,7 @@ class Project:
     def added_today(self):
         today = today_for_test()
         notes = self.notes
-        today_added = [i.new_symbols for i in notes if i.create_date == today]
+        today_added = [i.new_symbols for i in notes if i.create_date.date() == today]
         if today_added:
             today_added = sum(today_added)
         else:
