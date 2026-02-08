@@ -81,7 +81,7 @@ class Project:
         self.total_symbols = new_total_symbols
         return (f'Добавлено символов: {symbol_added}'
                 f'\nТекущее кол-во символов: {self.total_symbols}.')
-    def added_today(self):
+    def get_added_today_msg(self):
         today = today_for_test()
         notes = self.notes
         today_added = [i.new_symbols for i in notes if i.create_date.date() == today]
@@ -90,6 +90,15 @@ class Project:
         else:
             today_added = 0
         return f'Написано сегодня: {today_added}'
+    def get_added_notes_value(self):
+        today = today_for_test()
+        notes = self.notes
+        today_added = [i.new_symbols for i in notes if i.create_date.date() == today]
+        if today_added:
+            today_added = sum(today_added)
+        else:
+            today_added = 0
+        return today_added
 
 def load_data():
     try:
