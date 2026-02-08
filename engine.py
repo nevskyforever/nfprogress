@@ -25,7 +25,7 @@ class Note:
         self.new_symbols = new_symbols
 
 class Project:
-    def __init__(self, name, goal,
+    def __init__(self, name=None, goal=None,
                  create_date=today_for_test(),
                  total_symbols=0, progress=0,
                  notes=None, streaks=None, deadline='Нет',
@@ -54,12 +54,15 @@ class Project:
         except:
             raise ValueError('Некорректное значение для цели, введите число!')
     def set_deadline(self):
-        try:
-            deadline = datetime.strptime(input('Введите дату в формате дд.мм.гг'), '%d.%m.%y')
+        deadline = input('Введите дату в формате дд.мм.гг или Enter для пропуска: ')
+        if deadline == '':
+            self.deadline = None
+            return None
+        else:
+            deadline = datetime.strptime(deadline, '%d.%m.%y')
             self.deadline = deadline
             return 'Дедлайн проекта установлен.'
-        except:
-            raise ValueError('Неправильный формат даты для дедлайна!')
+
     def set_status(self, status):
         self.status = status
         if status == 'active':
@@ -99,6 +102,9 @@ class Project:
         else:
             today_added = 0
         return today_added
+    def set_new_notes(self, new_note):
+        notes = self.notes
+        notes.append(new_note)
 
 def load_data():
     try:
@@ -106,7 +112,7 @@ def load_data():
             data = pickle.load(f)
             return data
     except FileNotFoundError:
-        return {'last': None, 'projects': {'active': {}}}
+        return {'last': None, 'projects': []}
 
 
 def save_data(data):
@@ -158,6 +164,35 @@ def notifications_view():
         save_data(data)
         main_menu()
 
+def create_project():
+    data = load_data()
+    print('СОЗДКАНИЕ ПРОЕКТА')
+    new_project = Project()
+    new_project.set_name()
+    new_project.set_goal()
+    new_project.set_deadline()
+    data['projects'].append(new_project)
+    save_data(data)
+    print('Проект создан')
+    main_menu()
+
+def view_project():
+    projects = load_data()['projects']
+    if len(projects) == 0:
+        print('Проектов пока нет')
+    else:
+        for project in projects:
+            print(f'Название: {project.name}, напиcано/цель: {project.total_symbols}/{project.goal}')
+    do = input('Для выхода в главное меню введите Enter: ')
+    if do == '':
+        main_menu()
 
 def main_menu():
-    pass
+    actions = {'1': create_project, '2': view_project,}
+    print('nfprogress')
+    print('1 - Создать проект')
+    print('2 - Просмотреть проекты')
+    do = input('Выбор: ')
+    actions[do]()
+
+main_menu()
