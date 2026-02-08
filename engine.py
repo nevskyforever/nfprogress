@@ -108,7 +108,9 @@ class Project:
         yesterday = today - timedelta(days=1)
         today_added = self.get_added_symbols_today_value()
         today_goal = self.get_today_goal_value()
-        if today_added >= today_goal and len(streaks) == 0:
+        if today_added < today_goal:
+            return 'No'
+        elif today_added >= today_goal and len(streaks) == 0:
             streaks.append(today)
             return 'Start'
         elif today_added >= today_goal and streaks[-1] == yesterday:
@@ -118,7 +120,8 @@ class Project:
         elif today in streaks:
             return 'Done'
         elif streaks[-1] != yesterday:
-            return 'Lose'
+            lost_days = len(streaks)
+            return f'Lose {lost_days}'
         return None
 class Note:
     def __init__(self, new_symbols,
