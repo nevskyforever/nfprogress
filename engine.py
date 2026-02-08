@@ -69,10 +69,12 @@ class Project:
         return self.status
     def get_total_symbols(self):
         return self.total_symbols
+    def set_total_symbols(self, total_symbols):
+        self.total_symbols = total_symbols
     def get_added_symbols_today_value(self):
         today = today_for_test()
         notes = self.notes
-        today_added = [i.new_symbols for i in notes if i.date_create.date() == today]
+        today_added = [i.get_added() for i in notes if i.get_date_create() == today]
         if today_added:
             today_added = sum(today_added)
         else:
@@ -123,7 +125,7 @@ class Project:
         return None
 
 class Note:
-    def __init__(self, new_total,
+    def __init__(self, new_total, added,
                  date_create=datetime(day=today_for_test().day,
                                       month=today_for_test().month,
                                       year=today_for_test().year,
@@ -131,7 +133,16 @@ class Note:
                                       minute=datetime.now().minute,)):
         self.date_create = date_create
         self.new_total = new_total
+        self.added = added
 
+    def get_new_total(self):
+        return self.new_total
+
+    def get_added(self):
+        return self.added
+
+    def get_date_create(self):
+        return self.date_create.date()
 
 def load_data():
     try:
@@ -231,15 +242,21 @@ def create_note():
     projects = data['projects']
     do_choice = choice_project()
     choice = projects[do_choice]
-
-    new_note = Note(int(input(f'ВВедите новое кол-во символов в {choice.get_name()}: ')))
-
+    old_total = choice.get_total_symbols()
+    new_total = int(input(f'ВВедите новое кол-во символов в {choice.get_name()}: '))
+    added = new_total - old_total
+    if added < 0:
+        added = 0
+    new_note = Note(new_total, added)
     # Сначала обновляем объект в памяти
     choice.set_new_notes(new_note)
+    choice.set_total_symbols(new_total)
     print(choice.get_added_symbols_today_msg())
 
     # И только потом сохраняем изменения в файл
+    data['last'] = do_choice
     save_data(data)
+    main_menu()
 
 def view_project():
     projects = load_data()['projects']
@@ -253,11 +270,32 @@ def view_project():
         main_menu()
 def main_menu():
     actions = {'1': create_note, '2': create_project, '3': view_project,}
-    print('nfprogress')
+    print('\nnfprogress\n')
     print('1 - Сделать запись')
     print('2 - Создать проект')
     print('3 - Просмотреть проекты')
+    data = load_data()
+    last = data['last']
+    if last is not None:
+        projects = data['projects']
+        last_choice = projects[last]
+        print(f'Enter - быстрая запись в {last_choice.get_name()}')
     do = input('Выбор: ')
-    actions[do]()
+    if do == '' and last is not None:
+        old_total = last_choice.get_total_symbols()
+        new_total = int(input(f'ВВедите новое кол-во символов в {last_choice.get_name()}: '))
+        added = new_total - old_total
+        if added < 0:
+            added = 0
+        new_note = Note(new_total, added)
+        # Сначала обновляем объект в памяти
+        last_choice.set_new_notes(new_note)
+        last_choice.set_total_symbols(new_total)
+        print(last_choice.get_added_symbols_today_msg())
+        save_data(data)
+        main_menu()
+    else:
+        actions[do]()
 
-main_menu()
+if __name__ == "__main__":
+    main_menu()
