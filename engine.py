@@ -1,5 +1,4 @@
 import pickle
-
 import game
 from datetime import date, datetime, timedelta
 from random import randint
@@ -15,7 +14,7 @@ def today_for_test():
         return TEST_DATE
 
 class Project:
-    def __init__(self, name=None, goal=None,
+    def __init__(self, name='Без имени', goal=None,
                  create_date=today_for_test(),
                  total_symbols=0, progress=0,
                  notes=None, streaks=None, deadline='Нет',
@@ -29,22 +28,24 @@ class Project:
         self.streaks = streaks
         self.deadline = deadline
         self.status = status
-    def set_name(self):
-        name = input('Введите имя проекта: ')
+    def set_name(self, name):
         if name != '':
             self.name = name
             return 'Имя проекта изменено'
         else:
             raise ValueError('Некорректное имя проекта!')
-    def set_goal(self):
+    def get_name(self):
+        return self.name
+    def set_goal(self, goal):
         try:
-            goal = int(input('Введите цель по проекту в символах: '))
+            goal = int(goal)
             self.goal = goal
             return f'Установлена цель в {self.goal} символов'
         except:
             raise ValueError('Некорректное значение для цели, введите число!')
-    def set_deadline(self):
-        deadline = input('Введите дату в формате дд.мм.гг или Enter для пропуска: ')
+    def get_goal(self):
+        return self.goal
+    def set_deadline(self, deadline):
         if deadline == '':
             self.deadline = 'Нет'
             return None
@@ -52,7 +53,8 @@ class Project:
             deadline = datetime.strptime(deadline, '%d.%m.%y')
             self.deadline = deadline
             return 'Дедлайн проекта установлен.'
-
+    def get_deadline(self):
+        return self.deadline
     def set_status(self, status):
         self.status = status
         if status == 'active':
@@ -63,21 +65,14 @@ class Project:
         elif status == 'completed':
             return 'Проект завершен, поздравляем!'
         return None
-    def update_total_symbols(self):
-        # Создаем переменные
-        old_total_symbols = self.total_symbols
-        new_total_symbols = 0
-        # Считаем символы в проекте
-        for note in self.notes: new_total_symbols += note.new_symbols
-        symbol_added = new_total_symbols - old_total_symbols
-        # Сохраняем результаты
-        self.total_symbols = new_total_symbols
-        return (f'Добавлено символов: {symbol_added}'
-                f'\nТекущее кол-во символов: {self.total_symbols}.')
+    def get_status(self):
+        return self.status
+    def get_total_symbols(self):
+        return self.total_symbols
     def get_added_symbols_today_value(self):
         today = today_for_test()
         notes = self.notes
-        today_added = [i.new_symbols for i in notes if i.create_date.date() == today]
+        today_added = [i.new_symbols for i in notes if i.date_create.date() == today]
         if today_added:
             today_added = sum(today_added)
         else:
@@ -88,7 +83,10 @@ class Project:
         return f'Написано сегодня: {today_added}'
     def set_new_notes(self, new_note):
         notes = self.notes
+        if notes is None:
+            notes = []
         notes.append(new_note)
+        self.notes = notes
     def get_today_goal_value(self):
         if self.deadline == 'Нет':
             return None
@@ -123,15 +121,17 @@ class Project:
             lost_days = len(streaks)
             return f'Lose {lost_days}'
         return None
+
 class Note:
-    def __init__(self, new_symbols,
+    def __init__(self, new_total,
                  date_create=datetime(day=today_for_test().day,
                                       month=today_for_test().month,
                                       year=today_for_test().year,
                                       hour=datetime.now().hour,
                                       minute=datetime.now().minute,)):
         self.date_create = date_create
-        self.new_symbols = new_symbols
+        self.new_total = new_total
+
 
 def load_data():
     try:
@@ -193,15 +193,53 @@ def notifications_view():
 
 def create_project():
     data = load_data()
+    projects = data.get('projects', [])
     print('СОЗДКАНИЕ ПРОЕКТА')
     new_project = Project()
-    new_project.set_name()
-    new_project.set_goal()
-    new_project.set_deadline()
-    data['projects'].append(new_project)
+    print(new_project.set_name(input('Введите имя проекта: ')))
+    print(new_project.set_goal(input('Введите цель по проекту в символах: ')))
+    print(new_project.set_deadline(input('Введите дату в формате дд.мм.гг или Enter для пропуска: ')))
+    projects.append(new_project)
     save_data(data)
-    print('Проект создан')
+    print('Проект создан.')
     main_menu()
+
+def choice_project():
+    projects = load_data()['projects']
+    print('ВЫБОР ПРОЕКТА')
+    if len(projects) == 0:
+        print('Проектов пока нет')
+        main_menu()
+    else:
+        for project in projects:
+            print(f'{projects.index(project) + 1}. {project.get_name()}')
+    try:
+        choice = int(input('Введите номер проекта или Enter для выхода: '))
+        if type(choice) == str:
+            main_menu()
+        elif choice < 0 or choice > len(projects):
+            print('Неправильный выбор - такого номера нет в списке проектов')
+            choice_project()
+        return choice - 1
+    except ValueError:
+        print('Неправильное значение! Введите число!')
+        create_project()
+
+
+def create_note():
+    data = load_data()
+    projects = data['projects']
+    do_choice = choice_project()
+    choice = projects[do_choice]
+
+    new_note = Note(int(input(f'ВВедите новое кол-во символов в {choice.get_name()}: ')))
+
+    # Сначала обновляем объект в памяти
+    choice.set_new_notes(new_note)
+    print(choice.get_added_symbols_today_msg())
+
+    # И только потом сохраняем изменения в файл
+    save_data(data)
 
 def view_project():
     projects = load_data()['projects']
@@ -209,16 +247,16 @@ def view_project():
         print('Проектов пока нет')
     else:
         for project in projects:
-            print(f'Название: {project.name}, напиcано/цель: {project.total_symbols}/{project.goal}')
+            print(f'Название: {project.get_name()}, напиcано/цель: {project.get_total_symbols()}/{project.get_goal()}')
     do = input('Для выхода в главное меню введите Enter: ')
     if do == '':
         main_menu()
-
 def main_menu():
-    actions = {'1': create_project, '2': view_project,}
+    actions = {'1': create_note, '2': create_project, '3': view_project,}
     print('nfprogress')
-    print('1 - Создать проект')
-    print('2 - Просмотреть проекты')
+    print('1 - Сделать запись')
+    print('2 - Создать проект')
+    print('3 - Просмотреть проекты')
     do = input('Выбор: ')
     actions[do]()
 
