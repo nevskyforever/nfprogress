@@ -1,7 +1,7 @@
 import pickle
 
 import game
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from random import randint
 
 version = '1.3'
@@ -13,16 +13,6 @@ def today_for_test():
         return date.today()
     else:
         return TEST_DATE
-
-class Note:
-    def __init__(self, new_symbols,
-                 date_create=datetime(day=today_for_test().day,
-                                      month=today_for_test().month,
-                                      year=today_for_test().year,
-                                      hour=datetime.now().hour,
-                                      minute=datetime.now().minute,)):
-        self.date_create = date_create
-        self.new_symbols = new_symbols
 
 class Project:
     def __init__(self, name=None, goal=None,
@@ -56,7 +46,7 @@ class Project:
     def set_deadline(self):
         deadline = input('Введите дату в формате дд.мм.гг или Enter для пропуска: ')
         if deadline == '':
-            self.deadline = None
+            self.deadline = 'Нет'
             return None
         else:
             deadline = datetime.strptime(deadline, '%d.%m.%y')
@@ -84,16 +74,7 @@ class Project:
         self.total_symbols = new_total_symbols
         return (f'Добавлено символов: {symbol_added}'
                 f'\nТекущее кол-во символов: {self.total_symbols}.')
-    def get_added_today_msg(self):
-        today = today_for_test()
-        notes = self.notes
-        today_added = [i.new_symbols for i in notes if i.create_date.date() == today]
-        if today_added:
-            today_added = sum(today_added)
-        else:
-            today_added = 0
-        return f'Написано сегодня: {today_added}'
-    def get_added_notes_value(self):
+    def get_added_symbols_today_value(self):
         today = today_for_test()
         notes = self.notes
         today_added = [i.new_symbols for i in notes if i.create_date.date() == today]
@@ -102,9 +83,52 @@ class Project:
         else:
             today_added = 0
         return today_added
+    def get_added_symbols_today_msg(self):
+        today_added = self.get_added_symbols_today_value()
+        return f'Написано сегодня: {today_added}'
     def set_new_notes(self, new_note):
         notes = self.notes
         notes.append(new_note)
+    def get_today_goal_value(self):
+        if self.deadline == 'Нет':
+            return None
+        else:
+            today = today_for_test()
+            days_before = (self.deadline - today).days
+            need_write = self.goal - self.total_symbols // days_before
+            return need_write
+    def get_today_goal_msg(self):
+        value = self.get_today_goal_value()
+        return f'Цель на сегодня: {value}'
+    def get_streak_status(self):
+        streaks = self.streaks
+        if streaks is None:
+            streaks = []
+        today = today_for_test()
+        yesterday = today - timedelta(days=1)
+        today_added = self.get_added_symbols_today_value()
+        today_goal = self.get_today_goal_value()
+        if today_added >= today_goal and len(streaks) == 0:
+            streaks.append(today)
+            return 'Start'
+        elif today_added >= today_goal and streaks[-1] == yesterday:
+            streaks.append(today_added)
+            self.streaks = streaks
+            return 'Go'
+        elif today in streaks:
+            return 'Done'
+        elif streaks[-1] != yesterday:
+            return 'Lose'
+        return None
+class Note:
+    def __init__(self, new_symbols,
+                 date_create=datetime(day=today_for_test().day,
+                                      month=today_for_test().month,
+                                      year=today_for_test().year,
+                                      hour=datetime.now().hour,
+                                      minute=datetime.now().minute,)):
+        self.date_create = date_create
+        self.new_symbols = new_symbols
 
 def load_data():
     try:
