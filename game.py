@@ -1,12 +1,11 @@
 import pickle
-from datetime import datetime
 from datetime import timedelta
 
 import engine
 import game_data
 from random import randint
 from os import remove
-from datetime import date
+
 
 
 def load_game():
