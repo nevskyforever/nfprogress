@@ -13,125 +13,27 @@ def today_for_test():
     else:
         return TEST_DATE
 
-class Project:
-    def __init__(self, name='Без имени', goal=None,
-                 create_date=today_for_test(),
-                 total_symbols=0, progress=0,
-                 notes=None, streaks=None, deadline='Нет',
-                 status='active'):
-        self.name = name
-        self.goal = goal
-        self.create_date = create_date
-        self.total_symbols = total_symbols
-        self.progress = progress
-        self.notes = notes
-        self.streaks = streaks
-        self.deadline = deadline
-        self.status = status
-    def set_name(self, name):
-        if name != '':
-            self.name = name
-            return 'Имя проекта изменено'
-        else:
-            raise ValueError('Некорректное имя проекта!')
-    def get_name(self):
-        return self.name
-    def set_goal(self, goal):
-        try:
-            goal = int(goal)
-            self.goal = goal
-            return f'Установлена цель в {self.goal} символов'
-        except:
-            raise ValueError('Некорректное значение для цели, введите число!')
-    def get_goal(self):
-        return self.goal
-    def set_deadline(self, deadline):
-        if deadline == '':
-            self.deadline = 'Нет'
-            return None
-        else:
-            deadline = datetime.strptime(deadline, '%d.%m.%y')
-            self.deadline = deadline
-            return 'Дедлайн проекта установлен.'
-    def get_deadline(self):
-        return self.deadline
-    def set_status(self, status):
-        self.status = status
-        if status == 'active':
-            return 'Проект снова активен.'
-        elif status == 'archived':
-            return ('Проект архивирован.'
-                    '\nВы можете вернуть его из архива, когда он снова понадобится.')
-        elif status == 'completed':
-            return 'Проект завершен, поздравляем!'
-        return None
-    def get_status(self):
-        return self.status
-    def get_total_symbols(self):
-        return self.total_symbols
-    def set_total_symbols(self, total_symbols):
-        self.total_symbols = total_symbols
-    def get_added_symbols_today_value(self):
-        today = today_for_test()
-        notes = self.notes
-        today_added = [i.get_added() for i in notes if i.get_date_create() == today]
-        if today_added:
-            today_added = sum(today_added)
-        else:
-            today_added = 0
-        return today_added
-    def get_added_symbols_today_msg(self):
-        today_added = self.get_added_symbols_today_value()
-        return f'Написано сегодня: {today_added}'
-    def set_new_notes(self, new_note):
-        notes = self.notes
-        if notes is None:
-            notes = []
-        notes.append(new_note)
-        self.notes = notes
-    def get_today_goal_value(self):
-        if self.deadline == 'Нет':
-            return None
-        else:
-            today = today_for_test()
-            days_before = (self.deadline - today).days
-            need_write = self.goal - self.total_symbols // days_before
-            return need_write
-    def get_today_goal_msg(self):
-        value = self.get_today_goal_value()
-        return f'Цель на сегодня: {value}'
-    def get_streak_status(self):
-        streaks = self.streaks
-        if streaks is None:
-            streaks = []
-        today = today_for_test()
-        yesterday = today - timedelta(days=1)
-        today_added = self.get_added_symbols_today_value()
-        today_goal = self.get_today_goal_value()
-        if today_added < today_goal:
-            return 'No'
-        elif today_added >= today_goal and len(streaks) == 0:
-            streaks.append(today)
-            return 'Start'
-        elif today_added >= today_goal and streaks[-1] == yesterday:
-            streaks.append(today_added)
-            self.streaks = streaks
-            return 'Go'
-        elif today in streaks:
-            return 'Done'
-        elif streaks[-1] != yesterday:
-            lost_days = len(streaks)
-            return f'Lose {lost_days}'
-        return None
-
 class Note:
-    def __init__(self, new_total, added,
-                 date_create=datetime(day=today_for_test().day,
-                                      month=today_for_test().month,
-                                      year=today_for_test().year,
-                                      hour=datetime.now().hour,
-                                      minute=datetime.now().minute,)):
-        self.date_create = date_create
+    # Атрибуты класса (для старых объектов)
+    date_create = None
+    new_total = 0
+    added = 0
+
+    def __init__(self, new_total, added, date_create=None):
+        # Исправлено: дата создается внутри, а не при запуске скрипта
+        if date_create is None:
+            now = datetime.now()
+            today = today_for_test()
+            self.date_create = datetime(
+                year=today.year,
+                month=today.month,
+                day=today.day,
+                hour=now.hour,
+                minute=now.minute
+            )
+        else:
+            self.date_create = date_create
+
         self.new_total = new_total
         self.added = added
 
@@ -143,6 +45,185 @@ class Note:
 
     def get_date_create(self):
         return self.date_create.date()
+
+
+class Project:
+    # --- 1. АТРИБУТЫ КЛАССА (для старых объектов) ---
+    name = 'Без имени'
+    goal = None
+    create_date = None
+    total_symbols = 0
+    progress = 0
+    deadline = 'Нет'
+    status = 'active'
+
+    # ВАЖНО: Списки ставим None, чтобы старые объекты не писали в один общий список
+    notes = None
+    streaks = None
+
+    def __init__(self, name='Без имени', goal=None,
+                 create_date=None,  # Исправлено: убрали вызов функции из аргументов
+                 total_symbols=0, progress=0,
+                 notes=None, streaks=None, deadline='Нет',
+                 status='active'):
+
+        self.name = name
+        self.goal = goal
+
+        # Если дата не передана, вычисляем "сейчас"
+        if create_date is None:
+            self.create_date = today_for_test()
+        else:
+            self.create_date = create_date
+
+        self.total_symbols = total_symbols
+        self.progress = progress
+        self.deadline = deadline
+        self.status = status
+
+        # Создаем НОВЫЕ пустые списки для каждого объекта, если не переданы
+        if notes is None:
+            self.notes = []
+        else:
+            self.notes = notes
+
+        if streaks is None:
+            self.streaks = []
+        else:
+            self.streaks = streaks
+
+    # --- МЕТОДЫ ---
+
+    def set_name(self, name):
+        if name != '':
+            self.name = name
+            return 'Имя проекта изменено'
+        else:
+            raise ValueError('Некорректное имя проекта!')
+
+    def get_name(self):
+        return self.name
+
+    def set_goal(self, goal):
+        try:
+            goal = int(goal)
+            self.goal = goal
+            return f'Установлена цель в {self.goal} символов'
+        except:
+            raise ValueError('Некорректное значение для цели, введите число!')
+
+    def get_goal(self):
+        return self.goal
+
+    def set_deadline(self, deadline):
+        if deadline == '':
+            self.deadline = 'Нет'
+            return None
+        else:
+            # Используем datetime.strptime, так как datetime импортирован
+            deadline = datetime.strptime(deadline, '%d.%m.%y')
+            self.deadline = deadline
+            return 'Дедлайн проекта установлен.'
+
+    def get_deadline(self):
+        return self.deadline
+
+    def set_status(self, status):
+        self.status = status
+        if status == 'active':
+            return 'Проект снова активен.'
+        elif status == 'archived':
+            return ('Проект архивирован.'
+                    '\nВы можете вернуть его из архива, когда он снова понадобится.')
+        elif status == 'completed':
+            return 'Проект завершен, поздравляем!'
+        return None
+
+    def get_status(self):
+        return self.status
+
+    def get_total_symbols(self):
+        return self.total_symbols
+
+    def set_total_symbols(self, total_symbols):
+        self.total_symbols = total_symbols
+
+    def get_added_symbols_today_value(self):
+        today = today_for_test()
+
+        # ЗАЩИТА: Если у старого объекта notes=None (из класса), считаем как пустой список
+        current_notes = self.notes
+        if current_notes is None:
+            current_notes = []
+
+        today_added = [i.get_added() for i in current_notes if i.get_date_create() == today]
+        if today_added:
+            return sum(today_added)
+        else:
+            return 0
+
+    def get_added_symbols_today_msg(self):
+        today_added = self.get_added_symbols_today_value()
+        return f'Написано сегодня: {today_added}'
+
+    def set_new_notes(self, new_note):
+        # ЗАЩИТА: Если список еще не создан (у старого объекта), создаем его сейчас
+        if self.notes is None:
+            self.notes = []
+
+        self.notes.append(new_note)
+        # self.notes = notes — эта строка не нужна, мы уже изменили список на месте
+
+    def get_today_goal_value(self):
+        if self.deadline == 'Нет':
+            return None
+        else:
+            today = today_for_test()
+            # Проверка типа, если deadline вдруг строка (у старых объектов)
+            if not isinstance(self.deadline, datetime):
+                return None
+
+            # .date() нужно, чтобы вычесть из даты дату (а не дату из времени)
+            days_before = (self.deadline.date() - today).days
+
+            if days_before <= 0:
+                return self.goal - self.total_symbols
+
+            need_write = self.goal - self.total_symbols // days_before
+            return need_write
+
+    def get_today_goal_msg(self):
+        value = self.get_today_goal_value()
+        return f'Цель на сегодня: {value}'
+
+    def get_streak_status(self):
+        # ЗАЩИТА для streaks
+        if self.streaks is None:
+            self.streaks = []
+
+        today = today_for_test()
+        yesterday = today - timedelta(days=1)
+        today_added = self.get_added_symbols_today_value()
+        today_goal = self.get_today_goal_value()
+
+        if today_goal is None:
+            today_goal = 0
+
+        if today_added < today_goal:
+            return 'No'
+        elif today_added >= today_goal and len(self.streaks) == 0:
+            self.streaks.append(today)
+            return 'Start'
+        elif today_added >= today_goal and self.streaks[-1] == yesterday:
+            self.streaks.append(today_added)  # Тут у вас логика: дата или число? (оставил как есть)
+            return 'Go'
+        elif today in self.streaks:
+            return 'Done'
+        elif self.streaks and self.streaks[-1] != yesterday:
+            lost_days = len(self.streaks)
+            return f'Lose {lost_days}'
+        return None
+
 
 def load_data():
     try:
@@ -270,14 +351,15 @@ def view_project():
         main_menu()
 def main_menu():
     actions = {'1': create_note, '2': create_project, '3': view_project,}
+    data = load_data()
+    projects = data['projects']
+    cnt_active = len([i.get_status() for i in projects if i.get_status() == 'active'])
     print('\nnfprogress\n')
     print('1 - Сделать запись')
     print('2 - Создать проект')
-    print('3 - Просмотреть проекты')
-    data = load_data()
+    print(f'3 - Просмотреть проекты (активных - {cnt_active})')
     last = data['last']
     if last is not None:
-        projects = data['projects']
         last_choice = projects[last]
         print(f'Enter - быстрая запись в {last_choice.get_name()}')
     do = input('Выбор: ')

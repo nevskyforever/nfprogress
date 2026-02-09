@@ -30,12 +30,14 @@ class Gamer:
     exp = 0
     coins = 0
     cf = None
+    notifications = None
 
-    def __init__(self, level=0, exp=0, coins=0, cf={'coins': 1.0, 'exp': 1.0}):
+    def __init__(self, level=0, exp=0, coins=0, cf={'coins': 1.0, 'exp': 1.0}, notifications={'new': [], 'read': []}):
         self.level = level
         self.exp = exp
         self.coin = coins
         self.cf = cf
+        self.notifications = notifications
 
 class Item:
     """Основной класс для создания игровых объектов"""

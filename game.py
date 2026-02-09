@@ -13,7 +13,7 @@ def load_game():
         with open('game_mode.pkl', 'rb') as f:
             return pickle.load(f)
     except FileNotFoundError:
-        return None
+        return game_data.gamer()
 
 
 def save_game(gamer):
