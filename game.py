@@ -2,9 +2,9 @@ import pickle
 from datetime import timedelta
 from random import randint
 from os import remove
-
 import engine
 import game_data
+from game_data import Deposit
 
 class Gamer:
     # === 1. АТРИБУТЫ КЛАССА ===
@@ -15,7 +15,7 @@ class Gamer:
 
     cf = None
     items = None
-    bank = None
+    bank_account = None
     notifications = None
 
     # === 2. ИНИЦИАЛИЗАЦИЯ ===
@@ -29,10 +29,7 @@ class Gamer:
         self.items = {}  # Теперь словарь: "Название предмета": количество
         self.notifications = {'new': [], 'read': []}
 
-        self.bank = {
-            'deposit': {'created_date': None, 'withdrawal_date': None, 'coins': 0, 'income': 0},
-            'loan': {'created_date': None, 'return_date': None, 'coins': 0, 'return': 0, 'last_penalty_date': None}
-        }
+        self.bank_account = game_data.BankAccount()
 
     # === 3. СЛУЖЕБНЫЕ МЕТОДЫ ===
     def check_integrity(self):
@@ -40,30 +37,28 @@ class Gamer:
         if self.cf is None: self.cf = {'coins': 1.0, 'exp': 1.0}
         if self.items is None: self.items = {}
         if self.notifications is None: self.notifications = {'new': [], 'read': []}
-        if self.bank is None:
-            self.bank = {
-                'deposit': {'created_date': None, 'withdrawal_date': None, 'coins': 0, 'income': 0},
-                'loan': {'created_date': None, 'return_date': None, 'coins': 0, 'return': 0, 'last_penalty_date': None}
-            }
+        if self.bank_account is None: self.bank_account = game_data.BankAccount()
 
     def save(self):
         with open('game_mode.pkl', 'wb') as f:
             pickle.dump(self, f)
-
     # === 4. ИГРОВАЯ ЛОГИКА ===
-    def add_exp(self, symbols):
-        current_cf = self.cf.get('exp', 1.0)
-        exps = symbols * 2 * current_cf
+    def symbol_bonus(self, symbols):
+        exp_cf = self.cf.get('exp', 1.0)
+        exps = symbols * 2 * exp_cf
         self.exp += exps
         self.save()
-        return int(exps)
-
-    def add_coins(self, symbols):
-        current_cf = self.cf.get('coins', 1.0)
+        coins_cf = self.cf.get('coins', 1.0)
         coins = symbols / 100
-        self.coins += coins * current_cf
+        self.coins += coins * coins_cf
         self.save()
-        return int(coins * current_cf)
+        return coins * coins_cf, exps
+    def remove_coins(self, removed):
+        self.coins -= removed
+    def get_coins(self):
+        return self.coins
+    def set_coins(self, coins):
+        self.coins += coins
 
     def level_up(self):
         data = engine.load_data()
@@ -114,6 +109,12 @@ class Gamer:
         self.reset()
         return False
 
+    def damage(self, damage):
+        self.health -= damage
+        self.save()
+        return (f'Вы потеряли {damage} ед. здоровья'
+                f'У вас осталось {self.health} ед. здоровья')
+
     def reset(self):
         self.__init__()
         self.save()
@@ -155,8 +156,83 @@ def inventory():
 
 
 def bank():
-    pass
+    gamer = load_game()
+    bank_account = gamer.bank_account
+    deposit = bank_account.get_deposit()
+    credit = bank_account.get_credit()
+    print('\nБАНК\n')
+    print(f'Ваш баланс: {gamer.get_coins()}')
+    if credit:
+        credit_sum = credit.get_sum()
+        credit_status = credit.get_status()
+        credit_interest = credit.get_interest()
+        print(f'В банке есть кредит на сумму: {credit_sum}, '
+              f'нужно вернуть: {credit_sum + credit_interest}, '
+              f'статус: {credit_status}')
+    else:
+        print('В банке нет кредита')
+    if deposit:
+        deposit_sum = deposit.get_sum()
+        deposit_status = deposit.get_status()
+        deposit_interest = deposit.get_interest()
+        print(f'В банке есть депозит на сумму: {deposit_sum}, '
+              f'итог: {deposit_sum + deposit_interest}, '
+              f'статус: {deposit_status}')
+    else:
+        print('В банке нет депозита')
+    if deposit is None:
+        print('d - сделать депозит')
+    if deposit and deposit_status == 'Можно снять':
+        print('rd - снять депозит')
+    if credit is None:
+        print('c - взять кредит')
+    print('Вернуться в главное меню - Enter')
+    if credit:
+        print('rc - вернуть кредит')
+    do = input('Выбор: ')
+    if do == '':
+        menu()
+    elif do == 'd':
+        cf_coins = gamer.cf['coins']
+        print('\nВНЕСЕНИЕ ДЕПОЗИТА\n')
+        print(f'Депозит позволяет заработать {1 * cf_coins}% в день от суммы вклада'
+              f'\nДепозит можно снять не раньше даты, которую вы выбрали.')
+        # Получаем параметки вклада
+        sumd = int(input('Введите сумму вклада: '))
+        days = int(input('Введите срок влада (кол-во дней): '))
+        # Создаем вклад
+        deposit = game_data.Deposit(sumd, days)
+        # Добавляем вклад в аккаунт
+        bank_account.set_deposit(deposit)
+        gamer.save()
+        print('ДЕПОЗИТ ВНЕСЕН')
+        menu()
+    elif do == 'rd':
+        print(bank_account.return_deposit())
+        menu()
+    elif do == 'c':
+        cf_coins = gamer.cf['coins']
+        print('\nВЗЯТИЕ КРЕДИТА\n')
+        print(f'Кредит позволяет одолжить деньги у банка'
+              f'\nКредит стоит {1 * cf_coins}% в день от суммы'
+              f'\nКредит можно погасить в любой момент'
+              f'\nПросрочка по кредиту нанесет вам урон в 5 ед. за день и удвоит проценты')
+        # Получаем параметки вклада
+        sumc = int(input('Введите сумму кредита: '))
+        days = int(input('Введите срок кредита (кол-во дней): '))
+        # Создаем вклад
+        credit = game_data.Credit(sumc, days)
+        # Добавляем вклад в аккаунт
+        bank_account.set_credit(credit)
+        gamer.set_coins(sumc)
+        gamer.save()
+        print('КРЕДИТ ЗАЧИСЛЕН')
+        menu()
+    elif do == 'rc':
+        print(bank_account.return_credit())
+        menu()
 
+    menu()
 
 def disable_mode():
     key = randint(1000, 9999)
@@ -184,6 +260,8 @@ def menu():
 
     update_gamer()
     gamer = load_game()
+    credit = gamer.bank_account.get_credit()
+    deposit = gamer.bank_account.get_deposit()
 
     print(
         f'\n--- ГЕРОЙ: Ур.{gamer.level} | Опыт {int(gamer.exp)}/{game_data.levels[gamer.level]} | ❤️ {int(gamer.health)} | 💰 {int(gamer.coins)}')
@@ -192,12 +270,23 @@ def menu():
     print('3 - Характеристики - в разработке')
     print('4 - Инвентарь - в разработке')
     print('5 - Магазин - в разработке')
-    print('6 - Банк - в разработке')
+    if credit and deposit is None:
+        credit_status = credit.get_status()
+        print(f'6 - Банк (Есть кредит - {credit_status})')
+    elif deposit and credit is None:
+        deposit_status = deposit.get_status()
+        print(f'6 - Банк (Есть депозит - {deposit_status})')
+    elif deposit and credit:
+        deposit_status = deposit.get_status()
+        credit_status = credit.get_status()
+        print(f'6 - Банк (Есть депозит - {deposit_status} и кредит - {credit_status})')
+    else:
+        print('6 - Банк')
     print('8 - Удалить режим')
     print('Enter - Выход')
 
     cmd = input('Выбор: ')
-    actions = {}
+    actions = {'6': bank}
 
     if cmd in actions:
         actions[cmd]()

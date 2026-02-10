@@ -1,6 +1,5 @@
 from random import randint
-from datetime import datetime
-
+from datetime import datetime, timedelta
 import engine
 import game
 
@@ -42,8 +41,6 @@ class Item:
         return (f'Стоимость предмета: {self.price}'
                 f'Уровень, с которого доступен предмет: {self.level}'
                 f'\nОписание предмета: {self.description}')
-
-
 class FuncItem(Item):
     """Подкласс для объектов с индивидуальными функциями"""
     def __init__(self, tag, price, func=None, add=None, **kwargs):
@@ -52,6 +49,144 @@ class FuncItem(Item):
 
     def use(self, do='use', add=None):           # отдельный метод для вызова
         return self._func(do, add)
+class Credit:
+    def __init__(self, credit_sum, days_until_return, interest_rate_on_loan=2):
+        self.take_date = engine.today_for_test()
+        self.days_until_return = days_until_return
+        self.interest_rate_on_loan = interest_rate_on_loan * (game.load_game().cf['coins'] if game.load_game() else 1.0)
+        self.credit_sum = credit_sum
+        self.interest = 0
+
+    def get_return_date(self):
+        return self.take_date + timedelta(days=self.days_until_return)
+
+    def get_sum(self):
+        return self.credit_sum
+
+    def get_status(self):
+        today = engine.today_for_test()
+        return_date = self.get_return_date()
+        if today < return_date:
+            return 'OK'
+        elif today == return_date:
+            return 'Возврат сегодня'
+        else:
+            return 'Просрочен'
+
+    def get_interest_rate(self):
+        return self.interest_rate_on_loan
+
+    def calculate_interest(self):
+        today = engine.today_for_test()
+        passed_days = (today - self.take_date).days
+        rate = self.interest_rate_on_loan
+
+        if self.get_status() == 'Просрочен':
+            passed_days *= 2  # Удвоение за просрочку
+        self.interest = (self.credit_sum / 100) * (rate * passed_days)
+        return self.interest
+
+    def get_interest(self):
+        return self.calculate_interest()
+
+    def get_total_sum(self):
+        return self.credit_sum + self.get_interest()
+
+    def get_damage(self):
+        today = engine.today_for_test()
+        return_date = self.get_return_date()
+        if today > return_date:
+            return (today - return_date).days * 5
+        return 0
+
+    def repay(self, gamer):
+        """Полное погашение с учётом просрочки"""
+        total_sum = self.get_total_sum()
+
+        if gamer.coins < total_sum:
+            return f'Недостаточно монет. Нужно: {total_sum}'
+
+        gamer.coins -= total_sum
+
+        # Урон за просрочку
+        damage = self.get_damage()
+        if damage > 0:
+            gamer.health -= damage
+
+        return f'КРЕДИТ ПОГАШЕН\nСумма: {self.credit_sum}, Проценты: {self.interest}, Урон: {damage}'
+class Deposit:
+    def __init__(self, deposit_sum, days_until_return, interest_rate_on_deposit=1):
+        self.give_date = engine.today_for_test()
+        self.deposit_sum = deposit_sum
+        self.days_until_return = days_until_return
+        self.interest_rate_on_deposit = interest_rate_on_deposit * game.load_game().cf['coins']
+        self.interest = 0
+
+    def get_sum(self):
+        return self.deposit_sum
+
+    def get_return_date(self):
+        return self.give_date + timedelta(days=self.days_until_return)
+
+    def set_interest(self):
+        rate = self.interest_rate_on_deposit
+        self.interest = (self.deposit_sum / 100) * (self.days_until_return * rate)
+
+    def get_interest(self):
+        self.set_interest()
+        return self.interest
+
+    def get_status(self):
+        today = engine.today_for_test()
+        return_date = self.get_return_date()
+        if today < return_date:
+            status = 'Нельзя снять'
+        elif today == return_date or today > return_date:
+            status = 'Можно снять'
+        return status
+    def get_total_sum(self):
+        return self.deposit_sum + self.get_interest()
+class BankAccount:
+    def __init__(self, credit=None, deposit=None):
+        self.credit = credit
+        self.deposit = deposit
+    def set_credit(self, credit):
+        self.credit = credit
+    def set_deposit(self, deposit):
+        self.deposit = deposit
+    def get_credit(self):
+        return self.credit
+    def get_deposit(self):
+        return self.deposit
+
+    def return_deposit(self):
+        gamer = game.load_game()
+
+        # Считаем итоговую сумму
+        total_sum = self.deposit.get_total_sum()
+
+        # ТОЛЬКО ОДНА операция с монетами!
+        gamer.coins += total_sum
+
+        # Удаляем депозит
+        gamer.bank_account.set_deposit(None)
+
+        # Сохраняем
+        gamer.save()
+
+        return (f'\nДЕПОЗИТ СНЯТ\n'
+                f'Вы получили {total_sum} монет')
+
+    def return_credit(self):
+        gamer = game.load_game()
+        if not self.credit:
+            return 'Нет кредита'
+
+        result = self.credit.repay(gamer)
+        gamer.bank_account.credit = None  # Полное удаление
+        gamer.save()
+        return result
+
 
 # Функции для объектов-функций
 def health_add_func(do, price, add):

@@ -1,6 +1,6 @@
 import pickle
 from datetime import datetime, timedelta, date
-import game  # Предполагается, что файл game.py находится в той же папке
+import game
 
 version = '2.0'
 last_update = '09.02.26'
@@ -8,7 +8,7 @@ last_update = '09.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 11)
+    dt = date(2026, 2, 21)
     if dt is None:
         return datetime.today()
     else:
@@ -288,6 +288,16 @@ def create_note(last=None):
     project.set_total_symbols(new_total)
 
     print(project.get_added_symbols_today_msg())
+    # Если игровой режим включен - начисляем бонусы
+    if game.load_game():
+        # Получаем данные о режиме
+        gamer = game.load_game()
+        # Начисляем опыт и монеты
+        symbol_bonus = gamer.symbol_bonus(added)
+        print(f'Вы получили {symbol_bonus[1]} опыта')
+        print(f'Вы заработали {symbol_bonus[0]} монет')
+        if project.get_deadline():
+            pass
 
     # Обновляем индекс последнего проекта для быстрой записи
     data['last'] = choice_idx
