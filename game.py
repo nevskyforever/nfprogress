@@ -44,7 +44,7 @@ class Gamer:
         with open('game_mode.pkl', 'wb') as f:
             pickle.dump(self, f)
     # === 4. ИГРОВАЯ ЛОГИКА ===
-    def symbol_bonus(self, symbols):
+    def give_symbol_bonus(self, symbols):
         exp_cf = self.cf.get('exp', 1.0)
         exps = symbols * 2 * exp_cf
         self.exp += exps
@@ -53,7 +53,8 @@ class Gamer:
         coins = symbols / 100
         self.coins += coins * coins_cf
         self.save()
-        return coins * coins_cf, exps
+        return (f'Получено {coins * coins_cf} монет'
+                f'\nПолучено {exps} опыта')
     def remove_coins(self, removed):
         self.coins -= removed
     def get_coins(self):

@@ -155,6 +155,7 @@ class Project:
         deadline = self.get_deadline()
         goal = self.get_goal()
         total_symbols = self.get_total_symbols()
+        status = None
 
         if today_added < today_goal:
             status = 'No'
@@ -280,8 +281,10 @@ def create_note(last=None):
 
     project = projects[choice_idx]
     old_total = project.get_total_symbols()
+    gamer = game.load_game()
 
     print(f'Проект: {project.get_name()}')
+    print(f'Написано в проекте: {old_total}')
     print(project.get_added_symbols_today_msg())
     print(project.get_today_goal_msg())
 
@@ -304,25 +307,15 @@ def create_note(last=None):
     save_data(data)
 
     print(project.get_added_symbols_today_msg())
-    if project.get_deadline != 'Нет':
-        streak_status = project.get_streak_status()
-        print(project.get_streak_msg(streak_status))
-    # Если игровой режим включен - начисляем бонусы
-    if game.load_game():
-        # Получаем данные о режиме
-        gamer = game.load_game()
-        # Начисляем опыт и монеты
-        symbol_bonus = gamer.symbol_bonus(added)
-        print(f'Вы получили {symbol_bonus[1]} опыта')
-        print(f'Вы заработали {symbol_bonus[0]} монет')
-        # Если есть дедлайн - проверяем стрик и начисляем бонусы
-        if project.get_deadline() != 'Нет':
-            # Проверяем стрик
+
+    streak_status = project.get_streak_status()
+
+    if gamer is not None:
+        print(gamer.give_symbol_bonus(added))
+        if streak_status:
             print(gamer.give_streak_bonus(streak_status, new_total))
-    # Обновляем индекс последнего проекта для быстрой записи
     data['last'] = choice_idx
     save_data(data)
-
 
 def change_project():
     idx = choice_project()
