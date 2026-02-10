@@ -9,7 +9,7 @@ last_update = '11.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 11)
+    dt = date(2026, 2, 10)
     if dt is None:
         return datetime.today()
     else:
