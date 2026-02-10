@@ -4,7 +4,8 @@ from random import randint
 from os import remove
 import engine
 import game_data
-from game_data import Deposit
+from game_data import Deposit, cf_coins
+
 
 class Gamer:
     # === 1. АТРИБУТЫ КЛАССА ===
@@ -123,8 +124,30 @@ class Gamer:
         pass
 
 
-    def give_streak_bonus(self, streak_status, total_symbols):
-       pass
+    def give_streak_bonus(self, status, total_symbols):
+       gamer = load_game()
+       coins = gamer.get_coins()
+       cf_coins = gamer.cf['coins']
+       if status == 'Start':
+          coins += 25 * cf_coins
+       elif status == 'Go':
+          coins += 10 * cf_coins
+       elif status == 'Done':
+           return 'Бонус за стрик сегодня уже получен, но символы лишними не будут'
+       elif status == 'Complete':
+           coins += 500 * cf_coins
+           return f'Стрик завершен! Вы получили награду в {coins}! Поздравляем!'
+       elif status[0] == 'Lose':
+           damage = status[1] * 5
+           gamer.damage(damage)
+           if len(status) == 2:
+               return f'Вы получили урон за потерю стрика в {damage}'
+           elif len(status) == 3:
+               return (f'Вы получили урон за потерю стрика в {damage}'
+                       f'\nВы получили бонус за начало нового стрика')
+       gamer.save()
+       return 'Выдача бонуса за стрик не сработала'
+
 
 def load_game():
     try:
