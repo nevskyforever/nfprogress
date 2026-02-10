@@ -8,7 +8,7 @@ last_update = '09.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 21)
+    dt = date(2026, 2, 12)
     if dt is None:
         return datetime.today()
     else:
@@ -152,33 +152,30 @@ class Project:
         yesterday = today - timedelta(days=1)
         today_added = self.get_added_symbols_today_value()
         today_goal = self.get_today_goal_value()
-        deadline = self.get_deadline()
-        goal = self.get_goal()
-        total_symbols = self.get_total_symbols()
-        status = None
 
-        if today_added < today_goal:
-            status = 'No'
-        elif today_added >= today_goal and self.streaks == []:
-            if not self.streaks:
+        status = 'No'  # Статус по умолчанию
+
+        # Проверяем, выполнена ли цель (используем >=, чтобы точное совпадение тоже считалось)
+        if today_added >= today_goal:
+            # Если цель выполнена, смотрим на стрик
+            if len(self.streaks) == 0:
                 self.streaks.append(today)
                 status = 'Start'
+            elif self.streaks[-1] == today:
+                status = 'Done'
             elif self.streaks[-1] == yesterday:
                 self.streaks.append(today)
                 status = 'Go'
-            elif self.streaks[-1] == today:
-                status = 'Done'
-            elif today == deadline and goal <= total_symbols:
-                status = 'Complete'
-        # Проверка на потерю стрика
-        if self.streaks and self.streaks[-1] < yesterday and status != 'Start':
-            lost_days = (yesterday - self.streaks[-1]).days
-            status = f'Lose {lost_days}'
-            self.streaks = []
-            if today_added > today_goal:
-                self.streaks.append(today)
-                status = f'Lose {lost_days} Start' # Если стрик потерян, но цель выполнена, начинаем новый
-        return status
+        elif len(self.streaks) > 0 and self.streaks[-1] != yesterday:
+            # Если последний день стрика был не вчера и не сегодня — стрик потерян
+            lose = len(self.streaks)
+            self.streaks = []  # Сбрасываем старый
+            status = f'Lose {lose}'
+            if today_added >= today_goal:
+                status = f'Lose {lose} Start'
+                self.streaks.append(today)  # Начинаем новый, так как цель выполнена
+
+        return status  # Возвращаем строку, а не список!
 
     def get_streak_msg(self, status):
         if status == 'Start':

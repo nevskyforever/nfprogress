@@ -124,30 +124,59 @@ class Gamer:
     def check_loan_penalty(self):
         pass
 
-
     def give_streak_bonus(self, status, total_symbols):
-       gamer = load_game()
-       coins = gamer.get_coins()
-       cf_coins = gamer.cf['coins']
-       if status == 'Start':
-          coins += 25 * cf_coins
-       elif status == 'Go':
-          coins += 10 * cf_coins
-       elif status == 'Done':
-           return 'Бонус за стрик сегодня уже получен, но символы лишними не будут'
-       elif status == 'Complete':
-           coins += 500 * cf_coins
-           return f'Стрик завершен! Вы получили награду в {coins}! Поздравляем!'
-       elif status[0] == 'Lose':
-           damage = status[1] * 5
-           gamer.damage(damage)
-           if len(status) == 2:
-               return f'Вы получили урон за потерю стрика в {damage}'
-           elif len(status) == 3:
-               return (f'Вы получили урон за потерю стрика в {damage}'
-                       f'\nВы получили бонус за начало нового стрика')
-       gamer.save()
-       return 'Выдача бонуса за стрик не сработала'
+        # 1. Исправляем ошибку формата из engine.py (склеиваем буквы в слова)
+        st = status.split()
+
+        # 2. Берем коэффициент из текущего объекта (self)
+        cf_coins = self.cf['coins']
+        msg = 'Бонус не начислен'
+
+        # 3. Проверяем вхождение ключевых слов в строку статуса
+        if 'Start' in st and 'Lose' not in st:
+            bonus = 25 * cf_coins
+            self.coins += bonus
+            msg = f'СТРИК НАЧАТ! Получено {bonus} монет.'
+
+        elif 'Go' in st:
+            bonus = 10 * cf_coins
+            self.coins += bonus
+            msg = f'СТРИК ПРОДЛЕН! Получено {bonus} монет.'
+
+        elif 'Done' in st:
+            msg = 'Бонус за стрик сегодня уже получен, но символы лишними не будут.'
+
+        elif 'Complete' in st:
+            bonus = 500 * cf_coins
+            self.coins += bonus
+            msg = f'СТРИК ЗАВЕРШЕН! Вы получили награду: {bonus}!'
+
+        elif 'Lose' in st:
+            # Ищем число дней в статусе для расчета урона
+            days = 1
+            # Разбиваем строку по пробелам и ищем число
+            # Например из "Lose 5" достанем 5
+            parts = st
+            for part in parts:
+                if part.isdigit():
+                    days = int(part)
+                    break
+
+            damage = days * 5
+            self.damage(damage)
+            msg = (f'СТРИК ПОТЕРЯН'
+                   f'\nВы получили урон за потерю стрика: {damage}')
+
+            # Если потеряли стрик, но сразу начали новый (Lose ... Start)
+            if 'Start' in st:
+                bonus = 25 * cf_coins
+                self.coins += bonus
+                msg += (f'НАЧАТ НОВЫЙ СТРИК'
+                        f'\nВы получили бонус за начало нового стрика: {bonus}')
+
+        # 4. Сохраняем прогресс и возвращаем сообщение
+        self.save()
+        return msg
 
 
 def load_game():
