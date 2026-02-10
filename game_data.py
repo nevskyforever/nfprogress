@@ -1,15 +1,7 @@
 from random import randint
-from datetime import datetime
-
+from datetime import datetime, timedelta
 import engine
 import game
-
-gamer = {'level': 1,
-'health': 100,
-'exp': 0,
-'coins': 0,
-'cf': {'coins': 1.0, 'exp': 1.0},
-'items': {'health_recovery': 0, 'health_add': 0}}
 
 about_mode = ('Игровой режим позволяет улучшить мотивацию, сделав из писательства игру.\n'
               '1. При написании текста за каждые 100 символов вы получаете 1 монету, а так же бонус за достигнутый уровень на данный момент\n'
@@ -25,154 +17,331 @@ cf_coins = [0, 1.0, 1.0625, 1.125, 1.1875, 1.25, 1.3125, 1.375, 1.4375, 1.5, 1.5
 
 lvl_coins_bonus = [0, 250, 500, 750, 1000, 1250, 1500, 1750, 2000, 2250, 2500, 2750, 3000, 3250, 3500, 3750, 4000, 4250, 4500, 4750, 5000, 5250, 5500, 5750, 6000, 6250, 6500, 6750, 7000, 7250, 7500, 7750, 8000, 8250, 8500, 8750, 9000, 9250, 9500, 9750, 10000, 10250, 10500, 10750, 11000, 11250, 11500, 11750, 12000, 12250, 12500, 12750, 13000, 13250, 13500, 13750, 14000, 14250, 14500, 14750, 15000, 15250, 15500, 15750, 16000, 16250, 16500, 16750, 17000, 17250, 17500, 17750, 18000, 18250, 18500, 18750, 19000, 19250, 19500, 19750, 20000, 20250, 20500, 20750, 21000, 21250, 21500, 21750, 22000, 22250, 22500, 22750, 23000, 23250, 23500, 23750, 24000, 24250, 24500, 24750, 25000]
 
-def health_recovery(do):
-    gamer = game.load_game()
-    if gamer is None:
-        return 'Игровой режим не активирован'
-    coins = gamer['coins']
-    price = 100
-    if do == 'buy':
-        if coins < price:
-            return f'Недостаточно монет для покупки, нужно минимум {price} монет'
-        else:
-            gamer['coins'] -= price
-            if 'health_recovery' not in gamer['items']:
-                gamer['items']['health_recovery'] = 0
-            gamer['items']['health_recovery'] += 1
-            game.save_game(gamer)
-            return f'Куплено зелье воскрешения! Осталось монет: {gamer["coins"]}'
-    elif do == 'use':
-        items = gamer['items'].get('health_recovery', 0)
-        if items == 0:
-            return 'Зелья воскрешения нет в инвентаре'
-        else:
-            gamer['items']['health_recovery'] -= 1
-            gamer['health'] = 100
-            game.save_game(gamer)
-            return '\nПРИМЕНЕНО ЗЕЛЬЕ ВОСКРЕШЕНИЯ'
-    elif do == '?':
-        return ('\nЗелье восстанавливает здоровье до 109 единиц'
-                f'\nСтоимость {price} монет')
+# Классы объектов
 
-def health_add(do):
-    gamer = game.load_game()
-    if gamer is None:
-        return 'Игровой режим не активирован'
-    coins = gamer['coins']
-    price = 25
-    if do == 'buy':
-        if coins < price:
-            return f'Недостаточно монет для покупки, нужно минимум {price} монет'
-        else:
-            gamer['coins'] -= price
-            if 'health_add' not in gamer['items']:
-                gamer['items']['health_add'] = 0
-            gamer['items']['health_add'] += 1
-            game.save_game(gamer)
-            return f'Куплено зелье восстановления! Осталось монет: {gamer["coins"]}'
-    elif do == 'use':
-        items = gamer['items'].get('health_add', 0)
-        if items == 0:
-            return 'Зелья восстановления нет в инвентаре'
-        else:
-            gamer['items']['health_add'] -= 1
-            gamer['health'] += 10
-            if gamer['health'] > 100:
-                gamer['health'] = 100
-            game.save_game(gamer)
-            return '\nПРИМЕНЕНО ЗЕЛЬЕ ВОССТАНОВЛЕНИЯ'
-    elif do == '?':
-        return ('\nЗелье восстанавливает здоровье на 10 единиц, но не выше 100 единиц'
-                f'\nСтоимость {price} монет')
+class Item:
+    """Основной класс"""
 
-def lottery_ticket(do):
-    gamer = game.load_game()
-    if gamer is None:
-        return 'Игровой режим не активирован'
-    coins = gamer['coins']
-    price = 10
-    if do == 'buy':
-        if coins < price:
-            return f'Недостаточно монет для покупки, нужно минимум {price} монет'
-        else:
-            gamer['coins'] -= price
-            if 'lottery_ticket' not in gamer['items']:
-                gamer['items']['lottery_ticket'] = 0
-            gamer['items']['lottery_ticket'] += 1
-            game.save_game(gamer)
-            return f'Куплен Лотерейный билет! Осталось монет: {gamer["coins"]}'
-    elif do == 'use':
-        items = gamer['items'].get('lottery_ticket', 0)
-        if items == 0:
-            return 'Лотерейного билета нет в инвентаре'
-        else:
-            print('\n Пусть удача всегда будет с вами! \n')
-            gamer['items']['lottery_ticket'] -= 1
-            # Генерируем неодинаковые числа
-            chance = set()
-            win = set()
-            while len(chance) != 3 and len(win) != 3:
-                chance.add(randint(1, 10))
-                win.add(randint(1, 10))
-            # Проверяем числа
-            cnt = 0
-            win_prize = 0
-            for i in chance:
-                if i in win:
-                    cnt += 1
-            if cnt == 0:
-                print('В этот раз не повезло :(')
-            if cnt == 1:
-                win_prize = price * 10
-                print(f'ВЫ ВЫИГРАЛИ {win_prize} МОНЕТ! Совпало 1 число из 3.')
-            if cnt == 2:
-                win_prize = price * 100
-                print(f'ВЫ ВЫИГРАЛИ {win_prize} МОНЕТ! Совпало 2 числа из 3.')
-            if cnt == 3:
-                win_prize = price * 1000
-                print(f'ВЫ ВЫИГРАЛИ СУПЕРПРИЗ {win_prize} МОНЕТ! Совпало 3 число из 3.')
-            gamer['coins'] += win_prize
-            game.save_game(gamer)
-            return '\n ИСПОЛЬЗОВАН ЛОТЕРЕЙНЫЙ БИЛЕТ \n'
-    elif do == '?':
-        return ('\nЛотерейный билет состоят из трех цифр и можно выиграть 100 монет при совпадении'
-                '\n1 числа, 1000 монет при 2 и 10000, если совпало 3 числа :)'
-                f'\nСтоимость {price} монет')
+    def __init__(self, name, price, item_type=None, level=1, description='Нет описания'):
+        self.name = name
+        self.item_type = item_type
+        self.price = price
+        self.level = level
+        self.description = description
 
-def freeze(do):
+    def buy(self):
+        gamer = game.load_game()
+        coins = gamer.get_coins()
+        items = gamer.get_items()
+
+        # Проверяем цену
+        if coins < self.price:
+            return 'Недостаточно монет!'
+
+        # 1. Списываем деньги
+        gamer.remove_coins(self.price)
+
+        # --- ЛОГИКА ДОБАВЛЕНИЯ ---
+        # 1. Если такой категории (напр. "Еда") нет в инвентаре — создаем её
+        if self.item_type not in items:
+            items[self.item_type] = {}
+
+        # 2. Если такого предмета нет в этой категории — создаем запись с 0
+        if self.name not in items[self.item_type]:
+            items[self.item_type][self.name] = 0
+
+        # 3. Теперь безопасно прибавляем
+        items[self.item_type][self.name] += 1
+
+        # 3. Сохраняем
+        gamer.set_items(items)
+        gamer.save()
+        return f'Вы купили: {self.name}'
+
+    def about(self):
+        return f'{self.name}: {self.description} (Цена: {self.price})'
+
+
+class FuncItem(Item):
+    """Предмет с функцией (зелья и т.д.)"""
+
+    def __init__(self, name, price, item_type, func=None, add=None, **kwargs):
+        # Передаем item_type корректно в родителя
+        super().__init__(name, price, item_type=item_type, **kwargs)
+        self._func = func
+
+    def use(self, do='use', add=None):
+        gamer = game.load_game()
+        items = gamer.get_items()
+
+        # Проверяем, есть ли предмет в наличии
+        if items[self.item_type][self.name] > 0:
+            # Выполняем функцию предмета
+            if self._func:
+                return self._func(do, add)
+            return "Предмет использован."
+        else:
+            return "У вас нет этого предмета!"
+class Credit:
+    def __init__(self, credit_sum, days_until_return, interest_rate_on_loan=2):
+        self.take_date = engine.today_for_test()
+        self.days_until_return = days_until_return
+        self.interest_rate_on_loan = interest_rate_on_loan * (game.load_game().cf['coins'] if game.load_game() else 1.0)
+        self.credit_sum = credit_sum
+        self.interest = 0
+
+    def get_return_date(self):
+        return self.take_date + timedelta(days=self.days_until_return)
+
+    def get_sum(self):
+        return self.credit_sum
+
+    def get_status(self):
+        today = engine.today_for_test()
+        return_date = self.get_return_date()
+        if today < return_date:
+            return 'OK'
+        elif today == return_date:
+            return 'Возврат сегодня'
+        else:
+            return 'Просрочен'
+
+    def get_interest_rate(self):
+        return self.interest_rate_on_loan
+
+    def calculate_interest(self):
+        today = engine.today_for_test()
+        passed_days = (today - self.take_date).days
+        rate = self.interest_rate_on_loan
+
+        if self.get_status() == 'Просрочен':
+            passed_days *= 2  # Удвоение за просрочку
+        self.interest = (self.credit_sum / 100) * (rate * passed_days)
+        return self.interest
+
+    def get_interest(self):
+        return self.calculate_interest()
+
+    def get_total_sum(self):
+        return self.credit_sum + self.get_interest()
+
+    def get_damage(self):
+        today = engine.today_for_test()
+        return_date = self.get_return_date()
+        if today > return_date:
+            return (today - return_date).days * 5
+        return 0
+
+    def repay(self, gamer):
+        """Полное погашение с учётом просрочки"""
+        total_sum = self.get_total_sum()
+
+        if gamer.coins < total_sum:
+            return f'Недостаточно монет. Нужно: {total_sum}'
+
+        gamer.coins -= total_sum
+
+        # Урон за просрочку
+        damage = self.get_damage()
+        if damage > 0:
+            gamer.health -= damage
+
+        return f'КРЕДИТ ПОГАШЕН\nСумма: {self.credit_sum}, Проценты: {self.interest}, Урон: {damage}'
+class Deposit:
+    def __init__(self, deposit_sum, days_until_return, interest_rate_on_deposit=1):
+        self.give_date = engine.today_for_test()
+        self.deposit_sum = deposit_sum
+        self.days_until_return = days_until_return
+        self.interest_rate_on_deposit = interest_rate_on_deposit * game.load_game().cf['coins']
+        self.interest = 0
+
+    def get_sum(self):
+        return self.deposit_sum
+
+    def get_return_date(self):
+        return self.give_date + timedelta(days=self.days_until_return)
+
+    def set_interest(self):
+        rate = self.interest_rate_on_deposit
+        self.interest = (self.deposit_sum / 100) * (self.days_until_return * rate)
+
+    def get_interest(self):
+        self.set_interest()
+        return self.interest
+
+    def get_status(self):
+        today = engine.today_for_test()
+        return_date = self.get_return_date()
+        if today < return_date:
+            status = 'Нельзя снять'
+        elif today == return_date or today > return_date:
+            status = 'Можно снять'
+        return status
+    def get_total_sum(self):
+        return self.deposit_sum + self.get_interest()
+class BankAccount:
+    def __init__(self, credit=None, deposit=None):
+        self.credit = credit
+        self.deposit = deposit
+    def set_credit(self, credit):
+        self.credit = credit
+    def set_deposit(self, deposit):
+        self.deposit = deposit
+    def get_credit(self):
+        return self.credit
+    def get_deposit(self):
+        return self.deposit
+
+    def return_deposit(self):
+        gamer = game.load_game()
+
+        # Считаем итоговую сумму
+        total_sum = self.deposit.get_total_sum()
+
+        # ТОЛЬКО ОДНА операция с монетами!
+        gamer.coins += total_sum
+
+        # Удаляем депозит
+        gamer.bank_account.set_deposit(None)
+
+        # Сохраняем
+        gamer.save()
+
+        return (f'\nДЕПОЗИТ СНЯТ\n'
+                f'Вы получили {total_sum} монет')
+
+    def return_credit(self):
+        gamer = game.load_game()
+        if not self.credit:
+            return 'Нет кредита'
+
+        result = self.credit.repay(gamer)
+        gamer.bank_account.credit = None  # Полное удаление
+        gamer.save()
+        return result
+
+
+# Функции для объектов-функций
+def health_potion_func(do, add=None):
+    """Функция для зелий здоровья"""
+    # Загружаем объект игрока
     gamer = game.load_game()
-    coins = gamer['coins']
-    price = 100
-    if do == 'buy':
-        if coins < price:
-            return f'Недостаточно монет для покупки, нужно минимум {price} монет'
-        else:
-            gamer['coins'] -= price
-            if 'freeze' not in gamer['items']:
-                gamer['items']['freeze'] = 0
-            gamer['items']['freeze'] += 1
-            game.save_game(gamer)
-            return f'Куплена Заморозка! Осталось монет: {gamer["coins"]}'
-    elif do == 'use':
-        items = gamer['items'].get('freeze', 0)
-        if items == 0:
-            return 'Заморозок нет в инвентаре'
-        else:
-            choice = engine.choice_project()
-            data = engine.load_data()
-            project = data['projects']['active'][choice]
-            streaks = project['streaks']
-            today = engine.today_for_test()
-            if project['deadline'] != "Нет":
-                if today not in streaks:
-                    streaks.append(today)
-                    engine.save_data(data)
-                    gamer['items']['freeze'] -= 1
-                    game.save_game(gamer)
-                    return f'Применена заморозка для {choice}'
-                else:
-                    return f'Сегодня цель уже выполнена'
+
+    if do == 'use':
+        # Проверка: не лечим, если здоровье уже полное
+        if gamer.health >= 100:
+            # Возвращаем False или строку, чтобы FuncItem мог понять (опционально)
+            # Но так как предмет уже списан в FuncItem.use, просто лечим "в пустоту"
+            # или можно восстановить предмет, если здоровье полное (сложная логика).
+            # Пока просто восстанавливаем до 100.
+            pass
+
+        old_health = gamer.health
+        gamer.health += add
+
+        # Ограничиваем максимумом (100)
+        if gamer.health > 100:
+            gamer.health = 100
+
+        gamer.save()
+
+        healed_amount = gamer.health - old_health
+        return f'\nЗдоровье восстановлено на {healed_amount}. Текущее: {gamer.health}'
+
+    return 'Неизвестное действие'
+
+
+def lottery_ticket_func(do, add=None):
+    """Функция лотерейного билета"""
+    gamer = game.load_game()
+    price = 10  # Базовая цена билета для расчета выигрыша (можно передавать параметром)
+
+    if do == 'use':
+        print('\n--- Лотерея "Удача программиста" ---')
+
+        # Генерируем сеты чисел
+        chance = set()
+        win = set()
+        # Генерируем пока не наберем 3 уникальных числа
+        while len(chance) < 3:
+            chance.add(randint(1, 10))
+        while len(win) < 3:
+            win.add(randint(1, 10))
+
+        print(f'Ваши числа: {chance}')
+        print(f'Выпавшие числа: {win}')
+
+        # Считаем совпадения (пересечение множеств)
+        matches = len(chance.intersection(win))
+
+        win_prize = 0
+        message = 'В этот раз не повезло :('
+
+        if matches == 1:
+            win_prize = price * 5
+            message = f'Совпало 1 число! Выигрыш: {win_prize} монет.'
+        elif matches == 2:
+            win_prize = price * 50
+            message = f'Совпало 2 числа!! Выигрыш: {win_prize} монет.'
+        elif matches == 3:
+            win_prize = price * 1000
+            message = f'ДЖЕКПОТ!!! 3 из 3! Выигрыш: {win_prize} монет.'
+
+        if win_prize > 0:
+            gamer.set_coins(win_prize)
+            gamer.save()
+
+        return f'\n{message}'
+
+
+def freeze_func(do, add=None):
+
+    if do == 'use':
+        # 1. Выбираем проект
+        data = engine.load_data()
+        gamer = game.load_game()
+        items = gamer.get_items()
+        choice = engine.choice_project()
+        project = data['projects'][choice]
+        streaks = project.streaks
+        today = engine.today_for_test()
+        if project.get_deadline():
+            if today in streaks:
+                return 'Для этого проекта заморозка не нужна'
             else:
-                return 'У этого проекта ннт дедлайна!'
+                streaks.append(today)
+                items['Предметы']["Заморозка"] -= 1  # Уменьшаем кол-во
+                gamer.set_items(items)  # Обновляем данные в объекте игрока
+                engine.save_data(data)
+                gamer.save()
+                return f'Стрик {project.get_name()} заморожен'
+        else:
+            return 'Для этого проекта не установлен дедлайн'
+
     elif do == '?':
-        return 'Заморозка позволяет пропустить один день в стрике'
+        return 'Заморозка позволяет засчитать день в стрике без написания кода.'
+
+# Инициализация объектов
+
+freeze = FuncItem('Заморозка', func=freeze_func, price=100, item_type='Предметы', level=3,
+                  description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном')
+lottery_ticket = FuncItem("Лотерейный билет", price=10, item_type='Предметы', func=lottery_ticket_func,
+                          description='Лотерейный билет позволяет выиграть от 100 до 10К монет')
+health_potion_5 = FuncItem('Малое зелье здоровья', item_type='Зелья', func=health_potion_func, price=10, add=5,
+                           description='Восстанавливает здоровье на 5 единиц')
+health_potion_25 = FuncItem('Среднее зелье здоровья', item_type='Зелья', func=health_potion_func, price=50, add=25,
+                            description='Восстанавливает здоровье на 25 единиц')
+health_potion_50 = FuncItem('Большое зелье здоровья', item_type='Зелья', func=health_potion_func, price=100, add=50,
+                            description='Восстанавливает здоровье на 50 единиц')
+health_recovery = FuncItem('Зелье воскрешения', item_type='Зелья',func=health_potion_func, price=200, add=100,
+                           description='Полностью восстанавливает здоровье')
+
+
+# Реестр предметов
+ITEM_REGISTRY = {'Зелья':
+                     {'Малое зелье здоровья': health_potion_5,
+                      'Среднее зелье здоровья': health_potion_25,
+                      'Большое зелье здоровья': health_potion_50,
+                      'Зелье воскрешения': health_recovery,},
+                 'Предметы': {'Заморозка': freeze,
+                              'Лотерейный билет': lottery_ticket,}}
