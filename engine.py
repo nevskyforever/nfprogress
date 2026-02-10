@@ -1,4 +1,5 @@
 import pickle
+import random
 from datetime import datetime, timedelta, date
 import game
 
@@ -8,7 +9,7 @@ last_update = '09.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 13)
+    dt = date(2026, 2, 12)
     if dt is None:
         return datetime.today()
     else:
@@ -146,7 +147,14 @@ class Project:
     def get_today_goal_msg(self):
         value = self.get_today_goal_value()
         return f'Цель на сегодня: {self.total_symbols + value}'
-
+    def get_need_write_value(self):
+        total = self.get_total_symbols()
+        goal = self.get_goal()
+        need_write = goal - total
+        return need_write
+    def get_need_write_msg(self):
+        value = self.get_need_write_value()
+        return f'Осталось написать: {value}'
     def get_streak_status(self):
         today = today_for_test()
         yesterday = today - timedelta(days=1)
@@ -197,6 +205,33 @@ class Project:
     def set_new_notes(self, new_note):
         print(self.get_today_goal_msg())
         self.notes.append(new_note)
+class Notification:
+    def __init__(self, text, tag=None, date_create=None, status='New'):
+        self.text = text
+        if date_create is None:
+            now = datetime.now()
+            today = today_for_test()
+            self.date_create = datetime(
+                year=today.year,
+                month=today.month,
+                day=today.day,
+                hour=now.hour,
+                minute=now.minute
+            )
+        else:
+            self.date_create = date_create
+        self.status = status
+        self.tag = tag
+    def get_date_create(self):
+        return self.date_create.strftime('%H:%M %d.%m.%y')
+    def get_status(self):
+        return self.status
+    def set_status(self, status):
+        self.status = status
+    def get_text(self):
+        return self.text
+    def set_text(self, text):
+        self.text = text
 # === ЗАГРУЗКА И СОХРАНЕНИЕ ===
 
 def load_data():
@@ -204,7 +239,7 @@ def load_data():
         with open('data.pkl', 'rb') as f:
             return pickle.load(f)
     except (FileNotFoundError, EOFError):
-        return {'last': None, 'projects': []}
+        return {'last': None, 'projects': [], 'notifications': []}
 
 
 def save_data(data):
@@ -243,6 +278,7 @@ def choice_project():
 
 def create_project():
     data = load_data()
+    notifications = data.get('notifications', [])
     projects = data.get('projects', [])
     print('\n--- СОЗДАНИЕ ПРОЕКТА ---')
     new_project = Project()
@@ -254,6 +290,7 @@ def create_project():
 
         projects.append(new_project)
         data['projects'] = projects
+        notifications.append(Notification(f'СОЗДАН НОВЫЙ ПРОЕКТ - "{new_project.get_name()}"', tag='Изменения'))
         save_data(data)
         print('Проект создан.')
     except ValueError as e:
@@ -263,6 +300,7 @@ def create_project():
 def create_note(last=None):
     """Создание записи. Если передан last, выбор проекта пропускается."""
     data = load_data()
+    notifications = data.get('notifications', [])
     projects = data.get('projects', [])
 
     # ИСПРАВЛЕНИЕ: Сначала проверяем быструю запись!
@@ -283,6 +321,7 @@ def create_note(last=None):
     print(f'Проект: {project.get_name()}')
     print(f'Написано в проекте: {old_total}')
     print(project.get_added_symbols_today_msg())
+    print(project.get_need_write_msg())
     print(project.get_today_goal_msg())
 
     raw_val = input(f'Введите НОВОЕ ОБЩЕЕ число символов: ')
@@ -301,6 +340,8 @@ def create_note(last=None):
     new_note = Note(new_total, added)
     project.set_new_notes(new_note)
     project.set_total_symbols(new_total)
+    notifications.append(Notification(f'В проект {project.get_name()} добавлено {added} символов.'
+                                      f'\nОсталось написать: {project.get_need_write_value()}', tag='Изменения'))
     save_data(data)
 
     print(project.get_added_symbols_today_msg())
@@ -308,9 +349,13 @@ def create_note(last=None):
     streak_status = project.get_streak_status()
 
     if gamer is not None:
-        print(gamer.give_symbol_bonus(added))
+        msg = gamer.give_symbol_bonus(added)
+        print(msg)
+        notifications.append(Notification(msg, tag='Игра'))
         if streak_status:
-            print(gamer.give_streak_bonus(streak_status, new_total))
+            msg = gamer.give_streak_bonus(streak_status, new_total)
+            print(msg)
+            notifications.append(Notification(msg, tag='Стрики'))
     data['last'] = choice_idx
     save_data(data)
 
@@ -321,6 +366,7 @@ def change_project():
 
     data = load_data()
     project = data['projects'][idx]
+    notifications = data.get('notifications', [])
     status = project.get_status()
 
     print(f'\nРЕДАКТИРОВАНИЕ: {project.get_name()}')
@@ -339,21 +385,44 @@ def change_project():
 
     try:
         if cmd == '1':
-            print(project.set_name(input('Новое имя: ')))
+            old_name = project.get_name()
+            new_name = input('Новое имя: ')
+            print(project.set_name(new_name))
+            msg = f'Проект {old_name} переименован в {new_name}.'
+            notifications.append(Notification(msg, tag='Изменения'))
         elif cmd == '2':
             print(project.set_goal(input('Новая цель: ')))
         elif cmd == '3':
             val = int(input('Введите точное число символов: '))
             project.set_total_symbols(val)
+            msg = f'В проекте {project.get_name()} новая цель - {val} символов'
+            notifications.append(Notification(msg, tag='Изменения'))
             print('Сохранено.')
         elif cmd == '4':
-            print(project.set_deadline(input('Новый дедлайн (дд.мм.гг): ')))
+            new_deadline = input('Новый дедлайн (дд.мм.гг): ')
+            print(project.set_deadline(new_deadline))
+            msg = f'В проекте {project.get_name()} новый дедлайн - {new_deadline} символов'
+            notifications.append(Notification(msg, tag='Изменения'))
         elif cmd == '5' and status == 'активен':
             print(project.set_status('в архиве'))
+            msg = f'В проекте {project.get_name()} направлен в архив.'
+            notifications.append(Notification(msg, tag='Изменения'))
         elif cmd == '6' and status == 'в архиве':
             print(project.set_status('активен'))
+            msg = f'В проекте {project.get_name()} восстановлен из архива.'
+            notifications.append(Notification(msg, tag='Изменения'))
         elif cmd == '7':
-            data['projects'].remove(project)
+            code = random.randint(0, 1000)
+            ok = input(f'Подтвердите удаление. ВВедите {code}:')
+            while ok != code:
+                ok = input(f'КОД НЕПРАВИЛЬНЫЙ.'
+                           f'\nВВедите {code}:')
+                if ok == '':
+                    main_menu()
+            if ok == code:
+                msg = f'{project.get_name()} удален.'
+                data['projects'].remove(project)
+                notifications.append(Notification(msg, tag='Изменения'))
     except ValueError as e:
         print(f"Ошибка: {e}")
 
@@ -384,20 +453,57 @@ def view_project():
     input('\nНажмите Enter, чтобы вернуться в меню...')
 
 
+def notifications_view():
+    data = load_data()
+    notifications = data.get('notifications', [])
+    yesterday = today_for_test() - timedelta(days=1)
+    new_notifications = [n for n in notifications if n.status == 'New']
+    read_notifications = [n for n in notifications if n.status == 'Read' and n.date_create.date() >= yesterday]
+    print('\nНОВЫЕ УВЕДОМЛЕНИЯ\n')
+    if len(new_notifications) == 0:
+        print('Новых нет')
+    for n in new_notifications:
+        print(f'{n.get_date_create()}: {n.get_text()}')
+        n.set_status('Read')
+    print('\nПРОЧИТАННЫЕ УВЕДОМЛЕНИЯ\n')
+    if len(read_notifications) == 0:
+        print('Нет уведомлений')
+    for n in read_notifications:
+        if n.date_create.date() <= yesterday:
+            read_notifications.remove(n)
+        print(f'{n.get_date_create()}: {n.get_text()}')
+    cmd = input('\nВведите Enter для выхода')
+    if cmd == '':
+        save_data(data)
+        main_menu()
+
 def main_menu():
     """Отображение меню. Возвращает управление в бесконечный цикл."""
     data = load_data()
     projects = data.get('projects', [])
+    notifications = data.get('notifications', [])
+    new_notifications = []
+    if len(notifications) != 0:
+        new_notifications = [n for n in notifications if n.status == 'New']
+        new_notifications_cnt = len(new_notifications)
+    else:
+        new_notifications_cnt = 0
     last_idx = data.get('last')
 
     active_count = len([p for p in projects if p.get_status() == 'активен'])
 
-    print('\nnfprogress')
+    print(f'\nnfprogress {version}')
     print(f'Сегодня {today_for_test().strftime("%d.%m.%y")}')
+    if len(new_notifications) < 0:
+        print(f'\nПоследнее уведомление: {new_notifications[-1]}\n')
     print('1 - Сделать запись')
     print('2 - Создать проект')
     print(f'3 - Проекты (активных: {active_count})')
     print('4 - Настройки проекта')
+    if new_notifications_cnt > 0:
+        print(f'5 - Уведомления ({new_notifications_cnt} новых)')
+    else:
+        print('5 - Уведомления')
 
     if game.load_game():
         hero = game.load_game()
@@ -410,7 +516,7 @@ def main_menu():
         last_name = projects[last_idx].get_name()
         print(f'Enter - Быстрая запись в "{last_name}"')
 
-    choice = input('Ваш выбор: ')
+    choice = input('\nВаш выбор: ')
 
     # Логика меню
     if choice == '' and last_idx is not None:
@@ -425,6 +531,8 @@ def main_menu():
         change_project()
     elif choice == '0':
         game.menu()
+    elif choice == '5':
+        notifications_view()
 
 
 # ГЛАВНЫЙ БЛОК ЗАПУСКА
