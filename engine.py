@@ -8,7 +8,7 @@ last_update = '09.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 12)
+    dt = date(2026, 2, 13)
     if dt is None:
         return datetime.today()
     else:
@@ -145,7 +145,7 @@ class Project:
 
     def get_today_goal_msg(self):
         value = self.get_today_goal_value()
-        return f'Цель на сегодня: {value}'
+        return f'Цель на сегодня: {self.total_symbols + value}'
 
     def get_streak_status(self):
         today = today_for_test()
