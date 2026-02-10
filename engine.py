@@ -4,12 +4,12 @@ from datetime import datetime, timedelta, date
 import game
 
 version = '2.0'
-last_update = '09.02.26'
+last_update = '11.02.26'
 
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 12)
+    dt = date(2026, 2, 11)
     if dt is None:
         return datetime.today()
     else:
@@ -492,8 +492,8 @@ def main_menu():
 
     active_count = len([p for p in projects if p.get_status() == 'активен'])
 
-    print(f'\nnfprogress {version}')
-    print(f'Сегодня {today_for_test().strftime("%d.%m.%y")}')
+    print(f'\nnfprogress {version}\n')
+    print(f'Сегодня {today_for_test().strftime("%d.%m.%y")}\n')
     if len(new_notifications) < 0:
         print(f'\nПоследнее уведомление: {new_notifications[-1]}\n')
     print('1 - Сделать запись')

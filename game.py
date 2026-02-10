@@ -1,9 +1,12 @@
 import pickle
 from datetime import timedelta
-from random import randint
+from random import randint, choice
 from os import remove
+from unicodedata import category
+
 import engine
 import game_data
+from engine import main_menu
 from game_data import Deposit, cf_coins
 
 
@@ -55,6 +58,10 @@ class Gamer:
         self.save()
         return (f'Получено {coins * coins_cf} монет'
                 f'\nПолучено {exps} опыта')
+    def get_items(self):
+        return self.items
+    def set_items(self, items):
+        self.items = items
     def remove_coins(self, removed):
         self.coins -= removed
     def get_coins(self):
@@ -201,11 +208,97 @@ def update_gamer():
 # === ФУНКЦИИ МЕНЮ ===
 
 def shop():
-    pass
+    """Магазин"""
+    gamer = load_game()
+    registry = game_data.ITEM_REGISTRY
+
+    print('\n--- МАГАЗИН ---')
+    print(f'Ваш баланс: {gamer.get_coins()} монет')
+
+    # 1. Список категорий
+    categories = list(registry.keys())
+    for i, cat in enumerate(categories):
+        print(f'{i + 1}. {cat}')
+
+    try:
+        cat_idx = int(input('Выберите категорию (номер): ')) - 1
+        if not (0 <= cat_idx < len(categories)):
+            return print("Неверная категория")
+
+        selected_cat_name = categories[cat_idx]  # Например "Зелья"
+        items_in_cat = registry[selected_cat_name]  # Словарь предметов
+        item_names_list = list(items_in_cat.keys())
+
+        # 2. Список предметов
+        print(f'\n--- {selected_cat_name} ---')
+        for i, name in enumerate(item_names_list):
+            item_obj = items_in_cat[name]
+            print(f'{i + 1}. {name} — {item_obj.price} монет')
+
+        item_idx = int(input('Купить предмет (номер): ')) - 1
+        if 0 <= item_idx < len(item_names_list):
+            name_to_buy = item_names_list[item_idx]
+            # Вызываем метод buy() у самого объекта
+            result = items_in_cat[name_to_buy].buy()
+            print(result)
+            menu()
+        else:
+            print("Неверный номер предмета")
+            menu()
+
+    except ValueError:
+        print("Нужно вводить цифры!")
 
 
 def inventory():
-    pass
+    """Инвентарь"""
+    gamer = load_game()
+    # Получаем словарь {Категория: {Имя: Кол-во}}
+    saved_items = gamer.get_items()
+    registry = game_data.ITEM_REGISTRY
+
+    print('\n--- ВАШ ИНВЕНТАРЬ ---')
+
+    # Собираем доступные предметы в плоский список для удобного выбора
+    available_items = []
+
+    counter = 1
+    for cat, items_dict in saved_items.items():
+        for name, count in items_dict.items():
+            if count > 0:
+                print(f'{counter}. {name} (x{count})')
+                # Запоминаем ссылку на объект из REGISTRY, чтобы потом вызвать use()
+                # Проверяем, существует ли такой предмет в базе данных игры
+                if cat in registry and name in registry[cat]:
+                    real_object = registry[cat][name]
+                    available_items.append(real_object)
+                else:
+                    available_items.append(None)  # Заглушка, если предмет удален из базы
+                counter += 1
+
+    if not available_items:
+        print("Пусто.")
+        return
+
+    try:
+        choice = int(input('\nИспользовать предмет (номер) или 0 для выхода: ')) - 1
+        if choice == -1: return
+
+        if 0 <= choice < len(available_items):
+            obj = available_items[choice]
+            if obj and hasattr(obj, 'use'):
+                print(obj.use()) # Используем
+            elif obj:
+                print(obj.about())  # Просто читаем описание
+            else:
+                print("Ошибка: предмет есть в сохранении, но удален из кода игры.")
+        else:
+            print("Неверный номер.")
+
+
+    except ValueError:
+        print("Вводите только цифры.")
+    menu()
 
 
 def bank():
@@ -299,6 +392,28 @@ def disable_mode():
     else:
         menu()
 
+def gamer_editor():
+    gamer = load_game()
+    print('\nРЕДАКТОР ПЕРСОНАЖА\n')
+    print('1 - Монеты')
+    print('2 - Опыт')
+    print("3 - Здоровье")
+    cmd = input('Выберите параметр: ')
+    if cmd == '1':
+        val = int(input('Введите кол-во монет: '))
+        gamer.coins = val
+        gamer.save()
+    if cmd == '2':
+        val = int(input('Введите кол-во опыта: '))
+        gamer.exp = val
+        gamer.save()
+    if cmd == '3':
+        val = int(input('Введите уровень: '))
+        gamer.level = val
+        gamer.save()
+    print('Параметр изменен')
+    menu()
+
 
 def menu():
     gamer = load_game()
@@ -321,8 +436,8 @@ def menu():
     print('1 - Инфо - в разработке')
     print('2 - Редактор - в разработке')
     print('3 - Характеристики - в разработке')
-    print('4 - Инвентарь - в разработке')
-    print('5 - Магазин - в разработке')
+    print('4 - Инвентарь')
+    print('5 - Магазин')
     if credit and deposit is None:
         credit_status = credit.get_status()
         print(f'6 - Банк (Есть кредит - {credit_status})')
@@ -339,7 +454,7 @@ def menu():
     print('Enter - Выход')
 
     cmd = input('Выбор: ')
-    actions = {'6': bank}
+    actions = {'2': gamer_editor, '4': inventory, '5': shop,'6': bank}
 
     if cmd in actions:
         actions[cmd]()
