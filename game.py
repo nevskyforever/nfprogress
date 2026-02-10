@@ -398,6 +398,7 @@ def gamer_editor():
     print('1 - Монеты')
     print('2 - Опыт')
     print("3 - Здоровье")
+    print('4 - Уровень')
     cmd = input('Выберите параметр: ')
     if cmd == '1':
         val = int(input('Введите кол-во монет: '))
@@ -408,6 +409,10 @@ def gamer_editor():
         gamer.exp = val
         gamer.save()
     if cmd == '3':
+        val = int(input('Введите здоровье: '))
+        gamer.health = val
+        gamer.save()
+    if cmd == '4':
         val = int(input('Введите уровень: '))
         gamer.level = val
         gamer.save()

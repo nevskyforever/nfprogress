@@ -412,15 +412,16 @@ def change_project():
             msg = f'В проекте {project.get_name()} восстановлен из архива.'
             notifications.append(Notification(msg, tag='Изменения'))
         elif cmd == '7':
-            code = random.randint(0, 1000)
-            ok = input(f'Подтвердите удаление. ВВедите {code}:')
-            while ok != code:
+            code = random.randint(1000, 9999)
+            ok = input(f'Подтвердите удаление. Введите {code}:')
+            while int(ok) != code:
                 ok = input(f'КОД НЕПРАВИЛЬНЫЙ.'
                            f'\nВВедите {code}:')
                 if ok == '':
                     main_menu()
-            if ok == code:
+            if int(ok) == code:
                 msg = f'{project.get_name()} удален.'
+                print(msg)
                 data['projects'].remove(project)
                 notifications.append(Notification(msg, tag='Изменения'))
     except ValueError as e:
