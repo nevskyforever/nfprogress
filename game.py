@@ -212,7 +212,7 @@ def shop():
     gamer = load_game()
     registry = game_data.ITEM_REGISTRY
 
-    print('\n--- МАГАЗИН ---')
+    print('\n--- 🛒МАГАЗИН ---')
     print(f'Ваш баланс: {gamer.get_coins()} монет')
 
     # 1. Список категорий
@@ -223,7 +223,7 @@ def shop():
     try:
         cat_idx = int(input('Выберите категорию (номер): ')) - 1
         if not (0 <= cat_idx < len(categories)):
-            return print("Неверная категория")
+            return print("⛔️Неверная категория")
 
         selected_cat_name = categories[cat_idx]  # Например "Зелья"
         items_in_cat = registry[selected_cat_name]  # Словарь предметов
@@ -235,7 +235,7 @@ def shop():
             item_obj = items_in_cat[name]
             print(f'{i + 1}. {name} — {item_obj.price} монет')
 
-        item_idx = int(input('Купить предмет (номер): ')) - 1
+        item_idx = int(input('🛒Купить предмет (номер): ')) - 1
         if 0 <= item_idx < len(item_names_list):
             name_to_buy = item_names_list[item_idx]
             # Вызываем метод buy() у самого объекта
@@ -243,11 +243,11 @@ def shop():
             print(result)
             menu()
         else:
-            print("Неверный номер предмета")
+            print("⛔️Неверный номер предмета")
             menu()
 
     except ValueError:
-        print("Нужно вводить цифры!")
+        print("⛔️Нужно вводить цифры!")
 
 
 def inventory():
@@ -257,7 +257,7 @@ def inventory():
     saved_items = gamer.get_items()
     registry = game_data.ITEM_REGISTRY
 
-    print('\n--- ВАШ ИНВЕНТАРЬ ---')
+    print('\n--- 🎒ВАШ ИНВЕНТАРЬ ---')
 
     # Собираем доступные предметы в плоский список для удобного выбора
     available_items = []
@@ -291,13 +291,13 @@ def inventory():
             elif obj:
                 print(obj.about())  # Просто читаем описание
             else:
-                print("Ошибка: предмет есть в сохранении, но удален из кода игры.")
+                print("⛔️Ошибка: предмет есть в сохранении, но удален из кода игры.")
         else:
-            print("Неверный номер.")
+            print("⛔️Неверный номер.")
 
 
     except ValueError:
-        print("Вводите только цифры.")
+        print("⛔️Вводите только цифры.")
     menu()
 
 
@@ -306,8 +306,8 @@ def bank():
     bank_account = gamer.bank_account
     deposit = bank_account.get_deposit()
     credit = bank_account.get_credit()
-    print('\nБАНК\n')
-    print(f'Ваш баланс: {gamer.get_coins()}')
+    print('\n🏦БАНК\n')
+    print(f'🪙Ваш баланс: {gamer.get_coins()}')
     if credit:
         credit_sum = credit.get_sum()
         credit_status = credit.get_status()
@@ -340,39 +340,39 @@ def bank():
         menu()
     elif do == 'd':
         cf_coins = gamer.cf['coins']
-        print('\nВНЕСЕНИЕ ДЕПОЗИТА\n')
+        print('\n💰ВНЕСЕНИЕ ДЕПОЗИТА\n')
         print(f'Депозит позволяет заработать {1 * cf_coins}% в день от суммы вклада'
               f'\nДепозит можно снять не раньше даты, которую вы выбрали.')
         # Получаем параметки вклада
-        sumd = int(input('Введите сумму вклада: '))
-        days = int(input('Введите срок влада (кол-во дней): '))
+        sumd = int(input('🪙Введите сумму вклада: '))
+        days = int(input('📅Введите срок влада (кол-во дней): '))
         # Создаем вклад
         deposit = game_data.Deposit(sumd, days)
         # Добавляем вклад в аккаунт
         bank_account.set_deposit(deposit)
         gamer.save()
-        print('ДЕПОЗИТ ВНЕСЕН')
+        print('✅ДЕПОЗИТ ВНЕСЕН')
         menu()
     elif do == 'rd':
         print(bank_account.return_deposit())
         menu()
     elif do == 'c':
         cf_coins = gamer.cf['coins']
-        print('\nВЗЯТИЕ КРЕДИТА\n')
+        print('\n💸ВЗЯТИЕ КРЕДИТА\n')
         print(f'Кредит позволяет одолжить деньги у банка'
               f'\nКредит стоит {1 * cf_coins}% в день от суммы'
               f'\nКредит можно погасить в любой момент'
               f'\nПросрочка по кредиту нанесет вам урон в 5 ед. за день и удвоит проценты')
         # Получаем параметки вклада
-        sumc = int(input('Введите сумму кредита: '))
-        days = int(input('Введите срок кредита (кол-во дней): '))
+        sumc = int(input('🪙Введите сумму кредита: '))
+        days = int(input('📅Введите срок кредита (кол-во дней): '))
         # Создаем вклад
         credit = game_data.Credit(sumc, days)
         # Добавляем вклад в аккаунт
         bank_account.set_credit(credit)
         gamer.set_coins(sumc)
         gamer.save()
-        print('КРЕДИТ ЗАЧИСЛЕН')
+        print('✅КРЕДИТ ЗАЧИСЛЕН')
         menu()
     elif do == 'rc':
         print(bank_account.return_credit())
@@ -382,10 +382,10 @@ def bank():
 
 def disable_mode():
     key = randint(1000, 9999)
-    if input(f'Введите {key} для удаления режима: ') == str(key):
+    if input(f'🔐Введите {key} для удаления режима: ') == str(key):
         try:
             remove('game_mode.pkl')
-            print('Режим удален.')
+            print('✅Режим удален.')
         except:
             pass
         engine.main_menu()
@@ -394,37 +394,37 @@ def disable_mode():
 
 def gamer_editor():
     gamer = load_game()
-    print('\nРЕДАКТОР ПЕРСОНАЖА\n')
-    print('1 - Монеты')
-    print('2 - Опыт')
-    print("3 - Здоровье")
-    print('4 - Уровень')
+    print('\n⚙️РЕДАКТОР ПЕРСОНАЖА\n')
+    print('1 - 🪙Монеты')
+    print('2 - ⭐️Опыт')
+    print("3 - ❤️Здоровье")
+    print('4 - ⬆️Уровень')
     cmd = input('Выберите параметр: ')
     if cmd == '1':
-        val = int(input('Введите кол-во монет: '))
+        val = int(input('🪙Введите кол-во монет: '))
         gamer.coins = val
         gamer.save()
     if cmd == '2':
-        val = int(input('Введите кол-во опыта: '))
+        val = int(input('⭐️Введите кол-во опыта: '))
         gamer.exp = val
         gamer.save()
     if cmd == '3':
-        val = int(input('Введите здоровье: '))
+        val = int(input('❤️Введите здоровье: '))
         gamer.health = val
         gamer.save()
     if cmd == '4':
-        val = int(input('Введите уровень: '))
+        val = int(input('⬆️Введите уровень: '))
         gamer.level = val
         gamer.save()
-    print('Параметр изменен')
+    print('✅Параметр изменен')
     menu()
 
 
 def menu():
     gamer = load_game()
     if gamer is None:
-        print('\nИГРОВОЙ РЕЖИМ ОТКЛЮЧЕН')
-        if input('1 - Включить, Enter - Назад: ') == '1':
+        print('\n🙃ИГРОВОЙ РЕЖИМ ОТКЛЮЧЕН')
+        if input('1 - ✅Включить, Enter - ↩️Назад: ') == '1':
             Gamer().save()
             menu()
         else:
@@ -437,25 +437,25 @@ def menu():
     deposit = gamer.bank_account.get_deposit()
 
     print(
-        f'\n--- ГЕРОЙ: Ур.{gamer.level} | Опыт {int(gamer.exp)}/{game_data.levels[gamer.level]} | ❤️ {int(gamer.health)} | 💰 {int(gamer.coins)}')
+        f'\n--- ⚔️ГЕРОЙ: Ур.{gamer.level} | ⭐️Опыт {int(gamer.exp)}/{game_data.levels[gamer.level]} | ❤️ {int(gamer.health)} | 💰 {int(gamer.coins)}')
 
-    print('2 - Редактор')
-    print('3 - Характеристики - в разработке')
-    print('4 - Инвентарь')
-    print('5 - Магазин')
-    print('? - Инфо - в разработке')
+    print('2 - ⚙️Редактор персонажа')
+    # print('3 - Характеристики')
+    print('4 -🎒Инвентарь')
+    print('5 - 🛒Магазин')
+    # print('? - Инфо - в разработке')
     if credit and deposit is None:
         credit_status = credit.get_status()
-        print(f'6 - Банк (Есть кредит - {credit_status})')
+        print(f'6 - 🏦Банк (Есть кредит - {credit_status})')
     elif deposit and credit is None:
         deposit_status = deposit.get_status()
-        print(f'6 - Банк (Есть депозит - {deposit_status})')
+        print(f'6 - 🏦Банк (Есть депозит - {deposit_status})')
     elif deposit and credit:
         deposit_status = deposit.get_status()
         credit_status = credit.get_status()
-        print(f'6 - Банк (Есть депозит - {deposit_status} и кредит - {credit_status})')
+        print(f'6 - 🏦Банк (Есть депозит - {deposit_status} и кредит - {credit_status})')
     else:
-        print('6 - Банк')
+        print('6 - 🏦Банк')
     print('8 - Удалить режим')
     print('Enter - Выход')
 
