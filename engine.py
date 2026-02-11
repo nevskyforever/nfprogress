@@ -3,7 +3,7 @@ import random
 from datetime import datetime, timedelta, date
 import game
 
-version = '2.0.3.1'
+version = '2.0.4'
 last_update = '11.02.26'
 
 
@@ -92,7 +92,7 @@ class Project:
 
     def get_added_symbols_today_value(self):
         today = today_for_test()
-        today_added = [i.get_added() for i in self.notes if i.get_date_create() == today]
+        today_added = [i.get_added_symbols() for i in self.notes if i.get_date_create() == today]
         return sum(today_added) if today_added else 0
 
     def get_added_symbols_today_msg(self):
@@ -174,9 +174,7 @@ class Project:
                       f'\nВы начали новый стрик!')
 
     def get_progress(self):
-        if self.progress == 0:
-            self.progress = self.total_symbols / self.goal  * 100
-            return self.progress
+        self.progress = self.total_symbols / self.goal * 100
         return self.progress
 
     def set_new_notes(self, new_note):
@@ -184,9 +182,10 @@ class Project:
         self.notes.append(new_note)
 class Note:
     new_total = 0
-    added = 0
+    added_symbols = 0
+    added_progress = 0
     date_create = None
-    def __init__(self, new_total, added, date_create=None):
+    def __init__(self, new_total, added_symbols, added_progress, date_create=None):
         if date_create is None:
             now = datetime.now()
             today = today_for_test()
@@ -201,13 +200,16 @@ class Note:
             self.date_create = date_create
 
         self.new_total = new_total
-        self.added = added
+        self.added_symbols = added_symbols
+        self.added_progress = added_progress
 
     def get_new_total(self):
         return self.new_total
 
-    def get_added(self):
-        return self.added
+    def get_added_symbols(self):
+        return self.added_symbols
+    def get_added_progress(self):
+        return self.added_progress
 
     def get_date_create(self):
         return self.date_create.date()
@@ -322,13 +324,15 @@ def create_note(last=None):
 
     project = projects[choice_idx]
     old_total = project.get_total_symbols()
+    old_progress = project.get_progress()
     gamer = game.load_game()
 
     print(f'Проект: {project.get_name()}')
     print(f'Написано в проекте: {old_total}')
     print(project.get_added_symbols_today_msg())
     print(project.get_need_write_msg())
-    print(project.get_today_goal_msg())
+    if project.get_deadline() != 'Нет':
+        print(project.get_today_goal_msg())
 
     raw_val = input(f'Введите НОВОЕ ОБЩЕЕ число символов: ')
     if not raw_val:
@@ -340,14 +344,17 @@ def create_note(last=None):
         print("Ошибка: введите число.")
         return
 
-    added = new_total - old_total
-    if added < 0: added = 0
-
-    new_note = Note(new_total, added)
-    project.set_new_notes(new_note)
+    added_symbols = new_total - old_total
+    if added_symbols < 0: added_symbols = 0
     project.set_total_symbols(new_total)
-    notifications.append(Notification(f'В проект {project.get_name()} добавлено {added} символов.'
-                                      f'\nОсталось написать: {project.get_need_write_value()}', tag='Изменения'))
+    new_progress = project.get_progress()
+    added_progress = new_progress - old_progress
+    new_note = Note(new_total, added_symbols, added_progress)
+    project.set_new_notes(new_note)
+    note_msg = (f'В проект {project.get_name()} добавлено {added_symbols} символов и {added_progress}%.'
+            f'\nОсталось написать: {project.get_need_write_value()}')
+    notifications.append(Notification(note_msg, tag='Изменения'))
+    print(note_msg)
     save_data(data)
 
     print(project.get_added_symbols_today_msg())
@@ -355,7 +362,7 @@ def create_note(last=None):
     streak_status = project.get_streak_status()
 
     if gamer is not None:
-        msg = gamer.give_symbol_bonus(added)
+        msg = gamer.give_symbol_bonus(added_symbols)
         print(msg)
         notifications.append(Notification(msg, tag='Игра'))
         if streak_status:
@@ -449,13 +456,13 @@ def view_project():
     else:
         for p in active:
             dl = p.get_deadline_str()
-            print(f"{p.get_name()}: прогресс - {p.get_progress()} цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов | Дедлайн: {dl}")
+            print(f"{p.get_name()}: прогресс - {p.get_progress()}% цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов | Дедлайн: {dl}")
 
     if archived:
         if input('\nПоказать архив? (введите "a"): ') == 'a':
             print('\n--- АРХИВ ---')
             for p in archived:
-                print(f"{p.get_name()}: прогресс - {p.get_progress()} цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов | Дедлайн: {dl}")
+                print(f"{p.get_name()}: прогресс - {p.get_progress()}% цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов | Дедлайн: {dl}")
 
     input('\nНажмите Enter, чтобы вернуться в меню.')
     save_data(data)
