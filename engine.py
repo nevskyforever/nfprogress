@@ -73,12 +73,12 @@ class Project:
     def set_status(self, status):
         self.status = status
         if status == 'активен':
-            return 'Проект снова активен.'
+            return '✅Проект снова активен.'
         elif status == 'в архиве':
             self.deadline = 'Нет'
-            return 'Проект архивирован. Дедлайн сброшен.'
+            return '🗄️Проект архивирован. Дедлайн сброшен.'
         elif status == 'завершен':
-            return 'Проект завершен, поздравляем!'
+            return '🎉Проект завершен, поздравляем!'
         return None
 
     def get_status(self):
@@ -96,7 +96,7 @@ class Project:
         return sum(today_added) if today_added else 0
 
     def get_added_symbols_today_msg(self):
-        return f'Написано сегодня: {self.get_added_symbols_today_value()}'
+        return f'📝Написано сегодня: {self.get_added_symbols_today_value()}'
 
     def get_today_goal_value(self):
         if self.deadline == 'Нет':
@@ -323,6 +323,10 @@ def create_note(last=None):
         return
 
     project = projects[choice_idx]
+    project_name = project.get_name()
+    if len(project_name.split()) >= 4:
+        project_name = [i[0].upper() for i in project_name.split()]
+        project_name = ''.join(project_name)
     old_total = project.get_total_symbols()
     old_progress = project.get_progress()
     gamer = game.load_game()
@@ -351,8 +355,9 @@ def create_note(last=None):
     added_progress = new_progress - old_progress
     new_note = Note(new_total, added_symbols, added_progress)
     project.set_new_notes(new_note)
-    note_msg = (f'✅В проект {project.get_name()} добавлено {added_symbols} символов и {added_progress}%.'
+    note_msg = (f'✅В проект {project_name} добавлено {added_symbols} символов и {added_progress}%.'
             f'\nОсталось написать: {project.get_need_write_value()}')
+    note_msg = f'{project_name} - {note_msg}'
     notifications.append(Notification(note_msg, tag='Изменения'))
     print(note_msg)
     save_data(data)
@@ -363,10 +368,12 @@ def create_note(last=None):
 
     if gamer is not None:
         msg = gamer.give_symbol_bonus(added_symbols)
+        msg = f'{project_name} - {msg}'
         print(msg)
         notifications.append(Notification(msg, tag='Игра'))
         if streak_status:
             msg = gamer.give_streak_bonus(streak_status, new_total)
+            msg = f'{project_name} - {msg}'
             print(msg)
             notifications.append(Notification(msg, tag='Стрики'))
     data['last'] = choice_idx
@@ -522,7 +529,7 @@ def main_menu():
 
     if game.load_game():
         hero = game.load_game()
-        print(f'0 - ⚔️ Герой (Lvl {hero.level})')
+        print(f'0 - ⚔️ Герой (Lvl {hero.level}|❤️{hero.health})')
     else:
         print('0 - 🎮 Включить RPG режим')
 
