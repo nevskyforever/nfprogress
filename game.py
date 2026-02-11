@@ -438,11 +438,12 @@ def menu():
 
     print(
         f'\n--- ГЕРОЙ: Ур.{gamer.level} | Опыт {int(gamer.exp)}/{game_data.levels[gamer.level]} | ❤️ {int(gamer.health)} | 💰 {int(gamer.coins)}')
-    print('1 - Инфо - в разработке')
-    print('2 - Редактор - в разработке')
+
+    print('2 - Редактор')
     print('3 - Характеристики - в разработке')
     print('4 - Инвентарь')
     print('5 - Магазин')
+    print('? - Инфо - в разработке')
     if credit and deposit is None:
         credit_status = credit.get_status()
         print(f'6 - Банк (Есть кредит - {credit_status})')
