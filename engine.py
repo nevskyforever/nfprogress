@@ -15,35 +15,6 @@ def today_for_test():
     else:
         return dt
 
-class Note:
-    new_total = 0
-    added = 0
-    date_create = None
-    def __init__(self, new_total, added, date_create=None):
-        if date_create is None:
-            now = datetime.now()
-            today = today_for_test()
-            self.date_create = datetime(
-                year=today.year,
-                month=today.month,
-                day=today.day,
-                hour=now.hour,
-                minute=now.minute
-            )
-        else:
-            self.date_create = date_create
-
-        self.new_total = new_total
-        self.added = added
-
-    def get_new_total(self):
-        return self.new_total
-
-    def get_added(self):
-        return self.added
-
-    def get_date_create(self):
-        return self.date_create.date()
 class Project:
     def __init__(self, name='Без имени', goal=None,
                  create_date=None, total_symbols=0, progress=0,
@@ -202,9 +173,44 @@ class Project:
                 print(f'Стрик потерян! Вы были в цели {status[1]} дней подряд.'
                       f'\nВы начали новый стрик!')
 
+    def get_progress(self):
+        if self.progress == 0:
+            self.progress = self.goal / self.total_symbols * 100
+            return self.progress
+        return self.progress
+
     def set_new_notes(self, new_note):
         print(self.get_today_goal_msg())
         self.notes.append(new_note)
+class Note:
+    new_total = 0
+    added = 0
+    date_create = None
+    def __init__(self, new_total, added, date_create=None):
+        if date_create is None:
+            now = datetime.now()
+            today = today_for_test()
+            self.date_create = datetime(
+                year=today.year,
+                month=today.month,
+                day=today.day,
+                hour=now.hour,
+                minute=now.minute
+            )
+        else:
+            self.date_create = date_create
+
+        self.new_total = new_total
+        self.added = added
+
+    def get_new_total(self):
+        return self.new_total
+
+    def get_added(self):
+        return self.added
+
+    def get_date_create(self):
+        return self.date_create.date()
 class Notification:
     def __init__(self, text, tag=None, date_create=None, status='New'):
         self.text = text
@@ -443,15 +449,16 @@ def view_project():
     else:
         for p in active:
             dl = p.get_deadline_str()
-            print(f"{p.get_name()}: Цель/написано - {p.get_total_symbols()}/{p.get_goal()} | Дедлайн: {dl}")
+            print(f"{p.get_name()}: прогресс - {p.get_progress()} цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов | Дедлайн: {dl}")
 
     if archived:
         if input('\nПоказать архив? (введите "a"): ') == 'a':
             print('\n--- АРХИВ ---')
             for p in archived:
-                print(f"{p.get_name()}: {p.get_total_symbols()}/{p.get_goal()}")
+                print(f"{p.get_name()}: прогресс - {p.get_progress()} цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов | Дедлайн: {dl}")
 
-    input('\nНажмите Enter, чтобы вернуться в меню...')
+    input('\nНажмите Enter, чтобы вернуться в меню.')
+    save_data(data)
 
 
 def notifications_view():
@@ -515,7 +522,11 @@ def main_menu():
     # Подсказка для быстрой записи
     if last_idx is not None and last_idx < len(projects):
         last_name = projects[last_idx].get_name()
-        print(f'Enter - Быстрая запись в "{last_name}"')
+        if len(last_name.split()) >= 4:
+            last_name = [i[0].upper() for i in last_name.split()]
+            last_name = ''.join(last_name)
+        last_name_progress = projects[last_idx].get_progress()
+        print(f'Enter - Быстрая запись в "{last_name}" ({int(last_name_progress)}%)')
 
     choice = input('\nВаш выбор: ')
 
