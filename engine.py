@@ -3,7 +3,7 @@ import random
 from datetime import datetime, timedelta, date
 import game
 
-version = '2.0.2'
+version = '2.0.3.1'
 last_update = '11.02.26'
 
 
@@ -175,7 +175,7 @@ class Project:
 
     def get_progress(self):
         if self.progress == 0:
-            self.progress = self.goal / self.total_symbols * 100
+            self.progress = self.total_symbols / self.goal  * 100
             return self.progress
         return self.progress
 
