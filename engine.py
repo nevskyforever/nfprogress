@@ -3,7 +3,7 @@ import random
 from datetime import datetime, timedelta, date
 import game
 
-version = '2.0.5'
+version = '2.0.6'
 last_update = '11.02.26'
 
 
