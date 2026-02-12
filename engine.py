@@ -9,7 +9,7 @@ last_update = '11.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 3)
+    dt = date(2026, 2, 1)
     if dt is None:
         return datetime.today()
     else:
@@ -258,6 +258,73 @@ def save_data(data):
 
 # === МЕНЮ И ЛОГИКА ===
 
+def global_streak_status(data, local_streak_status=None, today=None):
+    """
+    Обновляет глобальный стрик и возвращает строковый статус.
+    Глобальный стрик стартует/продлевается, если локальный стрик в проекте: Start/Go/Done.
+    Потеря — аналогично локальному: если последний день стрика не вчера и не сегодня.
+    """
+    if today is None:
+        today = today_for_test()
+    yesterday = today - timedelta(days=1)
+
+    # Инициализация хранилища
+    streak = data.get('global_streaks')
+    if streak is None:
+        streak = []
+        data['global_streaks'] = streak
+
+    status = 'No'
+
+    # 1) Проверка потери (аналогично твоему локальному блоку)
+    if len(streak) > 0 and streak[-1] != yesterday and streak[-1] != today:
+        lose = len(streak)
+        data['global_streaks'] = []
+        streak = data['global_streaks']
+        status = f'Lose {lose}'
+
+    # 2) Продление/старт по факту "локальный стрик продлен/уже продлен/стартовал"
+    ok_statuses = {'Start', 'Go', 'Done'}
+    if local_streak_status in ok_statuses:
+        if len(streak) == 0:
+            streak.append(today)
+            status = 'Start'
+        elif streak[-1] == today:
+            status = 'Done'
+        elif streak[-1] == yesterday:
+            streak.append(today)
+            status = 'Go'
+        else:
+            # Если почему-то есть разрыв, но до потери не дошли — стартуем заново
+            # (обычно сюда не попадешь, т.к. потерю обработали выше)
+            streak.clear()
+            streak.append(today)
+            status = 'Start'
+
+    data['global_streak_status'] = status
+    return status
+
+
+def global_streak_status_msg(data, status=None):
+    """Сообщение для глобального стрика по статусу."""
+    if status is None:
+        status = data.get('global_streak_status', 'No')
+
+    streak = data.get('global_streaks', [])
+    if status == 'Start':
+        return '🔥Глобальный стрик начат!'
+    elif status == 'Go':
+        return f'🚀Глобальный стрик продлен! Дней подряд: {len(streak)}'
+    elif status == 'Done':
+        return '✌️Глобальный стрик сегодня уже продлен.'
+    elif isinstance(status, str) and status.startswith('Lose '):
+        # status вида "Lose 5"
+        parts = status.split()
+        if len(parts) == 2 and parts[1].isdigit():
+            return f'💔Глобальный стрик потерян! Было дней подряд: {parts[1]}'
+        return '💔Глобальный стрик потерян!'
+    return None
+
 def choice_project():
     """Выбор проекта из списка. Возвращает индекс или None."""
     data = load_data()
@@ -383,6 +450,12 @@ def create_note(last=None):
             print(msg)
             notifications.append(Notification(msg, tag='Стрики'))
     data['last'] = choice_idx
+    g_status = global_streak_status(data, local_streak_status=streak_status)
+    g_msg = global_streak_status_msg(data, g_status)
+    if g_msg:
+        print(g_msg)
+        notifications.append(Notification(g_msg, tag='Стрики'))
+
     save_data(data)
 
 def change_project():
