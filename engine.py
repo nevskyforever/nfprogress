@@ -3,7 +3,7 @@ import random
 from datetime import datetime, timedelta, date
 import game
 
-version = '2.0.6'
+version = '2.0.7'
 last_update = '11.02.26'
 
 
@@ -178,7 +178,6 @@ class Project:
         return self.progress
 
     def set_new_notes(self, new_note):
-        print(self.get_today_goal_msg())
         self.notes.append(new_note)
 class Note:
     new_total = 0
@@ -336,7 +335,10 @@ def create_note(last=None):
     print(project.get_added_symbols_today_msg())
     print(project.get_need_write_msg())
     if project.get_deadline() != 'Нет':
-        print(project.get_today_goal_msg())
+        streaks = data.get('streaks', [])
+        today = today_for_test()
+        if today in streaks:
+            print(project.get_today_goal_msg())
 
     raw_val = input(f'Введите НОВОЕ ОБЩЕЕ число символов: ')
     if not raw_val:
