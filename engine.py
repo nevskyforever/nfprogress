@@ -3,13 +3,13 @@ import random
 from datetime import datetime, timedelta, date
 import game
 
-version = '2.0.7'
+version = '2.0.7.1'
 last_update = '11.02.26'
 
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 10)
+    dt = date(2026, 2, 3)
     if dt is None:
         return datetime.today()
     else:
@@ -156,7 +156,9 @@ class Project:
 
         return status  # Возвращаем строку, а не список!
 
-    def get_streak_msg(self, status):
+    def get_streak_msg(self, status=None):
+        if status is None:
+            status = self.get_streak_status()
         if status == 'Start':
             return '🔥Стрик начат! Отличное начало, главное - продолжать!'
         elif status == 'Go':
@@ -335,9 +337,9 @@ def create_note(last=None):
     print(project.get_added_symbols_today_msg())
     print(project.get_need_write_msg())
     if project.get_deadline() != 'Нет':
-        streaks = data.get('streaks', [])
+        streaks = project.streaks
         today = today_for_test()
-        if today in streaks:
+        if today not in streaks:
             print(project.get_today_goal_msg())
 
     raw_val = input(f'Введите НОВОЕ ОБЩЕЕ число символов: ')
@@ -367,6 +369,8 @@ def create_note(last=None):
     print(project.get_added_symbols_today_msg())
 
     streak_status = project.get_streak_status()
+    if project.get_deadline() != 'Нет':
+        print(project.get_streak_msg())
 
     if gamer is not None:
         msg = gamer.give_symbol_bonus(added_symbols)
