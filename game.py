@@ -131,34 +131,43 @@ class Gamer:
     def check_loan_penalty(self):
         pass
 
-    def give_streak_bonus(self, status, total_symbols):
+    def give_streak_bonus(self, status, total_symbols, streak_type):
         # 1. Исправляем ошибку формата из engine.py (склеиваем буквы в слова)
         st = status.split()
 
         # 2. Берем коэффициент из текущего объекта (self)
         cf_coins = self.cf['coins']
-        msg = '👀Бонус за стрик ждет вас, просто выполните цель на день!'
+        msg = '👀Бонусы за стрики ждут вас, просто выполните цель на день!'
 
         # 3. Проверяем вхождение ключевых слов в строку статуса
         if 'Start' in st and 'Lose' not in st:
             bonus = 25 * cf_coins
             self.coins += bonus
-            msg = f'СТРИК НАЧАТ! Получено {bonus} монет.'
+            if streak_type == 'Local':
+                msg = f'Получен бонус {bonus} монет за старт стрика в проекте.'
+            else:
+                msg = f'Получен бонус {bonus} монет за старт глобального стрика.'
 
         elif 'Go' in st:
             bonus = 10 * cf_coins
             self.coins += bonus
-            msg = f'СТРИК ПРОДЛЕН! Получено {bonus} монет.'
+            if streak_type == 'Local':
+                msg = f'Получен бонус {bonus} монет за продление стрика в проекте.'
+            else:
+                msg = f'Получен бонус {bonus} монет за продление глобального стрика.'
 
         elif 'Done' in st:
-            msg = 'Бонус за стрик сегодня уже получен, но символы лишними не будут.'
+            if streak_type == 'Local':
+                msg = 'Бонус за продление стрика в проекте уже получен.'
+            else:
+                msg = 'Бонус за продление глобального стрика уже получен.'
 
         elif 'Complete' in st:
             bonus = 500 * cf_coins
             self.coins += bonus
-            msg = f'СТРИК ЗАВЕРШЕН! Вы получили награду: {bonus}!'
+            msg = f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН! Вы получили награду: {bonus}!'
 
-        elif 'Lose' in st:
+        elif 'Lose' in st and streak_type == 'Global':
             # Ищем число дней в статусе для расчета урона
             days = 1
             # Разбиваем строку по пробелам и ищем число
@@ -171,8 +180,8 @@ class Gamer:
 
             damage = days * 5
             self.damage(damage)
-            msg = (f'СТРИК ПОТЕРЯН'
-                   f'\nВы получили урон за потерю стрика: {damage}')
+            msg = (f'🥺СТРИК ПОТЕРЯН'
+                   f'\nВы получили урон за потерю глобального стрика: {damage}❤️')
 
             # Если потеряли стрик, но сразу начали новый (Lose ... Start)
             if 'Start' in st:

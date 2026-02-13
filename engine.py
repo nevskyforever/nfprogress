@@ -9,7 +9,7 @@ last_update = '11.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 3)
+    dt = date(2026, 2, 9)
     if dt is None:
         return datetime.today()
     else:
@@ -165,14 +165,15 @@ class Project:
 
     def get_streak_msg(self, status):
         if status == 'Start':
-            return '🔥Стрик начат! Отличное начало, главное - продолжать!'
+            return f'🔥Стрик в {self.get_name()} начат! Отличное начало, главное - продолжать!'
         elif status == 'Go':
             streaks = len(self.streaks)
-            return f'🚀Стрик продлен! Вы движетесь к цели уже {streaks} дней подряд!'
+            return f'🚀Стрик в {self.get_name()} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
         elif status == 'Done':
-            return f'✌️Стрик сегодня уже продлен, но символы лишними не будут'
+            return f'✌️Стрик в {self.get_name()} сегодня уже продлен, но символы лишними не будут'
         elif status == 'Complete':
-            pass
+            streaks = len(self.streaks)
+            return f'🎉СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
         elif status.split()[0] == 'Lose':
             status = status.split()
             if len(status) == 2:
@@ -452,16 +453,18 @@ def create_note(last=None):
         print(msg)
         notifications.append(Notification(msg, tag='Игра'))
         if streak_status:
-            msg = gamer.give_streak_bonus(streak_status, new_total)
+            msg = gamer.give_streak_bonus(streak_status, new_total, 'Local')
             msg = f'{project_name} - {msg}'
             print(msg)
             notifications.append(Notification(msg, tag='Стрики'))
     data['last'] = choice_idx
-    g_status = global_streak_status(data, local_streak_status=streak_status)
-    g_msg = global_streak_status_msg(data, g_status)
-    if g_msg:
-        print(g_msg)
-        notifications.append(Notification(g_msg, tag='Стрики'))
+    gs_status = global_streak_status(data, local_streak_status=streak_status)
+    gs_msg = global_streak_status_msg(data, gs_status)
+    if gs_msg:
+        print(gs_msg)
+        notifications.append(Notification(gs_msg, tag='Стрики'))
+        if gamer is not None:
+            print(gamer.give_streak_bonus(gs_status, 0, 'Global'))
 
     save_data(data)
 
