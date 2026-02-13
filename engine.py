@@ -3,13 +3,13 @@ import random
 from datetime import datetime, timedelta, date
 import game
 
-version = '2.0.7.1'
+version = '2.1'
 last_update = '11.02.26'
 
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 9)
+    dt = date(2026, 2, 10)
     if dt is None:
         return datetime.today()
     else:
@@ -604,9 +604,16 @@ def main_menu():
     active_count = len([p for p in projects if p.get_status() == 'активен'])
 
     print(f'\nnfprogress {version}\n')
-    print(f'☀️Сегодня {today_for_test().strftime("%d.%m.%y")}\n')
+    print(f'☀️Сегодня {today_for_test().strftime("%d.%m.%y")}')
+    if data['global_streaks'] != []:
+        streaks = len(data['global_streaks'])
+        print(f'\n🔥Пишете {streaks} д. подряд')
+        if data['global_streaks'][-1] != today_for_test():
+            print('🥺Глобальный стрик еще не продлен!')
+        else:
+            print('✅Глобальный стрик продлен')
     if len(new_notifications) > 0:
-        print(f'📌{new_notifications[-1].get_text()}\n')
+        print(f'\n📌{new_notifications[-1].get_text()}\n')
     print('1 - ✏️Сделать запись')
     print('2 - 📓Создать проект')
     print(f'3 - 📚Проекты (активных: {active_count})')
