@@ -294,8 +294,7 @@ def lottery_ticket_func(do, add=None):
         return f'\n{message}'
 
 
-def freeze_func(do, add=None):
-
+def freeze_local_func(do, add=None):
     if do == 'use':
         # 1. Выбираем проект
         data = engine.load_data()
@@ -321,10 +320,38 @@ def freeze_func(do, add=None):
     elif do == '?':
         return 'Заморозка позволяет засчитать день в стрике без написания кода.'
 
+def freeze_global_func(do, add=None):
+    if do == 'use':
+        # 1. Выбираем проект
+        data = engine.load_data()
+        gamer = game.load_game()
+        items = gamer.get_items()
+        streaks = data.get('global_streaks', [])
+        today = engine.today_for_test()
+        if len(streaks) > 0:
+            if today in streaks:
+                return 'Сейчас для глобального стрика заморозка не нужна'
+            else:
+                streaks.append(today)
+                items['Предметы']["Глобальная заморозка"] -= 1  # Уменьшаем кол-во
+                gamer.set_items(items)  # Обновляем данные в объекте игрока
+                engine.save_data(data)
+                gamer.save()
+                data['global_streak_status'] = 'Freeze'
+                engine.save_data(data)
+                return f'Глобальный стрик заморожен'
+        else:
+            return 'Глобальный стрик не начат'
+
+    elif do == '?':
+        return 'Заморозка позволяет засчитать день в стрике без написания кода.'
+
 # Инициализация объектов
 
-freeze = FuncItem('Заморозка', func=freeze_func, price=100, item_type='Предметы', level=3,
+freeze_local = FuncItem('Заморозка для проекта', func=freeze_local_func, price=100, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном')
+freeze_global = FuncItem('Глобальная заморозка', func=freeze_global_func, price=200, item_type='Предметы', level=3,)
+
 lottery_ticket = FuncItem("Лотерейный билет", price=10, item_type='Предметы', func=lottery_ticket_func,
                           description='Лотерейный билет позволяет выиграть от 100 до 10К монет')
 health_potion_5 = FuncItem('Малое зелье здоровья', item_type='Зелья', func=health_potion_func, price=10, add=5,
@@ -343,5 +370,6 @@ ITEM_REGISTRY = {'Зелья':
                       'Среднее зелье здоровья': health_potion_25,
                       'Большое зелье здоровья': health_potion_50,
                       'Зелье воскрешения': health_recovery,},
-                 'Предметы': {'Заморозка': freeze,
+                 'Предметы': {'Заморозка для проекта': freeze_local,
+                              'Глобальная заморозка': freeze_global,
                               'Лотерейный билет': lottery_ticket,}}

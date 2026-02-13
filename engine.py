@@ -9,7 +9,7 @@ last_update = '11.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 10)
+    dt = date(2026, 2, 11)
     if dt is None:
         return datetime.today()
     else:
@@ -73,12 +73,12 @@ class Project:
     def set_status(self, status):
         self.status = status
         if status == 'активен':
-            return '✅Проект снова активен.'
+            return '✅ Проект снова активен.'
         elif status == 'в архиве':
             self.deadline = 'Нет'
-            return '🗄️Проект архивирован. Дедлайн сброшен.'
+            return '🗄️ Проект архивирован. Дедлайн сброшен.'
         elif status == 'завершен':
-            return '🎉Проект завершен, поздравляем!'
+            return '🎉 Проект завершен, поздравляем!'
         return None
 
     def get_status(self):
@@ -96,7 +96,7 @@ class Project:
         return sum(today_added) if today_added else 0
 
     def get_added_symbols_today_msg(self):
-        return f'📝Написано сегодня: {self.get_added_symbols_today_value()}'
+        return f'📝 Написано сегодня: {self.get_added_symbols_today_value()}'
 
     def get_today_goal_value(self):
         if self.deadline == 'Нет':
@@ -117,7 +117,7 @@ class Project:
 
     def get_today_goal_msg(self):
         value = self.get_today_goal_value()
-        return f'🎯Цель на сегодня: {self.total_symbols + value}'
+        return f'🎯 Цель на сегодня: {self.total_symbols + value}'
     def get_need_write_value(self):
         total = self.get_total_symbols()
         goal = self.get_goal()
@@ -125,7 +125,7 @@ class Project:
         return need_write
     def get_need_write_msg(self):
         value = self.get_need_write_value()
-        return f'⚡️Осталось написать: {value}'
+        return f'⚡️ Осталось написать: {value}'
 
     def get_streak_status(self):
         today = today_for_test()
@@ -165,22 +165,22 @@ class Project:
 
     def get_streak_msg(self, status):
         if status == 'Start':
-            return f'🔥Стрик в {self.get_name()} начат! Отличное начало, главное - продолжать!'
+            return f'🔥 Стрик в {self.get_name()} начат! Отличное начало, главное - продолжать!'
         elif status == 'Go':
             streaks = len(self.streaks)
-            return f'🚀Стрик в {self.get_name()} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
+            return f'🚀 Стрик в {self.get_name()} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
         elif status == 'Done':
-            return f'✌️Стрик в {self.get_name()} сегодня уже продлен, но символы лишними не будут'
+            return f'✌️ Стрик в {self.get_name()} сегодня уже продлен, но символы лишними не будут'
         elif status == 'Complete':
             streaks = len(self.streaks)
-            return f'🎉СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
+            return f'🎉 СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
         elif status.split()[0] == 'Lose':
             status = status.split()
             if len(status) == 2:
-                return f'💔Стрик потерян! Вы были в цели {status[1]} дней подряд.'
+                return f'💔 Стрик потерян! Вы были в цели {status[1]} дней подряд.'
             elif len(status) == 3:
-                return (f'💔Стрик потерян! Вы были в цели {status[1]} дней подряд.'
-                      f'\n🔥Вы начали новый стрик!')
+                return (f'💔 Стрик потерян! Вы были в цели {status[1]} дней подряд.'
+                      f'\n🔥 Вы начали новый стрик!')
         return None
 
     def get_progress(self):
@@ -320,17 +320,17 @@ def global_streak_status_msg(data, status=None):
 
     streak = data.get('global_streaks', [])
     if status == 'Start':
-        return '🔥Глобальный стрик начат!'
+        return '🔥 Глобальный стрик начат!'
     elif status == 'Go':
-        return f'🚀Глобальный стрик продлен! Дней подряд: {len(streak)}'
+        return f'🚀 Глобальный стрик продлен! Дней подряд: {len(streak)}'
     elif status == 'Done':
-        return '✌️Глобальный стрик сегодня уже продлен.'
+        return '✌️ Глобальный стрик сегодня уже продлен.'
     elif isinstance(status, str) and status.startswith('Lose '):
         # status вида "Lose 5"
         parts = status.split()
         if len(parts) == 2 and parts[1].isdigit():
-            return f'💔Глобальный стрик потерян! Было дней подряд: {parts[1]}'
-        return '💔Глобальный стрик потерян!'
+            return f'💔 Глобальный стрик потерян! Было дней подряд: {parts[1]}'
+        return '💔 Глобальный стрик потерян!'
     return None
 
 def choice_project():
@@ -389,7 +389,7 @@ def create_note(last=None):
 
     # ИСПРАВЛЕНИЕ: Сначала проверяем быструю запись!
     if last is not None and last < len(projects):
-        print('\n--- ⚡️БЫСТРАЯ ЗАПИСЬ⚡️ ---')
+        print('\n--- ⚡️ БЫСТРАЯ ЗАПИСЬ ⚡️ ---')
         choice_idx = last
     else:
         choice_idx = choice_project()
@@ -407,8 +407,8 @@ def create_note(last=None):
     old_progress = project.get_progress()
     gamer = game.load_game()
 
-    print(f'📓Проект: {project.get_name()}')
-    print(f'✏️Написано в проекте: {old_total}')
+    print(f'📓 Проект: {project.get_name()}')
+    print(f'✏️ Написано в проекте: {old_total}')
     print(project.get_added_symbols_today_msg())
     print(project.get_need_write_msg())
     if project.get_deadline() != 'Нет':
@@ -424,7 +424,7 @@ def create_note(last=None):
     try:
         new_total = int(raw_val)
     except ValueError:
-        print("🙃Ошибка: введите число.")
+        print("🙃 Ошибка: введите число.")
         return
 
     added_symbols = new_total - old_total
@@ -434,7 +434,7 @@ def create_note(last=None):
     added_progress = new_progress - old_progress
     new_note = Note(new_total, added_symbols, added_progress)
     project.set_new_notes(new_note)
-    note_msg = (f'✅В проект {project_name} добавлено {added_symbols} символов и {added_progress}%.'
+    note_msg = (f'✅ В проект {project_name} добавлено {added_symbols} символов и {added_progress}%.'
             f'\nОсталось написать: {project.get_need_write_value()}')
     note_msg = f'{project_name} - {note_msg}'
     notifications.append(Notification(note_msg, tag='Изменения'))
@@ -478,17 +478,17 @@ def change_project():
     notifications = data.get('notifications', [])
     status = project.get_status()
 
-    print(f'\n⚙️РЕДАКТИРОВАНИЕ: {project.get_name()}')
-    print('1 - 📇Изменить имя')
-    print('2 - 🎯Изменить цель')
-    print('3 - 📝Изменить счетчик символов (без опыта)')
-    print('4 - 📅Изменить дедлайн')
-    print('7 - 🗑️Удалить проект')
+    print(f'\n⚙️ РЕДАКТИРОВАНИЕ: {project.get_name()}')
+    print('1 - 📇 Изменить имя')
+    print('2 - 🎯 Изменить цель')
+    print('3 - 📝 Изменить счетчик символов (без опыта)')
+    print('4 - 📅 Изменить дедлайн')
+    print('7 - 🗑️ Удалить проект')
 
     if status == 'активен':
-        print('5 - 🗄️В архив')
+        print('5 - 🗄️ В архив')
     elif status == 'в архиве':
-        print('6 - 🗃️Вернуть из архива')
+        print('6 - 🗃️ Вернуть из архива')
 
     cmd = input('Выбор (Enter - назад): ')
 
@@ -504,37 +504,37 @@ def change_project():
         elif cmd == '3':
             val = int(input('Введите точное число символов: '))
             project.set_total_symbols(val)
-            msg = f'🎯В проекте {project.get_name()} новая цель - {val} символов'
+            msg = f'🎯 В проекте {project.get_name()} новая цель - {val} символов'
             notifications.append(Notification(msg, tag='Изменения'))
-            print('✅Сохранено.')
+            print('✅ Сохранено.')
         elif cmd == '4':
-            new_deadline = input('📅Новый дедлайн (дд.мм.гг): ')
+            new_deadline = input('📅 Новый дедлайн (дд.мм.гг): ')
             print(project.set_deadline(new_deadline))
-            msg = f'📅В проекте {project.get_name()} новый дедлайн - {new_deadline}'
+            msg = f'📅 В проекте {project.get_name()} новый дедлайн - {new_deadline}'
             notifications.append(Notification(msg, tag='Изменения'))
         elif cmd == '5' and status == 'активен':
             print(project.set_status('в архиве'))
-            msg = f'🗄️Проект {project.get_name()} направлен в архив.'
+            msg = f'🗄️ Проект {project.get_name()} направлен в архив.'
             notifications.append(Notification(msg, tag='Изменения'))
         elif cmd == '6' and status == 'в архиве':
             print(project.set_status('активен'))
-            msg = f'🗃️Проекте {project.get_name()} восстановлен из архива.'
+            msg = f'🗃️ Проекте {project.get_name()} восстановлен из архива.'
             notifications.append(Notification(msg, tag='Изменения'))
         elif cmd == '7':
             code = random.randint(1000, 9999)
-            ok = input(f'🗑️Подтвердите удаление. Введите {code}:')
+            ok = input(f'🗑️ Подтвердите удаление. Введите {code}:')
             while int(ok) != code:
-                ok = input(f'⛔️КОД НЕПРАВИЛЬНЫЙ⛔️.'
+                ok = input(f'⛔️ КОД НЕПРАВИЛЬНЫЙ ⛔️.'
                            f'\nВВедите {code}:')
                 if ok == '':
                     main_menu()
             if int(ok) == code:
-                msg = f'✅{project.get_name()} удален.'
+                msg = f'✅ {project.get_name()} удален.'
                 print(msg)
                 data['projects'].remove(project)
                 notifications.append(Notification(msg, tag='Изменения'))
     except ValueError as e:
-        print(f"⛔️Ошибка: {e}")
+        print(f"⛔️ Ошибка: {e}")
 
     save_data(data)
 
@@ -546,7 +546,7 @@ def view_project():
     active = [p for p in projects if p.get_status() == 'активен']
     archived = [p for p in projects if p.get_status() == 'в архиве']
 
-    print('\n--- 📚ПРОСМОТР ПРОЕКТОВ ---')
+    print('\n--- 📚 ПРОСМОТР ПРОЕКТОВ ---')
     if not active:
         print('Активных проектов нет.')
     else:
@@ -570,13 +570,13 @@ def notifications_view():
     yesterday = today_for_test() - timedelta(days=1)
     new_notifications = [n for n in notifications if n.status == 'New']
     read_notifications = [n for n in notifications if n.status == 'Read' and n.date_create.date() >= yesterday]
-    print('\n💡НОВЫЕ УВЕДОМЛЕНИЯ\n')
+    print('\n💡 НОВЫЕ УВЕДОМЛЕНИЯ\n')
     if len(new_notifications) == 0:
         print('Новых нет')
     for n in new_notifications:
         print(f'{n.get_date_create()}: {n.get_text()}')
         n.set_status('Read')
-    print('\n⌛️ПРОЧИТАННЫЕ УВЕДОМЛЕНИЯ\n')
+    print('\n⌛️ ПРОЧИТАННЫЕ УВЕДОМЛЕНИЯ\n')
     if len(read_notifications) == 0:
         print('Нет уведомлений')
     for n in read_notifications:
@@ -608,20 +608,22 @@ def main_menu():
     if data['global_streaks'] != []:
         streaks = len(data['global_streaks'])
         print(f'\n🔥Пишете {streaks} д. подряд')
-        if data['global_streaks'][-1] != today_for_test():
-            print('🥺Глобальный стрик еще не продлен!')
+        if data['global_streak_status'] == 'Freeze':
+            print('❄️ Глобальный стрик заморожен')
+        elif data['global_streaks'][-1] != today_for_test():
+            print('🥺 Глобальный стрик еще не продлен!')
         else:
-            print('✅Глобальный стрик продлен')
+            print('✅ Глобальный стрик продлен')
     if len(new_notifications) > 0:
         print(f'\n📌{new_notifications[-1].get_text()}\n')
-    print('1 - ✏️Сделать запись')
-    print('2 - 📓Создать проект')
-    print(f'3 - 📚Проекты (активных: {active_count})')
-    print('4 - ⚙️Настройки проекта')
+    print('1 - ✏️ Сделать запись')
+    print('2 - 📓 Создать проект')
+    print(f'3 - 📚 Проекты (активных: {active_count})')
+    print('4 - ⚙️ Настройки проекта')
     if new_notifications_cnt > 0:
-        print(f'5 - 📌Уведомления ({new_notifications_cnt} новых)')
+        print(f'5 - 📌 Уведомления ({new_notifications_cnt} новых)')
     else:
-        print('5 - 📌Уведомления')
+        print('5 - 📌 Уведомления')
 
     if game.load_game():
         hero = game.load_game()

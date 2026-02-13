@@ -287,7 +287,7 @@ def inventory():
 
     if not available_items:
         print("Пусто.")
-        return
+        menu()
 
     try:
         choice = int(input('\nИспользовать предмет (номер) или 0 для выхода: ')) - 1
