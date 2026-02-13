@@ -223,6 +223,8 @@ class Note:
 
     def get_date_create(self):
         return self.date_create.date()
+    def get_date_create_str(self):
+        return self.date_create.strftime('%d.%m.%Y %H:%M')
 class Notification:
     def __init__(self, text, tag=None, date_create=None, status='New'):
         self.text = text
@@ -589,6 +591,24 @@ def notifications_view():
         save_data(data)
         main_menu()
 
+def project_details_view():
+    print('Выберите проект для просмотра подробностей:')
+    data = load_data()
+    projects = data.get('projects', [])
+    choice = choice_project()
+    project = projects[choice]
+    print('ПОДРОБНОСТИ ПРОЕКТА')
+    print(f'Название: {project.get_name()}')
+    print(f'Прогресс: {round((project.get_progress()), 2)}%')
+    print(f'Дедлайн: {project.get_deadline_str()}')
+    print(f'Цель/написано: {project.get_goal()}/{project.get_total_symbols()} сим.')
+    print(f'Всего записей: {len(project.notes)}')
+    if len(project.notes) > 0:
+        print(f'Последняя запись: {project.notes[-1].get_date_create_str()}')
+    while True:
+        input('Введите Enter для выхода: ')
+        main_menu()
+
 def main_menu():
     """Отображение меню. Возвращает управление в бесконечный цикл."""
     data = load_data()
@@ -625,6 +645,7 @@ def main_menu():
         print(f'5 - 📌 Уведомления ({new_notifications_cnt} новых)')
     else:
         print('5 - 📌 Уведомления')
+    print('6 - 🧐 Подробности о проекте')
 
     if game.load_game():
         hero = game.load_game()
@@ -658,6 +679,8 @@ def main_menu():
         game.menu()
     elif choice == '5':
         notifications_view()
+    elif choice == '6':
+        project_details_view()
 
 
 # ГЛАВНЫЙ БЛОК ЗАПУСКА
