@@ -9,18 +9,19 @@ last_update = '11.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    # dt = date(2026, 2, 14)
-    dt = None
+    dt = date(2026, 2, 4)
+    # dt = None
     if dt is None:
-        return datetime.today()
+        return date.today()
     else:
         return dt
 
 class Project:
     max_streak = 0
+    streak_status = 'No'
     def __init__(self, name='Без имени', goal=None,
                  create_date=None, total_symbols=0, progress=0,
-                 notes=None, streaks=None, max_streak=None, deadline='Нет',
+                 notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
                  status='активен'):
 
         self.name = name
@@ -33,6 +34,7 @@ class Project:
         self.notes = notes if notes else []
         self.streaks = streaks if streaks else []
         self.max_streak = max_streak if max_streak else 0
+        self.streak_status = streak_status
 
     def set_name(self, name):
         if name != '':
@@ -142,12 +144,16 @@ class Project:
 
         # Проверяем потерю стрика (последний день был давно, не вчера и не сегодня)
         if len(self.streaks) > 0 and self.streaks[-1] != yesterday and self.streaks[-1] != today:
+            if self.max_streak < len(self.streaks):
+                self.max_streak = len(self.streaks)
             lose = len(self.streaks)
             self.streaks = []
             # Если цель сегодня выполнена, начинаем новый стрик
             if today_added >= today_goal:
                 self.streaks.append(today)
+                self.streak_status = 'Start'
                 return f'Lose {lose} Start'
+            self.streak_status = 'Lose'
             return f'Lose {lose}'
 
         # Проверяем выполнение цели
@@ -155,6 +161,7 @@ class Project:
             if len(self.streaks) == 0:
                 # Начало нового стрика
                 self.streaks.append(today)
+                self.streak_status = 'Start'
                 return 'Start'
             elif self.streaks[-1] == today:
                 # Стрик уже продлен сегодня
@@ -162,21 +169,32 @@ class Project:
             elif self.streaks[-1] == yesterday:
                 # Продление стрика
                 self.streaks.append(today)
+                if self.max_streak < len(self.streaks):
+                    self.max_streak = len(self.streaks)
+                self.streak_status = 'Go'
                 return 'Go'
 
         return 'No'
 
-    def get_streak_msg(self, status):
+    def get_streak_msg(self, status, msg_type=None):
         if status == 'Start':
+            if msg_type == 'min':
+                return '🔥  Начат'
             return f'🔥 Стрик в {self.get_name()} начат! Отличное начало, главное - продолжать!'
         elif status == 'Go':
             streaks = len(self.streaks)
+            if msg_type == 'min':
+                return '🚀 Продлен'
             return f'🚀 Стрик в {self.get_name()} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
         elif status == 'Done':
+            if msg_type == 'min':
+                return '✌️ Продлен'
             return f'✌️ Стрик в {self.get_name()} сегодня уже продлен, но символы лишними не будут'
         elif status == 'Complete':
             streaks = len(self.streaks)
             return f'🎉 СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
+        elif status == 'No':
+            return f'🙃  Стрик не начат'
         elif status.split()[0] == 'Lose':
             status = status.split()
             if len(status) == 2:
@@ -184,7 +202,7 @@ class Project:
             elif len(status) == 3:
                 return (f'💔 Стрик потерян! Вы были в цели {status[1]} дней подряд.'
                       f'\n🔥 Вы начали новый стрик!')
-        return None
+        return 'Вывод статуса не работает'
 
     def get_progress(self):
         self.progress = self.total_symbols / self.goal * 100
@@ -558,9 +576,12 @@ def view_project():
         for p in active:
             dl = p.get_deadline_str()
             streak = len(p.streaks)
-            print(f"{p.get_name()}: {p.get_progress()}%"
-                  f"\nЦель/написано - {p.get_total_symbols()}/{p.get_goal()} символов"
-                  f"\nДедлайн: {dl}, 🔥  стрик: {streak}\n")
+            print(f"{p.get_name()}: {p.get_progress()}%")
+            print(f"Цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов")
+            print(f"Дедлайн: {dl}, 🔥  текущий стрик: {streak}")
+            if p.deadline != 'Нет':
+                print(p.get_streak_msg(p.streak_status, 'min'))
+
 
     if archived:
         if input('\nПоказать архив? (введите "a"): ') == 'a':
@@ -568,7 +589,7 @@ def view_project():
             for p in archived:
                 print(f"{p.get_name()}: прогресс - {p.get_progress()}% цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов | Дедлайн: {dl}")
 
-    input('Нажмите Enter, чтобы вернуться в меню.')
+    input('\nНажмите Enter, чтобы вернуться в меню.')
     save_data(data)
 
 
@@ -634,7 +655,7 @@ def main_menu():
 
     print(f'\nnfprogress {version}\n')
     print(f'☀️Сегодня {today_for_test().strftime("%d.%m.%y")}')
-    if data['global_streaks'] != []:
+    if data.get('global_streaks', []) != []:
         streaks = len(data['global_streaks'])
         print(f'\n🔥Пишете {streaks} д. подряд')
         if data['global_streak_status'] == 'Freeze':
