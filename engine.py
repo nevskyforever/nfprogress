@@ -9,7 +9,7 @@ last_update = '11.02.26'
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 4)
+    dt = date(2026, 2, 5)
     # dt = None
     if dt is None:
         return date.today()
@@ -306,6 +306,7 @@ def global_streak_status(data, local_streak_status=None, today=None):
         data['global_streaks'] = streak
 
     status = 'No'
+    max_streak = data.get('max_global_streak', 0)
 
     # 1) Проверка потери (аналогично твоему локальному блоку)
     if len(streak) > 0 and streak[-1] != yesterday and streak[-1] != today:
@@ -321,8 +322,12 @@ def global_streak_status(data, local_streak_status=None, today=None):
             streak.append(today)
             status = 'Start'
         elif streak[-1] == today:
+            if len(streak) > max_streak:
+                max_streak = len(streak)
             status = 'Done'
         elif streak[-1] == yesterday:
+            if len(streak) > max_streak:
+                max_streak = len(streak)
             streak.append(today)
             status = 'Go'
         else:
@@ -332,7 +337,9 @@ def global_streak_status(data, local_streak_status=None, today=None):
             streak.append(today)
             status = 'Start'
 
+    data['max_global_streak'] = max_streak
     data['global_streak_status'] = status
+    save_data(data)
     return status
 
 
@@ -657,7 +664,10 @@ def main_menu():
     print(f'☀️Сегодня {today_for_test().strftime("%d.%m.%y")}')
     if data.get('global_streaks', []) != []:
         streaks = len(data['global_streaks'])
-        print(f'\n🔥Пишете {streaks} д. подряд')
+        if data.get('max_global_streak', 0) >= streaks:
+            print(f'\n🔥Пишете {streaks} д. подряд - новый рекорд!')
+        else:
+            print(f'\n🔥Пишете {streaks} д. подряд')
         if data['global_streak_status'] == 'Freeze':
             print('❄️ Глобальный стрик заморожен')
         elif data['global_streaks'][-1] != today_for_test():
