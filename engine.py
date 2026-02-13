@@ -17,9 +17,10 @@ def today_for_test():
         return dt
 
 class Project:
+    max_streak = 0
     def __init__(self, name='Без имени', goal=None,
                  create_date=None, total_symbols=0, progress=0,
-                 notes=None, streaks=None, deadline='Нет',
+                 notes=None, streaks=None, max_streak=None, deadline='Нет',
                  status='активен'):
 
         self.name = name
@@ -31,6 +32,7 @@ class Project:
         self.status = status
         self.notes = notes if notes else []
         self.streaks = streaks if streaks else []
+        self.max_streak = max_streak if max_streak else 0
 
     def set_name(self, name):
         if name != '':
@@ -555,7 +557,10 @@ def view_project():
     else:
         for p in active:
             dl = p.get_deadline_str()
-            print(f"{p.get_name()}: прогресс - {p.get_progress()}% цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов | Дедлайн: {dl}")
+            streak = len(p.streaks)
+            print(f"{p.get_name()}: {p.get_progress()}%"
+                  f"\nЦель/написано - {p.get_total_symbols()}/{p.get_goal()} символов"
+                  f"\nДедлайн: {dl}, 🔥  стрик: {streak}\n")
 
     if archived:
         if input('\nПоказать архив? (введите "a"): ') == 'a':
@@ -563,7 +568,7 @@ def view_project():
             for p in archived:
                 print(f"{p.get_name()}: прогресс - {p.get_progress()}% цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов | Дедлайн: {dl}")
 
-    input('\nНажмите Enter, чтобы вернуться в меню.')
+    input('Нажмите Enter, чтобы вернуться в меню.')
     save_data(data)
 
 
@@ -601,6 +606,9 @@ def project_details_view():
     print(f'Название: {project.get_name()}')
     print(f'Прогресс: {round((project.get_progress()), 2)}%')
     print(f'Дедлайн: {project.get_deadline_str()}')
+    if project.get_deadline() != 'Нет':
+        print(f'Стрик: {len(project.streaks)} д.')
+        print(f'Самый длинный стрик - {project.max_streak} д.')
     print(f'Цель/написано: {project.get_goal()}/{project.get_total_symbols()} сим.')
     print(f'Всего записей: {len(project.notes)}')
     if len(project.notes) > 0:
