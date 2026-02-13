@@ -3,7 +3,7 @@ import random
 from datetime import datetime, timedelta, date
 import game
 
-version = '2.2'
+version = '2.2.1'
 last_update = '11.02.26'
 
 
@@ -184,24 +184,28 @@ class Project:
         elif status == 'Go':
             streaks = len(self.streaks)
             if msg_type == 'min':
-                return '🚀 Продлен'
-            return f'🚀 Стрик в {self.get_name()} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
+                return '🚀  стрик продлен'
+            return f'🚀  Стрик в {self.get_name()} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
         elif status == 'Done':
             if msg_type == 'min':
-                return '✌️ Продлен'
-            return f'✌️ Стрик в {self.get_name()} сегодня уже продлен, но символы лишними не будут'
+                return '✌️ Стрик продлен'
+            return f'✌️  Стрик в {self.get_name()} сегодня уже продлен, но символы лишними не будут'
         elif status == 'Complete':
             streaks = len(self.streaks)
-            return f'🎉 СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
+            if msg_type == 'min':
+                return '🎉  СТРИК ЗАВЕРШЕН'
+            return f'🎉  СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
         elif status == 'No':
             return f'🙃  Стрик не начат'
         elif status.split()[0] == 'Lose':
             status = status.split()
             if len(status) == 2:
-                return f'💔 Стрик потерян! Вы были в цели {status[1]} дней подряд.'
+                if msg_type == 'min':
+                    return f'💔  Потеряно {status[1]} д. стрика'
+                return f'💔  Стрик потерян! Вы были в цели {status[1]} дней подряд.'
             elif len(status) == 3:
-                return (f'💔 Стрик потерян! Вы были в цели {status[1]} дней подряд.'
-                      f'\n🔥 Вы начали новый стрик!')
+                return (f'💔  Стрик потерян! Вы были в цели {status[1]} дней подряд.'
+                      f'\n🔥  Вы начали новый стрик!')
         return 'Вывод статуса не работает'
 
     def get_progress(self):
@@ -583,9 +587,10 @@ def view_project():
         for p in active:
             dl = p.get_deadline_str()
             streak = len(p.streaks)
-            print(f"{p.get_name()}: {p.get_progress()}%")
-            print(f"Цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов")
-            print(f"Дедлайн: {dl}, 🔥  текущий стрик: {streak}")
+            print(f"\n📓  {p.get_name()}: {p.get_progress()}%")
+            print(f"🎯  Цель/написано - {p.get_total_symbols()}/{p.get_goal()} символов")
+            print(f"📅  Дедлайн: {dl}")
+            print(f'🔥  текущий стрик: {streak} д.')
             if p.deadline != 'Нет':
                 print(p.get_streak_msg(p.streak_status, 'min'))
 
