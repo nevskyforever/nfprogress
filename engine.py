@@ -637,6 +637,7 @@ def project_details_view():
     project = projects[choice]
     print('ПОДРОБНОСТИ ПРОЕКТА')
     print(f'Название: {project.get_name()}')
+    print(f'Дата создания: {project.create_date.strftime('%d.%m.%Y')}')
     print(f'Прогресс: {round((project.get_progress()), 2)}%')
     print(f'Дедлайн: {project.get_deadline_str()}')
     if project.get_deadline() != 'Нет':
