@@ -3,14 +3,14 @@ import random
 from datetime import datetime, timedelta, date
 import game
 
-version = '2.2.1'
-last_update = '11.02.26'
+version = '2.2.6'
+last_update = '22.02.26'
 
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 5)
-    # dt = None
+    dt = date(2026, 2, 3)
+    dt = None
     if dt is None:
         return date.today()
     else:
@@ -24,76 +24,82 @@ class Project:
                  notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
                  status='активен'):
 
-        self.name = name
-        self.goal = goal
+        self._name = name
+        self._goal = goal
         self.create_date = create_date if create_date else today_for_test()
-        self.total_symbols = total_symbols
-        self.progress = progress
-        self.deadline = deadline
-        self.status = status
+        self.complete_date = None
+        self._total_symbols = total_symbols
+        self._progress = progress
+        self._deadline = deadline
+        self._status = status
         self.notes = notes if notes else []
         self.streaks = streaks if streaks else []
         self.max_streak = max_streak if max_streak else 0
         self.streak_status = streak_status
 
-    def set_name(self, name):
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        data = load_data()
+        projects = data['projects']
+        names = [i.name for i in projects]
         if name != '':
-            self.name = name
-            return 'Имя проекта изменено'
-        raise ValueError('Некорректное имя проекта!')
+            if name in names:
+                raise ValueError('Проект с таким именем уже существует!')
+            else:
+                self._name = name
 
-    def get_name(self):
-        return self.name
+    @property
+    def goal(self):
+        return self._goal
 
-    def set_goal(self, goal):
+    @goal.setter
+    def goal(self, goal):
         try:
-            self.goal = int(goal)
-            return f'Установлена цель в {self.goal} символов'
+            self._goal = int(goal)
         except ValueError:
             raise ValueError('Цель должна быть числом!')
 
-    def get_goal(self):
-        return self.goal
-
-    def set_deadline(self, deadline):
-        if deadline == '':
-            self.deadline = 'Нет'
-            return None
-        try:
-            self.deadline = datetime.strptime(deadline, '%d.%m.%y')
-            return 'Дедлайн проекта установлен.'
-        except ValueError:
-            return 'Ошибка: Неверный формат даты (нужно дд.мм.гг).'
-
-    def get_deadline(self):
-        if self.deadline != 'Нет':
-            return self.deadline.date()
+    @property
+    def deadline(self):
+        if self._deadline != 'Нет':
+            return self._deadline
         return 'Нет'
 
-    def get_deadline_str(self):
-        if self.deadline != 'Нет':
+    @deadline.setter
+    def deadline(self, deadline):
+        if deadline == '':
+            self._deadline = 'Нет'
+        else:
+            try:
+                self._deadline = datetime.strptime(deadline, '%d.%m.%y').date()
+            except ValueError:
+                raise ValueError('Ошибка: Неверный формат даты (нужно дд.мм.гг).')
+
+    @property
+    def deadline_str(self):
+        if self._deadline != 'Нет':
             return datetime.strftime(self.deadline, '%d.%m.%y')
         return 'Нет'
 
-    def set_status(self, status):
-        self.status = status
-        if status == 'активен':
-            return '✅ Проект снова активен.'
-        elif status == 'в архиве':
-            self.deadline = 'Нет'
-            return '🗄️ Проект архивирован. Дедлайн сброшен.'
-        elif status == 'завершен':
-            return '🎉 Проект завершен, поздравляем!'
-        return None
+    @property
+    def status(self):
+        return self._status
 
-    def get_status(self):
-        return self.status
+    @status.setter
+    def status(self, status):
+        self._status = status
 
-    def get_total_symbols(self):
-        return self.total_symbols
+    @property
+    def total_symbols(self):
+        return self._total_symbols
 
-    def set_total_symbols(self, total_symbols):
-        self.total_symbols = total_symbols
+    @total_symbols.setter
+    def total_symbols(self, total_symbols):
+        self._total_symbols = total_symbols
 
     def get_added_symbols_today_value(self):
         today = today_for_test()
@@ -104,28 +110,43 @@ class Project:
         return f'📝 Написано сегодня: {self.get_added_symbols_today_value()}'
 
     def get_today_goal_value(self):
+        """Возвращает общее количество символов, которое должно быть написано к сегодняшнему дню."""
         if self.deadline == 'Нет':
             return 0
 
-        today = today_for_test()
-        if not isinstance(self.deadline, datetime):
+        today = today_for_test()  # предполагается, что возвращает date
+        if not isinstance(self.deadline, date):
             return 0
 
-        days_before = (self.deadline.date() - today).days
+        create_date = self.create_date
+        # Приводим create_date к date, если это datetime или другой тип
+        if isinstance(create_date, datetime):
+            create_date = create_date.date()
+        elif not isinstance(create_date, date):
+            # Если create_date не дата (например, None), берём сегодня
+            create_date = today
 
-        if days_before <= 0:
-            return self.goal - self.total_symbols
+        # Общее количество дней от создания до дедлайна включительно
+        total_days = (self.deadline - create_date).days + 1
+        if total_days <= 0:
+            # Дедлайн уже прошёл или некорректен – цель = весь проект
+            return self.goal
 
-        needed = self.goal - self.total_symbols
-        if needed < 0: needed = 0
-        return needed // days_before
+        # Сколько дней прошло от создания до сегодня включительно
+        days_passed = (today - create_date).days + 1
+        if days_passed <= 0:
+            days_passed = 1
+
+        # Округление вверх, чтобы в первый день не было 0
+        target = (self.goal * days_passed + total_days - 1) // total_days
+        return min(target, self.goal)
 
     def get_today_goal_msg(self):
         value = self.get_today_goal_value()
         return f'🎯 Цель на сегодня: {self.total_symbols + value}'
     def get_need_write_value(self):
-        total = self.get_total_symbols()
-        goal = self.get_goal()
+        total = self.total_symbols
+        goal = self.goal
         need_write = goal - total
         return need_write
     def get_need_write_msg(self):
@@ -141,38 +162,46 @@ class Project:
         # Если цель не установлена (нет дедлайна), стрик не работает
         if today_goal == 0:
             return 'No'
-
-        # Проверяем потерю стрика (последний день был давно, не вчера и не сегодня)
-        if len(self.streaks) > 0 and self.streaks[-1] != yesterday and self.streaks[-1] != today:
-            if self.max_streak < len(self.streaks):
-                self.max_streak = len(self.streaks)
-            lose = len(self.streaks)
-            self.streaks = []
-            # Если цель сегодня выполнена, начинаем новый стрик
-            if today_added >= today_goal:
-                self.streaks.append(today)
-                self.streak_status = 'Start'
-                return f'Lose {lose} Start'
-            self.streak_status = 'Lose'
-            return f'Lose {lose}'
-
-        # Проверяем выполнение цели
-        if today_added >= today_goal:
-            if len(self.streaks) == 0:
-                # Начало нового стрика
-                self.streaks.append(today)
-                self.streak_status = 'Start'
-                return 'Start'
-            elif self.streaks[-1] == today:
-                # Стрик уже продлен сегодня
-                return 'Done'
-            elif self.streaks[-1] == yesterday:
-                # Продление стрика
-                self.streaks.append(today)
+        if self.streak_status == 'Complete':
+            return 'Complete'
+        else:
+            # Проверяем потерю стрика (последний день был давно, не вчера и не сегодня)
+            if len(self.streaks) > 0 and self.streaks[-1] != yesterday and self.streaks[-1] != today:
                 if self.max_streak < len(self.streaks):
                     self.max_streak = len(self.streaks)
-                self.streak_status = 'Go'
-                return 'Go'
+                lose = len(self.streaks)
+                self.streaks = []
+                # Если цель сегодня выполнена, начинаем новый стрик
+                if today_added >= today_goal:
+                    self.streaks.append(today)
+                    self.streak_status = 'Start'
+                    return f'Lose {lose} Start'
+                self.streak_status = 'Lose'
+                return f'Lose {lose}'
+
+            # Проверяем выполнение цели
+            if today_added >= today_goal:
+                if len(self.streaks) == 0:
+                    # Начало нового стрика
+                    self.streaks.append(today)
+                    self.streak_status = 'Start'
+                    return 'Start'
+                elif self.streaks[-1] == today:
+                    # Стрик уже продлен сегодня
+                    return 'Done'
+                elif self.streaks[-1] == yesterday:
+                    # Продление стрика
+                    self.streaks.append(today)
+                    if self.max_streak < len(self.streaks):
+                        self.max_streak = len(self.streaks)
+                    self.streak_status = 'Go'
+                    return 'Go'
+                elif self.streaks[-1] == self.deadline:
+                    # Продление стрика
+                    self.streaks.append(today)
+                    if self.max_streak < len(self.streaks):
+                        self.max_streak = len(self.streaks)
+                    self.streak_status = 'Complete'
 
         return 'No'
 
@@ -180,16 +209,16 @@ class Project:
         if status == 'Start':
             if msg_type == 'min':
                 return '🔥  Начат'
-            return f'🔥 Стрик в {self.get_name()} начат! Отличное начало, главное - продолжать!'
+            return f'🔥 Стрик в {self.name} начат! Отличное начало, главное - продолжать!'
         elif status == 'Go':
             streaks = len(self.streaks)
             if msg_type == 'min':
                 return '🚀  стрик продлен'
-            return f'🚀  Стрик в {self.get_name()} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
+            return f'🚀  Стрик в {self.name} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
         elif status == 'Done':
             if msg_type == 'min':
                 return '✌️ Стрик продлен'
-            return f'✌️  Стрик в {self.get_name()} сегодня уже продлен, но символы лишними не будут'
+            return f'✌️  Стрик в {self.name} сегодня уже продлен, но символы лишними не будут'
         elif status == 'Complete':
             streaks = len(self.streaks)
             if msg_type == 'min':
@@ -208,12 +237,19 @@ class Project:
                       f'\n🔥  Вы начали новый стрик!')
         return 'Вывод статуса не работает'
 
-    def get_progress(self):
-        self.progress = self.total_symbols / self.goal * 100
-        return self.progress
+    @property
+    def progress(self):
+        self._progress = self._total_symbols / self._goal * 100
+        return self._progress
 
     def set_new_notes(self, new_note):
         self.notes.append(new_note)
+
+class Stage(Project):
+    def __init__(self):
+        super().__init__()
+        self.status = 'в работе'
+
 class Note:
     new_total = 0
     added_symbols = 0
