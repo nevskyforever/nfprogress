@@ -6,9 +6,10 @@ from PySide6.QtWidgets import QApplication, QSizePolicy
 from PySide6.QtCore import QTranslator, QLibraryInfo, QSize
 import engine as en
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
-from UI_fiiles.d_create_project import Ui_d_create_project as d_create_project_ui
+from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
 from UI_fiiles.project_widget import Ui_Form as project_form_ui
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
+from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
 
 
 class MainWindow(QMainWindow, main_window_ui):
@@ -164,21 +165,17 @@ class MainWindow(QMainWindow, main_window_ui):
         """Загружает список заметок проекта"""
         self.note_list.clear()
         for note in reversed(project.notes[-10:]):  # Показываем последние 10 записей
-            item = QListWidgetItem(f"{note.get_date_create_str()} +{note.added_symbols}")
+            item = QListWidgetItem(f"{note.get_date_create_str()} +{note.added_symbols}/{round(note.added_progress, 2)}%")
             self.note_list.addItem(item)
 
     def add_note(self, project):
         """Добавляет заметку к проекту"""
-        data = en.load_data()
-        projects = data['projects']
-        project_index = projects.index(project)
-        projects.remove(project_index)
         text = self.new_symbols.text().strip()
         if not text or not text.isdigit():
-            return  # Можно добавить предупреждение
+            return
 
-        added = int(text)
-        new_total = project.total_symbols + added
+        new_total = int(text)
+        added = new_total - project.total_symbols
         added_progress = (added / project.goal * 100) if project.goal > 0 else 0
 
         # Создаём запись
@@ -187,8 +184,9 @@ class MainWindow(QMainWindow, main_window_ui):
         project.total_symbols = new_total
 
         # Сохраняем изменения
-        projects.append(project)
-        en.save_data(data)
+        data = en.load_data()
+        # Находим и обновляем проект в данных
+        en.save_project(project)
 
         # Очищаем поле ввода
         self.new_symbols.clear()
@@ -200,9 +198,52 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def edit_project(self, project):
         """Редактирует проект"""
-        # Здесь можно открыть диалог редактирования
-        print(f"Редактирование проекта {project.name}")
-        # TODO: реализовать диалог редактирования
+        dialog = EditProject(old_name=project.name)  # Передаём старое имя
+
+        # Заполняем поля текущими значениями проекта
+        dialog.le_name.setText(project.name)
+        dialog.le_goal.setText(str(project.goal))
+        dialog.le_total_symbols.setText(str(project.total_symbols))
+
+        # Настраиваем дедлайн
+        if project.deadline != 'Нет':
+            dialog.checkBox.setChecked(False)
+            # Преобразуем date в QDate
+            from PySide6.QtCore import QDate
+            qdate = QDate(project.deadline.year, project.deadline.month, project.deadline.day)
+            dialog.de_deadline.setDate(qdate)
+        else:
+            dialog.checkBox.setChecked(True)
+            dialog.de_deadline.setDisabled(True)
+
+        result = dialog.exec_()
+
+        if result == QDialog.Accepted:
+            print("Диалог редактирования закрыт по OK")
+
+            # Получаем новые значения
+            name = dialog.le_name.text()
+            goal = int(dialog.le_goal.text())
+            total = int(dialog.le_total_symbols.text())
+
+            if dialog.checkBox.isChecked():
+                deadline = 'Нет'
+            else:
+                qdate = dialog.de_deadline.date()
+                deadline = qdate.toPython()
+
+            # Обновляем проект
+            project.name = name
+            project.goal = goal
+            project.total_symbols = total
+            project.deadline = deadline
+
+            # Сохраняем изменения
+            en.save_project(project)
+
+            self.refresh_projects()
+            # Восстанавливаем выделение проекта
+            self.select_project_by_name(project.name)
 
     def complete_project(self, project):
         """Завершает проект"""
@@ -293,7 +334,7 @@ class ConfirmDialog(QDialog, confirm_dialog_ui):
         super().__init__()
         self.setupUi(self)
 
-class CreateProject(QDialog, d_create_project_ui):
+class CreateProject(QDialog, create_project_ui):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
@@ -376,6 +417,99 @@ class CreateProject(QDialog, d_create_project_ui):
         else:
             self.buttons.setEnabled(False)
             self.incorrect_data.setVisible(True)
+
+
+class EditProject(QDialog, edit_project_ui):
+    def __init__(self, old_name=""):
+        super().__init__()
+        self.setupUi(self)
+
+        # Сохраняем старое имя проекта
+        self.old_name = old_name
+
+        # Скрываем предупреждения при создании
+        self.incorrect_name.setVisible(False)
+        self.incorrect_data.setVisible(False)
+
+        # Подключаем сигнал чекбокса к обработчику
+        self.checkBox.toggled.connect(self.on_checkbox_toggled)
+        self.checkBox.toggled.connect(self.all_data_ok)
+
+        # Подключаем сигнал изменения даты
+        self.de_deadline.dateChanged.connect(self.all_data_ok)
+
+        # Подключаем сигналы изменения текста
+        self.le_name.textChanged.connect(self.all_data_ok)
+        self.le_goal.textChanged.connect(self.all_data_ok)
+        self.le_total_symbols.textChanged.connect(self.all_data_ok)
+
+        # Устанавливаем начальное состояние
+        self.buttons.setDisabled(True)
+        self.on_checkbox_toggled(self.checkBox.isChecked())
+
+        # Вызываем проверку после того, как все подключено
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.all_data_ok)
+
+    def on_checkbox_toggled(self, checked):
+        """Обработчик изменения состояния чекбокса"""
+        if checked:  # Если чекбокс отмечен (Нет дедлайна)
+            self.de_deadline.setDisabled(True)
+            self.incorrect_data.setVisible(False)  # Скрываем сообщение о дедлайне
+        else:  # Если чекбокс не отмечен (Есть дедлайн)
+            self.de_deadline.setEnabled(True)
+            # Проверим дату сразу при включении
+            self.all_data_ok()
+
+    def all_data_ok(self):
+        """Проверяет заполненность полей и включает/выключает кнопки"""
+        # Получаем список существующих проектов
+        existing_names = [p.name for p in en.load_data()['projects']]
+
+        # Проверяем имя
+        current_name = self.le_name.text().strip()
+        name_filled = bool(current_name)
+
+        # Имя некорректно только если:
+        # 1. Имя не пустое
+        # 2. Имя отличается от старого
+        # 3. Такое имя уже существует в других проектах
+        name_incorrect = False
+        if name_filled and current_name != self.old_name:
+            name_incorrect = current_name in existing_names
+
+        self.incorrect_name.setVisible(name_incorrect)
+
+        # Проверяем дату дедлайна (только если чекбокс НЕ отмечен)
+        deadline_incorrect = False
+        if not self.checkBox.isChecked():
+            deadline_incorrect = self.de_deadline.date() <= en.today_for_test()
+            self.incorrect_data.setVisible(deadline_incorrect)
+        else:
+            # Если чекбокс отмечен, скрываем сообщение о дедлайне
+            self.incorrect_data.setVisible(False)
+
+        # Проверяем, что поле goal содержит только цифры и не пустое
+        goal_text = self.le_goal.text().strip()
+        goal_filled = goal_text.isdigit() if goal_text else False
+
+        # Проверяем, что поле total_symbols содержит только цифры и не пустое
+        total_text = self.le_total_symbols.text().strip()
+        total_filled = total_text.isdigit() if total_text else False
+
+        # Кнопки включены только если:
+        # - имя заполнено И (имя не изменилось ИЛИ новое имя не занято)
+        # - цель заполнена цифрами
+        # - total_symbols заполнен цифрами
+        # - (если дедлайн есть) дата корректна
+        if self.checkBox.isChecked():
+            # Если дедлайна нет, не проверяем дату
+            buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled
+        else:
+            # Если дедлайн есть, проверяем и дату
+            buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled and not deadline_incorrect
+
+        self.buttons.setEnabled(buttons_enabled)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

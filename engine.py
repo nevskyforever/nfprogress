@@ -331,6 +331,14 @@ def save_data(data):
 
 # === МЕНЮ И ЛОГИКА ===
 
+def save_project(project):
+    data = load_data()
+    for i, p in enumerate(data['projects']):
+        if p.name == project.name:
+            data['projects'][i] = project
+            break
+    save_data(data)
+
 def global_streak_status(data, local_streak_status=None, today=None):
     """
     Обновляет глобальный стрик и возвращает строковый статус.
