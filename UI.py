@@ -1,15 +1,15 @@
 import sys
 from datetime import date
-from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QWidget, QListWidgetItem
-from PySide6.scripts.project_lib import new_project
-from PySide6.QtWidgets import QApplication, QSizePolicy
-from PySide6.QtCore import QTranslator, QLibraryInfo, QSize
+from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QWidget, QListWidgetItem, QMessageBox
+from PySide6.QtWidgets import QApplication, QSizePolicy, QDialogButtonBox
+from PySide6.QtCore import QTranslator, QLibraryInfo, QSize, QDate
 import engine as en
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
 from UI_fiiles.project_widget import Ui_Form as project_form_ui
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
+from engine import save_data
 
 
 class MainWindow(QMainWindow, main_window_ui):
@@ -25,11 +25,28 @@ class MainWindow(QMainWindow, main_window_ui):
         self.btn_create_project.clicked.connect(self.create_project)
         self.list_projects.itemClicked.connect(self.view_project)
 
+        # Подключаем обработку Enter для поля ввода
+        self.new_symbols.returnPressed.connect(self.on_enter_pressed)
+
         self.show()
+
+    def on_enter_pressed(self):
+        """Обработчик нажатия Enter в поле ввода"""
+        # Получаем текущий выбранный проект
+        current_item = self.list_projects.currentItem()
+        if current_item is None:
+            return
+
+        # Получаем виджет проекта
+        widget = self.list_projects.itemWidget(current_item)
+        if widget and hasattr(widget, 'project'):
+            # Получаем проект и добавляем заметку
+            project = widget.project
+            self.add_note(project)
 
     def create_project(self):
         dialog = CreateProject()
-        result = dialog.exec_()
+        result = dialog.exec()
 
         if result == QDialog.Accepted:
             print("Диалог закрыт по OK")
@@ -41,12 +58,12 @@ class MainWindow(QMainWindow, main_window_ui):
                 deadline = 'Нет'
             else:
                 qdate = dialog.de_deadline.date()
-                deadline = qdate.toPython()  # преобразуем
+                deadline = qdate.toPython()
 
             total = int(dialog.le_total_symbols.text())
 
             new_project = en.Project(name=name, goal=goal, deadline=deadline, total_symbols=total)
-            data['projects'].append(new_project)
+            data['projects'][new_project.name] = new_project
             en.save_data(data)
 
             self.refresh_projects()
@@ -144,13 +161,28 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def setup_project_buttons(self, project):
         """Настраивает кнопки управления проектом"""
-        # Отключаем старые соединения
+        # Безопасное отключение старых соединений
         try:
             self.btn_change_project.clicked.disconnect()
+        except:
+            pass
+        try:
             self.btn_complete_project.clicked.disconnect()
+        except:
+            pass
+        try:
             self.btn_archived_project.clicked.disconnect()
+        except:
+            pass
+        try:
             self.btn_delete_project.clicked.disconnect()
+        except:
+            pass
+        try:
             self.pb_save_flash_note.clicked.disconnect()
+        except:
+            pass
+        try:
             self.delete_note.clicked.disconnect()
         except:
             pass
@@ -179,6 +211,13 @@ class MainWindow(QMainWindow, main_window_ui):
             self.btn_change_project.setEnabled(True)
             # Кнопка завершения активна, если цель достигнута
             self.btn_complete_project.setEnabled(project.goal <= project.total_symbols)
+
+            # Меняем текст кнопки в зависимости от статуса
+            if project.status == 'в архиве':
+                self.btn_archived_project.setText('Активировать')
+            else:
+                self.btn_archived_project.setText('В архив')
+
             self.btn_archived_project.setEnabled(True)
             self.btn_delete_project.setEnabled(True)
             self.pb_save_flash_note.setEnabled(True)
@@ -191,7 +230,8 @@ class MainWindow(QMainWindow, main_window_ui):
         """Загружает список заметок проекта"""
         self.note_list.clear()
         for note in reversed(project.notes[-10:]):  # Показываем последние 10 записей
-            item = QListWidgetItem(f"{note.get_date_create_str()} +{note.added_symbols}/{round(note.added_progress, 2)}%")
+            item = QListWidgetItem(
+                f"{note.get_date_create_str()} +{note.added_symbols}/{round(note.added_progress, 2)}%")
             self.note_list.addItem(item)
 
     def add_note(self, project):
@@ -210,7 +250,13 @@ class MainWindow(QMainWindow, main_window_ui):
         project.total_symbols = new_total
 
         # Сохраняем изменения
-        en.save_project(project, project.name)
+        data = en.load_data()
+        data['projects'][project.name] = project
+        save_data(data)
+
+        # Обновляем состояние кнопок, если цель достигнута
+        if project.total_symbols >= project.goal:
+            self.setup_project_buttons(project)
 
         # Очищаем поле ввода
         self.new_symbols.clear()
@@ -233,12 +279,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         if current_item is None:
             # Если ничего не выбрано, показываем предупреждение
-            dialog = ConfirmDeleteNoteDialog()
-            dialog.setWindowTitle("Предупреждение")
-            dialog.message.setText("Выберите запись для удаления!")
-            # Скрываем кнопку Cancel, оставляем только OK
-            dialog.b.button(QDialogButtonBox.StandardButton.Cancel).setVisible(False)
-            dialog.exec_()
+            QMessageBox.warning(self, "Предупреждение", "Выберите запись для удаления!")
             return
 
         # Получаем индекс выбранной заметки
@@ -247,8 +288,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Показываем диалог подтверждения
         dialog = ConfirmDialog()
         dialog.message.setText('Вы хотите удалить эту запись?\nЭто действие нельзя отменить!')
-        result = dialog.exec_()
-        dialog.show()
+        result = dialog.exec()
 
         if result == QDialog.Accepted:
             # Находим индекс заметки в оригинальном списке (с учётом реверса при отображении)
@@ -267,7 +307,9 @@ class MainWindow(QMainWindow, main_window_ui):
                 project.total_symbols = 0
 
             # Сохраняем изменения
-            en.save_project(project, project.name)
+            data = en.load_data()
+            data['projects'][project.name] = project
+            save_data(data)
 
             # Обновляем отображение
             self.refresh_projects()
@@ -291,40 +333,54 @@ class MainWindow(QMainWindow, main_window_ui):
 
         if project.deadline != 'Нет':
             dialog.checkBox.setChecked(False)
-            from PySide6.QtCore import QDate
             qdate = QDate(project.deadline.year, project.deadline.month, project.deadline.day)
             dialog.de_deadline.setDate(qdate)
         else:
             dialog.checkBox.setChecked(True)
             dialog.de_deadline.setDisabled(True)
 
-        result = dialog.exec_()
+        result = dialog.exec()
 
         if result == QDialog.Accepted:
-            # Получаем новые значения
-            name = dialog.le_name.text()
-            goal = int(dialog.le_goal.text())
-            total = int(dialog.le_total_symbols.text())
+            try:
+                # Получаем новые значения
+                name = dialog.le_name.text()
+                goal = int(dialog.le_goal.text())
+                total = int(dialog.le_total_symbols.text())
 
-            if dialog.checkBox.isChecked():
-                deadline = 'Нет'
-            else:
-                qdate = dialog.de_deadline.date()
-                deadline = qdate.toPython()
+                if dialog.checkBox.isChecked():
+                    deadline = 'Нет'
+                else:
+                    qdate = dialog.de_deadline.date()
+                    deadline = qdate.toPython()
 
-            # Сохраняем старое имя для поиска в файле
-            old_name_for_save = old_name
+                # Если имя изменилось, нужно удалить старый ключ и создать новый
+                if old_name != name:
+                    # Удаляем проект из словаря по старому имени
+                    data = en.load_data()
+                    if old_name in data['projects']:
+                        del data['projects'][old_name]
 
-            # Обновляем поля проекта
-            project.name = name
-            project.goal = goal
-            project.total_symbols = total
-            project.deadline = deadline
+                    # Обновляем поля проекта
+                    project.name = name
+                    project.goal = goal
+                    project.total_symbols = total
+                    project.deadline = deadline
 
-            # Сохраняем изменения, передавая старое имя
-            success = en.save_project(project, old_name_for_save)
+                    # Добавляем проект с новым именем
+                    data['projects'][name] = project
+                    en.save_data(data)
+                else:
+                    # Имя не изменилось, просто обновляем поля
+                    project.goal = goal
+                    project.total_symbols = total
+                    project.deadline = deadline
 
-            if success:
+                    # Сохраняем изменения
+                    data = en.load_data()
+                    data['projects'][project.name] = project
+                    en.save_data(data)
+
                 # Полностью обновляем список проектов
                 self.refresh_projects()
 
@@ -333,22 +389,25 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.name_selected_project.setText(project.name)
 
                 print(f"Проект '{old_name}' успешно изменен на '{project.name}'")
-            else:
-                print(f"Ошибка при сохранении проекта '{old_name}'")
-                # Возвращаем старое имя обратно
-                project.name = old_name
+
+            except ValueError as e:
+                QMessageBox.warning(self, "Ошибка", str(e))
+                print(f"Ошибка при сохранении: {e}")
 
     def complete_project(self, project):
         """Завершает проект"""
         dialog = ConfirmDialog()
-        dialog.message.setText('Вы хотите завершить проект?\nЭто действие нельзя отменить\nЗавершенный проект можно только просматривать и удалить')
-        result = dialog.exec_()
-        dialog.show()
+        dialog.message.setText(
+            'Вы хотите завершить проект?\nЭто действие нельзя отменить\nЗавершенный проект можно только просматривать и удалить')
+        result = dialog.exec()
+
         if result == QDialog.Accepted:
             project.status = "завершен"
             project.complete_date = en.today_for_test()
 
-            en.save_project(project, project.name)
+            data = en.load_data()
+            data['projects'][project.name] = project
+            en.save_data(data)
 
             self.refresh_projects()
             self.project_info.setVisible(False)
@@ -356,16 +415,27 @@ class MainWindow(QMainWindow, main_window_ui):
             self.change_project_widget.setVisible(False)
 
     def archive_project(self, project):
-        """Отправляет проект в архив"""
+        """Отправляет проект в архив или активирует его"""
         dialog = ConfirmDialog()
-        dialog.message.setText('Вы хотите архивировать проект?\nДедлайн проекта будет удален,\nпроект можно будет восстановить')
-        result = dialog.exec_()
-        dialog.show()
-        if result == QDialog.Accepted:
 
-            project.status = "в архиве"
-            project.deadline = 'Нет'
+        if project.status == 'активен':
+            dialog.message.setText(
+                'Вы хотите архивировать проект?\nДедлайн проекта будет удален,\nпроект можно будет восстановить')
+        else:
+            dialog.message.setText('Вы хотите активировать проект?')
+
+        result = dialog.exec()
+
+        if result == QDialog.Accepted:
+            if project.status == 'активен':
+                project.status = "в архиве"
+                project.deadline = 'Нет'
+            else:
+                project.status = "активен"
+                # При активации дедлайн остается пустым, пользователь может установить его позже
+
             data = en.load_data()
+            data['projects'][project.name] = project
             en.save_data(data)
 
             self.refresh_projects()
@@ -377,12 +447,13 @@ class MainWindow(QMainWindow, main_window_ui):
         """Удаляет проект"""
         dialog = ConfirmDialog()
         dialog.message.setText('Вы хотите удалить проект?\nЭто действие нельзя отменить!')
-        result = dialog.exec_()
-        dialog.show()
+        result = dialog.exec()
+
         if result == QDialog.Accepted:
             data = en.load_data()
-            data['projects'] = [p for p in data['projects'] if p.name != project.name]
-            en.save_data(data)
+            if project.name in data['projects']:
+                del data['projects'][project.name]
+                en.save_data(data)
 
             self.refresh_projects()
             self.project_info.setVisible(False)
@@ -394,7 +465,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def refresh_projects(self):
         data = en.load_data()
-        projects = data['projects']
+        projects = list(data['projects'].values())  # Преобразуем словарь в список для отображения
         list_p = self.list_projects
 
         # Сохраняем текущий выбранный проект (если есть)
@@ -422,45 +493,38 @@ class MainWindow(QMainWindow, main_window_ui):
         if current_project_name:
             self.select_project_by_name(current_project_name)
 
+
 class ProjectWidget(QWidget, project_form_ui):
     def __init__(self, project):
         super().__init__()
         self.setupUi(self)
-
-        self.name.setText(project.name)
-        self.progressBar.setValue(project.progress)
-        self.symbols.setText(f'{project.total_symbols}/{project.goal}')
-        if project.deadline_str != 'Нет':
-            self.deadline.setText(f'Дедлайн: {project.deadline_str}')
-            self.streak.setText(f'Стрик: {len(project.streaks)} д.')
-            self.streak_status.setText(f'{project.get_streak_status_msg('min')}')
-        else:
-            self.deadline.setVisible(False)
-            self.streak.setVisible(False)
-            self.streak_status.setVisible(False)
         self.project = project
+        self.update_display()
 
     def update_display(self):
         """Обновляет отображение виджета на основе текущих данных проекта"""
         self.name.setText(self.project.name)
-        self.progressBar.setValue(self.project.progress)
+        self.progressBar.setValue(int(self.project.progress))  # progress может быть float
         self.symbols.setText(f'{self.project.total_symbols}/{self.project.goal}')
+
         if self.project.deadline_str != 'Нет':
             self.deadline.setText(f'Дедлайн: {self.project.deadline_str}')
-            self.streak.setText(f'Стрик: {len(self.project.streaks)} д.')
-            self.streak_status.setText(self.project.get_streak_status_msg('min'))
             self.deadline.setVisible(True)
+            self.streak.setText(f'Стрик: {len(self.project.streaks)} д.')
             self.streak.setVisible(True)
+            self.streak_status.setText(self.project.get_streak_status_msg('min'))
             self.streak_status.setVisible(True)
         else:
             self.deadline.setVisible(False)
             self.streak.setVisible(False)
             self.streak_status.setVisible(False)
 
+
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+
 
 class CreateProject(QDialog, create_project_ui):
     def __init__(self):
@@ -473,10 +537,10 @@ class CreateProject(QDialog, create_project_ui):
 
         # Подключаем сигнал чекбокса к обработчику
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
-        self.checkBox.toggled.connect(self.all_data_ok)  # ДОБАВИТЬ!
+        self.checkBox.toggled.connect(self.all_data_ok)
 
         # Подключаем сигнал изменения даты
-        self.de_deadline.dateChanged.connect(self.all_data_ok)  # ДОБАВИТЬ!
+        self.de_deadline.dateChanged.connect(self.all_data_ok)
 
         # Подключаем сигналы изменения текста
         self.le_name.textChanged.connect(self.all_data_ok)
@@ -487,7 +551,7 @@ class CreateProject(QDialog, create_project_ui):
         self.buttons.setDisabled(True)
         self.on_checkbox_toggled(self.checkBox.isChecked())
 
-        # ВЫЗЫВАЕМ ПРОВЕРКУ ПОСЛЕ ТОГО, КАК ВСЕ ПОДКЛЮЧЕНО
+        # Вызываем проверку после того, как все подключено
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.all_data_ok)
 
@@ -503,8 +567,9 @@ class CreateProject(QDialog, create_project_ui):
 
     def all_data_ok(self):
         """Проверяет заполненность полей и включает/выключает кнопки"""
-        # Получаем список существующих проектов
-        existing_names = [p.name for p in en.load_data()['projects']]
+        # Получаем список существующих проектов из словаря
+        data = en.load_data()
+        existing_names = list(data['projects'].keys())
 
         # Проверяем имя
         current_name = self.le_name.text().strip()
@@ -540,11 +605,8 @@ class CreateProject(QDialog, create_project_ui):
         else:
             # Если дедлайн есть, проверяем и дату
             buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled and not deadline_incorrect
-        if buttons_enabled:
-            self.buttons.setEnabled(True)
-        else:
-            self.buttons.setEnabled(False)
-            self.incorrect_data.setVisible(True)
+
+        self.buttons.setEnabled(buttons_enabled)
 
 
 class EditProject(QDialog, edit_project_ui):
@@ -591,8 +653,9 @@ class EditProject(QDialog, edit_project_ui):
 
     def all_data_ok(self):
         """Проверяет заполненность полей и включает/выключает кнопки"""
-        # Получаем список существующих проектов
-        existing_names = [p.name for p in en.load_data()['projects']]
+        # Получаем список существующих проектов из словаря
+        data = en.load_data()
+        existing_names = list(data['projects'].keys())
 
         # Проверяем имя
         current_name = self.le_name.text().strip()
@@ -638,6 +701,7 @@ class EditProject(QDialog, edit_project_ui):
             buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled and not deadline_incorrect
 
         self.buttons.setEnabled(buttons_enabled)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

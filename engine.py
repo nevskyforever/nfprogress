@@ -50,7 +50,7 @@ class Project:
 
         data = load_data()
         projects = data['projects']
-        names = [i.name for i in projects if i != self]  # Исключаем текущий проект из проверки
+        names = [i for i in projects.keys() if i != self]  # Исключаем текущий проект из проверки
         if name != '':
             if name in names:
                 raise ValueError('Проект с таким именем уже существует!')
@@ -323,7 +323,7 @@ def load_data():
         with open('data.pkl', 'rb') as f:
             return pickle.load(f)
     except (FileNotFoundError, EOFError):
-        return {'last': None, 'projects': [], 'notifications': []}
+        return {'last': None, 'projects': {}, 'notifications': []}
 
 
 def save_data(data):
@@ -332,39 +332,6 @@ def save_data(data):
 
 
 # === МЕНЮ И ЛОГИКА ===
-
-def save_project(project, old_name=None):
-    """
-    Сохраняет изменения проекта.
-    Если old_name указан, ищет проект по старому имени (для случая переименования).
-    """
-    data = load_data()
-
-    # Если передано старое имя, ищем по нему
-    search_name = old_name if old_name else project.name
-
-    for i, p in enumerate(data['projects']):
-        # Сравниваем по имени, но нужно учитывать, что проект мог быть переименован
-        if p.name == search_name:
-            data['projects'][i] = project
-            # После замены проекта, нужно обновить имена в списке проектов
-            # если проект был переименован
-            save_data(data)
-            return True
-
-    # Если проект не найден по старому имени, возможно он уже был переименован
-    # Пробуем найти по текущему имени (если оно отличается от старого)
-    if old_name and old_name != project.name:
-        for i, p in enumerate(data['projects']):
-            if p.name == project.name:
-                data['projects'][i] = project
-                save_data(data)
-                return True
-
-    # Если всё равно не нашли, добавляем как новый?
-    # Лучше вызвать исключение или вернуть False
-    print(f"Ошибка: проект с именем '{search_name}' не найден")
-    return False
 
 def find_project_by_name(name):
     """Находит проект по имени и возвращает его индекс и сам проект"""
