@@ -8,6 +8,7 @@ import engine as en
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.d_create_project import Ui_d_create_project as d_create_project_ui
 from UI_fiiles.project_widget import Ui_Form as project_form_ui
+from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 
 
 class MainWindow(QMainWindow, main_window_ui):
@@ -150,7 +151,8 @@ class MainWindow(QMainWindow, main_window_ui):
         # Включаем кнопки (если они были отключены в дизайнере)
         self.change_project_widget.setEnabled(True)
         self.btn_change_project.setEnabled(True)
-        self.btn_complete_project.setEnabled(True)
+        if project.goal <= project.total_symbols:
+            self.btn_complete_project.setEnabled(True)
         self.btn_archived_project.setEnabled(True)
         self.btn_delete_project.setEnabled(True)
         self.pb_save_flash_note.setEnabled(True)
@@ -167,6 +169,10 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def add_note(self, project):
         """Добавляет заметку к проекту"""
+        data = en.load_data()
+        projects = data['projects']
+        project_index = projects.index(project)
+        projects.remove(project_index)
         text = self.new_symbols.text().strip()
         if not text or not text.isdigit():
             return  # Можно добавить предупреждение
@@ -175,13 +181,13 @@ class MainWindow(QMainWindow, main_window_ui):
         new_total = project.total_symbols + added
         added_progress = (added / project.goal * 100) if project.goal > 0 else 0
 
-        # Создаём заметку
+        # Создаём запись
         note = en.Note(new_total, added, added_progress)
         project.set_new_notes(note)
         project.total_symbols = new_total
 
         # Сохраняем изменения
-        data = en.load_data()
+        projects.append(project)
         en.save_data(data)
 
         # Очищаем поле ввода
@@ -213,27 +219,37 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def archive_project(self, project):
         """Отправляет проект в архив"""
-        project.status = "в архиве"
+        dialog = ConfirmDialog()
+        dialog.message.setText('Вы хотите архивировать проект?\nДедлайн проекта будет удален,\nпроект можно будет восстановить')
+        result = dialog.exec_()
+        dialog.show()
+        if result == QDialog.Accepted:
 
-        data = en.load_data()
-        en.save_data(data)
+            project.status = "в архиве"
+            project.deadline = 'Нет'
+            data = en.load_data()
+            en.save_data(data)
 
-        self.refresh_projects()
-        self.project_info.setVisible(False)
-        self.note_widget.setVisible(False)
-        self.change_project_widget.setVisible(False)
+            self.refresh_projects()
+            self.project_info.setVisible(False)
+            self.note_widget.setVisible(False)
+            self.change_project_widget.setVisible(False)
 
     def delete_project(self, project):
         """Удаляет проект"""
-        # Здесь можно добавить диалог подтверждения
-        data = en.load_data()
-        data['projects'] = [p for p in data['projects'] if p.name != project.name]
-        en.save_data(data)
+        dialog = ConfirmDialog()
+        dialog.message.setText('Вы хотите удалить проект?\nЭто действие нельзя отменить!')
+        result = dialog.exec_()
+        dialog.show()
+        if result == QDialog.Accepted:
+            data = en.load_data()
+            data['projects'] = [p for p in data['projects'] if p.name != project.name]
+            en.save_data(data)
 
-        self.refresh_projects()
-        self.project_info.setVisible(False)
-        self.note_widget.setVisible(False)
-        self.change_project_widget.setVisible(False)
+            self.refresh_projects()
+            self.project_info.setVisible(False)
+            self.note_widget.setVisible(False)
+            self.change_project_widget.setVisible(False)
 
     def generate_project_widget(self, project):
         return ProjectWidget(project)
@@ -272,6 +288,10 @@ class ProjectWidget(QWidget, project_form_ui):
             self.streak_status.setVisible(False)
         self.project = project
 
+class ConfirmDialog(QDialog, confirm_dialog_ui):
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)
 
 class CreateProject(QDialog, d_create_project_ui):
     def __init__(self):
