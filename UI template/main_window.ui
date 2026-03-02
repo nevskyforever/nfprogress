@@ -40,9 +40,9 @@
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>0</y>
-        <width>219</width>
-        <height>61</height>
+        <y>20</y>
+        <width>211</width>
+        <height>51</height>
        </rect>
       </property>
       <property name="font">
@@ -136,7 +136,7 @@
         <item row="2" column="1">
          <widget class="QLabel" name="status">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -144,13 +144,6 @@
          <widget class="QLabel" name="label_progress">
           <property name="text">
            <string>Прогресс:</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="1">
-         <widget class="QLabel" name="progress">
-          <property name="text">
-           <string>Выберите проект</string>
           </property>
          </widget>
         </item>
@@ -164,7 +157,7 @@
         <item row="4" column="1">
          <widget class="QLabel" name="goal">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -178,7 +171,7 @@
         <item row="5" column="1">
          <widget class="QLabel" name="total">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -192,7 +185,7 @@
         <item row="6" column="1">
          <widget class="QLabel" name="added_today">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -206,7 +199,7 @@
         <item row="7" column="1">
          <widget class="QLabel" name="need">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -220,7 +213,7 @@
         <item row="8" column="1">
          <widget class="QLabel" name="deadline">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -234,7 +227,7 @@
         <item row="9" column="1">
          <widget class="QLabel" name="streaks">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -248,7 +241,7 @@
         <item row="10" column="1">
          <widget class="QLabel" name="streak_status">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -262,7 +255,7 @@
         <item row="11" column="1">
          <widget class="QLabel" name="max_streak">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -276,7 +269,14 @@
         <item row="12" column="1">
          <widget class="QLabel" name="l">
           <property name="text">
-           <string>Выберите проект</string>
+           <string>Нет информации</string>
+          </property>
+         </widget>
+        </item>
+        <item row="3" column="1">
+         <widget class="QLabel" name="progress">
+          <property name="text">
+           <string>Нет информации</string>
           </property>
          </widget>
         </item>
@@ -285,9 +285,9 @@
       <widget class="QLabel" name="name_selected_project">
        <property name="geometry">
         <rect>
-         <x>110</x>
+         <x>10</x>
          <y>10</y>
-         <width>281</width>
+         <width>451</width>
          <height>31</height>
         </rect>
        </property>
@@ -391,7 +391,7 @@
          <rect>
           <x>-10</x>
           <y>40</y>
-          <width>491</width>
+          <width>371</width>
           <height>20</height>
          </rect>
         </property>
@@ -408,41 +408,12 @@
          <set>Qt::AlignmentFlag::AlignCenter</set>
         </property>
        </widget>
-       <widget class="QScrollArea" name="note_scroll">
-        <property name="geometry">
-         <rect>
-          <x>0</x>
-          <y>70</y>
-          <width>481</width>
-          <height>101</height>
-         </rect>
-        </property>
-        <property name="font">
-         <font>
-          <family>Arial</family>
-          <pointsize>14</pointsize>
-         </font>
-        </property>
-        <property name="widgetResizable">
-         <bool>true</bool>
-        </property>
-        <widget class="QWidget" name="scrollAreaWidgetContents_3">
-         <property name="geometry">
-          <rect>
-           <x>0</x>
-           <y>0</y>
-           <width>479</width>
-           <height>99</height>
-          </rect>
-         </property>
-        </widget>
-       </widget>
        <widget class="QWidget" name="flash_note" native="true">
         <property name="geometry">
          <rect>
-          <x>70</x>
+          <x>10</x>
           <y>0</y>
-          <width>351</width>
+          <width>311</width>
           <height>45</height>
          </rect>
         </property>
@@ -475,56 +446,57 @@
          </item>
         </layout>
        </widget>
+       <widget class="QListWidget" name="note_list">
+        <property name="geometry">
+         <rect>
+          <x>0</x>
+          <y>70</y>
+          <width>361</width>
+          <height>101</height>
+         </rect>
+        </property>
+       </widget>
+       <widget class="QWidget" name="note_buttons" native="true">
+        <property name="geometry">
+         <rect>
+          <x>380</x>
+          <y>69</y>
+          <width>91</width>
+          <height>101</height>
+         </rect>
+        </property>
+        <layout class="QVBoxLayout" name="verticalLayout">
+         <item>
+          <widget class="QPushButton" name="delete_note">
+           <property name="text">
+            <string>Удалить</string>
+           </property>
+          </widget>
+         </item>
+        </layout>
+       </widget>
       </widget>
       <zorder>note_widget</zorder>
       <zorder>project_info</zorder>
       <zorder>name_selected_project</zorder>
       <zorder>change_project_widget</zorder>
      </widget>
-     <widget class="QScrollArea" name="scroll_projects">
+     <widget class="QListWidget" name="list_projects">
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>60</y>
-        <width>201</width>
-        <height>501</height>
+        <y>80</y>
+        <width>200</width>
+        <height>470</height>
        </rect>
-      </property>
-      <property name="font">
-       <font>
-        <family>Arial</family>
-        <pointsize>14</pointsize>
-       </font>
       </property>
       <property name="mouseTracking">
        <bool>true</bool>
       </property>
-      <property name="tabletTracking">
-       <bool>true</bool>
-      </property>
-      <property name="verticalScrollBarPolicy">
-       <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOn</enum>
-      </property>
-      <property name="widgetResizable">
-       <bool>true</bool>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignHCenter|Qt::AlignmentFlag::AlignTop</set>
-      </property>
-      <widget class="QWidget" name="scrollAreaWidgetContents_4">
-       <property name="geometry">
-        <rect>
-         <x>8</x>
-         <y>0</y>
-         <width>183</width>
-         <height>499</height>
-        </rect>
-       </property>
-      </widget>
      </widget>
      <zorder>project_detail_widget</zorder>
      <zorder>btns_create_filter</zorder>
-     <zorder>scroll_projects</zorder>
+     <zorder>list_projects</zorder>
     </widget>
     <widget class="QWidget" name="game_tab">
      <attribute name="title">

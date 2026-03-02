@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>150</width>
+    <width>139</width>
     <height>181</height>
    </rect>
   </property>
@@ -16,6 +16,15 @@
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QWidget" name="widget" native="true">
+     <property name="enabled">
+      <bool>true</bool>
+     </property>
+     <property name="baseSize">
+      <size>
+       <width>200</width>
+       <height>200</height>
+      </size>
+     </property>
      <property name="font">
       <font>
        <family>Arial</family>
@@ -70,7 +79,7 @@
        </widget>
       </item>
       <item row="4" column="0">
-       <widget class="QLabel" name="label">
+       <widget class="QLabel" name="streak">
         <property name="text">
          <string>стрик</string>
         </property>

@@ -205,10 +205,11 @@ class Project:
 
         return 'No'
 
-    def get_streak_msg(self, status, msg_type=None):
+    def get_streak_status_msg(self, msg_type=None):
+        status = self.get_streak_status()
         if status == 'Start':
             if msg_type == 'min':
-                return '🔥  Начат'
+                return '🔥 стрик Начат'
             return f'🔥 Стрик в {self.name} начат! Отличное начало, главное - продолжать!'
         elif status == 'Go':
             streaks = len(self.streaks)

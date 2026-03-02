@@ -1,8 +1,8 @@
 import sys
-from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QWidget
+from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QWidget, QListWidgetItem
 from PySide6.scripts.project_lib import new_project
-from PySide6.QtWidgets import QApplication
-from PySide6.QtCore import QTranslator, QLibraryInfo
+from PySide6.QtWidgets import QApplication, QSizePolicy
+from PySide6.QtCore import QTranslator, QLibraryInfo, QSize
 import engine as en
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.d_create_project import Ui_d_create_project as d_create_project_ui
@@ -13,6 +13,7 @@ class MainWindow(QMainWindow, main_window_ui):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+        self.refresh_projects()
 
         # Правильный способ подключения кнопки
         self.project_info.setVisible(False)
@@ -30,21 +31,50 @@ class MainWindow(QMainWindow, main_window_ui):
             print("Диалог закрыт по OK")
             data = en.load_data()
             name = dialog.le_name.text()
-            goal = dialog.le_goal.text()
+            goal = int(dialog.le_goal.text())
 
             if dialog.checkBox.isChecked():
                 deadline = 'Нет'
             else:
                 deadline = dialog.de_deadline.date()
 
-            total = dialog.le_total_symbols.text()
+            total = int(dialog.le_total_symbols.text())
 
             new_project = en.Project(name=name, goal=goal, deadline=deadline, total_symbols=total)
             data['projects'].append(new_project)
             en.save_data(data)
 
+            self.refresh_projects()
             dialog.close()
 
+    def generate_project_widget(self, project):
+        return ProjectWidget(project)
+
+    def refresh_projects(self):
+        data = en.load_data()
+        projects = data['projects']
+        list_p = self.list_projects
+        list_p.clear()
+        for project in projects:
+            widget = self.generate_project_widget(project)
+            item = QListWidgetItem()
+
+            # !!! ВАЖНО: устанавливаем размер элемента на основе виджета
+            item.setSizeHint(QSize(200, 200))
+
+            list_p.addItem(item)
+            list_p.setItemWidget(item, widget)
+class ProjectWidget(QWidget, project_form_ui):
+    def __init__(self, project):
+        super().__init__()
+        self.setupUi(self)
+
+        self.name.setText(project.name)
+        self.progressBar.setValue(project.progress)
+        self.symbols.setText(f'{project.total_symbols}/{project.goal}')
+        self.deadline.setText(f'Дедлайн: {project.deadline}')
+        self.streak.setText(f'стрик: {len(project.streaks)} д.')
+        self.streak_status.setText(f'статус стрика: {project.get_streak_status_msg('min')}')
 
 class CreateProject(QDialog, d_create_project_ui):
     def __init__(self):
