@@ -286,6 +286,7 @@ class Note:
         return self.date_create.date()
     def get_date_create_str(self):
         return self.date_create.strftime('%d.%m.%Y %H:%M')
+
 class Notification:
     def __init__(self, text, tag=None, date_create=None, status='New'):
         self.text = text

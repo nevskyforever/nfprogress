@@ -1,4 +1,5 @@
 import sys
+from datetime import date
 from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QWidget, QListWidgetItem
 from PySide6.scripts.project_lib import new_project
 from PySide6.QtWidgets import QApplication, QSizePolicy
@@ -20,6 +21,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.note_widget.setVisible(False)
         self.change_project_widget.setVisible(False)
         self.btn_create_project.clicked.connect(self.create_project)
+        self.list_projects.itemClicked.connect(self.view_project)
 
         self.show()
 
@@ -36,7 +38,8 @@ class MainWindow(QMainWindow, main_window_ui):
             if dialog.checkBox.isChecked():
                 deadline = 'Нет'
             else:
-                deadline = dialog.de_deadline.date()
+                qdate = dialog.de_deadline.date()
+                deadline = qdate.toPython()  # преобразуем
 
             total = int(dialog.le_total_symbols.text())
 
@@ -46,6 +49,191 @@ class MainWindow(QMainWindow, main_window_ui):
 
             self.refresh_projects()
             dialog.close()
+
+    def view_project(self):
+        """Отображает информацию о выбранном проекте"""
+        # Получаем текущий выбранный элемент
+        current_item = self.list_projects.currentItem()
+
+        if current_item is None:
+            # Если ничего не выбрано, скрываем панели
+            self.project_info.setVisible(False)
+            self.note_widget.setVisible(False)
+            self.change_project_widget.setVisible(False)
+            self.name_selected_project.setText("Выберите проект")
+            return
+
+        # Получаем виджет, связанный с выбранным элементом
+        widget = self.list_projects.itemWidget(current_item)
+
+        if widget is None or not hasattr(widget, 'project'):
+            self.project_info.setVisible(False)
+            return
+
+        # Получаем проект из виджета
+        project = widget.project
+
+        # Отображаем информацию о проекте
+        self.show_project_info(project)
+
+        # Настраиваем кнопки управления
+        self.setup_project_buttons(project)
+
+        # Показываем панели
+        self.project_info.setVisible(True)
+        self.note_widget.setVisible(True)
+        self.change_project_widget.setVisible(True)
+        self.name_selected_project.setText(project.name)
+
+    def show_project_info(self, project):
+        """Заполняет виджеты информацией о проекте"""
+        # Основная информация
+        self.status.setText(project.status)
+        self.progress.setText(f"{project.progress:.1f}%")
+        self.goal.setText(str(project.goal))
+        self.total.setText(str(project.total_symbols))
+
+        # Статистика за сегодня
+        today_added = project.get_added_symbols_today_value()
+        self.added_today.setText(str(today_added))
+
+        # Осталось написать
+        need = project.get_need_write_value()
+        self.need.setText(str(need))
+
+        # Дедлайн
+        if project.deadline != 'Нет':
+            self.deadline.setText(project.deadline_str)
+
+            # Расчёт оставшихся дней
+            days_left = (project.deadline - en.today_for_test()).days
+            if days_left > 0:
+                self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
+            elif days_left == 0:
+                self.deadline.setText(f"{project.deadline_str} (сегодня!)")
+            else:
+                self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
+        else:
+            self.deadline.setText("Не установлен")
+
+        # Информация о стриках
+        self.streaks.setText(str(len(project.streaks)))
+        self.max_streak.setText(str(project.max_streak))
+        self.streak_status.setText(project.get_streak_status_msg())
+
+        # Последняя запись (если есть)
+        if project.notes:
+            last_note = project.notes[-1]
+            self.l.setText(f"{last_note.get_date_create_str()} (+{last_note.added_symbols})")
+        else:
+            self.l.setText("Нет записей")
+
+    def setup_project_buttons(self, project):
+        """Настраивает кнопки управления проектом"""
+        # Отключаем старые соединения
+        try:
+            self.btn_change_project.clicked.disconnect()
+            self.btn_complete_project.clicked.disconnect()
+            self.btn_archived_project.clicked.disconnect()
+            self.btn_delete_project.clicked.disconnect()
+            self.pb_save_flash_note.clicked.disconnect()
+        except:
+            pass  # Если не было соединений
+
+        # Подключаем новые
+        self.btn_change_project.clicked.connect(lambda: self.edit_project(project))
+        self.btn_complete_project.clicked.connect(lambda: self.complete_project(project))
+        self.btn_archived_project.clicked.connect(lambda: self.archive_project(project))
+        self.btn_delete_project.clicked.connect(lambda: self.delete_project(project))
+        self.pb_save_flash_note.clicked.connect(lambda: self.add_note(project))
+
+        # Включаем кнопки (если они были отключены в дизайнере)
+        self.change_project_widget.setEnabled(True)
+        self.btn_change_project.setEnabled(True)
+        self.btn_complete_project.setEnabled(True)
+        self.btn_archived_project.setEnabled(True)
+        self.btn_delete_project.setEnabled(True)
+        self.pb_save_flash_note.setEnabled(True)
+
+        # Загружаем список заметок
+        self.load_notes(project)
+
+    def load_notes(self, project):
+        """Загружает список заметок проекта"""
+        self.note_list.clear()
+        for note in reversed(project.notes[-10:]):  # Показываем последние 10 записей
+            item = QListWidgetItem(f"{note.get_date_create_str()} +{note.added_symbols}")
+            self.note_list.addItem(item)
+
+    def add_note(self, project):
+        """Добавляет заметку к проекту"""
+        text = self.new_symbols.text().strip()
+        if not text or not text.isdigit():
+            return  # Можно добавить предупреждение
+
+        added = int(text)
+        new_total = project.total_symbols + added
+        added_progress = (added / project.goal * 100) if project.goal > 0 else 0
+
+        # Создаём заметку
+        note = en.Note(new_total, added, added_progress)
+        project.set_new_notes(note)
+        project.total_symbols = new_total
+
+        # Сохраняем изменения
+        data = en.load_data()
+        en.save_data(data)
+
+        # Очищаем поле ввода
+        self.new_symbols.clear()
+
+        # Обновляем отображение
+        self.refresh_projects()
+        self.show_project_info(project)
+        self.load_notes(project)
+
+    def edit_project(self, project):
+        """Редактирует проект"""
+        # Здесь можно открыть диалог редактирования
+        print(f"Редактирование проекта {project.name}")
+        # TODO: реализовать диалог редактирования
+
+    def complete_project(self, project):
+        """Завершает проект"""
+        project.status = "завершен"
+        project.complete_date = en.today_for_test()
+
+        data = en.load_data()
+        en.save_data(data)
+
+        self.refresh_projects()
+        self.project_info.setVisible(False)
+        self.note_widget.setVisible(False)
+        self.change_project_widget.setVisible(False)
+
+    def archive_project(self, project):
+        """Отправляет проект в архив"""
+        project.status = "в архиве"
+
+        data = en.load_data()
+        en.save_data(data)
+
+        self.refresh_projects()
+        self.project_info.setVisible(False)
+        self.note_widget.setVisible(False)
+        self.change_project_widget.setVisible(False)
+
+    def delete_project(self, project):
+        """Удаляет проект"""
+        # Здесь можно добавить диалог подтверждения
+        data = en.load_data()
+        data['projects'] = [p for p in data['projects'] if p.name != project.name]
+        en.save_data(data)
+
+        self.refresh_projects()
+        self.project_info.setVisible(False)
+        self.note_widget.setVisible(False)
+        self.change_project_widget.setVisible(False)
 
     def generate_project_widget(self, project):
         return ProjectWidget(project)
@@ -64,6 +252,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
             list_p.addItem(item)
             list_p.setItemWidget(item, widget)
+
+
 class ProjectWidget(QWidget, project_form_ui):
     def __init__(self, project):
         super().__init__()
@@ -72,9 +262,16 @@ class ProjectWidget(QWidget, project_form_ui):
         self.name.setText(project.name)
         self.progressBar.setValue(project.progress)
         self.symbols.setText(f'{project.total_symbols}/{project.goal}')
-        self.deadline.setText(f'Дедлайн: {project.deadline}')
-        self.streak.setText(f'стрик: {len(project.streaks)} д.')
-        self.streak_status.setText(f'статус стрика: {project.get_streak_status_msg('min')}')
+        if project.deadline_str != 'Нет':
+            self.deadline.setText(f'Дедлайн: {project.deadline_str}')
+            self.streak.setText(f'Стрик: {len(project.streaks)} д.')
+            self.streak_status.setText(f'{project.get_streak_status_msg('min')}')
+        else:
+            self.deadline.setVisible(False)
+            self.streak.setVisible(False)
+            self.streak_status.setVisible(False)
+        self.project = project
+
 
 class CreateProject(QDialog, d_create_project_ui):
     def __init__(self):

@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>733</width>
-    <height>620</height>
+    <width>727</width>
+    <height>646</height>
    </rect>
   </property>
   <property name="font">
@@ -26,7 +26,7 @@
       <x>-1</x>
       <y>10</y>
       <width>731</width>
-      <height>611</height>
+      <height>641</height>
      </rect>
     </property>
     <property name="currentIndex">
@@ -40,9 +40,9 @@
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>20</y>
+        <y>40</y>
         <width>211</width>
-        <height>51</height>
+        <height>45</height>
        </rect>
       </property>
       <property name="font">
@@ -90,9 +90,9 @@
       <property name="geometry">
        <rect>
         <x>220</x>
-        <y>20</y>
+        <y>10</y>
         <width>501</width>
-        <height>551</height>
+        <height>581</height>
        </rect>
       </property>
       <widget class="QGroupBox" name="project_info">
@@ -102,9 +102,9 @@
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>40</y>
-         <width>331</width>
-         <height>301</height>
+         <y>90</y>
+         <width>461</width>
+         <height>308</height>
         </rect>
        </property>
        <property name="font">
@@ -116,165 +116,162 @@
        <property name="title">
         <string>Информация о проекте</string>
        </property>
+       <property name="alignment">
+        <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+       </property>
        <property name="flat">
         <bool>false</bool>
        </property>
-       <layout class="QFormLayout" name="formLayout_2">
-        <property name="labelAlignment">
-         <set>Qt::AlignmentFlag::AlignJustify|Qt::AlignmentFlag::AlignVCenter</set>
-        </property>
-        <property name="leftMargin">
-         <number>2</number>
-        </property>
-        <item row="2" column="0">
+       <layout class="QGridLayout" name="gridLayout_2">
+        <item row="0" column="0">
          <widget class="QLabel" name="label_status">
           <property name="text">
            <string>Статус:</string>
           </property>
          </widget>
         </item>
-        <item row="2" column="1">
+        <item row="0" column="1">
          <widget class="QLabel" name="status">
           <property name="text">
            <string>Нет информации</string>
           </property>
          </widget>
         </item>
-        <item row="3" column="0">
+        <item row="1" column="0">
          <widget class="QLabel" name="label_progress">
           <property name="text">
            <string>Прогресс:</string>
           </property>
          </widget>
         </item>
-        <item row="4" column="0">
+        <item row="1" column="1">
+         <widget class="QLabel" name="progress">
+          <property name="text">
+           <string>Нет информации</string>
+          </property>
+         </widget>
+        </item>
+        <item row="2" column="0">
          <widget class="QLabel" name="label_goal">
           <property name="text">
            <string>Цель:</string>
           </property>
          </widget>
         </item>
-        <item row="4" column="1">
+        <item row="2" column="1">
          <widget class="QLabel" name="goal">
           <property name="text">
            <string>Нет информации</string>
           </property>
          </widget>
         </item>
-        <item row="5" column="0">
+        <item row="3" column="0">
          <widget class="QLabel" name="label_total">
           <property name="text">
            <string>Написано:</string>
           </property>
          </widget>
         </item>
-        <item row="5" column="1">
+        <item row="3" column="1">
          <widget class="QLabel" name="total">
           <property name="text">
            <string>Нет информации</string>
           </property>
          </widget>
         </item>
-        <item row="6" column="0">
+        <item row="4" column="0">
          <widget class="QLabel" name="label_today_added">
           <property name="text">
            <string>Написано сегодня:</string>
           </property>
          </widget>
         </item>
-        <item row="6" column="1">
+        <item row="4" column="1">
          <widget class="QLabel" name="added_today">
           <property name="text">
            <string>Нет информации</string>
           </property>
          </widget>
         </item>
-        <item row="7" column="0">
+        <item row="5" column="0">
          <widget class="QLabel" name="label_need">
           <property name="text">
            <string>Осталось написать: </string>
           </property>
          </widget>
         </item>
-        <item row="7" column="1">
+        <item row="5" column="1">
          <widget class="QLabel" name="need">
           <property name="text">
            <string>Нет информации</string>
           </property>
          </widget>
         </item>
-        <item row="8" column="0">
+        <item row="6" column="0">
          <widget class="QLabel" name="label_deadline">
           <property name="text">
            <string>Дедлайн:</string>
           </property>
          </widget>
         </item>
-        <item row="8" column="1">
+        <item row="6" column="1">
          <widget class="QLabel" name="deadline">
           <property name="text">
            <string>Нет информации</string>
           </property>
          </widget>
         </item>
-        <item row="9" column="0">
+        <item row="7" column="0">
          <widget class="QLabel" name="label_streaks">
           <property name="text">
            <string>Текущий стрик: </string>
           </property>
          </widget>
         </item>
-        <item row="9" column="1">
+        <item row="7" column="1">
          <widget class="QLabel" name="streaks">
           <property name="text">
            <string>Нет информации</string>
           </property>
          </widget>
         </item>
-        <item row="10" column="0">
+        <item row="8" column="0">
          <widget class="QLabel" name="label_streak_status">
           <property name="text">
            <string>Cтатус стрика:</string>
           </property>
          </widget>
         </item>
-        <item row="10" column="1">
+        <item row="8" column="1">
          <widget class="QLabel" name="streak_status">
           <property name="text">
            <string>Нет информации</string>
           </property>
          </widget>
         </item>
-        <item row="11" column="0">
+        <item row="9" column="0">
          <widget class="QLabel" name="label_max_streak">
           <property name="text">
            <string>Максимальный стрик: </string>
           </property>
          </widget>
         </item>
-        <item row="11" column="1">
+        <item row="9" column="1">
          <widget class="QLabel" name="max_streak">
           <property name="text">
            <string>Нет информации</string>
           </property>
          </widget>
         </item>
-        <item row="12" column="0">
+        <item row="10" column="0">
          <widget class="QLabel" name="last_note">
           <property name="text">
            <string>Последняя запись: </string>
           </property>
          </widget>
         </item>
-        <item row="12" column="1">
+        <item row="10" column="1">
          <widget class="QLabel" name="l">
-          <property name="text">
-           <string>Нет информации</string>
-          </property>
-         </widget>
-        </item>
-        <item row="3" column="1">
-         <widget class="QLabel" name="progress">
           <property name="text">
            <string>Нет информации</string>
           </property>
@@ -286,7 +283,7 @@
        <property name="geometry">
         <rect>
          <x>10</x>
-         <y>10</y>
+         <y>0</y>
          <width>451</width>
          <height>31</height>
         </rect>
@@ -310,10 +307,10 @@
        </property>
        <property name="geometry">
         <rect>
-         <x>360</x>
-         <y>60</y>
-         <width>111</width>
-         <height>281</height>
+         <x>10</x>
+         <y>30</y>
+         <width>460</width>
+         <height>45</height>
         </rect>
        </property>
        <property name="font">
@@ -322,20 +319,24 @@
          <pointsize>14</pointsize>
         </font>
        </property>
-       <layout class="QVBoxLayout" name="verticalLayout_3">
+       <layout class="QHBoxLayout" name="horizontalLayout_2">
         <item>
-         <widget class="QPushButton" name="btn_complete_project">
+         <widget class="QPushButton" name="btn_change_project">
           <property name="enabled">
            <bool>false</bool>
           </property>
-          <property name="font">
-           <font>
-            <family>Arial</family>
-            <pointsize>14</pointsize>
-           </font>
+          <property name="text">
+           <string>Изменить</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="btn_delete_project">
+          <property name="enabled">
+           <bool>false</bool>
           </property>
           <property name="text">
-           <string>Завершить</string>
+           <string>Удалить</string>
           </property>
          </widget>
         </item>
@@ -356,22 +357,18 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="btn_delete_project">
+         <widget class="QPushButton" name="btn_complete_project">
           <property name="enabled">
            <bool>false</bool>
           </property>
-          <property name="text">
-           <string>Удалить</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="btn_change_project">
-          <property name="enabled">
-           <bool>false</bool>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+            <pointsize>14</pointsize>
+           </font>
           </property>
           <property name="text">
-           <string>Изменить</string>
+           <string>Завершить</string>
           </property>
          </widget>
         </item>
@@ -383,14 +380,14 @@
          <x>9</x>
          <y>359</y>
          <width>491</width>
-         <height>171</height>
+         <height>241</height>
         </rect>
        </property>
        <widget class="QLabel" name="label_3">
         <property name="geometry">
          <rect>
           <x>-10</x>
-          <y>40</y>
+          <y>80</y>
           <width>371</width>
           <height>20</height>
          </rect>
@@ -412,7 +409,7 @@
         <property name="geometry">
          <rect>
           <x>10</x>
-          <y>0</y>
+          <y>40</y>
           <width>311</width>
           <height>45</height>
          </rect>
@@ -450,10 +447,32 @@
         <property name="geometry">
          <rect>
           <x>0</x>
-          <y>70</y>
+          <y>100</y>
           <width>361</width>
-          <height>101</height>
+          <height>121</height>
          </rect>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">QListWidget#note_list {
+    background-color: rgb(56, 56, 56);
+    border: 1px solid #999;
+    border-radius: 3px;
+    outline: none;
+}
+
+QListWidget#note_list::item {
+    padding: 4px;
+    border-bottom: 1px solid #aaa;
+}
+
+QListWidget#note_list::item:selected {
+    background-color: #3daee9;
+    color: white;
+}
+
+QListWidget#note_list::item:hover {
+    background-color: #d8d8d8;
+}</string>
         </property>
        </widget>
        <widget class="QWidget" name="note_buttons" native="true">
@@ -485,13 +504,38 @@
       <property name="geometry">
        <rect>
         <x>10</x>
-        <y>80</y>
+        <y>90</y>
         <width>200</width>
-        <height>470</height>
+        <height>501</height>
        </rect>
       </property>
       <property name="mouseTracking">
        <bool>true</bool>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QListWidget#list_projects {
+    background-color: rgb(56, 56, 56);
+    border: 2px solid #999;
+    border-radius: 5px;
+    outline: none;
+}
+
+QListWidget#list_projects::item {
+    padding: 5px;
+    border-bottom: 1px solid #aaa;
+}
+
+QListWidget#list_projects::item:selected {
+    background-color: #3daee9;
+    color: rgb(0, 28, 255);
+}
+
+QListWidget#list_projects::item:hover {
+    background-color: rgb(165, 165, 165);
+}</string>
+      </property>
+      <property name="sortingEnabled">
+       <bool>false</bool>
       </property>
      </widget>
      <zorder>project_detail_widget</zorder>
