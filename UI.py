@@ -1,14 +1,15 @@
 import sys
 from datetime import date
 from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QWidget, QListWidgetItem, QMessageBox
+from PySide6.QtCore import QTranslator, QLibraryInfo, QSize, QDate, QTimer, Qt
 from PySide6.QtWidgets import QApplication, QSizePolicy, QDialogButtonBox
-from PySide6.QtCore import QTranslator, QLibraryInfo, QSize, QDate
 import engine as en
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
 from UI_fiiles.project_widget import Ui_Form as project_form_ui
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
+from UI_fiiles.notification import ToastNotification
 from engine import save_data
 
 
@@ -17,6 +18,9 @@ class MainWindow(QMainWindow, main_window_ui):
         super().__init__()
         self.setupUi(self)
         self.refresh_projects()
+
+        # Создаем менеджер уведомлений
+        self.notifications = NotificationManager(self)
 
         # Правильный способ подключения кнопки
         self.project_info.setVisible(False)
@@ -29,6 +33,8 @@ class MainWindow(QMainWindow, main_window_ui):
         self.new_symbols.returnPressed.connect(self.on_enter_pressed)
 
         self.show()
+        QTimer.singleShot(500, lambda: self.notifications.show_info("Это тестовое уведомление", 2000, "top-right"))
+
 
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
@@ -68,6 +74,12 @@ class MainWindow(QMainWindow, main_window_ui):
 
             self.refresh_projects()
             dialog.close()
+
+            QTimer.singleShot(100, lambda: self.notifications.show_success(
+                f"Проект '{name}' создан!",
+                2000,
+                "bottom-left"
+            ))
 
     def view_project(self):
         """Отображает информацию о выбранном проекте"""
@@ -493,6 +505,17 @@ class MainWindow(QMainWindow, main_window_ui):
         if current_project_name:
             self.select_project_by_name(current_project_name)
 
+    def show_notification_examples(self):
+        # В разных углах
+        toast1 = ToastNotification(self, "В правом верхнем углу", 2000, "top-right")
+        toast1.show()
+
+        toast2 = ToastNotification(self, "В центре сверху", 2000, "top-center")
+        toast2.show()
+
+        toast3 = ToastNotification(self, "По умолчанию снизу справа", 2000)
+        toast3.show()
+
 
 class ProjectWidget(QWidget, project_form_ui):
     def __init__(self, project):
@@ -702,6 +725,72 @@ class EditProject(QDialog, edit_project_ui):
 
         self.buttons.setEnabled(buttons_enabled)
 
+class NotificationManager:
+    """Менеджер для показа уведомлений"""
+
+    def __init__(self, parent_widget):
+        self.parent = parent_widget
+        self.active_toasts = []
+
+    def show_success(self, message, duration=2000, position="bottom-right"):
+        """Показывает уведомление об успехе"""
+        toast = ToastNotification(self.parent, message, duration, position=position)
+        toast.setStyleSheet("""
+            QFrame {
+                background-color: rgba(76, 175, 80, 220);
+                border-radius: 8px;
+                padding: 10px;
+            }
+            QLabel {
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+            }
+        """)
+        toast.show()
+        self.active_toasts.append(toast)
+
+    def show_error(self, message, duration=3000, position="bottom-right"):
+        """Показывает уведомление об ошибке"""
+        toast = ToastNotification(self.parent, message, duration, position=position)
+        toast.setStyleSheet("""
+            QFrame {
+                background-color: rgba(244, 67, 54, 220);
+                border-radius: 8px;
+                padding: 10px;
+            }
+            QLabel {
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+            }
+        """)
+        toast.show()
+        self.active_toasts.append(toast)
+
+    def show_warning(self, message, duration=2500, position="bottom-right"):
+        """Показывает предупреждение"""
+        toast = ToastNotification(self.parent, message, duration, position=position)
+        toast.setStyleSheet("""
+            QFrame {
+                background-color: rgba(255, 152, 0, 220);
+                border-radius: 8px;
+                padding: 10px;
+            }
+            QLabel {
+                color: white;
+                font-size: 14px;
+                font-weight: bold;
+            }
+        """)
+        toast.show()
+        self.active_toasts.append(toast)
+
+    def show_info(self, message, duration=2000, position="bottom-right"):
+        """Показывает информационное сообщение"""
+        toast = ToastNotification(self.parent, message, duration, position=position)
+        toast.show()
+        self.active_toasts.append(toast)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

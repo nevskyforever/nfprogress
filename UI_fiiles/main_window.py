@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_window.ui'
+## Form generated from reading UI file 'main_windowOxUGMY.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -25,6 +25,8 @@ class Ui_main_window(object):
         if not main_window.objectName():
             main_window.setObjectName(u"main_window")
         main_window.resize(727, 646)
+        main_window.setMinimumSize(QSize(727, 646))
+        main_window.setMaximumSize(QSize(727, 646))
         font = QFont()
         font.setFamilies([u"Arial"])
         font.setPointSize(14)
