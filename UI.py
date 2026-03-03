@@ -6,7 +6,7 @@ from PySide6.QtWidgets import QApplication, QSizePolicy, QDialogButtonBox
 import engine as en
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
-from UI_fiiles.project_widget import Ui_Form as project_form_ui
+from UI_fiiles.project_widget import ProjectWidget  # <- новый импорт
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
 from UI_fiiles.notification import ToastNotification
@@ -479,7 +479,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def refresh_projects(self):
         data = en.load_data()
-        projects = list(data['projects'].values())  # Преобразуем словарь в список для отображения
+        projects = list(data['projects'].values())
         list_p = self.list_projects
 
         # Сохраняем текущий выбранный проект (если есть)
@@ -494,43 +494,23 @@ class MainWindow(QMainWindow, main_window_ui):
 
         for project in projects:
             widget = self.generate_project_widget(project)
+
+            # --- ИЗМЕНЕНО: вычисляем предпочтительный размер виджета ---
+            # Принудительно обновляем layout, чтобы sizeHint был актуальным
+            widget.layout().activate()  # обновляем основной layout виджета
+            widget.widget.layout().activate()  # обновляем gridLayout внутри widget
+            size = widget.sizeHint()  # получаем предпочтительный размер
+
             item = QListWidgetItem()
-            item.setSizeHint(QSize(200, 200))
+            item.setSizeHint(size)
             list_p.addItem(item)
             list_p.setItemWidget(item, widget)
 
-            # Если это был выбранный проект, запоминаем его индекс
             if current_project_name and project.name == current_project_name:
                 list_p.setCurrentItem(item)
 
-        # Если был выбран проект, обновляем его информацию
         if current_project_name:
             self.select_project_by_name(current_project_name)
-
-class ProjectWidget(QWidget, project_form_ui):
-    def __init__(self, project):
-        super().__init__()
-        self.setupUi(self)
-        self.project = project
-        self.update_display()
-
-    def update_display(self):
-        """Обновляет отображение виджета на основе текущих данных проекта"""
-        self.name.setText(self.project.name)
-        self.progressBar.setValue(int(self.project.progress))  # progress может быть float
-        self.symbols.setText(f'{self.project.total_symbols}/{self.project.goal}')
-
-        if self.project.deadline_str != 'Нет':
-            self.deadline.setText(f'Дедлайн: {self.project.deadline_str}')
-            self.deadline.setVisible(True)
-            self.streak.setText(f'Стрик: {len(self.project.streaks)} д.')
-            self.streak.setVisible(True)
-            self.streak_status.setText(self.project.get_streak_status_msg('min'))
-            self.streak_status.setVisible(True)
-        else:
-            self.deadline.setVisible(False)
-            self.streak.setVisible(False)
-            self.streak_status.setVisible(False)
 
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):

@@ -9,15 +9,101 @@
 ################################################################################
 
 from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
-    QMetaObject, QObject, QPoint, QRect,
-    QSize, QTime, QUrl, Qt)
+                            QMetaObject, QObject, QPoint, QRect,
+                            QSize, QTime, QUrl, Qt, QRectF)
 from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
-    QFont, QFontDatabase, QGradient, QIcon,
-    QImage, QKeySequence, QLinearGradient, QPainter,
-    QPalette, QPixmap, QRadialGradient, QTransform)
+                           QFont, QFontDatabase, QGradient, QIcon,
+                           QImage, QKeySequence, QLinearGradient, QPainter,
+                           QPalette, QPixmap, QRadialGradient, QTransform, QPen)
 from PySide6.QtWidgets import (QApplication, QGridLayout, QLabel, QProgressBar,
-    QSizePolicy, QVBoxLayout, QWidget)
+                               QSizePolicy, QVBoxLayout, QWidget)
 
+# =============================================================================
+# Кастомный виджет кругового прогресс-бара
+# =============================================================================
+class CircularProgressBar(QWidget):
+    """Круговой прогресс-бар в виде кольца"""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._value = 0
+        self._text_visible = False
+        self._ring_width = 8
+        self._background_color = QColor(220, 220, 220)
+        self._progress_color = QColor(76, 175, 80)
+        self._text_color = QColor(0, 0, 0)
+        # Важно: минимальные размеры должны быть равны, чтобы круг не сплющивался
+        self.setMinimumSize(80, 80)
+
+    def setValue(self, value):
+        """Устанавливает значение прогресса (0-100)"""
+        self._value = max(0, min(100, value))
+        self.update()
+
+    def value(self):
+        return self._value
+
+    def setTextVisible(self, visible):
+        self._text_visible = visible
+        self.update()
+
+    def setRingWidth(self, width):
+        """Устанавливает толщину кольца в пикселях"""
+        self._ring_width = width
+        self.update()
+
+    def setBackgroundColor(self, color):
+        """Устанавливает цвет фонового кольца"""
+        self._background_color = QColor(color)
+        self.update()
+
+    def setProgressColor(self, color):
+        """Устанавливает цвет кольца прогресса"""
+        self._progress_color = QColor(color)
+        self.update()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        # Рассчитываем квадратную область для рисования кольца
+        margin = self._ring_width / 2
+        side = min(self.width(), self.height()) - 2 * margin
+        if side <= 0:
+            return
+
+        # Центрируем квадрат
+        x = (self.width() - side) / 2
+        y = (self.height() - side) / 2
+        rect = QRectF(x, y, side, side)  # используем QRectF для точности
+
+        # Перо
+        pen = QPen()
+        pen.setWidth(self._ring_width)
+        pen.setCapStyle(Qt.RoundCap)
+
+        # Фоновое кольцо
+        pen.setColor(self._background_color)
+        painter.setPen(pen)
+        painter.drawArc(rect, 0, 360 * 16)
+
+        # Кольцо прогресса
+        pen.setColor(self._progress_color)
+        painter.setPen(pen)
+        start_angle = 90 * 16
+        span_angle = -self._value * 360 * 16 / 100
+        painter.drawArc(rect, start_angle, int(span_angle))
+
+        # Текст (опционально)
+        if self._text_visible:
+            painter.setPen(self._text_color)
+            font = QFont("Arial", 10, QFont.Bold)
+            painter.setFont(font)
+            painter.drawText(self.rect(), Qt.AlignCenter, f"{self._value}%")
+
+# =============================================================================
+# Исходный UI-класс (сгенерирован Qt Designer)
+# =============================================================================
 class Ui_Form(object):
     def setupUi(self, Form):
         if not Form.objectName():
@@ -34,50 +120,42 @@ class Ui_Form(object):
         self.widget.setFont(font)
         self.gridLayout = QGridLayout(self.widget)
         self.gridLayout.setObjectName(u"gridLayout")
+
+        # Стандартный QProgressBar (будет заменён)
         self.progressBar = QProgressBar(self.widget)
         self.progressBar.setObjectName(u"progressBar")
         self.progressBar.setValue(24)
-
         self.gridLayout.addWidget(self.progressBar, 1, 0, 1, 1)
 
         self.deadline = QLabel(self.widget)
         self.deadline.setObjectName(u"deadline")
         self.deadline.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
         self.gridLayout.addWidget(self.deadline, 3, 0, 1, 1)
 
         self.streak_status = QLabel(self.widget)
         self.streak_status.setObjectName(u"streak_status")
         self.streak_status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
         self.gridLayout.addWidget(self.streak_status, 5, 0, 1, 1)
 
         self.name = QLabel(self.widget)
         self.name.setObjectName(u"name")
         self.name.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
         self.gridLayout.addWidget(self.name, 0, 0, 1, 1)
 
         self.symbols = QLabel(self.widget)
         self.symbols.setObjectName(u"symbols")
         self.symbols.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
         self.gridLayout.addWidget(self.symbols, 2, 0, 1, 1)
 
         self.streak = QLabel(self.widget)
         self.streak.setObjectName(u"streak")
         self.streak.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
         self.gridLayout.addWidget(self.streak, 4, 0, 1, 1)
-
 
         self.verticalLayout.addWidget(self.widget)
 
-
         self.retranslateUi(Form)
-
         QMetaObject.connectSlotsByName(Form)
-    # setupUi
 
     def retranslateUi(self, Form):
         Form.setWindowTitle(QCoreApplication.translate("Form", u"Project Widget", None))
@@ -86,4 +164,70 @@ class Ui_Form(object):
         self.name.setText(QCoreApplication.translate("Form", u"Название", None))
         self.symbols.setText(QCoreApplication.translate("Form", u"Символы", None))
         self.streak.setText(QCoreApplication.translate("Form", u"Стрик", None))
-    # retranslateUi
+
+
+# =============================================================================
+# Финальный класс виджета проекта (используется в UI.py)
+# =============================================================================
+class ProjectWidget(QWidget, Ui_Form):
+    def __init__(self, project):
+        super().__init__()
+        self.setupUi(self)
+
+        # 1. Сбрасываем фиксированный размер, установленный в .ui
+        self.resize(0, 0)
+        self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)
+
+        # 2. Удаляем стандартный QProgressBar
+        self.progressBar.deleteLater()
+
+        # 3. Создаём круговой прогресс-бар
+        self.circular_progress = CircularProgressBar(self.widget)
+        self.circular_progress.setTextVisible(False)
+        self.circular_progress.setRingWidth(12)
+        self.circular_progress.setProgressColor("#4CAF50")
+        self.circular_progress.setBackgroundColor("#E0E0E0")
+        self.circular_progress.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # 4. Заменяем старый прогресс-бар в сетке
+        self.gridLayout.addWidget(self.circular_progress, 1, 0, 1, 1)
+
+        # 5. Настраиваем растяжение строк сетки:
+        self.gridLayout.setRowStretch(1, 1)   # круговой прогресс-бар
+        for row in (0, 2, 3, 4, 5):
+            self.gridLayout.setRowStretch(row, 0)
+
+        # 6. Обеспечиваем, что внутренний виджет-контейнер расширяется
+        self.widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # --- ДОБАВЛЕНО: настройка текстовых меток ---
+        for label in (self.name, self.symbols, self.deadline,
+                      self.streak, self.streak_status):
+            label.setWordWrap(True)                       # разрешаем перенос строк
+            label.setSizePolicy(QSizePolicy.Preferred,    # по горизонтали как обычно
+                                QSizePolicy.MinimumExpanding)  # по вертикали может расти
+
+        self.project = project
+        self.circular_progress.lower()
+        self.update_display()
+
+    def update_display(self):
+        self.name.setText(self.project.name)
+        self.circular_progress.setValue(int(self.project.progress))
+        self.symbols.setText(f'{self.project.total_symbols}/{self.project.goal}')
+
+        if self.project.deadline_str != 'Нет':
+            self.deadline.setText(f'Дедлайн: {self.project.deadline_str}')
+            self.deadline.setVisible(True)
+            self.streak.setText(f'Стрик: {len(self.project.streaks)} д.')
+            self.streak.setVisible(True)
+            self.streak_status.setText(self.project.get_streak_status_msg('min'))
+            self.streak_status.setVisible(True)
+        else:
+            self.deadline.setVisible(False)
+            self.streak.setVisible(False)
+            self.streak_status.setVisible(False)
+
+        # --- ДОБАВЛЕНО: принудительное обновление геометрии ---
+        self.updateGeometry()
+        self.widget.updateGeometry()
