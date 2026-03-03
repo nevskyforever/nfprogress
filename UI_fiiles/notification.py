@@ -7,6 +7,9 @@ class ToastNotification(QFrame):
         self.position = position
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
+        # Курсор в виде руки при наведении
+        self.setCursor(Qt.PointingHandCursor)   # <-- добавляем эту строку
+
         # Базовый стиль (менеджер переопределит под тип уведомления)
         self.setStyleSheet("""
             QFrame {
@@ -52,12 +55,17 @@ class ToastNotification(QFrame):
         self.timer.timeout.connect(self.start_fade_out)
         self.timer.start(duration)
 
-        self.adjustSize()  # сразу вычисляем размер
+        self.adjustSize()
 
     # ---------- Методы для управления позицией (вызываются менеджером) ----------
     def set_global_position(self, x, y):
-        """Устанавливает глобальные координаты уведомления (относительно родителя)."""
         self.move(x, y)
+
+    # ---------- Обработка клика мышью ----------
+    def mousePressEvent(self, event):
+        """Закрывает уведомление при клике (с анимацией исчезновения)."""
+        self.start_fade_out()
+        super().mousePressEvent(event)   # передаём событие дальше (на всякий случай)
 
     # ---------- Свойства для анимации ----------
     def get_opacity(self):
@@ -71,7 +79,6 @@ class ToastNotification(QFrame):
         self.opacity_effect.setOpacity(value)
 
     def start_fade_out(self):
-        """Запускает анимацию исчезновения (вызывается менеджером или таймером)."""
         self.fade_out_anim.start()
 
     opacity = Property(float, get_opacity, set_opacity)
