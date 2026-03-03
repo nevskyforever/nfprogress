@@ -10,13 +10,14 @@
 
 from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
                             QMetaObject, QObject, QPoint, QRect,
-                            QSize, QTime, QUrl, Qt, QRectF)
+                            QSize, QTime, QUrl, Qt, QRectF, QEasingCurve, QVariantAnimation)
 from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
                            QFont, QFontDatabase, QGradient, QIcon,
                            QImage, QKeySequence, QLinearGradient, QPainter,
                            QPalette, QPixmap, QRadialGradient, QTransform, QPen)
 from PySide6.QtWidgets import (QApplication, QGridLayout, QLabel, QProgressBar,
                                QSizePolicy, QVBoxLayout, QWidget)
+
 
 # =============================================================================
 # Кастомный виджет кругового прогресс-бара
@@ -30,15 +31,41 @@ class CircularProgressBar(QWidget):
         self._text_visible = False
         self._ring_width = 8
         self._background_color = QColor(220, 220, 220)
-        self._progress_color = QColor(76, 175, 80)
+        self._progress_color = QColor(76, 175, 80)  # оставляем для обратной совместимости
         self._text_color = QColor(0, 0, 0)
         # Важно: минимальные размеры должны быть равны, чтобы круг не сплющивался
         self.setMinimumSize(80, 80)
 
-    def setValue(self, value):
-        """Устанавливает значение прогресса (0-100)"""
-        self._value = max(0, min(100, value))
+        # Цвета для градиента прогресса
+        self._start_color = QColor(255, 0, 0)  # красный
+        self._end_color = QColor(76, 175, 80)  # зелёный
+
+        # Анимация
+        self._animation = QVariantAnimation(self)
+        self._animation.setDuration(500)  # мс
+        self._animation.setEasingCurve(QEasingCurve.OutCubic)
+        self._animation.valueChanged.connect(self._on_animation_value_changed)
+
+    def _on_animation_value_changed(self, value):
+        self._value = value
         self.update()
+
+    def setValue(self, value, animated=True):
+        """Устанавливает значение прогресса (0-100)"""
+        value = max(0, min(100, value))
+
+        if not animated:
+            self._value = value
+            self.update()
+            return
+
+        if abs(value - self._value) < 0.001:
+            return
+
+        self._animation.stop()
+        self._animation.setStartValue(self._value)
+        self._animation.setEndValue(value)
+        self._animation.start()
 
     def value(self):
         return self._value
@@ -58,9 +85,42 @@ class CircularProgressBar(QWidget):
         self.update()
 
     def setProgressColor(self, color):
-        """Устанавливает цвет кольца прогресса"""
+        """Устанавливает фиксированный цвет кольца прогресса"""
         self._progress_color = QColor(color)
+        # Обновляем конечный цвет градиента
+        self._end_color = QColor(color)
         self.update()
+
+    def setStartColor(self, color):
+        """Устанавливает начальный цвет градиента (для 0%)"""
+        self._start_color = QColor(color)
+        self.update()
+
+    def setEndColor(self, color):
+        """Устанавливает конечный цвет градиента (для 100%)"""
+        self._end_color = QColor(color)
+        self.update()
+
+    def _get_color_for_progress(self, progress):
+        """Возвращает цвет на основе прогресса с плавной интерполяцией в цветовом пространстве"""
+        ratio = max(0.0, min(1.0, progress / 100.0))
+
+        # Вариант 2: Интерполяция в HSV (более плавная и естественная)
+        start_hsv = self._start_color.toHsv()
+        end_hsv = self._end_color.toHsv()
+
+        h = start_hsv.hue() + ratio * (end_hsv.hue() - start_hsv.hue())
+        s = start_hsv.saturation() + ratio * (end_hsv.saturation() - start_hsv.saturation())
+        v = start_hsv.value() + ratio * (end_hsv.value() - start_hsv.value())
+
+        # Нормализуем значения
+        h = h % 360  # оттенок по кругу
+        s = max(0, min(255, s))
+        v = max(0, min(255, v))
+
+        color = QColor()
+        color.setHsv(int(h), int(s), int(v))
+        return color
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -87,8 +147,9 @@ class CircularProgressBar(QWidget):
         painter.setPen(pen)
         painter.drawArc(rect, 0, 360 * 16)
 
-        # Кольцо прогресса
-        pen.setColor(self._progress_color)
+        # Кольцо прогресса с динамическим цветом
+        current_color = self._get_color_for_progress(self._value)
+        pen.setColor(current_color)
         painter.setPen(pen)
         start_angle = 90 * 16
         span_angle = -self._value * 360 * 16 / 100
@@ -99,7 +160,8 @@ class CircularProgressBar(QWidget):
             painter.setPen(self._text_color)
             font = QFont("Arial", 10, QFont.Bold)
             painter.setFont(font)
-            painter.drawText(self.rect(), Qt.AlignCenter, f"{self._value}%")
+            painter.drawText(self.rect(), Qt.AlignCenter, f"{self._value:.0f}%")
+
 
 # =============================================================================
 # Исходный UI-класс (сгенерирован Qt Designer)
@@ -185,7 +247,11 @@ class ProjectWidget(QWidget, Ui_Form):
         self.circular_progress = CircularProgressBar(self.widget)
         self.circular_progress.setTextVisible(False)
         self.circular_progress.setRingWidth(12)
-        self.circular_progress.setProgressColor("#4CAF50")
+
+        # Устанавливаем цвета градиента
+        self.circular_progress.setStartColor("#FF0000")  # красный для 0%
+        self.circular_progress.setEndColor("#4CAF50")  # зелёный для 100%
+
         self.circular_progress.setBackgroundColor("#E0E0E0")
         self.circular_progress.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
@@ -193,7 +259,7 @@ class ProjectWidget(QWidget, Ui_Form):
         self.gridLayout.addWidget(self.circular_progress, 1, 0, 1, 1)
 
         # 5. Настраиваем растяжение строк сетки:
-        self.gridLayout.setRowStretch(1, 1)   # круговой прогресс-бар
+        self.gridLayout.setRowStretch(1, 1)  # круговой прогресс-бар
         for row in (0, 2, 3, 4, 5):
             self.gridLayout.setRowStretch(row, 0)
 
@@ -203,8 +269,8 @@ class ProjectWidget(QWidget, Ui_Form):
         # --- ДОБАВЛЕНО: настройка текстовых меток ---
         for label in (self.name, self.symbols, self.deadline,
                       self.streak, self.streak_status):
-            label.setWordWrap(True)                       # разрешаем перенос строк
-            label.setSizePolicy(QSizePolicy.Preferred,    # по горизонтали как обычно
+            label.setWordWrap(True)  # разрешаем перенос строк
+            label.setSizePolicy(QSizePolicy.Preferred,  # по горизонтали как обычно
                                 QSizePolicy.MinimumExpanding)  # по вертикали может расти
 
         self.project = project
@@ -213,7 +279,8 @@ class ProjectWidget(QWidget, Ui_Form):
 
     def update_display(self):
         self.name.setText(self.project.name)
-        self.circular_progress.setValue(int(self.project.progress))
+        # Вызываем setValue с анимацией
+        self.circular_progress.setValue(int(self.project.progress), animated=True)
         self.symbols.setText(f'{self.project.total_symbols}/{self.project.goal}')
 
         if self.project.deadline_str != 'Нет':
