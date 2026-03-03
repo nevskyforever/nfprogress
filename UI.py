@@ -771,29 +771,25 @@ class NotificationManager:
                     toast.set_global_position(x, current_y)
                     current_y += toast.height() + self.spacing
 
-    def _on_toast_destroyed(self, toast):
-        """Удаляет закрытое уведомление из списка и пересчитывает позиции."""
+    def remove_toast_before_fade(self, toast):
         if toast in self.toasts:
             self.toasts.remove(toast)
             self._rearrange_toasts()
 
     def _add_toast(self, toast):
-        """Добавляет уведомление в очередь, применяет лимит и пересчитывает позиции."""
         self.toasts.append(toast)
-        toast.destroyed.connect(lambda: self._on_toast_destroyed(toast))
-
-        # Если превышен лимит – закрываем самое старое уведомление с анимацией
+        # Убираем подключение к destroyed, теперь удаление происходит в remove_toast_before_fade
         if len(self.toasts) > self.max_toasts:
             oldest = self.toasts[0]
-            oldest.start_fade_out()   # запустит fade out и затем self.close()
+            oldest.start_fade_out()
 
         self._rearrange_toasts()
-        toast.show()   # показываем (до этого уведомление не было видимым)
-        toast.fade_in_anim.start()   # запускаем анимацию появления
+        toast.show()
+        toast.fade_in_anim.start()
 
-    # ---------- Публичные методы для разных типов уведомлений ----------
+    # В каждом методе показа передаём manager=self
     def show_success(self, message, duration=3000, position="bottom-right"):
-        toast = ToastNotification(self.parent, message, duration, position)
+        toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
                 background-color: rgba(76, 175, 80, 220);
@@ -809,7 +805,7 @@ class NotificationManager:
         self._add_toast(toast)
 
     def show_error(self, message, duration=5000, position="bottom-right"):
-        toast = ToastNotification(self.parent, message, duration, position)
+        toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
                 background-color: rgba(244, 67, 54, 220);
@@ -825,7 +821,7 @@ class NotificationManager:
         self._add_toast(toast)
 
     def show_warning(self, message, duration=4000, position="bottom-right"):
-        toast = ToastNotification(self.parent, message, duration, position)
+        toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
                 background-color: rgba(255, 152, 0, 220);
@@ -841,8 +837,7 @@ class NotificationManager:
         self._add_toast(toast)
 
     def show_info(self, message, duration=3000, position="bottom-right"):
-        toast = ToastNotification(self.parent, message, duration, position)
-        # можно оставить базовый стиль или задать свой
+        toast = ToastNotification(self.parent, message, duration, position, manager=self)
         self._add_toast(toast)
 
 if __name__ == "__main__":
