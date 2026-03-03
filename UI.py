@@ -246,42 +246,45 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def add_note(self, project):
         """Добавляет заметку к проекту"""
-        text = self.new_symbols.text().strip()
-        if not text or not text.isdigit():
-            return
+        if self.new_symbols.textChanged:
+            text = self.new_symbols.text().strip()
+            if not text or not text.isdigit():
+                self.new_symbols.clear()
+                self.pb_save_flash_note.setDisabled(True)
+                self.notifications.show_error('В записи могут быть только цифры!')
+        else:
+            new_total = int(text)
+            added = new_total - project.total_symbols
+            added_progress = (added / project.goal * 100) if project.goal > 0 else 0
 
-        new_total = int(text)
-        added = new_total - project.total_symbols
-        added_progress = (added / project.goal * 100) if project.goal > 0 else 0
+            # Создаём запись
+            note = en.Note(new_total, added, added_progress)
+            project.set_new_notes(note)
+            project.total_symbols = new_total
 
-        # Создаём запись
-        note = en.Note(new_total, added, added_progress)
-        project.set_new_notes(note)
-        project.total_symbols = new_total
+            # Сохраняем изменения
+            data = en.load_data()
+            data['projects'][project.name] = project
+            save_data(data)
 
-        # Сохраняем изменения
-        data = en.load_data()
-        data['projects'][project.name] = project
-        save_data(data)
+            # Обновляем состояние кнопок, если цель достигнута
+            if project.total_symbols >= project.goal:
+                self.setup_project_buttons(project)
 
-        # Обновляем состояние кнопок, если цель достигнута
-        if project.total_symbols >= project.goal:
-            self.setup_project_buttons(project)
+            # Очищаем поле ввода
+            self.new_symbols.clear()
 
-        # Очищаем поле ввода
-        self.new_symbols.clear()
+            # Обновляем текущий виджет в списке
+            current_item = self.list_projects.currentItem()
+            if current_item:
+                widget = self.list_projects.itemWidget(current_item)
+                if widget:
+                    widget.update_display()
 
-        # Обновляем текущий виджет в списке
-        current_item = self.list_projects.currentItem()
-        if current_item:
-            widget = self.list_projects.itemWidget(current_item)
-            if widget:
-                widget.update_display()
-
-        # Обновляем панель информации и список заметок
-        self.show_project_info(project)
-        self.load_notes(project)
-        self.notifications.show_success(f'В {project.name} добавлено {added} символов')
+            # Обновляем панель информации и список заметок
+            self.show_project_info(project)
+            self.load_notes(project)
+            self.notifications.show_success(f'В {project.name} добавлено {added} символов')
 
     def delete_selected_note(self, project):
         """Удаляет выбранную заметку из проекта"""
