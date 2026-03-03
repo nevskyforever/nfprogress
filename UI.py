@@ -507,18 +507,6 @@ class MainWindow(QMainWindow, main_window_ui):
         if current_project_name:
             self.select_project_by_name(current_project_name)
 
-    def show_notification_examples(self):
-        # В разных углах
-        toast1 = ToastNotification(self, "В правом верхнем углу", 2000, "top-right")
-        toast1.show()
-
-        toast2 = ToastNotification(self, "В центре сверху", 2000, "top-center")
-        toast2.show()
-
-        toast3 = ToastNotification(self, "По умолчанию снизу справа", 2000)
-        toast3.show()
-
-
 class ProjectWidget(QWidget, project_form_ui):
     def __init__(self, project):
         super().__init__()
@@ -728,15 +716,84 @@ class EditProject(QDialog, edit_project_ui):
         self.buttons.setEnabled(buttons_enabled)
 
 class NotificationManager:
-    """Менеджер для показа уведомлений"""
+    """Менеджер для показа уведомлений с поддержкой очереди и накопления."""
 
     def __init__(self, parent_widget):
         self.parent = parent_widget
-        self.active_toasts = []
+        self.toasts = []          # все активные уведомления в порядке добавления
+        self.spacing = 10        # отступ между уведомлениями
+        self.max_toasts = 5        # максимальное количество одновременно видимых
+        self.margin = 5           # отступ от края окна
 
-    def show_success(self, message, duration=2000, position="bottom-right"):
-        """Показывает уведомление об успехе"""
-        toast = ToastNotification(self.parent, message, duration, position=position)
+    def _compute_x(self, toast, position):
+        """Вычисляет x-координату для уведомления в зависимости от его позиции и ширины."""
+        parent_rect = self.parent.rect()
+        width = toast.width()
+        if position in ("top-right", "bottom-right"):
+            return parent_rect.width() - width - self.margin
+        elif position in ("top-left", "bottom-left"):
+            return self.margin
+        elif position in ("top-center", "bottom-center"):
+            return (parent_rect.width() - width) // 2
+        else:   # по умолчанию правый нижний
+            return parent_rect.width() - width - self.margin
+
+    def _rearrange_toasts(self):
+        """Пересчитывает позиции всех уведомлений в зависимости от их положения."""
+        # Группируем по позиции
+        groups = {}
+        for toast in self.toasts:
+            pos = toast.position
+            groups.setdefault(pos, []).append(toast)
+
+        parent_rect = self.parent.rect()
+
+        for position, toasts in groups.items():
+            if position.startswith("top"):      # верхние позиции – новые сверху
+                current_y = self.margin
+                for toast in reversed(toasts):   # от новых к старым
+                    x = self._compute_x(toast, position)
+                    toast.set_global_position(x, current_y)
+                    current_y += toast.height() + self.spacing
+
+            elif position.startswith("bottom"): # нижние позиции – новые снизу
+                current_y = parent_rect.height() - self.margin
+                for toast in reversed(toasts):   # от новых к старым
+                    x = self._compute_x(toast, position)
+                    current_y -= toast.height()
+                    toast.set_global_position(x, current_y)
+                    current_y -= self.spacing
+
+            else:   # на случай других значений – просто по порядку сверху
+                current_y = self.margin
+                for toast in toasts:
+                    x = self._compute_x(toast, position)
+                    toast.set_global_position(x, current_y)
+                    current_y += toast.height() + self.spacing
+
+    def _on_toast_destroyed(self, toast):
+        """Удаляет закрытое уведомление из списка и пересчитывает позиции."""
+        if toast in self.toasts:
+            self.toasts.remove(toast)
+            self._rearrange_toasts()
+
+    def _add_toast(self, toast):
+        """Добавляет уведомление в очередь, применяет лимит и пересчитывает позиции."""
+        self.toasts.append(toast)
+        toast.destroyed.connect(lambda: self._on_toast_destroyed(toast))
+
+        # Если превышен лимит – закрываем самое старое уведомление с анимацией
+        if len(self.toasts) > self.max_toasts:
+            oldest = self.toasts[0]
+            oldest.start_fade_out()   # запустит fade out и затем self.close()
+
+        self._rearrange_toasts()
+        toast.show()   # показываем (до этого уведомление не было видимым)
+        toast.fade_in_anim.start()   # запускаем анимацию появления
+
+    # ---------- Публичные методы для разных типов уведомлений ----------
+    def show_success(self, message, duration=3000, position="bottom-right"):
+        toast = ToastNotification(self.parent, message, duration, position)
         toast.setStyleSheet("""
             QFrame {
                 background-color: rgba(76, 175, 80, 220);
@@ -749,12 +806,10 @@ class NotificationManager:
                 font-weight: bold;
             }
         """)
-        toast.show()
-        self.active_toasts.append(toast)
+        self._add_toast(toast)
 
-    def show_error(self, message, duration=3000, position="bottom-right"):
-        """Показывает уведомление об ошибке"""
-        toast = ToastNotification(self.parent, message, duration, position=position)
+    def show_error(self, message, duration=5000, position="bottom-right"):
+        toast = ToastNotification(self.parent, message, duration, position)
         toast.setStyleSheet("""
             QFrame {
                 background-color: rgba(244, 67, 54, 220);
@@ -767,12 +822,10 @@ class NotificationManager:
                 font-weight: bold;
             }
         """)
-        toast.show()
-        self.active_toasts.append(toast)
+        self._add_toast(toast)
 
-    def show_warning(self, message, duration=2500, position="bottom-right"):
-        """Показывает предупреждение"""
-        toast = ToastNotification(self.parent, message, duration, position=position)
+    def show_warning(self, message, duration=4000, position="bottom-right"):
+        toast = ToastNotification(self.parent, message, duration, position)
         toast.setStyleSheet("""
             QFrame {
                 background-color: rgba(255, 152, 0, 220);
@@ -785,14 +838,12 @@ class NotificationManager:
                 font-weight: bold;
             }
         """)
-        toast.show()
-        self.active_toasts.append(toast)
+        self._add_toast(toast)
 
-    def show_info(self, message, duration=2000, position="bottom-right"):
-        """Показывает информационное сообщение"""
-        toast = ToastNotification(self.parent, message, duration, position=position)
-        toast.show()
-        self.active_toasts.append(toast)
+    def show_info(self, message, duration=3000, position="bottom-right"):
+        toast = ToastNotification(self.parent, message, duration, position)
+        # можно оставить базовый стиль или задать свой
+        self._add_toast(toast)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

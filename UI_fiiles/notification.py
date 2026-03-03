@@ -1,23 +1,16 @@
-from PySide6.QtWidgets import QFrame, QLabel, QHBoxLayout, \
-    QGraphicsOpacityEffect  # QGraphicsOpacityEffect из QtWidgets, а не QtGui!
+from PySide6.QtWidgets import QFrame, QLabel, QHBoxLayout, QGraphicsOpacityEffect
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, Property
-from PySide6.QtGui import QColor  # QColor все еще из QtGui
-
 
 class ToastNotification(QFrame):
     def __init__(self, parent, message, duration=3000, position="bottom-right"):
         super().__init__(parent)
-
-        # Настройка внешнего вида
         self.position = position
-
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        # Временно делаем ярким для отладки
+        # Базовый стиль (менеджер переопределит под тип уведомления)
         self.setStyleSheet("""
             QFrame {
-                background-color: rgba(255, 0, 0, 220);
-                border: 2px solid black;
+                background-color: rgba(0, 0, 0, 220);
                 border-radius: 8px;
                 padding: 10px;
             }
@@ -28,7 +21,6 @@ class ToastNotification(QFrame):
             }
         """)
 
-        # Создание содержимого
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 5, 10, 5)
         self.label = QLabel(message)
@@ -44,14 +36,14 @@ class ToastNotification(QFrame):
         self.fade_in_anim.setDuration(300)
         self.fade_in_anim.setStartValue(0.0)
         self.fade_in_anim.setEndValue(1.0)
-        self.fade_in_anim.valueChanged.connect(self.update_opacity)
+        self.fade_in_anim.valueChanged.connect(self._update_opacity)
 
         # Анимация исчезновения
         self.fade_out_anim = QPropertyAnimation(self, b"opacity")
         self.fade_out_anim.setDuration(300)
         self.fade_out_anim.setStartValue(1.0)
         self.fade_out_anim.setEndValue(0.0)
-        self.fade_out_anim.valueChanged.connect(self.update_opacity)
+        self.fade_out_anim.valueChanged.connect(self._update_opacity)
         self.fade_out_anim.finished.connect(self.close)
 
         # Таймер для автоматического закрытия
@@ -60,52 +52,14 @@ class ToastNotification(QFrame):
         self.timer.timeout.connect(self.start_fade_out)
         self.timer.start(duration)
 
-        # Позиционирование
-        self.adjustSize()
+        self.adjustSize()  # сразу вычисляем размер
 
-        # Важно: перемещаем после установки размера
-        QTimer.singleShot(0, self.move_to_position)
-
-        # Показываем и запускаем анимацию
-        self.show()
-        self.raise_()
-        self.fade_in_anim.start()
-
-    def move_to_position(self):
-        """Размещение в указанной позиции относительно родителя"""
-
-        parent_rect = self.parent().rect()
-
-        margin = 20
-
-        if self.position == "top-right":
-            x = parent_rect.width() - self.width() - margin
-            y = margin
-        elif self.position == "top-left":
-            x = margin
-            y = margin
-        elif self.position == "bottom-left":
-            x = margin
-            y = parent_rect.height() - self.height() - margin
-        elif self.position == "top-center":
-            x = (parent_rect.width() - self.width()) // 2
-            y = margin
-        elif self.position == "bottom-center":
-            x = (parent_rect.width() - self.width()) // 2
-            y = parent_rect.height() - self.height() - margin
-        else:  # bottom-right (по умолчанию)
-            x = parent_rect.width() - self.width() - margin
-            y = parent_rect.height() - self.height() - margin
-
+    # ---------- Методы для управления позицией (вызываются менеджером) ----------
+    def set_global_position(self, x, y):
+        """Устанавливает глобальные координаты уведомления (относительно родителя)."""
         self.move(x, y)
 
-    def showEvent(self, event):
-        """Переопределяем showEvent для гарантии правильной позиции при показе"""
-        super().showEvent(event)
-        self.move_to_position()
-        self.raise_()
-        self.activateWindow()
-
+    # ---------- Свойства для анимации ----------
     def get_opacity(self):
         return self._opacity
 
@@ -113,10 +67,11 @@ class ToastNotification(QFrame):
         self._opacity = value
         self.opacity_effect.setOpacity(value)
 
-    def update_opacity(self, value):
+    def _update_opacity(self, value):
         self.opacity_effect.setOpacity(value)
 
     def start_fade_out(self):
+        """Запускает анимацию исчезновения (вызывается менеджером или таймером)."""
         self.fade_out_anim.start()
 
     opacity = Property(float, get_opacity, set_opacity)
