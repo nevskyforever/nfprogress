@@ -46,6 +46,8 @@ class CircularProgressBar(QWidget):
         self._animation.setEasingCurve(QEasingCurve.OutCubic)
         self._animation.valueChanged.connect(self._on_animation_value_changed)
 
+        self._initializing = True
+
     def _on_animation_value_changed(self, value):
         self._value = value
         self.update()
@@ -53,6 +55,10 @@ class CircularProgressBar(QWidget):
     def setValue(self, value, animated=True):
         """Устанавливает значение прогресса (0-100)"""
         value = max(0, min(100, value))
+
+        if self._initializing:
+            animated = False
+            self._initializing = False
 
         if not animated:
             self._value = value
