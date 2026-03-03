@@ -1,11 +1,17 @@
 import pickle
 from datetime import timedelta
 from random import randint, choice
-from os import remove
-from unicodedata import category
-
 import engine
 import game_data
+import sys
+import os
+
+def resource_path(relative_path):
+    """Получить путь к ресурсу, работает и в .py, и в .app"""
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller создает временную папку и хранит путь в _MEIPASS
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
 
 
 class Gamer:

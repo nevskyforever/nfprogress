@@ -1,24 +1,76 @@
 import pickle
 import random
+import os
+import sys
+import platform
 from datetime import datetime, timedelta, date
-import game
+from pathlib import Path
 
+# Определяем систему
+SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
+
+
+def get_app_data_dir():
+    """
+    Возвращает путь к директории для хранения данных приложения
+    в зависимости от операционной системы.
+    """
+    if SYSTEM == 'Windows':
+        # Windows: C:\Users\<USER>\Documents\MyAppData
+        base_dir = Path(os.environ.get('USERPROFILE', '')) / 'Documents'
+    elif SYSTEM == 'Darwin':  # macOS
+        # macOS: /Users/<USER>/Documents/MyAppData
+        base_dir = Path.home() / 'Documents'
+    else:  # Linux и другие
+        # Linux: /home/<USER>/Documents или ~/.local/share/MyApp
+        base_dir = Path.home() / 'Documents'
+        # Если папки Documents нет, используем стандартную директорию для данных
+        if not base_dir.exists():
+            base_dir = Path.home() / '.local' / 'share'
+
+    # Создаем папку для нашего приложения
+    app_data_dir = base_dir / 'nfprogress'
+
+    # Создаем директорию, если её нет
+    try:
+        app_data_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        # Если нет прав на запись в Documents, используем домашнюю папку
+        app_data_dir = Path.home() / '.nfprogress'
+        app_data_dir.mkdir(parents=True, exist_ok=True)
+
+    return app_data_dir
+
+
+def get_data_file_path():
+    """Возвращает путь к файлу данных"""
+    return get_app_data_dir() / 'data.pkl'
+
+
+def resource_path(relative_path):
+    """Получить путь к ресурсу, работает и в .py, и в .app, и в .exe"""
+    if hasattr(sys, '_MEIPASS'):
+        # PyInstaller создает временную папку и хранит путь в _MEIPASS
+        return os.path.join(sys._MEIPASS, relative_path)
+    return os.path.join(os.path.abspath("."), relative_path)
+
+
+# Версия приложения
 version = '2.2.6'
 last_update = '22.02.26'
 
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    dt = date(2026, 2, 3)
-    dt = None
-    if dt is None:
-        return date.today()
-    else:
-        return dt
+    # Для тестирования можно раскомментировать:
+    # return date(2026, 2, 3)
+    return date.today()
+
 
 class Project:
     max_streak = 0
     streak_status = 'No'
+
     def __init__(self, name='Без имени', goal=None,
                  create_date=None, total_symbols=0, progress=0,
                  notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
@@ -116,7 +168,7 @@ class Project:
         if self.deadline == 'Нет':
             return 0
 
-        today = today_for_test()  # предполагается, что возвращает date
+        today = today_for_test()
         if not isinstance(self.deadline, date):
             return 0
 
@@ -146,11 +198,13 @@ class Project:
     def get_today_goal_msg(self):
         value = self.get_today_goal_value()
         return f'🎯 Цель на сегодня: {self.total_symbols + value}'
+
     def get_need_write_value(self):
         total = self.total_symbols
         goal = self.goal
         need_write = goal - total
         return need_write
+
     def get_need_write_msg(self):
         value = self.get_need_write_value()
         return f'⚡️ Осталось написать: {value}'
@@ -237,27 +291,33 @@ class Project:
                 return f'💔  Стрик потерян! Вы были в цели {status[1]} дней подряд.'
             elif len(status) == 3:
                 return (f'💔  Стрик потерян! Вы были в цели {status[1]} дней подряд.'
-                      f'\n🔥  Вы начали новый стрик!')
+                        f'\n🔥  Вы начали новый стрик!')
         return 'Вывод статуса не работает'
 
     @property
     def progress(self):
-        self._progress = self._total_symbols / self._goal * 100
+        if self._goal and self._goal > 0:
+            self._progress = self._total_symbols / self._goal * 100
+        else:
+            self._progress = 0
         return self._progress
 
     def set_new_notes(self, new_note):
         self.notes.append(new_note)
+
 
 class Stage(Project):
     def __init__(self):
         super().__init__()
         self.status = 'в работе'
 
+
 class Note:
     new_total = 0
     added_symbols = 0
     added_progress = 0
     date_create = None
+
     def __init__(self, new_total, added_symbols, added_progress, date_create=None):
         if date_create is None:
             now = datetime.now()
@@ -281,13 +341,16 @@ class Note:
 
     def get_added_symbols(self):
         return self.added_symbols
+
     def get_added_progress(self):
         return self.added_progress
 
     def get_date_create(self):
         return self.date_create.date()
+
     def get_date_create_str(self):
         return self.date_create.strftime('%d.%m.%Y %H:%M')
+
 
 class Notification:
     def __init__(self, text, tag=None, date_create=None, status='New'):
@@ -306,29 +369,89 @@ class Notification:
             self.date_create = date_create
         self.status = status
         self.tag = tag
+
     def get_date_create(self):
         return self.date_create.strftime('%H:%M %d.%m.%y')
+
     def get_status(self):
         return self.status
+
     def set_status(self, status):
         self.status = status
+
     def get_text(self):
         return self.text
+
     def set_text(self, text):
         self.text = text
+
+
 # === ЗАГРУЗКА И СОХРАНЕНИЕ ===
 
 def load_data():
+    """Загружает данные из кроссплатформенной директории"""
+    data_file = get_data_file_path()
     try:
-        with open('data.pkl', 'rb') as f:
+        with open(data_file, 'rb') as f:
             return pickle.load(f)
     except (FileNotFoundError, EOFError):
+        # Если файл не найден, создаём пустую структуру
         return {'last': None, 'projects': {}, 'notifications': []}
 
 
 def save_data(data):
-    with open('data.pkl', 'wb') as f:
-        pickle.dump(data, f)
+    """Сохраняет данные в кроссплатформенную директорию"""
+    data_file = get_data_file_path()
+
+    # Создаём временную копию для безопасного сохранения
+    temp_file = data_file.with_suffix('.tmp')
+    try:
+        with open(temp_file, 'wb') as f:
+            pickle.dump(data, f)
+        # Заменяем старый файл новым
+        temp_file.replace(data_file)
+    except Exception as e:
+        print(f"Ошибка при сохранении данных: {e}")
+        # Если что-то пошло не так, удаляем временный файл
+        if temp_file.exists():
+            temp_file.unlink()
+
+
+def export_data_to_file(file_path):
+    """Экспортирует данные в указанный файл"""
+    data = load_data()
+    try:
+        with open(file_path, 'wb') as f:
+            pickle.dump(data, f)
+        return True, "Данные успешно экспортированы"
+    except Exception as e:
+        return False, f"Ошибка экспорта: {e}"
+
+
+def import_data_from_file(file_path):
+    """Импортирует данные из указанного файла"""
+    try:
+        with open(file_path, 'rb') as f:
+            data = pickle.load(f)
+        save_data(data)
+        return True, "Данные успешно импортированы"
+    except Exception as e:
+        return False, f"Ошибка импорта: {e}"
+
+
+def get_data_directory_info():
+    """Возвращает информацию о директории с данными (для отладки)"""
+    data_dir = get_app_data_dir()
+    data_file = get_data_file_path()
+
+    return {
+        'system': SYSTEM,
+        'data_dir': str(data_dir),
+        'data_file': str(data_file),
+        'data_dir_exists': data_dir.exists(),
+        'data_file_exists': data_file.exists(),
+        'data_file_size': data_file.stat().st_size if data_file.exists() else 0
+    }
 
 
 # === МЕНЮ И ЛОГИКА ===
@@ -340,6 +463,7 @@ def find_project_by_name(name):
         if p.name == name:
             return i, p
     return None, None
+
 
 def global_streak_status(data, local_streak_status=None, today=None):
     """
@@ -384,7 +508,6 @@ def global_streak_status(data, local_streak_status=None, today=None):
             status = 'Go'
         else:
             # Если почему-то есть разрыв, но до потери не дошли — стартуем заново
-            # (обычно сюда не попадешь, т.к. потерю обработали выше)
             streak.clear()
             streak.append(today)
             status = 'Start'
@@ -408,9 +531,17 @@ def global_streak_status_msg(data, status=None):
     elif status == 'Done':
         return '✌️ Глобальный стрик сегодня уже продлен.'
     elif isinstance(status, str) and status.startswith('Lose '):
-        # status вида "Lose 5"
         parts = status.split()
         if len(parts) == 2 and parts[1].isdigit():
             return f'💔 Глобальный стрик потерян! Было дней подряд: {parts[1]}'
         return '💔 Глобальный стрик потерян!'
     return None
+
+
+# При импорте модуля создаём директорию для данных
+try:
+    get_app_data_dir()
+    print(f"Директория для данных: {get_app_data_dir()}")
+    print(f"Файл данных: {get_data_file_path()}")
+except Exception as e:
+    print(f"Ошибка при создании директории для данных: {e}")
