@@ -33,8 +33,6 @@ class MainWindow(QMainWindow, main_window_ui):
         self.new_symbols.returnPressed.connect(self.on_enter_pressed)
 
         self.show()
-        QTimer.singleShot(500, lambda: self.notifications.show_info("Это тестовое уведомление", 2000, "top-right"))
-
 
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
@@ -283,6 +281,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Обновляем панель информации и список заметок
         self.show_project_info(project)
         self.load_notes(project)
+        self.notifications.show_success(f'В {project.name} добавлено {added} символов')
 
     def delete_selected_note(self, project):
         """Удаляет выбранную заметку из проекта"""
@@ -291,7 +290,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         if current_item is None:
             # Если ничего не выбрано, показываем предупреждение
-            QMessageBox.warning(self, "Предупреждение", "Выберите запись для удаления!")
+            self.notifications.show_warning('Выберите запись для удаления!')
             return
 
         # Получаем индекс выбранной заметки
@@ -399,12 +398,10 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Выделяем измененный проект по новому имени
                 self.select_project_by_name(project.name)
                 self.name_selected_project.setText(project.name)
-
-                print(f"Проект '{old_name}' успешно изменен на '{project.name}'")
+                self.notifications.show_success(f'Изменения в {project.name} сохранены', position="bottom-left")
 
             except ValueError as e:
-                QMessageBox.warning(self, "Ошибка", str(e))
-                print(f"Ошибка при сохранении: {e}")
+                self.notifications.show_error(f"Ошибка при сохранении: {e}")
 
     def complete_project(self, project):
         """Завершает проект"""
@@ -425,6 +422,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.project_info.setVisible(False)
             self.note_widget.setVisible(False)
             self.change_project_widget.setVisible(False)
+            self.notifications.show_success(f'{project.name} завершен!')
 
     def archive_project(self, project):
         """Отправляет проект в архив или активирует его"""
@@ -442,8 +440,10 @@ class MainWindow(QMainWindow, main_window_ui):
             if project.status == 'активен':
                 project.status = "в архиве"
                 project.deadline = 'Нет'
+                msg = f'{project.name} архивирован.'
             else:
                 project.status = "активен"
+                msg = f'{project.name} снова активен.'
                 # При активации дедлайн остается пустым, пользователь может установить его позже
 
             data = en.load_data()
@@ -454,6 +454,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.project_info.setVisible(False)
             self.note_widget.setVisible(False)
             self.change_project_widget.setVisible(False)
+            self.notifications.show_success(msg, position="bottom-left")
 
     def delete_project(self, project):
         """Удаляет проект"""
@@ -466,6 +467,7 @@ class MainWindow(QMainWindow, main_window_ui):
             if project.name in data['projects']:
                 del data['projects'][project.name]
                 en.save_data(data)
+                self.notifications.show_success(f'{project.name} удален.', position="bottom-left")
 
             self.refresh_projects()
             self.project_info.setVisible(False)
