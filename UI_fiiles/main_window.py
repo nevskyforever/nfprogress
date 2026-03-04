@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowOxUGMY.ui'
+## Form generated from reading UI file 'main_windoweahHlY.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -18,7 +18,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
 from PySide6.QtWidgets import (QApplication, QComboBox, QGridLayout, QGroupBox,
     QHBoxLayout, QLabel, QLineEdit, QListWidget,
     QListWidgetItem, QMainWindow, QPushButton, QSizePolicy,
-    QSpacerItem, QTabWidget, QVBoxLayout, QWidget)
+    QSpacerItem, QTabWidget, QWidget)
 
 class Ui_main_window(object):
     def setupUi(self, main_window):
@@ -277,16 +277,9 @@ class Ui_main_window(object):
 "QListWidget#note_list::item:hover {\n"
 "    background-color: #d8d8d8;\n"
 "}")
-        self.note_buttons = QWidget(self.note_widget)
-        self.note_buttons.setObjectName(u"note_buttons")
-        self.note_buttons.setGeometry(QRect(380, 69, 91, 101))
-        self.verticalLayout = QVBoxLayout(self.note_buttons)
-        self.verticalLayout.setObjectName(u"verticalLayout")
-        self.delete_note = QPushButton(self.note_buttons)
+        self.delete_note = QPushButton(self.note_widget)
         self.delete_note.setObjectName(u"delete_note")
-
-        self.verticalLayout.addWidget(self.delete_note)
-
+        self.delete_note.setGeometry(QRect(390, 150, 81, 32))
         self.note_widget.raise_()
         self.project_info.raise_()
         self.name_selected_project.raise_()

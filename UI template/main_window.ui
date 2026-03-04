@@ -487,24 +487,18 @@ QListWidget#note_list::item:hover {
 }</string>
         </property>
        </widget>
-       <widget class="QWidget" name="note_buttons" native="true">
+       <widget class="QPushButton" name="delete_note">
         <property name="geometry">
          <rect>
-          <x>380</x>
-          <y>69</y>
-          <width>91</width>
-          <height>101</height>
+          <x>390</x>
+          <y>150</y>
+          <width>81</width>
+          <height>32</height>
          </rect>
         </property>
-        <layout class="QVBoxLayout" name="verticalLayout">
-         <item>
-          <widget class="QPushButton" name="delete_note">
-           <property name="text">
-            <string>Удалить</string>
-           </property>
-          </widget>
-         </item>
-        </layout>
+        <property name="text">
+         <string>Удалить</string>
+        </property>
        </widget>
       </widget>
       <zorder>note_widget</zorder>

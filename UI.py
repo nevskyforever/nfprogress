@@ -27,6 +27,9 @@ class MainWindow(QMainWindow, main_window_ui):
         self.setupUi(self)
         self.refresh_projects()
 
+        # Подключаем обработчик изменения фильтра
+        self.filter_project_box.currentTextChanged.connect(self.on_filter_changed)
+
         # Создаем менеджер уведомлений
         self.notifications = NotificationManager(self)
 
@@ -41,7 +44,6 @@ class MainWindow(QMainWindow, main_window_ui):
         self.new_symbols.returnPressed.connect(self.on_enter_pressed)
 
         self.show()
-
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
         # Получаем текущий выбранный проект
@@ -495,9 +497,25 @@ class MainWindow(QMainWindow, main_window_ui):
     def generate_project_widget(self, project):
         return ProjectWidget(project)
 
+    def on_filter_changed(self):
+        """Обработчик изменения фильтра проектов"""
+        self.refresh_projects()
+
     def refresh_projects(self):
         data = en.load_data()
         projects = list(data['projects'].values())
+
+        # Получаем выбранный фильтр
+        current_filter = self.filter_project_box.currentText()
+
+        # Фильтруем проекты по статусу
+        if current_filter == "Активен":
+            projects = [p for p in projects if p.status == "активен"]
+        elif current_filter == "В архиве":
+            projects = [p for p in projects if p.status == "в архиве"]
+        elif current_filter == "Завершен":
+            projects = [p for p in projects if p.status == "завершен"]
+
         list_p = self.list_projects
 
         # Сохраняем текущий выбранный проект (если есть)
@@ -513,11 +531,10 @@ class MainWindow(QMainWindow, main_window_ui):
         for project in projects:
             widget = self.generate_project_widget(project)
 
-            # --- ИЗМЕНЕНО: вычисляем предпочтительный размер виджета ---
             # Принудительно обновляем layout, чтобы sizeHint был актуальным
-            widget.layout().activate()  # обновляем основной layout виджета
-            widget.widget.layout().activate()  # обновляем gridLayout внутри widget
-            size = widget.sizeHint()  # получаем предпочтительный размер
+            widget.layout().activate()
+            widget.widget.layout().activate()
+            size = widget.sizeHint()
 
             item = QListWidgetItem()
             item.setSizeHint(size)
@@ -527,9 +544,15 @@ class MainWindow(QMainWindow, main_window_ui):
             if current_project_name and project.name == current_project_name:
                 list_p.setCurrentItem(item)
 
+        # Если после фильтрации текущий проект не найден, скрываем панели информации
+        if current_project_name and not list_p.currentItem():
+            self.project_info.setVisible(False)
+            self.note_widget.setVisible(False)
+            self.change_project_widget.setVisible(False)
+            self.name_selected_project.setText("Выберите проект")
+
         if current_project_name:
             self.select_project_by_name(current_project_name)
-
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
