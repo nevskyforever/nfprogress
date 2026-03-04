@@ -1,5 +1,6 @@
-from PySide6.QtWidgets import QFrame, QLabel, QHBoxLayout, QGraphicsOpacityEffect
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, Property
+from PySide6.QtWidgets import QFrame, QLabel, QHBoxLayout, QGraphicsOpacityEffect
+
 
 class ToastNotification(QFrame):
     def __init__(self, parent, message, duration=3000, position="bottom-right", manager=None):

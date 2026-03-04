@@ -1,5 +1,6 @@
+from datetime import timedelta
 from random import randint
-from datetime import datetime, timedelta
+
 import engine
 import game
 

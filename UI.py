@@ -1,18 +1,20 @@
-import sys
-from datetime import date
-from PySide6.QtWidgets import QApplication, QMainWindow, QDialog, QWidget, QListWidgetItem, QMessageBox
-from PySide6.QtCore import QTranslator, QLibraryInfo, QSize, QDate, QTimer, Qt
-from PySide6.QtWidgets import QApplication, QSizePolicy, QDialogButtonBox
-import engine as en
-from UI_fiiles.main_window import Ui_main_window as main_window_ui
-from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
-from UI_fiiles.project_widget import ProjectWidget  # <- новый импорт
-from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
-from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
-from UI_fiiles.notification import ToastNotification
-from engine import save_data
-import sys
+from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem
 import os
+import sys
+
+from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer
+from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem
+
+import engine as en
+from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
+from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
+from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
+from UI_fiiles.main_window import Ui_main_window as main_window_ui
+from UI_fiiles.notification import ToastNotification
+from UI_fiiles.project_widget import ProjectWidget  # <- новый импорт
+from engine import save_data
+
 
 def resource_path(relative_path):
     """Получить путь к ресурсу, работает и в .py, и в .app"""

@@ -1,10 +1,10 @@
+import os
 import pickle
-from datetime import timedelta
-from random import randint, choice
+import sys
+
 import engine
 import game_data
-import sys
-import os
+
 
 def resource_path(relative_path):
     """Получить путь к ресурсу, работает и в .py, и в .app"""
