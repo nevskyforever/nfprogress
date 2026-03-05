@@ -62,7 +62,7 @@ last_update = '22.02.26'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    return date(2026, 3, 4)
+    return date(2026, 3, 7)
     return date.today()
 
 
@@ -486,13 +486,14 @@ def global_streak_status(data, today=None):
         today = today_for_test()
     yesterday = today - timedelta(days=1)
 
-    # Инициализация хранилища
+    # Получаем текущие данные
     streak = data.get('global_streaks', [])
     if not isinstance(streak, list):
         streak = []
         data['global_streaks'] = streak
 
-    status = 'No'
+    prev_status = data.get('global_streak_status', 'No')  # запоминаем предыдущий статус
+    status = 'No'  # статус по умолчанию для этого вызова
     max_streak = data.get('max_global_streak', 0)
 
     # Проверяем, есть ли хотя бы один проект с активным стриком сегодня
@@ -510,9 +511,9 @@ def global_streak_status(data, today=None):
     # 1) Проверка потери глобального стрика
     if len(streak) > 0 and streak[-1] != yesterday and streak[-1] != today:
         lose = len(streak)
-        data['global_streaks'] = []
+        data['global_streaks'] = []   # очищаем стрик
         streak = data['global_streaks']
-        status = f'Lose {lose}'
+        status = f'Lose {lose}'        # устанавливаем статус потери
 
     # 2) Обновление глобального стрика на основе проектов
     if has_active_streak_today:
@@ -533,12 +534,17 @@ def global_streak_status(data, today=None):
             streak.clear()
             streak.append(today)
             status = 'Start'
+    else:
+        # Нет активных проектов сегодня
+        if status == 'No' and prev_status.startswith('Lose'):
+            # Сохраняем предыдущий статус потери, чтобы сообщение не исчезало сразу
+            status = prev_status
+        # Иначе status остаётся 'No' (если не был установлен как 'Lose' выше)
 
     data['max_global_streak'] = max_streak
     data['global_streak_status'] = status
     save_data(data)
     return status
-
 
 def global_streak_status_msg(data, status=None):
     """Сообщение для глобального стрика по статусу."""
