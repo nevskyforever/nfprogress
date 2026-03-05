@@ -323,7 +323,6 @@ class Stage(Project):
         super().__init__()
         self.status = 'в работе'
 
-
 class Note:
     new_total = 0
     added_symbols = 0
@@ -362,7 +361,6 @@ class Note:
 
     def get_date_create_str(self):
         return self.date_create.strftime('%d.%m.%Y %H:%M')
-
 
 class Notification:
     def __init__(self, text, tag=None, date_create=None, status='New'):

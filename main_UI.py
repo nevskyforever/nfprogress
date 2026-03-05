@@ -47,6 +47,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.new_symbols.returnPressed.connect(self.on_enter_pressed)
 
         self.show()
+
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
         # Получаем текущий выбранный проект
