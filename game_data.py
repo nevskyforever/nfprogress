@@ -70,6 +70,7 @@ class FuncItem(Item):
         # Передаем item_type корректно в родителя
         super().__init__(name, price, item_type=item_type, **kwargs)
         self._func = func
+        self.add = add  # Сохраняем add как атрибут
 
     def use(self, do='use', add=None):
         gamer = game.load_game()
@@ -79,7 +80,9 @@ class FuncItem(Item):
         if items[self.item_type][self.name] > 0:
             # Выполняем функцию предмета
             if self._func:
-                return self._func(do, add)
+                # Используем переданный add или сохраненный из конструктора
+                use_add = add if add is not None else self.add
+                return self._func(do, use_add)
             return "Предмет использован."
         else:
             return "У вас нет этого предмета!"
@@ -254,26 +257,28 @@ def health_potion_func(do, add=None):
 
 def lottery_ticket_func(do, add=None):
     """Функция лотерейного билета"""
+    print(f"DEBUG: lottery_ticket_func called with do={do}, add={add}")  # Отладка
+
     gamer = game.load_game()
-    price = 10  # Базовая цена билета для расчета выигрыша (можно передавать параметром)
+    price = 10  # Базовая цена билета для расчета выигрыша
 
     if do == 'use':
-        print('\n--- Лотерея "Удача программиста" ---')
+        print('DEBUG: Используем лотерейный билет')
 
         # Генерируем сеты чисел
         chance = set()
         win = set()
-        # Генерируем пока не наберем 3 уникальных числа
         while len(chance) < 3:
             chance.add(randint(1, 10))
         while len(win) < 3:
             win.add(randint(1, 10))
 
-        print(f'Ваши числа: {chance}')
-        print(f'Выпавшие числа: {win}')
+        print(f'DEBUG: Ваши числа: {chance}')
+        print(f'DEBUG: Выпавшие числа: {win}')
 
-        # Считаем совпадения (пересечение множеств)
+        # Считаем совпадения
         matches = len(chance.intersection(win))
+        print(f'DEBUG: Совпадений: {matches}')
 
         win_prize = 0
         message = 'В этот раз не повезло :('
@@ -288,12 +293,20 @@ def lottery_ticket_func(do, add=None):
             win_prize = price * 1000
             message = f'ДЖЕКПОТ!!! 3 из 3! Выигрыш: {win_prize} монет.'
 
+        print(f'DEBUG: Выигрыш: {win_prize}')
+
         if win_prize > 0:
-            gamer.set_coins(win_prize)
+            # Сохраняем текущее количество монет для отладки
+            old_coins = gamer.coins
+            gamer.coins += win_prize
+            print(f'DEBUG: Было монет: {old_coins}, стало: {gamer.coins}')
             gamer.save()
+            print('DEBUG: Игрок сохранен')
+            return f'{message}\n💰 Выигрыш зачислен!'
 
-        return f'\n{message}'
+        return message
 
+    return 'Неизвестное действие'
 
 def freeze_local_func(do, add=None):
     if do == 'use':

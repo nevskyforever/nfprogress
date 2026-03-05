@@ -1,4 +1,3 @@
-from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem
 import os
 import sys
 
@@ -7,6 +6,10 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem
 
 import engine as en
+import game
+
+from game_UI import GameMenuController
+
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
 from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
@@ -30,6 +33,11 @@ class MainWindow(QMainWindow, main_window_ui):
         self.refresh_projects()
         self.refresh_global_streak_status()
 
+        # Инициализация игрового контроллера
+        self.game_controller = GameMenuController(self)
+
+        # Пример вызова при добавлении символов
+
         # Подключаем обработчик изменения фильтра
         self.filter_project_box.currentTextChanged.connect(self.on_filter_changed)
 
@@ -45,6 +53,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Подключаем обработку Enter для поля ввода
         self.new_symbols.returnPressed.connect(self.on_enter_pressed)
+
+        QTimer.singleShot(1000, self.check_global_streak)
 
         self.show()
 
@@ -183,6 +193,10 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.setup_project_buttons(widget.project)
                 break
 
+    def setup_game_menu(self):
+        """Инициализация игрового меню"""
+        self.game_controller = GameMenuController(self.ui)
+
     def setup_project_buttons(self, project):
         """Настраивает кнопки управления проектом"""
         # Безопасное отключение старых соединений
@@ -272,7 +286,7 @@ class MainWindow(QMainWindow, main_window_ui):
         new_total = int(text)
 
         # Проверяем, что новое значение больше текущего
-        if new_total <= project.total_symbols:
+        if new_total < project.total_symbols:
             self.new_symbols.clear()
             self.notifications.show_error(f'Новое значение должно быть больше текущего ({project.total_symbols})!')
             return
@@ -284,6 +298,8 @@ class MainWindow(QMainWindow, main_window_ui):
         note = en.Note(new_total, added, added_progress)
         project.set_new_notes(note)
         project.total_symbols = new_total
+        if game.load_game():
+            self.game_controller.add_symbols(added)
 
         # Сохраняем изменения
         data = en.load_data()
@@ -574,7 +590,21 @@ class MainWindow(QMainWindow, main_window_ui):
         if current_project_name:
             self.select_project_by_name(current_project_name)
 
+    def check_global_streak(self):
+        """Проверяет глобальный стрик и показывает уведомление"""
+        try:
+            data = en.load_data()
+            global_status = data.get('global_streak_status', 'No')
 
+            # Проверяем, начинается ли статус с "Lose"
+            if isinstance(global_status, str) and global_status.startswith('Lose'):
+                self.notifications.show_error('Глобальный стрик потерян!', position="top-left")
+                print(f"Глобальный стрик потерян! Статус: {global_status}")
+            else:
+                print(f"Глобальный стрик в порядке. Статус: {global_status}")
+
+        except (KeyError, IndexError, AttributeError) as e:
+            print(f"Ошибка при проверке глобального стрика: {e}")
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
