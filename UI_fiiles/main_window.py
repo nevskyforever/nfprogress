@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowKSeQph.ui'
+## Form generated from reading UI file 'main_windowqxDCsA.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -40,6 +40,37 @@ class Ui_main_window(object):
         self.projects_tab.setObjectName(u"projects_tab")
         self.gridLayout_3 = QGridLayout(self.projects_tab)
         self.gridLayout_3.setObjectName(u"gridLayout_3")
+        self.btns_create_filter = QWidget(self.projects_tab)
+        self.btns_create_filter.setObjectName(u"btns_create_filter")
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.btns_create_filter.sizePolicy().hasHeightForWidth())
+        self.btns_create_filter.setSizePolicy(sizePolicy)
+        self.btns_create_filter.setFont(font)
+        self.horizontalLayout_4 = QHBoxLayout(self.btns_create_filter)
+        self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
+        self.btn_create_project = QPushButton(self.btns_create_filter)
+        self.btn_create_project.setObjectName(u"btn_create_project")
+        self.btn_create_project.setFont(font)
+
+        self.horizontalLayout_4.addWidget(self.btn_create_project)
+
+        self.filter_project_box = QComboBox(self.btns_create_filter)
+        self.filter_project_box.addItem("")
+        self.filter_project_box.addItem("")
+        self.filter_project_box.addItem("")
+        self.filter_project_box.setObjectName(u"filter_project_box")
+
+        self.horizontalLayout_4.addWidget(self.filter_project_box)
+
+
+        self.gridLayout_3.addWidget(self.btns_create_filter, 1, 0, 1, 1)
+
+        self.horizontalSpacer_4 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+
+        self.gridLayout_3.addItem(self.horizontalSpacer_4, 1, 3, 1, 1)
+
         self.project_detail_widget = QWidget(self.projects_tab)
         self.project_detail_widget.setObjectName(u"project_detail_widget")
         self.gridLayout_4 = QGridLayout(self.project_detail_widget)
@@ -54,6 +85,113 @@ class Ui_main_window(object):
         self.name_selected_project.setWordWrap(True)
 
         self.gridLayout_4.addWidget(self.name_selected_project, 0, 0, 1, 1)
+
+        self.change_project_widget = QWidget(self.project_detail_widget)
+        self.change_project_widget.setObjectName(u"change_project_widget")
+        self.change_project_widget.setEnabled(False)
+        self.change_project_widget.setFont(font)
+        self.horizontalLayout_2 = QHBoxLayout(self.change_project_widget)
+        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
+        self.btn_change_project = QPushButton(self.change_project_widget)
+        self.btn_change_project.setObjectName(u"btn_change_project")
+        self.btn_change_project.setEnabled(False)
+
+        self.horizontalLayout_2.addWidget(self.btn_change_project)
+
+        self.btn_delete_project = QPushButton(self.change_project_widget)
+        self.btn_delete_project.setObjectName(u"btn_delete_project")
+        self.btn_delete_project.setEnabled(False)
+
+        self.horizontalLayout_2.addWidget(self.btn_delete_project)
+
+        self.btn_archived_project = QPushButton(self.change_project_widget)
+        self.btn_archived_project.setObjectName(u"btn_archived_project")
+        self.btn_archived_project.setEnabled(False)
+        self.btn_archived_project.setFont(font)
+
+        self.horizontalLayout_2.addWidget(self.btn_archived_project)
+
+        self.btn_complete_project = QPushButton(self.change_project_widget)
+        self.btn_complete_project.setObjectName(u"btn_complete_project")
+        self.btn_complete_project.setEnabled(False)
+        self.btn_complete_project.setFont(font)
+
+        self.horizontalLayout_2.addWidget(self.btn_complete_project)
+
+
+        self.gridLayout_4.addWidget(self.change_project_widget, 2, 0, 1, 1)
+
+        self.note_widget = QWidget(self.project_detail_widget)
+        self.note_widget.setObjectName(u"note_widget")
+        self.verticalLayout_2 = QVBoxLayout(self.note_widget)
+        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
+        self.label_2 = QLabel(self.note_widget)
+        self.label_2.setObjectName(u"label_2")
+        self.label_2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.verticalLayout_2.addWidget(self.label_2)
+
+        self.note_list = QListWidget(self.note_widget)
+        self.note_list.setObjectName(u"note_list")
+        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        sizePolicy1.setHorizontalStretch(0)
+        sizePolicy1.setVerticalStretch(0)
+        sizePolicy1.setHeightForWidth(self.note_list.sizePolicy().hasHeightForWidth())
+        self.note_list.setSizePolicy(sizePolicy1)
+        self.note_list.setStyleSheet(u"QListWidget#note_list {\n"
+"    background-color: rgb(56, 56, 56);\n"
+"    border: 1px solid #999;\n"
+"    border-radius: 3px;\n"
+"    outline: none;\n"
+"}\n"
+"\n"
+"QListWidget#note_list::item {\n"
+"    padding: 4px;\n"
+"    border-bottom: 1px solid #aaa;\n"
+"}\n"
+"\n"
+"QListWidget#note_list::item:selected {\n"
+"    background-color: #3daee9;\n"
+"    color: white;\n"
+"}\n"
+"\n"
+"QListWidget#note_list::item:hover {\n"
+"    background-color: #d8d8d8;\n"
+"}")
+
+        self.verticalLayout_2.addWidget(self.note_list)
+
+        self.flash_note = QWidget(self.note_widget)
+        self.flash_note.setObjectName(u"flash_note")
+        self.flash_note.setFont(font)
+        self.gridLayout = QGridLayout(self.flash_note)
+        self.gridLayout.setObjectName(u"gridLayout")
+        self.label_9 = QLabel(self.flash_note)
+        self.label_9.setObjectName(u"label_9")
+
+        self.gridLayout.addWidget(self.label_9, 0, 0, 1, 1)
+
+        self.delete_note = QPushButton(self.flash_note)
+        self.delete_note.setObjectName(u"delete_note")
+
+        self.gridLayout.addWidget(self.delete_note, 0, 3, 1, 1)
+
+        self.pb_save_flash_note = QPushButton(self.flash_note)
+        self.pb_save_flash_note.setObjectName(u"pb_save_flash_note")
+        self.pb_save_flash_note.setEnabled(False)
+
+        self.gridLayout.addWidget(self.pb_save_flash_note, 0, 2, 1, 1)
+
+        self.new_symbols = QLineEdit(self.flash_note)
+        self.new_symbols.setObjectName(u"new_symbols")
+
+        self.gridLayout.addWidget(self.new_symbols, 0, 1, 1, 1)
+
+
+        self.verticalLayout_2.addWidget(self.flash_note)
+
+
+        self.gridLayout_4.addWidget(self.note_widget, 6, 0, 1, 1)
 
         self.project_info = QGroupBox(self.project_detail_widget)
         self.project_info.setObjectName(u"project_info")
@@ -178,140 +316,20 @@ class Ui_main_window(object):
 
         self.gridLayout_4.addWidget(self.project_info, 3, 0, 1, 1)
 
-        self.note_widget = QWidget(self.project_detail_widget)
-        self.note_widget.setObjectName(u"note_widget")
-        self.verticalLayout_2 = QVBoxLayout(self.note_widget)
-        self.verticalLayout_2.setObjectName(u"verticalLayout_2")
-        self.label_2 = QLabel(self.note_widget)
-        self.label_2.setObjectName(u"label_2")
-        self.label_2.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.verticalLayout_2.addWidget(self.label_2)
+        self.gridLayout_3.addWidget(self.project_detail_widget, 1, 2, 3, 1)
 
-        self.note_list = QListWidget(self.note_widget)
-        self.note_list.setObjectName(u"note_list")
-        sizePolicy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
-        sizePolicy.setHorizontalStretch(0)
-        sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.note_list.sizePolicy().hasHeightForWidth())
-        self.note_list.setSizePolicy(sizePolicy)
-        self.note_list.setStyleSheet(u"QListWidget#note_list {\n"
-"    background-color: rgb(56, 56, 56);\n"
-"    border: 1px solid #999;\n"
-"    border-radius: 3px;\n"
-"    outline: none;\n"
-"}\n"
-"\n"
-"QListWidget#note_list::item {\n"
-"    padding: 4px;\n"
-"    border-bottom: 1px solid #aaa;\n"
-"}\n"
-"\n"
-"QListWidget#note_list::item:selected {\n"
-"    background-color: #3daee9;\n"
-"    color: white;\n"
-"}\n"
-"\n"
-"QListWidget#note_list::item:hover {\n"
-"    background-color: #d8d8d8;\n"
-"}")
+        self.horizontalSpacer_3 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
-        self.verticalLayout_2.addWidget(self.note_list)
-
-        self.flash_note = QWidget(self.note_widget)
-        self.flash_note.setObjectName(u"flash_note")
-        self.flash_note.setFont(font)
-        self.gridLayout = QGridLayout(self.flash_note)
-        self.gridLayout.setObjectName(u"gridLayout")
-        self.label_9 = QLabel(self.flash_note)
-        self.label_9.setObjectName(u"label_9")
-
-        self.gridLayout.addWidget(self.label_9, 0, 0, 1, 1)
-
-        self.delete_note = QPushButton(self.flash_note)
-        self.delete_note.setObjectName(u"delete_note")
-
-        self.gridLayout.addWidget(self.delete_note, 0, 3, 1, 1)
-
-        self.pb_save_flash_note = QPushButton(self.flash_note)
-        self.pb_save_flash_note.setObjectName(u"pb_save_flash_note")
-        self.pb_save_flash_note.setEnabled(False)
-
-        self.gridLayout.addWidget(self.pb_save_flash_note, 0, 2, 1, 1)
-
-        self.new_symbols = QLineEdit(self.flash_note)
-        self.new_symbols.setObjectName(u"new_symbols")
-
-        self.gridLayout.addWidget(self.new_symbols, 0, 1, 1, 1)
-
-
-        self.verticalLayout_2.addWidget(self.flash_note)
-
-
-        self.gridLayout_4.addWidget(self.note_widget, 6, 0, 1, 1)
-
-        self.change_project_widget = QWidget(self.project_detail_widget)
-        self.change_project_widget.setObjectName(u"change_project_widget")
-        self.change_project_widget.setEnabled(False)
-        self.change_project_widget.setFont(font)
-        self.horizontalLayout_2 = QHBoxLayout(self.change_project_widget)
-        self.horizontalLayout_2.setObjectName(u"horizontalLayout_2")
-        self.btn_change_project = QPushButton(self.change_project_widget)
-        self.btn_change_project.setObjectName(u"btn_change_project")
-        self.btn_change_project.setEnabled(False)
-
-        self.horizontalLayout_2.addWidget(self.btn_change_project)
-
-        self.btn_delete_project = QPushButton(self.change_project_widget)
-        self.btn_delete_project.setObjectName(u"btn_delete_project")
-        self.btn_delete_project.setEnabled(False)
-
-        self.horizontalLayout_2.addWidget(self.btn_delete_project)
-
-        self.btn_archived_project = QPushButton(self.change_project_widget)
-        self.btn_archived_project.setObjectName(u"btn_archived_project")
-        self.btn_archived_project.setEnabled(False)
-        self.btn_archived_project.setFont(font)
-
-        self.horizontalLayout_2.addWidget(self.btn_archived_project)
-
-        self.btn_complete_project = QPushButton(self.change_project_widget)
-        self.btn_complete_project.setObjectName(u"btn_complete_project")
-        self.btn_complete_project.setEnabled(False)
-        self.btn_complete_project.setFont(font)
-
-        self.horizontalLayout_2.addWidget(self.btn_complete_project)
-
-
-        self.gridLayout_4.addWidget(self.change_project_widget, 2, 0, 1, 1)
-
-
-        self.gridLayout_3.addWidget(self.project_detail_widget, 0, 2, 2, 1)
-
-        self.btns_create_filter = QWidget(self.projects_tab)
-        self.btns_create_filter.setObjectName(u"btns_create_filter")
-        self.btns_create_filter.setFont(font)
-        self.horizontalLayout_4 = QHBoxLayout(self.btns_create_filter)
-        self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
-        self.btn_create_project = QPushButton(self.btns_create_filter)
-        self.btn_create_project.setObjectName(u"btn_create_project")
-        self.btn_create_project.setFont(font)
-
-        self.horizontalLayout_4.addWidget(self.btn_create_project)
-
-        self.filter_project_box = QComboBox(self.btns_create_filter)
-        self.filter_project_box.addItem("")
-        self.filter_project_box.addItem("")
-        self.filter_project_box.addItem("")
-        self.filter_project_box.setObjectName(u"filter_project_box")
-
-        self.horizontalLayout_4.addWidget(self.filter_project_box)
-
-
-        self.gridLayout_3.addWidget(self.btns_create_filter, 0, 0, 1, 1)
+        self.gridLayout_3.addItem(self.horizontalSpacer_3, 3, 1, 1, 1)
 
         self.list_projects = QListWidget(self.projects_tab)
         self.list_projects.setObjectName(u"list_projects")
+        sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+        sizePolicy2.setHorizontalStretch(0)
+        sizePolicy2.setVerticalStretch(0)
+        sizePolicy2.setHeightForWidth(self.list_projects.sizePolicy().hasHeightForWidth())
+        self.list_projects.setSizePolicy(sizePolicy2)
         self.list_projects.setMouseTracking(True)
         self.list_projects.setStyleSheet(u"QListWidget#list_projects {\n"
 "    background-color: rgb(56, 56, 56);\n"
@@ -335,39 +353,35 @@ class Ui_main_window(object):
 "}")
         self.list_projects.setSortingEnabled(False)
 
-        self.gridLayout_3.addWidget(self.list_projects, 1, 0, 1, 1)
+        self.gridLayout_3.addWidget(self.list_projects, 3, 0, 1, 1)
 
-        self.horizontalSpacer_3 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
+        self.global_streak_status = QLabel(self.projects_tab)
+        self.global_streak_status.setObjectName(u"global_streak_status")
+        self.global_streak_status.setWordWrap(True)
 
-        self.gridLayout_3.addItem(self.horizontalSpacer_3, 1, 1, 1, 1)
-
-        self.horizontalSpacer_4 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.gridLayout_3.addItem(self.horizontalSpacer_4, 0, 3, 1, 1)
+        self.gridLayout_3.addWidget(self.global_streak_status, 2, 0, 1, 1)
 
         self.tabWidget.addTab(self.projects_tab, "")
         self.project_detail_widget.raise_()
         self.btns_create_filter.raise_()
         self.list_projects.raise_()
+        self.global_streak_status.raise_()
         self.game_tab = QWidget()
         self.game_tab.setObjectName(u"game_tab")
         self.gridLayout_5 = QGridLayout(self.game_tab)
         self.gridLayout_5.setObjectName(u"gridLayout_5")
         self.quests_tab = QTabWidget(self.game_tab)
         self.quests_tab.setObjectName(u"quests_tab")
-        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
-        sizePolicy1.setHorizontalStretch(0)
-        sizePolicy1.setVerticalStretch(0)
-        sizePolicy1.setHeightForWidth(self.quests_tab.sizePolicy().hasHeightForWidth())
-        self.quests_tab.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.quests_tab.sizePolicy().hasHeightForWidth())
+        self.quests_tab.setSizePolicy(sizePolicy)
         self.available_quests_tab = QWidget()
         self.available_quests_tab.setObjectName(u"available_quests_tab")
         self.gridLayout_8 = QGridLayout(self.available_quests_tab)
         self.gridLayout_8.setObjectName(u"gridLayout_8")
         self.available_quests_list = QListWidget(self.available_quests_tab)
         self.available_quests_list.setObjectName(u"available_quests_list")
-        sizePolicy1.setHeightForWidth(self.available_quests_list.sizePolicy().hasHeightForWidth())
-        self.available_quests_list.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.available_quests_list.sizePolicy().hasHeightForWidth())
+        self.available_quests_list.setSizePolicy(sizePolicy)
         self.available_quests_list.setMaximumSize(QSize(193, 16777215))
 
         self.gridLayout_8.addWidget(self.available_quests_list, 0, 0, 1, 1)
@@ -381,7 +395,7 @@ class Ui_main_window(object):
         self.scrollArea_3.setWidgetResizable(True)
         self.scrollAreaWidgetContents_4 = QWidget()
         self.scrollAreaWidgetContents_4.setObjectName(u"scrollAreaWidgetContents_4")
-        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 98, 88))
+        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 89, 88))
         self.gridLayout_14 = QGridLayout(self.scrollAreaWidgetContents_4)
         self.gridLayout_14.setObjectName(u"gridLayout_14")
         self.label_4 = QLabel(self.scrollAreaWidgetContents_4)
@@ -421,8 +435,8 @@ class Ui_main_window(object):
         self.gridLayout_9.setObjectName(u"gridLayout_9")
         self.active_quests_list = QListWidget(self.active_quests_tab)
         self.active_quests_list.setObjectName(u"active_quests_list")
-        sizePolicy1.setHeightForWidth(self.active_quests_list.sizePolicy().hasHeightForWidth())
-        self.active_quests_list.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.active_quests_list.sizePolicy().hasHeightForWidth())
+        self.active_quests_list.setSizePolicy(sizePolicy)
         self.active_quests_list.setMaximumSize(QSize(193, 16777215))
 
         self.gridLayout_9.addWidget(self.active_quests_list, 0, 0, 1, 1)
@@ -488,8 +502,8 @@ class Ui_main_window(object):
         self.gridLayout_10.setObjectName(u"gridLayout_10")
         self.completed_quests_list = QListWidget(self.completed_quests_tab)
         self.completed_quests_list.setObjectName(u"completed_quests_list")
-        sizePolicy1.setHeightForWidth(self.completed_quests_list.sizePolicy().hasHeightForWidth())
-        self.completed_quests_list.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.completed_quests_list.sizePolicy().hasHeightForWidth())
+        self.completed_quests_list.setSizePolicy(sizePolicy)
         self.completed_quests_list.setMaximumSize(QSize(193, 16777215))
 
         self.gridLayout_10.addWidget(self.completed_quests_list, 0, 0, 1, 1)
@@ -549,19 +563,19 @@ class Ui_main_window(object):
 
         self.frame = QFrame(self.game_tab)
         self.frame.setObjectName(u"frame")
-        sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
-        sizePolicy2.setHorizontalStretch(0)
-        sizePolicy2.setVerticalStretch(0)
-        sizePolicy2.setHeightForWidth(self.frame.sizePolicy().hasHeightForWidth())
-        self.frame.setSizePolicy(sizePolicy2)
+        sizePolicy3 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Preferred)
+        sizePolicy3.setHorizontalStretch(0)
+        sizePolicy3.setVerticalStretch(0)
+        sizePolicy3.setHeightForWidth(self.frame.sizePolicy().hasHeightForWidth())
+        self.frame.setSizePolicy(sizePolicy3)
         self.frame.setFrameShape(QFrame.Shape.StyledPanel)
         self.frame.setFrameShadow(QFrame.Shadow.Raised)
         self.horizontalLayout_5 = QHBoxLayout(self.frame)
         self.horizontalLayout_5.setObjectName(u"horizontalLayout_5")
         self.listWidget_6 = QListWidget(self.frame)
         self.listWidget_6.setObjectName(u"listWidget_6")
-        sizePolicy1.setHeightForWidth(self.listWidget_6.sizePolicy().hasHeightForWidth())
-        self.listWidget_6.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.listWidget_6.sizePolicy().hasHeightForWidth())
+        self.listWidget_6.setSizePolicy(sizePolicy)
         self.listWidget_6.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_5.addWidget(self.listWidget_6)
@@ -640,11 +654,11 @@ class Ui_main_window(object):
 
         self.frame_5 = QFrame(self.game_tab)
         self.frame_5.setObjectName(u"frame_5")
-        sizePolicy3 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        sizePolicy3.setHorizontalStretch(0)
-        sizePolicy3.setVerticalStretch(43)
-        sizePolicy3.setHeightForWidth(self.frame_5.sizePolicy().hasHeightForWidth())
-        self.frame_5.setSizePolicy(sizePolicy3)
+        sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        sizePolicy4.setHorizontalStretch(0)
+        sizePolicy4.setVerticalStretch(43)
+        sizePolicy4.setHeightForWidth(self.frame_5.sizePolicy().hasHeightForWidth())
+        self.frame_5.setSizePolicy(sizePolicy4)
         self.frame_5.setMinimumSize(QSize(0, 55))
         self.frame_5.setFrameShape(QFrame.Shape.StyledPanel)
         self.frame_5.setFrameShadow(QFrame.Shadow.Raised)
@@ -670,19 +684,19 @@ class Ui_main_window(object):
 
         self.exp_progressbar = QProgressBar(self.frame_5)
         self.exp_progressbar.setObjectName(u"exp_progressbar")
-        sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-        sizePolicy4.setHorizontalStretch(0)
-        sizePolicy4.setVerticalStretch(0)
-        sizePolicy4.setHeightForWidth(self.exp_progressbar.sizePolicy().hasHeightForWidth())
-        self.exp_progressbar.setSizePolicy(sizePolicy4)
+        sizePolicy5 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        sizePolicy5.setHorizontalStretch(0)
+        sizePolicy5.setVerticalStretch(0)
+        sizePolicy5.setHeightForWidth(self.exp_progressbar.sizePolicy().hasHeightForWidth())
+        self.exp_progressbar.setSizePolicy(sizePolicy5)
         self.exp_progressbar.setValue(24)
 
         self.gridLayout_6.addWidget(self.exp_progressbar, 1, 2, 1, 1)
 
         self.gamer_health_progressbar = QProgressBar(self.frame_5)
         self.gamer_health_progressbar.setObjectName(u"gamer_health_progressbar")
-        sizePolicy4.setHeightForWidth(self.gamer_health_progressbar.sizePolicy().hasHeightForWidth())
-        self.gamer_health_progressbar.setSizePolicy(sizePolicy4)
+        sizePolicy5.setHeightForWidth(self.gamer_health_progressbar.sizePolicy().hasHeightForWidth())
+        self.gamer_health_progressbar.setSizePolicy(sizePolicy5)
         self.gamer_health_progressbar.setValue(24)
 
         self.gridLayout_6.addWidget(self.gamer_health_progressbar, 1, 3, 1, 1)
@@ -716,16 +730,16 @@ class Ui_main_window(object):
 
         self.parameters_tab = QTabWidget(self.game_tab)
         self.parameters_tab.setObjectName(u"parameters_tab")
-        sizePolicy1.setHeightForWidth(self.parameters_tab.sizePolicy().hasHeightForWidth())
-        self.parameters_tab.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.parameters_tab.sizePolicy().hasHeightForWidth())
+        self.parameters_tab.setSizePolicy(sizePolicy)
         self.bufs_tab = QWidget()
         self.bufs_tab.setObjectName(u"bufs_tab")
         self.horizontalLayout_7 = QHBoxLayout(self.bufs_tab)
         self.horizontalLayout_7.setObjectName(u"horizontalLayout_7")
         self.completed_quests_list_2 = QListWidget(self.bufs_tab)
         self.completed_quests_list_2.setObjectName(u"completed_quests_list_2")
-        sizePolicy1.setHeightForWidth(self.completed_quests_list_2.sizePolicy().hasHeightForWidth())
-        self.completed_quests_list_2.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.completed_quests_list_2.sizePolicy().hasHeightForWidth())
+        self.completed_quests_list_2.setSizePolicy(sizePolicy)
         self.completed_quests_list_2.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_7.addWidget(self.completed_quests_list_2)
@@ -786,8 +800,8 @@ class Ui_main_window(object):
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
         self.completed_quests_list_3 = QListWidget(self.defufs_tab)
         self.completed_quests_list_3.setObjectName(u"completed_quests_list_3")
-        sizePolicy1.setHeightForWidth(self.completed_quests_list_3.sizePolicy().hasHeightForWidth())
-        self.completed_quests_list_3.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.completed_quests_list_3.sizePolicy().hasHeightForWidth())
+        self.completed_quests_list_3.setSizePolicy(sizePolicy)
         self.completed_quests_list_3.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_8.addWidget(self.completed_quests_list_3)
@@ -860,16 +874,16 @@ class Ui_main_window(object):
 
         self.game_shop_tab = QTabWidget(self.game_tab)
         self.game_shop_tab.setObjectName(u"game_shop_tab")
-        sizePolicy1.setHeightForWidth(self.game_shop_tab.sizePolicy().hasHeightForWidth())
-        self.game_shop_tab.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.game_shop_tab.sizePolicy().hasHeightForWidth())
+        self.game_shop_tab.setSizePolicy(sizePolicy)
         self.items_shop_tab = QWidget()
         self.items_shop_tab.setObjectName(u"items_shop_tab")
         self.horizontalLayout_6 = QHBoxLayout(self.items_shop_tab)
         self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
         self.listWidget_4 = QListWidget(self.items_shop_tab)
         self.listWidget_4.setObjectName(u"listWidget_4")
-        sizePolicy1.setHeightForWidth(self.listWidget_4.sizePolicy().hasHeightForWidth())
-        self.listWidget_4.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.listWidget_4.sizePolicy().hasHeightForWidth())
+        self.listWidget_4.setSizePolicy(sizePolicy)
         self.listWidget_4.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_6.addWidget(self.listWidget_4)
@@ -896,7 +910,7 @@ class Ui_main_window(object):
         self.scrollArea_6.setWidgetResizable(True)
         self.scrollAreaWidgetContents_7 = QWidget()
         self.scrollAreaWidgetContents_7.setObjectName(u"scrollAreaWidgetContents_7")
-        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 98, 136))
+        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 95, 136))
         self.gridLayout_21 = QGridLayout(self.scrollAreaWidgetContents_7)
         self.gridLayout_21.setObjectName(u"gridLayout_21")
         self.label_35 = QLabel(self.scrollAreaWidgetContents_7)
@@ -948,8 +962,8 @@ class Ui_main_window(object):
         self.horizontalLayout.setObjectName(u"horizontalLayout")
         self.listWidget_5 = QListWidget(self.potions_shop_tab)
         self.listWidget_5.setObjectName(u"listWidget_5")
-        sizePolicy1.setHeightForWidth(self.listWidget_5.sizePolicy().hasHeightForWidth())
-        self.listWidget_5.setSizePolicy(sizePolicy1)
+        sizePolicy.setHeightForWidth(self.listWidget_5.sizePolicy().hasHeightForWidth())
+        self.listWidget_5.setSizePolicy(sizePolicy)
         self.listWidget_5.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout.addWidget(self.listWidget_5)
@@ -1038,7 +1052,20 @@ class Ui_main_window(object):
 
     def retranslateUi(self, main_window):
         main_window.setWindowTitle(QCoreApplication.translate("main_window", u"nfprogress", None))
+        self.btn_create_project.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c", None))
+        self.filter_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u0410\u043a\u0442\u0438\u0432\u0435\u043d", None))
+        self.filter_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0412 \u0430\u0440\u0445\u0438\u0432\u0435", None))
+        self.filter_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043d", None))
+
         self.name_selected_project.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043f\u0440\u043e\u0435\u043a\u0442", None))
+        self.btn_change_project.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c", None))
+        self.btn_delete_project.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))
+        self.btn_archived_project.setText(QCoreApplication.translate("main_window", u"\u0412 \u0430\u0440\u0445\u0438\u0432", None))
+        self.btn_complete_project.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c", None))
+        self.label_2.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u043f\u0438\u0441\u0438 \u043f\u0440\u043e\u0435\u043a\u0442\u0430", None))
+        self.label_9.setText(QCoreApplication.translate("main_window", u"\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u043f\u0438\u0441\u044c:", None))
+        self.delete_note.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))
+        self.pb_save_flash_note.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c", None))
         self.project_info.setTitle(QCoreApplication.translate("main_window", u"\u0418\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u044f \u043e \u043f\u0440\u043e\u0435\u043a\u0442\u0435", None))
         self.label_today_added.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u043f\u0438\u0441\u0430\u043d\u043e \u0441\u0435\u0433\u043e\u0434\u043d\u044f:", None))
         self.label_progress.setText(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441:", None))
@@ -1062,19 +1089,7 @@ class Ui_main_window(object):
         self.label_streak_status.setText(QCoreApplication.translate("main_window", u"C\u0442\u0430\u0442\u0443\u0441 \u0441\u0442\u0440\u0438\u043a\u0430:", None))
         self.label_total.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u043f\u0438\u0441\u0430\u043d\u043e:", None))
         self.label_streaks.setText(QCoreApplication.translate("main_window", u"\u0422\u0435\u043a\u0443\u0449\u0438\u0439 \u0441\u0442\u0440\u0438\u043a: ", None))
-        self.label_2.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u043f\u0438\u0441\u0438 \u043f\u0440\u043e\u0435\u043a\u0442\u0430", None))
-        self.label_9.setText(QCoreApplication.translate("main_window", u"\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u043f\u0438\u0441\u044c:", None))
-        self.delete_note.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))
-        self.pb_save_flash_note.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c", None))
-        self.btn_change_project.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c", None))
-        self.btn_delete_project.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))
-        self.btn_archived_project.setText(QCoreApplication.translate("main_window", u"\u0412 \u0430\u0440\u0445\u0438\u0432", None))
-        self.btn_complete_project.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c", None))
-        self.btn_create_project.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c", None))
-        self.filter_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u0410\u043a\u0442\u0438\u0432\u0435\u043d", None))
-        self.filter_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0412 \u0430\u0440\u0445\u0438\u0432\u0435", None))
-        self.filter_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043d", None))
-
+        self.global_streak_status.setText(QCoreApplication.translate("main_window", u"\u0413\u043b\u043e\u0431\u0430\u043b\u044c\u043d\u044b\u0439 \u0441\u0442\u0440\u0438\u043a", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.projects_tab), QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442\u044b", None))
         self.about_selected_available_quest.setTitle(QCoreApplication.translate("main_window", u"\u041e \u043a\u0432\u0435\u0441\u0442\u0435", None))
         self.label_4.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))

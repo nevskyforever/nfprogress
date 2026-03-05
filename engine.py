@@ -62,7 +62,7 @@ last_update = '22.02.26'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    # return date(2026, 2, 3)
+    return date(2026, 3, 4)
     return date.today()
 
 
@@ -217,46 +217,49 @@ class Project:
         # Если цель не установлена (нет дедлайна), стрик не работает
         if today_goal == 0:
             return 'No'
-        if self.streak_status == 'Complete':
-            return 'Complete'
-        else:
-            # Проверяем потерю стрика (последний день был давно, не вчера и не сегодня)
-            if len(self.streaks) > 0 and self.streaks[-1] != yesterday and self.streaks[-1] != today:
+
+        # Проверяем выполнение цели сегодня
+        if today_added >= today_goal:
+            if len(self.streaks) == 0:
+                # Начало нового стрика
+                self.streaks.append(today)
+                self.streak_status = 'Start'
+                return 'Start'
+            elif self.streaks[-1] == today:
+                # Стрик уже продлен сегодня
+                self.streak_status = 'Done'
+                return 'Done'
+            elif self.streaks[-1] == yesterday:
+                # Продление стрика
+                self.streaks.append(today)
                 if self.max_streak < len(self.streaks):
                     self.max_streak = len(self.streaks)
+                self.streak_status = 'Go'
+                return 'Go'
+            else:
+                # Есть разрыв в стрике - начинаем новый
+                self.streaks = [today]
+                self.streak_status = 'Start'
+                return 'Start'
+        else:
+            # Цель сегодня не выполнена
+            if len(self.streaks) == 0:
+                # Стрик никогда не начинался
+                return 'No'
+            elif self.streaks[-1] == today:
+                # Сегодня стрик уже был продлен ранее (странная ситуация, но оставим)
+                return 'Done'
+            elif self.streaks[-1] == yesterday:
+                # Стрик был вчера, сегодня ещё не продлён - СТРИК АКТИВЕН, НО НЕ ПРОДЛЁН
+                return 'Active'  # <-- НОВЫЙ СТАТУС
+            elif self.streaks[-1] < yesterday:
+                # Последний стрик был раньше чем вчера - стрик потерян
                 lose = len(self.streaks)
+                if self.max_streak < lose:
+                    self.max_streak = lose
                 self.streaks = []
-                # Если цель сегодня выполнена, начинаем новый стрик
-                if today_added >= today_goal:
-                    self.streaks.append(today)
-                    self.streak_status = 'Start'
-                    return f'Lose {lose} Start'
-                self.streak_status = 'Lose'
+                self.streak_status = f'Lose {lose}'
                 return f'Lose {lose}'
-
-            # Проверяем выполнение цели
-            if today_added >= today_goal:
-                if len(self.streaks) == 0:
-                    # Начало нового стрика
-                    self.streaks.append(today)
-                    self.streak_status = 'Start'
-                    return 'Start'
-                elif self.streaks[-1] == today:
-                    # Стрик уже продлен сегодня
-                    return 'Done'
-                elif self.streaks[-1] == yesterday:
-                    # Продление стрика
-                    self.streaks.append(today)
-                    if self.max_streak < len(self.streaks):
-                        self.max_streak = len(self.streaks)
-                    self.streak_status = 'Go'
-                    return 'Go'
-                elif self.streaks[-1] == self.deadline:
-                    # Продление стрика
-                    self.streaks.append(today)
-                    if self.max_streak < len(self.streaks):
-                        self.max_streak = len(self.streaks)
-                    self.streak_status = 'Complete'
 
         return 'No'
 
@@ -269,28 +272,33 @@ class Project:
         elif status == 'Go':
             streaks = len(self.streaks)
             if msg_type == 'min':
-                return '🚀  стрик продлен'
-            return f'🚀  Стрик в {self.name} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
+                return '🚀 стрик продлен'
+            return f'🚀 Стрик в {self.name} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
         elif status == 'Done':
             if msg_type == 'min':
                 return '✌️ Стрик продлен'
-            return f'✌️  Стрик в {self.name} сегодня уже продлен, но символы лишними не будут'
+            return f'✌️ Стрик в {self.name} сегодня уже продлен, но символы лишними не будут'
+        elif status == 'Active':  # <-- НОВЫЙ СТАТУС
+            streaks = len(self.streaks)
+            if msg_type == 'min':
+                return f'⏳ Стрик в {streaks} дн не продлен'
+            return f'⏳ Стрик в {self.name} активен ({streaks} дн.), но ещё не продлён сегодня'
         elif status == 'Complete':
             streaks = len(self.streaks)
             if msg_type == 'min':
-                return '🎉  СТРИК ЗАВЕРШЕН'
-            return f'🎉  СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
+                return '🎉 СТРИК ЗАВЕРШЕН'
+            return f'🎉 СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
         elif status == 'No':
-            return f'🙃  Стрик не начат'
+            return f'🙃 Стрик не начат'
         elif status.split()[0] == 'Lose':
-            status = status.split()
-            if len(status) == 2:
+            status_parts = status.split()
+            if len(status_parts) == 2:
                 if msg_type == 'min':
-                    return f'💔  Потеряно {status[1]} д. стрика'
-                return f'💔  Стрик потерян! Вы были в цели {status[1]} дней подряд.'
-            elif len(status) == 3:
-                return (f'💔  Стрик потерян! Вы были в цели {status[1]} дней подряд.'
-                        f'\n🔥  Вы начали новый стрик!')
+                    return f'💔 Потеряно {status_parts[1]} д. стрика'
+                return f'💔 Стрик потерян! Вы были в цели {status_parts[1]} дней подряд.'
+            elif len(status_parts) == 3:
+                return (f'💔 Стрик потерян! Вы были в цели {status_parts[1]} дней подряд.'
+                        f'\n🔥 Вы начали новый стрик!')
         return 'Вывод статуса не работает'
 
     @property
@@ -395,7 +403,12 @@ def load_data():
             return pickle.load(f)
     except (FileNotFoundError, EOFError):
         # Если файл не найден, создаём пустую структуру
-        return {'last': None, 'projects': {}, 'notifications': []}
+        return {'last': None,
+                'projects': {},
+                'notifications': [],
+                'global_streaks': [],
+                'global_streak_status': 'No',
+                'max_global_streak': 0, }
 
 
 def save_data(data):
@@ -464,35 +477,45 @@ def find_project_by_name(name):
     return None, None
 
 
-def global_streak_status(data, local_streak_status=None, today=None):
+def global_streak_status(data, today=None):
     """
-    Обновляет глобальный стрик и возвращает строковый статус.
-    Глобальный стрик стартует/продлевается, если локальный стрик в проекте: Start/Go/Done.
-    Потеря — аналогично локальному: если последний день стрика не вчера и не сегодня.
+    Обновляет глобальный стрик на основе всех активных проектов и возвращает строковый статус.
+    Глобальный стрик активен, если хотя бы в одном проекте есть активный стрик.
     """
     if today is None:
         today = today_for_test()
     yesterday = today - timedelta(days=1)
 
     # Инициализация хранилища
-    streak = data.get('global_streaks')
-    if streak is None:
+    streak = data.get('global_streaks', [])
+    if not isinstance(streak, list):
         streak = []
         data['global_streaks'] = streak
 
     status = 'No'
     max_streak = data.get('max_global_streak', 0)
 
-    # 1) Проверка потери (аналогично твоему локальному блоку)
+    # Проверяем, есть ли хотя бы один проект с активным стриком сегодня
+    has_active_streak_today = False
+    projects = data.get('projects', {})
+
+    for project_name, project in projects.items():
+        if hasattr(project, 'get_streak_status'):
+            project_status = project.get_streak_status()
+            # Проверяем, что статус проекта указывает на активный стрик сегодня
+            if project_status in ['Start', 'Go', 'Done']:
+                has_active_streak_today = True
+                break
+
+    # 1) Проверка потери глобального стрика
     if len(streak) > 0 and streak[-1] != yesterday and streak[-1] != today:
         lose = len(streak)
         data['global_streaks'] = []
         streak = data['global_streaks']
         status = f'Lose {lose}'
 
-    # 2) Продление/старт по факту "локальный стрик продлен/уже продлен/стартовал"
-    ok_statuses = {'Start', 'Go', 'Done'}
-    if local_streak_status.split()[-1] in ok_statuses:
+    # 2) Обновление глобального стрика на основе проектов
+    if has_active_streak_today:
         if len(streak) == 0:
             streak.append(today)
             status = 'Start'
@@ -501,12 +524,12 @@ def global_streak_status(data, local_streak_status=None, today=None):
                 max_streak = len(streak)
             status = 'Done'
         elif streak[-1] == yesterday:
+            streak.append(today)
             if len(streak) > max_streak:
                 max_streak = len(streak)
-            streak.append(today)
             status = 'Go'
         else:
-            # Если почему-то есть разрыв, но до потери не дошли — стартуем заново
+            # Если есть разрыв, начинаем новый стрик
             streak.clear()
             streak.append(today)
             status = 'Start'
@@ -523,6 +546,7 @@ def global_streak_status_msg(data, status=None):
         status = data.get('global_streak_status', 'No')
 
     streak = data.get('global_streaks', [])
+
     if status == 'Start':
         return '🔥 Глобальный стрик начат!'
     elif status == 'Go':
@@ -534,8 +558,20 @@ def global_streak_status_msg(data, status=None):
         if len(parts) == 2 and parts[1].isdigit():
             return f'💔 Глобальный стрик потерян! Было дней подряд: {parts[1]}'
         return '💔 Глобальный стрик потерян!'
-    return None
+    elif status == 'No':
+        # Если нет активных стриков, но были раньше
+        if streak and len(streak) > 0:
+            last_streak_day = streak[-1]
+            today = today_for_test()
+            days_ago = (today - last_streak_day).days
+            if days_ago == 1:
+                return f'👀 Глобальный стрик в {len(streak)} д. не продлен.'
+            else:
+                return f'😴 Глобальный стрик не активен. Последний стрик был {days_ago} дней назад'
+        else:
+            return '😴 Глобальный стрик не начат'
 
+    return '😴 Глобальный стрик не начат'
 
 # При импорте модуля создаём директорию для данных
 try:

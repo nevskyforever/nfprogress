@@ -28,6 +28,7 @@ class MainWindow(QMainWindow, main_window_ui):
         super().__init__()
         self.setupUi(self)
         self.refresh_projects()
+        self.refresh_global_streak_status()
 
         # Подключаем обработчик изменения фильтра
         self.filter_project_box.currentTextChanged.connect(self.on_filter_changed)
@@ -160,7 +161,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Информация о стриках
         self.streaks.setText(str(len(project.streaks)))
         self.max_streak.setText(str(project.max_streak))
-        self.streak_status.setText(project.get_streak_status_msg())
+        self.streak_status.setText(project.get_streak_status_msg('min'))
 
         # Последняя запись (если есть)
         if project.notes:
@@ -215,6 +216,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.btn_archived_project.clicked.connect(lambda: self.archive_project(project))
         self.btn_delete_project.clicked.connect(lambda: self.delete_project(project))
         self.pb_save_flash_note.clicked.connect(lambda: self.add_note(project))
+        self.pb_save_flash_note.clicked.connect(lambda: self.refresh_global_streak_status())
         self.delete_note.clicked.connect(lambda: self.delete_selected_note(project))
 
         # Устанавливаем состояние кнопок в зависимости от статуса проекта
@@ -305,6 +307,10 @@ class MainWindow(QMainWindow, main_window_ui):
         self.show_project_info(project)
         self.load_notes(project)
         self.notifications.show_success(f'В {project.name} добавлено {added} символов')
+
+        #Обновляем глобальный стрик
+        self.refresh_global_streak_status()
+
     def delete_selected_note(self, project):
         """Удаляет выбранную заметку из проекта"""
         # Получаем текущий выбранный элемент в списке заметок
@@ -503,9 +509,20 @@ class MainWindow(QMainWindow, main_window_ui):
         """Обработчик изменения фильтра проектов"""
         self.refresh_projects()
 
+    def refresh_global_streak_status(self):
+        # Загружаем глобальный стрик
+        data = en.load_data()
+        # Обновляем глобальный стрик на основе проектов
+        global_status = en.global_streak_status(data)
+        status_msg = en.global_streak_status_msg(data, global_status)
+        self.global_streak_status.setText(status_msg if status_msg else "Глобальный стрик не начат")
+
     def refresh_projects(self):
         data = en.load_data()
         projects = list(data['projects'].values())
+
+        # Обнововляем глобальный стрик
+        self.refresh_global_streak_status()
 
         # Получаем выбранный фильтр
         current_filter = self.filter_project_box.currentText()
@@ -555,6 +572,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
         if current_project_name:
             self.select_project_by_name(current_project_name)
+
+
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
