@@ -62,7 +62,7 @@ last_update = '22.02.26'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    return date(2026, 3, 7)
+    return date(2026, 3, 3)
     return date.today()
 
 
@@ -244,16 +244,21 @@ class Project:
         else:
             # Цель сегодня не выполнена
             if len(self.streaks) == 0:
-                # Стрик никогда не начинался
-                return 'No'
+                # Стрик никогда не начинался, но мог быть потерян ранее
+                if self.streak_status and self.streak_status.startswith('Lose'):
+                    return self.streak_status  # сохраняем статус потери
+                else:
+                    return 'No'
             elif self.streaks[-1] == today:
-                # Сегодня стрик уже был продлен ранее (странная ситуация, но оставим)
+                # Сегодня стрик уже был продлен ранее (редкий случай)
+                self.streak_status = 'Done'
                 return 'Done'
             elif self.streaks[-1] == yesterday:
-                # Стрик был вчера, сегодня ещё не продлён - СТРИК АКТИВЕН, НО НЕ ПРОДЛЁН
-                return 'Active'  # <-- НОВЫЙ СТАТУС
+                # Стрик был вчера, сегодня ещё не продлён – активен
+                self.streak_status = 'Active'
+                return 'Active'
             elif self.streaks[-1] < yesterday:
-                # Последний стрик был раньше чем вчера - стрик потерян
+                # Последний стрик был раньше чем вчера – стрик потерян
                 lose = len(self.streaks)
                 if self.max_streak < lose:
                     self.max_streak = lose
@@ -261,7 +266,7 @@ class Project:
                 self.streak_status = f'Lose {lose}'
                 return f'Lose {lose}'
 
-        return 'No'
+        return 'No'  # резервный вариант, но по логике сюда не дойдём
 
     def get_streak_status_msg(self, msg_type=None):
         status = self.get_streak_status()
