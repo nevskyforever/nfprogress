@@ -254,15 +254,17 @@ class GameMenuController:
             for i in range(count):
                 if self.gamer.items[category][item_name] > 0:
                     try:
-                        # Вызываем функцию предмета (она сама загружает игрока и сохраняет)
+                        # Вызываем функцию предмета
                         result = item_obj.use()
                         print(f"DEBUG: Результат использования: {result}")
 
-                        # После использования перезагружаем игрока из файла, чтобы получить актуальные монеты/здоровье
+                        # ПЕРЕЗАГРУЖАЕМ ИГРОКА ПОСЛЕ КАЖДОГО ИСПОЛЬЗОВАНИЯ,
+                        # чтобы получить актуальные монеты/здоровье
                         self.gamer = game.load_game()
 
-                        # Уменьшаем количество предметов в актуальном объекте
+                        # Уменьшаем количество предметов (теперь в актуальном объекте)
                         self.gamer.items[category][item_name] -= 1
+
                         result_messages.append(f"✓ {result}")
                         success_count += 1
                     except Exception as e:
@@ -273,8 +275,10 @@ class GameMenuController:
                     break
 
             if success_count > 0:
-                # Сохраняем финальное состояние (с уменьшенным количеством предметов и добавленными монетами)
+                # Сохраняем финальное состояние
                 self.gamer.save()
+
+                # Обновляем интерфейс
                 self.update_inventory()
                 self.update_game_data()
 

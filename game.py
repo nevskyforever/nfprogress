@@ -1,13 +1,55 @@
 import os
 import pickle
 import sys
+import platform  # Добавляем импорт platform
+from pathlib import Path
 
 import engine
 import game_data
 
+# Определяем систему
+SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
+
+
+def get_app_data_dir():
+    """
+    Возвращает путь к директории для хранения данных приложения
+    в зависимости от операционной системы.
+    """
+    if SYSTEM == 'Windows':
+        # Windows: C:\Users\<USER>\Documents\MyAppData
+        base_dir = Path(os.environ.get('USERPROFILE', '')) / 'Documents'
+    elif SYSTEM == 'Darwin':  # macOS
+        # macOS: /Users/<USER>/Documents/MyAppData
+        base_dir = Path.home() / 'Documents'
+    else:  # Linux и другие
+        # Linux: /home/<USER>/Documents или ~/.local/share/MyApp
+        base_dir = Path.home() / 'Documents'
+        # Если папки Documents нет, используем стандартную директорию для данных
+        if not base_dir.exists():
+            base_dir = Path.home() / '.local' / 'share'
+
+    # Создаем папку для нашего приложения
+    app_data_dir = base_dir / 'nfprogress'
+
+    # Создаем директорию, если её нет
+    try:
+        app_data_dir.mkdir(parents=True, exist_ok=True)
+    except PermissionError:
+        # Если нет прав на запись в Documents, используем домашнюю папку
+        app_data_dir = Path.home() / '.nfprogress'
+        app_data_dir.mkdir(parents=True, exist_ok=True)
+
+    return app_data_dir
+
+
+def get_data_file_path():
+    """Возвращает путь к файлу данных игры"""
+    return get_app_data_dir() / 'gamer.pkl'
+
 
 def resource_path(relative_path):
-    """Получить путь к ресурсу, работает и в .py, и в .app"""
+    """Получить путь к ресурсу, работает и в .py, и в .app, и в .exe"""
     if hasattr(sys, '_MEIPASS'):
         # PyInstaller создает временную папку и хранит путь в _MEIPASS
         return os.path.join(sys._MEIPASS, relative_path)
@@ -48,8 +90,22 @@ class Gamer:
         if self.bank_account is None: self.bank_account = game_data.BankAccount()
 
     def save(self):
-        with open('game_mode.pkl', 'wb') as f:
-            pickle.dump(self, f)
+        """Сохраняет данные игрока в кроссплатформенную директорию"""
+        data_file = get_data_file_path()
+
+        # Создаём временную копию для безопасного сохранения
+        temp_file = data_file.with_suffix('.tmp')
+        try:
+            with open(temp_file, 'wb') as f:
+                pickle.dump(self, f)
+            # Заменяем старый файл новым
+            temp_file.replace(data_file)
+        except Exception as e:
+            print(f"Ошибка при сохранении данных игрока: {e}")
+            # Если что-то пошло не так, удаляем временный файл
+            if temp_file.exists():
+                temp_file.unlink()
+
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols):
         exp_cf = self.cf.get('exp', 1.0)
@@ -62,14 +118,19 @@ class Gamer:
         self.save()
         return (f'Получено {coins * coins_cf} монет'
                 f'\nПолучено {exps} опыта')
+
     def get_items(self):
         return self.items
+
     def set_items(self, items):
         self.items = items
+
     def remove_coins(self, removed):
         self.coins -= removed
+
     def get_coins(self):
         return self.coins
+
     def set_coins(self, coins):
         self.coins += coins
 
@@ -200,10 +261,15 @@ class Gamer:
 
 
 def load_game():
+    """Загружает данные игрока из кроссплатформенной директории"""
+    data_file = get_data_file_path()
     try:
-        with open('game_mode.pkl', 'rb') as f:
+        with open(data_file, 'rb') as f:
             gamer = pickle.load(f)
             gamer.check_integrity()
             return gamer
     except FileNotFoundError:
+        return None
+    except Exception as e:
+        print(f"Ошибка при загрузке данных игрока: {e}")
         return None
