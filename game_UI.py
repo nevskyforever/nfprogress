@@ -66,10 +66,11 @@ class GameMenuController:
         self.ui.level_selected_item.clear()
         self.ui.effect_selected_item.clear()
 
-        # Магазин (очищаем через findChildren, так как это ScrollArea)
+        # Магазин предметов
         for widget in self.ui.scrollAreaWidgetContents_7.findChildren(QLabel):
             widget.clear()
 
+        # Магазин зелий
         for widget in self.ui.scrollAreaWidgetContents_5.findChildren(QLabel):
             widget.clear()
 
@@ -318,40 +319,48 @@ class GameMenuController:
         # Определяем, какой ScrollArea использовать
         if is_potion:
             scroll_area = self.ui.scrollAreaWidgetContents_5
+            # Для зелий используем соответствующие виджеты
+            name_label = self.ui.name_selected_potion_on_shop
+            desc_label = self.ui.description_selected_potion_on_shop
+            price_label = self.ui.price_selected_potion_on_shop
+            effect_label = self.ui.effect_selected_potion_on_shop
             prefix = "🧪"
         else:
             scroll_area = self.ui.scrollAreaWidgetContents_7
+            # Для предметов используем соответствующие виджеты
+            name_label = self.ui.name_selected_item_on_shop
+            desc_label = self.ui.description_selected_item_on_shop
+            price_label = self.ui.peice_selected_item_on_shop
+            effect_label = self.ui.effect_selected_item_on_shop
             prefix = "📦"
 
-        # Очищаем и заполняем информацию
-        for widget in scroll_area.findChildren(QLabel):
-            if widget.objectName() == "label_33" or widget.objectName() == "label_26":
-                widget.setText(f"{prefix} {item_obj.name}")
-            elif widget.objectName() == "label_47" or widget.objectName() == "label_27":
-                widget.setText(f"📝 {item_obj.description}")
-            elif widget.objectName() == "label_36" or widget.objectName() == "label_29":
-                widget.setText(f"⭐ Уровень: {item_obj.level}")
-            elif widget.objectName() == "label_34" or widget.objectName() == "label_25":
-                widget.setText(f"💰 Цена: {item_obj.price}")
-            elif widget.objectName() == "label_35" or widget.objectName() == "label_30":
-                # Получаем эффект
-                effect_text = "Нет эффекта"
-                if hasattr(item_obj, '_func') and item_obj._func:
-                    try:
-                        effect_text = item_obj._func("?") or "Активируется при использовании"
-                    except:
-                        effect_text = "Активируется при использовании"
-                widget.setText(f"⚡ {effect_text}")
+        # Заполняем информацию
+        name_label.setText(f"{prefix} {item_obj.name}")
+        desc_label.setText(f"📝 {item_obj.description}")
+        price_label.setText(f"💰 Цена: {item_obj.price}")
+
+        # Получаем эффект
+        effect_text = "Нет эффекта"
+        if hasattr(item_obj, '_func') and item_obj._func:
+            try:
+                effect_text = item_obj._func("?") or "Активируется при использовании"
+            except:
+                effect_text = "Активируется при использовании"
+        effect_label.setText(f"⚡ {effect_text}")
 
     def clear_item_info(self):
         """Очистка информации о предметах в магазине"""
-        for widget in self.ui.scrollAreaWidgetContents_7.findChildren(QLabel):
-            widget.clear()
+        self.ui.name_selected_item_on_shop.clear()
+        self.ui.description_selected_item_on_shop.clear()
+        self.ui.peice_selected_item_on_shop.clear()
+        self.ui.effect_selected_item_on_shop.clear()
 
     def clear_potion_info(self):
         """Очистка информации о зельях в магазине"""
-        for widget in self.ui.scrollAreaWidgetContents_5.findChildren(QLabel):
-            widget.clear()
+        self.ui.name_selected_potion_on_shop.clear()
+        self.ui.description_selected_potion_on_shop.clear()
+        self.ui.price_selected_potion_on_shop.clear()
+        self.ui.effect_selected_potion_on_shop.clear()
 
     def on_buy_item(self):
         """Покупка предмета"""

@@ -364,7 +364,7 @@ def freeze_global_func(do, add=None):
 
 freeze_local = FuncItem('Заморозка для проекта', func=freeze_local_func, price=100, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном')
-freeze_global = FuncItem('Глобальная заморозка', func=freeze_global_func, price=200, item_type='Предметы', level=3,)
+freeze_global = FuncItem('Глобальная заморозка', func=freeze_global_func, price=200, item_type='Предметы', level=3, description='Глобальная заморощка позволяет заморозить глобальный стрик')
 
 lottery_ticket = FuncItem("Лотерейный билет", price=10, item_type='Предметы', func=lottery_ticket_func,
                           description='Лотерейный билет позволяет выиграть от 100 до 10К монет')
