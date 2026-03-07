@@ -4,7 +4,6 @@
 """
 Модуль для связи игрового интерфейса (main_window.py) с игровой логикой (game.py, game_data.py)
 """
-
 from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel
 from PySide6.QtCore import QTimer
 import game
@@ -14,7 +13,7 @@ import game_data
 class GameMenuController:
     """Класс для управления игровым меню"""
 
-    def __init__(self, ui):
+    def __init__(self, ui, notifications = None):
         """
         Инициализация контроллера игрового меню
 
@@ -22,6 +21,7 @@ class GameMenuController:
             ui: Объект интерфейса (Ui_main_window)
         """
         self.ui = ui
+        self.notifications = notifications
         self.gamer = None
 
         # Загружаем игрока
@@ -103,7 +103,8 @@ class GameMenuController:
         if not self.gamer:
             return
 
-        # Проверяем повышение уровня
+        # Проверяем уровень
+
         self.gamer.level_up()
 
         # Перезагружаем игрока для актуальных данных
@@ -169,7 +170,7 @@ class GameMenuController:
         self.ui.item_shop_list.clear()
         if 'Предметы' in game_data.ITEM_REGISTRY:
             for item_name, item_obj in game_data.ITEM_REGISTRY['Предметы'].items():
-                if game.load_game().level >= potion_obj.level:
+                if game.load_game().level >= item_obj.level:
                     display_text = f"{item_name}"
                     item = QListWidgetItem(display_text)
                     item.setData(1, ('Предметы', item_name))
@@ -514,7 +515,9 @@ class GameMenuController:
             return "Игровой режим не активен"
 
         result = self.gamer.give_symbol_bonus(symbols_count)
-        self.gamer.level_up()
+        level_up_msg = self.gamer.level_up()  # <-- сохраняем сообщение
+        if level_up_msg:
+            self.notifications.show_success(level_up_msg)  # <-- показываем сразу
         self.gamer.save()
         self.gamer = game.load_game()  # Перезагружаем для актуальности
         self.update_game_data()

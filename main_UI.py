@@ -33,9 +33,6 @@ class MainWindow(QMainWindow, main_window_ui):
         self.refresh_projects()
         self.refresh_global_streak_status()
 
-        # Инициализация игрового контроллера
-        self.game_controller = GameMenuController(self)
-
         # Пример вызова при добавлении символов
 
         # Подключаем обработчик изменения фильтра
@@ -43,6 +40,9 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Создаем менеджер уведомлений
         self.notifications = NotificationManager(self)
+
+        # Инициализация игрового контроллера
+        self.game_controller = GameMenuController(self, self.notifications)
 
         # Правильный способ подключения кнопки
         self.project_info.setVisible(False)

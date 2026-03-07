@@ -137,7 +137,7 @@ class Gamer:
     def level_up(self):
         data = engine.load_data()
         notifications = data.get('notifications', {'new': [], 'read': []})
-
+        msg = False
         while self.level < len(game_data.levels) - 1 and self.exp >= game_data.levels[self.level]:
             new_level = self.level + 1
             coins_bonus = game_data.lvl_coins_bonus[self.level]
@@ -151,12 +151,11 @@ class Gamer:
             self.cf['exp'] = game_data.cf_exp[self.level]
 
             msg = f'ПОЛУЧЕН НОВЫЙ {new_level} УРОВЕНЬ! Ваш бонус: {coins_bonus} монет'
-            print(msg)
-            notifications['new'].append(msg)
 
         self.save()
         data['notifications'] = notifications
         engine.save_data(data)
+        return msg
 
     def check_health(self):
         if self.health > 0:
