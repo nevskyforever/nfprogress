@@ -366,15 +366,15 @@ freeze_local = FuncItem('Заморозка для проекта', func=freeze_
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном')
 freeze_global = FuncItem('Глобальная заморозка', func=freeze_global_func, price=200, item_type='Предметы', level=3, description='Глобальная заморощка позволяет заморозить глобальный стрик')
 
-lottery_ticket = FuncItem("Лотерейный билет", price=10, item_type='Предметы', func=lottery_ticket_func,
+lottery_ticket = FuncItem("Лотерейный билет", price=10, item_type='Предметы', level=2, func=lottery_ticket_func,
                           description='Лотерейный билет позволяет выиграть от 100 до 10К монет')
-health_potion_5 = FuncItem('Малое зелье здоровья', item_type='Зелья', func=health_potion_func, price=10, add=5,
+health_potion_5 = FuncItem('Малое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=10, add=5,
                            description='Восстанавливает здоровье на 5 единиц')
-health_potion_25 = FuncItem('Среднее зелье здоровья', item_type='Зелья', func=health_potion_func, price=50, add=25,
+health_potion_25 = FuncItem('Среднее зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=50, add=25,
                             description='Восстанавливает здоровье на 25 единиц')
-health_potion_50 = FuncItem('Большое зелье здоровья', item_type='Зелья', func=health_potion_func, price=100, add=50,
+health_potion_50 = FuncItem('Большое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=100, add=50,
                             description='Восстанавливает здоровье на 50 единиц')
-health_recovery = FuncItem('Зелье воскрешения', item_type='Зелья',func=health_potion_func, price=200, add=100,
+health_recovery = FuncItem('Зелье воскрешения', item_type='Зелья', level=3, func=health_potion_func, price=200, add=100,
                            description='Полностью восстанавливает здоровье')
 
 

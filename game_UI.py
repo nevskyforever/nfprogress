@@ -169,19 +169,25 @@ class GameMenuController:
         self.ui.item_shop_list.clear()
         if 'Предметы' in game_data.ITEM_REGISTRY:
             for item_name, item_obj in game_data.ITEM_REGISTRY['Предметы'].items():
-                display_text = f"{item_name})"
-                item = QListWidgetItem(display_text)
-                item.setData(1, ('Предметы', item_name))
-                self.ui.item_shop_list.addItem(item)
+                if game.load_game().level >= potion_obj.level:
+                    display_text = f"{item_name}"
+                    item = QListWidgetItem(display_text)
+                    item.setData(1, ('Предметы', item_name))
+                    self.ui.item_shop_list.addItem(item)
+                else:
+                    continue
 
         # Магазин зелий
         self.ui.potion_shop_list.clear()
         if 'Зелья' in game_data.ITEM_REGISTRY:
             for potion_name, potion_obj in game_data.ITEM_REGISTRY['Зелья'].items():
-                display_text = f"{potion_name})"
-                item = QListWidgetItem(display_text)
-                item.setData(1, ('Зелья', potion_name))
-                self.ui.potion_shop_list.addItem(item)
+                if game.load_game().level >= potion_obj.level:
+                    display_text = f"{potion_name}"
+                    item = QListWidgetItem(display_text)
+                    item.setData(1, ('Зелья', potion_name))
+                    self.ui.potion_shop_list.addItem(item)
+                else:
+                    continue
 
     # === ОБРАБОТЧИКИ ИНВЕНТАРЯ ===
 
