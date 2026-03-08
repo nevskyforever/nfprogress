@@ -522,4 +522,5 @@ class GameMenuController:
         self.gamer = game.load_game()  # Перезагружаем для актуальности
         self.update_game_data()
         self.update_inventory()
+        self.notifications.show_success(result)
         return result
