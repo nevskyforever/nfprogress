@@ -41,9 +41,9 @@ def get_app_data_dir():
     return app_data_dir
 
 
-def get_data_file_path():
+def get_data_file_path(name):
     """Возвращает путь к файлу данных"""
-    return get_app_data_dir() / 'data.pkl'
+    return get_app_data_dir() / f'{name}.pkl'
 
 
 def resource_path(relative_path):
@@ -400,7 +400,7 @@ class Notification:
 
 def load_data():
     """Загружает данные из кроссплатформенной директории"""
-    data_file = get_data_file_path()
+    data_file = get_data_file_path('data')
     try:
         with open(data_file, 'rb') as f:
             return pickle.load(f)
@@ -416,7 +416,7 @@ def load_data():
 
 def save_data(data):
     """Сохраняет данные в кроссплатформенную директорию"""
-    data_file = get_data_file_path()
+    data_file = get_data_file_path('data')
 
     # Создаём временную копию для безопасного сохранения
     temp_file = data_file.with_suffix('.tmp')
@@ -457,7 +457,7 @@ def import_data_from_file(file_path):
 def get_data_directory_info():
     """Возвращает информацию о директории с данными (для отладки)"""
     data_dir = get_app_data_dir()
-    data_file = get_data_file_path()
+    data_file = get_data_file_path('data')
 
     return {
         'system': SYSTEM,
@@ -468,16 +468,46 @@ def get_data_directory_info():
         'data_file_size': data_file.stat().st_size if data_file.exists() else 0
     }
 
+def load_settings():
+    """Загружает данные из кроссплатформенной директории"""
+    data_file = get_data_file_path('settings')
+    try:
+        with open(data_file, 'rb') as f:
+            return pickle.load(f)
+    except (FileNotFoundError, EOFError):
+        # Если файл не найден, создаём пустую структуру
+        return {
+            'game_mode': False,
+            'inf_project': False,
+            'global_streak': False,
+        }
+
+def save_settings(data):
+    """Сохраняет данные в кроссплатформенную директорию"""
+    data_file = get_data_file_path('settings')
+
+    # Создаём временную копию для безопасного сохранения
+    temp_file = data_file.with_suffix('.tmp')
+    try:
+        with open(temp_file, 'wb') as f:
+            pickle.dump(data, f)
+        # Заменяем старый файл новым
+        temp_file.replace(data_file)
+    except Exception as e:
+        print(f"Ошибка при сохранении данных: {e}")
+        # Если что-то пошло не так, удаляем временный файл
+        if temp_file.exists():
+            temp_file.unlink()
 
 # === МЕНЮ И ЛОГИКА ===
 
-def find_project_by_name(name):
-    """Находит проект по имени и возвращает его индекс и сам проект"""
-    data = load_data()
-    for i, p in enumerate(data['projects']):
-        if p.name == name:
-            return i, p
-    return None, None
+# def find_project_by_name(name):
+#     """Находит проект по имени и возвращает его индекс и сам проект"""
+#     data = load_data()
+#     for i, p in enumerate(data['projects']):
+#         if p.name == name:
+#             return i, p
+#     return None, None
 
 
 def global_streak_status(data, today=None):
@@ -586,6 +616,6 @@ def global_streak_status_msg(data, status=None):
 try:
     get_app_data_dir()
     print(f"Директория для данных: {get_app_data_dir()}")
-    print(f"Файл данных: {get_data_file_path()}")
+    print(f"Файл данных: {get_data_file_path('data')}")
 except Exception as e:
     print(f"Ошибка при создании директории для данных: {e}")

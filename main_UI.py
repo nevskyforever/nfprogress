@@ -15,8 +15,9 @@ from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
 from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.notification import ToastNotification
-from UI_fiiles.project_widget import ProjectWidget  # <- новый импорт
-from engine import save_data
+from UI_fiiles.project_widget import ProjectWidget
+from UI_fiiles.settings import Ui_Dialog as settings_ui
+from engine import save_data, save_settings
 
 
 def resource_path(relative_path):
@@ -30,10 +31,13 @@ class MainWindow(QMainWindow, main_window_ui):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
-        self.refresh_projects()
-        self.refresh_global_streak_status()
 
-        # Пример вызова при добавлении символов
+        # Применяем настройки
+        self.applying_settings()
+        self.global_streak_mode = en.load_settings().get('global_streak', False)
+
+        # Обновляем проекты
+        self.refresh_projects()
 
         # Подключаем обработчик изменения фильтра
         self.filter_project_box.currentTextChanged.connect(self.on_filter_changed)
@@ -54,7 +58,13 @@ class MainWindow(QMainWindow, main_window_ui):
         # Подключаем обработку Enter для поля ввода
         self.new_symbols.returnPressed.connect(self.on_enter_pressed)
 
-        QTimer.singleShot(1000, self.check_global_streak)
+        # Добавляем менюбар
+        self.menu.addAction("Параметры").triggered.connect(self.edit_settings)
+        self.menu.addAction("Выход").triggered.connect(self.close)
+
+        if self.global_streak_mode:
+            self.refresh_global_streak_status()
+            QTimer.singleShot(1000, self.check_global_streak)
 
         self.show()
 
@@ -102,6 +112,70 @@ class MainWindow(QMainWindow, main_window_ui):
                 2000,
                 "bottom-left"
             ))
+
+    def applying_settings(self):
+        settings = en.load_settings()
+
+        # 1. СНАЧАЛА находим индекс игровой вкладки (если она есть)
+        game_tab_index = -1
+        for i in range(self.tabWidget.count()):
+            if self.tabWidget.tabText(i) == 'Игровой режим':
+                game_tab_index = i
+                break
+
+        # 2. Обработка игрового режима
+        if not settings['game_mode']:
+            # Режим выключен
+            if game_tab_index >= 0:
+                # Сохраняем виджет ПЕРЕД удалением
+                self.game_tab_widget = self.tabWidget.widget(game_tab_index)
+                self.tabWidget.removeTab(game_tab_index)
+                print("Игровая вкладка удалена")
+        else:
+            # Режим включен
+            if game_tab_index < 0:
+                # Вкладки нет - добавляем
+                if hasattr(self, 'game_tab_widget') and self.game_tab_widget:
+                    # Используем сохранённый виджет
+                    self.tabWidget.addTab(self.game_tab_widget, 'Игровой режим')
+                else:
+                    # Создаём новую вкладку (используем существующую из UI)
+                    self.tabWidget.addTab(self.game_tab, 'Игровой режим')
+                print("Игровая вкладка добавлена")
+
+        if settings['inf_project'] is True:
+            data = en.load_data()
+            inf_project = en.Project(name='Общий проект', goal=float('inf'), total_symbols=0)
+            data['projects']['inf_project'] = inf_project
+            save_data(data)
+            self.refresh_projects()
+        else:
+            data = en.load_data()
+            if data['projects'].get('inf_project'):
+                del data['projects']['inf_project']
+                save_data(data)
+                self.refresh_projects()
+        if settings.get('global_streak', False):
+            self.global_streak_status.setVisible(True)
+            self.refresh_projects()
+            self.view_project()
+        else:
+            self.global_streak_status.setVisible(False)
+            self.refresh_projects()
+            self.view_project()
+    def edit_settings(self):
+        dialog = Settings()
+        result = dialog.exec()
+        if result == QDialog.Accepted:
+                inf_project = dialog.enable_inf_projects_checkBox.isChecked()
+                game_mode = dialog.enable_game_mode_checkBox.isChecked()
+                global_streak = dialog.enable_global_streak_checkBox.isChecked()
+                settings = en.load_settings()
+                settings['inf_project'] = inf_project
+                settings['game_mode'] = game_mode
+                settings['global_streak'] = global_streak
+                en.save_settings(settings)
+        self.applying_settings()
 
     def view_project(self):
         """Отображает информацию о выбранном проекте"""
@@ -157,6 +231,12 @@ class MainWindow(QMainWindow, main_window_ui):
         # Дедлайн
         if project.deadline != 'Нет':
             self.deadline.setText(project.deadline_str)
+            self.label_today_goal.setVisible(True)
+            self.today_goal.setVisible(True)
+            if project.get_added_symbols_today_value() < project.get_today_goal_value():
+                self.today_goal.setText(str(project.get_today_goal_value()))
+            else:
+                self.today_goal.setText('Цель на сегодня выполнена!')
 
             # Расчёт оставшихся дней
             days_left = (project.deadline - en.today_for_test()).days
@@ -167,12 +247,34 @@ class MainWindow(QMainWindow, main_window_ui):
             else:
                 self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
         else:
+            self.label_today_goal.setVisible(False)
+            self.today_goal.setVisible(False)
             self.deadline.setText("Не установлен")
 
-        # Информация о стриках
-        self.streaks.setText(str(len(project.streaks)))
-        self.max_streak.setText(str(project.max_streak))
-        self.streak_status.setText(project.get_streak_status_msg('min'))
+            # Информация о стриках
+        if en.load_settings()['global_streak']:
+            # Показываем все элементы, связанные со стриками
+            self.label_streaks.setVisible(True)
+            self.label_streak_status.setVisible(True)
+            self.label_max_streak.setVisible(True)
+
+            # Показывакм значения
+            self.streaks.setVisible(True)
+            self.max_streak.setVisible(True)
+            self.streak_status.setVisible(True)
+
+            # Устанавливаем значения
+            self.streaks.setText(str(len(project.streaks)))
+            self.max_streak.setText(str(project.max_streak))
+            self.streak_status.setText(project.get_streak_status_msg('min'))
+        else:
+            # Скрываем все элементы, связанные со стриками
+            self.label_streaks.setVisible(False)
+            self.label_streak_status.setVisible(False)
+            self.label_max_streak.setVisible(False)
+            self.streaks.setVisible(False)
+            self.max_streak.setVisible(False)
+            self.streak_status.setVisible(False)
 
         # Последняя запись (если есть)
         if project.notes:
@@ -298,7 +400,7 @@ class MainWindow(QMainWindow, main_window_ui):
         note = en.Note(new_total, added, added_progress)
         project.set_new_notes(note)
         project.total_symbols = new_total
-        if game.load_game():
+        if en.load_settings()['game_mode']:
             self.game_controller.add_symbols(added)
 
         # Сохраняем изменения
@@ -326,7 +428,8 @@ class MainWindow(QMainWindow, main_window_ui):
         self.notifications.show_success(f'В {project.name} добавлено {added} символов')
 
         #Обновляем глобальный стрик
-        self.refresh_global_streak_status()
+        if self.global_streak_mode:
+            self.refresh_global_streak_status()
 
     def delete_selected_note(self, project):
         """Удаляет выбранную заметку из проекта"""
@@ -443,6 +546,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Выделяем измененный проект по новому имени
                 self.select_project_by_name(project.name)
                 self.name_selected_project.setText(project.name)
+                self.view_project()
                 self.notifications.show_success(f'Изменения в {project.name} сохранены', position="bottom-left")
 
             except ValueError as e:
@@ -520,7 +624,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.change_project_widget.setVisible(False)
 
     def generate_project_widget(self, project):
-        return ProjectWidget(project)
+        return ProjectWidget(project, en.load_settings()['global_streak'])
 
     def on_filter_changed(self):
         """Обработчик изменения фильтра проектов"""
@@ -539,7 +643,8 @@ class MainWindow(QMainWindow, main_window_ui):
         projects = list(data['projects'].values())
 
         # Обнововляем глобальный стрик
-        self.refresh_global_streak_status()
+        if en.load_settings()['global_streak']:
+            self.refresh_global_streak_status()
 
         # Получаем выбранный фильтр
         current_filter = self.filter_project_box.currentText()
@@ -912,6 +1017,26 @@ class NotificationManager:
     def show_info(self, message, duration=3000, position="bottom-right"):
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         self._add_toast(toast)
+
+class Settings(QDialog, settings_ui):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setupUi(self)
+
+        # Обрабатываем настройки
+        settings = en.load_settings()
+        if settings['inf_project'] is False:
+            self.enable_inf_projects_checkBox.setChecked(False)
+        else:
+            self.enable_inf_projects_checkBox.setChecked(True)
+        if settings['game_mode'] is False:
+            self.enable_game_mode_checkBox.setChecked(False)
+        else:
+            self.enable_game_mode_checkBox.setChecked(True)
+        if settings['global_streak'] is False:
+            self.enable_global_streak_checkBox.setChecked(False)
+        else:
+            self.enable_global_streak_checkBox.setChecked(True)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

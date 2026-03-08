@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowyHIbeL.ui'
+## Form generated from reading UI file 'main_windownLDhUJ.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -11,31 +11,39 @@
 from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
     QMetaObject, QObject, QPoint, QRect,
     QSize, QTime, QUrl, Qt)
-from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
-    QFont, QFontDatabase, QGradient, QIcon,
-    QImage, QKeySequence, QLinearGradient, QPainter,
-    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
+    QCursor, QFont, QFontDatabase, QGradient,
+    QIcon, QImage, QKeySequence, QLinearGradient,
+    QPainter, QPalette, QPixmap, QRadialGradient,
+    QTransform)
 from PySide6.QtWidgets import (QApplication, QComboBox, QFrame, QGridLayout,
     QGroupBox, QHBoxLayout, QLabel, QLineEdit,
-    QListWidget, QListWidgetItem, QMainWindow, QProgressBar,
-    QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
-    QSpinBox, QTabWidget, QVBoxLayout, QWidget)
+    QListWidget, QListWidgetItem, QMainWindow, QMenu,
+    QMenuBar, QProgressBar, QPushButton, QScrollArea,
+    QSizePolicy, QSpacerItem, QSpinBox, QTabWidget,
+    QVBoxLayout, QWidget)
 
 class Ui_main_window(object):
     def setupUi(self, main_window):
         if not main_window.objectName():
             main_window.setObjectName(u"main_window")
-        main_window.resize(1243, 888)
+        main_window.resize(1104, 722)
         font = QFont()
         font.setFamilies([u"Arial"])
         font.setPointSize(14)
         main_window.setFont(font)
         self.centralwidget = QWidget(main_window)
         self.centralwidget.setObjectName(u"centralwidget")
-        self.horizontalLayout_3 = QHBoxLayout(self.centralwidget)
-        self.horizontalLayout_3.setObjectName(u"horizontalLayout_3")
+        self.verticalLayout_3 = QVBoxLayout(self.centralwidget)
+        self.verticalLayout_3.setObjectName(u"verticalLayout_3")
         self.tabWidget = QTabWidget(self.centralwidget)
         self.tabWidget.setObjectName(u"tabWidget")
+        self.tabWidget.setEnabled(True)
+        self.tabWidget.setTabShape(QTabWidget.TabShape.Rounded)
+        self.tabWidget.setUsesScrollButtons(False)
+        self.tabWidget.setDocumentMode(False)
+        self.tabWidget.setTabsClosable(False)
+        self.tabWidget.setTabBarAutoHide(False)
         self.projects_tab = QWidget()
         self.projects_tab.setObjectName(u"projects_tab")
         self.gridLayout_3 = QGridLayout(self.projects_tab)
@@ -201,117 +209,139 @@ class Ui_main_window(object):
         self.project_info.setFlat(False)
         self.gridLayout_2 = QGridLayout(self.project_info)
         self.gridLayout_2.setObjectName(u"gridLayout_2")
-        self.label_today_added = QLabel(self.project_info)
-        self.label_today_added.setObjectName(u"label_today_added")
-
-        self.gridLayout_2.addWidget(self.label_today_added, 4, 0, 1, 1)
-
-        self.label_progress = QLabel(self.project_info)
+        self.scrollArea_5 = QScrollArea(self.project_info)
+        self.scrollArea_5.setObjectName(u"scrollArea_5")
+        self.scrollArea_5.setWidgetResizable(True)
+        self.scrollAreaWidgetContents_11 = QWidget()
+        self.scrollAreaWidgetContents_11.setObjectName(u"scrollAreaWidgetContents_11")
+        self.scrollAreaWidgetContents_11.setGeometry(QRect(0, 0, 448, 304))
+        self.gridLayout_7 = QGridLayout(self.scrollAreaWidgetContents_11)
+        self.gridLayout_7.setObjectName(u"gridLayout_7")
+        self.label_progress = QLabel(self.scrollAreaWidgetContents_11)
         self.label_progress.setObjectName(u"label_progress")
 
-        self.gridLayout_2.addWidget(self.label_progress, 1, 0, 1, 1)
+        self.gridLayout_7.addWidget(self.label_progress, 1, 0, 1, 1)
 
-        self.label_status = QLabel(self.project_info)
-        self.label_status.setObjectName(u"label_status")
-
-        self.gridLayout_2.addWidget(self.label_status, 0, 0, 1, 1)
-
-        self.label_need = QLabel(self.project_info)
-        self.label_need.setObjectName(u"label_need")
-
-        self.gridLayout_2.addWidget(self.label_need, 5, 0, 1, 1)
-
-        self.last_note = QLabel(self.project_info)
-        self.last_note.setObjectName(u"last_note")
-
-        self.gridLayout_2.addWidget(self.last_note, 10, 0, 1, 1)
-
-        self.streaks = QLabel(self.project_info)
+        self.streaks = QLabel(self.scrollAreaWidgetContents_11)
         self.streaks.setObjectName(u"streaks")
 
-        self.gridLayout_2.addWidget(self.streaks, 7, 1, 1, 1)
+        self.gridLayout_7.addWidget(self.streaks, 8, 1, 1, 1)
 
-        self.max_streak = QLabel(self.project_info)
-        self.max_streak.setObjectName(u"max_streak")
+        self.deadline = QLabel(self.scrollAreaWidgetContents_11)
+        self.deadline.setObjectName(u"deadline")
 
-        self.gridLayout_2.addWidget(self.max_streak, 9, 1, 1, 1)
+        self.gridLayout_7.addWidget(self.deadline, 7, 1, 1, 1)
 
-        self.label_max_streak = QLabel(self.project_info)
-        self.label_max_streak.setObjectName(u"label_max_streak")
-
-        self.gridLayout_2.addWidget(self.label_max_streak, 9, 0, 1, 1)
-
-        self.status = QLabel(self.project_info)
+        self.status = QLabel(self.scrollAreaWidgetContents_11)
         self.status.setObjectName(u"status")
 
-        self.gridLayout_2.addWidget(self.status, 0, 1, 1, 1)
+        self.gridLayout_7.addWidget(self.status, 0, 1, 1, 1)
 
-        self.added_today = QLabel(self.project_info)
-        self.added_today.setObjectName(u"added_today")
+        self.label_total = QLabel(self.scrollAreaWidgetContents_11)
+        self.label_total.setObjectName(u"label_total")
 
-        self.gridLayout_2.addWidget(self.added_today, 4, 1, 1, 1)
+        self.gridLayout_7.addWidget(self.label_total, 3, 0, 1, 1)
 
-        self.l = QLabel(self.project_info)
+        self.label_status = QLabel(self.scrollAreaWidgetContents_11)
+        self.label_status.setObjectName(u"label_status")
+
+        self.gridLayout_7.addWidget(self.label_status, 0, 0, 1, 1)
+
+        self.total = QLabel(self.scrollAreaWidgetContents_11)
+        self.total.setObjectName(u"total")
+
+        self.gridLayout_7.addWidget(self.total, 3, 1, 1, 1)
+
+        self.max_streak = QLabel(self.scrollAreaWidgetContents_11)
+        self.max_streak.setObjectName(u"max_streak")
+
+        self.gridLayout_7.addWidget(self.max_streak, 10, 1, 1, 1)
+
+        self.label_streak_status = QLabel(self.scrollAreaWidgetContents_11)
+        self.label_streak_status.setObjectName(u"label_streak_status")
+
+        self.gridLayout_7.addWidget(self.label_streak_status, 9, 0, 1, 1)
+
+        self.l = QLabel(self.scrollAreaWidgetContents_11)
         self.l.setObjectName(u"l")
         self.l.setWordWrap(True)
 
-        self.gridLayout_2.addWidget(self.l, 10, 1, 1, 1)
+        self.gridLayout_7.addWidget(self.l, 11, 1, 1, 1)
 
-        self.goal = QLabel(self.project_info)
-        self.goal.setObjectName(u"goal")
-
-        self.gridLayout_2.addWidget(self.goal, 2, 1, 1, 1)
-
-        self.progress = QLabel(self.project_info)
-        self.progress.setObjectName(u"progress")
-
-        self.gridLayout_2.addWidget(self.progress, 1, 1, 1, 1)
-
-        self.total = QLabel(self.project_info)
-        self.total.setObjectName(u"total")
-
-        self.gridLayout_2.addWidget(self.total, 3, 1, 1, 1)
-
-        self.deadline = QLabel(self.project_info)
-        self.deadline.setObjectName(u"deadline")
-
-        self.gridLayout_2.addWidget(self.deadline, 6, 1, 1, 1)
-
-        self.label_goal = QLabel(self.project_info)
+        self.label_goal = QLabel(self.scrollAreaWidgetContents_11)
         self.label_goal.setObjectName(u"label_goal")
 
-        self.gridLayout_2.addWidget(self.label_goal, 2, 0, 1, 1)
+        self.gridLayout_7.addWidget(self.label_goal, 2, 0, 1, 1)
 
-        self.label_deadline = QLabel(self.project_info)
-        self.label_deadline.setObjectName(u"label_deadline")
+        self.label_max_streak = QLabel(self.scrollAreaWidgetContents_11)
+        self.label_max_streak.setObjectName(u"label_max_streak")
 
-        self.gridLayout_2.addWidget(self.label_deadline, 6, 0, 1, 1)
+        self.gridLayout_7.addWidget(self.label_max_streak, 10, 0, 1, 1)
 
-        self.streak_status = QLabel(self.project_info)
+        self.streak_status = QLabel(self.scrollAreaWidgetContents_11)
         self.streak_status.setObjectName(u"streak_status")
         self.streak_status.setWordWrap(True)
 
-        self.gridLayout_2.addWidget(self.streak_status, 8, 1, 1, 1)
+        self.gridLayout_7.addWidget(self.streak_status, 9, 1, 1, 1)
 
-        self.need = QLabel(self.project_info)
-        self.need.setObjectName(u"need")
+        self.last_note = QLabel(self.scrollAreaWidgetContents_11)
+        self.last_note.setObjectName(u"last_note")
 
-        self.gridLayout_2.addWidget(self.need, 5, 1, 1, 1)
+        self.gridLayout_7.addWidget(self.last_note, 11, 0, 1, 1)
 
-        self.label_streak_status = QLabel(self.project_info)
-        self.label_streak_status.setObjectName(u"label_streak_status")
+        self.label_deadline = QLabel(self.scrollAreaWidgetContents_11)
+        self.label_deadline.setObjectName(u"label_deadline")
 
-        self.gridLayout_2.addWidget(self.label_streak_status, 8, 0, 1, 1)
+        self.gridLayout_7.addWidget(self.label_deadline, 7, 0, 1, 1)
 
-        self.label_total = QLabel(self.project_info)
-        self.label_total.setObjectName(u"label_total")
-
-        self.gridLayout_2.addWidget(self.label_total, 3, 0, 1, 1)
-
-        self.label_streaks = QLabel(self.project_info)
+        self.label_streaks = QLabel(self.scrollAreaWidgetContents_11)
         self.label_streaks.setObjectName(u"label_streaks")
 
-        self.gridLayout_2.addWidget(self.label_streaks, 7, 0, 1, 1)
+        self.gridLayout_7.addWidget(self.label_streaks, 8, 0, 1, 1)
+
+        self.label_today_added = QLabel(self.scrollAreaWidgetContents_11)
+        self.label_today_added.setObjectName(u"label_today_added")
+
+        self.gridLayout_7.addWidget(self.label_today_added, 5, 0, 1, 1)
+
+        self.goal = QLabel(self.scrollAreaWidgetContents_11)
+        self.goal.setObjectName(u"goal")
+
+        self.gridLayout_7.addWidget(self.goal, 2, 1, 1, 1)
+
+        self.added_today = QLabel(self.scrollAreaWidgetContents_11)
+        self.added_today.setObjectName(u"added_today")
+
+        self.gridLayout_7.addWidget(self.added_today, 5, 1, 1, 1)
+
+        self.need = QLabel(self.scrollAreaWidgetContents_11)
+        self.need.setObjectName(u"need")
+
+        self.gridLayout_7.addWidget(self.need, 6, 1, 1, 1)
+
+        self.label_need = QLabel(self.scrollAreaWidgetContents_11)
+        self.label_need.setObjectName(u"label_need")
+
+        self.gridLayout_7.addWidget(self.label_need, 6, 0, 1, 1)
+
+        self.progress = QLabel(self.scrollAreaWidgetContents_11)
+        self.progress.setObjectName(u"progress")
+
+        self.gridLayout_7.addWidget(self.progress, 1, 1, 1, 1)
+
+        self.label_today_goal = QLabel(self.scrollAreaWidgetContents_11)
+        self.label_today_goal.setObjectName(u"label_today_goal")
+
+        self.gridLayout_7.addWidget(self.label_today_goal, 4, 0, 1, 1)
+
+        self.today_goal = QLabel(self.scrollAreaWidgetContents_11)
+        self.today_goal.setObjectName(u"today_goal")
+
+        self.gridLayout_7.addWidget(self.today_goal, 4, 1, 1, 1)
+
+        self.scrollArea_5.setWidget(self.scrollAreaWidgetContents_11)
+
+        self.gridLayout_2.addWidget(self.scrollArea_5, 0, 0, 1, 1)
 
 
         self.gridLayout_4.addWidget(self.project_info, 3, 0, 1, 1)
@@ -398,7 +428,7 @@ class Ui_main_window(object):
         self.scrollArea_3.setWidgetResizable(True)
         self.scrollAreaWidgetContents_4 = QWidget()
         self.scrollAreaWidgetContents_4.setObjectName(u"scrollAreaWidgetContents_4")
-        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 311, 218))
+        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 241, 127))
         self.gridLayout_14 = QGridLayout(self.scrollAreaWidgetContents_4)
         self.gridLayout_14.setObjectName(u"gridLayout_14")
         self.name_selected_available_quest = QLabel(self.scrollAreaWidgetContents_4)
@@ -453,7 +483,7 @@ class Ui_main_window(object):
         self.scrollArea_2.setWidgetResizable(True)
         self.scrollAreaWidgetContents_3 = QWidget()
         self.scrollAreaWidgetContents_3.setObjectName(u"scrollAreaWidgetContents_3")
-        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 311, 218))
+        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 104, 170))
         self.gridLayout_17 = QGridLayout(self.scrollAreaWidgetContents_3)
         self.gridLayout_17.setObjectName(u"gridLayout_17")
         self.date_start_selected_active_quest = QLabel(self.scrollAreaWidgetContents_3)
@@ -523,7 +553,7 @@ class Ui_main_window(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents_2 = QWidget()
         self.scrollAreaWidgetContents_2.setObjectName(u"scrollAreaWidgetContents_2")
-        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 311, 252))
+        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 104, 170))
         self.gridLayout_16 = QGridLayout(self.scrollAreaWidgetContents_2)
         self.gridLayout_16.setObjectName(u"gridLayout_16")
         self.date_end_selected_completed_quest = QLabel(self.scrollAreaWidgetContents_2)
@@ -617,7 +647,7 @@ class Ui_main_window(object):
         self.about_selected_inventory_item.setWidgetResizable(True)
         self.scrollAreaWidgetContents_6 = QWidget()
         self.scrollAreaWidgetContents_6.setObjectName(u"scrollAreaWidgetContents_6")
-        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 314, 209))
+        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 245, 115))
         self.gridLayout_19 = QGridLayout(self.scrollAreaWidgetContents_6)
         self.gridLayout_19.setObjectName(u"gridLayout_19")
         self.name_selected_item = QLabel(self.scrollAreaWidgetContents_6)
@@ -761,7 +791,7 @@ class Ui_main_window(object):
         self.scrollArea_7.setWidgetResizable(True)
         self.scrollAreaWidgetContents_8 = QWidget()
         self.scrollAreaWidgetContents_8.setObjectName(u"scrollAreaWidgetContents_8")
-        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 311, 253))
+        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 241, 159))
         self.gridLayout_23 = QGridLayout(self.scrollAreaWidgetContents_8)
         self.gridLayout_23.setObjectName(u"gridLayout_23")
         self.label_37 = QLabel(self.scrollAreaWidgetContents_8)
@@ -823,7 +853,7 @@ class Ui_main_window(object):
         self.scrol_area.setWidgetResizable(True)
         self.scrollAreaWidgetContents_9 = QWidget()
         self.scrollAreaWidgetContents_9.setObjectName(u"scrollAreaWidgetContents_9")
-        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 311, 253))
+        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 104, 170))
         self.gridLayout_25 = QGridLayout(self.scrollAreaWidgetContents_9)
         self.gridLayout_25.setObjectName(u"gridLayout_25")
         self.label_42 = QLabel(self.scrollAreaWidgetContents_9)
@@ -927,7 +957,7 @@ class Ui_main_window(object):
         self.about_selected_goods.setWidgetResizable(True)
         self.scrollAreaWidgetContents_7 = QWidget()
         self.scrollAreaWidgetContents_7.setObjectName(u"scrollAreaWidgetContents_7")
-        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 310, 187))
+        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 241, 136))
         self.gridLayout_21 = QGridLayout(self.scrollAreaWidgetContents_7)
         self.gridLayout_21.setObjectName(u"gridLayout_21")
         self.effect_selected_item_on_shop = QLabel(self.scrollAreaWidgetContents_7)
@@ -996,7 +1026,7 @@ class Ui_main_window(object):
         self.scrollArea_4.setWidgetResizable(True)
         self.scrollAreaWidgetContents_5 = QWidget()
         self.scrollAreaWidgetContents_5.setObjectName(u"scrollAreaWidgetContents_5")
-        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 310, 187))
+        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 95, 112))
         self.gridLayout_18 = QGridLayout(self.scrollAreaWidgetContents_5)
         self.gridLayout_18.setObjectName(u"gridLayout_18")
         self.name_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
@@ -1056,9 +1086,19 @@ class Ui_main_window(object):
 
         self.tabWidget.addTab(self.game_tab, "")
 
-        self.horizontalLayout_3.addWidget(self.tabWidget)
+        self.verticalLayout_3.addWidget(self.tabWidget)
 
         main_window.setCentralWidget(self.centralwidget)
+        self.menuBar = QMenuBar(main_window)
+        self.menuBar.setObjectName(u"menuBar")
+        self.menuBar.setGeometry(QRect(0, 0, 1104, 30))
+        self.menu = QMenu(self.menuBar)
+        self.menu.setObjectName(u"menu")
+        self.menu.setFont(font)
+        self.menu.setToolTipsVisible(True)
+        main_window.setMenuBar(self.menuBar)
+
+        self.menuBar.addAction(self.menu.menuAction())
 
         self.retranslateUi(main_window)
 
@@ -1088,28 +1128,30 @@ class Ui_main_window(object):
         self.delete_note.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))
         self.pb_save_flash_note.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c", None))
         self.project_info.setTitle(QCoreApplication.translate("main_window", u"\u0418\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u044f \u043e \u043f\u0440\u043e\u0435\u043a\u0442\u0435", None))
-        self.label_today_added.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u043f\u0438\u0441\u0430\u043d\u043e \u0441\u0435\u0433\u043e\u0434\u043d\u044f:", None))
         self.label_progress.setText(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441:", None))
-        self.label_status.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u0430\u0442\u0443\u0441:", None))
-        self.label_need.setText(QCoreApplication.translate("main_window", u"\u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c \u043d\u0430\u043f\u0438\u0441\u0430\u0442\u044c: ", None))
-        self.last_note.setText(QCoreApplication.translate("main_window", u"\u041f\u043e\u0441\u043b\u0435\u0434\u043d\u044f\u044f \u0437\u0430\u043f\u0438\u0441\u044c: ", None))
         self.streaks.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.max_streak.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.label_max_streak.setText(QCoreApplication.translate("main_window", u"\u041c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u044b\u0439 \u0441\u0442\u0440\u0438\u043a: ", None))
-        self.status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.added_today.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.l.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.goal.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.progress.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.total.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
         self.deadline.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.label_goal.setText(QCoreApplication.translate("main_window", u"\u0426\u0435\u043b\u044c:", None))
-        self.label_deadline.setText(QCoreApplication.translate("main_window", u"\u0414\u0435\u0434\u043b\u0430\u0439\u043d:", None))
-        self.streak_status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.need.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
-        self.label_streak_status.setText(QCoreApplication.translate("main_window", u"C\u0442\u0430\u0442\u0443\u0441 \u0441\u0442\u0440\u0438\u043a\u0430:", None))
+        self.status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
         self.label_total.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u043f\u0438\u0441\u0430\u043d\u043e:", None))
+        self.label_status.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u0430\u0442\u0443\u0441:", None))
+        self.total.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
+        self.max_streak.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
+        self.label_streak_status.setText(QCoreApplication.translate("main_window", u"C\u0442\u0430\u0442\u0443\u0441 \u0441\u0442\u0440\u0438\u043a\u0430:", None))
+        self.l.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
+        self.label_goal.setText(QCoreApplication.translate("main_window", u"\u0426\u0435\u043b\u044c:", None))
+        self.label_max_streak.setText(QCoreApplication.translate("main_window", u"\u041c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u044b\u0439 \u0441\u0442\u0440\u0438\u043a: ", None))
+        self.streak_status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
+        self.last_note.setText(QCoreApplication.translate("main_window", u"\u041f\u043e\u0441\u043b\u0435\u0434\u043d\u044f\u044f \u0437\u0430\u043f\u0438\u0441\u044c: ", None))
+        self.label_deadline.setText(QCoreApplication.translate("main_window", u"\u0414\u0435\u0434\u043b\u0430\u0439\u043d:", None))
         self.label_streaks.setText(QCoreApplication.translate("main_window", u"\u0422\u0435\u043a\u0443\u0449\u0438\u0439 \u0441\u0442\u0440\u0438\u043a: ", None))
+        self.label_today_added.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u043f\u0438\u0441\u0430\u043d\u043e \u0441\u0435\u0433\u043e\u0434\u043d\u044f:", None))
+        self.goal.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
+        self.added_today.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
+        self.need.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
+        self.label_need.setText(QCoreApplication.translate("main_window", u"\u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c \u043d\u0430\u043f\u0438\u0441\u0430\u0442\u044c: ", None))
+        self.progress.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
+        self.label_today_goal.setText(QCoreApplication.translate("main_window", u"\u0426\u0435\u043b\u044c \u043d\u0430 \u0441\u0435\u0433\u043e\u0434\u043d\u044f:", None))
+        self.today_goal.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
         self.global_streak_status.setText(QCoreApplication.translate("main_window", u"\u0413\u043b\u043e\u0431\u0430\u043b\u044c\u043d\u044b\u0439 \u0441\u0442\u0440\u0438\u043a", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.projects_tab), QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442\u044b", None))
         self.about_selected_available_quest.setTitle(QCoreApplication.translate("main_window", u"\u041e \u043a\u0432\u0435\u0441\u0442\u0435", None))
@@ -1182,5 +1224,6 @@ class Ui_main_window(object):
         self.game_shop_tabs.setTabText(self.game_shop_tabs.indexOf(self.potions_shop_tab), QCoreApplication.translate("main_window", u"\u0417\u0435\u043b\u044c\u044f", None))
         self.shop_label.setText(QCoreApplication.translate("main_window", u"\u041c\u0430\u0433\u0430\u0437\u0438\u043d", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.game_tab), QCoreApplication.translate("main_window", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
+        self.menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
     # retranslateUi
 

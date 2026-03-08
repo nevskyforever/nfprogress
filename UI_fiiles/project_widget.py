@@ -1,18 +1,9 @@
-# -*- coding: utf-8 -*-
-
-################################################################################
-## Form generated from reading UI file 'project_widget.ui'
-##
-## Created by: Qt User Interface Compiler version 6.10.2
-##
-## WARNING! All changes made in this file will be lost when recompiling UI file!
-################################################################################
-
 from PySide6.QtCore import (QCoreApplication, QMetaObject, QSize, Qt, QRectF, QEasingCurve, QVariantAnimation)
 from PySide6.QtGui import (QColor, QFont, QPainter,
                            QPen)
 from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
                                QSizePolicy, QVBoxLayout, QWidget)
+from engine import load_settings as settings
 
 
 # =============================================================================
@@ -234,10 +225,11 @@ class Ui_Form(object):
 # Финальный класс виджета проекта (используется в main_UI.py)
 # =============================================================================
 class ProjectWidget(QWidget, Ui_Form):
-    def __init__(self, project):
+    def __init__(self, project, global_streak_mode):
         super().__init__()
         self.setupUi(self)
-
+        # Загружаем настройки
+        self.global_streak_mode = global_streak_mode
         # 1. Сбрасываем фиксированный размер, установленный в .ui
         self.resize(0, 0)
         self.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.MinimumExpanding)
@@ -289,13 +281,15 @@ class ProjectWidget(QWidget, Ui_Form):
             self.deadline.setText(f'Дедлайн: {self.project.deadline_str}')
             self.deadline.setVisible(True)
             self.streak.setText(f'Стрик: {len(self.project.streaks)} д.')
-            self.streak.setVisible(True)
-            self.streak_status.setText(self.project.get_streak_status_msg('min'))
-            self.streak_status.setVisible(True)
+            if self.global_streak_mode:
+                self.streak.setVisible(True)
+                self.streak_status.setText(self.project.get_streak_status_msg('min'))
+                self.streak_status.setVisible(True)
+            else:
+                self.streak_status.setVisible(False)
+                self.streak.setVisible(False)
         else:
             self.deadline.setVisible(False)
-            self.streak.setVisible(False)
-            self.streak_status.setVisible(False)
 
         # --- ДОБАВЛЕНО: принудительное обновление геометрии ---
         self.updateGeometry()
