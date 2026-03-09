@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windownLDhUJ.ui'
+## Form generated from reading UI file 'main_windowNmBxpQ.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -48,21 +48,66 @@ class Ui_main_window(object):
         self.projects_tab.setObjectName(u"projects_tab")
         self.gridLayout_3 = QGridLayout(self.projects_tab)
         self.gridLayout_3.setObjectName(u"gridLayout_3")
-        self.btns_create_filter = QWidget(self.projects_tab)
-        self.btns_create_filter.setObjectName(u"btns_create_filter")
-        sizePolicy = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        self.list_projects = QListWidget(self.projects_tab)
+        self.list_projects.setObjectName(u"list_projects")
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
-        sizePolicy.setHeightForWidth(self.btns_create_filter.sizePolicy().hasHeightForWidth())
-        self.btns_create_filter.setSizePolicy(sizePolicy)
-        self.btns_create_filter.setFont(font)
-        self.horizontalLayout_4 = QHBoxLayout(self.btns_create_filter)
-        self.horizontalLayout_4.setObjectName(u"horizontalLayout_4")
-        self.btn_create_project = QPushButton(self.btns_create_filter)
-        self.btn_create_project.setObjectName(u"btn_create_project")
-        self.btn_create_project.setFont(font)
+        sizePolicy.setHeightForWidth(self.list_projects.sizePolicy().hasHeightForWidth())
+        self.list_projects.setSizePolicy(sizePolicy)
+        self.list_projects.setMouseTracking(True)
+        self.list_projects.setStyleSheet(u"QListWidget#list_projects {\n"
+"    background-color: rgb(56, 56, 56);\n"
+"    border: 2px solid #999;\n"
+"    border-radius: 5px;\n"
+"    outline: none;\n"
+"}\n"
+"\n"
+"QListWidget#list_projects::item {\n"
+"    padding: 5px;\n"
+"    border-bottom: 1px solid #aaa;\n"
+"}\n"
+"\n"
+"QListWidget#list_projects::item:selected {\n"
+"    background-color: #3daee9;\n"
+"    color: rgb(0, 28, 255);\n"
+"}\n"
+"\n"
+"QListWidget#list_projects::item:hover {\n"
+"    background-color: rgb(165, 165, 165);\n"
+"}")
+        self.list_projects.setSortingEnabled(False)
 
-        self.horizontalLayout_4.addWidget(self.btn_create_project)
+        self.gridLayout_3.addWidget(self.list_projects, 5, 0, 1, 1)
+
+        self.btns_create_filter = QWidget(self.projects_tab)
+        self.btns_create_filter.setObjectName(u"btns_create_filter")
+        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        sizePolicy1.setHorizontalStretch(0)
+        sizePolicy1.setVerticalStretch(0)
+        sizePolicy1.setHeightForWidth(self.btns_create_filter.sizePolicy().hasHeightForWidth())
+        self.btns_create_filter.setSizePolicy(sizePolicy1)
+        self.btns_create_filter.setFont(font)
+        self.gridLayout_26 = QGridLayout(self.btns_create_filter)
+        self.gridLayout_26.setObjectName(u"gridLayout_26")
+        self.sort_project_box = QComboBox(self.btns_create_filter)
+        self.sort_project_box.addItem("")
+        self.sort_project_box.addItem("")
+        self.sort_project_box.addItem("")
+        self.sort_project_box.setObjectName(u"sort_project_box")
+        self.sort_project_box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+
+        self.gridLayout_26.addWidget(self.sort_project_box, 2, 1, 1, 1)
+
+        self.label_4 = QLabel(self.btns_create_filter)
+        self.label_4.setObjectName(u"label_4")
+
+        self.gridLayout_26.addWidget(self.label_4, 1, 0, 1, 1)
+
+        self.label_5 = QLabel(self.btns_create_filter)
+        self.label_5.setObjectName(u"label_5")
+
+        self.gridLayout_26.addWidget(self.label_5, 1, 1, 1, 1)
 
         self.filter_project_box = QComboBox(self.btns_create_filter)
         self.filter_project_box.addItem("")
@@ -70,14 +115,18 @@ class Ui_main_window(object):
         self.filter_project_box.addItem("")
         self.filter_project_box.setObjectName(u"filter_project_box")
 
-        self.horizontalLayout_4.addWidget(self.filter_project_box)
+        self.gridLayout_26.addWidget(self.filter_project_box, 2, 0, 1, 1)
+
+        self.btn_create_project = QPushButton(self.btns_create_filter)
+        self.btn_create_project.setObjectName(u"btn_create_project")
+        sizePolicy1.setHeightForWidth(self.btn_create_project.sizePolicy().hasHeightForWidth())
+        self.btn_create_project.setSizePolicy(sizePolicy1)
+        self.btn_create_project.setFont(font)
+
+        self.gridLayout_26.addWidget(self.btn_create_project, 3, 0, 1, 1)
 
 
         self.gridLayout_3.addWidget(self.btns_create_filter, 1, 0, 1, 1)
-
-        self.horizontalSpacer_4 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
-
-        self.gridLayout_3.addItem(self.horizontalSpacer_4, 1, 3, 1, 1)
 
         self.project_detail_widget = QWidget(self.projects_tab)
         self.project_detail_widget.setObjectName(u"project_detail_widget")
@@ -141,11 +190,11 @@ class Ui_main_window(object):
 
         self.note_list = QListWidget(self.note_widget)
         self.note_list.setObjectName(u"note_list")
-        sizePolicy1 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
-        sizePolicy1.setHorizontalStretch(0)
-        sizePolicy1.setVerticalStretch(0)
-        sizePolicy1.setHeightForWidth(self.note_list.sizePolicy().hasHeightForWidth())
-        self.note_list.setSizePolicy(sizePolicy1)
+        sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
+        sizePolicy2.setHorizontalStretch(0)
+        sizePolicy2.setVerticalStretch(0)
+        sizePolicy2.setHeightForWidth(self.note_list.sizePolicy().hasHeightForWidth())
+        self.note_list.setSizePolicy(sizePolicy2)
         self.note_list.setStyleSheet(u"QListWidget#note_list {\n"
 "    background-color: rgb(56, 56, 56);\n"
 "    border: 1px solid #999;\n"
@@ -347,49 +396,21 @@ class Ui_main_window(object):
         self.gridLayout_4.addWidget(self.project_info, 3, 0, 1, 1)
 
 
-        self.gridLayout_3.addWidget(self.project_detail_widget, 1, 2, 3, 1)
+        self.gridLayout_3.addWidget(self.project_detail_widget, 1, 2, 5, 1)
 
         self.horizontalSpacer_3 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
-        self.gridLayout_3.addItem(self.horizontalSpacer_3, 3, 1, 1, 1)
+        self.gridLayout_3.addItem(self.horizontalSpacer_3, 5, 1, 1, 1)
 
-        self.list_projects = QListWidget(self.projects_tab)
-        self.list_projects.setObjectName(u"list_projects")
-        sizePolicy2 = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
-        sizePolicy2.setHorizontalStretch(0)
-        sizePolicy2.setVerticalStretch(0)
-        sizePolicy2.setHeightForWidth(self.list_projects.sizePolicy().hasHeightForWidth())
-        self.list_projects.setSizePolicy(sizePolicy2)
-        self.list_projects.setMouseTracking(True)
-        self.list_projects.setStyleSheet(u"QListWidget#list_projects {\n"
-"    background-color: rgb(56, 56, 56);\n"
-"    border: 2px solid #999;\n"
-"    border-radius: 5px;\n"
-"    outline: none;\n"
-"}\n"
-"\n"
-"QListWidget#list_projects::item {\n"
-"    padding: 5px;\n"
-"    border-bottom: 1px solid #aaa;\n"
-"}\n"
-"\n"
-"QListWidget#list_projects::item:selected {\n"
-"    background-color: #3daee9;\n"
-"    color: rgb(0, 28, 255);\n"
-"}\n"
-"\n"
-"QListWidget#list_projects::item:hover {\n"
-"    background-color: rgb(165, 165, 165);\n"
-"}")
-        self.list_projects.setSortingEnabled(False)
+        self.horizontalSpacer_4 = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
-        self.gridLayout_3.addWidget(self.list_projects, 3, 0, 1, 1)
+        self.gridLayout_3.addItem(self.horizontalSpacer_4, 1, 3, 1, 1)
 
         self.global_streak_status = QLabel(self.projects_tab)
         self.global_streak_status.setObjectName(u"global_streak_status")
         self.global_streak_status.setWordWrap(False)
 
-        self.gridLayout_3.addWidget(self.global_streak_status, 2, 0, 1, 1)
+        self.gridLayout_3.addWidget(self.global_streak_status, 3, 0, 1, 1)
 
         self.tabWidget.addTab(self.projects_tab, "")
         self.project_detail_widget.raise_()
@@ -413,8 +434,11 @@ class Ui_main_window(object):
         self.gridLayout_8.setObjectName(u"gridLayout_8")
         self.available_quests_list = QListWidget(self.available_quests_tab)
         self.available_quests_list.setObjectName(u"available_quests_list")
-        sizePolicy.setHeightForWidth(self.available_quests_list.sizePolicy().hasHeightForWidth())
-        self.available_quests_list.setSizePolicy(sizePolicy)
+        sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Minimum)
+        sizePolicy4.setHorizontalStretch(0)
+        sizePolicy4.setVerticalStretch(0)
+        sizePolicy4.setHeightForWidth(self.available_quests_list.sizePolicy().hasHeightForWidth())
+        self.available_quests_list.setSizePolicy(sizePolicy4)
         self.available_quests_list.setMaximumSize(QSize(193, 16777215))
 
         self.gridLayout_8.addWidget(self.available_quests_list, 0, 0, 1, 1)
@@ -468,8 +492,8 @@ class Ui_main_window(object):
         self.gridLayout_9.setObjectName(u"gridLayout_9")
         self.active_quests_list = QListWidget(self.active_quests_tab)
         self.active_quests_list.setObjectName(u"active_quests_list")
-        sizePolicy.setHeightForWidth(self.active_quests_list.sizePolicy().hasHeightForWidth())
-        self.active_quests_list.setSizePolicy(sizePolicy)
+        sizePolicy4.setHeightForWidth(self.active_quests_list.sizePolicy().hasHeightForWidth())
+        self.active_quests_list.setSizePolicy(sizePolicy4)
         self.active_quests_list.setMaximumSize(QSize(193, 16777215))
 
         self.gridLayout_9.addWidget(self.active_quests_list, 0, 0, 1, 1)
@@ -535,11 +559,11 @@ class Ui_main_window(object):
         self.gridLayout_10.setObjectName(u"gridLayout_10")
         self.completed_quests_list = QListWidget(self.completed_quests_tab)
         self.completed_quests_list.setObjectName(u"completed_quests_list")
-        sizePolicy4 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        sizePolicy4.setHorizontalStretch(0)
-        sizePolicy4.setVerticalStretch(0)
-        sizePolicy4.setHeightForWidth(self.completed_quests_list.sizePolicy().hasHeightForWidth())
-        self.completed_quests_list.setSizePolicy(sizePolicy4)
+        sizePolicy5 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
+        sizePolicy5.setHorizontalStretch(0)
+        sizePolicy5.setVerticalStretch(0)
+        sizePolicy5.setHeightForWidth(self.completed_quests_list.sizePolicy().hasHeightForWidth())
+        self.completed_quests_list.setSizePolicy(sizePolicy5)
         self.completed_quests_list.setMaximumSize(QSize(193, 16777215))
 
         self.gridLayout_10.addWidget(self.completed_quests_list, 0, 0, 1, 1)
@@ -613,8 +637,8 @@ class Ui_main_window(object):
         self.horizontalLayout_5.setObjectName(u"horizontalLayout_5")
         self.inventory_list = QListWidget(self.inventory_frame)
         self.inventory_list.setObjectName(u"inventory_list")
-        sizePolicy4.setHeightForWidth(self.inventory_list.sizePolicy().hasHeightForWidth())
-        self.inventory_list.setSizePolicy(sizePolicy4)
+        sizePolicy5.setHeightForWidth(self.inventory_list.sizePolicy().hasHeightForWidth())
+        self.inventory_list.setSizePolicy(sizePolicy5)
         self.inventory_list.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_5.addWidget(self.inventory_list)
@@ -625,11 +649,8 @@ class Ui_main_window(object):
         self.gridLayout_12.setObjectName(u"gridLayout_12")
         self.value_for_use_selected_item = QSpinBox(self.inventory_scroll_area)
         self.value_for_use_selected_item.setObjectName(u"value_for_use_selected_item")
-        sizePolicy5 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        sizePolicy5.setHorizontalStretch(0)
-        sizePolicy5.setVerticalStretch(0)
-        sizePolicy5.setHeightForWidth(self.value_for_use_selected_item.sizePolicy().hasHeightForWidth())
-        self.value_for_use_selected_item.setSizePolicy(sizePolicy5)
+        sizePolicy1.setHeightForWidth(self.value_for_use_selected_item.sizePolicy().hasHeightForWidth())
+        self.value_for_use_selected_item.setSizePolicy(sizePolicy1)
         self.value_for_use_selected_item.setMinimum(1)
         self.value_for_use_selected_item.setSingleStep(1)
         self.value_for_use_selected_item.setValue(1)
@@ -776,8 +797,8 @@ class Ui_main_window(object):
         self.horizontalLayout_7.setObjectName(u"horizontalLayout_7")
         self.buf_list = QListWidget(self.bufs_tab)
         self.buf_list.setObjectName(u"buf_list")
-        sizePolicy.setHeightForWidth(self.buf_list.sizePolicy().hasHeightForWidth())
-        self.buf_list.setSizePolicy(sizePolicy)
+        sizePolicy4.setHeightForWidth(self.buf_list.sizePolicy().hasHeightForWidth())
+        self.buf_list.setSizePolicy(sizePolicy4)
         self.buf_list.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_7.addWidget(self.buf_list)
@@ -838,8 +859,8 @@ class Ui_main_window(object):
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
         self.debuf_list = QListWidget(self.defufs_tab)
         self.debuf_list.setObjectName(u"debuf_list")
-        sizePolicy4.setHeightForWidth(self.debuf_list.sizePolicy().hasHeightForWidth())
-        self.debuf_list.setSizePolicy(sizePolicy4)
+        sizePolicy5.setHeightForWidth(self.debuf_list.sizePolicy().hasHeightForWidth())
+        self.debuf_list.setSizePolicy(sizePolicy5)
         self.debuf_list.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_8.addWidget(self.debuf_list)
@@ -914,8 +935,8 @@ class Ui_main_window(object):
         self.horizontalLayout_6.setObjectName(u"horizontalLayout_6")
         self.item_shop_list = QListWidget(self.items_shop_tab)
         self.item_shop_list.setObjectName(u"item_shop_list")
-        sizePolicy.setHeightForWidth(self.item_shop_list.sizePolicy().hasHeightForWidth())
-        self.item_shop_list.setSizePolicy(sizePolicy)
+        sizePolicy4.setHeightForWidth(self.item_shop_list.sizePolicy().hasHeightForWidth())
+        self.item_shop_list.setSizePolicy(sizePolicy4)
         self.item_shop_list.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_6.addWidget(self.item_shop_list)
@@ -926,8 +947,8 @@ class Ui_main_window(object):
         self.gridLayout_20.setObjectName(u"gridLayout_20")
         self.value_for_buy_selected_item = QSpinBox(self.selected_goods_item_infobox)
         self.value_for_buy_selected_item.setObjectName(u"value_for_buy_selected_item")
-        sizePolicy5.setHeightForWidth(self.value_for_buy_selected_item.sizePolicy().hasHeightForWidth())
-        self.value_for_buy_selected_item.setSizePolicy(sizePolicy5)
+        sizePolicy1.setHeightForWidth(self.value_for_buy_selected_item.sizePolicy().hasHeightForWidth())
+        self.value_for_buy_selected_item.setSizePolicy(sizePolicy1)
         self.value_for_buy_selected_item.setMinimum(1)
         self.value_for_buy_selected_item.setValue(1)
 
@@ -1005,8 +1026,8 @@ class Ui_main_window(object):
         self.horizontalLayout.setObjectName(u"horizontalLayout")
         self.potion_shop_list = QListWidget(self.potions_shop_tab)
         self.potion_shop_list.setObjectName(u"potion_shop_list")
-        sizePolicy4.setHeightForWidth(self.potion_shop_list.sizePolicy().hasHeightForWidth())
-        self.potion_shop_list.setSizePolicy(sizePolicy4)
+        sizePolicy5.setHeightForWidth(self.potion_shop_list.sizePolicy().hasHeightForWidth())
+        self.potion_shop_list.setSizePolicy(sizePolicy5)
         self.potion_shop_list.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout.addWidget(self.potion_shop_list)
@@ -1059,8 +1080,8 @@ class Ui_main_window(object):
 
         self.value_for_buy_selected_potion = QSpinBox(self.selected_goods_potion_infobox)
         self.value_for_buy_selected_potion.setObjectName(u"value_for_buy_selected_potion")
-        sizePolicy5.setHeightForWidth(self.value_for_buy_selected_potion.sizePolicy().hasHeightForWidth())
-        self.value_for_buy_selected_potion.setSizePolicy(sizePolicy5)
+        sizePolicy1.setHeightForWidth(self.value_for_buy_selected_potion.sizePolicy().hasHeightForWidth())
+        self.value_for_buy_selected_potion.setSizePolicy(sizePolicy1)
         self.value_for_buy_selected_potion.setMinimum(1)
         self.value_for_buy_selected_potion.setValue(1)
 
@@ -1113,11 +1134,17 @@ class Ui_main_window(object):
 
     def retranslateUi(self, main_window):
         main_window.setWindowTitle(QCoreApplication.translate("main_window", u"nfprogress", None))
-        self.btn_create_project.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c", None))
+        self.sort_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
+        self.sort_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0414\u0435\u0434\u043b\u0430\u0439\u043d", None))
+        self.sort_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441", None))
+
+        self.label_4.setText(QCoreApplication.translate("main_window", u"\u0424\u0438\u043b\u044c\u0442\u0440:", None))
+        self.label_5.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430:", None))
         self.filter_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u0410\u043a\u0442\u0438\u0432\u0435\u043d", None))
         self.filter_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0412 \u0430\u0440\u0445\u0438\u0432\u0435", None))
         self.filter_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043d", None))
 
+        self.btn_create_project.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.name_selected_project.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.btn_change_project.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c", None))
         self.btn_delete_project.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))

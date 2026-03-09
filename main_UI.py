@@ -1,3 +1,4 @@
+import datetime
 import os
 import sys
 
@@ -35,12 +36,15 @@ class MainWindow(QMainWindow, main_window_ui):
         # Применяем настройки
         self.applying_settings()
         self.global_streak_mode = en.load_settings().get('global_streak', False)
+        self.filter_project_box.setCurrentText(en.load_settings().get('project_filter', 'Активен'))
+        self.sort_project_box.setCurrentText(en.load_settings().get('project_sort', 'Прогресс'))
 
         # Обновляем проекты
         self.refresh_projects()
 
         # Подключаем обработчик изменения фильтра
         self.filter_project_box.currentTextChanged.connect(self.on_filter_changed)
+        self.sort_project_box.currentTextChanged.connect(self.on_sort_changed)
 
         # Создаем менеджер уведомлений
         self.notifications = NotificationManager(self)
@@ -628,6 +632,16 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def on_filter_changed(self):
         """Обработчик изменения фильтра проектов"""
+        settings = en.load_settings()
+        settings['project_filter'] = self.filter_project_box.currentText()
+        save_settings(settings)
+        self.refresh_projects()
+
+    def on_sort_changed(self):
+        '''Обработчик изменения сортировки проектов'''
+        settings = en.load_settings()
+        settings['project_sort'] = self.sort_project_box.currentText()
+        save_settings(settings)
         self.refresh_projects()
 
     def refresh_global_streak_status(self):
@@ -647,6 +661,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.refresh_global_streak_status()
 
         # Получаем выбранный фильтр
+        current_sort = self.sort_project_box.currentText()
         current_filter = self.filter_project_box.currentText()
 
         # Фильтруем проекты по статусу
@@ -656,6 +671,19 @@ class MainWindow(QMainWindow, main_window_ui):
             projects = [p for p in projects if p.status == "в архиве"]
         elif current_filter == "Завершен":
             projects = [p for p in projects if p.status == "завершен"]
+        # Сортируем проекты
+        if current_sort == 'Название':
+            projects = sorted(projects, key=lambda p: p.name)
+        elif current_sort == 'Дедлайн':
+            # Исправленная сортировка по дедлайну
+            def get_deadline_key(project):
+                if project.deadline == 'Нет' or project.deadline is None:
+                    return datetime.date.max  # проекты без дедлайна в конец
+                return project.deadline
+
+            projects = sorted(projects, key=get_deadline_key)
+        elif current_sort == 'Прогресс':
+            projects = sorted(projects, key=lambda p: p.progress, reverse=True)
 
         list_p = self.list_projects
 
