@@ -4,16 +4,16 @@
 """
 Модуль для связи игрового интерфейса (main_window.py) с игровой логикой (game.py, game_data.py)
 """
-from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
-from PySide6.QtCore import QTimer, Qt
-
-from UI_fiiles.freeze_project import Ui_freeze_projrct
-
 import datetime
+
+from PySide6.QtCore import QTimer, Qt
+from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
 
 import game
 import game_data
+from UI_fiiles.freeze_project import Ui_freeze_projrct
 from engine import load_data, save_data, today_for_test
+
 
 class GameMenuController:
     """Класс для управления игровым меню"""
@@ -264,11 +264,6 @@ class GameMenuController:
                 # Проверяем особые предметы (Заморозка для проекта)
                 if item_name == 'Заморозка':
                     self.freeze_project()
-                    # Уменьшаем количество предметов
-                    self.gamer.items[category][item_name] -= 1
-                    self.gamer.save()
-                    self.update_inventory()
-                    self.update_game_data()
                     return  # ВАЖНО: выходим из метода, чтобы не выполнялась дальнейшая проверка
 
                 # Проверяем, можно ли использовать этот предмет

@@ -1,7 +1,7 @@
 import os
 import pickle
-import sys
 import platform  # Добавляем импорт platform
+import sys
 from pathlib import Path
 
 import engine

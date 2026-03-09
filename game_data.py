@@ -1,5 +1,4 @@
 from datetime import timedelta
-from game_UI import GameMenuController
 from random import randint
 
 import engine

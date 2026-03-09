@@ -7,10 +7,6 @@ from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem
 
 import engine as en
-import game
-
-from game_UI import GameMenuController
-
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
 from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
@@ -19,6 +15,7 @@ from UI_fiiles.notification import ToastNotification
 from UI_fiiles.project_widget import ProjectWidget
 from UI_fiiles.settings import Ui_Dialog as settings_ui
 from engine import save_data, save_settings
+from game_UI import GameMenuController
 
 
 def resource_path(relative_path):
