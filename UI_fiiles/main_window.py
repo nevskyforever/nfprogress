@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowiYpUzB.ui'
+## Form generated from reading UI file 'main_windowXtpLQG.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -50,7 +50,7 @@ class Ui_main_window(object):
         self.gridLayout_3.setObjectName(u"gridLayout_3")
         self.list_projects = QListWidget(self.projects_tab)
         self.list_projects.setObjectName(u"list_projects")
-        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         sizePolicy.setHorizontalStretch(0)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.list_projects.sizePolicy().hasHeightForWidth())
@@ -377,7 +377,7 @@ class Ui_main_window(object):
 
         self.global_streak_status = QLabel(self.projects_tab)
         self.global_streak_status.setObjectName(u"global_streak_status")
-        self.global_streak_status.setWordWrap(False)
+        self.global_streak_status.setWordWrap(True)
 
         self.gridLayout_3.addWidget(self.global_streak_status, 3, 0, 1, 1)
 
@@ -532,11 +532,8 @@ class Ui_main_window(object):
         self.gridLayout_10.setObjectName(u"gridLayout_10")
         self.completed_quests_list = QListWidget(self.completed_quests_tab)
         self.completed_quests_list.setObjectName(u"completed_quests_list")
-        sizePolicy5 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
-        sizePolicy5.setHorizontalStretch(0)
-        sizePolicy5.setVerticalStretch(0)
-        sizePolicy5.setHeightForWidth(self.completed_quests_list.sizePolicy().hasHeightForWidth())
-        self.completed_quests_list.setSizePolicy(sizePolicy5)
+        sizePolicy.setHeightForWidth(self.completed_quests_list.sizePolicy().hasHeightForWidth())
+        self.completed_quests_list.setSizePolicy(sizePolicy)
         self.completed_quests_list.setMaximumSize(QSize(193, 16777215))
 
         self.gridLayout_10.addWidget(self.completed_quests_list, 0, 0, 1, 1)
@@ -610,8 +607,8 @@ class Ui_main_window(object):
         self.horizontalLayout_5.setObjectName(u"horizontalLayout_5")
         self.inventory_list = QListWidget(self.inventory_frame)
         self.inventory_list.setObjectName(u"inventory_list")
-        sizePolicy5.setHeightForWidth(self.inventory_list.sizePolicy().hasHeightForWidth())
-        self.inventory_list.setSizePolicy(sizePolicy5)
+        sizePolicy.setHeightForWidth(self.inventory_list.sizePolicy().hasHeightForWidth())
+        self.inventory_list.setSizePolicy(sizePolicy)
         self.inventory_list.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_5.addWidget(self.inventory_list)
@@ -696,11 +693,11 @@ class Ui_main_window(object):
 
         self.frame_5 = QFrame(self.game_tab)
         self.frame_5.setObjectName(u"frame_5")
-        sizePolicy6 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        sizePolicy6.setHorizontalStretch(0)
-        sizePolicy6.setVerticalStretch(43)
-        sizePolicy6.setHeightForWidth(self.frame_5.sizePolicy().hasHeightForWidth())
-        self.frame_5.setSizePolicy(sizePolicy6)
+        sizePolicy5 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        sizePolicy5.setHorizontalStretch(0)
+        sizePolicy5.setVerticalStretch(43)
+        sizePolicy5.setHeightForWidth(self.frame_5.sizePolicy().hasHeightForWidth())
+        self.frame_5.setSizePolicy(sizePolicy5)
         self.frame_5.setMinimumSize(QSize(0, 55))
         self.frame_5.setFrameShape(QFrame.Shape.StyledPanel)
         self.frame_5.setFrameShadow(QFrame.Shadow.Raised)
@@ -720,11 +717,11 @@ class Ui_main_window(object):
 
         self.gamer_health_progressbar = QProgressBar(self.frame_5)
         self.gamer_health_progressbar.setObjectName(u"gamer_health_progressbar")
-        sizePolicy7 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-        sizePolicy7.setHorizontalStretch(0)
-        sizePolicy7.setVerticalStretch(0)
-        sizePolicy7.setHeightForWidth(self.gamer_health_progressbar.sizePolicy().hasHeightForWidth())
-        self.gamer_health_progressbar.setSizePolicy(sizePolicy7)
+        sizePolicy6 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        sizePolicy6.setHorizontalStretch(0)
+        sizePolicy6.setVerticalStretch(0)
+        sizePolicy6.setHeightForWidth(self.gamer_health_progressbar.sizePolicy().hasHeightForWidth())
+        self.gamer_health_progressbar.setSizePolicy(sizePolicy6)
         self.gamer_health_progressbar.setValue(24)
 
         self.gridLayout_6.addWidget(self.gamer_health_progressbar, 1, 3, 1, 1)
@@ -755,8 +752,8 @@ class Ui_main_window(object):
 
         self.exp_progressbar = QProgressBar(self.frame_5)
         self.exp_progressbar.setObjectName(u"exp_progressbar")
-        sizePolicy7.setHeightForWidth(self.exp_progressbar.sizePolicy().hasHeightForWidth())
-        self.exp_progressbar.setSizePolicy(sizePolicy7)
+        sizePolicy6.setHeightForWidth(self.exp_progressbar.sizePolicy().hasHeightForWidth())
+        self.exp_progressbar.setSizePolicy(sizePolicy6)
         self.exp_progressbar.setValue(24)
 
         self.gridLayout_6.addWidget(self.exp_progressbar, 1, 2, 1, 1)
@@ -836,8 +833,8 @@ class Ui_main_window(object):
         self.horizontalLayout_8.setObjectName(u"horizontalLayout_8")
         self.debuf_list = QListWidget(self.defufs_tab)
         self.debuf_list.setObjectName(u"debuf_list")
-        sizePolicy5.setHeightForWidth(self.debuf_list.sizePolicy().hasHeightForWidth())
-        self.debuf_list.setSizePolicy(sizePolicy5)
+        sizePolicy.setHeightForWidth(self.debuf_list.sizePolicy().hasHeightForWidth())
+        self.debuf_list.setSizePolicy(sizePolicy)
         self.debuf_list.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout_8.addWidget(self.debuf_list)
@@ -924,11 +921,11 @@ class Ui_main_window(object):
         self.gridLayout_20.setObjectName(u"gridLayout_20")
         self.button_for_buy_selected_item = QPushButton(self.selected_goods_item_infobox)
         self.button_for_buy_selected_item.setObjectName(u"button_for_buy_selected_item")
-        sizePolicy8 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        sizePolicy8.setHorizontalStretch(19)
-        sizePolicy8.setVerticalStretch(0)
-        sizePolicy8.setHeightForWidth(self.button_for_buy_selected_item.sizePolicy().hasHeightForWidth())
-        self.button_for_buy_selected_item.setSizePolicy(sizePolicy8)
+        sizePolicy7 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        sizePolicy7.setHorizontalStretch(19)
+        sizePolicy7.setVerticalStretch(0)
+        sizePolicy7.setHeightForWidth(self.button_for_buy_selected_item.sizePolicy().hasHeightForWidth())
+        self.button_for_buy_selected_item.setSizePolicy(sizePolicy7)
         self.button_for_buy_selected_item.setMouseTracking(False)
         self.button_for_buy_selected_item.setTabletTracking(False)
         self.button_for_buy_selected_item.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -1005,8 +1002,8 @@ class Ui_main_window(object):
         self.horizontalLayout.setObjectName(u"horizontalLayout")
         self.potion_shop_list = QListWidget(self.potions_shop_tab)
         self.potion_shop_list.setObjectName(u"potion_shop_list")
-        sizePolicy5.setHeightForWidth(self.potion_shop_list.sizePolicy().hasHeightForWidth())
-        self.potion_shop_list.setSizePolicy(sizePolicy5)
+        sizePolicy.setHeightForWidth(self.potion_shop_list.sizePolicy().hasHeightForWidth())
+        self.potion_shop_list.setSizePolicy(sizePolicy)
         self.potion_shop_list.setMaximumSize(QSize(193, 16777215))
 
         self.horizontalLayout.addWidget(self.potion_shop_list)
