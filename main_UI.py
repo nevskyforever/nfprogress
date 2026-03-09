@@ -66,9 +66,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.new_symbols.returnPressed.connect(self.on_enter_pressed)
 
         # Добавляем менюбар
-        self.menu.addAction("Параметры").triggered.connect(self.edit_settings)
-        self.menu.addAction("Выход").triggered.connect(self.close)
-
+        self.menu.addAction("Настройки приложения").triggered.connect(self.edit_settings)
         if self.global_streak_mode:
             self.refresh_global_streak_status()
             QTimer.singleShot(1000, self.check_global_streak)

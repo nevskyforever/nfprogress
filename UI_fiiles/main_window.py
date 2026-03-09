@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowAIxENx.ui'
+## Form generated from reading UI file 'main_windoweTnzRk.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -452,7 +452,7 @@ class Ui_main_window(object):
         self.scrollArea_3.setWidgetResizable(True)
         self.scrollAreaWidgetContents_4 = QWidget()
         self.scrollAreaWidgetContents_4.setObjectName(u"scrollAreaWidgetContents_4")
-        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 229, 127))
+        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 233, 131))
         self.gridLayout_14 = QGridLayout(self.scrollAreaWidgetContents_4)
         self.gridLayout_14.setObjectName(u"gridLayout_14")
         self.name_selected_available_quest = QLabel(self.scrollAreaWidgetContents_4)
@@ -509,7 +509,7 @@ class Ui_main_window(object):
         self.scrollArea_2.setWidgetResizable(True)
         self.scrollAreaWidgetContents_3 = QWidget()
         self.scrollAreaWidgetContents_3.setObjectName(u"scrollAreaWidgetContents_3")
-        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 229, 136))
+        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 104, 170))
         self.gridLayout_17 = QGridLayout(self.scrollAreaWidgetContents_3)
         self.gridLayout_17.setObjectName(u"gridLayout_17")
         self.date_start_selected_active_quest = QLabel(self.scrollAreaWidgetContents_3)
@@ -581,7 +581,7 @@ class Ui_main_window(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents_2 = QWidget()
         self.scrollAreaWidgetContents_2.setObjectName(u"scrollAreaWidgetContents_2")
-        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 229, 161))
+        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 104, 170))
         self.gridLayout_16 = QGridLayout(self.scrollAreaWidgetContents_2)
         self.gridLayout_16.setObjectName(u"gridLayout_16")
         self.date_end_selected_completed_quest = QLabel(self.scrollAreaWidgetContents_2)
@@ -681,7 +681,7 @@ class Ui_main_window(object):
         self.about_selected_inventory_item.setWidgetResizable(True)
         self.scrollAreaWidgetContents_6 = QWidget()
         self.scrollAreaWidgetContents_6.setObjectName(u"scrollAreaWidgetContents_6")
-        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 257, 145))
+        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 253, 149))
         self.gridLayout_19 = QGridLayout(self.scrollAreaWidgetContents_6)
         self.gridLayout_19.setObjectName(u"gridLayout_19")
         self.name_selected_item = QLabel(self.scrollAreaWidgetContents_6)
@@ -820,7 +820,7 @@ class Ui_main_window(object):
         self.scrollArea_7.setWidgetResizable(True)
         self.scrollAreaWidgetContents_8 = QWidget()
         self.scrollAreaWidgetContents_8.setObjectName(u"scrollAreaWidgetContents_8")
-        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 229, 159))
+        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 233, 159))
         self.gridLayout_23 = QGridLayout(self.scrollAreaWidgetContents_8)
         self.gridLayout_23.setObjectName(u"gridLayout_23")
         self.label_37 = QLabel(self.scrollAreaWidgetContents_8)
@@ -988,7 +988,7 @@ class Ui_main_window(object):
         self.about_selected_goods.setWidgetResizable(True)
         self.scrollAreaWidgetContents_7 = QWidget()
         self.scrollAreaWidgetContents_7.setObjectName(u"scrollAreaWidgetContents_7")
-        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 253, 136))
+        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 249, 136))
         self.gridLayout_21 = QGridLayout(self.scrollAreaWidgetContents_7)
         self.gridLayout_21.setObjectName(u"gridLayout_21")
         self.effect_selected_item_on_shop = QLabel(self.scrollAreaWidgetContents_7)
@@ -1075,7 +1075,7 @@ class Ui_main_window(object):
         self.scrollArea_4.setWidgetResizable(True)
         self.scrollAreaWidgetContents_5 = QWidget()
         self.scrollAreaWidgetContents_5.setObjectName(u"scrollAreaWidgetContents_5")
-        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 253, 126))
+        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 98, 112))
         self.gridLayout_18 = QGridLayout(self.scrollAreaWidgetContents_5)
         self.gridLayout_18.setObjectName(u"gridLayout_18")
         self.name_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
@@ -1129,8 +1129,6 @@ class Ui_main_window(object):
         self.menuBar.setGeometry(QRect(0, 0, 1104, 30))
         self.menu = QMenu(self.menuBar)
         self.menu.setObjectName(u"menu")
-        self.menu.setFont(font)
-        self.menu.setToolTipsVisible(True)
         main_window.setMenuBar(self.menuBar)
 
         self.menuBar.addAction(self.menu.menuAction())
