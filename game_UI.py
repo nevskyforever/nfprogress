@@ -51,6 +51,12 @@ class GameMenuController:
     def setup_ui_defaults(self):
         """Настройка начальных значений интерфейса"""
         # Устанавливаем максимумы для spinbox'ов
+        self.ui.gamer_params_label.setVisible(False)
+
+        self.ui.parameters_tabs.setVisible(False)
+        self.ui.quests_label.setVisible(False)
+        self.ui.quests_tabs.setVisible(False)
+
         self.ui.value_for_use_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_potion.setMaximum(999)
