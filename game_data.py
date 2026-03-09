@@ -340,10 +340,8 @@ def freeze_global_func(do, add=None):
 
 # Инициализация объектов
 
-freeze_local = FuncItem('Заморозка для проекта', price=100, item_type='Предметы', level=3,
-                  description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном')
-freeze_global = FuncItem('Глобальная заморозка', func=freeze_global_func, price=200, item_type='Предметы', level=3, description='Глобальная заморощка позволяет заморозить глобальный стрик')
-
+freeze = FuncItem('Заморозка', price=100, item_type='Предметы', level=3,
+                  description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком')
 lottery_ticket = FuncItem("Лотерейный билет", price=10, item_type='Предметы', level=2, func=lottery_ticket_func,
                           description='Лотерейный билет позволяет выиграть от 100 до 10К монет')
 health_potion_5 = FuncItem('Малое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=10, add=5,
@@ -362,6 +360,5 @@ ITEM_REGISTRY = {'Зелья':
                       'Среднее зелье здоровья': health_potion_25,
                       'Большое зелье здоровья': health_potion_50,
                       'Зелье воскрешения': health_recovery,},
-                 'Предметы': {'Заморозка для проекта': freeze_local,
-                              'Глобальная заморозка': freeze_global,
+                 'Предметы': {'Заморозка': freeze,
                               'Лотерейный билет': lottery_ticket,}}
