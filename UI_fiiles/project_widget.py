@@ -273,24 +273,25 @@ class ProjectWidget(QWidget, Ui_Form):
 
     def update_display(self):
         self.name.setText(self.project.name)
-        # Вызываем setValue с анимацией
         self.circular_progress.setValue(int(self.project.progress), animated=True)
         self.symbols.setText(f'{self.project.total_symbols}/{self.project.goal}')
+
+        # Управление видимостью стриков в зависимости от режима
+        if not self.global_streak_mode:
+            self.streak.setVisible(False)
+            self.streak_status.setVisible(False)
 
         if self.project.deadline_str != 'Нет':
             self.deadline.setText(f'Дедлайн: {self.project.deadline_str}')
             self.deadline.setVisible(True)
-            self.streak.setText(f'Стрик: {len(self.project.streaks)} д.')
+
             if self.global_streak_mode:
+                self.streak.setText(f'Стрик: {len(self.project.streaks)} д.')
                 self.streak.setVisible(True)
                 self.streak_status.setText(self.project.get_streak_status_msg('min'))
                 self.streak_status.setVisible(True)
-            else:
-                self.streak_status.setVisible(False)
-                self.streak.setVisible(False)
         else:
             self.deadline.setVisible(False)
 
-        # --- ДОБАВЛЕНО: принудительное обновление геометрии ---
         self.updateGeometry()
         self.widget.updateGeometry()
