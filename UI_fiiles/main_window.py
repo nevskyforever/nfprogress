@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windoweTnzRk.ui'
+## Form generated from reading UI file 'main_windowiYpUzB.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -55,27 +55,12 @@ class Ui_main_window(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.list_projects.sizePolicy().hasHeightForWidth())
         self.list_projects.setSizePolicy(sizePolicy)
+        font1 = QFont()
+        font1.setFamilies([u"Arial"])
+        font1.setPointSize(12)
+        self.list_projects.setFont(font1)
         self.list_projects.setMouseTracking(True)
-        self.list_projects.setStyleSheet(u"QListWidget#list_projects {\n"
-"    background-color: rgb(56, 56, 56);\n"
-"    border: 2px solid #999;\n"
-"    border-radius: 5px;\n"
-"    outline: none;\n"
-"}\n"
-"\n"
-"QListWidget#list_projects::item {\n"
-"    padding: 5px;\n"
-"    border-bottom: 1px solid #aaa;\n"
-"}\n"
-"\n"
-"QListWidget#list_projects::item:selected {\n"
-"    background-color: #3daee9;\n"
-"    color: rgb(0, 28, 255);\n"
-"}\n"
-"\n"
-"QListWidget#list_projects::item:hover {\n"
-"    background-color: rgb(165, 165, 165);\n"
-"}")
+        self.list_projects.setStyleSheet(u"")
         self.list_projects.setSortingEnabled(False)
 
         self.gridLayout_3.addWidget(self.list_projects, 5, 0, 1, 1)
@@ -134,10 +119,10 @@ class Ui_main_window(object):
         self.gridLayout_4.setObjectName(u"gridLayout_4")
         self.name_selected_project = QLabel(self.project_detail_widget)
         self.name_selected_project.setObjectName(u"name_selected_project")
-        font1 = QFont()
-        font1.setFamilies([u"Arial"])
-        font1.setPointSize(20)
-        self.name_selected_project.setFont(font1)
+        font2 = QFont()
+        font2.setFamilies([u"Arial"])
+        font2.setPointSize(20)
+        self.name_selected_project.setFont(font2)
         self.name_selected_project.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_selected_project.setWordWrap(True)
 
@@ -195,26 +180,10 @@ class Ui_main_window(object):
         sizePolicy2.setVerticalStretch(0)
         sizePolicy2.setHeightForWidth(self.note_list.sizePolicy().hasHeightForWidth())
         self.note_list.setSizePolicy(sizePolicy2)
-        self.note_list.setStyleSheet(u"QListWidget#note_list {\n"
-"    background-color: rgb(56, 56, 56);\n"
-"    border: 1px solid #999;\n"
-"    border-radius: 3px;\n"
-"    outline: none;\n"
-"}\n"
-"\n"
-"QListWidget#note_list::item {\n"
-"    padding: 4px;\n"
-"    border-bottom: 1px solid #aaa;\n"
-"}\n"
-"\n"
-"QListWidget#note_list::item:selected {\n"
-"    background-color: #3daee9;\n"
-"    color: white;\n"
-"}\n"
-"\n"
-"QListWidget#note_list::item:hover {\n"
-"    background-color: #d8d8d8;\n"
-"}")
+        palette = QPalette()
+        self.note_list.setPalette(palette)
+        self.note_list.setFont(font1)
+        self.note_list.setStyleSheet(u"")
 
         self.verticalLayout_2.addWidget(self.note_list)
 
