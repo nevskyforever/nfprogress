@@ -14,7 +14,9 @@ from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.notification import ToastNotification
 from UI_fiiles.project_widget import ProjectWidget
 from UI_fiiles.settings import Ui_Dialog as settings_ui
-from engine import save_data, save_settings
+from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
+
+from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
 
 
@@ -38,6 +40,9 @@ class MainWindow(QMainWindow, main_window_ui):
         self.global_streak_mode = en.load_settings().get('global_streak', False)
         self.filter_project_box.setCurrentText(en.load_settings().get('project_filter', 'Активен'))
         self.sort_project_box.setCurrentText(en.load_settings().get('project_sort', 'Прогресс'))
+
+        # Проверяем пользовательское соглашение
+        self.check_user_agreement()
 
         # Обновляем проекты
         self.refresh_projects()
@@ -758,6 +763,27 @@ class MainWindow(QMainWindow, main_window_ui):
         except (KeyError, IndexError, AttributeError) as e:
             print(f"Ошибка при проверке глобального стрика: {e}")
 
+    def user_agreement(self):
+        dialog = UserAgreement()
+        result = dialog.exec()
+        agree = dialog.agree_checkBox.isChecked()
+        settings = load_settings()
+
+        if result == QDialog.Accepted and agree:
+            settings['user_agreement'] = True
+            save_settings(settings)
+            dialog.close()
+        else:
+            sys.exit(0)
+
+
+    def check_user_agreement(self):
+        settings = en.load_settings()
+        user_agreement = settings.get('user_agreement', False)
+        if not user_agreement:
+            self.user_agreement()
+
+
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
         super().__init__()
@@ -1083,6 +1109,11 @@ class Settings(QDialog, settings_ui):
             self.enable_global_streak_checkBox.setChecked(False)
         else:
             self.enable_global_streak_checkBox.setChecked(True)
+
+class UserAgreement(QDialog, user_agreement_ui):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setupUi(self)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
