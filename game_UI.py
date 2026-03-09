@@ -262,7 +262,7 @@ class GameMenuController:
                 item_obj = game_data.ITEM_REGISTRY[category][item_name]
 
                 # Проверяем особые предметы (Заморозка для проекта)
-                if item_name == 'Заморозка для проекта':
+                if item_name == 'Заморозка':
                     self.freeze_project()
                     # Уменьшаем количество предметов
                     self.gamer.items[category][item_name] -= 1
