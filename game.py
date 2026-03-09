@@ -113,10 +113,10 @@ class Gamer:
         self.exp += exps
         self.save()
         coins_cf = self.cf.get('coins', 1.0)
-        coins = symbols / 100
-        self.coins += coins * coins_cf
+        coins = round((symbols / 100 * coins_cf), 1)
+        self.coins += coins
         self.save()
-        return (f'Получено {coins * coins_cf} монет'
+        return (f'Получено {coins} монет'
                 f'\nПолучено {exps} опыта')
 
     def get_items(self):

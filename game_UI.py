@@ -123,7 +123,7 @@ class GameMenuController:
 
         # Обновляем отображение
         self.ui.gamer_label.setText(str(self.gamer.level))
-        self.ui.gamer_coins.setText(str(int(self.gamer.coins)))
+        self.ui.gamer_coins.setText(str(round(self.gamer.coins, 1)))
 
         # Опыт - получаем необходимое для следующего уровня
         current_level = self.gamer.level
