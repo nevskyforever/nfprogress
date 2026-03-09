@@ -257,13 +257,11 @@ def health_potion_func(do, add=None):
 
 def lottery_ticket_func(do, add=None):
     """Функция лотерейного билета"""
-    print(f"DEBUG: lottery_ticket_func called with do={do}, add={add}")  # Отладка
 
     gamer = game.load_game()
     price = 10  # Базовая цена билета для расчета выигрыша
 
     if do == 'use':
-        print('DEBUG: Используем лотерейный билет')
 
         # Генерируем сеты чисел
         chance = set()
@@ -273,12 +271,8 @@ def lottery_ticket_func(do, add=None):
         while len(win) < 3:
             win.add(randint(1, 10))
 
-        print(f'DEBUG: Ваши числа: {chance}')
-        print(f'DEBUG: Выпавшие числа: {win}')
-
         # Считаем совпадения
         matches = len(chance.intersection(win))
-        print(f'DEBUG: Совпадений: {matches}')
 
         win_prize = 0
         message = 'В этот раз не повезло :('
@@ -293,16 +287,10 @@ def lottery_ticket_func(do, add=None):
             win_prize = price * 1000
             message = f'ДЖЕКПОТ!!! 3 из 3! Выигрыш: {win_prize} монет.'
 
-        print(f'DEBUG: Выигрыш: {win_prize}')
-
         if win_prize > 0:
             # Сохраняем текущее количество монет для отладки
             old_coins = gamer.coins
             gamer.coins += win_prize
-            print(f'DEBUG: Было монет: {old_coins}, стало: {gamer.coins}')
-            gamer.save()
-            print('DEBUG: Игрок сохранен')
-            return f'{message}\n💰 Выигрыш зачислен!'
 
         return message
 

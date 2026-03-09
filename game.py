@@ -95,16 +95,10 @@ class Gamer:
 
         # Создаём временную копию для безопасного сохранения
         temp_file = data_file.with_suffix('.tmp')
-        try:
-            with open(temp_file, 'wb') as f:
-                pickle.dump(self, f)
-            # Заменяем старый файл новым
-            temp_file.replace(data_file)
-        except Exception as e:
-            print(f"Ошибка при сохранении данных игрока: {e}")
-            # Если что-то пошло не так, удаляем временный файл
-            if temp_file.exists():
-                temp_file.unlink()
+        with open(temp_file, 'wb') as f:
+            pickle.dump(self, f)
+        # Заменяем старый файл новым
+        temp_file.replace(data_file)
 
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols):
@@ -161,24 +155,21 @@ class Gamer:
         if self.health > 0:
             return True
 
-        print('КРИТИЧЕСКИЙ УРОВЕНЬ ЗДОРОВЬЯ\n')
         # Ищем любое зелье в инвентаре по ключевому слову
         has_potion = any('зелье' in k.lower() and v > 0 for k, v in self.items.items())
 
         if has_potion:
-            print("У вас есть зелья в инвентаре! Зайдите в инвентарь, чтобы использовать.")
             # Для простоты в критической ситуации даем шанс восстановиться вручную
             return False
         elif self.coins >= 100:
             choice = input('1 - Купить и применить зелье восстановления (100 монет): ')
             if choice == '1':
                 self.coins -= 100
-                print("Зелье куплено и использовано!")
                 self.health = 100
                 self.save()
                 return True
 
-        print('У ВАС НЕТ НИ ЗЕЛЕЙ, НИ МОНЕТ! ИГРОВОЙ ПРОГРЕСС ПОТЕРЯН!')
+
         self.reset()
         return False
 
@@ -262,13 +253,8 @@ class Gamer:
 def load_game():
     """Загружает данные игрока из кроссплатформенной директории"""
     data_file = get_data_file_path()
-    try:
-        with open(data_file, 'rb') as f:
-            gamer = pickle.load(f)
-            gamer.check_integrity()
-            return gamer
-    except FileNotFoundError:
-        return None
-    except Exception as e:
-        print(f"Ошибка при загрузке данных игрока: {e}")
-        return None
+
+    with open(data_file, 'rb') as f:
+        gamer = pickle.load(f)
+        gamer.check_integrity()
+        return gamer

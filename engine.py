@@ -429,16 +429,10 @@ def save_data(data):
 
     # Создаём временную копию для безопасного сохранения
     temp_file = data_file.with_suffix('.tmp')
-    try:
-        with open(temp_file, 'wb') as f:
-            pickle.dump(data, f)
-        # Заменяем старый файл новым
-        temp_file.replace(data_file)
-    except Exception as e:
-        print(f"Ошибка при сохранении данных: {e}")
-        # Если что-то пошло не так, удаляем временный файл
-        if temp_file.exists():
-            temp_file.unlink()
+    with open(temp_file, 'wb') as f:
+        pickle.dump(data, f)
+    # Заменяем старый файл новым
+    temp_file.replace(data_file)
 
 
 def export_data_to_file(file_path):
@@ -497,16 +491,10 @@ def save_settings(data):
 
     # Создаём временную копию для безопасного сохранения
     temp_file = data_file.with_suffix('.tmp')
-    try:
-        with open(temp_file, 'wb') as f:
-            pickle.dump(data, f)
-        # Заменяем старый файл новым
-        temp_file.replace(data_file)
-    except Exception as e:
-        print(f"Ошибка при сохранении данных: {e}")
-        # Если что-то пошло не так, удаляем временный файл
-        if temp_file.exists():
-            temp_file.unlink()
+    with open(temp_file, 'wb') as f:
+        pickle.dump(data, f)
+    # Заменяем старый файл новым
+    temp_file.replace(data_file)
 
 # === МЕНЮ И ЛОГИКА ===
 
@@ -627,9 +615,4 @@ def global_streak_status_msg(data, status=None):
     return '😴 Глобальный стрик не начат'
 
 # При импорте модуля создаём директорию для данных
-try:
-    get_app_data_dir()
-    print(f"Директория для данных: {get_app_data_dir()}")
-    print(f"Файл данных: {get_data_file_path('data')}")
-except Exception as e:
-    print(f"Ошибка при создании директории для данных: {e}")
+get_app_data_dir()

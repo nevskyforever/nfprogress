@@ -284,7 +284,6 @@ class GameMenuController:
                     try:
                         # Вызываем функцию предмета
                         result = item_obj.use()
-                        print(f"DEBUG: Результат использования: {result}")
 
                         # ПЕРЕЗАГРУЖАЕМ ИГРОКА ПОСЛЕ КАЖДОГО ИСПОЛЬЗОВАНИЯ,
                         # чтобы получить актуальные монеты/здоровье
@@ -297,7 +296,6 @@ class GameMenuController:
                         success_count += 1
                     except Exception as e:
                         result_messages.append(f"✗ Ошибка: {str(e)}")
-                        print(f"DEBUG: Ошибка: {e}")
                         break
                 else:
                     break
@@ -585,12 +583,6 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
 
             # Получаем статус стрика
             streak_status = project.get_streak_status()
-
-            # Отладочный вывод
-            print(f"Проект: {project.name}")
-            print(f"  Последний день стрика: {last_streak_day}")
-            print(f"  Статус: {streak_status}")
-            print(f"  Можно заморозить: {last_streak_day == yesterday and streak_status in ['Active', 'Freeze']}")
 
             # Проект можно заморозить если последний стрик был вчера
             # и статус 'Active' (активный, но не продленный)

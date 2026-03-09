@@ -97,7 +97,6 @@ class MainWindow(QMainWindow, main_window_ui):
         result = dialog.exec()
 
         if result == QDialog.Accepted:
-            print("Диалог закрыт по OK")
             data = en.load_data()
             name = dialog.le_name.text()
             goal = int(dialog.le_goal.text())
@@ -140,7 +139,6 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Сохраняем виджет ПЕРЕД удалением
                 self.game_tab_widget = self.tabWidget.widget(game_tab_index)
                 self.tabWidget.removeTab(game_tab_index)
-                print("Игровая вкладка удалена")
         else:
             # Режим включен
             if game_tab_index < 0:
@@ -151,7 +149,6 @@ class MainWindow(QMainWindow, main_window_ui):
                 else:
                     # Создаём новую вкладку (используем существующую из UI)
                     self.tabWidget.addTab(self.game_tab, 'Игровой режим')
-                print("Игровая вкладка добавлена")
 
         if settings['inf_project'] is True:
             data = en.load_data()
@@ -489,8 +486,6 @@ class MainWindow(QMainWindow, main_window_ui):
             # Перезагружаем список заметок
             self.load_notes(project)
 
-            print(f"Запись от {deleted_note.get_date_create_str()} удалена")
-
     def edit_project(self, project):
         old_name = project.name
         dialog = EditProject(old_name=old_name)
@@ -656,7 +651,6 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Если текущая вкладка - "Проекты", обновляем список
         if current_tab == "Проекты":
-            print("Переключено на вкладку проектов, обновляем...")
             self.refresh_projects()
             self.refresh_global_streak_status()
 
@@ -749,19 +743,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def check_global_streak(self):
         """Проверяет глобальный стрик и показывает уведомление"""
-        try:
-            data = en.load_data()
-            global_status = data.get('global_streak_status', 'No')
-
-            # Проверяем, начинается ли статус с "Lose"
-            if isinstance(global_status, str) and global_status.startswith('Lose'):
-                self.notifications.show_error('Глобальный стрик потерян!', position="top-left")
-                print(f"Глобальный стрик потерян! Статус: {global_status}")
-            else:
-                print(f"Глобальный стрик в порядке. Статус: {global_status}")
-
-        except (KeyError, IndexError, AttributeError) as e:
-            print(f"Ошибка при проверке глобального стрика: {e}")
+        data = en.load_data()
+        global_status = data.get('global_streak_status', 'No')
 
     def user_agreement(self):
         dialog = UserAgreement()
