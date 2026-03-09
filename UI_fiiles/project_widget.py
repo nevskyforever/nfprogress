@@ -276,19 +276,27 @@ class ProjectWidget(QWidget, Ui_Form):
         self.circular_progress.setValue(int(self.project.progress), animated=True)
         self.symbols.setText(f'{self.project.total_symbols}/{self.project.goal}')
 
-        # Управление видимостью стриков в зависимости от режима
-        if not self.global_streak_mode:
-            self.streak.setVisible(False)
-            self.streak_status.setVisible(False)
+        # Сначала скрываем все элементы стриков
+        self.streak.setVisible(False)
+        self.streak_status.setVisible(False)
 
         if self.project.deadline_str != 'Нет':
             self.deadline.setText(f'Дедлайн: {self.project.deadline_str}')
             self.deadline.setVisible(True)
 
+            # Показываем стрики только если они включены в настройках
             if self.global_streak_mode:
-                self.streak.setText(f'Стрик: {len(self.project.streaks)} д.')
+                # Получаем актуальный статус стрика (это обновит streaks и streak_status в проекте)
+                streak_status = self.project.get_streak_status()
+
+                # Устанавливаем текст для стрика (количество дней)
+                streak_length = len(self.project.streaks)
+                self.streak.setText(f'Стрик: {streak_length} д.')
                 self.streak.setVisible(True)
-                self.streak_status.setText(self.project.get_streak_status_msg('min'))
+
+                # Устанавливаем текст для статуса стрика
+                status_msg = self.project.get_streak_status_msg('min')
+                self.streak_status.setText(status_msg)
                 self.streak_status.setVisible(True)
         else:
             self.deadline.setVisible(False)
