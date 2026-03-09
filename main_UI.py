@@ -33,6 +33,9 @@ class MainWindow(QMainWindow, main_window_ui):
         super().__init__()
         self.setupUi(self)
 
+        # для отслеживания предыдущей вкладки
+        self._previous_tab = None
+
         # Применяем настройки
         self.applying_settings()
         self.global_streak_mode = en.load_settings().get('global_streak', False)
@@ -45,6 +48,9 @@ class MainWindow(QMainWindow, main_window_ui):
         # Подключаем обработчик изменения фильтра
         self.filter_project_box.currentTextChanged.connect(self.on_filter_changed)
         self.sort_project_box.currentTextChanged.connect(self.on_sort_changed)
+
+        # Подключаем обработчик переключения вкладок
+        self.tabWidget.currentChanged.connect(self.on_tab_changed)
 
         # Создаем менеджер уведомлений
         self.notifications = NotificationManager(self)
@@ -644,6 +650,24 @@ class MainWindow(QMainWindow, main_window_ui):
         save_settings(settings)
         self.refresh_projects()
 
+    def on_tab_changed(self, index):
+        """Обработчик переключения вкладок"""
+        current_tab = self.tabWidget.tabText(index)
+
+        # Если текущая вкладка - "Проекты", обновляем список
+        if current_tab == "Проекты":
+            print("Переключено на вкладку проектов, обновляем...")
+            self.refresh_projects()
+            self.refresh_global_streak_status()
+
+            # Если есть выбранный проект, обновляем его информацию
+            current_item = self.list_projects.currentItem()
+            if current_item:
+                widget = self.list_projects.itemWidget(current_item)
+                if widget and hasattr(widget, 'project'):
+                    self.show_project_info(widget.project)
+                    self.setup_project_buttons(widget.project)
+
     def refresh_global_streak_status(self):
         # Загружаем глобальный стрик
         data = en.load_data()
@@ -771,7 +795,6 @@ class CreateProject(QDialog, create_project_ui):
         self.on_checkbox_toggled(self.checkBox.isChecked())
 
         # Вызываем проверку после того, как все подключено
-        from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.all_data_ok)
 
     def on_checkbox_toggled(self, checked):

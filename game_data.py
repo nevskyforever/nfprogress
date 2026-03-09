@@ -1,4 +1,5 @@
 from datetime import timedelta
+from game_UI import GameMenuController
 from random import randint
 
 import engine
@@ -309,30 +310,7 @@ def lottery_ticket_func(do, add=None):
     return 'Неизвестное действие'
 
 def freeze_local_func(do, add=None):
-    if do == 'use':
-        # 1. Выбираем проект
-        data = engine.load_data()
-        gamer = game.load_game()
-        items = gamer.get_items()
-        choice = engine.choice_project()
-        project = data['projects'][choice]
-        streaks = project.streaks
-        today = engine.today_for_test()
-        if project.get_deadline():
-            if today in streaks:
-                return 'Для этого проекта заморозка не нужна'
-            else:
-                streaks.append(today)
-                items['Предметы']["Заморозка"] -= 1  # Уменьшаем кол-во
-                gamer.set_items(items)  # Обновляем данные в объекте игрока
-                engine.save_data(data)
-                gamer.save()
-                return f'Стрик {project.get_name()} заморожен'
-        else:
-            return 'Для этого проекта не установлен дедлайн'
-
-    elif do == '?':
-        return 'Заморозка позволяет засчитать день в стрике без написания кода.'
+    pass
 
 def freeze_global_func(do, add=None):
     if do == 'use':
@@ -362,7 +340,7 @@ def freeze_global_func(do, add=None):
 
 # Инициализация объектов
 
-freeze_local = FuncItem('Заморозка для проекта', func=freeze_local_func, price=100, item_type='Предметы', level=3,
+freeze_local = FuncItem('Заморозка для проекта', price=100, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном')
 freeze_global = FuncItem('Глобальная заморозка', func=freeze_global_func, price=200, item_type='Предметы', level=3, description='Глобальная заморощка позволяет заморозить глобальный стрик')
 

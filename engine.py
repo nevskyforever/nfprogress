@@ -62,7 +62,7 @@ last_update = '22.02.26'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    return date(2026, 3, 3)
+    return date(2026, 3, 14)
     return date.today()
 
 
@@ -218,6 +218,9 @@ class Project:
         if today_goal == 0:
             return 'No'
 
+        # Если статус уже установлен как Freeze и это сегодняшний день
+        if self.streak_status == 'Freeze' and self.streaks and self.streaks[-1] == today:
+            return 'Freeze'
         # Проверяем выполнение цели сегодня
         if today_added >= today_goal:
             if len(self.streaks) == 0:
@@ -229,6 +232,8 @@ class Project:
                 # Стрик уже продлен сегодня
                 self.streak_status = 'Done'
                 return 'Done'
+            elif self.streak_status == 'Freeze':
+                return 'Freeze'
             elif self.streaks[-1] == yesterday:
                 # Продление стрика
                 self.streaks.append(today)
@@ -274,6 +279,10 @@ class Project:
             if msg_type == 'min':
                 return '🔥 стрик Начат'
             return f'🔥 Стрик в {self.name} начат! Отличное начало, главное - продолжать!'
+        elif status == 'Freeze':
+            if msg_type == 'min':
+                return f'❄️ Стрик заморожен'
+            return f'❄️ Стрик в {self.name} заморожен'
         elif status == 'Go':
             streaks = len(self.streaks)
             if msg_type == 'min':
@@ -533,51 +542,54 @@ def global_streak_status(data, today=None):
     has_active_streak_today = False
     projects = data.get('projects', {})
 
-    for project_name, project in projects.items():
-        if hasattr(project, 'get_streak_status'):
-            project_status = project.get_streak_status()
-            # Проверяем, что статус проекта указывает на активный стрик сегодня
-            if project_status in ['Start', 'Go', 'Done']:
-                has_active_streak_today = True
-                break
-
-    # 1) Проверка потери глобального стрика
-    if len(streak) > 0 and streak[-1] != yesterday and streak[-1] != today:
-        lose = len(streak)
-        data['global_streaks'] = []   # очищаем стрик
-        streak = data['global_streaks']
-        status = f'Lose {lose}'        # устанавливаем статус потери
-
-    # 2) Обновление глобального стрика на основе проектов
-    if has_active_streak_today:
-        if len(streak) == 0:
-            streak.append(today)
-            status = 'Start'
-        elif streak[-1] == today:
-            if len(streak) > max_streak:
-                max_streak = len(streak)
-            status = 'Done'
-        elif streak[-1] == yesterday:
-            streak.append(today)
-            if len(streak) > max_streak:
-                max_streak = len(streak)
-            status = 'Go'
-        else:
-            # Если есть разрыв, начинаем новый стрик
-            streak.clear()
-            streak.append(today)
-            status = 'Start'
+    if data['global_streak_status'] == 'Freeze' and streak and streak[-1] == today:
+        return 'Freeze'
     else:
-        # Нет активных проектов сегодня
-        if status == 'No' and prev_status.startswith('Lose'):
-            # Сохраняем предыдущий статус потери, чтобы сообщение не исчезало сразу
-            status = prev_status
-        # Иначе status остаётся 'No' (если не был установлен как 'Lose' выше)
+        for project_name, project in projects.items():
+            if hasattr(project, 'get_streak_status'):
+                project_status = project.get_streak_status()
+                # Проверяем, что статус проекта указывает на активный стрик сегодня
+                if project_status in ['Start', 'Go', 'Done']:
+                    has_active_streak_today = True
+                    break
 
-    data['max_global_streak'] = max_streak
-    data['global_streak_status'] = status
-    save_data(data)
-    return status
+        # 1) Проверка потери глобального стрика
+        if len(streak) > 0 and streak[-1] != yesterday and streak[-1] != today:
+            lose = len(streak)
+            data['global_streaks'] = []   # очищаем стрик
+            streak = data['global_streaks']
+            status = f'Lose {lose}'        # устанавливаем статус потери
+
+        # 2) Обновление глобального стрика на основе проектов
+        if has_active_streak_today:
+            if len(streak) == 0:
+                streak.append(today)
+                status = 'Start'
+            elif streak[-1] == today:
+                if len(streak) > max_streak:
+                    max_streak = len(streak)
+                status = 'Done'
+            elif streak[-1] == yesterday:
+                streak.append(today)
+                if len(streak) > max_streak:
+                    max_streak = len(streak)
+                status = 'Go'
+            else:
+                # Если есть разрыв, начинаем новый стрик
+                streak.clear()
+                streak.append(today)
+                status = 'Start'
+        else:
+            # Нет активных проектов сегодня
+            if status == 'No' and prev_status.startswith('Lose'):
+                # Сохраняем предыдущий статус потери, чтобы сообщение не исчезало сразу
+                status = prev_status
+            # Иначе status остаётся 'No' (если не был установлен как 'Lose' выше)
+
+        data['max_global_streak'] = max_streak
+        data['global_streak_status'] = status
+        save_data(data)
+        return status
 
 def global_streak_status_msg(data, status=None):
     """Сообщение для глобального стрика по статусу."""
@@ -592,6 +604,8 @@ def global_streak_status_msg(data, status=None):
         return f'🚀 Глобальный стрик продлен! Дней подряд: {len(streak)}'
     elif status == 'Done':
         return '✌️ Глобальный стрик сегодня уже продлен.'
+    elif status == 'Freeze':
+        return '❄️ Глобальный стрик заморожен'
     elif isinstance(status, str) and status.startswith('Lose '):
         parts = status.split()
         if len(parts) == 2 and parts[1].isdigit():

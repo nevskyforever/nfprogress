@@ -4,11 +4,16 @@
 """
 Модуль для связи игрового интерфейса (main_window.py) с игровой логикой (game.py, game_data.py)
 """
-from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel
-from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
+from PySide6.QtCore import QTimer, Qt
+
+from UI_fiiles.freeze_project import Ui_freeze_projrct
+
+import datetime
+
 import game
 import game_data
-
+from engine import load_data, save_data, today_for_test
 
 class GameMenuController:
     """Класс для управления игровым меню"""
@@ -253,13 +258,27 @@ class GameMenuController:
             item_obj = game_data.ITEM_REGISTRY[category][item_name]
 
             # Проверяем, можно ли использовать этот предмет
-            if not hasattr(item_obj, 'use'):
-                QMessageBox.information(
-                    self.ui.centralwidget,
-                    "Информация",
-                    f"{item_name} нельзя использовать"
-                )
-                return
+            if category in game_data.ITEM_REGISTRY and item_name in game_data.ITEM_REGISTRY[category]:
+                item_obj = game_data.ITEM_REGISTRY[category][item_name]
+
+                # Проверяем особые предметы (Заморозка для проекта)
+                if item_name == 'Заморозка для проекта':
+                    self.freeze_project()
+                    # Уменьшаем количество предметов
+                    self.gamer.items[category][item_name] -= 1
+                    self.gamer.save()
+                    self.update_inventory()
+                    self.update_game_data()
+                    return  # ВАЖНО: выходим из метода, чтобы не выполнялась дальнейшая проверка
+
+                # Проверяем, можно ли использовать этот предмет
+                if not hasattr(item_obj, 'use'):
+                    QMessageBox.information(
+                        self.ui.centralwidget,
+                        "Информация",
+                        f"{item_name} нельзя использовать"
+                    )
+                    return
 
             # Используем предмет count раз
             result_messages = []
@@ -530,3 +549,100 @@ class GameMenuController:
         self.update_inventory()
         self.notifications.show_success(result)
         return result
+
+    def freeze_project(self):
+        dialog = FreezeProject()
+        result = dialog.exec_()
+        if result == QDialog.Accepted:
+            msg = dialog.freeze()
+            self.gamer.items['Предметы']['Заморозка для проекта'] -= 1
+            self.gamer.save()
+            self.update_inventory()
+            self.notifications.show_success(msg)
+        dialog.close()
+
+
+class FreezeProject(QDialog, Ui_freeze_projrct):
+    def __init__(self):
+        super().__init__()
+        self.setupUi(self)
+        self.load_projects()
+
+    def load_projects(self):
+        """Загружает проекты, которые можно заморозить"""
+        # Загружаем данные
+        data = load_data()
+        today = today_for_test()
+        yesterday = today - datetime.timedelta(days=1)
+
+        projects = list(data['projects'].values())
+
+        # Очищаем список
+        self.list_projects.clear()
+
+        for project in projects:
+            # Проверяем, есть ли у проекта стрики
+            if not project.streaks:
+                continue
+
+            # Получаем последний день стрика
+            last_streak_day = project.streaks[-1]
+
+            # Получаем статус стрика
+            streak_status = project.get_streak_status()
+
+            # Отладочный вывод
+            print(f"Проект: {project.name}")
+            print(f"  Последний день стрика: {last_streak_day}")
+            print(f"  Статус: {streak_status}")
+            print(f"  Можно заморозить: {last_streak_day == yesterday and streak_status in ['Active', 'Freeze']}")
+
+            # Проект можно заморозить если последний стрик был вчера
+            # и статус 'Active' (активный, но не продленный)
+            if last_streak_day == yesterday and streak_status in ['Active', 'Freeze']:
+                display_text = f"{project.name} (стрик: {len(project.streaks)} дн.)"
+                item = QListWidgetItem(display_text)
+                # Сохраняем объект проекта или его имя для последующего использования
+                item.setData(1, project.name)
+                self.list_projects.addItem(item)
+
+        # Если нет проектов для заморозки, показываем информационное сообщение
+        if self.list_projects.count() == 0:
+            item = QListWidgetItem("❌ Нет проектов для заморозки")
+            item.setFlags(item.flags() & ~Qt.ItemIsSelectable)  # делаем невыбираемым
+            self.list_projects.addItem(item)
+            # Делаем кнопку подтверждения неактивной
+            self.buttonBox.setEnabled(False)
+        else:
+            self.buttonBox.setEnabled(True)
+
+    def freeze(self):
+        """Заморозка выбранного проекта"""
+        current_item = self.list_projects.currentItem()
+        if not current_item:
+            return "Выберите проект для заморозки"
+
+        project_name = current_item.data(1)
+        if not project_name:
+            return "Ошибка: не удалось определить проект"
+
+        data = load_data()
+        today = today_for_test()
+
+        if project_name in data['projects']:
+            project = data['projects'][project_name]
+
+            # Добавляем сегодняшний день в стрик (заморозка)
+            project.streaks.append(today)
+            project.streak_status = 'Freeze'
+            data['global_streak_status'] = 'Freeze'
+
+            # Обновляем максимальный стрик если нужно
+            if len(project.streaks) > project.max_streak:
+                project.max_streak = len(project.streaks)
+
+            data['projects'][project_name] = project
+            save_data(data)
+            return f'Проект "{project_name}" заморожен!'
+
+        return f'Ошибка: проект "{project_name}" не найден'
