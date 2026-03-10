@@ -20,13 +20,6 @@ from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
 
 
-def resource_path(relative_path):
-    """Получить путь к ресурсу, работает и в .py, и в .app"""
-    if hasattr(sys, '_MEIPASS'):
-        # PyInstaller создает временную папку и хранит путь в _MEIPASS
-        return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
-
 class MainWindow(QMainWindow, main_window_ui):
     def __init__(self):
         super().__init__()

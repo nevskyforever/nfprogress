@@ -254,7 +254,10 @@ def load_game():
     """Загружает данные игрока из кроссплатформенной директории"""
     data_file = get_data_file_path()
 
-    with open(data_file, 'rb') as f:
-        gamer = pickle.load(f)
-        gamer.check_integrity()
-        return gamer
+    try:
+        with open(data_file, 'rb') as f:
+            gamer = pickle.load(f)
+            gamer.check_integrity()
+            return gamer
+    except (FileNotFoundError, EOFError):
+        return Gamer()
