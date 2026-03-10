@@ -614,5 +614,38 @@ def global_streak_status_msg(data, status=None):
 
     return '😴 Глобальный стрик не начат'
 
+def unit_converter(unit, value, convert_to=None):
+    """
+    Конвертирует количество value из исходной единицы unit в целевую единицу convert_to.
+    Если convert_to не указан или равен False, конвертирует в символы.
+
+    Поддерживаемые единицы:
+        'symbols'       – символы
+        'A4'            – страницы A4 (1 стр. = 1800 символов)
+        'author_list'   – авторские листы (1 а.л. = 40 000 символов)
+        'ficbook_pages' – страницы Ficbook (1 стр. = 4500 символов)
+
+    Возвращает число, округлённое до двух знаков, или None, если единицы не поддерживаются.
+    """
+    factors = {
+        'symbols': 1,
+        'A4': 1800,
+        'author_list': 40000,
+        'ficbook_pages': 4500
+    }
+
+    # Если целевая единица не задана (None или False) – конвертируем в символы
+    if convert_to in (None, False):
+        convert_to = 'symbols'
+
+    # Проверяем, что обе единицы есть в словаре
+    if unit not in factors or convert_to not in factors:
+        return None
+
+    # Приводим исходное значение к символам, затем к целевой единице
+    symbols_value = value * factors[unit]
+    result = symbols_value / factors[convert_to]
+    return round(result, 2)
+
 # При импорте модуля создаём директорию для данных
 get_app_data_dir()
