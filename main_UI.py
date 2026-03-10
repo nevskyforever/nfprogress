@@ -8,8 +8,7 @@ from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem
 
 import engine as en
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
-from UI_fiiles.create_project import Ui_d_create_project as create_project_ui
-from UI_fiiles.edit_project import Ui_edit_project as edit_project_ui
+from UI_fiiles.create_project import Ui_create_project as create_project_ui
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.notification import ToastNotification
 from UI_fiiles.project_widget import ProjectWidget
@@ -848,10 +847,11 @@ class CreateProject(QDialog, create_project_ui):
         self.buttons.setEnabled(buttons_enabled)
 
 
-class EditProject(QDialog, edit_project_ui):
+class EditProject(QDialog, create_project_ui):
     def __init__(self, old_name=""):
         super().__init__()
         self.setupUi(self)
+        self.setWindowTitle('Изменение проекта')
 
         # Сохраняем старое имя проекта
         self.old_name = old_name
