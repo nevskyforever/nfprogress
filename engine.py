@@ -70,7 +70,7 @@ class Project:
     def __init__(self, name='Без имени', goal=None,
                  create_date=None, total_symbols=0, progress=0,
                  notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
-                 status='активен'):
+                 status='активен', unit='symbols'):
 
         self._name = name
         self._goal = goal
@@ -84,7 +84,7 @@ class Project:
         self.streaks = streaks if streaks else []
         self.max_streak = max_streak if max_streak else 0
         self.streak_status = streak_status
-        self.unit = 'symbols'
+        self.unit = unit
 
     def migrate(self):
         """

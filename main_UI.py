@@ -88,10 +88,16 @@ class MainWindow(QMainWindow, main_window_ui):
         dialog = CreateProject()
         result = dialog.exec()
 
+        units_for_set = {'Символы': 'symbols',
+                         'Листы А4': 'A4',
+                         'Авторские листы': 'author_list',
+                         'Страницы Фикбука': 'ficbook_pages'}
+
         if result == QDialog.Accepted:
             data = en.load_data()
             name = dialog.le_name.text()
             goal = int(dialog.le_goal.text())
+            unit = units_for_set[dialog.cb_unit.currentText()]
 
             if dialog.checkBox.isChecked():
                 deadline = 'Нет'
@@ -101,7 +107,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             total = int(dialog.le_total_symbols.text())
 
-            new_project = en.Project(name=name, goal=goal, deadline=deadline, total_symbols=total)
+            new_project = en.Project(name=name, goal=goal, deadline=deadline, total_symbols=total, unit=unit)
             data['projects'][new_project.name] = new_project
             en.save_data(data)
 
@@ -213,11 +219,17 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def show_project_info(self, project):
         """Заполняет виджеты информацией о проекте"""
+        units_for_view = {'symbols': 'Символы',
+                          'A4': 'Листы А4',
+                          'author_list': 'Авторские листы',
+                          'ficbook_pages': 'Страницы Фикбука'}
+
         # Основная информация
         self.status.setText(project.status)
         self.progress.setText(f"{project.progress:.1f}%")
         self.goal.setText(str(project.goal))
         self.total.setText(str(project.total_symbols))
+        self.unit.setText(f'{units_for_view[project.unit]}')
 
         # Статистика за сегодня
         today_added = project.get_added_symbols_today_value()
@@ -480,7 +492,13 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def edit_project(self, project):
         old_name = project.name
-        dialog = EditProject(old_name=old_name)
+        old_unit = project.unit
+        dialog = EditProject(old_name=old_name, old_unit=old_unit)
+
+        units_for_set = {'Символы': 'symbols',
+                         'Листы А4': 'A4',
+                         'Авторские листы': 'author_list',
+                         'Страницы Фикбука': 'ficbook_pages'}
 
         # Заполняем поля
         dialog.le_name.setText(project.name)
@@ -503,6 +521,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 name = dialog.le_name.text()
                 goal = int(dialog.le_goal.text())
                 total = int(dialog.le_total_symbols.text())
+                unit = units_for_set[dialog.cb_unit.currentText()]
 
                 if dialog.checkBox.isChecked():
                     deadline = 'Нет'
@@ -522,6 +541,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     project.goal = goal
                     project.total_symbols = total
                     project.deadline = deadline
+                    project.unit = unit
 
                     # Добавляем проект с новым именем
                     data['projects'][name] = project
@@ -531,6 +551,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     project.goal = goal
                     project.total_symbols = total
                     project.deadline = deadline
+                    project.unit = unit
 
                     # Сохраняем изменения
                     data = en.load_data()
@@ -766,7 +787,7 @@ class ConfirmDialog(QDialog, confirm_dialog_ui):
 
 
 class CreateProject(QDialog, create_project_ui):
-    def __init__(self):
+    def __init__(self, project=None):
         super().__init__()
         self.setupUi(self)
 
@@ -789,6 +810,12 @@ class CreateProject(QDialog, create_project_ui):
         # Устанавливаем начальное состояние
         self.buttons.setDisabled(True)
         self.on_checkbox_toggled(self.checkBox.isChecked())
+        if project:
+            units_for_view = {'symbols': 'Символы',
+                              'A4': 'Листы A4',
+                              'author_list': 'Авторские листы',
+                              'ficbook_pages': 'Страницы Фикбука'}
+            self.cb_unit.setCurrentText(f'{units_for_view[project.unit]}')
 
         # Вызываем проверку после того, как все подключено
         QTimer.singleShot(0, self.all_data_ok)
@@ -848,12 +875,12 @@ class CreateProject(QDialog, create_project_ui):
 
 
 class EditProject(QDialog, create_project_ui):
-    def __init__(self, old_name=""):
+    def __init__(self, old_name="", old_unit='symbols'):
         super().__init__()
         self.setupUi(self)
         self.setWindowTitle('Изменение проекта')
 
-        # Сохраняем старое имя проекта
+        # Сохраняем старое имя проекта и ю
         self.old_name = old_name
 
         # Скрываем предупреждения при создании
@@ -875,6 +902,11 @@ class EditProject(QDialog, create_project_ui):
         # Устанавливаем начальное состояние
         self.buttons.setDisabled(True)
         self.on_checkbox_toggled(self.checkBox.isChecked())
+        units_for_view = {'symbols': 'Символы',
+                          'A4': 'Листы A4',
+                          'author_list': 'Авторские листы',
+                          'ficbook_pages': 'Страницы Фикбука'}
+        self.cb_unit.setCurrentText(f'{units_for_view[old_unit]}')
 
         # Вызываем проверку после того, как все подключено
         from PySide6.QtCore import QTimer
