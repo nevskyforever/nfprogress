@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'create_projectNRHeVJ.ui'
+## Form generated from reading UI file 'create_projectjvnbJs.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -180,7 +180,7 @@ class Ui_create_project(object):
         self.label_2.setText(QCoreApplication.translate("create_project", u"\u0426\u0435\u043b\u044c", None))
         self.label_7.setText(QCoreApplication.translate("create_project", u"\u0427\u0442\u043e \u043e\u0442\u0441\u043b\u0435\u0436\u0438\u0432\u0430\u0435\u043c:", None))
         self.cb_unit.setItemText(0, QCoreApplication.translate("create_project", u"\u0421\u0438\u043c\u0432\u043e\u043b\u044b", None))
-        self.cb_unit.setItemText(1, QCoreApplication.translate("create_project", u"\u041b\u0438\u0441\u0442\u044b \u04104", None))
+        self.cb_unit.setItemText(1, QCoreApplication.translate("create_project", u"\u041b\u0438\u0441\u0442\u044b A4", None))
         self.cb_unit.setItemText(2, QCoreApplication.translate("create_project", u"\u0410\u0432\u0442\u043e\u0440\u0441\u043a\u0438\u0435 \u043b\u0438\u0441\u0442\u044b", None))
         self.cb_unit.setItemText(3, QCoreApplication.translate("create_project", u"\u0421\u0442\u0440\u0430\u043d\u0438\u0446\u044b \u0424\u0438\u043a\u0431\u0443\u043a\u0430", None))
 

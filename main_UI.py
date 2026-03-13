@@ -89,7 +89,7 @@ class MainWindow(QMainWindow, main_window_ui):
         result = dialog.exec()
 
         units_for_set = {'Символы': 'symbols',
-                         'Листы А4': 'A4',
+                         'Листы A4': 'A4',
                          'Авторские листы': 'author_list',
                          'Страницы Фикбука': 'ficbook_pages'}
 
