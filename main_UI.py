@@ -903,7 +903,7 @@ class EditProject(QDialog, create_project_ui):
         self.buttons.setDisabled(True)
         self.on_checkbox_toggled(self.checkBox.isChecked())
         units_for_view = {'symbols': 'Символы',
-                          'A4': 'Листы A4',
+                          'A4': 'Листы А4',
                           'author_list': 'Авторские листы',
                           'ficbook_pages': 'Страницы Фикбука'}
         self.cb_unit.setCurrentText(f'{units_for_view[old_unit]}')
