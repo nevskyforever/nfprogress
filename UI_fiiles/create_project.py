@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'create_projectmyFBsc.ui'
+## Form generated from reading UI file 'create_projectAZyhmr.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
