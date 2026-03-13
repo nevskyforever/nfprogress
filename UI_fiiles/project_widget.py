@@ -268,18 +268,22 @@ class ProjectWidget(QWidget, Ui_Form):
         self.circular_progress.setTextVisible(False)
         self.circular_progress.setRingWidth(12)
 
+        # ВАЖНО: Устанавливаем фиксированный размер ДО добавления в сетку
+        self.circular_progress.setFixedSize(90, 90)
+
         # Устанавливаем цвета градиента
         self.circular_progress.setStartColor("#FF0000")  # красный для 0%
         self.circular_progress.setEndColor("#4CAF50")  # зелёный для 100%
-
         self.circular_progress.setBackgroundColor("#E0E0E0")
-        self.circular_progress.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        # Убираем Expanding политику, так как размер фиксированный
+        self.circular_progress.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
         # 4. Заменяем старый прогресс-бар в сетке
         self.gridLayout.addWidget(self.circular_progress, 1, 0, 1, 1)
 
-        # 5. Настраиваем растяжение строк сетки:
-        self.gridLayout.setRowStretch(1, 1)  # круговой прогресс-бар
+        # 5. Центрируем в ячейке
+        self.gridLayout.setAlignment(self.circular_progress, Qt.AlignCenter)
         for row in (0, 2, 3, 4, 5):
             self.gridLayout.setRowStretch(row, 0)
 
