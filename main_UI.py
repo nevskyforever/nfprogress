@@ -88,16 +88,23 @@ class MainWindow(QMainWindow, main_window_ui):
         dialog = CreateProject()
         result = dialog.exec()
 
-        units_for_set = {'Символы': 'symbols',
-                         'Листы A4': 'A4',
-                         'Авторские листы': 'author_list',
-                         'Страницы Фикбука': 'ficbook_pages'}
-
         if result == QDialog.Accepted:
             data = en.load_data()
-            name = dialog.le_name.text()
-            goal = int(dialog.le_goal.text())
-            unit = units_for_set[dialog.cb_unit.currentText()]
+
+            name = dialog.le_name.text().strip()
+            # Получаем значения в символах (уже сконвертированные)
+            goal = dialog.goal_in_symbols
+            total = dialog.total_in_symbols
+            unit_text = dialog.cb_unit.currentText()
+
+            # Преобразуем отображаемое название единицы во внутренний код
+            units_for_set = {
+                'Символы': 'symbols',
+                'Листы A4': 'A4',
+                'Авторские листы': 'author_list',
+                'Страницы Фикбука': 'ficbook_pages'
+            }
+            unit = units_for_set[unit_text]
 
             if dialog.checkBox.isChecked():
                 deadline = 'Нет'
@@ -105,9 +112,13 @@ class MainWindow(QMainWindow, main_window_ui):
                 qdate = dialog.de_deadline.date()
                 deadline = qdate.toPython()
 
-            total = int(dialog.le_total_symbols.text())
-
-            new_project = en.Project(name=name, goal=goal, deadline=deadline, total_symbols=total, unit=unit)
+            new_project = en.Project(
+                name=name,
+                goal=goal,
+                deadline=deadline,
+                total_symbols=total,
+                unit=unit
+            )
             data['projects'][new_project.name] = new_project
             en.save_data(data)
 
@@ -168,6 +179,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.global_streak_status.setVisible(False)
             self.refresh_projects()
             self.view_project()
+
     def edit_settings(self):
         dialog = Settings()
         result = dialog.exec()
@@ -491,84 +503,67 @@ class MainWindow(QMainWindow, main_window_ui):
             self.load_notes(project)
 
     def edit_project(self, project):
-        old_name = project.name
-        old_unit = project.unit
-        dialog = EditProject(old_name=old_name, old_unit=old_unit)
-
-        units_for_set = {'Символы': 'symbols',
-                         'Листы А4': 'A4',
-                         'Авторские листы': 'author_list',
-                         'Страницы Фикбука': 'ficbook_pages'}
-
-        # Заполняем поля
-        dialog.le_name.setText(project.name)
-        dialog.le_goal.setText(str(project.goal))
-        dialog.le_total_symbols.setText(str(project.total_symbols))
-
-        if project.deadline != 'Нет':
-            dialog.checkBox.setChecked(False)
-            qdate = QDate(project.deadline.year, project.deadline.month, project.deadline.day)
-            dialog.de_deadline.setDate(qdate)
-        else:
-            dialog.checkBox.setChecked(True)
-            dialog.de_deadline.setDisabled(True)
-
+        # Создаём диалог, передавая объект проекта
+        dialog = EditProject(project)
         result = dialog.exec()
 
         if result == QDialog.Accepted:
-            try:
-                # Получаем новые значения
-                name = dialog.le_name.text()
-                goal = int(dialog.le_goal.text())
-                total = int(dialog.le_total_symbols.text())
-                unit = units_for_set[dialog.cb_unit.currentText()]
+            data = en.load_data()
+            old_name = project.name
 
-                if dialog.checkBox.isChecked():
-                    deadline = 'Нет'
-                else:
-                    qdate = dialog.de_deadline.date()
-                    deadline = qdate.toPython()
+            # Получаем новые значения
+            new_name = dialog.le_name.text().strip()
+            new_goal = dialog.goal_in_symbols
+            new_total = dialog.total_in_symbols
+            new_unit_text = dialog.cb_unit.currentText()
 
-                # Если имя изменилось, нужно удалить старый ключ и создать новый
-                if old_name != name:
-                    # Удаляем проект из словаря по старому имени
-                    data = en.load_data()
-                    if old_name in data['projects']:
-                        del data['projects'][old_name]
+            # Преобразуем текст единицы во внутренний код
+            units_for_set = {
+                'Символы': 'symbols',
+                'Листы A4': 'A4',
+                'Авторские листы': 'author_list',
+                'Страницы Фикбука': 'ficbook_pages'
+            }
+            new_unit = units_for_set[new_unit_text]
 
-                    # Обновляем поля проекта
-                    project.name = name
-                    project.goal = goal
-                    project.total_symbols = total
-                    project.deadline = deadline
-                    project.unit = unit
+            if dialog.checkBox.isChecked():
+                new_deadline = 'Нет'
+            else:
+                qdate = dialog.de_deadline.date()
+                new_deadline = qdate.toPython()
 
-                    # Добавляем проект с новым именем
-                    data['projects'][name] = project
-                    en.save_data(data)
-                else:
-                    # Имя не изменилось, просто обновляем поля
-                    project.goal = goal
-                    project.total_symbols = total
-                    project.deadline = deadline
-                    project.unit = unit
+            # Если имя изменилось, удаляем старую запись и создаём новую
+            if old_name != new_name:
+                # Удаляем старый проект из словаря
+                if old_name in data['projects']:
+                    del data['projects'][old_name]
 
-                    # Сохраняем изменения
-                    data = en.load_data()
-                    data['projects'][project.name] = project
-                    en.save_data(data)
+                # Обновляем поля проекта
+                project.name = new_name
+                project.goal = new_goal
+                project.total_symbols = new_total
+                project.deadline = new_deadline
+                project.unit = new_unit
 
-                # Полностью обновляем список проектов
-                self.refresh_projects()
+                # Сохраняем под новым именем
+                data['projects'][new_name] = project
+            else:
+                # Имя не изменилось — просто обновляем поля
+                project.goal = new_goal
+                project.total_symbols = new_total
+                project.deadline = new_deadline
+                project.unit = new_unit
 
-                # Выделяем измененный проект по новому имени
-                self.select_project_by_name(project.name)
-                self.name_selected_project.setText(project.name)
-                self.view_project()
-                self.notifications.show_success(f'Изменения в {project.name} сохранены', position="bottom-left")
+                data['projects'][project.name] = project
 
-            except ValueError as e:
-                self.notifications.show_error(f"Ошибка при сохранении: {e}")
+            en.save_data(data)
+
+            # Обновляем интерфейс
+            self.refresh_projects()
+            self.select_project_by_name(project.name)
+            self.name_selected_project.setText(project.name)
+            self.view_project()
+            self.notifications.show_success(f'Изменения в {project.name} сохранены', position="bottom-left")
 
     def complete_project(self, project):
         """Завершает проект"""
@@ -785,193 +780,278 @@ class ConfirmDialog(QDialog, confirm_dialog_ui):
         super().__init__()
         self.setupUi(self)
 
-
 class CreateProject(QDialog, create_project_ui):
-    def __init__(self, project=None):
-        super().__init__()
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setupUi(self)
 
-        # Скрываем предупреждения при создании
+        # Словари для преобразования текст → код и код → текст
+        self.text_to_unit = {
+            'Символы': 'symbols',
+            'Листы A4': 'A4',
+            'Авторские листы': 'author_list',
+            'Страницы Фикбука': 'ficbook_pages'
+        }
+        self.unit_to_text = {v: k for k, v in self.text_to_unit.items()}
+
+        # Текущий код единицы (по умолчанию берём из первого пункта комбобокса)
+        self.current_unit_code = self.text_to_unit[self.cb_unit.currentText()]
+
+        # Скрываем предупреждения
         self.incorrect_name.setVisible(False)
         self.incorrect_data.setVisible(False)
 
-        # Подключаем сигнал чекбокса к обработчику
+        # Подключаем сигналы
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
         self.checkBox.toggled.connect(self.all_data_ok)
-
-        # Подключаем сигнал изменения даты
         self.de_deadline.dateChanged.connect(self.all_data_ok)
-
-        # Подключаем сигналы изменения текста
         self.le_name.textChanged.connect(self.all_data_ok)
         self.le_goal.textChanged.connect(self.all_data_ok)
         self.le_total_symbols.textChanged.connect(self.all_data_ok)
+        self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
 
-        # Устанавливаем начальное состояние
+        # Начальное состояние
         self.buttons.setDisabled(True)
         self.on_checkbox_toggled(self.checkBox.isChecked())
-        if project:
-            units_for_view = {'symbols': 'Символы',
-                              'A4': 'Листы A4',
-                              'author_list': 'Авторские листы',
-                              'ficbook_pages': 'Страницы Фикбука'}
-            self.cb_unit.setCurrentText(f'{units_for_view[project.unit]}')
 
-        # Вызываем проверку после того, как все подключено
+        # Вызываем проверку после инициализации
+        from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.all_data_ok)
 
     def on_checkbox_toggled(self, checked):
-        """Обработчик изменения состояния чекбокса"""
-        if checked:  # Если чекбокс отмечен (Нет дедлайна)
+        """Обработчик чекбокса "Нет дедлайна"."""
+        if checked:
             self.de_deadline.setDisabled(True)
-            self.incorrect_data.setVisible(False)  # Скрываем сообщение о дедлайне
-        else:  # Если чекбокс не отмечен (Есть дедлайн)
+            self.incorrect_data.setVisible(False)
+        else:
             self.de_deadline.setEnabled(True)
-            # Проверим дату сразу при включении
             self.all_data_ok()
 
+    def on_unit_changed(self, new_unit_text):
+        """Конвертирует значения полей при смене единицы."""
+        new_unit_code = self.text_to_unit[new_unit_text]
+
+        # Если поля пустые или содержат не число — просто обновляем текущий код
+        try:
+            goal_val = float(self.le_goal.text())
+            total_val = float(self.le_total_symbols.text())
+        except ValueError:
+            self.current_unit_code = new_unit_code
+            return
+
+        # Конвертируем из старого кода в новый код
+        new_goal = en.unit_converter(self.current_unit_code, goal_val, new_unit_code)
+        new_total = en.unit_converter(self.current_unit_code, total_val, new_unit_code)
+
+        # Обновляем поля (округляем до двух знаков, как в unit_converter)
+        self.le_goal.setText(str(new_goal))
+        self.le_total_symbols.setText(str(new_total))
+
+        self.current_unit_code = new_unit_code
+
     def all_data_ok(self):
-        """Проверяет заполненность полей и включает/выключает кнопки"""
-        # Получаем список существующих проектов из словаря
+        """Валидация полей."""
         data = en.load_data()
         existing_names = list(data['projects'].keys())
 
-        # Проверяем имя
         current_name = self.le_name.text().strip()
         name_filled = bool(current_name)
         name_incorrect = current_name in existing_names and current_name != ""
         self.incorrect_name.setVisible(name_incorrect)
 
-        # Проверяем дату дедлайна (только если чекбокс НЕ отмечен)
         deadline_incorrect = False
         if not self.checkBox.isChecked():
             deadline_incorrect = self.de_deadline.date() <= en.today_for_test()
             self.incorrect_data.setVisible(deadline_incorrect)
         else:
-            # Если чекбокс отмечен, скрываем сообщение о дедлайне
             self.incorrect_data.setVisible(False)
 
-        # Проверяем, что поле goal содержит только цифры и не пустое
         goal_text = self.le_goal.text().strip()
-        goal_filled = goal_text.isdigit() if goal_text else False
+        goal_filled = self._is_float(goal_text) if goal_text else False
 
-        # Проверяем, что поле total_symbols содержит только цифры и не пустое
         total_text = self.le_total_symbols.text().strip()
-        total_filled = total_text.isdigit() if total_text else False
+        total_filled = self._is_float(total_text) if total_text else False
 
-        # Кнопки включены только если:
-        # - имя заполнено И имя НЕ используется
-        # - цель заполнена цифрами
-        # - total_symbols заполнен цифрами
-        # - (если дедлайн есть) дата корректна
         if self.checkBox.isChecked():
-            # Если дедлайна нет, не проверяем дату
             buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled
         else:
-            # Если дедлайн есть, проверяем и дату
             buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled and not deadline_incorrect
 
         self.buttons.setEnabled(buttons_enabled)
 
+    @staticmethod
+    def _is_float(s):
+        try:
+            float(s)
+            return True
+        except ValueError:
+            return False
+
+    @property
+    def goal_in_symbols(self):
+        """Возвращает цель в символах (для сохранения)."""
+        try:
+            val = float(self.le_goal.text())
+        except ValueError:
+            return 0
+        return en.unit_converter(self.current_unit_code, val, 'symbols')
+
+    @property
+    def total_in_symbols(self):
+        """Возвращает текущее количество в символах (для сохранения)."""
+        try:
+            val = float(self.le_total_symbols.text())
+        except ValueError:
+            return 0
+        return en.unit_converter(self.current_unit_code, val, 'symbols')
 
 class EditProject(QDialog, create_project_ui):
-    def __init__(self, old_name="", old_unit='symbols'):
-        super().__init__()
+    def __init__(self, project, parent=None):
+        super().__init__(parent)
         self.setupUi(self)
         self.setWindowTitle('Изменение проекта')
 
-        # Сохраняем старое имя проекта и ю
-        self.old_name = old_name
+        self.project = project
 
-        # Скрываем предупреждения при создании
+        # Словари для преобразования текст ↔ код
+        self.text_to_unit = {
+            'Символы': 'symbols',
+            'Листы A4': 'A4',
+            'Авторские листы': 'author_list',
+            'Страницы Фикбука': 'ficbook_pages'
+        }
+        self.unit_to_text = {v: k for k, v in self.text_to_unit.items()}
+
+        # Текущий код единицы (берём из проекта)
+        self.current_unit_code = project.unit
+        # Устанавливаем нужный пункт в комбобоксе
+        self.cb_unit.setCurrentText(self.unit_to_text[self.current_unit_code])
+
+        # Скрываем предупреждения
         self.incorrect_name.setVisible(False)
         self.incorrect_data.setVisible(False)
 
-        # Подключаем сигнал чекбокса к обработчику
+        # Заполняем поля
+        self.le_name.setText(project.name)
+
+        # Конвертируем goal и total из символов в текущую единицу проекта
+        self.le_goal.setText(str(en.unit_converter('symbols', project.goal, self.current_unit_code)))
+        self.le_total_symbols.setText(str(en.unit_converter('symbols', project.total_symbols, self.current_unit_code)))
+
+        # Дедлайн
+        if project.deadline != 'Нет':
+            self.checkBox.setChecked(False)
+            qdate = QDate(project.deadline.year, project.deadline.month, project.deadline.day)
+            self.de_deadline.setDate(qdate)
+        else:
+            self.checkBox.setChecked(True)
+            self.de_deadline.setDisabled(True)
+
+        # Подключаем сигналы
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
         self.checkBox.toggled.connect(self.all_data_ok)
-
-        # Подключаем сигнал изменения даты
         self.de_deadline.dateChanged.connect(self.all_data_ok)
-
-        # Подключаем сигналы изменения текста
         self.le_name.textChanged.connect(self.all_data_ok)
         self.le_goal.textChanged.connect(self.all_data_ok)
         self.le_total_symbols.textChanged.connect(self.all_data_ok)
+        self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
 
-        # Устанавливаем начальное состояние
+        # Начальное состояние
         self.buttons.setDisabled(True)
         self.on_checkbox_toggled(self.checkBox.isChecked())
-        units_for_view = {'symbols': 'Символы',
-                          'A4': 'Листы А4',
-                          'author_list': 'Авторские листы',
-                          'ficbook_pages': 'Страницы Фикбука'}
-        self.cb_unit.setCurrentText(f'{units_for_view[old_unit]}')
 
-        # Вызываем проверку после того, как все подключено
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.all_data_ok)
 
     def on_checkbox_toggled(self, checked):
-        """Обработчик изменения состояния чекбокса"""
-        if checked:  # Если чекбокс отмечен (Нет дедлайна)
+        """Обработчик чекбокса "Нет дедлайна"."""
+        if checked:
             self.de_deadline.setDisabled(True)
-            self.incorrect_data.setVisible(False)  # Скрываем сообщение о дедлайне
-        else:  # Если чекбокс не отмечен (Есть дедлайн)
+            self.incorrect_data.setVisible(False)
+        else:
             self.de_deadline.setEnabled(True)
-            # Проверим дату сразу при включении
             self.all_data_ok()
 
+    def on_unit_changed(self, new_unit_text):
+        """Конвертирует значения полей при смене единицы."""
+        new_unit_code = self.text_to_unit[new_unit_text]
+
+        try:
+            goal_val = float(self.le_goal.text())
+            total_val = float(self.le_total_symbols.text())
+        except ValueError:
+            self.current_unit_code = new_unit_code
+            return
+
+        # Конвертируем из старого кода в новый код
+        new_goal = en.unit_converter(self.current_unit_code, goal_val, new_unit_code)
+        new_total = en.unit_converter(self.current_unit_code, total_val, new_unit_code)
+
+        self.le_goal.setText(str(new_goal))
+        self.le_total_symbols.setText(str(new_total))
+
+        self.current_unit_code = new_unit_code
+
     def all_data_ok(self):
-        """Проверяет заполненность полей и включает/выключает кнопки"""
-        # Получаем список существующих проектов из словаря
+        """Валидация полей (с учётом старого имени проекта)."""
         data = en.load_data()
         existing_names = list(data['projects'].keys())
 
-        # Проверяем имя
         current_name = self.le_name.text().strip()
         name_filled = bool(current_name)
 
-        # Имя некорректно только если:
-        # 1. Имя не пустое
-        # 2. Имя отличается от старого
-        # 3. Такое имя уже существует в других проектах
+        # Имя некорректно, если оно уже есть и не равно старому имени проекта
         name_incorrect = False
-        if name_filled and current_name != self.old_name:
+        if name_filled and current_name != self.project.name:
             name_incorrect = current_name in existing_names
 
         self.incorrect_name.setVisible(name_incorrect)
 
-        # Проверяем дату дедлайна (только если чекбокс НЕ отмечен)
         deadline_incorrect = False
         if not self.checkBox.isChecked():
             deadline_incorrect = self.de_deadline.date() <= en.today_for_test()
             self.incorrect_data.setVisible(deadline_incorrect)
         else:
-            # Если чекбокс отмечен, скрываем сообщение о дедлайне
             self.incorrect_data.setVisible(False)
 
-        # Проверяем, что поле goal содержит только цифры и не пустое
         goal_text = self.le_goal.text().strip()
-        goal_filled = goal_text.isdigit() if goal_text else False
+        goal_filled = self._is_float(goal_text) if goal_text else False
 
-        # Проверяем, что поле total_symbols содержит только цифры и не пустое
         total_text = self.le_total_symbols.text().strip()
-        total_filled = total_text.isdigit() if total_text else False
+        total_filled = self._is_float(total_text) if total_text else False
 
-        # Кнопки включены только если:
-        # - имя заполнено И (имя не изменилось ИЛИ новое имя не занято)
-        # - цель заполнена цифрами
-        # - total_symbols заполнен цифрами
-        # - (если дедлайн есть) дата корректна
         if self.checkBox.isChecked():
-            # Если дедлайна нет, не проверяем дату
             buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled
         else:
-            # Если дедлайн есть, проверяем и дату
             buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled and not deadline_incorrect
 
         self.buttons.setEnabled(buttons_enabled)
+
+    @staticmethod
+    def _is_float(s):
+        try:
+            float(s)
+            return True
+        except ValueError:
+            return False
+
+    @property
+    def goal_in_symbols(self):
+        """Возвращает цель в символах (для сохранения)."""
+        try:
+            val = float(self.le_goal.text())
+        except ValueError:
+            return 0
+        return en.unit_converter(self.current_unit_code, val, 'symbols')
+
+    @property
+    def total_in_symbols(self):
+        """Возвращает текущее количество в символах (для сохранения)."""
+        try:
+            val = float(self.le_total_symbols.text())
+        except ValueError:
+            return 0
+        return en.unit_converter(self.current_unit_code, val, 'symbols')
 
 class NotificationManager:
     """Менеджер для показа уведомлений с поддержкой очереди и накопления."""
