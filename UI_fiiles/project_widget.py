@@ -120,8 +120,6 @@ class CircularProgressBar(QWidget):
         self._end_color = QColor(color)
         self.update()
 
-
-
     def _get_color_for_progress(self, progress):
         """Возвращает цвет на основе прогресса с плавной интерполяцией в цветовом пространстве"""
         ratio = max(0.0, min(1.0, progress / 100.0))
@@ -289,6 +287,12 @@ class ProjectWidget(QWidget, Ui_Form):
         for row in (0, 2, 3, 4, 5):
             self.gridLayout.setRowStretch(row, 1)
         self.gridLayout.setRowStretch(1, 0)
+
+        # Увеличиваем вертикальный промежуток между строками, чтобы текст не касался круга
+        self.gridLayout.setVerticalSpacing(15)
+
+        # Добавляем отступы от краёв виджета для лучшего визуального восприятия
+        self.gridLayout.setContentsMargins(10, 10, 10, 10)
 
         # 6. Обеспечиваем, что внутренний виджет-контейнер расширяется
         self.widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
