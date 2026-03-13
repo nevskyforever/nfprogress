@@ -32,33 +32,59 @@ class CircularProgressBar(QWidget):
         self._animation.setDuration(500)  # мс
         self._animation.setEasingCurve(QEasingCurve.OutCubic)
         self._animation.valueChanged.connect(self._on_animation_value_changed)
+        self._animation.finished.connect(self._on_animation_finished)
 
         self._initializing = True
+        self._target_value = 0  # Целевое значение для анимации
 
     def _on_animation_value_changed(self, value):
+        """Обновляет значение во время анимации"""
         self._value = value
         self.update()
 
+    def _on_animation_finished(self):
+        """Убеждаемся, что конечное значение точно установлено"""
+        self._value = self._target_value
+        self.update()
+
     def setValue(self, value, animated=True):
-        """Устанавливает значение прогресса (0-100)"""
+        """Устанавливает значение прогресса (0-100) с поддержкой анимации в обе стороны"""
         value = max(0, min(100, value))
+
+        # Если значение не изменилось, ничего не делаем
+        if abs(value - self._value) < 0.001 and not self._animation.state():
+            return
 
         if self._initializing:
             animated = False
             self._initializing = False
 
+        self._target_value = value
+
         if not animated:
+            # Без анимации - просто устанавливаем значение
+            self._animation.stop()
             self._value = value
             self.update()
             return
 
-        if abs(value - self._value) < 0.001:
-            return
-
+        # С анимацией - запускаем анимацию от текущего к целевому значению
         self._animation.stop()
         self._animation.setStartValue(self._value)
         self._animation.setEndValue(value)
         self._animation.start()
+
+    def stopAnimation(self):
+        """Останавливает текущую анимацию"""
+        self._animation.stop()
+
+    def setValueImmediate(self, value):
+        """Устанавливает значение мгновенно без анимации"""
+        value = max(0, min(100, value))
+        self._animation.stop()
+        self._value = value
+        self._target_value = value
+        self.update()
 
     def value(self):
         return self._value

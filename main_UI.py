@@ -447,15 +447,6 @@ class MainWindow(QMainWindow, main_window_ui):
         # Сохраняем старое значение для уведомления
         old_total_in_unit = project.total_symbols
 
-        # Проверяем, что новое значение больше текущего
-        if new_total_in_unit <= old_total_in_unit:
-            self.new_symbols.clear()
-            unit_name = self.unit_to_display.get(project.unit, project.unit)
-            self.notifications.show_error(
-                f'Новое значение должно быть больше текущего ({old_total_in_unit} {unit_name})!'
-            )
-            return
-
         # Конвертируем в символы для расчётов и сохранения в заметке
         new_total_symbols = en.unit_converter(project.unit, new_total_in_unit, 'symbols')
         current_total_symbols = project.get_total_symbols()
