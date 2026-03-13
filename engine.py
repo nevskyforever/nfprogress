@@ -687,7 +687,7 @@ def unit_converter(unit, value, convert_to=None):
     # Приводим исходное значение к символам, затем к целевой единице
     symbols_value = value * factors[unit]
     result = symbols_value / factors[convert_to]
-    return round(result, 2)
+    return round(result + 0.5)
 
 # При импорте модуля создаём директорию для данных
 get_app_data_dir()
