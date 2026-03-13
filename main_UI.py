@@ -473,7 +473,7 @@ class MainWindow(QMainWindow, main_window_ui):
         en.save_data(data)
 
         # Обновляем игровой режим если включён
-        if en.load_settings().get('game_mode', False):
+        if en.load_settings().get('game_mode', False) and new_total_symbols > old_total_in_unit:
             self.game_controller.add_symbols(added_symbols)
 
         # Обновляем состояние кнопок, если цель достигнута
