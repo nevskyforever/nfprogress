@@ -67,9 +67,6 @@ def today_for_test():
 
 
 class Project:
-    max_streak = 0
-    streak_status = 'No'
-
     def __init__(self, name='Без имени', goal=None,
                  create_date=None, total_symbols=0, progress=0,
                  notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
@@ -87,6 +84,40 @@ class Project:
         self.streaks = streaks if streaks else []
         self.max_streak = max_streak if max_streak else 0
         self.streak_status = streak_status
+        self.unit = 'symbols'
+
+    def migrate(self):
+        """
+        Проверяет наличие всех атрибутов, которые должны быть у экземпляра,
+        и добавляет недостающие со значениями по умолчанию (как в __init__).
+        """
+        # Список обязательных атрибутов и их значений по умолчанию
+        defaults = {
+            '_name': 'Без имени',
+            '_goal': None,
+            'create_date': today_for_test(),
+            'complete_date': None,
+            '_total_symbols': 0,
+            '_progress': 0,
+            '_deadline': 'Нет',
+            '_status': 'активен',
+            'notes': [],
+            'streaks': [],
+            'max_streak': 0,
+            'streak_status': 'No',
+            'unit': 'symbols'
+        }
+
+        for attr, default_value in defaults.items():
+            if not hasattr(self, attr):
+                setattr(self, attr, default_value)
+            # Для изменяемых типов (списки) нужно убедиться, что они не общие
+            elif attr in ('notes', 'streaks') and not isinstance(getattr(self, attr), list):
+                setattr(self, attr, [])  # если вдруг там не список
+
+        # Дополнительно: синхронизируем _progress, если нужно
+        if self._goal and self._goal > 0:
+            self._progress = self._total_symbols / self._goal * 100
 
     @property
     def name(self):
@@ -412,16 +443,27 @@ def load_data():
     data_file = get_data_file_path('data')
     try:
         with open(data_file, 'rb') as f:
-            return pickle.load(f)
+            data = pickle.load(f)
+
+        # Миграция всех проектов - добавление недостающих атрибутов
+        projects = data.get('projects', {})
+        for project_name, project in projects.items():
+            if isinstance(project, Project):
+                # Вызываем метод миграции для каждого проекта
+                project.migrate()
+
+        return data
+
     except (FileNotFoundError, EOFError):
         # Если файл не найден, создаём пустую структуру
-        return {'last': None,
-                'projects': {},
-                'notifications': [],
-                'global_streaks': [],
-                'global_streak_status': 'No',
-                'max_global_streak': 0, }
-
+        return {
+            'last': None,
+            'projects': {},
+            'notifications': [],
+            'global_streaks': [],
+            'global_streak_status': 'No',
+            'max_global_streak': 0,
+        }
 
 def save_data(data):
     """Сохраняет данные в кроссплатформенную директорию"""
