@@ -272,34 +272,48 @@ class ProjectWidget(QWidget, Ui_Form):
         self.update_display()
 
     def update_display(self):
+        """Обновляет отображение виджета проекта."""
         self.name.setText(self.project.name)
+
+        # Прогресс (всегда в процентах)
         self.circular_progress.setValue(int(self.project.progress), animated=True)
-        self.symbols.setText(f'{self.project.total_symbols}/{self.project.goal}')
+
+        # Значения уже в единице проекта
+        total_str = self._format_number(self.project.total_symbols)
+        goal_str = self._format_number(self.project.goal)
+        self.symbols.setText(f'{total_str}/{goal_str}')
 
         # Сначала скрываем все элементы стриков
         self.streak.setVisible(False)
         self.streak_status.setVisible(False)
 
+        # Дедлайн
         if self.project.deadline_str != 'Нет':
             self.deadline.setText(f'Дедлайн: {self.project.deadline_str}')
             self.deadline.setVisible(True)
 
             # Показываем стрики только если они включены в настройках
             if self.global_streak_mode:
-                # Получаем актуальный статус стрика (это обновит streaks и streak_status в проекте)
                 streak_status = self.project.get_streak_status()
-
-                # Устанавливаем текст для стрика (количество дней)
                 streak_length = len(self.project.streaks)
                 self.streak.setText(f'Стрик: {streak_length} д.')
                 self.streak.setVisible(True)
 
-                # Устанавливаем текст для статуса стрика
                 status_msg = self.project.get_streak_status_msg('min')
                 self.streak_status.setText(status_msg)
                 self.streak_status.setVisible(True)
         else:
             self.deadline.setVisible(False)
 
+        # Обновляем геометрию
         self.updateGeometry()
         self.widget.updateGeometry()
+
+    def _format_number(self, num):
+        """Форматирует число для отображения."""
+        if isinstance(num, float):
+            if num.is_integer() or abs(num - round(num)) < 0.0001:
+                return str(int(round(num)))
+            # Оставляем 1-2 знака после запятой, убираем лишние нули
+            return f"{num:.2f}".rstrip('0').rstrip('.') if '.' in f"{num:.2f}" else str(int(num))
+        return str(num)

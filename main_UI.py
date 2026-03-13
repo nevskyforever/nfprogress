@@ -24,6 +24,13 @@ class MainWindow(QMainWindow, main_window_ui):
         super().__init__()
         self.setupUi(self)
 
+        self.unit_to_display = {
+            'symbols': 'Символы',
+            'A4': 'Листы А4',
+            'author_list': 'Авторские листы',
+            'ficbook_pages': 'Страницы Фикбука'
+        }
+
         # для отслеживания предыдущей вкладки
         self._previous_tab = None
 
@@ -85,32 +92,23 @@ class MainWindow(QMainWindow, main_window_ui):
             self.add_note(project)
 
     def create_project(self):
+        """Создаёт новый проект."""
         dialog = CreateProject()
         result = dialog.exec()
 
         if result == QDialog.Accepted:
             data = en.load_data()
 
-            name = dialog.le_name.text().strip()
-            # Получаем значения в символах (уже сконвертированные)
-            goal = dialog.goal_in_symbols
-            total = dialog.total_in_symbols
-            unit_text = dialog.cb_unit.currentText()
+            name = dialog.get_name()
+            goal = dialog.get_goal()
+            total = dialog.get_total()
+            unit = dialog.get_unit()
+            deadline = dialog.get_deadline()
 
-            # Преобразуем отображаемое название единицы во внутренний код
-            units_for_set = {
-                'Символы': 'symbols',
-                'Листы A4': 'A4',
-                'Авторские листы': 'author_list',
-                'Страницы Фикбука': 'ficbook_pages'
-            }
-            unit = units_for_set[unit_text]
-
-            if dialog.checkBox.isChecked():
-                deadline = 'Нет'
-            else:
-                qdate = dialog.de_deadline.date()
-                deadline = qdate.toPython()
+            # Проверяем, что проект с таким именем не существует
+            if name in data['projects']:
+                self.notifications.show_error(f'Проект "{name}" уже существует!')
+                return
 
             new_project = en.Project(
                 name=name,
@@ -119,17 +117,25 @@ class MainWindow(QMainWindow, main_window_ui):
                 total_symbols=total,
                 unit=unit
             )
+
+            # Если это бесконечный проект (inf_project), устанавливаем goal = inf
+            if en.load_settings().get('inf_project', False) and name == 'Общий проект':
+                new_project.goal = float('inf')
+
             data['projects'][new_project.name] = new_project
             en.save_data(data)
 
             self.refresh_projects()
-            dialog.close()
 
-            QTimer.singleShot(100, lambda: self.notifications.show_success(
-                f"Проект '{name}' создан!",
+            # Выделяем созданный проект
+            self.select_project_by_name(new_project.name)
+
+            unit_name = self._get_unit_name(unit)
+            self.notifications.show_success(
+                f"Проект '{name}' создан! (Цель: {goal} {unit_name})",
                 2000,
                 "bottom-left"
-            ))
+            )
 
     def applying_settings(self):
         settings = en.load_settings()
@@ -230,36 +236,47 @@ class MainWindow(QMainWindow, main_window_ui):
         self.name_selected_project.setText(project.name)
 
     def show_project_info(self, project):
-        """Заполняет виджеты информацией о проекте"""
-        units_for_view = {'symbols': 'Символы',
-                          'A4': 'Листы А4',
-                          'author_list': 'Авторские листы',
-                          'ficbook_pages': 'Страницы Фикбука'}
+        """Заполняет виджеты информацией о проекте."""
+        units_for_view = {
+            'symbols': 'Символы',
+            'A4': 'Листы А4',
+            'author_list': 'Авторские листы',
+            'ficbook_pages': 'Страницы Фикбука'
+        }
 
         # Основная информация
         self.status.setText(project.status)
         self.progress.setText(f"{project.progress:.1f}%")
-        self.goal.setText(str(project.goal))
-        self.total.setText(str(project.total_symbols))
-        self.unit.setText(f'{units_for_view[project.unit]}')
+        self.goal.setText(self._format_number(project.goal))
+        self.total.setText(self._format_number(project.total_symbols))
+        self.unit.setText(units_for_view[project.unit])
 
-        # Статистика за сегодня
-        today_added = project.get_added_symbols_today_value()
-        self.added_today.setText(str(today_added))
+        # Статистика за сегодня (в единице проекта)
+        added_today = project.get_added_today_in_unit()
+        self.added_today.setText(self._format_number(added_today))
 
-        # Осталось написать
-        need = project.get_need_write_value()
-        self.need.setText(str(need))
+        # Осталось написать (в единице проекта)
+        need = project.get_need_write_in_unit()
+        if need == float('inf'):
+            self.need.setText('∞')
+        else:
+            self.need.setText(self._format_number(need))
 
         # Дедлайн
         if project.deadline != 'Нет':
             self.deadline.setText(project.deadline_str)
             self.label_today_goal.setVisible(True)
             self.today_goal.setVisible(True)
-            if project.get_added_symbols_today_value() < project.get_today_goal_value():
-                self.today_goal.setText(str(project.get_today_goal_value()))
+
+            # Цель на сегодня (в единице проекта)
+            today_goal = project.get_today_goal_in_unit()
+            if today_goal == float('inf'):
+                self.today_goal.setText('∞')
             else:
-                self.today_goal.setText('Цель на сегодня выполнена!')
+                if added_today < today_goal:
+                    self.today_goal.setText(self._format_number(today_goal))
+                else:
+                    self.today_goal.setText('Цель на сегодня выполнена!')
 
             # Расчёт оставшихся дней
             days_left = (project.deadline - en.today_for_test()).days
@@ -274,24 +291,19 @@ class MainWindow(QMainWindow, main_window_ui):
             self.today_goal.setVisible(False)
             self.deadline.setText("Не установлен")
 
-            # Информация о стриках
-        if en.load_settings()['global_streak']:
-            # Показываем все элементы, связанные со стриками
+        # Информация о стриках
+        if en.load_settings().get('global_streak', False):
             self.label_streaks.setVisible(True)
             self.label_streak_status.setVisible(True)
             self.label_max_streak.setVisible(True)
-
-            # Показывакм значения
             self.streaks.setVisible(True)
             self.max_streak.setVisible(True)
             self.streak_status.setVisible(True)
 
-            # Устанавливаем значения
             self.streaks.setText(str(len(project.streaks)))
             self.max_streak.setText(str(project.max_streak))
             self.streak_status.setText(project.get_streak_status_msg('min'))
         else:
-            # Скрываем все элементы, связанные со стриками
             self.label_streaks.setVisible(False)
             self.label_streak_status.setVisible(False)
             self.label_max_streak.setVisible(False)
@@ -302,9 +314,19 @@ class MainWindow(QMainWindow, main_window_ui):
         # Последняя запись (если есть)
         if project.notes:
             last_note = project.notes[-1]
-            self.l.setText(f"{last_note.get_date_create_str()} (+{last_note.added_symbols})")
+            added_disp = en.unit_converter('symbols', last_note.added_symbols, project.unit)
+            self.l.setText(f"{last_note.get_date_create_str()} (+{self._format_number(added_disp)})")
         else:
             self.l.setText("Нет записей")
+
+    def _format_number(self, num):
+        """Форматирует число для отображения."""
+        if isinstance(num, float):
+            if num.is_integer():
+                return str(int(num))
+            # Оставляем 1-2 знака после запятой, убираем лишние нули
+            return f"{num:.2f}".rstrip('0').rstrip('.') if '.' in f"{num:.2f}" else str(int(num))
+        return str(num)
 
     def select_project_by_name(self, project_name):
         """Выделяет проект по имени в списке"""
@@ -391,45 +413,77 @@ class MainWindow(QMainWindow, main_window_ui):
         self.load_notes(project)
 
     def load_notes(self, project):
-        """Загружает список заметок проекта"""
+        """Загружает список заметок проекта."""
         self.note_list.clear()
         for note in reversed(project.notes[-10:]):  # Показываем последние 10 записей
-            item = QListWidgetItem(
-                f"{note.get_date_create_str()} +{note.added_symbols}/{round(note.added_progress, 2)}%")
+            # Конвертируем добавленные символы в единицу проекта
+            added_disp = en.unit_converter('symbols', note.added_symbols, project.unit)
+            added_disp_str = self._format_number(added_disp)
+
+            # Прогресс оставляем в процентах
+            progress_str = f"{note.added_progress:.2f}" if note.added_progress else "0"
+
+            item_text = f"{note.get_date_create_str()} +{added_disp_str}/{progress_str}%"
+            item = QListWidgetItem(item_text)
             self.note_list.addItem(item)
 
     def add_note(self, project):
-        """Добавляет заметку к проекту"""
+        """Добавляет заметку к проекту."""
         text = self.new_symbols.text().strip()
 
         # Проверяем, что поле не пустое и содержит только цифры
-        if not text or not text.isdigit():
+        if not text:
             self.new_symbols.clear()
-            self.notifications.show_error('В записи могут быть только цифры!')
+            self.notifications.show_error('Введите значение!')
             return
 
-        new_total = int(text)
+        try:
+            new_total_in_unit = float(text)
+        except ValueError:
+            self.new_symbols.clear()
+            self.notifications.show_error('Введите число!')
+            return
+
+        # Сохраняем старое значение для уведомления
+        old_total_in_unit = project.total_symbols
 
         # Проверяем, что новое значение больше текущего
-        if new_total < project.total_symbols:
+        if new_total_in_unit <= old_total_in_unit:
             self.new_symbols.clear()
-            self.notifications.show_error(f'Новое значение должно быть больше текущего ({project.total_symbols})!')
+            unit_name = self.unit_to_display.get(project.unit, project.unit)
+            self.notifications.show_error(
+                f'Новое значение должно быть больше текущего ({old_total_in_unit} {unit_name})!'
+            )
             return
 
-        added = new_total - project.total_symbols
-        added_progress = (added / project.goal * 100) if project.goal > 0 else 0
+        # Конвертируем в символы для расчётов и сохранения в заметке
+        new_total_symbols = en.unit_converter(project.unit, new_total_in_unit, 'symbols')
+        current_total_symbols = project.get_total_symbols()
+        added_symbols = new_total_symbols - current_total_symbols
+        goal_symbols = project.get_goal_symbols()
 
-        # Создаём запись
-        note = en.Note(new_total, added, added_progress)
+        if goal_symbols == float('inf'):
+            added_progress = 0
+        else:
+            added_progress = (added_symbols / goal_symbols * 100) if goal_symbols > 0 else 0
+
+        # Создаём заметку (храним new_total в символах)
+        note = en.Note(new_total_symbols, added_symbols, added_progress)
+
+        # Обновляем проект (total_symbols обновится в единице проекта через set_new_notes)
         project.set_new_notes(note)
-        project.total_symbols = new_total
-        if en.load_settings()['game_mode']:
-            self.game_controller.add_symbols(added)
+
+        # Обновляем стрики
+        project.get_streak_status()
 
         # Сохраняем изменения
         data = en.load_data()
         data['projects'][project.name] = project
         en.save_data(data)
+
+        # Обновляем игровой режим если включён
+        if en.load_settings().get('game_mode', False):
+            self.game_controller.add_symbols(added_symbols)
 
         # Обновляем состояние кнопок, если цель достигнута
         if project.total_symbols >= project.goal:
@@ -448,62 +502,61 @@ class MainWindow(QMainWindow, main_window_ui):
         # Обновляем панель информации и список заметок
         self.show_project_info(project)
         self.load_notes(project)
-        self.notifications.show_success(f'В {project.name} добавлено {added} символов')
 
-        #Обновляем глобальный стрик
+        added_in_unit = new_total_in_unit - old_total_in_unit
+        unit_name = self.unit_to_display.get(project.unit, project.unit)
+        self.notifications.show_success(
+            f'В {project.name} добавлено {added_symbols} символов ({added_in_unit:.1f} {unit_name})'
+        )
+
+        # Обновляем глобальный стрик
         if self.global_streak_mode:
             self.refresh_global_streak_status()
 
     def delete_selected_note(self, project):
-        """Удаляет выбранную заметку из проекта"""
-        # Получаем текущий выбранный элемент в списке заметок
+        """Удаляет выбранную заметку из проекта."""
         current_item = self.note_list.currentItem()
 
         if current_item is None:
-            # Если ничего не выбрано, показываем предупреждение
             self.notifications.show_warning('Выберите запись для удаления!')
             return
 
-        # Получаем индекс выбранной заметки
         selected_row = self.note_list.currentRow()
 
-        # Показываем диалог подтверждения
         dialog = ConfirmDialog()
         dialog.message.setText('Вы хотите удалить эту запись?\nЭто действие нельзя отменить!')
         result = dialog.exec()
 
         if result == QDialog.Accepted:
-            # Находим индекс заметки в оригинальном списке (с учётом реверса при отображении)
+            # Находим индекс заметки в оригинальном списке (с учётом реверса)
             note_index = len(project.notes) - 1 - selected_row
 
             # Удаляем заметку
             deleted_note = project.notes.pop(note_index)
 
-            # Обновляем total_symbols, вычитая удалённые символы
+            # Обновляем total_symbols, беря последнюю запись
             if project.notes:
-                # Берём последнюю запись для восстановления корректного total_symbols
                 last_note = project.notes[-1]
-                project.total_symbols = last_note.new_total
+                # last_note.new_total в символах, конвертируем в единицу проекта
+                project.total_symbols = en.unit_converter('symbols', last_note.new_total, project.unit)
             else:
-                # Если записей больше нет, обнуляем total_symbols
                 project.total_symbols = 0
 
             # Сохраняем изменения
             data = en.load_data()
             data['projects'][project.name] = project
-            save_data(data)
+            en.save_data(data)
 
             # Обновляем отображение
             self.refresh_projects()
-            # Восстанавливаем выделение проекта
             self.select_project_by_name(project.name)
-            # Обновляем информацию о проекте
             self.show_project_info(project)
-            # Перезагружаем список заметок
             self.load_notes(project)
 
+            self.notifications.show_success('Запись удалена')
+
     def edit_project(self, project):
-        # Создаём диалог, передавая объект проекта
+        """Редактирует существующий проект."""
         dialog = EditProject(project)
         result = dialog.exec()
 
@@ -511,51 +564,31 @@ class MainWindow(QMainWindow, main_window_ui):
             data = en.load_data()
             old_name = project.name
 
-            # Получаем новые значения
-            new_name = dialog.le_name.text().strip()
-            new_goal = dialog.goal_in_symbols
-            new_total = dialog.total_in_symbols
-            new_unit_text = dialog.cb_unit.currentText()
+            # Получаем новые значения из диалога
+            new_name = dialog.get_name()
+            new_goal = dialog.get_goal()
+            new_total = dialog.get_total()
+            new_unit = dialog.get_unit()
+            new_deadline = dialog.get_deadline()
 
-            # Преобразуем текст единицы во внутренний код
-            units_for_set = {
-                'Символы': 'symbols',
-                'Листы A4': 'A4',
-                'Авторские листы': 'author_list',
-                'Страницы Фикбука': 'ficbook_pages'
-            }
-            new_unit = units_for_set[new_unit_text]
+            # Если имя изменилось, удаляем старую запись
+            if old_name != new_name and old_name in data['projects']:
+                del data['projects'][old_name]
 
-            if dialog.checkBox.isChecked():
-                new_deadline = 'Нет'
-            else:
-                qdate = dialog.de_deadline.date()
-                new_deadline = qdate.toPython()
+            # Обновляем поля проекта
+            project.name = new_name
+            project.goal = new_goal
+            project.total_symbols = new_total
+            project.unit = new_unit
+            project.deadline = new_deadline
 
-            # Если имя изменилось, удаляем старую запись и создаём новую
-            if old_name != new_name:
-                # Удаляем старый проект из словаря
-                if old_name in data['projects']:
-                    del data['projects'][old_name]
+            # Обновляем статус проекта (если цель достигнута)
+            if project.total_symbols >= project.goal and project.status != 'завершен':
+                # Не завершаем автоматически, но обновим кнопки позже
+                pass
 
-                # Обновляем поля проекта
-                project.name = new_name
-                project.goal = new_goal
-                project.total_symbols = new_total
-                project.deadline = new_deadline
-                project.unit = new_unit
-
-                # Сохраняем под новым именем
-                data['projects'][new_name] = project
-            else:
-                # Имя не изменилось — просто обновляем поля
-                project.goal = new_goal
-                project.total_symbols = new_total
-                project.deadline = new_deadline
-                project.unit = new_unit
-
-                data['projects'][project.name] = project
-
+            # Сохраняем под новым именем (или старым, если не изменилось)
+            data['projects'][project.name] = project
             en.save_data(data)
 
             # Обновляем интерфейс
@@ -563,7 +596,22 @@ class MainWindow(QMainWindow, main_window_ui):
             self.select_project_by_name(project.name)
             self.name_selected_project.setText(project.name)
             self.view_project()
-            self.notifications.show_success(f'Изменения в {project.name} сохранены', position="bottom-left")
+
+            unit_name = self._get_unit_name(project.unit)
+            self.notifications.show_success(
+                f'Проект "{project.name}" обновлён',
+                position="bottom-left"
+            )
+
+    def _get_unit_name(self, unit_code):
+        """Возвращает название единицы по коду."""
+        units = {
+            'symbols': 'Символы',
+            'A4': 'Листы А4',
+            'author_list': 'Авторские листы',
+            'ficbook_pages': 'Страницы Фикбука'
+        }
+        return units.get(unit_code, unit_code)
 
     def complete_project(self, project):
         """Завершает проект"""
@@ -785,7 +833,7 @@ class CreateProject(QDialog, create_project_ui):
         super().__init__(parent)
         self.setupUi(self)
 
-        # Словари для преобразования текст → код и код → текст
+        # Словари для преобразования
         self.text_to_unit = {
             'Символы': 'symbols',
             'Листы A4': 'A4',
@@ -794,8 +842,8 @@ class CreateProject(QDialog, create_project_ui):
         }
         self.unit_to_text = {v: k for k, v in self.text_to_unit.items()}
 
-        # Текущий код единицы (по умолчанию берём из первого пункта комбобокса)
-        self.current_unit_code = self.text_to_unit[self.cb_unit.currentText()]
+        # Текущая единица
+        self.current_unit = self.text_to_unit[self.cb_unit.currentText()]
 
         # Скрываем предупреждения
         self.incorrect_name.setVisible(False)
@@ -803,117 +851,177 @@ class CreateProject(QDialog, create_project_ui):
 
         # Подключаем сигналы
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
-        self.checkBox.toggled.connect(self.all_data_ok)
-        self.de_deadline.dateChanged.connect(self.all_data_ok)
-        self.le_name.textChanged.connect(self.all_data_ok)
-        self.le_goal.textChanged.connect(self.all_data_ok)
-        self.le_total_symbols.textChanged.connect(self.all_data_ok)
+        self.de_deadline.dateChanged.connect(self.validate_all)
+        self.le_name.textChanged.connect(self.validate_all)
+        self.le_goal.textChanged.connect(self.validate_all)
+        self.le_total_symbols.textChanged.connect(self.validate_all)
         self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
 
-        # Начальное состояние
-        self.buttons.setDisabled(True)
+        # Устанавливаем минимальную дату - сегодня
+        self.de_deadline.setMinimumDate(en.today_for_test())
+
+        # Изначально кнопки должны быть активны, т.к. данные корректны
+        self.buttons.setEnabled(True)
+
+        # Вызываем обработчик чекбокса для начальной настройки
         self.on_checkbox_toggled(self.checkBox.isChecked())
 
-        # Вызываем проверку после инициализации
+        # Вызываем валидацию для проверки всех полей
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, self.all_data_ok)
+        QTimer.singleShot(0, self.validate_all)
 
     def on_checkbox_toggled(self, checked):
-        """Обработчик чекбокса "Нет дедлайна"."""
+        """Обработчик чекбокса 'Нет дедлайна'."""
         if checked:
             self.de_deadline.setDisabled(True)
             self.incorrect_data.setVisible(False)
         else:
             self.de_deadline.setEnabled(True)
-            self.all_data_ok()
+            self.de_deadline.setMinimumDate(en.today_for_test())
+        self.validate_all()
 
     def on_unit_changed(self, new_unit_text):
         """Конвертирует значения полей при смене единицы."""
-        new_unit_code = self.text_to_unit[new_unit_text]
+        new_unit = self.text_to_unit[new_unit_text]
 
-        # Если поля пустые или содержат не число — просто обновляем текущий код
+        # Если поля пустые - просто обновляем текущую единицу
+        if not self.le_goal.text() or not self.le_total_symbols.text():
+            self.current_unit = new_unit
+            self.validate_all()
+            return
+
         try:
             goal_val = float(self.le_goal.text())
             total_val = float(self.le_total_symbols.text())
         except ValueError:
-            self.current_unit_code = new_unit_code
+            self.current_unit = new_unit
+            self.validate_all()
             return
 
-        # Конвертируем из старого кода в новый код
-        new_goal = en.unit_converter(self.current_unit_code, goal_val, new_unit_code)
-        new_total = en.unit_converter(self.current_unit_code, total_val, new_unit_code)
+        # Конвертируем значения
+        new_goal = en.unit_converter(self.current_unit, goal_val, new_unit)
+        new_total = en.unit_converter(self.current_unit, total_val, new_unit)
 
-        # Обновляем поля (округляем до двух знаков, как в unit_converter)
-        self.le_goal.setText(str(new_goal))
-        self.le_total_symbols.setText(str(new_total))
+        # Округляем до 2 знаков для отображения
+        self.le_goal.setText(f"{new_goal:.2f}".rstrip('0').rstrip('.') if '.' in f"{new_goal:.2f}" else f"{new_goal:.0f}")
+        self.le_total_symbols.setText(f"{new_total:.2f}".rstrip('0').rstrip('.') if '.' in f"{new_total:.2f}" else f"{new_total:.0f}")
 
-        self.current_unit_code = new_unit_code
+        self.current_unit = new_unit
+        self.validate_all()
 
-    def all_data_ok(self):
-        """Валидация полей."""
+    def validate_all(self):
+        """Валидация всех полей."""
         data = en.load_data()
         existing_names = list(data['projects'].keys())
 
+        # Сбрасываем сообщения об ошибках (кроме имени, если оно есть)
+        self.incorrect_data.setVisible(False)
+        error_messages = []
+
+        # Проверка имени
         current_name = self.le_name.text().strip()
         name_filled = bool(current_name)
         name_incorrect = current_name in existing_names and current_name != ""
         self.incorrect_name.setVisible(name_incorrect)
+        if name_incorrect:
+            error_messages.append("Проект с таким именем уже существует")
 
+        # Проверка дедлайна
         deadline_incorrect = False
         if not self.checkBox.isChecked():
-            deadline_incorrect = self.de_deadline.date() <= en.today_for_test()
-            self.incorrect_data.setVisible(deadline_incorrect)
+            selected_date = self.de_deadline.date().toPython()
+            if selected_date < en.today_for_test():
+                deadline_incorrect = True
+                error_messages.append("Дедлайн не может быть в прошлом")
+
+        # Проверка цели
+        goal_text = self.le_goal.text().strip()
+        goal_valid = False
+        if goal_text:
+            try:
+                goal_val = float(goal_text)
+                if goal_val > 0:
+                    goal_valid = True
+                else:
+                    error_messages.append("Цель должна быть положительным числом")
+            except ValueError:
+                error_messages.append("Цель должна быть числом")
+        else:
+            error_messages.append("Введите цель")
+
+        # Проверка текущего значения
+        total_text = self.le_total_symbols.text().strip()
+        total_valid = False
+        if total_text:
+            try:
+                total_val = float(total_text)
+                if total_val >= 0:
+                    total_valid = True
+                else:
+                    error_messages.append("Текущее значение не может быть отрицательным")
+            except ValueError:
+                error_messages.append("Текущее значение должно быть числом")
+        else:
+            error_messages.append("Введите текущее значение")
+
+        # Проверка что цель >= текущее значение (если оба валидны)
+        goal_ge_total = True
+        if goal_valid and total_valid:
+            goal_val = float(goal_text)
+            total_val = float(total_text)
+            if goal_val < total_val:
+                goal_ge_total = False
+                error_messages.append("Цель должна быть больше или равна текущему значению")
+
+        # Если есть ошибки, показываем первую в incorrect_data
+        if error_messages:
+            self.incorrect_data.setVisible(True)
+            self.incorrect_data.setText("\n".join(error_messages[:1]))  # показываем первую ошибку
         else:
             self.incorrect_data.setVisible(False)
 
-        goal_text = self.le_goal.text().strip()
-        goal_filled = self._is_float(goal_text) if goal_text else False
-
-        total_text = self.le_total_symbols.text().strip()
-        total_filled = self._is_float(total_text) if total_text else False
-
-        if self.checkBox.isChecked():
-            buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled
-        else:
-            buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled and not deadline_incorrect
-
+        # Финальное состояние кнопок
+        buttons_enabled = (
+            name_filled and not name_incorrect and
+            not deadline_incorrect and
+            goal_valid and total_valid and goal_ge_total
+        )
         self.buttons.setEnabled(buttons_enabled)
 
-    @staticmethod
-    def _is_float(s):
+    def get_goal(self):
         try:
-            float(s)
-            return True
-        except ValueError:
-            return False
-
-    @property
-    def goal_in_symbols(self):
-        """Возвращает цель в символах (для сохранения)."""
-        try:
-            val = float(self.le_goal.text())
-        except ValueError:
+            return float(self.le_goal.text())
+        except:
             return 0
-        return en.unit_converter(self.current_unit_code, val, 'symbols')
 
-    @property
-    def total_in_symbols(self):
-        """Возвращает текущее количество в символах (для сохранения)."""
+    def get_total(self):
         try:
-            val = float(self.le_total_symbols.text())
-        except ValueError:
+            return float(self.le_total_symbols.text())
+        except:
             return 0
-        return en.unit_converter(self.current_unit_code, val, 'symbols')
+
+    def get_unit(self):
+        return self.current_unit
+
+    def get_deadline(self):
+        if self.checkBox.isChecked():
+            return 'Нет'
+        return self.de_deadline.date().toPython()
+
+    def get_name(self):
+        return self.le_name.text().strip()
+
 
 class EditProject(QDialog, create_project_ui):
     def __init__(self, project, parent=None):
         super().__init__(parent)
         self.setupUi(self)
-        self.setWindowTitle('Изменение проекта')
+        self.setWindowTitle('Редактирование проекта')
 
         self.project = project
+        self.original_name = project.name
 
-        # Словари для преобразования текст ↔ код
+        # Словари для преобразования
         self.text_to_unit = {
             'Символы': 'symbols',
             'Листы A4': 'A4',
@@ -922,136 +1030,185 @@ class EditProject(QDialog, create_project_ui):
         }
         self.unit_to_text = {v: k for k, v in self.text_to_unit.items()}
 
-        # Текущий код единицы (берём из проекта)
-        self.current_unit_code = project.unit
-        # Устанавливаем нужный пункт в комбобоксе
-        self.cb_unit.setCurrentText(self.unit_to_text[self.current_unit_code])
+        # Текущая единица (из проекта)
+        self.current_unit = project.unit
+        self.cb_unit.setCurrentText(self.unit_to_text[self.current_unit])
 
         # Скрываем предупреждения
         self.incorrect_name.setVisible(False)
         self.incorrect_data.setVisible(False)
 
-        # Заполняем поля
+        # Заполняем поля данными из проекта
         self.le_name.setText(project.name)
-
-        # Конвертируем goal и total из символов в текущую единицу проекта
-        self.le_goal.setText(str(en.unit_converter('symbols', project.goal, self.current_unit_code)))
-        self.le_total_symbols.setText(str(en.unit_converter('symbols', project.total_symbols, self.current_unit_code)))
+        self.le_goal.setText(self._format_number(project.goal))
+        self.le_total_symbols.setText(self._format_number(project.total_symbols))
 
         # Дедлайн
         if project.deadline != 'Нет':
             self.checkBox.setChecked(False)
             qdate = QDate(project.deadline.year, project.deadline.month, project.deadline.day)
             self.de_deadline.setDate(qdate)
+            self.de_deadline.setEnabled(True)
         else:
             self.checkBox.setChecked(True)
             self.de_deadline.setDisabled(True)
 
         # Подключаем сигналы
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
-        self.checkBox.toggled.connect(self.all_data_ok)
-        self.de_deadline.dateChanged.connect(self.all_data_ok)
-        self.le_name.textChanged.connect(self.all_data_ok)
-        self.le_goal.textChanged.connect(self.all_data_ok)
-        self.le_total_symbols.textChanged.connect(self.all_data_ok)
+        self.de_deadline.dateChanged.connect(self.validate_all)
+        self.le_name.textChanged.connect(self.validate_all)
+        self.le_goal.textChanged.connect(self.validate_all)
+        self.le_total_symbols.textChanged.connect(self.validate_all)
         self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
 
-        # Начальное состояние
-        self.buttons.setDisabled(True)
+        # Устанавливаем минимальную дату - сегодня
+        self.de_deadline.setMinimumDate(en.today_for_test())
+
+        # Начальное состояние кнопок (после заполнения данных они должны быть активны)
+        self.buttons.setEnabled(True)
         self.on_checkbox_toggled(self.checkBox.isChecked())
 
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, self.all_data_ok)
+        QTimer.singleShot(0, self.validate_all)
+
+    def _format_number(self, num):
+        if isinstance(num, float) and num.is_integer():
+            return str(int(num))
+        return str(num)
 
     def on_checkbox_toggled(self, checked):
-        """Обработчик чекбокса "Нет дедлайна"."""
         if checked:
             self.de_deadline.setDisabled(True)
             self.incorrect_data.setVisible(False)
         else:
             self.de_deadline.setEnabled(True)
-            self.all_data_ok()
+            self.de_deadline.setMinimumDate(en.today_for_test())
+        self.validate_all()
 
     def on_unit_changed(self, new_unit_text):
-        """Конвертирует значения полей при смене единицы."""
-        new_unit_code = self.text_to_unit[new_unit_text]
+        new_unit = self.text_to_unit[new_unit_text]
+
+        if not self.le_goal.text() or not self.le_total_symbols.text():
+            self.current_unit = new_unit
+            self.validate_all()
+            return
 
         try:
             goal_val = float(self.le_goal.text())
             total_val = float(self.le_total_symbols.text())
         except ValueError:
-            self.current_unit_code = new_unit_code
+            self.current_unit = new_unit
+            self.validate_all()
             return
 
-        # Конвертируем из старого кода в новый код
-        new_goal = en.unit_converter(self.current_unit_code, goal_val, new_unit_code)
-        new_total = en.unit_converter(self.current_unit_code, total_val, new_unit_code)
+        new_goal = en.unit_converter(self.current_unit, goal_val, new_unit)
+        new_total = en.unit_converter(self.current_unit, total_val, new_unit)
 
-        self.le_goal.setText(str(new_goal))
-        self.le_total_symbols.setText(str(new_total))
+        self.le_goal.setText(self._format_number(new_goal))
+        self.le_total_symbols.setText(self._format_number(new_total))
 
-        self.current_unit_code = new_unit_code
+        self.current_unit = new_unit
+        self.validate_all()
 
-    def all_data_ok(self):
-        """Валидация полей (с учётом старого имени проекта)."""
+    def validate_all(self):
         data = en.load_data()
         existing_names = list(data['projects'].keys())
 
+        self.incorrect_data.setVisible(False)
+        error_messages = []
+
+        # Имя
         current_name = self.le_name.text().strip()
         name_filled = bool(current_name)
-
-        # Имя некорректно, если оно уже есть и не равно старому имени проекта
         name_incorrect = False
-        if name_filled and current_name != self.project.name:
+        if name_filled and current_name != self.original_name:
             name_incorrect = current_name in existing_names
-
         self.incorrect_name.setVisible(name_incorrect)
+        if name_incorrect:
+            error_messages.append("Проект с таким именем уже существует")
 
+        # Дедлайн
         deadline_incorrect = False
         if not self.checkBox.isChecked():
-            deadline_incorrect = self.de_deadline.date() <= en.today_for_test()
-            self.incorrect_data.setVisible(deadline_incorrect)
+            selected_date = self.de_deadline.date().toPython()
+            if selected_date < en.today_for_test():
+                deadline_incorrect = True
+                error_messages.append("Дедлайн не может быть в прошлом")
+
+        # Цель
+        goal_text = self.le_goal.text().strip()
+        goal_valid = False
+        if goal_text:
+            try:
+                goal_val = float(goal_text)
+                if goal_val > 0:
+                    goal_valid = True
+                else:
+                    error_messages.append("Цель должна быть положительным числом")
+            except ValueError:
+                error_messages.append("Цель должна быть числом")
+        else:
+            error_messages.append("Введите цель")
+
+        # Текущее значение
+        total_text = self.le_total_symbols.text().strip()
+        total_valid = False
+        if total_text:
+            try:
+                total_val = float(total_text)
+                if total_val >= 0:
+                    total_valid = True
+                else:
+                    error_messages.append("Текущее значение не может быть отрицательным")
+            except ValueError:
+                error_messages.append("Текущее значение должно быть числом")
+        else:
+            error_messages.append("Введите текущее значение")
+
+        # Цель >= текущее
+        goal_ge_total = True
+        if goal_valid and total_valid:
+            goal_val = float(goal_text)
+            total_val = float(total_text)
+            if goal_val < total_val:
+                goal_ge_total = False
+                error_messages.append("Цель должна быть больше или равна текущему значению")
+
+        if error_messages:
+            self.incorrect_data.setVisible(True)
+            self.incorrect_data.setText("\n".join(error_messages[:1]))
         else:
             self.incorrect_data.setVisible(False)
 
-        goal_text = self.le_goal.text().strip()
-        goal_filled = self._is_float(goal_text) if goal_text else False
-
-        total_text = self.le_total_symbols.text().strip()
-        total_filled = self._is_float(total_text) if total_text else False
-
-        if self.checkBox.isChecked():
-            buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled
-        else:
-            buttons_enabled = name_filled and not name_incorrect and goal_filled and total_filled and not deadline_incorrect
-
+        buttons_enabled = (
+            name_filled and not name_incorrect and
+            not deadline_incorrect and
+            goal_valid and total_valid and goal_ge_total
+        )
         self.buttons.setEnabled(buttons_enabled)
 
-    @staticmethod
-    def _is_float(s):
+    def get_goal(self):
         try:
-            float(s)
-            return True
-        except ValueError:
-            return False
+            return float(self.le_goal.text())
+        except:
+            return self.project.goal
 
-    @property
-    def goal_in_symbols(self):
-        """Возвращает цель в символах (для сохранения)."""
+    def get_total(self):
         try:
-            val = float(self.le_goal.text())
-        except ValueError:
-            return 0
-        return en.unit_converter(self.current_unit_code, val, 'symbols')
+            return float(self.le_total_symbols.text())
+        except:
+            return self.project.total_symbols
 
-    @property
-    def total_in_symbols(self):
-        """Возвращает текущее количество в символах (для сохранения)."""
-        try:
-            val = float(self.le_total_symbols.text())
-        except ValueError:
-            return 0
-        return en.unit_converter(self.current_unit_code, val, 'symbols')
+    def get_unit(self):
+        return self.current_unit
+
+    def get_deadline(self):
+        if self.checkBox.isChecked():
+            return 'Нет'
+        return self.de_deadline.date().toPython()
+
+    def get_name(self):
+        return self.le_name.text().strip()
 
 class NotificationManager:
     """Менеджер для показа уведомлений с поддержкой очереди и накопления."""

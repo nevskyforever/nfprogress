@@ -1,4 +1,5 @@
 import os
+import math
 import pickle
 import platform
 import sys
@@ -73,10 +74,10 @@ class Project:
                  status='активен', unit='symbols'):
 
         self._name = name
-        self._goal = goal
+        self._goal = goal  # хранится в выбранной единице
         self.create_date = create_date if create_date else today_for_test()
         self.complete_date = None
-        self._total_symbols = total_symbols
+        self._total_symbols = total_symbols  # хранится в выбранной единице
         self._progress = progress
         self._deadline = deadline
         self._status = status
@@ -87,11 +88,7 @@ class Project:
         self.unit = unit
 
     def migrate(self):
-        """
-        Проверяет наличие всех атрибутов, которые должны быть у экземпляра,
-        и добавляет недостающие со значениями по умолчанию (как в __init__).
-        """
-        # Список обязательных атрибутов и их значений по умолчанию
+        """Проверяет наличие всех атрибутов и добавляет недостающие"""
         defaults = {
             '_name': 'Без имени',
             '_goal': None,
@@ -111,13 +108,8 @@ class Project:
         for attr, default_value in defaults.items():
             if not hasattr(self, attr):
                 setattr(self, attr, default_value)
-            # Для изменяемых типов (списки) нужно убедиться, что они не общие
             elif attr in ('notes', 'streaks') and not isinstance(getattr(self, attr), list):
-                setattr(self, attr, [])  # если вдруг там не список
-
-        # Дополнительно: синхронизируем _progress, если нужно
-        if self._goal and self._goal > 0:
-            self._progress = self._total_symbols / self._goal * 100
+                setattr(self, attr, [])
 
     @property
     def name(self):
@@ -125,14 +117,13 @@ class Project:
 
     @name.setter
     def name(self, name):
-        # Если имя не изменилось - пропускаем проверку
         if hasattr(self, '_name') and self._name == name:
             self._name = name
             return
 
         data = load_data()
         projects = data['projects']
-        names = [i for i in projects.keys() if i != self]  # Исключаем текущий проект из проверки
+        names = [i for i in projects.keys() if i != self]
         if name != '':
             if name in names:
                 raise ValueError('Проект с таким именем уже существует!')
@@ -146,7 +137,7 @@ class Project:
     @goal.setter
     def goal(self, goal):
         try:
-            self._goal = int(goal)
+            self._goal = float(goal)
         except ValueError:
             raise ValueError('Цель должна быть числом!')
 
@@ -185,16 +176,39 @@ class Project:
     def total_symbols(self, total_symbols):
         self._total_symbols = total_symbols
 
+    def get_goal_symbols(self):
+        """Возвращает цель в символах."""
+        if self._goal == float('inf'):
+            return float('inf')
+        return unit_converter(self.unit, self._goal, 'symbols')
+
+    def get_total_symbols(self):
+        """Возвращает текущее количество в символах."""
+        return unit_converter(self.unit, self._total_symbols, 'symbols')
+
+    @property
+    def progress(self):
+        goal_sym = self.get_goal_symbols()
+        total_sym = self.get_total_symbols()
+        if goal_sym and goal_sym > 0 and goal_sym != float('inf'):
+            self._progress = total_sym / goal_sym * 100
+        else:
+            self._progress = 0
+        return self._progress
+
     def get_added_symbols_today_value(self):
+        """Возвращает количество добавленных сегодня символов."""
         today = today_for_test()
         today_added = [i.get_added_symbols() for i in self.notes if i.get_date_create() == today]
         return sum(today_added) if today_added else 0
 
-    def get_added_symbols_today_msg(self):
-        return f'📝 Написано сегодня: {self.get_added_symbols_today_value()}'
+    def get_added_today_in_unit(self):
+        """Возвращает количество добавленных сегодня в единице проекта."""
+        added_sym = self.get_added_symbols_today_value()
+        return unit_converter('symbols', added_sym, self.unit)
 
     def get_today_goal_value(self):
-        """Возвращает общее количество символов, которое должно быть написано к сегодняшнему дню."""
+        """Возвращает цель на сегодня в символах."""
         if self.deadline == 'Нет':
             return 0
 
@@ -203,98 +217,93 @@ class Project:
             return 0
 
         create_date = self.create_date
-        # Приводим create_date к date, если это datetime или другой тип
         if isinstance(create_date, datetime):
             create_date = create_date.date()
         elif not isinstance(create_date, date):
-            # Если create_date не дата (например, None), берём сегодня
             create_date = today
 
-        # Общее количество дней от создания до дедлайна включительно
+        goal_sym = self.get_goal_symbols()
+        if goal_sym == float('inf'):
+            return float('inf')
+
         total_days = (self.deadline - create_date).days + 1
         if total_days <= 0:
-            # Дедлайн уже прошёл или некорректен – цель = весь проект
-            return self.goal
+            return goal_sym
 
-        # Сколько дней прошло от создания до сегодня включительно
         days_passed = (today - create_date).days + 1
         if days_passed <= 0:
             days_passed = 1
 
-        # Округление вверх, чтобы в первый день не было 0
-        target = (self.goal * days_passed + total_days - 1) // total_days
-        return min(target, self.goal)
+        target = (goal_sym * days_passed + total_days - 1) // total_days
+        return min(target, goal_sym)
 
-    def get_today_goal_msg(self):
-        value = self.get_today_goal_value()
-        return f'🎯 Цель на сегодня: {self.total_symbols + value}'
+    def get_today_goal_in_unit(self):
+        """Возвращает цель на сегодня в единице проекта."""
+        goal_sym = self.get_today_goal_value()
+        if goal_sym == float('inf'):
+            return float('inf')
+        return unit_converter('symbols', goal_sym, self.unit)
 
     def get_need_write_value(self):
-        total = self.total_symbols
-        goal = self.goal
-        need_write = goal - total
-        return need_write
+        """Возвращает остаток написать в символах."""
+        goal_sym = self.get_goal_symbols()
+        total_sym = self.get_total_symbols()
+        if goal_sym == float('inf'):
+            return float('inf')
+        return goal_sym - total_sym
 
-    def get_need_write_msg(self):
-        value = self.get_need_write_value()
-        return f'⚡️ Осталось написать: {value}'
+    def get_need_write_in_unit(self):
+        """Возвращает остаток написать в единице проекта."""
+        need_sym = self.get_need_write_value()
+        if need_sym == float('inf'):
+            return float('inf')
+        return unit_converter('symbols', need_sym, self.unit)
 
     def get_streak_status(self):
+        """Возвращает статус стрика."""
         today = today_for_test()
         yesterday = today - timedelta(days=1)
         today_added = self.get_added_symbols_today_value()
         today_goal = self.get_today_goal_value()
 
-        # Если цель не установлена (нет дедлайна), стрик не работает
-        if today_goal == 0:
+        if today_goal == 0 or today_goal == float('inf'):
             return 'No'
 
-        # Если статус уже установлен как Freeze и это сегодняшний день
         if self.streak_status == 'Freeze' and self.streaks and self.streaks[-1] == today:
             return 'Freeze'
-        # Проверяем выполнение цели сегодня
+
         if today_added >= today_goal:
             if len(self.streaks) == 0:
-                # Начало нового стрика
                 self.streaks.append(today)
                 self.streak_status = 'Start'
                 return 'Start'
             elif self.streaks[-1] == today:
-                # Стрик уже продлен сегодня
                 self.streak_status = 'Done'
                 return 'Done'
             elif self.streak_status == 'Freeze':
                 return 'Freeze'
             elif self.streaks[-1] == yesterday:
-                # Продление стрика
                 self.streaks.append(today)
                 if self.max_streak < len(self.streaks):
                     self.max_streak = len(self.streaks)
                 self.streak_status = 'Go'
                 return 'Go'
             else:
-                # Есть разрыв в стрике - начинаем новый
                 self.streaks = [today]
                 self.streak_status = 'Start'
                 return 'Start'
         else:
-            # Цель сегодня не выполнена
             if len(self.streaks) == 0:
-                # Стрик никогда не начинался, но мог быть потерян ранее
                 if self.streak_status and self.streak_status.startswith('Lose'):
-                    return self.streak_status  # сохраняем статус потери
-                else:
-                    return 'No'
+                    return self.streak_status
+                return 'No'
             elif self.streaks[-1] == today:
-                # Сегодня стрик уже был продлен ранее (редкий случай)
                 self.streak_status = 'Done'
                 return 'Done'
             elif self.streaks[-1] == yesterday:
-                # Стрик был вчера, сегодня ещё не продлён – активен
                 self.streak_status = 'Active'
                 return 'Active'
             elif self.streaks[-1] < yesterday:
-                # Последний стрик был раньше чем вчера – стрик потерян
                 lose = len(self.streaks)
                 if self.max_streak < lose:
                     self.max_streak = lose
@@ -302,9 +311,10 @@ class Project:
                 self.streak_status = f'Lose {lose}'
                 return f'Lose {lose}'
 
-        return 'No'  # резервный вариант, но по логике сюда не дойдём
+        return 'No'
 
     def get_streak_status_msg(self, msg_type=None):
+        """Возвращает сообщение о статусе стрика."""
         status = self.get_streak_status()
         if status == 'Start':
             if msg_type == 'min':
@@ -323,7 +333,7 @@ class Project:
             if msg_type == 'min':
                 return '✌️ Стрик продлен'
             return f'✌️ Стрик в {self.name} сегодня уже продлен, но символы лишними не будут'
-        elif status == 'Active':  # <-- НОВЫЙ СТАТУС
+        elif status == 'Active':
             streaks = len(self.streaks)
             if msg_type == 'min':
                 return f'⏳ Стрик в {streaks} дн не продлен'
@@ -346,17 +356,11 @@ class Project:
                         f'\n🔥 Вы начали новый стрик!')
         return 'Вывод статуса не работает'
 
-    @property
-    def progress(self):
-        if self._goal and self._goal > 0:
-            self._progress = self._total_symbols / self._goal * 100
-        else:
-            self._progress = 0
-        return self._progress
-
     def set_new_notes(self, new_note):
+        """Добавляет заметку и обновляет total_symbols в единице проекта."""
         self.notes.append(new_note)
-
+        # new_note.new_total хранится в символах, конвертируем в единицу проекта
+        self._total_symbols = unit_converter('symbols', new_note.new_total, self.unit)
 
 class Stage(Project):
     def __init__(self):
@@ -667,7 +671,10 @@ def unit_converter(unit, value, convert_to=None):
         'author_list'   – авторские листы (1 а.л. = 40 000 символов)
         'ficbook_pages' – страницы Ficbook (1 стр. = 4500 символов)
 
-    Возвращает число, округлённое до двух знаков, или None, если единицы не поддерживаются.
+    Возвращает:
+        - для convert_to = 'symbols' – точное значение (float)
+        - для остальных единиц – округлённое вверх до целого числа (int)
+        - None, если единицы не поддерживаются
     """
     factors = {
         'symbols': 1,
@@ -676,7 +683,7 @@ def unit_converter(unit, value, convert_to=None):
         'ficbook_pages': 4500
     }
 
-    # Если целевая единица не задана (None или False) – конвертируем в символы
+    # Если целевая единица не задана – конвертируем в символы
     if convert_to in (None, False):
         convert_to = 'symbols'
 
@@ -687,7 +694,12 @@ def unit_converter(unit, value, convert_to=None):
     # Приводим исходное значение к символам, затем к целевой единице
     symbols_value = value * factors[unit]
     result = symbols_value / factors[convert_to]
-    return round(result + 0.5)
 
+    # Для не-символьных единиц округляем вверх до целого
+    if convert_to != 'symbols':
+        return math.ceil(result)
+    else:
+        # Для символов возвращаем точное значение (без округления)
+        return result
 # При импорте модуля создаём директорию для данных
 get_app_data_dir()
