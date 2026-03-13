@@ -40,7 +40,7 @@
    <property name="geometry">
     <rect>
      <x>0</x>
-     <y>240</y>
+     <y>270</y>
      <width>351</width>
      <height>32</height>
     </rect>
@@ -61,7 +61,7 @@
      <x>10</x>
      <y>20</y>
      <width>331</width>
-     <height>200</height>
+     <height>241</height>
     </rect>
    </property>
    <property name="sizePolicy">
@@ -77,21 +77,72 @@
     </size>
    </property>
    <layout class="QGridLayout" name="gridLayout">
-    <item row="1" column="2">
-     <widget class="QLabel" name="label_6">
+    <item row="7" column="0" colspan="3">
+     <widget class="QLabel" name="incorrect_data">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QLabel {
+    color: rgb(255, 0, 0);
+}</string>
+      </property>
       <property name="text">
-       <string>символов (число)</string>
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Некорректные данные&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
       </property>
      </widget>
     </item>
-    <item row="2" column="1">
+    <item row="4" column="0">
+     <widget class="QLabel" name="label_3">
+      <property name="text">
+       <string>Дедлайн</string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="0">
+     <widget class="QLabel" name="label">
+      <property name="text">
+       <string>Название</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="0">
+     <widget class="QLabel" name="label_2">
+      <property name="text">
+       <string>Цель</string>
+      </property>
+     </widget>
+    </item>
+    <item row="3" column="2">
+     <widget class="QLabel" name="label_6">
+      <property name="text">
+       <string>единиц (число)</string>
+      </property>
+     </widget>
+    </item>
+    <item row="0" column="2">
+     <widget class="QLabel" name="incorrect_name">
+      <property name="enabled">
+       <bool>true</bool>
+      </property>
+      <property name="styleSheet">
+       <string notr="true">QLabel {
+    color: rgb(255, 0, 0);
+}</string>
+      </property>
+      <property name="text">
+       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Имя уже&lt;br/&gt;используется&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+      </property>
+     </widget>
+    </item>
+    <item row="4" column="1">
      <widget class="QDateEdit" name="de_deadline">
       <property name="enabled">
        <bool>true</bool>
       </property>
       <property name="dateTime">
        <datetime>
-        <hour>20</hour>
+        <hour>12</hour>
         <minute>0</minute>
         <second>0</second>
         <year>2026</year>
@@ -118,14 +169,17 @@
       </property>
      </widget>
     </item>
-    <item row="2" column="0">
-     <widget class="QLabel" name="label_3">
+    <item row="3" column="1">
+     <widget class="QLineEdit" name="le_goal">
       <property name="text">
-       <string>Дедлайн</string>
+       <string notr="true">1000</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
     </item>
-    <item row="2" column="2">
+    <item row="4" column="2">
      <widget class="QCheckBox" name="checkBox">
       <property name="text">
        <string>Нет</string>
@@ -141,36 +195,24 @@
       </property>
      </widget>
     </item>
-    <item row="1" column="0">
-     <widget class="QLabel" name="label_2">
+    <item row="5" column="2">
+     <widget class="QLabel" name="label_5">
       <property name="text">
-       <string>Цель</string>
+       <string>единиц (число)</string>
       </property>
      </widget>
     </item>
-    <item row="0" column="0">
-     <widget class="QLabel" name="label">
+    <item row="0" column="1">
+     <widget class="QLineEdit" name="le_name">
       <property name="text">
-       <string>Название</string>
+       <string>Новый проект</string>
+      </property>
+      <property name="alignment">
+       <set>Qt::AlignmentFlag::AlignCenter</set>
       </property>
      </widget>
     </item>
-    <item row="0" column="2">
-     <widget class="QLabel" name="incorrect_name">
-      <property name="enabled">
-       <bool>true</bool>
-      </property>
-      <property name="styleSheet">
-       <string notr="true">QLabel {
-    color: rgb(255, 0, 0);
-}</string>
-      </property>
-      <property name="text">
-       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Имя уже&lt;br/&gt;используется&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="0">
+    <item row="5" column="0">
      <widget class="QLabel" name="label_4">
       <property name="text">
        <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Текущее&lt;br/&gt;кол-во&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
@@ -186,24 +228,7 @@
       </property>
      </widget>
     </item>
-    <item row="3" column="2">
-     <widget class="QLabel" name="label_5">
-      <property name="text">
-       <string>символов (число)</string>
-      </property>
-     </widget>
-    </item>
-    <item row="0" column="1">
-     <widget class="QLineEdit" name="le_name">
-      <property name="text">
-       <string>Новый проект</string>
-      </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
-      </property>
-     </widget>
-    </item>
-    <item row="3" column="1">
+    <item row="5" column="1">
      <widget class="QLineEdit" name="le_total_symbols">
       <property name="text">
        <string>0</string>
@@ -213,29 +238,44 @@
       </property>
      </widget>
     </item>
-    <item row="1" column="1">
-     <widget class="QLineEdit" name="le_goal">
+    <item row="1" column="0">
+     <widget class="QLabel" name="label_7">
       <property name="text">
-       <string notr="true">1000</string>
+       <string>Что отслеживаем:</string>
       </property>
-      <property name="alignment">
-       <set>Qt::AlignmentFlag::AlignCenter</set>
+      <property name="wordWrap">
+       <bool>true</bool>
       </property>
      </widget>
     </item>
-    <item row="4" column="0" colspan="3">
-     <widget class="QLabel" name="incorrect_data">
-      <property name="enabled">
-       <bool>true</bool>
+    <item row="1" column="1">
+     <widget class="QComboBox" name="cb_unit">
+      <property name="minimumSize">
+       <size>
+        <width>0</width>
+        <height>0</height>
+       </size>
       </property>
-      <property name="styleSheet">
-       <string notr="true">QLabel {
-    color: rgb(255, 0, 0);
-}</string>
-      </property>
-      <property name="text">
-       <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Некорректные данные&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-      </property>
+      <item>
+       <property name="text">
+        <string>Символы</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Листы A4</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Авторские листы</string>
+       </property>
+      </item>
+      <item>
+       <property name="text">
+        <string>Страницы Фикбука</string>
+       </property>
+      </item>
      </widget>
     </item>
    </layout>

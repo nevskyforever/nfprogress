@@ -562,6 +562,18 @@ class MainWindow(QMainWindow, main_window_ui):
             new_unit = dialog.get_unit()
             new_deadline = dialog.get_deadline()
 
+            # Проверяем, изменилась ли единица измерения
+            unit_changed = (new_unit != project.unit)
+
+            # Если единица изменилась, показываем предупреждение
+            if unit_changed:
+                confirm_dialog = ConfirmDialog()
+                confirm_dialog.message.setText(
+                    'Изменение типа отслеживаемого значения приведет к необратимой конвертации значений (с округлением в большую сторону).\n\nПродолжить?'
+                )
+                if confirm_dialog.exec() != QDialog.Accepted:
+                    return  # Отменяем сохранение, если пользователь не согласен
+
             # Если имя изменилось, удаляем старую запись
             if old_name != new_name and old_name in data['projects']:
                 del data['projects'][old_name]
