@@ -120,6 +120,8 @@ class CircularProgressBar(QWidget):
         self._end_color = QColor(color)
         self.update()
 
+
+
     def _get_color_for_progress(self, progress):
         """Возвращает цвет на основе прогресса с плавной интерполяцией в цветовом пространстве"""
         ratio = max(0.0, min(1.0, progress / 100.0))
