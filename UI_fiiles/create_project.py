@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'create_projectoxazPV.ui'
+## Form generated from reading UI file 'create_projectDMnPfM.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
