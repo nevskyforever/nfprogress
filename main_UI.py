@@ -826,7 +826,6 @@ class MainWindow(QMainWindow, main_window_ui):
         if not user_agreement:
             self.user_agreement()
 
-
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
         super().__init__()
@@ -1072,7 +1071,6 @@ class EditProject(QDialog, create_project_ui):
         self.buttons.setEnabled(True)
         self.on_checkbox_toggled(self.checkBox.isChecked())
 
-        from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.validate_all)
 
     def _format_number(self, num):

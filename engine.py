@@ -9,7 +9,6 @@ from pathlib import Path
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 
-
 def get_app_data_dir():
     """
     Возвращает путь к директории для хранения данных приложения
