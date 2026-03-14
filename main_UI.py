@@ -1,5 +1,4 @@
 import datetime
-import os
 import sys
 
 from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer
@@ -338,6 +337,8 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Обновляем отображение информации, используя проект из виджета
                 self.show_project_info(widget.project)
                 self.setup_project_buttons(widget.project)
+                # 👇 Добавляем обновление имени выбранного проекта
+                self.name_selected_project.setText(project_name)
                 break
 
     def setup_game_menu(self):
