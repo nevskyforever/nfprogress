@@ -85,6 +85,7 @@ class Project:
         self.max_streak = max_streak if max_streak else 0
         self.streak_status = streak_status
         self.unit = unit
+        self.synch = None
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -101,7 +102,8 @@ class Project:
             'streaks': [],
             'max_streak': 0,
             'streak_status': 'No',
-            'unit': 'symbols'
+            'unit': 'symbols',
+            'synch': None,
         }
 
         for attr, default_value in defaults.items():
