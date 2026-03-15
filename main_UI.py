@@ -75,6 +75,10 @@ class MainWindow(QMainWindow, main_window_ui):
             self.refresh_global_streak_status()
             QTimer.singleShot(1000, self.check_global_streak)
 
+        # Подключение действий меню "Проект"
+        self.synch_action.triggered.connect(self.on_sync_menu_triggered)
+        self.del_synch_action.triggered.connect(self.on_delete_sync_menu_triggered)
+
         self.show()
 
     def on_enter_pressed(self):
@@ -387,6 +391,8 @@ class MainWindow(QMainWindow, main_window_ui):
         self.pb_save_flash_note.clicked.connect(lambda: self.refresh_global_streak_status())
         self.delete_note.clicked.connect(lambda: self.delete_selected_note(project))
         self.btn_synch_project.clicked.connect(lambda: self.sync_project(project))
+        # Включение/отключение действия удаления синхронизации в меню
+        self.del_synch_action.setEnabled(project.synch is not None)
 
         # Устанавливаем состояние кнопок в зависимости от статуса проекта
         self.change_project_widget.setEnabled(True)
@@ -931,6 +937,48 @@ class MainWindow(QMainWindow, main_window_ui):
 
         except Exception as e:
             self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
+
+    def get_current_project(self):
+        """Возвращает объект Project для текущего выбранного элемента в списке или None."""
+        current_item = self.list_projects.currentItem()
+        if current_item:
+            widget = self.list_projects.itemWidget(current_item)
+            if widget and hasattr(widget, 'project'):
+                return widget.project
+        return None
+
+    def on_sync_menu_triggered(self):
+        """Обработчик меню 'Синхронизация'."""
+        project = self.get_current_project()
+        if project is None:
+            self.notifications.show_warning("Нет выбранного проекта")
+            return
+        self.sync_project(project)
+
+    def on_delete_sync_menu_triggered(self):
+        """Обработчик меню 'Удалить синхронизацию'."""
+        project = self.get_current_project()
+        if project is None:
+            self.notifications.show_warning("Нет выбранного проекта")
+            return
+        if project.synch is None:
+            self.notifications.show_info("У этого проекта нет привязанного файла")
+            return
+
+        dialog = ConfirmDialog()
+        dialog.message.setText(
+            "Вы действительно хотите удалить привязку к файлу?\n"
+            "Синхронизация будет отключена."
+        )
+        if dialog.exec() == QDialog.Accepted:
+            project.synch = None
+            data = en.load_data()
+            data['projects'][project.name] = project
+            en.save_data(data)
+            self.notifications.show_success("Синхронизация отключена")
+            # Обновляем интерфейс
+            self.refresh_projects()
+            self.select_project_by_name(project.name)
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
