@@ -111,17 +111,17 @@
              </item>
             </widget>
            </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="label_4">
-             <property name="text">
-              <string>Фильтр:</string>
-             </property>
-            </widget>
-           </item>
            <item row="1" column="1">
             <widget class="QLabel" name="label_5">
              <property name="text">
               <string>Сортировка:</string>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="label_4">
+             <property name="text">
+              <string>Фильтр:</string>
              </property>
             </widget>
            </item>
@@ -674,8 +674,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
-                    <height>88</height>
+                    <width>233</width>
+                    <height>124</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_14">
@@ -1053,8 +1053,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>98</width>
-                   <height>112</height>
+                   <width>253</width>
+                   <height>150</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_19">
@@ -1282,8 +1282,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>104</width>
-                    <height>170</height>
+                    <width>233</width>
+                    <height>154</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_23">
@@ -1567,7 +1567,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
+                    <width>249</width>
                     <height>136</height>
                    </rect>
                   </property>
@@ -1716,7 +1716,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
+                    <width>95</width>
                     <height>112</height>
                    </rect>
                   </property>
@@ -1802,8 +1802,26 @@
      <string>Настройки</string>
     </property>
    </widget>
+   <widget class="QMenu" name="project_menu">
+    <property name="title">
+     <string>Проект</string>
+    </property>
+    <addaction name="synch_action"/>
+    <addaction name="del_synch_action"/>
+   </widget>
    <addaction name="menu"/>
+   <addaction name="project_menu"/>
   </widget>
+  <action name="synch_action">
+   <property name="text">
+    <string>Синхронизировать</string>
+   </property>
+  </action>
+  <action name="del_synch_action">
+   <property name="text">
+    <string>Удалить синхронизацию</string>
+   </property>
+  </action>
  </widget>
  <resources/>
  <connections/>
