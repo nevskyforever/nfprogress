@@ -5,6 +5,7 @@ import platform
 import sys
 from datetime import datetime, timedelta, date
 from pathlib import Path
+from docx import Document
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -702,5 +703,42 @@ def unit_converter(unit, value, convert_to=None):
     else:
         # Для символов возвращаем точное значение (без округления)
         return result
+
+def count_symbols_in_docx(filepath):
+    """
+    Возвращает общее количество символов (с пробелами) в тексте документа .docx.
+    Учитываются абзацы и текст в таблицах.
+    """
+
+    doc = Document(filepath)
+    total = 0
+    for paragraph in doc.paragraphs:
+        total += len(paragraph.text)
+    for table in doc.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                for paragraph in cell.paragraphs:
+                    total += len(paragraph.text)
+    return total
+
+    # Если целевая единица не задана – конвертируем в символы
+    if convert_to in (None, False):
+        convert_to = 'symbols'
+
+    # Проверяем, что обе единицы есть в словаре
+    if unit not in factors or convert_to not in factors:
+        return None
+
+    # Приводим исходное значение к символам, затем к целевой единице
+    symbols_value = value * factors[unit]
+    result = symbols_value / factors[convert_to]
+
+    # Для не-символьных единиц округляем вверх до целого
+    if convert_to != 'symbols':
+        return math.ceil(result)
+    else:
+        # Для символов возвращаем точное значение (без округления)
+        return result
+
 # При импорте модуля создаём директорию для данных
 get_app_data_dir()

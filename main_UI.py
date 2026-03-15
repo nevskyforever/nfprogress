@@ -1,9 +1,10 @@
 import datetime
+import os
 import sys
 
 from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer
 from PySide6.QtWidgets import QApplication
-from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem
+from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog
 
 import engine as en
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
@@ -372,6 +373,10 @@ class MainWindow(QMainWindow, main_window_ui):
             self.delete_note.clicked.disconnect()
         except:
             pass
+        try:
+            self.btn_synch_project.clicked.disconnect()
+        except:
+            pass
 
         # Подключаем новые
         self.btn_change_project.clicked.connect(lambda: self.edit_project(project))
@@ -381,6 +386,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.pb_save_flash_note.clicked.connect(lambda: self.add_note(project))
         self.pb_save_flash_note.clicked.connect(lambda: self.refresh_global_streak_status())
         self.delete_note.clicked.connect(lambda: self.delete_selected_note(project))
+        self.btn_synch_project.clicked.connect(lambda: self.sync_project(project))
 
         # Устанавливаем состояние кнопок в зависимости от статуса проекта
         self.change_project_widget.setEnabled(True)
@@ -825,6 +831,106 @@ class MainWindow(QMainWindow, main_window_ui):
         user_agreement = settings.get('user_agreement', False)
         if not user_agreement:
             self.user_agreement()
+
+    def sync_project(self, project):
+        """
+        Синхронизирует проект с привязанным файлом.
+        Если файл не выбран – предлагает выбрать.
+        """
+        # Если путь не задан – запрашиваем файл
+        if project.synch is None:
+            file_path, _ = QFileDialog.getOpenFileName(
+                self,
+                "Выберите файл для синхронизации",
+                "",
+                "Документы Word (*.docx *.doc);;Все файлы (*)"
+            )
+            if not file_path:
+                return
+
+            # Проверяем расширение
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext not in ('.docx', '.doc'):
+                self.notifications.show_error("Поддерживаются только файлы .docx и .doc")
+                return
+
+            # Сохраняем путь в проекте
+            project.synch = file_path
+            data = en.load_data()
+            data['projects'][project.name] = project
+            en.save_data(data)
+            self.notifications.show_info(f"Файл привязан: {os.path.basename(file_path)}")
+        else:
+            file_path = project.synch
+            if not os.path.exists(file_path):
+                self.notifications.show_error(
+                    "Файл не найден. Возможно, он был перемещён или удалён.\n"
+                    "Выберите новый файл."
+                )
+                # Сбрасываем путь и вызываем метод заново для выбора
+                project.synch = None
+                data = en.load_data()
+                data['projects'][project.name] = project
+                en.save_data(data)
+                self.sync_project(project)
+                return
+
+        # Чтение файла и подсчёт символов
+        try:
+            ext = os.path.splitext(file_path)[1].lower()
+            if ext == '.docx':
+                symbols = en.count_symbols_in_docx(file_path)
+            elif ext == '.doc':
+                # Для .doc можно попробовать antiword, но пока выдаём предупреждение
+                self.notifications.show_error(
+                    "Поддержка .doc временно недоступна.\n"
+                    "Пожалуйста, сохраните файл как .docx и повторите попытку."
+                )
+                return
+            else:
+                self.notifications.show_error("Неподдерживаемый формат файла.")
+                return
+
+            # Конвертируем количество символов в единицу проекта
+            new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
+            current_total_in_unit = project.total_symbols
+
+            # Если новое значение не больше текущего – ничего не делаем
+            if new_total_in_unit <= current_total_in_unit:
+                self.notifications.show_info(
+                    "Файл не содержит новых символов (количество не увеличилось)."
+                )
+                return
+
+            added_in_unit = new_total_in_unit - current_total_in_unit
+            # Добавленные символы (в символах) для заметки
+            added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
+            # Новое общее количество в символах
+            new_total_symbols = project.get_total_symbols() + added_symbols
+
+            # Создаём заметку
+            note = en.Note(new_total_symbols, added_symbols, 0)  # прогресс будет вычислен автоматически
+            project.set_new_notes(note)
+            project.get_streak_status()  # обновляем стрик
+
+            # Сохраняем изменения
+            data = en.load_data()
+            data['projects'][project.name] = project
+            en.save_data(data)
+
+            # Обновляем интерфейс
+            self.refresh_projects()
+            self.select_project_by_name(project.name)
+
+            unit_name = self.unit_to_display.get(project.unit, project.unit)
+            self.notifications.show_success(
+                f"Синхронизация завершена.\n"
+                f"Добавлено {added_in_unit:.1f} {unit_name}",
+                position="bottom-left"
+            )
+
+        except Exception as e:
+            self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
