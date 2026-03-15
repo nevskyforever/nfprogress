@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'confirm_dialogcFNxNM.ui'
+## Form generated from reading UI file 'confirm_dialogYQJnSF.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -16,22 +16,26 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QDialog, QDialogButtonBox,
-    QLabel, QSizePolicy, QVBoxLayout, QWidget)
+    QSizePolicy, QTextBrowser, QVBoxLayout, QWidget)
 
 class Ui_confirm_dialog(object):
     def setupUi(self, confirm_dialog):
         if not confirm_dialog.objectName():
             confirm_dialog.setObjectName(u"confirm_dialog")
         confirm_dialog.resize(350, 150)
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(confirm_dialog.sizePolicy().hasHeightForWidth())
+        confirm_dialog.setSizePolicy(sizePolicy)
         confirm_dialog.setMinimumSize(QSize(223, 98))
         font = QFont()
         font.setFamilies([u"Arial"])
         confirm_dialog.setFont(font)
         self.verticalLayout = QVBoxLayout(confirm_dialog)
         self.verticalLayout.setObjectName(u"verticalLayout")
-        self.message = QLabel(confirm_dialog)
+        self.message = QTextBrowser(confirm_dialog)
         self.message.setObjectName(u"message")
-        self.message.setWordWrap(True)
 
         self.verticalLayout.addWidget(self.message)
 
@@ -53,6 +57,5 @@ class Ui_confirm_dialog(object):
 
     def retranslateUi(self, confirm_dialog):
         confirm_dialog.setWindowTitle(QCoreApplication.translate("confirm_dialog", u"\u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u0438\u0435", None))
-        self.message.setText(QCoreApplication.translate("confirm_dialog", u"\u0421\u043e\u043e\u0431\u0449\u0435\u043d\u0438\u0435", None))
     # retranslateUi
 

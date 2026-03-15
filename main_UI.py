@@ -841,10 +841,23 @@ class MainWindow(QMainWindow, main_window_ui):
     def sync_project(self, project):
         """
         Синхронизирует проект с привязанным файлом.
-        Если файл не выбран – предлагает выбрать.
+        Если файл не выбран – сначала показывает пояснение и предлагает выбрать.
         """
-        # Если путь не задан – запрашиваем файл
+        # Если путь не задан – показываем пояснение и запрашиваем файл
         if project.synch is None:
+            # Показываем диалог с пояснением
+            dialog = ConfirmDialog()
+            dialog.message.setText(
+                "Синхронизация позволяет автоматически обновлять прогресс проекта "
+                "на основе содержимого файла .docx.\n\n"
+                "При каждом нажатии кнопки 'Синхронизировать' программа будет "
+                "считывать количество символов из этого файла и добавлять разницу "
+                "как новую запись, автоматически конвертируя в выбранную единицу.\n\n"
+                "Сейчас файл не выбран. Хотите выбрать файл для синхронизации?"
+            )
+            if dialog.exec() != QDialog.Accepted:
+                return  # пользователь отказался
+
             file_path, _ = QFileDialog.getOpenFileName(
                 self,
                 "Выберите файл для синхронизации",
@@ -881,13 +894,12 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.sync_project(project)
                 return
 
-        # Чтение файла и подсчёт символов
+        # Чтение файла и подсчёт символов (остальная часть без изменений)
         try:
             ext = os.path.splitext(file_path)[1].lower()
             if ext == '.docx':
                 symbols = en.count_symbols_in_docx(file_path)
             elif ext == '.doc':
-                # Для .doc можно попробовать antiword, но пока выдаём предупреждение
                 self.notifications.show_error(
                     "Поддержка .doc временно недоступна.\n"
                     "Пожалуйста, сохраните файл как .docx и повторите попытку."
@@ -901,7 +913,6 @@ class MainWindow(QMainWindow, main_window_ui):
             new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
             current_total_in_unit = project.total_symbols
 
-            # Если новое значение не больше текущего – ничего не делаем
             if new_total_in_unit <= current_total_in_unit:
                 self.notifications.show_info(
                     "Файл не содержит новых символов (количество не увеличилось)."
@@ -909,22 +920,17 @@ class MainWindow(QMainWindow, main_window_ui):
                 return
 
             added_in_unit = new_total_in_unit - current_total_in_unit
-            # Добавленные символы (в символах) для заметки
             added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
-            # Новое общее количество в символах
             new_total_symbols = project.get_total_symbols() + added_symbols
 
-            # Создаём заметку
-            note = en.Note(new_total_symbols, added_symbols, 0)  # прогресс будет вычислен автоматически
+            note = en.Note(new_total_symbols, added_symbols, 0)
             project.set_new_notes(note)
-            project.get_streak_status()  # обновляем стрик
+            project.get_streak_status()
 
-            # Сохраняем изменения
             data = en.load_data()
             data['projects'][project.name] = project
             en.save_data(data)
 
-            # Обновляем интерфейс
             self.refresh_projects()
             self.select_project_by_name(project.name)
 
