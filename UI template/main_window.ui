@@ -201,6 +201,13 @@
              </property>
              <layout class="QHBoxLayout" name="horizontalLayout_2">
               <item>
+               <widget class="QPushButton" name="btn_synch_project">
+                <property name="text">
+                 <string>Синхронизировать</string>
+                </property>
+               </widget>
+              </item>
+              <item>
                <widget class="QPushButton" name="btn_change_project">
                 <property name="enabled">
                  <bool>false</bool>
@@ -367,7 +374,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>448</width>
+                   <width>561</width>
                    <height>328</height>
                   </rect>
                  </property>
@@ -667,8 +674,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>233</width>
-                    <height>131</height>
+                    <width>98</width>
+                    <height>88</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_14">
@@ -1046,8 +1053,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>253</width>
-                   <height>149</height>
+                   <width>98</width>
+                   <height>112</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_19">
@@ -1275,8 +1282,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>233</width>
-                    <height>159</height>
+                    <width>104</width>
+                    <height>170</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_23">
@@ -1560,7 +1567,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>249</width>
+                    <width>98</width>
                     <height>136</height>
                    </rect>
                   </property>
