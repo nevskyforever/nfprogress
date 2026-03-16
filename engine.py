@@ -63,7 +63,7 @@ last_update = '16.03.26'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    return date(2026, 3, 8)
+    return date(2026, 3, 3)
     return date.today()
 
 
@@ -304,15 +304,10 @@ class Project:
             return self.streak_status
 
         # Случай 1: сегодня уже есть запись в streaks (уже продлили сегодня)
-        if self.streaks and self.streaks[-1] == today:
-            if day_completed:
-                # Всё хорошо, стрик активен сегодня
-                self.streak_status = 'Go' if len(self.streaks) > 1 else 'Start'
-                return self.streak_status
-            else:
-                # День не выполнен, но запись есть — возможно, ошибка. Оставляем как есть.
-                self.streak_status = 'Active'
-                return 'Active'
+        if self.streaks and self.streaks[-1] == today and day_completed:
+            # Всё хорошо, стрик активен сегодня
+            self.streak_status = 'Go' if len(self.streaks) > 1 else 'Start'
+            return self.streak_status
 
         # Случай 2: день выполнен
         if day_completed:
