@@ -428,19 +428,57 @@ class MainWindow(QMainWindow, main_window_ui):
         self.load_notes(project)
 
     def load_notes(self, project):
-        """Загружает список заметок проекта."""
+        """Загружает список заметок проекта с отображением добавленного и общего количества."""
         self.note_list.clear()
+
+        # Получаем единицу измерения для отображения
+        unit_code = project.unit
+
         for note in reversed(project.notes[-10:]):  # Показываем последние 10 записей
-            # Конвертируем добавленные символы в единицу проекта
-            added_disp = en.unit_converter('symbols', note.added_symbols, project.unit)
+            # Добавленное количество в единицах проекта
+            added_disp = en.unit_converter('symbols', note.get_added_symbols(), project.unit)
             added_disp_str = self._format_number(added_disp)
 
-            # Прогресс оставляем в процентах
-            progress_str = f"{note.added_progress:.2f}" if note.added_progress else "0"
+            # Общее количество после записи в единицах проекта
+            total_disp = en.unit_converter('symbols', note.get_new_total(), project.unit)
+            total_disp_str = self._format_number(total_disp)
 
-            item_text = f"{note.get_date_create_str()} +{added_disp_str}/{progress_str}%"
+            # Прогресс в процентах
+            progress_str = f"{note.get_added_progress():.2f}" if note.get_added_progress() else "0"
+
+            # Определяем правильное склонение единицы измерения
+            if unit_code == 'symbols':
+                unit_display = self._pluralize_unit(total_disp, 'символ', 'символа', 'символов')
+            elif unit_code == 'A4':
+                unit_display = self._pluralize_unit(total_disp, 'лист', 'листа', 'листов')
+            elif unit_code == 'author_list':
+                unit_display = self._pluralize_unit(total_disp, 'авторский лист', 'авторских листа', 'авторских листов')
+            elif unit_code == 'ficbook_pages':
+                unit_display = self._pluralize_unit(total_disp, 'страница', 'страницы', 'страниц')
+            else:
+                unit_display = unit_code  # на всякий случай
+
+            # Формируем строку: дата + добавлено → общее (единица) [процент]
+            item_text = f"{note.get_date_create_str()} +{added_disp_str} → {total_disp_str} {unit_display} ({progress_str}%)"
+
             item = QListWidgetItem(item_text)
             self.note_list.addItem(item)
+
+    def _pluralize_unit(self, number, form1, form2, form5):
+        """
+        Возвращает правильную форму слова в зависимости от числа.
+        form1 - для 1 (символ)
+        form2 - для 2-4 (символа)
+        form5 - для 5-20, 0 и больших чисел (символов)
+        """
+        number = int(number) if number == int(number) else int(number) + 1  # округляем вверх для нецелых
+
+        if number % 10 == 1 and number % 100 != 11:
+            return form1
+        elif 2 <= number % 10 <= 4 and (number % 100 < 10 or number % 100 >= 20):
+            return form2
+        else:
+            return form5
 
     def add_note(self, project):
         """Добавляет заметку к проекту."""
@@ -912,7 +950,14 @@ class MainWindow(QMainWindow, main_window_ui):
             added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
             new_total_symbols = project.get_total_symbols() + added_symbols
 
-            note = en.Note(new_total_symbols, added_symbols, 0)
+            # Вычисляем прогресс
+            goal_symbols = project.get_goal_symbols()
+            if goal_symbols == float('inf'):
+                added_progress = 0
+            else:
+                added_progress = (added_symbols / goal_symbols * 100) if goal_symbols > 0 else 0
+
+            note = en.Note(new_total_symbols, added_symbols, added_progress)
             project.set_new_notes(note)
             project.get_streak_status()
 
@@ -968,7 +1013,14 @@ class MainWindow(QMainWindow, main_window_ui):
             added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
             new_total_symbols = project.get_total_symbols() + added_symbols
 
-            note = en.Note(new_total_symbols, added_symbols, 0)
+            # Вычисляем прогресс
+            goal_symbols = project.get_goal_symbols()
+            if goal_symbols == float('inf'):
+                added_progress = 0
+            else:
+                added_progress = (added_symbols / goal_symbols * 100) if goal_symbols > 0 else 0
+
+            note = en.Note(new_total_symbols, added_symbols, added_progress)
             project.set_new_notes(note)
             project.get_streak_status()
 
