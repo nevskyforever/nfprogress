@@ -2,7 +2,7 @@ import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from striprtf.striprtf import rtf_to_text
-
+from PySide6.QtWidgets import QMessageBox
 
 def find_scrivener_xml(project_path):
     """
@@ -99,16 +99,19 @@ def count_symbols_in_scrivener_item(project_path, item_id):
     for folder in possible_docs_folders:
         if folder.exists():
             docs_folder = folder
-            print(f"Найдена папка с документами: {docs_folder}")
             break
 
     if docs_folder is None:
-        print(f"Папка с документами не найдена в {project_path}")
+        QMessageBox.warning(
+            None,
+            "Синхронизация Scrivener",
+            f"Папка с документами не найдена в проекте Scrivener.\n"
+            f"Проверьте структуру проекта: {project_path}"
+        )
         return 0
 
     # Очищаем item_id от возможных фигурных скобок и приводим к нижнему регистру для сравнения
     clean_id = item_id.strip('{}').lower()
-    print(f"Ищем папку для item_id {clean_id} в {docs_folder}")
 
     # Рекурсивно ищем папку, имя которой (без учёта регистра) совпадает с clean_id
     target_dir = None
@@ -121,52 +124,57 @@ def count_symbols_in_scrivener_item(project_path, item_id):
             break
 
     if not target_dir:
-        print(f"Папка с UUID {clean_id} не найдена")
-        # Для отладки выведем несколько первых папок
-        print("Первые 5 подпапок в", docs_folder)
-        for i, d in enumerate(list(docs_folder.iterdir())[:5]):
-            if d.is_dir():
-                print(f"  {d.name}")
+        QMessageBox.warning(
+            None,
+            "Синхронизация Scrivener",
+            f"Не найдена папка с UUID {item_id} в проекте Scrivener.\n"
+            f"Убедитесь, что выбранный документ существует и был сохранён."
+        )
         return 0
-
-    print(f"Найдена папка: {target_dir}")
 
     # Ищем внутри папки RTF-файл (обычно Data.rtf)
     rtf_files = list(target_dir.glob("*.rtf")) + list(target_dir.glob("*.RTF"))
     if not rtf_files:
-        print(f"В папке {target_dir} нет RTF-файлов")
+        QMessageBox.warning(
+            None,
+            "Синхронизация Scrivener",
+            f"В папке документа не найден RTF-файл.\n"
+            f"Путь: {target_dir}"
+        )
         return 0
 
     # Пробуем прочитать первый RTF
     for rtf_path in rtf_files:
         try:
-            print(f"Пробуем прочитать: {rtf_path}")
             # Пробуем разные кодировки
             for enc in ['utf-8', 'cp1251', 'latin-1', 'mac-roman']:
                 try:
                     with open(rtf_path, 'r', encoding=enc, errors='ignore') as f:
                         rtf_content = f.read()
                     text = rtf_to_text(rtf_content)
-                    count = len(text)
-                    print(f"Успешно прочитано {count} символов (кодировка {enc})")
-                    return count
+                    return len(text)
                 except UnicodeDecodeError:
                     continue
-                except Exception as e:
-                    print(f"Ошибка при декодировании {enc}: {e}")
+                except Exception:
                     continue
 
             # Бинарный режим
             with open(rtf_path, 'rb') as f:
                 rtf_content = f.read().decode('utf-8', errors='ignore')
             text = rtf_to_text(rtf_content)
-            count = len(text)
-            print(f"Успешно прочитано {count} символов (бинарный)")
-            return count
+            return len(text)
 
         except Exception as e:
-            print(f"Ошибка чтения {rtf_path}: {e}")
+            QMessageBox.critical(
+                None,
+                "Ошибка синхронизации Scrivener",
+                f"Не удалось прочитать файл {rtf_path}:\n{str(e)}"
+            )
             continue
 
-    print("Не удалось прочитать RTF")
+    QMessageBox.warning(
+        None,
+        "Синхронизация Scrivener",
+        "Не удалось прочитать RTF-файл документа."
+    )
     return 0
