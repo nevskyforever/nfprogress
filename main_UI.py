@@ -434,10 +434,49 @@ class MainWindow(QMainWindow, main_window_ui):
         # Получаем единицу измерения для отображения
         unit_code = project.unit
 
+        # Проверяем и восстанавливаем прогресс для записей, где он отсутствует
+        data_changed = False
+        for note in project.notes:
+            # Если added_progress равно 0 или None, но added_symbols > 0, вычисляем прогресс
+            if (note.get_added_progress() == 0 or note.get_added_progress() is None) and note.get_added_symbols() != 0:
+                goal_symbols = project.get_goal_symbols()
+                if goal_symbols != float('inf') and goal_symbols > 0:
+                    # Вычисляем правильный прогресс
+                    added_progress = (note.get_added_symbols() / goal_symbols * 100)
+
+                    # Создаём новую заметку с исправленным прогрессом
+                    fixed_note = en.Note(
+                        note.get_new_total(),
+                        note.get_added_symbols(),
+                        added_progress,
+                        note.date_create
+                    )
+
+                    # Заменяем заметку в списке
+                    index = project.notes.index(note)
+                    project.notes[index] = fixed_note
+                    data_changed = True
+
+        # Если были изменения, сохраняем данные
+        if data_changed:
+            data = en.load_data()
+            data['projects'][project.name] = project
+            en.save_data(data)
+
+        # Отображаем заметки
         for note in reversed(project.notes[-10:]):  # Показываем последние 10 записей
             # Добавленное количество в единицах проекта
             added_disp = en.unit_converter('symbols', note.get_added_symbols(), project.unit)
             added_disp_str = self._format_number(added_disp)
+
+            # Определяем знак изменения
+            if added_disp > 0:
+                sign = "+"
+            elif added_disp < 0:
+                sign = "-"
+                added_disp_str = self._format_number(abs(added_disp))  # убираем минус для отображения
+            else:
+                sign = "±"  # на случай если 0 (хотя таких записей не должно быть)
 
             # Общее количество после записи в единицах проекта
             total_disp = en.unit_converter('symbols', note.get_new_total(), project.unit)
@@ -456,10 +495,10 @@ class MainWindow(QMainWindow, main_window_ui):
             elif unit_code == 'ficbook_pages':
                 unit_display = self._pluralize_unit(total_disp, 'страница', 'страницы', 'страниц')
             else:
-                unit_display = unit_code  # на всякий случай
+                unit_display = unit_code
 
-            # Формируем строку: дата + добавлено → общее (единица) [процент]
-            item_text = f"{note.get_date_create_str()} +{added_disp_str} → {total_disp_str} {unit_display} ({progress_str}%)"
+            # Формируем строку: дата ±добавлено → общее (единица) [процент]
+            item_text = f"{note.get_date_create_str()} {sign}{added_disp_str} → {total_disp_str} {unit_display} ({progress_str}%)"
 
             item = QListWidgetItem(item_text)
             self.note_list.addItem(item)
@@ -942,9 +981,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
             if new_total_in_unit <= current_total_in_unit:
                 self.notifications.show_info(
-                    "Файл не содержит новых символов (количество не увеличилось)."
+                    "Файл не содержит новых символов (количество уменьшилось)."
                 )
-                return
 
             added_in_unit = new_total_in_unit - current_total_in_unit
             added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
@@ -1005,9 +1043,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
             if new_total_in_unit <= current_total_in_unit:
                 self.notifications.show_info(
-                    "Количество символов не увеличилось."
+                    "Количество символов уменьшилось."
                 )
-                return
 
             added_in_unit = new_total_in_unit - current_total_in_unit
             added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
