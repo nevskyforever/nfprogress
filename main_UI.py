@@ -2,9 +2,9 @@ import datetime
 import os
 import sys
 
-from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer
+from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt
 from PySide6.QtWidgets import QApplication
-from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog
+from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QDialogButtonBox, QLabel
 
 import engine as en
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
@@ -14,6 +14,8 @@ from UI_fiiles.notification import ToastNotification
 from UI_fiiles.project_widget import ProjectWidget
 from UI_fiiles.settings import Ui_Dialog as settings_ui
 from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
+from UI_fiiles.synch_window import Ui_sych_window
+from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
 
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
@@ -840,61 +842,48 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def sync_project(self, project):
         """
-        Синхронизирует проект с привязанным файлом.
-        Если файл не выбран – сначала показывает пояснение и предлагает выбрать.
+        Синхронизирует проект с привязанным файлом/элементом.
         """
-        # Если путь не задан – показываем пояснение и запрашиваем файл
+        # Если синхронизация не настроена, показываем окно выбора
         if project.synch is None:
-            # Показываем диалог с пояснением
-            dialog = ConfirmDialog()
-            dialog.message.setText(
-                "Синхронизация позволяет автоматически обновлять прогресс проекта "
-                "на основе содержимого файла .docx.\n\n"
-                "При каждом нажатии кнопки 'Синхронизировать' программа будет "
-                "считывать количество символов из этого файла и добавлять разницу "
-                "как новую запись, автоматически конвертируя в выбранную единицу.\n\n"
-                "Сейчас файл не выбран. Хотите выбрать файл для синхронизации?"
-            )
+            dialog = SynchWindow(project, self)
             if dialog.exec() != QDialog.Accepted:
-                return  # пользователь отказался
-
-            file_path, _ = QFileDialog.getOpenFileName(
-                self,
-                "Выберите файл для синхронизации",
-                "",
-                "Документы Word (*.docx *.doc);;Все файлы (*)"
-            )
-            if not file_path:
                 return
-
-            # Проверяем расширение
-            ext = os.path.splitext(file_path)[1].lower()
-            if ext not in ('.docx', '.doc'):
-                self.notifications.show_error("Поддерживаются только файлы .docx и .doc")
-                return
-
-            # Сохраняем путь в проекте
-            project.synch = file_path
+            # Сохраняем изменения
             data = en.load_data()
             data['projects'][project.name] = project
             en.save_data(data)
-            self.notifications.show_info(f"Файл привязан: {os.path.basename(file_path)}")
-        else:
-            file_path = project.synch
-            if not os.path.exists(file_path):
-                self.notifications.show_error(
-                    "Файл не найден. Возможно, он был перемещён или удалён.\n"
-                    "Выберите новый файл."
-                )
-                # Сбрасываем путь и вызываем метод заново для выбора
-                project.synch = None
-                data = en.load_data()
-                data['projects'][project.name] = project
-                en.save_data(data)
-                self.sync_project(project)
-                return
+            # После настройки запускаем синхронизацию
+            self.sync_project(project)
+            return
 
-        # Чтение файла и подсчёт символов (остальная часть без изменений)
+        # Обработка в зависимости от типа
+        if isinstance(project.synch, dict):
+            sync_type = project.synch.get('type')
+
+            if sync_type == 'word':
+                self._sync_word(project)
+            elif sync_type == 'scrivener':
+                self._sync_scrivener(project)
+            else:
+                self.notifications.show_error("Неизвестный тип синхронизации")
+        else:
+            # Старый формат (строка) – считаем как word
+            # Конвертируем на лету
+            project.synch = {'type': 'word', 'path': project.synch}
+            self._sync_word(project)
+
+    def _sync_word(self, project):
+        """Синхронизация с Word-файлом"""
+        file_path = project.synch['path']
+        if not os.path.exists(file_path):
+            self.notifications.show_error(
+                "Файл не найден. Возможно, он был перемещён.\n"
+                "Настройте синхронизацию заново."
+            )
+            project.synch = None
+            return
+
         try:
             ext = os.path.splitext(file_path)[1].lower()
             if ext == '.docx':
@@ -902,7 +891,7 @@ class MainWindow(QMainWindow, main_window_ui):
             elif ext == '.doc':
                 self.notifications.show_error(
                     "Поддержка .doc временно недоступна.\n"
-                    "Пожалуйста, сохраните файл как .docx и повторите попытку."
+                    "Пожалуйста, сохраните файл как .docx."
                 )
                 return
             else:
@@ -944,6 +933,62 @@ class MainWindow(QMainWindow, main_window_ui):
         except Exception as e:
             self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
 
+    def _sync_scrivener(self, project):
+        """Синхронизация с проектом Scrivener"""
+        proj_path = project.synch['path']
+        item_id = project.synch['item_id']
+
+        if not os.path.exists(proj_path):
+            self.notifications.show_error(
+                "Папка проекта Scrivener не найдена.\n"
+                "Настройте синхронизацию заново."
+            )
+            project.synch = None
+            return
+
+        try:
+            symbols = count_symbols_in_scrivener_item(proj_path, item_id)
+            if symbols == 0:
+                self.notifications.show_warning(
+                    "Не удалось подсчитать символы. Возможно, документ пуст или не найден."
+                )
+                return
+
+            # Конвертируем в единицу проекта
+            new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
+            current_total_in_unit = project.total_symbols
+
+            if new_total_in_unit <= current_total_in_unit:
+                self.notifications.show_info(
+                    "Количество символов не увеличилось."
+                )
+                return
+
+            added_in_unit = new_total_in_unit - current_total_in_unit
+            added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
+            new_total_symbols = project.get_total_symbols() + added_symbols
+
+            note = en.Note(new_total_symbols, added_symbols, 0)
+            project.set_new_notes(note)
+            project.get_streak_status()
+
+            data = en.load_data()
+            data['projects'][project.name] = project
+            en.save_data(data)
+
+            self.refresh_projects()
+            self.select_project_by_name(project.name)
+
+            unit_name = self.unit_to_display.get(project.unit, project.unit)
+            self.notifications.show_success(
+                f"Синхронизация Scrivener завершена.\n"
+                f"Добавлено {added_in_unit:.1f} {unit_name}",
+                position="bottom-left"
+            )
+
+        except Exception as e:
+            self.notifications.show_error(f"Ошибка при синхронизации Scrivener: {str(e)}")
+
     def get_current_project(self):
         """Возвращает объект Project для текущего выбранного элемента в списке или None."""
         current_item = self.list_projects.currentItem()
@@ -962,19 +1007,17 @@ class MainWindow(QMainWindow, main_window_ui):
         self.sync_project(project)
 
     def on_delete_sync_menu_triggered(self):
-        """Обработчик меню 'Удалить синхронизацию'."""
         project = self.get_current_project()
         if project is None:
             self.notifications.show_warning("Нет выбранного проекта")
             return
         if project.synch is None:
-            self.notifications.show_info("У этого проекта нет привязанного файла")
+            self.notifications.show_info("У этого проекта нет привязанной синхронизации")
             return
 
         dialog = ConfirmDialog()
         dialog.message.setText(
-            "Вы действительно хотите удалить привязку к файлу?\n"
-            "Синхронизация будет отключена."
+            "Вы действительно хотите удалить настройки синхронизации?"
         )
         if dialog.exec() == QDialog.Accepted:
             project.synch = None
@@ -982,7 +1025,6 @@ class MainWindow(QMainWindow, main_window_ui):
             data['projects'][project.name] = project
             en.save_data(data)
             self.notifications.show_success("Синхронизация отключена")
-            # Обновляем интерфейс
             self.refresh_projects()
             self.select_project_by_name(project.name)
 
@@ -1521,6 +1563,152 @@ class UserAgreement(QDialog, user_agreement_ui):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
+
+class ScrivenerItemDialog(QDialog):
+    def __init__(self, items, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Выберите элемент Scrivener")
+        self.setMinimumSize(400, 500)
+
+        layout = QVBoxLayout(self)
+
+        label = QLabel("Выберите документ для синхронизации:")
+        layout.addWidget(label)
+
+        self.tree = QTreeWidget()
+        self.tree.setHeaderHidden(True)
+        layout.addWidget(self.tree)
+
+        # Кнопки
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+
+        self.selected_item = None
+
+        # Заполняем дерево
+        self.populate_tree(items)
+        self.tree.itemDoubleClicked.connect(self.accept)
+
+    def populate_tree(self, items, parent=None):
+        for item in items:
+            tree_item = QTreeWidgetItem(parent if parent else self.tree)
+            tree_item.setText(0, item['title'])
+            tree_item.setData(0, Qt.UserRole, item['id'])
+            if item['children']:
+                self.populate_tree(item['children'], tree_item)
+
+    def get_selected_item(self):
+        item = self.tree.currentItem()
+        if item:
+            item_id = item.data(0, Qt.UserRole)
+            title = item.text(0)
+            return item_id, title
+        return None, None
+
+class SynchWindow(QDialog, Ui_sych_window):
+    def __init__(self, project, parent=None):
+        super().__init__(parent)
+        self.setupUi(self)
+        self.project = project
+
+        # Если уже есть синхронизация, устанавливаем соответствующий тип в комбобокс
+        if project.synch and isinstance(project.synch, dict):
+            if project.synch.get('type') == 'word':
+                self.type_of_sych_cb.setCurrentText('Word')
+            elif project.synch.get('type') == 'scrivener':
+                self.type_of_sych_cb.setCurrentText('Scrivener')
+
+        # Подключаем кнопки
+        self.buttonBox.accepted.connect(self.on_accept)
+
+    def on_accept(self):
+        synch_type = self.type_of_sych_cb.currentText()
+
+        if synch_type == 'Word':
+            success = self.setup_word_sync()
+        elif synch_type == 'Scrivener':
+            success = self.setup_scrivener_sync()
+        else:
+            success = False
+
+        if not success:
+            # Оставляем диалог открытым
+            return
+        self.accept()
+
+    def setup_word_sync(self):
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите файл Word",
+            "",
+            "Документы Word (*.docx *.doc);;Все файлы (*)"
+        )
+        if not file_path:
+            return False
+
+        ext = os.path.splitext(file_path)[1].lower()
+        if ext not in ('.docx', '.doc'):
+            self.parent().notifications.show_error("Поддерживаются только .docx и .doc")
+            return False
+
+        self.project.synch = {'type': 'word', 'path': file_path}
+        return True
+
+    def setup_scrivener_sync(self):
+        # Используем getOpenFileName, чтобы пользователь мог выбрать .scriv как файл
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Выберите проект Scrivener (пакет .scriv)",
+            "",
+            "Проекты Scrivener (*.scriv);;Все файлы (*)"
+        )
+        if not file_path:
+            return False
+
+        # Проверяем, что это директория (пакет)
+        if not os.path.isdir(file_path):
+            self.parent().notifications.show_error(
+                "Выбранный путь не является папкой проекта Scrivener.\n"
+                "Убедитесь, что вы выбираете именно пакет .scriv."
+            )
+            return False
+
+        # Поиск XML внутри пакета
+        xml_path = find_scrivener_xml(file_path)
+        if not xml_path:
+            self.parent().notifications.show_error(
+                "Не удалось найти файл проекта Scrivener внутри пакета.\n"
+                "Убедитесь, что это корректный проект Scrivener."
+            )
+            return False
+
+        # Парсинг элементов
+        items = parse_scrivener_items(xml_path)
+        if not items:
+            self.parent().notifications.show_error(
+                "Не удалось загрузить структуру проекта.\n"
+                "Возможно, файл проекта повреждён."
+            )
+            return False
+
+        # Диалог выбора элемента
+        dialog = ScrivenerItemDialog(items, self)
+        if dialog.exec() != QDialog.Accepted:
+            return False
+
+        item_id, item_title = dialog.get_selected_item()
+        if not item_id:
+            return False
+
+        self.project.synch = {
+            'type': 'scrivener',
+            'path': file_path,  # сохраняем путь к пакету
+            'item_id': item_id,
+            'item_title': item_title
+        }
+        return True
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

@@ -112,6 +112,8 @@ class Project:
                 setattr(self, attr, default_value)
             elif attr in ('notes', 'streaks') and not isinstance(getattr(self, attr), list):
                 setattr(self, attr, [])
+        if self.synch is not None and isinstance(self.synch, str):
+            self.synch = {'type': 'word', 'path': self.synch}
 
     @property
     def name(self):
