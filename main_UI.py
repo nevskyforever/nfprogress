@@ -1031,8 +1031,21 @@ class MainWindow(QMainWindow, main_window_ui):
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
 
-            self.refresh_projects()
-            self.select_project_by_name(project.name)
+            # Обновляем виджет проекта в списке (для анимации)
+            current_item = self.list_projects.currentItem()
+            if current_item and current_item is not None:
+                widget = self.list_projects.itemWidget(current_item)
+                if widget and hasattr(widget, 'project') and widget.project.name == project.name:
+                    # Обновляем существующий виджет
+                    widget.update_display()
+                else:
+                    # Если текущий виджет не соответствует проекту, ищем нужный
+                    self.refresh_projects()
+                    self.select_project_by_name(project.name)
+            else:
+                # Если ничего не выбрано, просто обновляем список
+                self.refresh_projects()
+                self.select_project_by_name(project.name)
 
             unit_name = self.unit_to_display.get(project.unit, project.unit)
 
@@ -1115,8 +1128,21 @@ class MainWindow(QMainWindow, main_window_ui):
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
 
-            self.refresh_projects()
-            self.select_project_by_name(project.name)
+            # Обновляем виджет проекта в списке (для анимации)
+            current_item = self.list_projects.currentItem()
+            if current_item and current_item is not None:
+                widget = self.list_projects.itemWidget(current_item)
+                if widget and hasattr(widget, 'project') and widget.project.name == project.name:
+                    # Обновляем существующий виджет
+                    widget.update_display()
+                else:
+                    # Если текущий виджет не соответствует проекту, ищем нужный
+                    self.refresh_projects()
+                    self.select_project_by_name(project.name)
+            else:
+                # Если ничего не выбрано, просто обновляем список
+                self.refresh_projects()
+                self.select_project_by_name(project.name)
 
             unit_name = self.unit_to_display.get(project.unit, project.unit)
 
