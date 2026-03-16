@@ -56,8 +56,8 @@ def resource_path(relative_path):
 
 
 # Версия приложения
-version = '3.2'
-last_update = '13.03.26'
+version = '3.3'
+last_update = '16.03.26'
 
 
 def today_for_test():

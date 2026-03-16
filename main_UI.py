@@ -407,6 +407,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.btn_delete_project.setEnabled(True)  # удаление обычно разрешено
             self.pb_save_flash_note.setEnabled(False)
             self.delete_note.setEnabled(False)
+            self.new_symbols.setEnabled(False)  # отключаем поле ввода
         else:
             # Проект активен или в архиве — настраиваем кнопки по логике
             self.btn_change_project.setEnabled(True)
@@ -421,8 +422,20 @@ class MainWindow(QMainWindow, main_window_ui):
 
             self.btn_archived_project.setEnabled(True)
             self.btn_delete_project.setEnabled(True)
-            self.pb_save_flash_note.setEnabled(True)
-            self.delete_note.setEnabled(True)
+
+            # Логика для ручного добавления записей:
+            # Если синхронизация включена (project.synch не None), отключаем ручное добавление
+            if project.synch is not None:
+                self.pb_save_flash_note.setEnabled(False)
+                self.new_symbols.setEnabled(False)
+                self.delete_note.setEnabled(True)  # удаление записей всё ещё разрешено
+                # Добавляем подсказку для пользователя
+                self.new_symbols.setPlaceholderText("Синхронизация активна")
+            else:
+                self.pb_save_flash_note.setEnabled(True)
+                self.new_symbols.setEnabled(True)
+                self.delete_note.setEnabled(True)
+                self.new_symbols.setPlaceholderText("")
 
         # Загружаем список заметок
         self.load_notes(project)
