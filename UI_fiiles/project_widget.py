@@ -306,6 +306,15 @@ class ProjectWidget(QWidget, Ui_Form):
 
         self.project = project
         self.circular_progress.lower()
+
+        # Словарь для отображения единиц измерения
+        self.unit_display = {
+            'symbols': 'симв.',
+            'A4': 'л.',
+            'author_list': 'а.л.',
+            'ficbook_pages': 'стр.'
+        }
+
         self.update_display()
 
     def update_display(self):
@@ -315,10 +324,15 @@ class ProjectWidget(QWidget, Ui_Form):
         # Прогресс (всегда в процентах)
         self.circular_progress.setValue(int(self.project.progress), animated=True)
 
-        # Значения уже в единице проекта
+        # Значения уже в единице проекта с отображением единицы измерения
         total_str = self._format_number(self.project.total_symbols)
         goal_str = self._format_number(self.project.goal)
-        self.symbols.setText(f'{total_str}/{goal_str}')
+
+        # Получаем сокращённое название единицы измерения
+        unit_short = self.unit_display.get(self.project.unit, '')
+
+        # Формируем строку с единицей измерения: "10/20 стр." или "5/10 л." и т.д.
+        self.symbols.setText(f'{total_str}/{goal_str} {unit_short}')
 
         # Сначала скрываем все элементы стриков
         self.streak.setVisible(False)
