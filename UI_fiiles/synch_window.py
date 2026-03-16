@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'synch_windowFfPqWU.ui'
+## Form generated from reading UI file 'synch_windowmZjBMV.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -17,7 +17,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QComboBox, QDialog,
     QDialogButtonBox, QGridLayout, QSizePolicy, QSpacerItem,
-    QTextEdit, QWidget)
+    QTextBrowser, QWidget)
 
 class Ui_sych_window(object):
     def setupUi(self, sych_window):
@@ -41,11 +41,6 @@ class Ui_sych_window(object):
 
         self.gridLayout.addWidget(self.buttonBox, 1, 2, 1, 1)
 
-        self.message = QTextEdit(sych_window)
-        self.message.setObjectName(u"message")
-
-        self.gridLayout.addWidget(self.message, 0, 0, 1, 3)
-
         self.type_of_sych_cb = QComboBox(sych_window)
         self.type_of_sych_cb.addItem("")
         self.type_of_sych_cb.addItem("")
@@ -58,6 +53,15 @@ class Ui_sych_window(object):
         self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
         self.gridLayout.addItem(self.horizontalSpacer, 1, 1, 1, 1)
+
+        self.textBrowser = QTextBrowser(sych_window)
+        self.textBrowser.setObjectName(u"textBrowser")
+        font1 = QFont()
+        font1.setFamilies([u"Arial"])
+        font1.setPointSize(10)
+        self.textBrowser.setFont(font1)
+
+        self.gridLayout.addWidget(self.textBrowser, 0, 0, 1, 3)
 
 
         self.retranslateUi(sych_window)
@@ -72,5 +76,34 @@ class Ui_sych_window(object):
         self.type_of_sych_cb.setItemText(0, QCoreApplication.translate("sych_window", u"Word", None))
         self.type_of_sych_cb.setItemText(1, QCoreApplication.translate("sych_window", u"Scrivener", None))
 
+        self.textBrowser.setHtml(QCoreApplication.translate("sych_window", u"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
+"<html><head><meta name=\"qrichtext\" content=\"1\" /><meta charset=\"utf-8\" /><style type=\"text/css\">\n"
+"p, li { white-space: pre-wrap; }\n"
+"hr { height: 1px; border-width: 0; }\n"
+"li.unchecked::marker { content: \"\\2610\"; }\n"
+"li.checked::marker { content: \"\\2612\"; }\n"
+"</style></head><body style=\" font-family:'Arial'; font-size:10pt; font-weight:400; font-style:normal;\">\n"
+"<p style=\" margin-top:16px; margin-bottom:16px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; font-weight:600; color:#f9fafb;\">\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f</span><span style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-s"
+                        "ystem','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; color:#f9fafb;\">\u00a0\u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438 \u043e\u0431\u043d\u043e\u0432\u043b\u044f\u0435\u0442 \u043f\u0440\u043e\u0433\u0440\u0435\u0441\u0441 \u043f\u0440\u043e\u0435\u043a\u0442\u0430 \u043d\u0430 \u043e\u0441\u043d\u043e\u0432\u0435 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0439 \u0432\u043e \u0432\u043d\u0435\u0448\u043d\u0435\u043c \u0444\u0430\u0439\u043b\u0435. \u041f\u0440\u0438\u043b\u043e\u0436\u0435\u043d\u0438\u0435 \u0441\u0430\u043c\u043e \u043f\u043e\u0434\u0441\u0447\u0438\u0442\u044b\u0432\u0430\u0435\u0442 \u0441\u0438\u043c\u0432\u043e\u043b\u044b \u0438 \u0441\u043e\u0437\u0434\u0430\u0451\u0442 \u0437\u0430\u043f\u0438\u0441\u0438 \u2014 \u0432\u0430\u043c \u043d\u0435 \u043d\u0443\u0436\u043d\u043e \u0432\u0432\u043e\u0434\u0438\u0442\u044c \u0438\u0445 \u0432\u0440\u0443\u0447\u043d\u0443"
+                        "\u044e, \u043f\u0440\u043e\u0441\u0442\u043e \u043d\u0430\u0436\u043c\u0438\u0442\u0435 \u043d\u0443\u0436\u043d\u0443\u044e \u043a\u043d\u043e\u043f\u043a\u0443 \u0432 \u043f\u0440\u043e\u0435\u043a\u0442\u0435.</span></p>\n"
+"<p style=\" margin-top:16px; margin-bottom:16px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; color:#f9fafb;\">Word (.docx/.doc)<br />\u0412\u044b \u043f\u0440\u0438\u0432\u044f\u0437\u044b\u0432\u0430\u0435\u0442\u0435 \u0444\u0430\u0439\u043b Word. \u041f\u0440\u0438 \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u0438 \u043f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0430 \u0441\u0447\u0438\u0442\u044b\u0432\u0430\u0435\u0442 \u043a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u0441\u0438\u043c\u0432\u043e\u043b\u043e"
+                        "\u0432 \u0438 \u0434\u043e\u0431\u0430\u0432\u043b\u044f\u0435\u0442 \u0440\u0430\u0437\u043d\u0438\u0446\u0443 \u043a\u0430\u043a \u043d\u043e\u0432\u0443\u044e \u0437\u0430\u043f\u0438\u0441\u044c.</span></p>\n"
+"<p style=\" margin-top:16px; margin-bottom:16px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; font-weight:700; color:#f9fafb;\">Scrivener (.scriv)</span><span style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; color:#f9fafb;\"><br />\u0412\u044b \u0432\u044b\u0431\u0438\u0440\u0430\u0435\u0442\u0435 \u043f\u0440\u043e\u0435\u043a\u0442 Scrivener, \u0437\u0430\u0442\u0435\u043c \u043a\u043e\u043d\u043a\u0440\u0435"
+                        "\u0442\u043d\u044b\u0439 \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442 (\u0433\u043b\u0430\u0432\u0443, \u0441\u0446\u0435\u043d\u0443). \u041f\u0440\u043e\u0433\u0440\u0430\u043c\u043c\u0430 \u043e\u0442\u0441\u043b\u0435\u0436\u0438\u0432\u0430\u0435\u0442 \u0438\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u044f \u0432 \u044d\u0442\u043e\u043c \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0435 \u0438 \u0434\u043e\u0431\u0430\u0432\u043b\u044f\u0435\u0442 \u043d\u0430\u043f\u0438\u0441\u0430\u043d\u043d\u044b\u0435 \u0441\u0438\u043c\u0432\u043e\u043b\u044b.</span></p>\n"
+"<p style=\" margin-top:16px; margin-bottom:16px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; font-weight:700; color:#f9fafb;\">\u041a\u0430\u043a \u043d\u0430\u0441\u0442\u0440\u043e\u0438\u0442\u044c"
+                        ":</span></p>\n"
+"<ol style=\"margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;\">\n"
+"<li style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; color:#f9fafb;\" style=\" margin-top:6px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0442\u0438\u043f (Word \u0438\u043b\u0438 Scrivener).</li>\n"
+"<li style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; color:#f9fafb;\" style=\" margin-top:6px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">\u0423\u043a\u0430\u0436\u0438\u0442\u0435 \u0444\u0430\u0439\u043b \u0438\u043b\u0438 \u043f"
+                        "\u0430\u043f\u043a\u0443 \u043f\u0440\u043e\u0435\u043a\u0442\u0430.</li>\n"
+"<li style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; color:#f9fafb;\" style=\" margin-top:6px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">\u0414\u043b\u044f Scrivener \u0434\u043e\u043f\u043e\u043b\u043d\u0438\u0442\u0435\u043b\u044c\u043d\u043e \u0432\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u044d\u043b\u0435\u043c\u0435\u043d\u0442 \u043f\u0440\u043e\u0435\u043a\u0442\u0430 \u0438\u0437 \u0441\u043f\u0438\u0441\u043a\u0430.</li></ol>\n"
+"<p style=\" margin-top:16px; margin-bottom:16px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helveti"
+                        "ca Neue','sans-serif'; font-size:13pt; font-weight:600; color:#f9fafb;\">\u0412\u0430\u0436\u043d\u043e:</span></p>\n"
+"<ul style=\"margin-top: 0px; margin-bottom: 0px; margin-left: 0px; margin-right: 0px; -qt-list-indent: 1;\">\n"
+"<li style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; color:#f9fafb;\" style=\" margin-top:16px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">\u041f\u0440\u0438\u0432\u044f\u0437\u043a\u0430 \u0441\u043e\u0445\u0440\u0430\u043d\u044f\u0435\u0442\u0441\u044f \u2014 \u043f\u0440\u0438 \u0441\u043b\u0435\u0434\u0443\u044e\u0449\u0438\u0445 \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f\u0445 \u0444\u0430\u0439\u043b \u043d\u0435 \u043d\u0443\u0436\u043d\u043e \u0432\u044b\u0431\u0438\u0440\u0430\u0442\u044c \u0437\u0430\u043d\u043e\u0432\u043e.</li>\n"
+""
+                        "<li style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; color:#f9fafb;\" style=\" margin-top:6px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">\u0415\u0441\u043b\u0438 \u0444\u0430\u0439\u043b \u043d\u0435 \u0438\u0437\u043c\u0435\u043d\u0438\u043b\u0441\u044f, \u0437\u0430\u043f\u0438\u0441\u044c \u043d\u0435 \u0441\u043e\u0437\u0434\u0430\u0451\u0442\u0441\u044f.</li>\n"
+"<li style=\" font-family:'quote-cjk-patch','Inter','system-ui','-apple-system','BlinkMacSystemFont','Segoe UI','Roboto','Oxygen','Ubuntu','Cantarell','Open Sans','Helvetica Neue','sans-serif'; font-size:13pt; color:#f9fafb;\" style=\" margin-top:6px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\">\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044e \u043c\u043e\u0436\u043d"
+                        "\u043e \u043e\u0442\u043a\u043b\u044e\u0447\u0438\u0442\u044c \u0432 \u043b\u044e\u0431\u043e\u0439 \u043c\u043e\u043c\u0435\u043d\u0442 (\u043c\u0435\u043d\u044e \u00ab\u041f\u0440\u043e\u0435\u043a\u0442\u00bb \u2192 \u00ab\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044e\u00bb).</li></ul></body></html>", None))
     # retranslateUi
 
