@@ -1055,6 +1055,9 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
+            if en.load_settings().get('global_streak', False):
+                # Обновляем глобальный стрик
+                self.refresh_global_streak_status()
 
             # Обновляем виджет проекта в списке (для анимации)
             current_item = self.list_projects.currentItem()
@@ -1158,6 +1161,10 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
+
+            if en.load_settings().get('global_streak', False):
+                # Обновляем глобальный стрик
+                self.refresh_global_streak_status()
 
             # Обновляем виджет проекта в списке (для анимации)
             current_item = self.list_projects.currentItem()
