@@ -427,6 +427,9 @@ class MainWindow(QMainWindow, main_window_ui):
         # Загружаем список заметок
         self.load_notes(project)
 
+        # Обновляем статус синхронизации
+        self.update_sync_status_label(project)
+
     def load_notes(self, project):
         """Загружает список заметок проекта с отображением добавленного и общего количества."""
         self.note_list.clear()
@@ -1022,6 +1025,12 @@ class MainWindow(QMainWindow, main_window_ui):
             project.set_new_notes(note)
             project.get_streak_status()
 
+            # Обновляем дату последней синхронизации
+            project.last_synch = datetime.datetime.now()  # используем текущее время
+
+            # Обновляем статус в интерфейсе
+            self.update_sync_status_label(project)
+
             # Сохраняем изменения
             data = en.load_data()
             data['projects'][project.name] = project
@@ -1118,6 +1127,12 @@ class MainWindow(QMainWindow, main_window_ui):
             note = en.Note(new_total_symbols, added_symbols, added_progress)
             project.set_new_notes(note)
             project.get_streak_status()
+
+            # Обновляем дату последней синхронизации
+            project.last_synch = datetime.datetime.now()  # используем текущее время
+
+            # Обновляем статус в интерфейсе
+            self.update_sync_status_label(project)
 
             # Сохраняем изменения
             data = en.load_data()
@@ -1220,6 +1235,15 @@ class MainWindow(QMainWindow, main_window_ui):
             self.notifications.show_success("Синхронизация отключена")
             self.refresh_projects()
             self.select_project_by_name(project.name)
+
+    def update_sync_status_label(self, project):
+        """Обновляет текст метки с информацией о последней синхронизации."""
+        if project.last_synch:
+            # Форматируем дату и время
+            dt_str = project.last_synch.strftime('%d.%m.%Y %H:%M')
+            self.synch_status.setText(f"Последняя синхр.: {dt_str}")
+        else:
+            self.synch_status.setText("Не синхронизирован")
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
