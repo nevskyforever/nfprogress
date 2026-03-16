@@ -539,6 +539,13 @@ class MainWindow(QMainWindow, main_window_ui):
         # Сохраняем старое значение для уведомления
         old_total_in_unit = project.total_symbols
 
+        # Проверяем, изменилось ли количество
+        if abs(new_total_in_unit - old_total_in_unit) < 0.01:
+            self.notifications.show_info(
+                "Значение не изменилось."
+            )
+            return
+
         # Конвертируем в символы для расчётов и сохранения в заметке
         new_total_symbols = en.unit_converter(project.unit, new_total_in_unit, 'symbols')
         current_total_symbols = project.get_total_symbols()
@@ -564,8 +571,8 @@ class MainWindow(QMainWindow, main_window_ui):
         data['projects'][project.name] = project
         en.save_data(data)
 
-        # Обновляем игровой режим если включён
-        if en.load_settings().get('game_mode', False) and new_total_symbols > old_total_in_unit:
+        # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
+        if en.load_settings().get('game_mode', False) and added_symbols > 0:
             self.game_controller.add_symbols(added_symbols)
 
         # Обновляем состояние кнопок, если цель достигнута
@@ -587,10 +594,22 @@ class MainWindow(QMainWindow, main_window_ui):
         self.load_notes(project)
 
         added_in_unit = new_total_in_unit - old_total_in_unit
-        unit_name = self.unit_to_display.get(project.unit, project.unit)
-        self.notifications.show_success(
-            f'В {project.name} добавлено {added_symbols} символов ({added_in_unit:.1f} {unit_name})'
-        )
+        abs_added = abs(added_in_unit)
+
+        # Определяем правильное склонение единицы измерения
+        unit_display = self._get_unit_display(project.unit, abs_added)
+
+        # Формируем сообщение в зависимости от знака изменения
+        if added_in_unit > 0:
+            self.notifications.show_success(
+                f'В проект добавлено {self._format_number(abs_added)} {unit_display}',
+                position="bottom-right"
+            )
+        elif added_in_unit < 0:
+            self.notifications.show_warning(
+                f'Из проекта удалено {self._format_number(abs_added)} {unit_display}',
+                position="bottom-right"
+            )
 
         # Обновляем глобальный стрик
         if self.global_streak_mode:
@@ -1003,9 +1022,14 @@ class MainWindow(QMainWindow, main_window_ui):
             project.set_new_notes(note)
             project.get_streak_status()
 
+            # Сохраняем изменения
             data = en.load_data()
             data['projects'][project.name] = project
             en.save_data(data)
+
+            # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
+            if en.load_settings().get('game_mode', False) and added_symbols > 0:
+                self.game_controller.add_symbols(added_symbols)
 
             self.refresh_projects()
             self.select_project_by_name(project.name)
@@ -1082,9 +1106,14 @@ class MainWindow(QMainWindow, main_window_ui):
             project.set_new_notes(note)
             project.get_streak_status()
 
+            # Сохраняем изменения
             data = en.load_data()
             data['projects'][project.name] = project
             en.save_data(data)
+
+            # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
+            if en.load_settings().get('game_mode', False) and added_symbols > 0:
+                self.game_controller.add_symbols(added_symbols)
 
             self.refresh_projects()
             self.select_project_by_name(project.name)
