@@ -80,6 +80,9 @@ class MainWindow(QMainWindow, main_window_ui):
         # Подключение действий меню "Проект"
         self.synch_action.triggered.connect(self.on_sync_menu_triggered)
         self.del_synch_action.triggered.connect(self.on_delete_sync_menu_triggered)
+        self.crreate_project_action.triggered.connect(self.create_project)
+        self.change_project_action.triggered.connect(self.on_change_project_menu_triggered)
+        self.delete_project_action.triggered.connect(self.on_delete_project_menu_triggered)
 
         self.show()
 
@@ -1248,6 +1251,38 @@ class MainWindow(QMainWindow, main_window_ui):
             self.notifications.show_success("Синхронизация отключена")
             self.refresh_projects()
             self.select_project_by_name(project.name)
+
+    def on_change_project_menu_triggered(self):
+        """Обработчик меню 'Изменить проект'."""
+        project = self.get_current_project()
+        if project is None:
+            self.notifications.show_warning("Нет выбранного проекта")
+            return
+        self.edit_project(project)
+
+    def on_delete_project_menu_triggered(self):
+        """Обработчик меню 'Удалить проект'."""
+        project = self.get_current_project()
+        if project is None:
+            self.notifications.show_warning("Нет выбранного проекта")
+            return
+
+        dialog = ConfirmDialog()
+        dialog.message.setText(
+            "Вы действительно хотите удалить проект?\n"
+            "Это действие нельзя отменить!"
+        )
+        if dialog.exec() == QDialog.Accepted:
+            data = en.load_data()
+            if project.name in data['projects']:
+                del data['projects'][project.name]
+                en.save_data(data)
+                self.notifications.show_success(f'{project.name} удален.', position="bottom-left")
+
+            self.refresh_projects()
+            self.project_info.setVisible(False)
+            self.note_widget.setVisible(False)
+            self.change_project_widget.setVisible(False)
 
     def update_sync_status_label(self, project):
         """Обновляет текст метки с информацией о последней синхронизации."""

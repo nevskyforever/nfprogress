@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowvUxvfZ.ui'
+## Form generated from reading UI file 'main_windowcqtCTP.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -36,6 +36,12 @@ class Ui_main_window(object):
         self.synch_action.setObjectName(u"synch_action")
         self.del_synch_action = QAction(main_window)
         self.del_synch_action.setObjectName(u"del_synch_action")
+        self.delete_project_action = QAction(main_window)
+        self.delete_project_action.setObjectName(u"delete_project_action")
+        self.change_project_action = QAction(main_window)
+        self.change_project_action.setObjectName(u"change_project_action")
+        self.crreate_project_action = QAction(main_window)
+        self.crreate_project_action.setObjectName(u"crreate_project_action")
         self.centralwidget = QWidget(main_window)
         self.centralwidget.setObjectName(u"centralwidget")
         self.gridLayout_7 = QGridLayout(self.centralwidget)
@@ -1128,6 +1134,9 @@ class Ui_main_window(object):
         self.menuBar.addAction(self.project_menu.menuAction())
         self.project_menu.addAction(self.synch_action)
         self.project_menu.addAction(self.del_synch_action)
+        self.project_menu.addAction(self.crreate_project_action)
+        self.project_menu.addAction(self.change_project_action)
+        self.project_menu.addAction(self.delete_project_action)
 
         self.retranslateUi(main_window)
 
@@ -1144,6 +1153,9 @@ class Ui_main_window(object):
         main_window.setWindowTitle(QCoreApplication.translate("main_window", u"nfprogress", None))
         self.synch_action.setText(QCoreApplication.translate("main_window", u"\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0438\u0440\u043e\u0432\u0430\u0442\u044c", None))
         self.del_synch_action.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044e", None))
+        self.delete_project_action.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
+        self.change_project_action.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
+        self.crreate_project_action.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.sort_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
         self.sort_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0414\u0435\u0434\u043b\u0430\u0439\u043d", None))
         self.sort_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441", None))

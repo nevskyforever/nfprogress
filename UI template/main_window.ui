@@ -684,8 +684,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
-                    <height>88</height>
+                    <width>233</width>
+                    <height>131</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_14">
@@ -1063,8 +1063,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>98</width>
-                   <height>112</height>
+                   <width>253</width>
+                   <height>149</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_19">
@@ -1292,8 +1292,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>104</width>
-                    <height>170</height>
+                    <width>233</width>
+                    <height>159</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_23">
@@ -1577,7 +1577,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
+                    <width>249</width>
                     <height>136</height>
                    </rect>
                   </property>
@@ -1818,6 +1818,9 @@
     </property>
     <addaction name="synch_action"/>
     <addaction name="del_synch_action"/>
+    <addaction name="crreate_project_action"/>
+    <addaction name="change_project_action"/>
+    <addaction name="delete_project_action"/>
    </widget>
    <addaction name="menu"/>
    <addaction name="project_menu"/>
@@ -1830,6 +1833,21 @@
   <action name="del_synch_action">
    <property name="text">
     <string>Удалить синхронизацию</string>
+   </property>
+  </action>
+  <action name="delete_project_action">
+   <property name="text">
+    <string>Удалить проект</string>
+   </property>
+  </action>
+  <action name="change_project_action">
+   <property name="text">
+    <string>Изменить проект</string>
+   </property>
+  </action>
+  <action name="crreate_project_action">
+   <property name="text">
+    <string>Создать проект</string>
    </property>
   </action>
  </widget>
