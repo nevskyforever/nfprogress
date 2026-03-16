@@ -927,7 +927,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.notifications.show_success(
                 f"Синхронизация завершена.\n"
                 f"Добавлено {added_in_unit:.1f} {unit_name}",
-                position="bottom-left"
+                position="bottom-right"
             )
 
         except Exception as e:
@@ -983,7 +983,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.notifications.show_success(
                 f"Синхронизация Scrivener завершена.\n"
                 f"Добавлено {added_in_unit:.1f} {unit_name}",
-                position="bottom-left"
+                position="bottom-right"
             )
 
         except Exception as e:
