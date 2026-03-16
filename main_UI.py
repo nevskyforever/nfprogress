@@ -979,22 +979,26 @@ class MainWindow(QMainWindow, main_window_ui):
             new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
             current_total_in_unit = project.total_symbols
 
-            if new_total_in_unit <= current_total_in_unit:
+            # Проверяем, изменилось ли количество
+            if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
                 self.notifications.show_info(
-                    "Файл не содержит новых символов (количество уменьшилось)."
+                    "Количество символов не изменилось."
                 )
+                return
 
+            # Вычисляем изменение
             added_in_unit = new_total_in_unit - current_total_in_unit
             added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
             new_total_symbols = project.get_total_symbols() + added_symbols
 
-            # Вычисляем прогресс
+            # Вычисляем прогресс (для уведомления используем абсолютное значение)
             goal_symbols = project.get_goal_symbols()
             if goal_symbols == float('inf'):
                 added_progress = 0
             else:
-                added_progress = (added_symbols / goal_symbols * 100) if goal_symbols > 0 else 0
+                added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
 
+            # Создаём заметку (added_symbols может быть отрицательным)
             note = en.Note(new_total_symbols, added_symbols, added_progress)
             project.set_new_notes(note)
             project.get_streak_status()
@@ -1007,11 +1011,24 @@ class MainWindow(QMainWindow, main_window_ui):
             self.select_project_by_name(project.name)
 
             unit_name = self.unit_to_display.get(project.unit, project.unit)
-            self.notifications.show_success(
-                f"Синхронизация завершена.\n"
-                f"Добавлено {added_in_unit:.1f} {unit_name}",
-                position="bottom-right"
-            )
+
+            # Определяем правильное склонение единицы измерения для количества added_in_unit
+            abs_added = abs(added_in_unit)
+            unit_display = self._get_unit_display(project.unit, abs_added)
+
+            # Формируем сообщение в зависимости от знака изменения
+            if added_in_unit > 0:
+                self.notifications.show_success(
+                    f"Синхронизация завершена.\n"
+                    f"Добавлено {self._format_number(abs_added)} {unit_display}",
+                    position="bottom-right"
+                )
+            else:
+                self.notifications.show_warning(
+                    f"Синхронизация завершена.\n"
+                    f"Удалено {self._format_number(abs_added)} {unit_display}",
+                    position="bottom-right"
+                )
 
         except Exception as e:
             self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
@@ -1037,26 +1054,30 @@ class MainWindow(QMainWindow, main_window_ui):
                 )
                 return
 
-            # Конвертируем в единицу проекта
+            # Конвертируем количество символов в единицу проекта
             new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
             current_total_in_unit = project.total_symbols
 
-            if new_total_in_unit <= current_total_in_unit:
+            # Проверяем, изменилось ли количество
+            if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
                 self.notifications.show_info(
-                    "Количество символов уменьшилось."
+                    "Количество символов не изменилось."
                 )
+                return
 
+            # Вычисляем изменение
             added_in_unit = new_total_in_unit - current_total_in_unit
             added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
             new_total_symbols = project.get_total_symbols() + added_symbols
 
-            # Вычисляем прогресс
+            # Вычисляем прогресс (для уведомления используем абсолютное значение)
             goal_symbols = project.get_goal_symbols()
             if goal_symbols == float('inf'):
                 added_progress = 0
             else:
-                added_progress = (added_symbols / goal_symbols * 100) if goal_symbols > 0 else 0
+                added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
 
+            # Создаём заметку (added_symbols может быть отрицательным)
             note = en.Note(new_total_symbols, added_symbols, added_progress)
             project.set_new_notes(note)
             project.get_streak_status()
@@ -1069,14 +1090,42 @@ class MainWindow(QMainWindow, main_window_ui):
             self.select_project_by_name(project.name)
 
             unit_name = self.unit_to_display.get(project.unit, project.unit)
-            self.notifications.show_success(
-                f"Синхронизация Scrivener завершена.\n"
-                f"Добавлено {added_in_unit:.1f} {unit_name}",
-                position="bottom-right"
-            )
+
+            # Определяем правильное склонение единицы измерения для количества added_in_unit
+            abs_added = abs(added_in_unit)
+            unit_display = self._get_unit_display(project.unit, abs_added)
+
+            # Формируем сообщение в зависимости от знака изменения
+            if added_in_unit > 0:
+                self.notifications.show_success(
+                    f"Синхронизация Scrivener завершена.\n"
+                    f"Добавлено {self._format_number(abs_added)} {unit_display}",
+                    position="bottom-right"
+                )
+            else:
+                self.notifications.show_warning(
+                    f"Синхронизация Scrivener завершена.\n"
+                    f"Удалено {self._format_number(abs_added)} {unit_display}",
+                    position="bottom-right"
+                )
 
         except Exception as e:
             self.notifications.show_error(f"Ошибка при синхронизации Scrivener: {str(e)}")
+
+    def _get_unit_display(self, unit_code, number):
+        """
+        Возвращает правильное склонение единицы измерения для указанного числа.
+        """
+        if unit_code == 'symbols':
+            return self._pluralize_unit(number, 'символ', 'символа', 'символов')
+        elif unit_code == 'A4':
+            return self._pluralize_unit(number, 'лист', 'листа', 'листов')
+        elif unit_code == 'author_list':
+            return self._pluralize_unit(number, 'авторский лист', 'авторских листа', 'авторских листов')
+        elif unit_code == 'ficbook_pages':
+            return self._pluralize_unit(number, 'страница', 'страницы', 'страниц')
+        else:
+            return unit_code  # на всякий случай
 
     def get_current_project(self):
         """Возвращает объект Project для текущего выбранного элемента в списке или None."""
