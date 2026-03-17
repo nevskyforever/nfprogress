@@ -4,7 +4,8 @@ import sys
 
 from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt
 from PySide6.QtWidgets import QApplication
-from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, QTreeWidgetItem, QDialogButtonBox, QLabel
+from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
+    QTreeWidgetItem, QDialogButtonBox, QLabel
 
 import engine as en
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
@@ -13,12 +14,11 @@ from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.notification import ToastNotification
 from UI_fiiles.project_widget import ProjectWidget
 from UI_fiiles.settings import Ui_Dialog as settings_ui
-from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
 from UI_fiiles.synch_window import Ui_sych_window
-from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
-
+from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
+from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
 
 
 class MainWindow(QMainWindow, main_window_ui):

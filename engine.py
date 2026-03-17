@@ -1,10 +1,11 @@
-import os
 import math
+import os
 import pickle
 import platform
 import sys
 from datetime import datetime, timedelta, date
 from pathlib import Path
+
 from docx import Document
 
 # Определяем систему
