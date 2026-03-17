@@ -2,7 +2,6 @@ import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
 from striprtf.striprtf import rtf_to_text
-from PySide6.QtWidgets import QMessageBox
 
 def find_scrivener_xml(project_path):
     """
@@ -86,6 +85,10 @@ def count_symbols_in_scrivener_item(project_path, item_id):
     Подсчитывает количество символов в документе Scrivener по его UUID.
     Ищет папку с именем, равным UUID, внутри Files/Data или Files/Docs,
     а внутри неё файл Data.rtf (или любой .rtf).
+
+    Все UI-сообщения (QMessageBox) удалены, чтобы не блокировать фоновую синхронизацию
+    и не мешать запуску приложения. Ошибки теперь возвращают 0, а уведомления
+    отображаются через NotificationManager в main_UI.py (в _sync_scrivener).
     """
     project_path = Path(project_path)
 
@@ -102,12 +105,8 @@ def count_symbols_in_scrivener_item(project_path, item_id):
             break
 
     if docs_folder is None:
-        QMessageBox.warning(
-            None,
-            "Синхронизация Scrivener",
-            f"Папка с документами не найдена в проекте Scrivener.\n"
-            f"Проверьте структуру проекта: {project_path}"
-        )
+        # Папка с документами не найдена — молча возвращаем 0
+        # (уведомление покажет _sync_scrivener, если это не фоновая синхронизация)
         return 0
 
     # Очищаем item_id от возможных фигурных скобок и приводим к нижнему регистру для сравнения
@@ -124,23 +123,14 @@ def count_symbols_in_scrivener_item(project_path, item_id):
             break
 
     if not target_dir:
-        QMessageBox.warning(
-            None,
-            "Синхронизация Scrivener",
-            f"Не найдена папка с UUID {item_id} в проекте Scrivener.\n"
-            f"Убедитесь, что выбранный документ существует и был сохранён."
-        )
+        # Папка с UUID не найдена — молча возвращаем 0
         return 0
 
     # Ищем внутри папки RTF-файл (обычно Data.rtf)
     rtf_files = list(target_dir.glob("*.rtf")) + list(target_dir.glob("*.RTF"))
     if not rtf_files:
-        QMessageBox.warning(
-            None,
-            "Синхронизация Scrivener",
-            f"Выбранный элемент проекта пустой."
-            f"\n Синхронизация будет выполнена, если вы что-то напишете"
-        )
+        # Документ пустой — молча возвращаем 0
+        # (в ручном режиме _sync_scrivener покажет предупреждение)
         return 0
 
     # Пробуем прочитать первый RTF
@@ -164,17 +154,9 @@ def count_symbols_in_scrivener_item(project_path, item_id):
             text = rtf_to_text(rtf_content)
             return len(text)
 
-        except Exception as e:
-            QMessageBox.critical(
-                None,
-                "Ошибка синхронизации Scrivener",
-                f"Не удалось прочитать файл {rtf_path}:\n{str(e)}"
-            )
+        except Exception:
+            # Ошибка чтения конкретного файла — пробуем следующий RTF
             continue
 
-    QMessageBox.warning(
-        None,
-        "Синхронизация Scrivener",
-        "Не удалось прочитать RTF-файл документа."
-    )
+    # Ни один RTF не удалось прочитать
     return 0

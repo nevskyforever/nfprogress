@@ -1139,7 +1139,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         try:
             symbols = count_symbols_in_scrivener_item(proj_path, item_id)
-            if symbols == 0:
+            if symbols == 0 and project.total_symbols == 0:
                 if not background_synch:
                     self.notifications.show_warning(
                     "Не удалось подсчитать символы. Возможно, документ пуст или не найден."
