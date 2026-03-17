@@ -596,6 +596,10 @@ class MainWindow(QMainWindow, main_window_ui):
         if en.load_settings().get('game_mode', False) and added_symbols > 0:
             self.game_controller.add_symbols(added_symbols)
 
+        if en.load_settings().get('global_streak', False):
+            # Обновляем глобальный стрик
+            self.refresh_global_streak_status()
+
         # Обновляем состояние кнопок, если цель достигнута
         if project.total_symbols >= project.goal:
             self.setup_project_buttons(project)
@@ -631,10 +635,6 @@ class MainWindow(QMainWindow, main_window_ui):
                 f'Из проекта удалено {self._format_number(abs_added)} {unit_display}',
                 position="bottom-right"
             )
-
-        # Обновляем глобальный стрик
-        if self.global_streak_mode:
-            self.refresh_global_streak_status()
 
     def delete_selected_note(self, project):
         """Удаляет выбранную заметку из проекта."""
@@ -909,15 +909,16 @@ class MainWindow(QMainWindow, main_window_ui):
         for project in projects:
             widget = self.generate_project_widget(project)
 
-            # Даем бонус за стрик проекта
-            if project.last_streak_bonus != en.today_for_test():
-                self.game_controller.give_streak_bonus(project.streak_status, 'Locale')
-                project.last_streak_bonus = en.today_for_test()
-                data['projects'][project.name] = project
-            # Даем бонус за глобальный стрик
-            if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()))
-                data['last_global_streak_bonus'] = en.today_for_test()
+            # Даем бонус за стрик проекта и глобальный, если он включен
+            if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
+                if project.last_streak_bonus != en.today_for_test():
+                    self.game_controller.give_streak_bonus(project.streak_status, 'Locale')
+                    project.last_streak_bonus = en.today_for_test()
+                    data['projects'][project.name] = project
+                # Даем бонус за глобальный стрик
+                if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                    self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()))
+                    data['last_global_streak_bonus'] = en.today_for_test()
 
             # Принудительно обновляем layout, чтобы sizeHint был актуальным
             widget.layout().activate()
@@ -1078,13 +1079,17 @@ class MainWindow(QMainWindow, main_window_ui):
             data['projects'][project.name] = project
             en.save_data(data)
 
+            # Обновляем глобальный стрик
+            if en.load_settings().get('global_streak', False):
+                self.refresh_global_streak_status()
+
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
-
-            if en.load_settings().get('global_streak', False):
-                # Обновляем глобальный стрик
-                self.refresh_global_streak_status()
+            # Даем бонус за стрики
+            if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
+                self.game_controller.give_streak_bonus(project.streak_status, 'Local')
+                self.game_controller.give_streak_bonus(en.global_streak_status())
 
             # Обновляем виджет проекта в списке (для анимации)
             current_item = self.list_projects.currentItem()
