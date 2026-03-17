@@ -204,7 +204,7 @@ class Gamer:
         elif 'Lose' in st and streak_type == 'Global':
             today = engine.today_for_test()
             # Проверяем, не наносили ли уже урон сегодня
-            if self.last_lose_global_streak_damage > today:
+            if self.last_lose_global_streak_damage != today:
                 # Поиск числа дней
                 days = 1
                 for part in st:
