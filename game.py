@@ -203,25 +203,28 @@ class Gamer:
             msg = f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН! Вы получили награду: {bonus}!'
         elif 'Lose' in st and streak_type == 'Global':
             today = engine.today_for_test()
-            # Проверяем, не наносили ли уже урон сегодня
+
+            # Проверяем, что урон ещё не начислен сегодня И дата последнего урона не в будущем
             if self.last_lose_global_streak_damage != today:
-                # Поиск числа дней
+
                 days = 1
                 for part in st:
                     if part.isdigit():
                         days = int(part)
                         break
+
                 damage = days * 5
                 self.damage(damage)
                 self.last_lose_global_streak_damage = today
                 msg = (f'🥺СТРИК ПОТЕРЯН\n'
                        f'Вы получили урон за потерю глобального стрика: {damage}❤️')
+
                 if 'Start' in st:
-                    bonus = 25 * cf_coins
+                    bonus = 25 * self.cf['coins']
                     self.coins += bonus
                     msg += (f'\nНАЧАТ НОВЫЙ СТРИК\n'
                             f'Вы получили бонус за начало нового стрика: {bonus}')
-            # Если урон уже был сегодня, msg остаётся None – уведомление не показывается повторно
+            # Если урон уже был сегодня или дата урона в будущем, msg остаётся None
         self.save()
         return msg
 
