@@ -917,7 +917,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     data['projects'][project.name] = project
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()))
+                    self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()), 'Global')
                     data['last_global_streak_bonus'] = en.today_for_test()
 
             # Принудительно обновляем layout, чтобы sizeHint был актуальным
