@@ -57,17 +57,6 @@ def resource_path(relative_path):
 
 
 class Gamer:
-    # === 1. АТРИБУТЫ КЛАССА ===
-    level = 1
-    exp = 0
-    coins = 0
-    health = 100
-
-    cf = None
-    items = None
-    bank_account = None
-    notifications = None
-
     # === 2. ИНИЦИАЛИЗАЦИЯ ===
     def __init__(self, level=1, exp=0, coins=0, health=100):
         self.level = level
@@ -77,9 +66,9 @@ class Gamer:
 
         self.cf = {'coins': 1.0, 'exp': 1.0}
         self.items = {}  # Теперь словарь: "Название предмета": количество
-        self.notifications = {'new': [], 'read': []}
 
         self.bank_account = game_data.BankAccount()
+        self.last_lose_global_streak_damage = None
 
     # === 3. СЛУЖЕБНЫЕ МЕТОДЫ ===
     def check_integrity(self):
@@ -212,31 +201,27 @@ class Gamer:
             bonus = 500 * cf_coins
             self.coins += bonus
             msg = f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН! Вы получили награду: {bonus}!'
-
         elif 'Lose' in st and streak_type == 'Global':
-            # Ищем число дней в статусе для расчета урона
-            days = 1
-            # Разбиваем строку по пробелам и ищем число
-            # Например из "Lose 5" достанем 5
-            parts = st
-            for part in parts:
-                if part.isdigit():
-                    days = int(part)
-                    break
-
-            damage = days * 5
-            self.damage(damage)
-            msg = (f'🥺СТРИК ПОТЕРЯН'
-                   f'\nВы получили урон за потерю глобального стрика: {damage}❤️')
-
-            # Если потеряли стрик, но сразу начали новый (Lose ... Start)
-            if 'Start' in st:
-                bonus = 25 * cf_coins
-                self.coins += bonus
-                msg += (f'НАЧАТ НОВЫЙ СТРИК'
-                        f'\nВы получили бонус за начало нового стрика: {bonus}')
-
-        # 4. Сохраняем прогресс и возвращаем сообщение
+            today = engine.today_for_test()
+            # Проверяем, не наносили ли уже урон сегодня
+            if self.last_lose_global_streak_damage > today:
+                # Поиск числа дней
+                days = 1
+                for part in st:
+                    if part.isdigit():
+                        days = int(part)
+                        break
+                damage = days * 5
+                self.damage(damage)
+                self.last_lose_global_streak_damage = today
+                msg = (f'🥺СТРИК ПОТЕРЯН\n'
+                       f'Вы получили урон за потерю глобального стрика: {damage}❤️')
+                if 'Start' in st:
+                    bonus = 25 * cf_coins
+                    self.coins += bonus
+                    msg += (f'\nНАЧАТ НОВЫЙ СТРИК\n'
+                            f'Вы получили бонус за начало нового стрика: {bonus}')
+            # Если урон уже был сегодня, msg остаётся None – уведомление не показывается повторно
         self.save()
         return msg
 
@@ -251,6 +236,7 @@ class Gamer:
             'items': {},
             'notifications': {'new': [], 'read': []},
             'bank_account': None,
+            'last_lose_global_streak_damage': None,
         }
 
         for attr, default_value in defaults.items():
