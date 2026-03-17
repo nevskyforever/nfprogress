@@ -26,6 +26,12 @@ class MainWindow(QMainWindow, main_window_ui):
         super().__init__()
         self.setupUi(self)
 
+        # Создаем менеджер уведомлений
+        self.notifications = NotificationManager(self)
+
+        # Инициализация игрового контроллера
+        self.game_controller = GameMenuController(self, self.notifications)
+
         self.unit_to_display = {
             'symbols': 'Символы',
             'A4': 'Листы А4',
@@ -55,11 +61,6 @@ class MainWindow(QMainWindow, main_window_ui):
         # Подключаем обработчик переключения вкладок
         self.tabWidget.currentChanged.connect(self.on_tab_changed)
 
-        # Создаем менеджер уведомлений
-        self.notifications = NotificationManager(self)
-
-        # Инициализация игрового контроллера
-        self.game_controller = GameMenuController(self, self.notifications)
 
         # Правильный способ подключения кнопки
         self.project_info.setVisible(False)
@@ -917,6 +918,16 @@ class MainWindow(QMainWindow, main_window_ui):
 
         for project in projects:
             widget = self.generate_project_widget(project)
+
+            # Даем бонус за стрик проекта
+            if project.last_streak_bonus != en.today_for_test():
+                self.game_controller.give_streak_bonus(project.streak_status, 'Locale')
+                project.last_streak_bonus = en.today_for_test()
+                data['projects'][project.name] = project
+            # Даем бонус за глобальный стрик
+            if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()))
+                data['last_global_streak_bonus'] = en.today_for_test()
 
             # Принудительно обновляем layout, чтобы sizeHint был актуальным
             widget.layout().activate()
