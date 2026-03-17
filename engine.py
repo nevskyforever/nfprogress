@@ -63,7 +63,7 @@ last_update = '16.03.26'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    return date(2026, 3, 3)
+    return date(2026, 3, 6)
     return date.today()
 
 

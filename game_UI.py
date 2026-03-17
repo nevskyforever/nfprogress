@@ -548,10 +548,10 @@ class GameMenuController:
         result = dialog.exec_()
         if result == QDialog.Accepted:
             msg = dialog.freeze()
-            self.gamer.items['Предметы']['Заморозка для проекта'] -= 1
+            self.gamer.items['Предметы']['Заморозка'] -= 1
             self.gamer.save()
-            self.update_inventory()
             self.notifications.show_success(msg)
+            self.update_inventory()
         dialog.close()
 
 
