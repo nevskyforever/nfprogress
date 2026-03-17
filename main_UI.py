@@ -595,6 +595,10 @@ class MainWindow(QMainWindow, main_window_ui):
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
         if en.load_settings().get('game_mode', False) and added_symbols > 0:
             self.game_controller.add_symbols(added_symbols)
+            # Выдаем бонусы за стрики
+            if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
+                self.game_controller.give_streak_bonus(project.streak_status, 'Local')
+                self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()), 'Global')
 
         if en.load_settings().get('global_streak', False):
             # Обновляем глобальный стрик
@@ -1089,7 +1093,7 @@ class MainWindow(QMainWindow, main_window_ui):
             # Даем бонус за стрики
             if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                 self.game_controller.give_streak_bonus(project.streak_status, 'Local')
-                self.game_controller.give_streak_bonus(en.global_streak_status())
+                self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()), 'Global')
 
             # Обновляем виджет проекта в списке (для анимации)
             current_item = self.list_projects.currentItem()
@@ -1200,6 +1204,10 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
+                # Выдаем бонусы за стрики
+                if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
+                    self.game_controller.give_streak_bonus(project.streak_status, 'Local')
+                    self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()), 'Global')
 
             if en.load_settings().get('global_streak', False):
                 # Обновляем глобальный стрик
