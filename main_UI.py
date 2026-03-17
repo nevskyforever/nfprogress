@@ -940,6 +940,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         if current_project_name:
             self.select_project_by_name(current_project_name)
+        en.save_data(data)
 
     def check_global_streak(self):
         """Проверяет глобальный стрик и показывает уведомление"""
