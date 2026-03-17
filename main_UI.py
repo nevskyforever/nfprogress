@@ -1051,6 +1051,7 @@ class MainWindow(QMainWindow, main_window_ui):
             note = en.Note(new_total_symbols, added_symbols, added_progress)
             project.set_new_notes(note)
             project.get_streak_status()
+            self.load_notes(project)
 
             # Обновляем дату последней синхронизации
             project.last_synch = datetime.datetime.now()  # используем текущее время
@@ -1169,6 +1170,7 @@ class MainWindow(QMainWindow, main_window_ui):
             note = en.Note(new_total_symbols, added_symbols, added_progress)
             project.set_new_notes(note)
             project.get_streak_status()
+            self.load_notes(project)
 
             # Обновляем дату последней синхронизации
             project.last_synch = datetime.datetime.now()  # используем текущее время
