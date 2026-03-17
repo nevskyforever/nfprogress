@@ -208,12 +208,6 @@ class Gamer:
             else:
                 msg = f'Получен бонус {bonus} монет за продление глобального стрика.'
 
-        # elif 'Done' in st:
-        #     if streak_type == 'Local':
-        #         msg = 'Бонус за продление стрика в проекте уже получен.'
-        #     else:
-        #         msg = 'Бонус за продление глобального стрика уже получен.'
-
         elif 'Complete' in st:
             bonus = 500 * cf_coins
             self.coins += bonus
