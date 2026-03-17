@@ -84,10 +84,7 @@ class Gamer:
     # === 3. СЛУЖЕБНЫЕ МЕТОДЫ ===
     def check_integrity(self):
         """Лечит старые сохранения"""
-        if self.cf is None: self.cf = {'coins': 1.0, 'exp': 1.0}
-        if self.items is None: self.items = {}
-        if self.notifications is None: self.notifications = {'new': [], 'read': []}
-        if self.bank_account is None: self.bank_account = game_data.BankAccount()
+        self.migrate()  # Просто вызываем migrate вместо ручной проверки
 
     def save(self):
         """Сохраняет данные игрока в кроссплатформенную директорию"""
@@ -186,7 +183,7 @@ class Gamer:
     def check_loan_penalty(self):
         pass
 
-    def give_streak_bonus(self, status, total_symbols, streak_type):
+    def give_streak_bonus(self, status, streak_type):
         # 1. Исправляем ошибку формата из engine.py (склеиваем буквы в слова)
         st = status.split()
 
@@ -211,11 +208,11 @@ class Gamer:
             else:
                 msg = f'Получен бонус {bonus} монет за продление глобального стрика.'
 
-        elif 'Done' in st:
-            if streak_type == 'Local':
-                msg = 'Бонус за продление стрика в проекте уже получен.'
-            else:
-                msg = 'Бонус за продление глобального стрика уже получен.'
+        # elif 'Done' in st:
+        #     if streak_type == 'Local':
+        #         msg = 'Бонус за продление стрика в проекте уже получен.'
+        #     else:
+        #         msg = 'Бонус за продление глобального стрика уже получен.'
 
         elif 'Complete' in st:
             bonus = 500 * cf_coins
@@ -249,6 +246,41 @@ class Gamer:
         self.save()
         return msg
 
+    def migrate(self):
+        """Проверяет наличие всех атрибутов и добавляет недостающие"""
+        defaults = {
+            'level': 1,
+            'exp': 0,
+            'coins': 0,
+            'health': 100,
+            'cf': {'coins': 1.0, 'exp': 1.0},
+            'items': {},
+            'notifications': {'new': [], 'read': []},
+            'bank_account': None,
+        }
+
+        for attr, default_value in defaults.items():
+            if not hasattr(self, attr):
+                setattr(self, attr, default_value)
+            elif attr == 'cf' and not isinstance(getattr(self, attr), dict):
+                setattr(self, attr, {'coins': 1.0, 'exp': 1.0})
+            elif attr == 'items' and not isinstance(getattr(self, attr), dict):
+                setattr(self, attr, {})
+            elif attr == 'notifications':
+                notifications = getattr(self, attr)
+                if not isinstance(notifications, dict):
+                    setattr(self, attr, {'new': [], 'read': []})
+                else:
+                    # Убеждаемся, что оба ключа существуют
+                    if 'new' not in notifications:
+                        notifications['new'] = []
+                    if 'read' not in notifications:
+                        notifications['read'] = []
+
+        # Особая обработка для bank_account
+        if self.bank_account is None:
+            self.bank_account = game_data.BankAccount()
+
 
 def load_game():
     """Загружает данные игрока из кроссплатформенной директории"""
@@ -257,7 +289,7 @@ def load_game():
     try:
         with open(data_file, 'rb') as f:
             gamer = pickle.load(f)
-            gamer.check_integrity()
+            gamer.migrate()  # Добавляем вызов migrate здесь
             return gamer
     except (FileNotFoundError, EOFError):
         return Gamer()

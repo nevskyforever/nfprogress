@@ -543,6 +543,24 @@ class GameMenuController:
         self.notifications.show_success(result)
         return result
 
+    def give_streak_bonus(self, streak_status, streak_type = None):
+        """
+        Добавление написанных символов (вызывается из основного окна)
+
+        Args:
+            streak_status: Статус стрика
+            streak_type: Вид стрика
+        """
+        if not self.gamer:
+            return "Игровой режим не активен"
+
+        result = self.gamer.give_streak_bonus(streak_status, streak_type)
+        self.gamer.save()
+        self.gamer = game.load_game()  # Перезагружаем для актуальности
+        self.update_game_data()
+        self.notifications.show_success(result)
+        return result
+
     def freeze_project(self):
         dialog = FreezeProject()
         result = dialog.exec_()

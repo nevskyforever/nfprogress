@@ -88,6 +88,7 @@ class Project:
         self.unit = unit
         self.synch = None
         self.last_synch = None
+        self.last_streak_bonus = None
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -107,6 +108,7 @@ class Project:
             'unit': 'symbols',
             'synch': None,
             'last_synch': None,
+            'last_streak_bonus': None
         }
 
         for attr, default_value in defaults.items():
@@ -506,6 +508,7 @@ def load_data():
             'global_streaks': [],
             'global_streak_status': 'No',
             'max_global_streak': 0,
+            'last_global_streak_bonus': None
         }
 
 def save_data(data):
