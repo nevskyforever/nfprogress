@@ -208,6 +208,14 @@ class MainWindow(QMainWindow, main_window_ui):
                 settings['inf_project'] = inf_project
                 settings['game_mode'] = game_mode
                 settings['global_streak'] = global_streak
+                if not global_streak:
+                    data = en.load_data()
+                    data['global_streaks'] = []
+                    data['global_streak_status'] = 'No'
+                    data['max_global_streak'] = 0
+                    data['last_global_streak_bonus'] = None
+                    data['last_global_streak_lost_date'] = None
+                    en.save_data(data)
                 en.save_settings(settings)
         self.applying_settings()
 
