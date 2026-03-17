@@ -533,15 +533,17 @@ class GameMenuController:
             return "Игровой режим не активен"
 
         result = self.gamer.give_symbol_bonus(symbols_count)
-        level_up_msg = self.gamer.level_up()  # <-- сохраняем сообщение
-        if level_up_msg:
-            self.notifications.show_success(level_up_msg)  # <-- показываем сразу
-        self.gamer.save()
-        self.gamer = game.load_game()  # Перезагружаем для актуальности
-        self.update_game_data()
-        self.update_inventory()
-        self.notifications.show_success(result)
-        return result
+        if result:
+            level_up_msg = self.gamer.level_up()  # <-- сохраняем сообщение
+            if level_up_msg:
+                self.notifications.show_success(level_up_msg)  # <-- показываем сразу
+            self.gamer.save()
+            self.gamer = game.load_game()  # Перезагружаем для актуальности
+            self.update_game_data()
+            self.update_inventory()
+            self.notifications.show_success(result)
+            return result
+        return
 
     def give_streak_bonus(self, streak_status, streak_type = None):
         """
@@ -555,11 +557,12 @@ class GameMenuController:
             return "Игровой режим не активен"
 
         result = self.gamer.give_streak_bonus(streak_status, streak_type)
-        self.gamer.save()
-        self.gamer = game.load_game()  # Перезагружаем для актуальности
-        self.update_game_data()
-        self.notifications.show_success(result)
-        return result
+        if result:
+            self.gamer.save()
+            self.gamer = game.load_game()  # Перезагружаем для актуальности
+            self.update_game_data()
+            self.notifications.show_success(result)
+        return
 
     def freeze_project(self):
         dialog = FreezeProject()
