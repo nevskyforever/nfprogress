@@ -63,7 +63,7 @@ last_update = '16.03.26'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    return date(2026, 3, 4)
+    return date(2026, 3, 21)
     return date.today()
 
 
@@ -508,7 +508,8 @@ def load_data():
             'global_streaks': [],
             'global_streak_status': 'No',
             'max_global_streak': 0,
-            'last_global_streak_bonus': None
+            'last_global_streak_bonus': None,
+            'last_global_streak_lost_date': None,
         }
 
 def save_data(data):
@@ -607,6 +608,7 @@ def global_streak_status(data, today=None):
 
     max_streak = data.get('max_global_streak', 0)
     prev_status = data.get('global_streak_status', 'No')
+    last_lost_date = data.get('last_global_streak_lost_date')   # <-- получаем дату последней потери
 
     # Заморозка
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
@@ -629,27 +631,37 @@ def global_streak_status(data, today=None):
         prev_status = parts[2]  # Базовый статус для логики
         data['global_streak_status'] = prev_status  # Обновляем хранимый
 
-    # === ПЕРСИСТЕНЦИЯ СТАТУСА ПОТЕРИ ===
+    # === ПЕРСИСТЕНЦИЯ СТАТУСА ПОТЕРИ (только в день потери) ===
     if (isinstance(prev_status, str) and
         prev_status.startswith('Lose ') and
         len(prev_status.split()) == 2 and
         not has_active_today):
-        status = prev_status
-        data['global_streak_status'] = status
-        save_data(data)
-        return status
+        # Если потеря была сегодня – возвращаем статус
+        if last_lost_date == today:                     # <-- проверка даты
+            status = prev_status
+            data['global_streak_status'] = status
+            save_data(data)
+            return status
+        else:
+            # Потеря была раньше – сбрасываем на "No"
+            data['global_streak_status'] = 'No'
+            save_data(data)
+            return 'No'
 
     # Обработка глобального стрика
     if has_active_today:
         if not streaks:
             streaks.append(today)
             status = 'Start'
+            data['last_global_streak_lost_date'] = None   # <-- сброс потери
         elif streaks[-1] == yesterday:
             streaks.append(today)
             status = 'Go'
+            data['last_global_streak_lost_date'] = None   # <-- сброс потери
         elif streaks[-1] == today:
             # Уже сегодня продлили
             status = 'Go' if len(streaks) > 1 else 'Start'
+            # дату потери не меняем (она уже None, если стрик активен)
         else:
             # Перерыв – потеря предыдущего + начало нового
             lose_len = len(streaks)
@@ -657,8 +669,8 @@ def global_streak_status(data, today=None):
                 max_streak = lose_len
             streaks.clear()
             streaks.append(today)
-            # Комбинированный статус для сообщения
             status = f'Lose {lose_len} Start'
+            data['last_global_streak_lost_date'] = None   # <-- начинаем новый стрик, сбрасываем потерю
     else:
         # Сегодня нет активных проектов
         if not streaks:
@@ -677,6 +689,7 @@ def global_streak_status(data, today=None):
                 max_streak = lose_len
             streaks.clear()
             status = f'Lose {lose_len}'
+            data['last_global_streak_lost_date'] = today   # <-- фиксируем день потери
 
     # Обновляем максимальную длину
     current_len = len(streaks)
