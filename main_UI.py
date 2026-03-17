@@ -969,21 +969,24 @@ class MainWindow(QMainWindow, main_window_ui):
             self.user_agreement()
 
     def sync_project(self, project, background_synch=False):
-        """
-        Синхронизирует проект с привязанным файлом/элементом.
-        """
-        # Если синхронизация не настроена, показываем окно выбора
-        if project.synch is None and not background_synch:
-            dialog = SynchWindow(project, self)
-            if dialog.exec() != QDialog.Accepted:
+        # Если синхронизация не настроена
+        if project.synch is None:
+            if background_synch:
+                # Фоновая синхронизация для ненастроенного проекта — игнорируем
                 return
-            # Сохраняем изменения
-            data = en.load_data()
-            data['projects'][project.name] = project
-            en.save_data(data)
-            # После настройки запускаем синхронизацию
-            self.sync_project(project)
-            return
+            else:
+                # Показываем окно настройки
+                dialog = SynchWindow(project, self)
+                if dialog.exec() != QDialog.Accepted:
+                    return
+                # Сохраняем изменения
+                data = en.load_data()
+                data['projects'][project.name] = project
+                en.save_data(data)
+                # После настройки запускаем синхронизацию
+                self.sync_project(project)
+                return
+
         # Обработка в зависимости от типа
         if isinstance(project.synch, dict):
             sync_type = project.synch.get('type')
@@ -991,11 +994,13 @@ class MainWindow(QMainWindow, main_window_ui):
             if sync_type == 'word':
                 if not background_synch:
                     self._sync_word(project)
-                else: self._sync_word(project, True)
+                else:
+                    self._sync_word(project, True)
             elif sync_type == 'scrivener':
                 if not background_synch:
                     self._sync_scrivener(project)
-                else: self._sync_scrivener(project, True)
+                else:
+                    self._sync_scrivener(project, True)
             else:
                 self.notifications.show_error("Неизвестный тип синхронизации")
         else:
