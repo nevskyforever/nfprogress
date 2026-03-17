@@ -52,6 +52,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.check_user_agreement()
 
         # Обновляем проекты
+        self.background_synch()
         self.refresh_projects()
 
         # Подключаем обработчик изменения фильтра
@@ -594,17 +595,6 @@ class MainWindow(QMainWindow, main_window_ui):
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
         if en.load_settings().get('game_mode', False) and added_symbols > 0:
             self.game_controller.add_symbols(added_symbols)
-            # Даем бонус за стрик проекта
-            if project.last_streak_bonus != en.today_for_test():
-                self.game_controller.give_streak_bonus(project.streak_status, 'Locale')
-                project.last_streak_bonus = en.today_for_test()
-                data['projects'][project.name] = project
-                en.save_data(data)
-            # Даем бонус за глобальный стрик
-            if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()))
-                data['last_global_streak_bonus'] = en.today_for_test()
-                en.save_data(data)
 
         # Обновляем состояние кнопок, если цель достигнута
         if project.total_symbols >= project.goal:
@@ -978,12 +968,12 @@ class MainWindow(QMainWindow, main_window_ui):
         if not user_agreement:
             self.user_agreement()
 
-    def sync_project(self, project):
+    def sync_project(self, project, background_synch=False):
         """
         Синхронизирует проект с привязанным файлом/элементом.
         """
         # Если синхронизация не настроена, показываем окно выбора
-        if project.synch is None:
+        if project.synch is None and not background_synch:
             dialog = SynchWindow(project, self)
             if dialog.exec() != QDialog.Accepted:
                 return
@@ -994,15 +984,18 @@ class MainWindow(QMainWindow, main_window_ui):
             # После настройки запускаем синхронизацию
             self.sync_project(project)
             return
-
         # Обработка в зависимости от типа
         if isinstance(project.synch, dict):
             sync_type = project.synch.get('type')
 
             if sync_type == 'word':
-                self._sync_word(project)
+                if not background_synch:
+                    self._sync_word(project)
+                else: self._sync_word(project, True)
             elif sync_type == 'scrivener':
-                self._sync_scrivener(project)
+                if not background_synch:
+                    self._sync_scrivener(project)
+                else: self._sync_scrivener(project, True)
             else:
                 self.notifications.show_error("Неизвестный тип синхронизации")
         else:
@@ -1011,11 +1004,12 @@ class MainWindow(QMainWindow, main_window_ui):
             project.synch = {'type': 'word', 'path': project.synch}
             self._sync_word(project)
 
-    def _sync_word(self, project):
+    def _sync_word(self, project, background_synch=False):
         """Синхронизация с Word-файлом"""
         file_path = project.synch['path']
         if not os.path.exists(file_path):
-            self.notifications.show_error(
+            if not background_synch:
+                self.notifications.show_error(
                 "Файл не найден. Возможно, он был перемещён.\n"
                 "Настройте синхронизацию заново."
             )
@@ -1027,13 +1021,15 @@ class MainWindow(QMainWindow, main_window_ui):
             if ext == '.docx':
                 symbols = en.count_symbols_in_docx(file_path)
             elif ext == '.doc':
-                self.notifications.show_error(
+                if not background_synch:
+                    self.notifications.show_error(
                     "Поддержка .doc временно недоступна.\n"
                     "Пожалуйста, сохраните файл как .docx."
                 )
                 return
             else:
-                self.notifications.show_error("Неподдерживаемый формат файла.")
+                if not background_synch:
+                    self.notifications.show_error("Неподдерживаемый формат файла.")
                 return
 
             # Конвертируем количество символов в единицу проекта
@@ -1042,7 +1038,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Проверяем, изменилось ли количество
             if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
-                self.notifications.show_info(
+                if not background_synch:
+                    self.notifications.show_info(
                     "Количество символов не изменилось."
                 )
                 return
@@ -1079,17 +1076,6 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
-                # Даем бонус за стрик проекта
-                if project.last_streak_bonus != en.today_for_test():
-                    self.game_controller.give_streak_bonus(project.streak_status, 'Locale')
-                    project.last_streak_bonus = en.today_for_test()
-                    data['projects'][project.name] = project
-                    en.save_data(data)
-                # Даем бонус за глобальный стрик
-                if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()))
-                    data['last_global_streak_bonus'] = en.today_for_test()
-                    en.save_data(data)
 
             if en.load_settings().get('global_streak', False):
                 # Обновляем глобальный стрик
@@ -1119,28 +1105,32 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Формируем сообщение в зависимости от знака изменения
             if added_in_unit > 0:
-                self.notifications.show_success(
+                if not background_synch:
+                    self.notifications.show_success(
                     f"Синхронизация завершена.\n"
                     f"Добавлено {self._format_number(abs_added)} {unit_display}",
                     position="bottom-right"
                 )
             else:
-                self.notifications.show_warning(
+                if not background_synch:
+                    self.notifications.show_warning(
                     f"Синхронизация завершена.\n"
                     f"Удалено {self._format_number(abs_added)} {unit_display}",
                     position="bottom-right"
                 )
 
         except Exception as e:
-            self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
+            if not background_synch:
+                self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
 
-    def _sync_scrivener(self, project):
+    def _sync_scrivener(self, project, background_synch=False):
         """Синхронизация с проектом Scrivener"""
         proj_path = project.synch['path']
         item_id = project.synch['item_id']
 
         if not os.path.exists(proj_path):
-            self.notifications.show_error(
+            if not background_synch:
+                self.notifications.show_error(
                 "Папка проекта Scrivener не найдена.\n"
                 "Настройте синхронизацию заново."
             )
@@ -1150,7 +1140,8 @@ class MainWindow(QMainWindow, main_window_ui):
         try:
             symbols = count_symbols_in_scrivener_item(proj_path, item_id)
             if symbols == 0:
-                self.notifications.show_warning(
+                if not background_synch:
+                    self.notifications.show_warning(
                     "Не удалось подсчитать символы. Возможно, документ пуст или не найден."
                 )
                 return
@@ -1161,7 +1152,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Проверяем, изменилось ли количество
             if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
-                self.notifications.show_info(
+                if not background_synch:
+                    self.notifications.show_info(
                     "Количество символов не изменилось."
                 )
                 return
@@ -1198,17 +1190,6 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
-                # Даем бонус за стрик проекта
-                if project.last_streak_bonus != en.today_for_test():
-                    self.game_controller.give_streak_bonus(project.streak_status, 'Locale')
-                    project.last_streak_bonus = en.today_for_test()
-                    data['projects'][project.name] = project
-                    en.save_data(data)
-                # Даем бонус за глобальный стрик
-                if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()))
-                    data['last_global_streak_bonus'] = en.today_for_test()
-                    en.save_data(data)
 
             if en.load_settings().get('global_streak', False):
                 # Обновляем глобальный стрик
@@ -1238,20 +1219,23 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Формируем сообщение в зависимости от знака изменения
             if added_in_unit > 0:
-                self.notifications.show_success(
+                if not background_synch:
+                    self.notifications.show_success(
                     f"Синхронизация Scrivener завершена.\n"
                     f"Добавлено {self._format_number(abs_added)} {unit_display}",
                     position="bottom-right"
                 )
             else:
-                self.notifications.show_warning(
+                if not background_synch:
+                    self.notifications.show_warning(
                     f"Синхронизация Scrivener завершена.\n"
                     f"Удалено {self._format_number(abs_added)} {unit_display}",
                     position="bottom-right"
                 )
 
         except Exception as e:
-            self.notifications.show_error(f"Ошибка при синхронизации Scrivener: {str(e)}")
+            if not background_synch:
+                self.notifications.show_error(f"Ошибка при синхронизации Scrivener: {str(e)}")
 
     def _get_unit_display(self, unit_code, number):
         """
@@ -1347,6 +1331,13 @@ class MainWindow(QMainWindow, main_window_ui):
             self.synch_status.setText(f"Последняя синхр.: {dt_str}")
         else:
             self.synch_status.setText("Не синхронизирован")
+
+    def background_synch(self):
+        projects = list(en.load_data()['projects'].values())
+        for project in projects:
+            self.sync_project(project, True)
+        self.notifications.show_success('Проекты синхронизированы')
+
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
