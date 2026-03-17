@@ -69,6 +69,7 @@ class Gamer:
 
         self.bank_account = game_data.BankAccount()
         self.last_lose_global_streak_damage = None
+        self.last_bonus_dates = {}
 
     # === 3. СЛУЖЕБНЫЕ МЕТОДЫ ===
     def check_integrity(self):
@@ -218,13 +219,6 @@ class Gamer:
                 self.last_lose_global_streak_damage = today
                 msg = (f'🥺СТРИК ПОТЕРЯН\n'
                        f'Вы получили урон за потерю глобального стрика: {damage}❤️')
-
-                if 'Start' in st:
-                    bonus = 25 * self.cf['coins']
-                    self.coins += bonus
-                    msg += (f'\nНАЧАТ НОВЫЙ СТРИК\n'
-                            f'Вы получили бонус за начало нового стрика: {bonus}')
-            # Если урон уже был сегодня или дата урона в будущем, msg остаётся None
         self.save()
         return msg
 
@@ -240,6 +234,7 @@ class Gamer:
             'notifications': {'new': [], 'read': []},
             'bank_account': None,
             'last_lose_global_streak_damage': None,
+            'last_bonus_dates': {}
         }
 
         for attr, default_value in defaults.items():

@@ -64,7 +64,7 @@ last_update = '16.03.26'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    return date(2026, 3, 8)
+    return date(2026, 3, 7)
     return date.today()
 
 
@@ -586,18 +586,9 @@ def save_settings(data):
     # Заменяем старый файл новым
     temp_file.replace(data_file)
 
-# === МЕНЮ И ЛОГИКА ===
-
-# def find_project_by_name(name):
-#     """Находит проект по имени и возвращает его индекс и сам проект"""
-#     data = load_data()
-#     for i, p in enumerate(data['projects']):
-#         if p.name == name:
-#             return i, p
-#     return None, None
-
 def global_streak_status(data, today=None):
     """Возвращает статус глобального стрика."""
+    status = 'No'
     if today is None:
         today = today_for_test()
     yesterday = today - timedelta(days=1)
@@ -663,15 +654,6 @@ def global_streak_status(data, today=None):
             # Уже сегодня продлили
             status = 'Go' if len(streaks) > 1 else 'Start'
             # дату потери не меняем (она уже None, если стрик активен)
-        else:
-            # Перерыв – потеря предыдущего + начало нового
-            lose_len = len(streaks)
-            if lose_len > max_streak:
-                max_streak = lose_len
-            streaks.clear()
-            streaks.append(today)
-            status = f'Lose {lose_len} Start'
-            data['last_global_streak_lost_date'] = None   # <-- начинаем новый стрик, сбрасываем потерю
     else:
         # Сегодня нет активных проектов
         if not streaks:
