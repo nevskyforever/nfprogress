@@ -284,10 +284,11 @@ class MainWindow(QMainWindow, main_window_ui):
             if today_goal == float('inf'):
                 self.today_goal.setText('∞')
             else:
-                if added_today < today_goal:
-                    self.today_goal.setText(self._format_number(today_goal))
-                else:
+                # Используем сравнение в символах для точности
+                if project.get_total_symbols() >= project.get_today_goal_value():
                     self.today_goal.setText('Цель на сегодня выполнена!')
+                else:
+                    self.today_goal.setText(self._format_number(today_goal))
 
             # Расчёт оставшихся дней
             days_left = (project.deadline - en.today_for_test()).days
@@ -1070,7 +1071,10 @@ class MainWindow(QMainWindow, main_window_ui):
             note = en.Note(new_total_symbols, added_symbols, added_progress)
             project.set_new_notes(note)
             project.get_streak_status()
+
+            # Обновляем информацию о проекте
             self.load_notes(project)
+            self.show_project_info(project)
 
             # Обновляем дату последней синхронизации
             project.last_synch = datetime.datetime.now()  # используем текущее время
@@ -1188,7 +1192,10 @@ class MainWindow(QMainWindow, main_window_ui):
             note = en.Note(new_total_symbols, added_symbols, added_progress)
             project.set_new_notes(note)
             project.get_streak_status()
+
+            # Обновляем информацию о проекте
             self.load_notes(project)
+            self.show_project_info(project)
 
             # Обновляем дату последней синхронизации
             project.last_synch = datetime.datetime.now()  # используем текущее время
