@@ -138,8 +138,8 @@ def count_symbols_in_scrivener_item(project_path, item_id):
         QMessageBox.warning(
             None,
             "Синхронизация Scrivener",
-            f"В папке документа не найден RTF-файл.\n"
-            f"Путь: {target_dir}"
+            f"Выбранный элемент проекта пустой."
+            f"\n Синхронизация будет выполнена, если вы что-то напишете"
         )
         return 0
 
