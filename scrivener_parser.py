@@ -1,7 +1,9 @@
 import os
 import xml.etree.ElementTree as ET
 from pathlib import Path
+
 from striprtf.striprtf import rtf_to_text
+
 
 def find_scrivener_xml(project_path):
     """
