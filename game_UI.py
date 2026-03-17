@@ -234,7 +234,7 @@ class GameMenuController:
             self.ui.value_for_use_selected_item.setMaximum(count)
 
     def on_use_item(self):
-        """Использование выбранного предмета"""
+        """Использование выбранного предмета несколько раз"""
         selected = self.ui.inventory_list.currentItem()
         if not selected:
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите предмет")
@@ -254,71 +254,63 @@ class GameMenuController:
             return
 
         # Получаем объект предмета
-        if category in game_data.ITEM_REGISTRY and item_name in game_data.ITEM_REGISTRY[category]:
-            item_obj = game_data.ITEM_REGISTRY[category][item_name]
+        if category not in game_data.ITEM_REGISTRY or item_name not in game_data.ITEM_REGISTRY[category]:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Предмет не найден")
+            return
 
-            # Проверяем, можно ли использовать этот предмет
-            if category in game_data.ITEM_REGISTRY and item_name in game_data.ITEM_REGISTRY[category]:
-                item_obj = game_data.ITEM_REGISTRY[category][item_name]
+        item_obj = game_data.ITEM_REGISTRY[category][item_name]
 
-                # Проверяем особые предметы (Заморозка для проекта)
-                if item_name == 'Заморозка':
-                    self.freeze_project()
-                    return  # ВАЖНО: выходим из метода, чтобы не выполнялась дальнейшая проверка
+        # Особый случай: Заморозка (используется один раз за вызов)
+        if item_name == 'Заморозка':
+            self.freeze_project()
+            return
 
-                # Проверяем, можно ли использовать этот предмет
-                if not hasattr(item_obj, 'use'):
-                    QMessageBox.information(
-                        self.ui.centralwidget,
-                        "Информация",
-                        f"{item_name} нельзя использовать"
-                    )
-                    return
+        # Проверяем наличие метода use
+        if not hasattr(item_obj, 'use'):
+            QMessageBox.information(
+                self.ui.centralwidget,
+                "Информация",
+                f"{item_name} нельзя использовать"
+            )
+            return
 
-            # Используем предмет count раз
-            result_messages = []
-            success_count = 0
+        # Используем предмет count раз
+        result_messages = []
+        success_count = 0
 
-            for i in range(count):
-                if self.gamer.items[category][item_name] > 0:
-                    try:
-                        # Вызываем функцию предмета
-                        result = item_obj.use()
+        for i in range(count):
+            try:
+                # Вызываем функцию предмета (она сама изменяет состояние игрока и сохраняет)
+                result = item_obj.use()
+                result_messages.append(f"✓ {result}")
+                success_count += 1
+            except Exception as e:
+                result_messages.append(f"✗ Ошибка: {str(e)}")
+                break
 
-                        # ПЕРЕЗАГРУЖАЕМ ИГРОКА ПОСЛЕ КАЖДОГО ИСПОЛЬЗОВАНИЯ,
-                        # чтобы получить актуальные монеты/здоровье
-                        self.gamer = game.load_game()
+        if success_count > 0:
+            # Перезагружаем игрока, чтобы получить актуальные монеты/здоровье после всех использований
+            self.gamer = game.load_game()
+            # Уменьшаем количество использованных предметов в инвентаре (предполагаем, что use не трогает items)
+            self.gamer.items[category][item_name] -= success_count
+            # Сохраняем обновлённый инвентарь
+            self.gamer.save()
 
-                        # Уменьшаем количество предметов (теперь в актуальном объекте)
-                        self.gamer.items[category][item_name] -= 1
+            # Обновляем интерфейс
+            self.update_inventory()
+            self.update_game_data()
 
-                        result_messages.append(f"✓ {result}")
-                        success_count += 1
-                    except Exception as e:
-                        result_messages.append(f"✗ Ошибка: {str(e)}")
-                        break
-                else:
-                    break
-
-            if success_count > 0:
-                # Сохраняем финальное состояние
-                self.gamer.save()
-
-                # Обновляем интерфейс
-                self.update_inventory()
-                self.update_game_data()
-
-                QMessageBox.information(
-                    self.ui.centralwidget,
-                    "Результат",
-                    "\n".join(result_messages)
-                )
-            else:
-                QMessageBox.warning(
-                    self.ui.centralwidget,
-                    "Ошибка",
-                    "Не удалось использовать предмет"
-                )
+            QMessageBox.information(
+                self.ui.centralwidget,
+                "Результат",
+                "\n".join(result_messages)
+            )
+        else:
+            QMessageBox.warning(
+                self.ui.centralwidget,
+                "Ошибка",
+                "Не удалось использовать предмет"
+            )
 
     # === ОБРАБОТЧИКИ МАГАЗИНА ===
 
