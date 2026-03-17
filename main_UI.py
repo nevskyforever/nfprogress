@@ -1343,11 +1343,19 @@ class MainWindow(QMainWindow, main_window_ui):
             self.synch_status.setText("Не синхронизирован")
 
     def background_synch(self):
-        projects = list(en.load_data()['projects'].values())
-        for project in projects:
-            self.sync_project(project, True)
-        self.notifications.show_success('Проекты синхронизированы')
+        data = en.load_data()
+        projects = list(data['projects'].values())
+        # Оставляем только проекты с настроенной синхронизацией
+        projects_with_sync = [p for p in projects if p.synch is not None]
 
+        if not projects_with_sync:
+            # Нет проектов для синхронизации — ничего не делаем
+            return
+
+        for project in projects_with_sync:
+            self.sync_project(project, True)  # фоновая синхронизация
+
+        self.notifications.show_success(f'Синхронизировано проектов: {len(projects_with_sync)}')
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
