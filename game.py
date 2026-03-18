@@ -178,7 +178,7 @@ class Gamer:
         cf_coins = self.cf['coins']
         msg = None
 
-        # Комбинированный статус 'Lose N Start' — потеря + немедленный старт нового стрика
+        # Комбинированный статус для глобального стрика (урон + бонус)
         if 'Lose' in st and 'Start' in st and streak_type == 'Global':
             today = engine.today_for_test()
             days = int(st[1]) if len(st) > 1 and st[1].isdigit() else 1
@@ -187,14 +187,20 @@ class Gamer:
                 self.damage(damage)
                 self.last_lose_global_streak_damage = today
             else:
-                damage = days * 5  # для отображения в msg
-
+                damage = days * 5  # для отображения
             bonus = 25 * cf_coins
             self.coins += bonus
             msg = (f'🥺 СТРИК ПОТЕРЯН\n'
                    f'Урон за потерю глобального стрика: {damage}❤️\n'
                    f'🔥 Новый стрик начат! Бонус: {bonus} монет')
 
+        # Комбинированный статус для локального стрика (только бонус за старт)
+        elif 'Lose' in st and 'Start' in st and streak_type == 'Local':
+            bonus = 25 * cf_coins
+            self.coins += bonus
+            msg = f'Получен бонус {bonus} монет за старт стрика в проекте (после потери).'
+
+        # Обычный старт (без потери)
         elif 'Start' in st and 'Lose' not in st:
             bonus = 25 * cf_coins
             self.coins += bonus
@@ -203,6 +209,7 @@ class Gamer:
             else:
                 msg = f'Получен бонус {bonus} монет за старт глобального стрика.'
 
+        # Продолжение стрика
         elif 'Go' in st:
             bonus = 10 * cf_coins
             self.coins += bonus
@@ -211,11 +218,13 @@ class Gamer:
             else:
                 msg = f'Получен бонус {bonus} монет за продление глобального стрика.'
 
+        # Завершение стрика (только локальный)
         elif 'Complete' in st:
             bonus = 500 * cf_coins
             self.coins += bonus
             msg = f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН! Вы получили награду: {bonus}!'
 
+        # Чистая потеря (только глобальный)
         elif 'Lose' in st and streak_type == 'Global':
             today = engine.today_for_test()
             if self.last_lose_global_streak_damage != today:

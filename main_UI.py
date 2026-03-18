@@ -603,14 +603,18 @@ class MainWindow(QMainWindow, main_window_ui):
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
         if en.load_settings().get('game_mode', False) and added_symbols > 0:
             self.game_controller.add_symbols(added_symbols)
-            # Выдаем бонусы за стрики
+            # Даем бонус за стрик проекта и глобальный, если он включен
             if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                 if project.last_streak_bonus != en.today_for_test():
-                    self.game_controller.give_streak_bonus(project.streak_status, 'Local')
-                    project.last_streak_bonus = en.today_for_test()
-                if data['last_global_streak_bonus'] != en.today_for_test():
-                    self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global')
-                    data['last_global_streak_bonus'] = en.today_for_test()
+                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local'):
+                        project.last_streak_bonus = en.today_for_test()
+                        data['projects'][project.name] = project
+                        save_data(data)
+                # Даем бонус за глобальный стрик
+                if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global'):
+                        data['last_global_streak_bonus'] = en.today_for_test()
+                        save_data(data)
 
         # Сохраняем изменения
         data['projects'][project.name] = project
@@ -932,13 +936,15 @@ class MainWindow(QMainWindow, main_window_ui):
             # Даем бонус за стрик проекта и глобальный, если он включен
             if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                 if project.last_streak_bonus != en.today_for_test():
-                    self.game_controller.give_streak_bonus(project.streak_status, 'Locale')
-                    project.last_streak_bonus = en.today_for_test()
-                    data['projects'][project.name] = project
+                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local'):
+                        project.last_streak_bonus = en.today_for_test()
+                        data['projects'][project.name] = project
+                        save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    self.game_controller.give_streak_bonus(en.global_streak_status(en.load_data()), 'Global')
-                    data['last_global_streak_bonus'] = en.today_for_test()
+                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global'):
+                        data['last_global_streak_bonus'] = en.today_for_test()
+                        save_data(data)
 
             # Принудительно обновляем layout, чтобы sizeHint был актуальным
             widget.layout().activate()
@@ -1103,14 +1109,18 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
-                # Выдаем бонусы за стрики
+                # Даем бонус за стрик проекта и глобальный, если он включен
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
-                        self.game_controller.give_streak_bonus(project.streak_status, 'Local')
-                        project.last_streak_bonus = en.today_for_test()
-                    if data['last_global_streak_bonus'] != en.today_for_test():
-                        self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global')
-                        data['last_global_streak_bonus'] = en.today_for_test()
+                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local'):
+                            project.last_streak_bonus = en.today_for_test()
+                            data['projects'][project.name] = project
+                            save_data(data)
+                    # Даем бонус за глобальный стрик
+                    if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                        if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global'):
+                            data['last_global_streak_bonus'] = en.today_for_test()
+                            save_data(data)
 
             # Сохраняем изменения
             data['projects'][project.name] = project
@@ -1230,14 +1240,18 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
                 self.game_controller.add_symbols(added_symbols)
-                # Выдаем бонусы за стрики
+                # Даем бонус за стрик проекта и глобальный, если он включен
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
-                        self.game_controller.give_streak_bonus(project.streak_status, 'Local')
-                        project.last_streak_bonus = en.today_for_test()
-                    if data['last_global_streak_bonus'] != en.today_for_test():
-                        self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global')
-                        data['last_global_streak_bonus'] = en.today_for_test()
+                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local'):
+                            project.last_streak_bonus = en.today_for_test()
+                            data['projects'][project.name] = project
+                            save_data(data)
+                    # Даем бонус за глобальный стрик
+                    if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                        if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global'):
+                            data['last_global_streak_bonus'] = en.today_for_test()
+                            save_data(data)
 
             # Сохраняем изменения
             data['projects'][project.name] = project

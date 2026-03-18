@@ -554,6 +554,7 @@ class GameMenuController:
             self.gamer = game.load_game()  # Перезагружаем для актуальности
             self.update_game_data()
             self.notifications.show_success(result)
+            return True
         return
 
     def freeze_project(self):
