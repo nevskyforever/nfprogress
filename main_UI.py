@@ -716,6 +716,7 @@ class MainWindow(QMainWindow, main_window_ui):
             new_total = dialog.get_total()
             new_unit = dialog.get_unit()
             new_deadline = dialog.get_deadline()
+            edit_date = en.today_for_test()
 
             # Проверяем, изменилась ли единица измерения
             unit_changed = (new_unit != project.unit)
@@ -739,6 +740,7 @@ class MainWindow(QMainWindow, main_window_ui):
             project.total_symbols = new_total
             project.unit = new_unit
             project.deadline = new_deadline
+            project.edit_date = edit_date
 
             # Обновляем статус проекта (если цель достигнута)
             if project.total_symbols >= project.goal and project.status != 'завершен':

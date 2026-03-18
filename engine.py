@@ -63,7 +63,7 @@ version = '3.3'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    return date(2026, 3, 1)
+    # return date(2026, 3, 21)
     return date.today()
 
 
@@ -76,6 +76,7 @@ class Project:
         self._name = name
         self._goal = goal  # хранится в выбранной единице
         self.create_date = create_date if create_date else today_for_test()
+        self.edit_date = create_date if create_date else today_for_test()
         self.complete_date = None
         self._total_symbols = total_symbols  # хранится в выбранной единице
         self._progress = progress
@@ -97,6 +98,7 @@ class Project:
             '_name': 'Без имени',
             '_goal': None,
             'create_date': today_for_test(),
+            'edit_date': today_for_test(),
             'complete_date': None,
             '_total_symbols': 0,
             '_progress': 0,
@@ -226,21 +228,23 @@ class Project:
         if not isinstance(self.deadline, date):
             return 0
 
-        create_date = self.create_date
-        if isinstance(create_date, datetime):
-            create_date = create_date.date()
-        elif not isinstance(create_date, date):
-            create_date = today
+        edit_date = self.edit_date
+        if today < edit_date:
+            edit_date = today
+        elif isinstance(edit_date, datetime):
+            edit_date = edit_date.date()
+        elif not isinstance(edit_date, date):
+            edit_date = today
 
         goal_sym = self.get_goal_symbols()
         if goal_sym == float('inf'):
             return float('inf')
 
-        total_days = (self.deadline - create_date).days + 1
+        total_days = (self.deadline - edit_date).days + 1
         if total_days <= 0:
             return goal_sym
 
-        days_passed = (today - create_date).days + 1
+        days_passed = (today - edit_date).days + 1
         if days_passed <= 0:
             days_passed = 1
 
