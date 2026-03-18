@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
 import game
 import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
-from engine import load_data, save_data, today_for_test
+from engine import load_data, save_data, today_for_test, unit_converter
 
 
 class GameMenuController:
@@ -537,22 +537,59 @@ class GameMenuController:
             return result
         return
 
-    def give_streak_bonus(self, streak_status, streak_type = None):
+    def give_streak_bonus(self, streak_status, streak_type=None, streak_len=1):
         """
         Добавление написанных символов (вызывается из основного окна)
 
         Args:
             streak_status: Статус стрика
             streak_type: Вид стрика
+            streak_len: Длина стрика в днях
         """
         if not self.gamer:
             return "Игровой режим не активен"
 
-        result = self.gamer.give_streak_bonus(streak_status, streak_type)
+        result = self.gamer.give_streak_bonus(streak_status, streak_type, streak_len)
         if result:
             self.gamer.save()
             self.gamer = game.load_game()  # Перезагружаем для актуальности
             self.update_game_data()
+            self.notifications.show_success(result)
+            return True
+        return
+
+    def give_complete_bonus(self, project_status, project_total, project_unit='symbols'):
+        """
+        Начисление бонуса за завершение проекта (вызывается из основного окна)
+
+        Args:
+            project_status: Статус проекта
+            project_total: Общее количество в единицах проекта
+            project_unit: Единица измерения проекта ('symbols', 'A4', 'author_list', 'ficbook_pages')
+        """
+        if not self.gamer:
+            return "Игровой режим не активен"
+
+        # Конвертируем количество в символы для передачи в game.py
+        symbols_value = unit_converter(project_unit, project_total, 'symbols')
+
+        # Если конвертация не удалась, используем исходное значение
+        if symbols_value is None:
+            symbols_value = project_total
+
+        # Передаем в game.py уже конвертированное значение в символах
+        result = self.gamer.give_complete_bonus(project_status, symbols_value)
+
+        if result:
+            # Проверяем, не повысился ли уровень
+            level_up_msg = self.gamer.level_up()
+            if level_up_msg:
+                self.notifications.show_success(level_up_msg)
+
+            self.gamer.save()
+            self.gamer = game.load_game()  # Перезагружаем для актуальности
+            self.update_game_data()
+            self.update_inventory()
             self.notifications.show_success(result)
             return True
         return

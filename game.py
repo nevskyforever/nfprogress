@@ -173,9 +173,10 @@ class Gamer:
     def check_loan_penalty(self):
         pass
 
-    def give_streak_bonus(self, status, streak_type):
+    def give_streak_bonus(self, status, streak_type, streak_len=1):
         st = status.split()
         cf_coins = self.cf['coins']
+        cf_exp = self.cf['exp']
         msg = None
 
         # Комбинированный статус для глобального стрика (урон + бонус)
@@ -211,18 +212,24 @@ class Gamer:
 
         # Продолжение стрика
         elif 'Go' in st:
-            bonus = 10 * cf_coins
-            self.coins += bonus
+            coin_bonus = round((10 * streak_len * cf_coins), 2)
+            exp_bonus = round((100 * streak_len * cf_exp))
+            self.coins += coin_bonus
+            self.exp += exp_bonus
             if streak_type == 'Local':
-                msg = f'Получен бонус {bonus} монет за продление стрика в проекте.'
+                msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление стрика в проекте.'
             else:
-                msg = f'Получен бонус {bonus} монет за продление глобального стрика.'
+                msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
 
         # Завершение стрика (только локальный)
         elif 'Complete' in st:
-            bonus = 500 * cf_coins
-            self.coins += bonus
-            msg = f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН! Вы получили награду: {bonus}!'
+            coin_bonus = round((25 * streak_len * cf_coins), 2)
+            exp_bonus = round((250 * streak_len * cf_exp))
+            self.coins += coin_bonus
+            self.exp += exp_bonus
+            msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
+                   f'Вы были в цели {streak_len} д. подряд!'
+                   f'\nВы получили награду: {coin_bonus} монет и {exp_bonus}!')
 
         # Чистая потеря (только глобальный)
         elif 'Lose' in st and streak_type == 'Global':
@@ -238,6 +245,21 @@ class Gamer:
                 self.last_lose_global_streak_damage = today
                 msg = (f'🥺 СТРИК ПОТЕРЯН\n'
                        f'Урон за потерю глобального стрика: {damage}❤️')
+
+        self.save()
+        return msg
+
+    def give_complete_bonus(self, project_status, project_total):
+        cf_total = round(project_total / 1000 + 0.5)  # обычное деление, не целочисленное
+        cf_coins = self.cf['coins']
+        cf_exp = self.cf['exp']
+
+        coin_bonus = round((100 * cf_total * cf_coins), 2)
+        exp_bonus = round(1000 * cf_total * cf_exp)
+
+        self.coins += coin_bonus
+        self.exp += exp_bonus
+        msg = f'Вы получили награду {coin_bonus} монет и {exp_bonus} оп.'
 
         self.save()
         return msg

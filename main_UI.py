@@ -609,13 +609,13 @@ class MainWindow(QMainWindow, main_window_ui):
             # Даем бонус за стрик проекта и глобальный, если он включен
             if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                 if project.last_streak_bonus != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local'):
+                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', len(project.streaks)):
                         project.last_streak_bonus = en.today_for_test()
                         data['projects'][project.name] = project
                         save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global'):
+                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global', len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
                         save_data(data)
 
@@ -787,8 +787,10 @@ class MainWindow(QMainWindow, main_window_ui):
         if result == QDialog.Accepted:
             project.status = "завершен"
             project.complete_date = en.today_for_test()
-            if en.load_settings()['global_streak'] and en.load_settings()['game_mode']:
-                self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local')
+            if en.load_settings()['game_mode']:
+                self.game_controller.give_complete_bonus(project.status, project.total_symbols, project.unit)
+                if en.load_settings()['global_streak'] and project.deadline != 'Нет':
+                    self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local', streak_len=len(project.streaks))
 
             data = en.load_data()
             data['projects'][project.name] = project
@@ -945,13 +947,15 @@ class MainWindow(QMainWindow, main_window_ui):
             # Даем бонус за стрик проекта и глобальный, если он включен
             if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                 if project.last_streak_bonus != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local'):
+                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
+                                                              len(project.streaks)):
                         project.last_streak_bonus = en.today_for_test()
                         data['projects'][project.name] = project
                         save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global'):
+                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
+                                                              len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
                         save_data(data)
 
@@ -1121,13 +1125,15 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Даем бонус за стрик проекта и глобальный, если он включен
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local'):
+                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
+                                                                  len(project.streaks)):
                             project.last_streak_bonus = en.today_for_test()
                             data['projects'][project.name] = project
                             save_data(data)
                     # Даем бонус за глобальный стрик
                     if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global'):
+                        if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
+                                                                  len(data['global_streaks'])):
                             data['last_global_streak_bonus'] = en.today_for_test()
                             save_data(data)
 
@@ -1252,13 +1258,15 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Даем бонус за стрик проекта и глобальный, если он включен
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local'):
+                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
+                                                                  len(project.streaks)):
                             project.last_streak_bonus = en.today_for_test()
                             data['projects'][project.name] = project
                             save_data(data)
                     # Даем бонус за глобальный стрик
                     if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global'):
+                        if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
+                                                                  len(data['global_streaks'])):
                             data['last_global_streak_bonus'] = en.today_for_test()
                             save_data(data)
 
@@ -1411,7 +1419,7 @@ class MainWindow(QMainWindow, main_window_ui):
         data = en.load_data()
         projects = list(data['projects'].values())
         # Оставляем только проекты с настроенной синхронизацией
-        projects_with_sync = [p for p in projects if p.synch is not None]
+        projects_with_sync = [p for p in projects if p.synch is not None and p.status == 'активен']
 
         if not projects_with_sync:
             # Нет проектов для синхронизации — ничего не делаем
@@ -1881,7 +1889,7 @@ class NotificationManager:
         toast.fade_in_anim.start()
 
     # В каждом методе показа передаём manager=self
-    def show_success(self, message, duration=5000, position="bottom-right"):
+    def show_success(self, message, duration=10000, position="bottom-right"):
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
@@ -1897,7 +1905,7 @@ class NotificationManager:
         """)
         self._add_toast(toast)
 
-    def show_error(self, message, duration=5000, position="bottom-right"):
+    def show_error(self, message, duration=10000, position="bottom-right"):
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
@@ -1913,7 +1921,7 @@ class NotificationManager:
         """)
         self._add_toast(toast)
 
-    def show_warning(self, message, duration=5000, position="bottom-right"):
+    def show_warning(self, message, duration=10000, position="bottom-right"):
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
@@ -1929,7 +1937,7 @@ class NotificationManager:
         """)
         self._add_toast(toast)
 
-    def show_info(self, message, duration=5000, position="bottom-right"):
+    def show_info(self, message, duration=10000, position="bottom-right"):
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         self._add_toast(toast)
 
