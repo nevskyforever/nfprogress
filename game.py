@@ -174,15 +174,28 @@ class Gamer:
         pass
 
     def give_streak_bonus(self, status, streak_type):
-        # 1. Исправляем ошибку формата из engine.py (склеиваем буквы в слова)
         st = status.split()
-
-        # 2. Берем коэффициент из текущего объекта (self)
         cf_coins = self.cf['coins']
         msg = None
 
-        # 3. Проверяем вхождение ключевых слов в строку статуса
-        if 'Start' in st and 'Lose' not in st:
+        # Комбинированный статус 'Lose N Start' — потеря + немедленный старт нового стрика
+        if 'Lose' in st and 'Start' in st and streak_type == 'Global':
+            today = engine.today_for_test()
+            days = int(st[1]) if len(st) > 1 and st[1].isdigit() else 1
+            if self.last_lose_global_streak_damage != today:
+                damage = days * 5
+                self.damage(damage)
+                self.last_lose_global_streak_damage = today
+            else:
+                damage = days * 5  # для отображения в msg
+
+            bonus = 25 * cf_coins
+            self.coins += bonus
+            msg = (f'🥺 СТРИК ПОТЕРЯН\n'
+                   f'Урон за потерю глобального стрика: {damage}❤️\n'
+                   f'🔥 Новый стрик начат! Бонус: {bonus} монет')
+
+        elif 'Start' in st and 'Lose' not in st:
             bonus = 25 * cf_coins
             self.coins += bonus
             if streak_type == 'Local':
@@ -202,23 +215,21 @@ class Gamer:
             bonus = 500 * cf_coins
             self.coins += bonus
             msg = f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН! Вы получили награду: {bonus}!'
+
         elif 'Lose' in st and streak_type == 'Global':
             today = engine.today_for_test()
-
-            # Проверяем, что урон ещё не начислен сегодня И дата последнего урона не в будущем
             if self.last_lose_global_streak_damage != today:
-
                 days = 1
                 for part in st:
                     if part.isdigit():
                         days = int(part)
                         break
-
                 damage = days * 5
                 self.damage(damage)
                 self.last_lose_global_streak_damage = today
-                msg = (f'🥺СТРИК ПОТЕРЯН\n'
-                       f'Вы получили урон за потерю глобального стрика: {damage}❤️')
+                msg = (f'🥺 СТРИК ПОТЕРЯН\n'
+                       f'Урон за потерю глобального стрика: {damage}❤️')
+
         self.save()
         return msg
 
