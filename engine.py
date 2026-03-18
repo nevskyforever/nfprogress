@@ -64,7 +64,7 @@ last_update = '16.03.26'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    return date(2026, 3, 15)
+    return date(2026, 3, 12)
     return date.today()
 
 
@@ -587,8 +587,7 @@ def save_settings(data):
     temp_file.replace(data_file)
 
 def global_streak_status(data, today=None):
-    """Возвращает статус глобального стрика."""
-    status = 'No'
+    """Возвращает статус глобального стрика с приоритетом сохранения потери."""
     if today is None:
         today = today_for_test()
     yesterday = today - timedelta(days=1)
@@ -603,12 +602,11 @@ def global_streak_status(data, today=None):
     last_lost_date = data.get('last_global_streak_lost_date')
     last_lost_len = data.get('last_global_streak_lose_len', 0)
 
-    # Заморозка
+    # Заморозка (оставляем без изменений)
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
         return 'Freeze'
 
-    # Если комбо-статус уже выставлен и стрик сегодня уже начат — возвращаем его без изменений
-    # (повторные вызовы не должны «съедать» комбо до того, как его обработает give_streak_bonus)
+    # Если уже установлен комбо-статус (Lose X Start) и стрик сегодня продолжен — возвращаем его
     if (isinstance(prev_status, str) and
             prev_status.startswith('Lose ') and
             len(prev_status.split()) == 3 and
@@ -624,53 +622,73 @@ def global_streak_status(data, today=None):
                 has_active_today = True
                 break
 
-    # === ПЕРСИСТЕНЦИЯ ЧИСТОГО СТАТУСА ПОТЕРИ (только в день потери, нет активных) ===
+    # === ПРОВЕРКА СОХРАНЕНИЯ СТАТУСА ПОТЕРИ ===
     if (isinstance(prev_status, str) and
             prev_status.startswith('Lose ') and
             len(prev_status.split()) == 2 and
-            not has_active_today):
-        if last_lost_date == today:
-            status = prev_status
+            last_lost_date is not None):
+        if not has_active_today:
+            # Нет активности — остаёмся в статусе потери
+            return prev_status
+        else:
+            # Появилась активность — начинаем новый стрик с учётом потери (комбо)
+            streaks = [today]
+            status = f'Lose {last_lost_len} Start'
+            data['global_streaks'] = streaks
             data['global_streak_status'] = status
+            data['last_global_streak_lost_date'] = None
+            data['last_global_streak_lose_len'] = 0
+            if 1 > max_streak:
+                max_streak = 1
+            data['max_global_streak'] = max_streak
             save_data(data)
             return status
-        else:
-            data['global_streak_status'] = 'No'
-            save_data(data)
-            return 'No'
 
-    # Обработка глобального стрика
+    # === ОСНОВНАЯ ЛОГИКА ОБРАБОТКИ СТРИКА ===
     if has_active_today:
         if not streaks:
+            # Новый стрик
             streaks.append(today)
             if last_lost_date is not None:
-                # Потеря ещё не была обработана — комбо-статус
+                # Была потеря (например, если prev_status не успел стать 'Lose', но данные сохранились)
                 status = f'Lose {last_lost_len} Start'
                 data['last_global_streak_lost_date'] = None
                 data['last_global_streak_lose_len'] = 0
             else:
                 status = 'Start'
         elif streaks[-1] == yesterday:
+            # Продолжение стрика
             streaks.append(today)
             status = 'Go'
             data['last_global_streak_lost_date'] = None
+            data['last_global_streak_lose_len'] = 0
         elif streaks[-1] == today:
-            # Уже сегодня добавляли — возвращаем сохранённый статус без перезаписи
-            # (чтобы не затереть комбо-статус при повторном вызове)
+            # Уже сегодня обновляли — возвращаем текущий статус
             data['global_streaks'] = streaks
             data['max_global_streak'] = max_streak
             save_data(data)
             return prev_status
+        else:
+            # Пропуск дней: потеря старого стрика и начало нового
+            lose_len = len(streaks)
+            if lose_len > max_streak:
+                max_streak = lose_len
+            streaks = [today]
+            status = f'Lose {lose_len} Start'
+            data['last_global_streak_lost_date'] = None
+            data['last_global_streak_lose_len'] = 0
     else:
+        # Нет активности сегодня
         if not streaks:
             status = 'No'
         elif streaks[-1] == yesterday:
             status = 'Active'
         elif streaks[-1] == today:
+            # Странная ситуация: запись в streaks сегодня есть, но активности нет — очищаем
             streaks.clear()
             status = 'No'
         else:
-            # Потеря стрика (пропуск >1 дня)
+            # Потеря стрика из-за пропуска более одного дня
             lose_len = len(streaks)
             if lose_len > max_streak:
                 max_streak = lose_len
@@ -679,7 +697,7 @@ def global_streak_status(data, today=None):
             data['last_global_streak_lost_date'] = today
             data['last_global_streak_lose_len'] = lose_len
 
-    # Обновляем максимальную длину
+    # Обновление максимальной длины стрика
     current_len = len(streaks)
     if current_len > max_streak:
         max_streak = current_len
