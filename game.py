@@ -229,7 +229,7 @@ class Gamer:
             self.exp += exp_bonus
             msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
                    f'Вы были в цели {streak_len} д. подряд!'
-                   f'\nВы получили награду: {coin_bonus} монет и {exp_bonus}!')
+                   f'\nВы получили награду: {coin_bonus} монет и {exp_bonus} опыта!')
 
         # Чистая потеря (только глобальный)
         elif 'Lose' in st and streak_type == 'Global':
