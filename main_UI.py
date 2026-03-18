@@ -215,9 +215,13 @@ class MainWindow(QMainWindow, main_window_ui):
                     data['max_global_streak'] = 0
                     data['last_global_streak_bonus'] = None
                     data['last_global_streak_lost_date'] = None
+                    for p in data['projects'].values():
+                        p.streaks = []
+                        p.streak_status = 'No'
                     en.save_data(data)
                 en.save_settings(settings)
         self.applying_settings()
+        self.refresh_projects()
 
     def view_project(self):
         """Отображает информацию о выбранном проекте"""
@@ -783,6 +787,8 @@ class MainWindow(QMainWindow, main_window_ui):
         if result == QDialog.Accepted:
             project.status = "завершен"
             project.complete_date = en.today_for_test()
+            if en.load_settings()['global_streak'] and en.load_settings()['game_mode']:
+                self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local')
 
             data = en.load_data()
             data['projects'][project.name] = project
@@ -800,7 +806,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         if project.status == 'активен':
             dialog.message.setText(
-                'Вы хотите архивировать проект?\nДедлайн проекта будет удален,\nпроект можно будет восстановить')
+                'Вы хотите архивировать проект?\nДедлайн проекта будет удален, стрик прерван.\nпроект можно будет восстановить')
         else:
             dialog.message.setText('Вы хотите активировать проект?')
 
@@ -810,6 +816,8 @@ class MainWindow(QMainWindow, main_window_ui):
             if project.status == 'активен':
                 project.status = "в архиве"
                 project.deadline = 'Нет'
+                project.streaks = []
+                project.streak_status = 'No'
                 msg = f'{project.name} архивирован.'
             else:
                 project.status = "активен"
