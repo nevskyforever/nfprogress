@@ -1872,7 +1872,7 @@ class NotificationManager:
         toast.fade_in_anim.start()
 
     # В каждом методе показа передаём manager=self
-    def show_success(self, message, duration=3000, position="bottom-right"):
+    def show_success(self, message, duration=5000, position="bottom-right"):
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
@@ -1904,7 +1904,7 @@ class NotificationManager:
         """)
         self._add_toast(toast)
 
-    def show_warning(self, message, duration=4000, position="bottom-right"):
+    def show_warning(self, message, duration=5000, position="bottom-right"):
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
@@ -1920,7 +1920,7 @@ class NotificationManager:
         """)
         self._add_toast(toast)
 
-    def show_info(self, message, duration=3000, position="bottom-right"):
+    def show_info(self, message, duration=5000, position="bottom-right"):
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         self._add_toast(toast)
 
