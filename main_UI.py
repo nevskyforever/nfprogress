@@ -6,7 +6,6 @@ from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel
-from dateutil.utils import today
 
 import engine as en
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
