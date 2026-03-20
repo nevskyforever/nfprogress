@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowILeNdV.ui'
+## Form generated from reading UI file 'main_windowVvZzJN.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -1160,8 +1160,8 @@ class Ui_main_window(object):
         self.sort_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0414\u0435\u0434\u043b\u0430\u0439\u043d", None))
         self.sort_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441", None))
 
-        self.label_5.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430:", None))
-        self.label_4.setText(QCoreApplication.translate("main_window", u"\u0424\u0438\u043b\u044c\u0442\u0440:", None))
+        self.label_5.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u043a\u0430 \u043f\u043e \u0441\u0432\u043e\u0439\u0441\u0442\u0432\u0443:", None))
+        self.label_4.setText(QCoreApplication.translate("main_window", u"\u0424\u0438\u043b\u044c\u0442\u0440 \u043f\u043e \u0441\u0442\u0430\u0442\u0443\u0441\u0443:", None))
         self.filter_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u0410\u043a\u0442\u0438\u0432\u0435\u043d", None))
         self.filter_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0412 \u0430\u0440\u0445\u0438\u0432\u0435", None))
         self.filter_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043d", None))
