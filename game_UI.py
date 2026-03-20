@@ -12,6 +12,8 @@ from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
 import game
 import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
+from UI_fiiles.gsmer_editor import Ui_gamer_editor
+
 from engine import load_data, save_data, today_for_test, unit_converter
 
 
@@ -605,6 +607,19 @@ class GameMenuController:
             self.update_inventory()
         dialog.close()
 
+    def edit_gamer(self):
+        dialog = GamerEditor()
+        result = dialog.exec_()
+        if result == QDialog.Accepted:
+            self.gamer.level = int(dialog.level.text())
+            self.gamer.health = int(dialog.health.text())
+            self.gamer.coins = int(dialog.coins.text())
+            self.gamer.exp = int(dialog.exp.text())
+            self.gamer.save()
+            self.refresh_all()
+            self.notifications.show_success('Изменения сохранены')
+        dialog.close()
+
 
 class FreezeProject(QDialog, Ui_freeze_projrct):
     def __init__(self):
@@ -685,3 +700,13 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
             return f'Проект "{project_name}" заморожен!'
 
         return f'Ошибка: проект "{project_name}" не найден'
+
+class GamerEditor(QDialog, Ui_gamer_editor):
+    def __init__(self):
+        super().__init__()
+        gamer = game.load_game()
+        self.setupUi(self)
+        self.level.setText(f'{gamer.level}')
+        self.health.setText(f'{gamer.health}')
+        self.coins.setText(f'{gamer.coins}')
+        self.exp.setText(f'{gamer.exp}')

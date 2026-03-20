@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowcqtCTP.ui'
+## Form generated from reading UI file 'main_windowILeNdV.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -1124,13 +1124,13 @@ class Ui_main_window(object):
         self.menuBar = QMenuBar(main_window)
         self.menuBar.setObjectName(u"menuBar")
         self.menuBar.setGeometry(QRect(0, 0, 1104, 30))
-        self.menu = QMenu(self.menuBar)
-        self.menu.setObjectName(u"menu")
+        self.settings_menu = QMenu(self.menuBar)
+        self.settings_menu.setObjectName(u"settings_menu")
         self.project_menu = QMenu(self.menuBar)
         self.project_menu.setObjectName(u"project_menu")
         main_window.setMenuBar(self.menuBar)
 
-        self.menuBar.addAction(self.menu.menuAction())
+        self.menuBar.addAction(self.settings_menu.menuAction())
         self.menuBar.addAction(self.project_menu.menuAction())
         self.project_menu.addAction(self.synch_action)
         self.project_menu.addAction(self.del_synch_action)
@@ -1277,7 +1277,7 @@ class Ui_main_window(object):
         self.game_shop_tabs.setTabText(self.game_shop_tabs.indexOf(self.potions_shop_tab), QCoreApplication.translate("main_window", u"\u0417\u0435\u043b\u044c\u044f", None))
         self.shop_label.setText(QCoreApplication.translate("main_window", u"\u041c\u0430\u0433\u0430\u0437\u0438\u043d", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.game_tab), QCoreApplication.translate("main_window", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
-        self.menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
+        self.settings_menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
         self.project_menu.setTitle(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442", None))
     # retranslateUi
 

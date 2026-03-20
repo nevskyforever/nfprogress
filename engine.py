@@ -8,6 +8,9 @@ from pathlib import Path
 
 from docx import Document
 
+# Режим разработчика
+dev_mode = True
+
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 
@@ -63,7 +66,8 @@ version = '3.3.3'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    # return date(2026, 3, 21)
+    if dev_mode:
+        return date(2026, 3, 20)
     return date.today()
 
 

@@ -8,6 +8,7 @@ from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog
     QTreeWidgetItem, QDialogButtonBox, QLabel
 
 import engine as en
+import game
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.create_project import Ui_create_project as create_project_ui
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
@@ -31,6 +32,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Инициализация игрового контроллера
         self.game_controller = GameMenuController(self, self.notifications)
+        self.gamer_editor_action = None
 
         self.unit_to_display = {
             'symbols': 'Символы',
@@ -74,7 +76,8 @@ class MainWindow(QMainWindow, main_window_ui):
         self.new_symbols.returnPressed.connect(self.on_enter_pressed)
 
         # Добавляем менюбар
-        self.menu.addAction("Настройки приложения").triggered.connect(self.edit_settings)
+        # Настройки
+        self.settings_menu.addAction("Настройки приложения").triggered.connect(self.edit_settings)
         if self.global_streak_mode:
             self.refresh_global_streak_status()
             QTimer.singleShot(1000, self.check_global_streak)
@@ -165,6 +168,11 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Сохраняем виджет ПЕРЕД удалением
                 self.game_tab_widget = self.tabWidget.widget(game_tab_index)
                 self.tabWidget.removeTab(game_tab_index)
+
+            # Удаляем пункт меню "Редактор персонажа", если он существует
+            if self.gamer_editor_action:
+                self.settings_menu.removeAction(self.gamer_editor_action)
+                self.gamer_editor_action = None
         else:
             # Режим включен
             if game_tab_index < 0:
@@ -175,6 +183,16 @@ class MainWindow(QMainWindow, main_window_ui):
                 else:
                     # Создаём новую вкладку (используем существующую из UI)
                     self.tabWidget.addTab(self.game_tab, 'Игровой режим')
+
+            # Добавляем/удаляем пункт меню "Редактор персонажа" в зависимости от режима разработчика
+            if en.dev_mode:
+                if not self.gamer_editor_action:
+                    self.gamer_editor_action = self.settings_menu.addAction('Редактор персонажа')
+                    self.gamer_editor_action.triggered.connect(self.game_controller.edit_gamer)
+            else:
+                if self.gamer_editor_action:
+                    self.settings_menu.removeAction(self.gamer_editor_action)
+                    self.gamer_editor_action = None
 
         if settings['inf_project'] is True:
             data = en.load_data()
@@ -188,6 +206,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 del data['projects']['inf_project']
                 save_data(data)
                 self.refresh_projects()
+
         if settings.get('global_streak', False):
             self.global_streak_status.setVisible(True)
             self.refresh_projects()
@@ -365,10 +384,6 @@ class MainWindow(QMainWindow, main_window_ui):
                 # 👇 Добавляем обновление имени выбранного проекта
                 self.name_selected_project.setText(project_name)
                 break
-
-    def setup_game_menu(self):
-        """Инициализация игрового меню"""
-        self.game_controller = GameMenuController(self.ui)
 
     def setup_project_buttons(self, project):
         """Настраивает кнопки управления проектом"""
