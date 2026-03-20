@@ -792,8 +792,8 @@ class MainWindow(QMainWindow, main_window_ui):
             # Сохраняем данные персонажа
             self.game_controller.gamer.level = int(dialog.level.text())
             self.game_controller.gamer.health = int(dialog.health.text())
-            self.game_controller.gamer.coins = int(dialog.coins.text())
-            self.game_controller.gamer.exp = int(dialog.exp.text())
+            self.game_controller.gamer.coins = float(dialog.coins.text())
+            self.game_controller.gamer.exp = int(float(dialog.exp.text()))
             self.game_controller.gamer.save()
             self.game_controller.refresh_all()
             # Сохраняем статус даты для теста и ее
