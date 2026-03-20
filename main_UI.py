@@ -19,6 +19,7 @@ from UI_fiiles.synch_window import Ui_sych_window
 from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
+from UI_fiiles.developer_mode import Ui_developer_node
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
 
 
@@ -32,7 +33,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Инициализация игрового контроллера
         self.game_controller = GameMenuController(self, self.notifications)
-        self.gamer_editor_action = None
+        self.developer_mode_action = None
 
         self.unit_to_display = {
             'symbols': 'Символы',
@@ -169,10 +170,10 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.game_tab_widget = self.tabWidget.widget(game_tab_index)
                 self.tabWidget.removeTab(game_tab_index)
 
-            # Удаляем пункт меню "Редактор персонажа", если он существует
-            if self.gamer_editor_action:
-                self.settings_menu.removeAction(self.gamer_editor_action)
-                self.gamer_editor_action = None
+            # Удаляем пункт меню "Режим разработчика", если он существует
+            if self.developer_mode_action:
+                self.settings_menu.removeAction(self.developer_mode_action)
+                self.developer_mode_action = None
         else:
             # Режим включен
             if game_tab_index < 0:
@@ -184,15 +185,15 @@ class MainWindow(QMainWindow, main_window_ui):
                     # Создаём новую вкладку (используем существующую из UI)
                     self.tabWidget.addTab(self.game_tab, 'Игровой режим')
 
-            # Добавляем/удаляем пункт меню "Редактор персонажа" в зависимости от режима разработчика
+            # Добавляем/удаляем пункт меню "Режим разработчика" в зависимости от режима разработчика
             if en.dev_mode:
-                if not self.gamer_editor_action:
-                    self.gamer_editor_action = self.settings_menu.addAction('Редактор персонажа')
-                    self.gamer_editor_action.triggered.connect(self.game_controller.edit_gamer)
+                if not self.developer_mode_action:
+                    self.developer_mode_action = self.settings_menu.addAction('Режим разработчика')
+                    self.developer_mode_action.triggered.connect(self.developer_mode)
             else:
-                if self.gamer_editor_action:
-                    self.settings_menu.removeAction(self.gamer_editor_action)
-                    self.gamer_editor_action = None
+                if self.developer_mode_action:
+                    self.settings_menu.removeAction(self.developer_mode_action)
+                    self.developer_mode_action = None
 
         if settings['inf_project'] is True:
             data = en.load_data()
@@ -781,6 +782,30 @@ class MainWindow(QMainWindow, main_window_ui):
                 f'Проект "{project.name}" обновлён',
                 position="bottom-left"
             )
+
+    def developer_mode(self):
+        dialog = DeveloperMode()
+        result = dialog.exec_()
+        settings = load_settings()
+        test_date_enabled = dialog.test_date_cb.isChecked()
+        if result == QDialog.Accepted:
+            # Сохраняем данные персонажа
+            self.game_controller.gamer.level = int(dialog.level.text())
+            self.game_controller.gamer.health = int(dialog.health.text())
+            self.game_controller.gamer.coins = int(dialog.coins.text())
+            self.game_controller.gamer.exp = int(dialog.exp.text())
+            self.game_controller.gamer.save()
+            self.game_controller.refresh_all()
+            # Сохраняем статус даты для теста и ее
+            settings['today_for_test_mode'] = test_date_enabled
+            settings['today_for_test_date'] = dialog.get_today_for_test()
+            save_settings(settings)
+
+            # Выводим уведомление и обновляем проекты с глобальным стриком
+            self.notifications.show_success('Изменения сохранены')
+            self.refresh_projects()
+            self.refresh_global_streak_status()
+        dialog.close()
 
     def _get_unit_name(self, unit_code):
         """Возвращает название единицы по коду."""
@@ -2126,6 +2151,43 @@ class SynchWindow(QDialog, Ui_sych_window):
             'item_title': item_title
         }
         return True
+
+class DeveloperMode(QDialog, Ui_developer_node):
+    def __init__(self):
+        super().__init__()
+        gamer = game.load_game()
+        settings = en.load_settings()
+        self.setupUi(self)
+        if settings.get('today_for_test_mode', False):
+            self.test_date_cb.setChecked(True)
+            self.test_date.setEnabled(True)
+            self.test_date.setDate(en.today_for_test())
+        else:
+            self.test_date_cb.setChecked(False)
+            self.test_date.setEnabled(False)
+            self.test_date.setDate(en.today_for_test())
+
+        self.level.setText(f'{gamer.level}')
+        self.health.setText(f'{gamer.health}')
+        self.coins.setText(f'{gamer.coins}')
+        self.exp.setText(f'{gamer.exp}')
+
+        # Вызываем обработчик чекбокса для начальной настройки
+        self.on_checkbox_toggled(self.test_date_cb.isChecked())
+        # Подключаем сигнал чекбокса к обработчику
+        self.test_date_cb.toggled.connect(self.on_checkbox_toggled)
+
+    def get_today_for_test(self):
+        if self.test_date_cb.isChecked():
+            return self.test_date.date().toPython()
+        return None
+    def on_checkbox_toggled(self, checked):
+        """Обработчик чекбокса 'Нет дедлайна'."""
+        if checked:
+            self.test_date.setEnabled(True)
+        else:
+            self.test_date.setDisabled(True)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

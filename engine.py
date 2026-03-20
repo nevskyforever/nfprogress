@@ -66,8 +66,8 @@ version = '3.3.4'
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     # Для тестирования можно раскомментировать:
-    if dev_mode:
-        return date(2026, 3, 20)
+    if load_settings().get('today_for_test_mode', False):
+        return load_settings()['today_for_test_date']
     return date.today()
 
 
