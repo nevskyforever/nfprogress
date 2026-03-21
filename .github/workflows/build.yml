@@ -1,7 +1,7 @@
 name: Build Windows Executable
 
 on:
-  workflow_dispatch:  # только ручной запуск
+  workflow_dispatch:
 
 jobs:
   build:
@@ -37,6 +37,7 @@ jobs:
             --product-name="nfprogress" `
             --file-version="3.3.6" `
             --file-description="Writer Tracker" `
+            --windows-no-dependency-walker `
             main_UI.py
 
       - name: Upload artifact
