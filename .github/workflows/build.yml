@@ -24,11 +24,19 @@ jobs:
         run: |
           # Скачиваем Dependency Walker (64-bit)
           curl -L -o depends.zip https://www.dependencywalker.com/depends22_x64.zip
-          unzip depends.zip -d depends
-          # Создаём папку, где Nuitka ожидает найти depends.exe
-          mkdir -p $env:LOCALAPPDATA\Nuitka
-          copy depends\depends22_x64\depends.exe $env:LOCALAPPDATA\Nuitka\depends.exe
-          echo "Dependency Walker installed to $env:LOCALAPPDATA\Nuitka\depends.exe"
+          # Создаём папку для распаковки
+          mkdir depends_temp
+          unzip depends.zip -d depends_temp
+          # Находим depends.exe
+          $dependsExe = Get-ChildItem -Path depends_temp -Recurse -Filter "depends.exe" | Select-Object -First 1
+          if ($dependsExe) {
+              New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\Nuitka" | Out-Null
+              Copy-Item $dependsExe.FullName "$env:LOCALAPPDATA\Nuitka\depends.exe" -Force
+              Write-Host "Dependency Walker installed to $env:LOCALAPPDATA\Nuitka\depends.exe"
+          } else {
+              Write-Host "depends.exe not found in archive"
+              exit 1
+          }
 
       - name: Build with Nuitka
         run: |
