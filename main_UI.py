@@ -144,6 +144,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Выделяем созданный проект
             self.select_project_by_name(new_project.name)
+            self.view_project()
 
             unit_name = self._get_unit_name(unit)
             self.notifications.show_success(
