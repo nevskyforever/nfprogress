@@ -20,11 +20,30 @@ jobs:
           python -m pip install --upgrade pip
           pip install --upgrade nuitka[onefile] pyside6
 
-      - name: Install Dependency Walker via winget
+      - name: Install Dependency Walker manually
         run: |
-          winget install --id DependencyWalker.DependencyWalker --silent --accept-package-agreements
-          # Проверяем, что depends.exe доступен
-          where depends.exe
+          # Скачиваем архив
+          curl -L -o depends.zip https://www.dependencywalker.com/depends22_x64.zip
+          # Распаковываем
+          Expand-Archive -Path depends.zip -DestinationPath depends_temp -Force
+          # Ищем depends.exe в распакованных файлах
+          $dependsExe = Get-ChildItem -Path depends_temp -Recurse -Filter "depends.exe" | Select-Object -First 1
+          if ($dependsExe) {
+              # Создаём папку для Nuitka
+              New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\Nuitka" | Out-Null
+              Copy-Item $dependsExe.FullName "$env:LOCALAPPDATA\Nuitka\depends.exe" -Force
+              Write-Host "Dependency Walker installed to $env:LOCALAPPDATA\Nuitka\depends.exe"
+          } else {
+              Write-Host "depends.exe not found in archive"
+              exit 1
+          }
+          # Проверяем, что файл действительно есть
+          if (Test-Path "$env:LOCALAPPDATA\Nuitka\depends.exe") {
+              Write-Host "Verification: depends.exe exists."
+          } else {
+              Write-Host "Verification failed."
+              exit 1
+          }
 
       - name: Build with Nuitka
         run: |
