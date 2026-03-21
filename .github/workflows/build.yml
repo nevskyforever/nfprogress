@@ -20,6 +20,16 @@ jobs:
           python -m pip install --upgrade pip
           pip install nuitka[onefile] pyside6
 
+      - name: Install Dependency Walker
+        run: |
+          # Скачиваем Dependency Walker (64-bit)
+          curl -L -o depends.zip https://www.dependencywalker.com/depends22_x64.zip
+          unzip depends.zip -d depends
+          # Создаём папку, где Nuitka ожидает найти depends.exe
+          mkdir -p $env:LOCALAPPDATA\Nuitka
+          copy depends\depends22_x64\depends.exe $env:LOCALAPPDATA\Nuitka\depends.exe
+          echo "Dependency Walker installed to $env:LOCALAPPDATA\Nuitka\depends.exe"
+
       - name: Build with Nuitka
         run: |
           python -m nuitka `
@@ -37,7 +47,6 @@ jobs:
             --product-name="nfprogress" `
             --file-version="3.3.6" `
             --file-description="Writer Tracker" `
-            --windows-no-dependency-walker `
             main_UI.py
 
       - name: Upload artifact
