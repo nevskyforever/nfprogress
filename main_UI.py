@@ -1247,7 +1247,7 @@ class MainWindow(QMainWindow, main_window_ui):
             if symbols == 0 and project.total_symbols == 0:
                 if not background_synch:
                     self.notifications.show_warning(
-                    "Не удалось подсчитать символы. Возможно, документ пуст или не найден."
+                    "Не удалось подсчитать символы. Возможно, документ пуст."
                 )
                 return
 

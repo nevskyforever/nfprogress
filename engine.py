@@ -431,6 +431,11 @@ class Project:
         # new_note.new_total хранится в символах, конвертируем в единицу проекта
         self._total_symbols = unit_converter('symbols', new_note.new_total, self.unit)
 
+    def get_statistic(self):
+        statistic = {'Кол-во записей': len(self.notes),
+                     }
+        pass
+
 class Stage(Project):
     def __init__(self):
         super().__init__()
