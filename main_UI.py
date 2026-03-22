@@ -337,7 +337,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.deadline.setText("Не установлен")
 
         # Информация о стриках
-        if en.load_settings().get('global_streak', False):
+        if en.load_settings().get('global_streak', False) and project.deadline != 'Нет':
             self.label_streaks.setVisible(True)
             self.label_streak_status.setVisible(True)
             self.label_max_streak.setVisible(True)
