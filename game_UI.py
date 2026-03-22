@@ -670,6 +670,7 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
             # Добавляем сегодняшний день в стрик (заморозка)
             project.streaks.append(today)
             project.streak_status = 'Freeze'
+            project.freezes += 1
             data['global_streaks'].append(today)
             data['global_streak_status'] = 'Freeze'
 

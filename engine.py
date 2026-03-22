@@ -95,6 +95,7 @@ class Project:
         self.last_synch = None
         self.last_streak_bonus = None
         self.last_streak_lost_date = None
+        self.freezes = 0
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -117,6 +118,7 @@ class Project:
             'last_synch': None,
             'last_streak_bonus': None,
             'last_streak_lost_date': None,
+            'freezes': 0
         }
 
         for attr, default_value in defaults.items():
