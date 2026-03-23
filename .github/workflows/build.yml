@@ -1,9 +1,7 @@
 name: Build Windows EXE
 
 on:
-  push:
-    branches: [ main, master ]
-  workflow_dispatch:  # позволяет запускать вручную из GitHub UI
+  workflow_dispatch:  # только ручной запуск через GitHub UI
 
 jobs:
   build:
@@ -21,12 +19,15 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install nuitka
+          pip install "nuitka[onefile]"
+          pip install zstandard
           pip install PySide6
           pip install python-docx
           pip install striprtf
 
       - name: Build EXE with Nuitka
+        env:
+          NUITKA_DOWNLOAD_CACHED_DEPENDS: yes
         run: |
           python -m nuitka `
             --standalone `
