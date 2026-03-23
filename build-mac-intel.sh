@@ -2,6 +2,11 @@
 VERSION=$(python3 -c "import engine; print(engine.version)")
 echo "Сборка Intel, версия: $VERSION"
 
+if [ -d "build-intel" ]; then
+  echo "Очистка старой сборки build-intel..."
+  rm -rf build-intel
+fi
+
 nuitka --standalone \
        --macos-create-app-bundle \
        --macos-app-icon=appIcon.icns \

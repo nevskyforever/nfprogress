@@ -2,6 +2,11 @@
 VERSION=$(python3 -c "import engine; print(engine.version)")
 echo "Сборка ARM, версия: $VERSION"
 
+if [ -d "build-arm" ]; then
+  echo "Очистка старой сборки build-arm..."
+  rm -rf build-arm
+fi
+
 nuitka --standalone \
        --macos-create-app-bundle \
        --macos-app-icon=appIcon.icns \
