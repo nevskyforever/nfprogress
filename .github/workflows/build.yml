@@ -26,12 +26,11 @@ jobs:
           pip install striprtf
 
       - name: Build EXE with Nuitka
-        env:
-          NUITKA_DOWNLOAD_CACHED_DEPENDS: yes
         run: |
           python -m nuitka `
             --standalone `
             --onefile `
+            --assume-yes-for-downloads `
             --enable-plugin=pyside6 `
             --windows-console-mode=attach `
             --lto=yes `
