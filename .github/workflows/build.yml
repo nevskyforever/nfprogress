@@ -1,51 +1,32 @@
-name: Build Windows Executable
+name: Build Windows EXE
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:  # позволяет запускать вручную из GitHub UI
 
 jobs:
   build:
     runs-on: windows-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - name: Setup Python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: '3.11'
 
-      - name: Install dependencies (latest Nuitka)
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install --upgrade nuitka[onefile] pyside6
+          pip install nuitka
+          pip install PySide6
+          pip install python-docx
+          pip install striprtf
 
-      - name: Install Dependency Walker manually
-        run: |
-          # Скачиваем архив
-          curl -L -o depends.zip https://www.dependencywalker.com/depends22_x64.zip
-          # Распаковываем
-          Expand-Archive -Path depends.zip -DestinationPath depends_temp -Force
-          # Ищем depends.exe в распакованных файлах
-          $dependsExe = Get-ChildItem -Path depends_temp -Recurse -Filter "depends.exe" | Select-Object -First 1
-          if ($dependsExe) {
-              # Создаём папку для Nuitka
-              New-Item -ItemType Directory -Force -Path "$env:LOCALAPPDATA\Nuitka" | Out-Null
-              Copy-Item $dependsExe.FullName "$env:LOCALAPPDATA\Nuitka\depends.exe" -Force
-              Write-Host "Dependency Walker installed to $env:LOCALAPPDATA\Nuitka\depends.exe"
-          } else {
-              Write-Host "depends.exe not found in archive"
-              exit 1
-          }
-          # Проверяем, что файл действительно есть
-          if (Test-Path "$env:LOCALAPPDATA\Nuitka\depends.exe") {
-              Write-Host "Verification: depends.exe exists."
-          } else {
-              Write-Host "Verification failed."
-              exit 1
-          }
-
-      - name: Build with Nuitka
+      - name: Build EXE with Nuitka
         run: |
           python -m nuitka `
             --standalone `
@@ -53,19 +34,20 @@ jobs:
             --enable-plugin=pyside6 `
             --windows-console-mode=attach `
             --lto=yes `
-            --msvc=14.3 `
             --windows-icon-from-ico=icon.ico `
             --include-data-file=icon.ico=icon.ico `
+            --include-data-dir="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations=PySide6/translations" `
             --output-dir=build `
             --output-filename=nfprogress.exe `
             --company-name="nfproject" `
             --product-name="nfprogress" `
-            --file-version="3.3.6" `
-            --file-description="Writer Tracker" `
+            --file-version="3.3.3" `
+            --file-description="Трекер для писателей" `
             main_UI.py
 
-      - name: Upload artifact
+      - name: Upload EXE as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: nfprogress
+          name: nfprogress-windows
           path: build/nfprogress.exe
+          retention-days: 30
