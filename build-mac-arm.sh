@@ -19,4 +19,4 @@ nuitka --standalone \
        --follow-import-to=engine,game_UI,UI_fiiles \
        --python-flag=-O \
        main_UI.py && \
-cd build-arm && mv main_UI.app nfprogress.app && zip -r nfprogress-arm-$VERSION.zip nfprogress.app && cd ..
+cd build-arm && mv main_UI.app nfprogress.app && zip -r nfprogress-mac-arm-$VERSION.zip nfprogress.app && cd ..

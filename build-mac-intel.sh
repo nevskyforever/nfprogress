@@ -1,58 +1,23 @@
-name: Build Windows EXE
+#!/bin/bash
+VERSION=$(python3 -c "import engine; print(engine.version)")
+echo "Сборка Intel, версия: $VERSION"
 
-on:
-  workflow_dispatch:  # только ручной запуск через GitHub UI
-
-jobs:
-  build:
-    runs-on: windows-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install "nuitka[onefile]"
-          pip install zstandard
-          pip install PySide6
-          pip install python-docx
-          pip install striprtf
-
-      - name: Get version from engine.py
-        run: |
-          $VERSION = python -c "import engine; print(engine.version)"
-          echo "APP_VERSION=$VERSION" >> $env:GITHUB_ENV
-
-      - name: Build EXE with Nuitka
-        run: |
-          python -m nuitka `
-            --standalone `
-            --onefile `
-            --assume-yes-for-downloads `
-            --enable-plugin=pyside6 `
-            --windows-console-mode=attach `
-            --lto=yes `
-            --windows-icon-from-ico=icon.ico `
-            --include-data-file=icon.ico=icon.ico `
-            --include-data-dir="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations=PySide6/translations" `
-            --output-dir=build `
-            --output-filename=nfprogress.exe `
-            --company-name="nfproject" `
-            --product-name="nfprogress" `
-            --file-version="${{ env.APP_VERSION }}" `
-            --file-description="Трекер для писателей" `
-            main_UI.py
-
-      - name: Upload EXE as artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: nfprogress-windows-${{ env.APP_VERSION }}
-          path: build/nfprogress.exe
-          retention-days: 30
+nuitka --standalone \
+       --macos-create-app-bundle \
+       --macos-app-icon=appIcon.icns \
+       --macos-app-name="nfprogress" \
+       --macos-app-version="$VERSION" \
+       --company-name="nfproject" \
+       --file-description="Трекер для писателей" \
+       --enable-plugin=pyside6 \
+       --macos-target-arch=x86_64 \
+       --output-dir=build-intel \
+       --include-data-dir=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations=PySide6/Qt/translations \
+       --lto=yes \
+       --disable-ccache \
+       --remove-output \
+       --prefer-source-code \
+       --follow-import-to=engine,game_UI,UI_fiiles \
+       --python-flag=-O \
+       main_UI.py && \
+cd build-intel && mv main_UI.app nfprogress.app && zip -r nfprogress-mac-intel-$VERSION.zip nfprogress.app && cd ..
