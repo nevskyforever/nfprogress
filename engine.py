@@ -95,6 +95,7 @@ class Project:
         self.last_synch = None
         self.last_streak_bonus = None
         self.last_streak_lost_date = None
+        self.freezes = 0
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -117,6 +118,7 @@ class Project:
             'last_synch': None,
             'last_streak_bonus': None,
             'last_streak_lost_date': None,
+            'freezes': 0
         }
 
         for attr, default_value in defaults.items():
@@ -428,6 +430,11 @@ class Project:
         self.notes.append(new_note)
         # new_note.new_total хранится в символах, конвертируем в единицу проекта
         self._total_symbols = unit_converter('symbols', new_note.new_total, self.unit)
+
+    def get_statistic(self):
+        statistic = {'Кол-во записей': len(self.notes),
+                     }
+        pass
 
 class Stage(Project):
     def __init__(self):
@@ -750,17 +757,17 @@ def global_streak_status_msg(data, status=None):
     if status is None:
         status = data.get('global_streak_status', 'No')
 
-    streak = data.get('global_streaks', [])
+    streaks = data.get('global_streaks', [])
 
     if status == 'Start':
         return '🔥 Глобальный стрик начат!'
     elif status == 'Go':
-        return f'🚀 Глобальный стрик продлен! Дней подряд: {len(streak)}'
+        return f'🚀 Глобальный стрик продлен! Дней подряд: {len(streaks)}'
     elif status == 'Freeze':
-        return '❄️ Глобальный стрик заморожен'
+        return f'❄️ Глобальный стрик в {len(streaks)} д. заморожен'
     elif status == 'Active':
         # Активный глобальный стрик (вчера продлен, сегодня не продлен)
-        return f'👀 Глобальный стрик в {len(streak)} д. не продлен сегодня.'
+        return f'👀 Глобальный стрик в {len(streaks)} д. не продлен сегодня.'
     elif isinstance(status, str) and status.startswith('Lose '):
         parts = status.split()
         if len(parts) == 2 and parts[1].isdigit():
@@ -772,12 +779,12 @@ def global_streak_status_msg(data, status=None):
         return '💔 Глобальный стрик потерян!'
     elif status == 'No':
         # Если нет активных стриков, но были раньше
-        if streak and len(streak) > 0:
-            last_streak_day = streak[-1]
+        if streaks and len(streaks) > 0:
+            last_streak_day = streaks[-1]
             today = today_for_test()
             days_ago = (today - last_streak_day).days
             if days_ago == 1:
-                return f'👀 Глобальный стрик в {len(streak)} д. не продлен.'
+                return f'👀 Глобальный стрик в {len(streaks)} д. не продлен.'
             else:
                 return f'😴 Глобальный стрик не активен. Последний стрик был {days_ago} дней назад'
         else:
