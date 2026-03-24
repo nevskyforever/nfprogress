@@ -16,6 +16,14 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\pip\Cache
+          key: pip-${{ runner.os }}-${{ hashFiles('**/requirements-build.txt') }}
+          restore-keys: |
+            pip-${{ runner.os }}-
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
@@ -24,6 +32,12 @@ jobs:
           pip install PySide6
           pip install python-docx
           pip install striprtf
+
+      - name: Cache Nuitka downloads (Dependency Walker и др.)
+        uses: actions/cache@v4
+        with:
+          path: ~\AppData\Local\Nuitka\Nuitka\Cache
+          key: nuitka-cache-${{ runner.os }}
 
       - name: Get version from engine.py
         run: |
