@@ -1821,7 +1821,7 @@
     </property>
     <addaction name="synch_action"/>
     <addaction name="del_synch_action"/>
-    <addaction name="crreate_project_action"/>
+    <addaction name="create_project_action"/>
     <addaction name="change_project_action"/>
     <addaction name="delete_project_action"/>
    </widget>
@@ -1848,7 +1848,7 @@
     <string>Изменить проект</string>
    </property>
   </action>
-  <action name="crreate_project_action">
+  <action name="create_project_action">
    <property name="text">
     <string>Создать проект</string>
    </property>

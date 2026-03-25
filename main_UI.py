@@ -11,6 +11,7 @@ import engine as en
 import game
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.create_project import Ui_create_project as create_project_ui
+from UI_fiiles.developer_mode import Ui_developer_node
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.notification import ToastNotification
 from UI_fiiles.project_widget import ProjectWidget
@@ -19,7 +20,6 @@ from UI_fiiles.synch_window import Ui_sych_window
 from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
-from UI_fiiles.developer_mode import Ui_developer_node
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
 
 
@@ -86,7 +86,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Подключение действий меню "Проект"
         self.synch_action.triggered.connect(self.on_sync_menu_triggered)
         self.del_synch_action.triggered.connect(self.on_delete_sync_menu_triggered)
-        self.crreate_project_action.triggered.connect(self.create_project)
+        self.create_project_action.triggered.connect(self.create_project)
         self.change_project_action.triggered.connect(self.on_change_project_menu_triggered)
         self.delete_project_action.triggered.connect(self.on_delete_project_menu_triggered)
 
