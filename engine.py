@@ -5,6 +5,7 @@ import platform
 import sys
 from datetime import datetime, timedelta, date
 from pathlib import Path
+from collections import defaultdict
 
 from docx import Document
 
@@ -458,10 +459,113 @@ class Project:
         self._total_symbols = unit_converter('symbols', new_note.new_total, self.unit)
 
     def get_statistic(self):
-        statistic = {'Кол-во записей': len(self.notes),
-                     }
-        pass
+        """
+        Считает и возвращает статистику по проекту в виде словаря.
+        Все параметры вычисляются из существующих данных без изменения структуры.
+        """
 
+        today = today_for_test()
+
+        # --- Вспомогательные структуры ---
+        # Группируем символы по дате
+        symbols_by_date = defaultdict(float)
+        for note in self.notes:
+            symbols_by_date[note.get_date_create()] += note.get_added_symbols()
+
+        active_days = sorted(symbols_by_date.keys())
+        total_notes = len(self.notes)
+        num_active_days = len(active_days)
+
+        # --- 1. Кол-во записей ---
+        stat_notes_count = total_notes
+
+        # --- 2. Всего написано в единице проекта ---
+        stat_total_in_unit = self._total_symbols  # уже хранится в единице проекта
+
+        # --- 3. Среднее символов в день (только по активным дням) ---
+        if num_active_days > 0:
+            total_sym = self.get_total_symbols()  # в символах
+            stat_avg_symbols_per_active_day = round(total_sym / num_active_days)
+        else:
+            stat_avg_symbols_per_active_day = 0
+
+        # --- 4. Среднее кол-во символов в записи ---
+        if total_notes > 0:
+            total_added = sum(note.get_added_symbols() for note in self.notes)
+            stat_avg_symbols_per_note = round(total_added / total_notes)
+        else:
+            stat_avg_symbols_per_note = 0
+
+        # --- 5. Среднее кол-во записей в день (по активным дням) ---
+        if num_active_days > 0:
+            stat_avg_notes_per_day = round(total_notes / num_active_days, 1)
+        else:
+            stat_avg_notes_per_day = 0
+
+        # --- 6. Использовано заморозок ---
+        stat_freezes_used = self.freezes
+
+        # --- 7. Лучший день (максимум символов за одну дату) ---
+        if symbols_by_date:
+            best_date = max(symbols_by_date, key=symbols_by_date.get)
+            best_value = round(symbols_by_date[best_date])
+            stat_best_day = f'{best_date.strftime("%d.%m.%Y")} — {best_value} симв.'
+        else:
+            stat_best_day = '—'
+
+        # --- 8. Самый продуктивный день недели ---
+        DAYS_RU = {
+            0: 'Понедельник', 1: 'Вторник', 2: 'Среда',
+            3: 'Четверг', 4: 'Пятница', 5: 'Суббота', 6: 'Воскресенье'
+        }
+        if symbols_by_date:
+            symbols_by_weekday = defaultdict(float)
+            for d, sym in symbols_by_date.items():
+                symbols_by_weekday[d.weekday()] += sym
+            best_weekday = max(symbols_by_weekday, key=symbols_by_weekday.get)
+            stat_best_weekday = DAYS_RU[best_weekday]
+        else:
+            stat_best_weekday = '—'
+
+        # --- 9. Текущий стрик (дней) ---
+        stat_current_streak = len(self.streaks) if isinstance(self.streaks, list) else 0
+
+        # --- 10. Максимальный стрик ---
+        # max_streak обновляется в get_streak_status, берём максимум с текущим
+        stat_max_streak = max(self.max_streak, stat_current_streak)
+
+        # --- 11. Дней с начала проекта ---
+        if self.create_date:
+            stat_days_since_start = (today - self.create_date).days + 1
+        else:
+            stat_days_since_start = 0
+
+        # --- 12. Активных дней (было хоть одна запись) ---
+        stat_active_days_count = num_active_days
+
+        # --- 13. Процент активных дней от общего времени проекта ---
+        if stat_days_since_start > 0:
+            stat_active_days_percent = round(
+                stat_active_days_count / stat_days_since_start * 100, 1
+            )
+        else:
+            stat_active_days_percent = 0
+
+        return {
+            'Кол-во записей': stat_notes_count,
+            'Всего написано в единице проекта': stat_total_in_unit,
+            'Среднее символов в день': stat_avg_symbols_per_active_day,
+            'Среднее кол-во символов в записи': stat_avg_symbols_per_note,
+            'Среднее кол-во записей в день': stat_avg_notes_per_day,
+            'Использовано заморозок': stat_freezes_used,
+            'Лучший день': stat_best_day,
+            'Самый продуктивный день недели': stat_best_weekday,
+            'Текущий стрик (дней)': stat_current_streak,
+            'Максимальный стрик': stat_max_streak,
+            'Дней с начала проекта': stat_days_since_start,
+            'Активных дней': stat_active_days_count,
+            'Процент активных дней': f'{stat_active_days_percent}%',
+        }
 class Stage(Project):
     def __init__(self):
         super().__init__()
