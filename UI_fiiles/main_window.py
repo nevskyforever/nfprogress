@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowefKNEU.ui'
+## Form generated from reading UI file 'main_windowDEFaJu.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -42,8 +42,8 @@ class Ui_main_window(object):
         self.change_project_action.setObjectName(u"change_project_action")
         self.create_project_action = QAction(main_window)
         self.create_project_action.setObjectName(u"create_project_action")
-        self.action = QAction(main_window)
-        self.action.setObjectName(u"action")
+        self.project_stats_action = QAction(main_window)
+        self.project_stats_action.setObjectName(u"project_stats_action")
         self.centralwidget = QWidget(main_window)
         self.centralwidget.setObjectName(u"centralwidget")
         self.gridLayout_7 = QGridLayout(self.centralwidget)
@@ -1075,7 +1075,7 @@ class Ui_main_window(object):
         self.scrollArea_4.setWidgetResizable(True)
         self.scrollAreaWidgetContents_5 = QWidget()
         self.scrollAreaWidgetContents_5.setObjectName(u"scrollAreaWidgetContents_5")
-        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 98, 112))
+        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 95, 112))
         self.gridLayout_18 = QGridLayout(self.scrollAreaWidgetContents_5)
         self.gridLayout_18.setObjectName(u"gridLayout_18")
         self.name_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
@@ -1139,7 +1139,7 @@ class Ui_main_window(object):
         self.project_menu.addAction(self.del_synch_action)
         self.project_menu.addAction(self.create_project_action)
         self.project_menu.addAction(self.change_project_action)
-        self.project_menu.addAction(self.action)
+        self.project_menu.addAction(self.project_stats_action)
         self.project_menu.addAction(self.delete_project_action)
 
         self.retranslateUi(main_window)
@@ -1160,7 +1160,7 @@ class Ui_main_window(object):
         self.delete_project_action.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.change_project_action.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.create_project_action.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
-        self.action.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430 \u043f\u043e \u043f\u0440\u043e\u0435\u043a\u0442\u0443", None))
+        self.project_stats_action.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430 \u043f\u043e \u043f\u0440\u043e\u0435\u043a\u0442\u0443", None))
         self.sort_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
         self.sort_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0414\u0435\u0434\u043b\u0430\u0439\u043d", None))
         self.sort_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441", None))

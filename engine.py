@@ -10,7 +10,7 @@ from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = True
+dev_mode = False
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'

@@ -19,6 +19,7 @@ from UI_fiiles.project_widget import ProjectWidget
 from UI_fiiles.settings import Ui_Dialog as settings_ui
 from UI_fiiles.synch_window import Ui_sych_window
 from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
+from UI_fiiles.project_stats import Ui_project_stats as project_stats_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
@@ -98,6 +99,9 @@ class MainWindow(QMainWindow, main_window_ui):
 
         self.delete_project_action.triggered.connect(self.on_delete_project_menu_triggered)
         self.delete_project_action.setShortcut(QKeySequence.StandardKey.Delete)
+
+        self.project_stats_action.triggered.connect(self.show_project_stats)
+        self.project_stats_action.setShortcut(QKeySequence('Ctrl+A'))
 
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
@@ -370,6 +374,17 @@ class MainWindow(QMainWindow, main_window_ui):
             self.l.setText(f"{last_note.get_date_create_str()} (+{self._format_number(added_disp)})")
         else:
             self.l.setText("Нет записей")
+
+    def show_project_stats(self):
+        """Открывает окно статистики для текущего выбранного проекта"""
+        project = self.get_current_project()  # у тебя уже есть этот метод
+
+        if project is None:
+            self.notifications.show_warning("Сначала выберите проект!")
+            return
+
+        dialog = ProjectStatsDialog(project, self)
+        dialog.exec()
 
     def _format_number(self, num):
         """Форматирует число для отображения."""
@@ -2196,6 +2211,72 @@ class DeveloperMode(QDialog, Ui_developer_node):
         else:
             self.test_date.setDisabled(True)
 
+
+class ProjectStatsDialog(QDialog, project_stats_ui):
+    def __init__(self, project, parent=None):
+        super().__init__(parent)
+        self.setupUi(self)
+        self.setWindowTitle(f"Статистика — {project.name}")
+
+        self.project = project
+        self.fill_statistics()
+
+    def fill_statistics(self):
+        """Заполняет все лейблы статистики данными из проекта"""
+        stats = self.project.get_statistic()
+
+        # === Основные соответствия лейблов ===
+        self.stat_notes_count.setText(str(stats['Кол-во записей']))
+
+        self.stat_total_in_unit.setText(
+            f"{self._format_number(stats['Всего написано в единице проекта'])} {self._get_unit_name()}"
+        )
+
+        self.stat_avg_symbols_per_active_day.setText(
+            f"{stats['Среднее символов в день']} символов"
+        )
+
+        self.stat_avg_symbols_per_note.setText(
+            f"{stats['Среднее кол-во символов в записи']} символов"
+        )
+
+        self.stat_avg_notes_per_day.setText(
+            str(stats['Среднее кол-во записей в день'])
+        )
+
+        self.stat_freezes_used.setText(str(stats['Использовано заморозок']))
+
+        self.stat_best_day.setText(stats['Лучший день'])
+
+        self.stat_best_weekday.setText(stats['Самый продуктивный день недели'])
+
+        self.stat_current_streak.setText(str(stats['Текущий стрик (дней)']))
+
+        self.stat_max_streak.setText(str(stats['Максимальный стрик']))
+
+        self.stat_days_since_start.setText(str(stats['Дней с начала проекта']))
+
+        self.stat_active_days_count.setText(str(stats['Активных дней']))
+
+        self.stat_active_days_percent.setText(stats['Процент активных дней'])
+
+    def _format_number(self, num):
+        """Форматирует числа для красивого отображения"""
+        if isinstance(num, float):
+            if num.is_integer():
+                return str(int(num))
+            return f"{num:.1f}".rstrip('0').rstrip('.')
+        return str(num)
+
+    def _get_unit_name(self):
+        """Возвращает название единицы измерения проекта"""
+        unit_map = {
+            'symbols': 'символов',
+            'A4': 'листов А4',
+            'author_list': 'авторских листов',
+            'ficbook_pages': 'страниц Ficbook'
+        }
+        return unit_map.get(self.project.unit, self.project.unit)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

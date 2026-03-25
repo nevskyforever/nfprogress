@@ -1729,7 +1729,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
+                    <width>95</width>
                     <height>112</height>
                    </rect>
                   </property>
@@ -1823,7 +1823,7 @@
     <addaction name="del_synch_action"/>
     <addaction name="create_project_action"/>
     <addaction name="change_project_action"/>
-    <addaction name="action"/>
+    <addaction name="project_stats_action"/>
     <addaction name="delete_project_action"/>
    </widget>
    <addaction name="settings_menu"/>
@@ -1854,7 +1854,7 @@
     <string>Создать проект</string>
    </property>
   </action>
-  <action name="action">
+  <action name="project_stats_action">
    <property name="text">
     <string>Статистика по проекту</string>
    </property>

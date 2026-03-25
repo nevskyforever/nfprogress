@@ -1,17 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>Dialog</class>
- <widget class="QDialog" name="Dialog">
+ <class>project_stats</class>
+ <widget class="QDialog" name="project_stats">
   <property name="geometry">
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>397</width>
-    <height>488</height>
+    <width>396</width>
+    <height>405</height>
    </rect>
   </property>
+  <property name="font">
+   <font>
+    <family>Arial</family>
+   </font>
+  </property>
   <property name="windowTitle">
-   <string>Dialog</string>
+   <string>Статистика по проекту</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
@@ -24,8 +29,8 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>371</width>
-        <height>462</height>
+        <width>370</width>
+        <height>416</height>
        </rect>
       </property>
       <layout class="QGridLayout" name="gridLayout">
@@ -34,12 +39,18 @@
          <property name="text">
           <string>Нет данных</string>
          </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item row="8" column="1">
         <widget class="QLabel" name="stat_current_streak">
          <property name="text">
           <string>Нет данных</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -103,6 +114,9 @@
         <widget class="QLabel" name="stat_avg_symbols_per_active_day">
          <property name="text">
           <string>Нет данных</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -182,6 +196,9 @@
         <widget class="QLabel" name="stat_total_in_unit">
          <property name="text">
           <string>Нет данных</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -273,12 +290,18 @@
          <property name="text">
           <string>Нет данных</string>
          </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item row="10" column="1">
         <widget class="QLabel" name="stat_days_since_start">
          <property name="text">
           <string>Нет данных</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
@@ -287,12 +310,18 @@
          <property name="text">
           <string>Нет данных</string>
          </property>
+         <property name="wordWrap">
+          <bool>true</bool>
+         </property>
         </widget>
        </item>
        <item row="12" column="1">
         <widget class="QLabel" name="stat_active_days_percent">
          <property name="text">
           <string>Нет данных</string>
+         </property>
+         <property name="wordWrap">
+          <bool>true</bool>
          </property>
         </widget>
        </item>
