@@ -3,7 +3,6 @@ from PySide6.QtGui import (QColor, QFont, QPainter,
                            QPen)
 from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
                                QSizePolicy, QVBoxLayout, QWidget)
-from engine import load_settings as settings
 
 
 # =============================================================================

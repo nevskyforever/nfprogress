@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowVvZzJN.ui'
+## Form generated from reading UI file 'main_windowbajsaW.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -40,8 +40,14 @@ class Ui_main_window(object):
         self.delete_project_action.setObjectName(u"delete_project_action")
         self.change_project_action = QAction(main_window)
         self.change_project_action.setObjectName(u"change_project_action")
-        self.crreate_project_action = QAction(main_window)
-        self.crreate_project_action.setObjectName(u"crreate_project_action")
+        self.create_project_action = QAction(main_window)
+        self.create_project_action.setObjectName(u"create_project_action")
+        self.project_stats_action = QAction(main_window)
+        self.project_stats_action.setObjectName(u"project_stats_action")
+        self.arcchive_project_action = QAction(main_window)
+        self.arcchive_project_action.setObjectName(u"arcchive_project_action")
+        self.complete_project_action = QAction(main_window)
+        self.complete_project_action.setObjectName(u"complete_project_action")
         self.centralwidget = QWidget(main_window)
         self.centralwidget.setObjectName(u"centralwidget")
         self.gridLayout_7 = QGridLayout(self.centralwidget)
@@ -253,7 +259,7 @@ class Ui_main_window(object):
         self.scrollArea_5.setWidgetResizable(True)
         self.scrollAreaWidgetContents_11 = QWidget()
         self.scrollAreaWidgetContents_11.setObjectName(u"scrollAreaWidgetContents_11")
-        self.scrollAreaWidgetContents_11.setGeometry(QRect(0, 0, 561, 328))
+        self.scrollAreaWidgetContents_11.setGeometry(QRect(0, 0, 561, 358))
         self.gridLayout_28 = QGridLayout(self.scrollAreaWidgetContents_11)
         self.gridLayout_28.setObjectName(u"gridLayout_28")
         self.status = QLabel(self.scrollAreaWidgetContents_11)
@@ -343,6 +349,7 @@ class Ui_main_window(object):
 
         self.label_today_goal = QLabel(self.scrollAreaWidgetContents_11)
         self.label_today_goal.setObjectName(u"label_today_goal")
+        self.label_today_goal.setWordWrap(True)
 
         self.gridLayout_28.addWidget(self.label_today_goal, 5, 0, 1, 1)
 
@@ -1134,8 +1141,11 @@ class Ui_main_window(object):
         self.menuBar.addAction(self.project_menu.menuAction())
         self.project_menu.addAction(self.synch_action)
         self.project_menu.addAction(self.del_synch_action)
-        self.project_menu.addAction(self.crreate_project_action)
+        self.project_menu.addAction(self.create_project_action)
         self.project_menu.addAction(self.change_project_action)
+        self.project_menu.addAction(self.project_stats_action)
+        self.project_menu.addAction(self.arcchive_project_action)
+        self.project_menu.addAction(self.complete_project_action)
         self.project_menu.addAction(self.delete_project_action)
 
         self.retranslateUi(main_window)
@@ -1155,7 +1165,10 @@ class Ui_main_window(object):
         self.del_synch_action.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044e", None))
         self.delete_project_action.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.change_project_action.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
-        self.crreate_project_action.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
+        self.create_project_action.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
+        self.project_stats_action.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430 \u043f\u043e \u043f\u0440\u043e\u0435\u043a\u0442\u0443", None))
+        self.arcchive_project_action.setText(QCoreApplication.translate("main_window", u"\u0410\u0440\u0445\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
+        self.complete_project_action.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.sort_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
         self.sort_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0414\u0435\u0434\u043b\u0430\u0439\u043d", None))
         self.sort_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441", None))
@@ -1196,7 +1209,7 @@ class Ui_main_window(object):
         self.label_progress.setText(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441:", None))
         self.max_streak.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
         self.label_total.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u043f\u0438\u0441\u0430\u043d\u043e:", None))
-        self.label_today_goal.setText(QCoreApplication.translate("main_window", u"\u0426\u0435\u043b\u044c \u043d\u0430 \u0441\u0435\u0433\u043e\u0434\u043d\u044f:", None))
+        self.label_today_goal.setText(QCoreApplication.translate("main_window", u"<html><head/><body><p>\u041e\u0441\u0442\u0430\u043b\u043e\u0441\u044c \u043d\u0430\u043f\u0438\u0441\u0430\u0442\u044c,</p><p>\u0447\u0442\u043e\u0431\u044b \u0432\u044b\u043f\u043e\u043b\u043d\u0438\u0442\u044c \u0446\u0435\u043b\u044c \u043d\u0430 \u0441\u0435\u0433\u043e\u0434\u043d\u044f:</p></body></html>", None))
         self.label_streaks.setText(QCoreApplication.translate("main_window", u"\u0422\u0435\u043a\u0443\u0449\u0438\u0439 \u0441\u0442\u0440\u0438\u043a: ", None))
         self.label_streak_status.setText(QCoreApplication.translate("main_window", u"C\u0442\u0430\u0442\u0443\u0441 \u0441\u0442\u0440\u0438\u043a\u0430:", None))
         self.l.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))

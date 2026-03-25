@@ -5,6 +5,7 @@ import platform
 import sys
 from datetime import datetime, timedelta, date
 from pathlib import Path
+from collections import defaultdict
 
 from docx import Document
 
@@ -46,8 +47,29 @@ def get_app_data_dir():
     return app_data_dir
 
 
+def get_test_data_dir():
+    """Возвращает путь к директории тестовых данных и создаёт её при необходимости."""
+    test_dir = get_app_data_dir() / 'test_data'
+    test_dir.mkdir(parents=True, exist_ok=True)
+    return test_dir
+
+
+def cleanup_test_data():
+    """Удаляет директорию тестовых данных вместе со всем содержимым."""
+    import shutil
+    test_dir = get_app_data_dir() / 'test_data'
+    if test_dir.exists():
+        shutil.rmtree(test_dir)
+
+
 def get_data_file_path(name):
-    """Возвращает путь к файлу данных"""
+    """Возвращает путь к файлу данных.
+
+    В режиме разработчика файлы читаются и пишутся из папки test_data.
+    При выключении режима разработчика папка test_data удаляется.
+    """
+    if dev_mode:
+        return get_test_data_dir() / f'{name}.pkl'
     return get_app_data_dir() / f'{name}.pkl'
 
 
@@ -60,7 +82,7 @@ def resource_path(relative_path):
 
 
 # Версия приложения
-version = '3.3.7'
+version = '3.3.8 test'
 
 
 def today_for_test():
@@ -226,7 +248,13 @@ class Project:
         return unit_converter('symbols', added_sym, self.unit)
 
     def get_today_goal_value(self):
-        """Возвращает цель на сегодня в символах."""
+        """Возвращает накопленную цель на сегодня в символах.
+
+        Логика: уже написано + одна дневная доля от остатка.
+        Это корректно работает при любом дедлайне и не зависит от даты
+        создания или редактирования проекта — пересчитывается каждый день
+        от текущего состояния.
+        """
         if self.deadline == 'Нет':
             return 0
 
@@ -234,28 +262,27 @@ class Project:
         if not isinstance(self.deadline, date):
             return 0
 
-        edit_date = self.edit_date
-        if today < edit_date:
-            edit_date = today
-        elif isinstance(edit_date, datetime):
-            edit_date = edit_date.date()
-        elif not isinstance(edit_date, date):
-            edit_date = today
-
         goal_sym = self.get_goal_symbols()
         if goal_sym == float('inf'):
             return float('inf')
 
-        total_days = (self.deadline - edit_date).days + 1
-        if total_days <= 0:
+        total_sym = self.get_total_symbols()
+
+        # Цель уже достигнута или превышена
+        if total_sym >= goal_sym:
             return goal_sym
 
-        days_passed = (today - edit_date).days + 1
-        if days_passed <= 0:
-            days_passed = 1
+        remaining = goal_sym - total_sym
 
-        target = (goal_sym * days_passed + total_days - 1) // total_days
-        return min(target, goal_sym)
+        # Количество дней до дедлайна включая сегодня
+        days_left = (self.deadline - today).days + 1
+        if days_left <= 0:
+            # Дедлайн прошёл — весь остаток должен быть написан
+            return goal_sym
+
+        # Накопленная цель на сегодня: написано + одна дневная доля от остатка
+        daily = math.ceil(remaining / days_left)
+        return min(total_sym + daily, goal_sym)
 
     def get_today_goal_in_unit(self):
         """Возвращает цель на сегодня в единице проекта."""
@@ -432,10 +459,113 @@ class Project:
         self._total_symbols = unit_converter('symbols', new_note.new_total, self.unit)
 
     def get_statistic(self):
-        statistic = {'Кол-во записей': len(self.notes),
-                     }
-        pass
+        """
+        Считает и возвращает статистику по проекту в виде словаря.
+        Все параметры вычисляются из существующих данных без изменения структуры.
+        """
 
+        today = today_for_test()
+
+        # --- Вспомогательные структуры ---
+        # Группируем символы по дате
+        symbols_by_date = defaultdict(float)
+        for note in self.notes:
+            symbols_by_date[note.get_date_create()] += note.get_added_symbols()
+
+        active_days = sorted(symbols_by_date.keys())
+        total_notes = len(self.notes)
+        num_active_days = len(active_days)
+
+        # --- 1. Кол-во записей ---
+        stat_notes_count = total_notes
+
+        # --- 2. Всего написано в единице проекта ---
+        stat_total_in_unit = self._total_symbols  # уже хранится в единице проекта
+
+        # --- 3. Среднее символов в день (только по активным дням) ---
+        if num_active_days > 0:
+            total_sym = self.get_total_symbols()  # в символах
+            stat_avg_symbols_per_active_day = round(total_sym / num_active_days)
+        else:
+            stat_avg_symbols_per_active_day = 0
+
+        # --- 4. Среднее кол-во символов в записи ---
+        if total_notes > 0:
+            total_added = sum(note.get_added_symbols() for note in self.notes)
+            stat_avg_symbols_per_note = round(total_added / total_notes)
+        else:
+            stat_avg_symbols_per_note = 0
+
+        # --- 5. Среднее кол-во записей в день (по активным дням) ---
+        if num_active_days > 0:
+            stat_avg_notes_per_day = round(total_notes / num_active_days, 1)
+        else:
+            stat_avg_notes_per_day = 0
+
+        # --- 6. Использовано заморозок ---
+        stat_freezes_used = self.freezes
+
+        # --- 7. Лучший день (максимум символов за одну дату) ---
+        if symbols_by_date:
+            best_date = max(symbols_by_date, key=symbols_by_date.get)
+            best_value = round(symbols_by_date[best_date])
+            stat_best_day = f'{best_date.strftime("%d.%m.%Y")} — {best_value} симв.'
+        else:
+            stat_best_day = '—'
+
+        # --- 8. Самый продуктивный день недели ---
+        DAYS_RU = {
+            0: 'Понедельник', 1: 'Вторник', 2: 'Среда',
+            3: 'Четверг', 4: 'Пятница', 5: 'Суббота', 6: 'Воскресенье'
+        }
+        if symbols_by_date:
+            symbols_by_weekday = defaultdict(float)
+            for d, sym in symbols_by_date.items():
+                symbols_by_weekday[d.weekday()] += sym
+            best_weekday = max(symbols_by_weekday, key=symbols_by_weekday.get)
+            stat_best_weekday = DAYS_RU[best_weekday]
+        else:
+            stat_best_weekday = '—'
+
+        # --- 9. Текущий стрик (дней) ---
+        stat_current_streak = len(self.streaks) if isinstance(self.streaks, list) else 0
+
+        # --- 10. Максимальный стрик ---
+        # max_streak обновляется в get_streak_status, берём максимум с текущим
+        stat_max_streak = max(self.max_streak, stat_current_streak)
+
+        # --- 11. Дней с начала проекта ---
+        if self.create_date:
+            stat_days_since_start = (today - self.create_date).days + 1
+        else:
+            stat_days_since_start = 0
+
+        # --- 12. Активных дней (было хоть одна запись) ---
+        stat_active_days_count = num_active_days
+
+        # --- 13. Процент активных дней от общего времени проекта ---
+        if stat_days_since_start > 0:
+            stat_active_days_percent = round(
+                stat_active_days_count / stat_days_since_start * 100, 1
+            )
+        else:
+            stat_active_days_percent = 0
+
+        return {
+            'Кол-во записей': stat_notes_count,
+            'Всего написано в единице проекта': stat_total_in_unit,
+            'Среднее символов в день': stat_avg_symbols_per_active_day,
+            'Среднее кол-во символов в записи': stat_avg_symbols_per_note,
+            'Среднее кол-во записей в день': stat_avg_notes_per_day,
+            'Использовано заморозок': stat_freezes_used,
+            'Лучший день': stat_best_day,
+            'Самый продуктивный день недели': stat_best_weekday,
+            'Текущий стрик (дней)': stat_current_streak,
+            'Максимальный стрик': stat_max_streak,
+            'Дней с начала проекта': stat_days_since_start,
+            'Активных дней': stat_active_days_count,
+            'Процент активных дней': f'{stat_active_days_percent}%',
+        }
 class Stage(Project):
     def __init__(self):
         super().__init__()
@@ -870,5 +1000,9 @@ def count_symbols_in_docx(filepath):
         # Для символов возвращаем точное значение (без округления)
         return result
 
-# При импорте модуля создаём директорию для данных
-get_app_data_dir()
+# При импорте модуля: создаём нужные директории или удаляем тестовые данные
+if dev_mode:
+    get_test_data_dir()
+else:
+    get_app_data_dir()
+    cleanup_test_data()

@@ -44,7 +44,12 @@ def get_app_data_dir():
 
 
 def get_data_file_path():
-    """Возвращает путь к файлу данных игры"""
+    """Возвращает путь к файлу данных игры.
+
+    В режиме разработчика файл хранится в папке test_data.
+    """
+    if engine.dev_mode:
+        return engine.get_test_data_dir() / 'gamer.pkl'
     return get_app_data_dir() / 'gamer.pkl'
 
 

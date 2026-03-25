@@ -2,7 +2,8 @@ import datetime
 import os
 import sys
 
-from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt
+from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel
@@ -11,15 +12,16 @@ import engine as en
 import game
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.create_project import Ui_create_project as create_project_ui
+from UI_fiiles.developer_mode import Ui_developer_node
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.notification import ToastNotification
 from UI_fiiles.project_widget import ProjectWidget
 from UI_fiiles.settings import Ui_Dialog as settings_ui
 from UI_fiiles.synch_window import Ui_sych_window
 from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
+from UI_fiiles.project_stats import Ui_project_stats as project_stats_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
-from UI_fiiles.developer_mode import Ui_developer_node
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
 
 
@@ -85,13 +87,28 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Подключение действий меню "Проект"
         self.synch_action.triggered.connect(self.on_sync_menu_triggered)
+        self.synch_action.setShortcut(QKeySequence.StandardKey.Save)
+
         self.del_synch_action.triggered.connect(self.on_delete_sync_menu_triggered)
-        self.crreate_project_action.triggered.connect(self.create_project)
+
+        self.create_project_action.triggered.connect(self.create_project)
+        self.create_project_action.setShortcut(QKeySequence.StandardKey.New)
+
         self.change_project_action.triggered.connect(self.on_change_project_menu_triggered)
+        self.change_project_action.setShortcut(QKeySequence("Ctrl+E"))
+
         self.delete_project_action.triggered.connect(self.on_delete_project_menu_triggered)
+        self.delete_project_action.setShortcut(QKeySequence.StandardKey.Delete)
 
-        self.show()
+        # === НОВЫЕ ПОДКЛЮЧЕНИЯ ===
+        self.project_stats_action.triggered.connect(self.show_project_stats)
+        self.project_stats_action.setShortcut(QKeySequence('Alt+S'))  # лучше Ctrl+S для статистики
 
+        self.arcchive_project_action.triggered.connect(self.on_archive_project_menu_triggered)
+        self.arcchive_project_action.setShortcut(QKeySequence('Ctrl+Shift+H'))  # H от "Hide" / "Archive"
+
+        self.complete_project_action.triggered.connect(self.on_complete_project_menu_triggered)
+        self.complete_project_action.setShortcut(QKeySequence('Ctrl+Shift+C'))
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
         # Получаем текущий выбранный проект
@@ -319,7 +336,7 @@ class MainWindow(QMainWindow, main_window_ui):
             else:
                 # Используем сравнение в символах для точности
                 if project.get_total_symbols() >= project.get_today_goal_value():
-                    self.today_goal.setText('Цель на сегодня выполнена!')
+                    self.today_goal.setText(f'Цель на сегодня выполнена! ({int(project.get_today_goal_value())})')
                 else:
                     self.today_goal.setText(self._format_number(today_goal))
 
@@ -363,6 +380,17 @@ class MainWindow(QMainWindow, main_window_ui):
             self.l.setText(f"{last_note.get_date_create_str()} (+{self._format_number(added_disp)})")
         else:
             self.l.setText("Нет записей")
+
+    def show_project_stats(self):
+        """Открывает окно статистики для текущего выбранного проекта"""
+        project = self.get_current_project()  # у тебя уже есть этот метод
+
+        if project is None:
+            self.notifications.show_warning("Сначала выберите проект!")
+            return
+
+        dialog = ProjectStatsDialog(project, self)
+        dialog.exec()
 
     def _format_number(self, num):
         """Форматирует число для отображения."""
@@ -1142,8 +1170,12 @@ class MainWindow(QMainWindow, main_window_ui):
             else:
                 added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
 
+            # Получаем дату последнего изменения файла
+            file_mtime = os.path.getmtime(file_path)  # timestamp в секундах
+            note_date = datetime.datetime.fromtimestamp(file_mtime)  # datetime объект
+
             # Создаём заметку (added_symbols может быть отрицательным)
-            note = en.Note(new_total_symbols, added_symbols, added_progress)
+            note = en.Note(new_total_symbols, added_symbols, added_progress, date_create=note_date)
             project.set_new_notes(note)
             project.get_streak_status()
 
@@ -1275,8 +1307,19 @@ class MainWindow(QMainWindow, main_window_ui):
             else:
                 added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
 
-            # Создаём заметку (added_symbols может быть отрицательным)
-            note = en.Note(new_total_symbols, added_symbols, added_progress)
+            # Для Scrivener берём дату последнего изменения самого проекта (папки .scriv)
+            # или конкретного файла .scrivx / content.xml — как удобнее.
+            # Самый простой вариант — mtime папки проекта:
+            proj_mtime = os.path.getmtime(proj_path)
+            note_date = datetime.datetime.fromtimestamp(proj_mtime)
+
+            note = en.Note(
+                new_total_symbols,
+                added_symbols,
+                added_progress,
+                date_create=note_date
+            )
+
             project.set_new_notes(note)
             project.get_streak_status()
 
@@ -1446,6 +1489,30 @@ class MainWindow(QMainWindow, main_window_ui):
             self.project_info.setVisible(False)
             self.note_widget.setVisible(False)
             self.change_project_widget.setVisible(False)
+
+    def on_archive_project_menu_triggered(self):
+        """Обработчик меню 'Архивировать проект'"""
+        project = self.get_current_project()
+        if project is None:
+            self.notifications.show_warning("Сначала выберите проект!")
+            return
+        self.archive_project(project)
+
+    def on_complete_project_menu_triggered(self):
+        """Обработчик меню 'Завершить проект'"""
+        project = self.get_current_project()
+        if project is None:
+            self.notifications.show_warning("Сначала выберите проект!")
+            return
+
+        # Дополнительная проверка: можно завершить только если цель достигнута
+        if project.total_symbols < project.goal and project.goal != float('inf'):
+            self.notifications.show_warning(
+                "Нельзя завершить проект, пока не достигнута цель!"
+            )
+            return
+
+        self.complete_project(project)
 
     def update_sync_status_label(self, project):
         """Обновляет текст метки с информацией о последней синхронизации."""
@@ -2189,6 +2256,72 @@ class DeveloperMode(QDialog, Ui_developer_node):
         else:
             self.test_date.setDisabled(True)
 
+
+class ProjectStatsDialog(QDialog, project_stats_ui):
+    def __init__(self, project, parent=None):
+        super().__init__(parent)
+        self.setupUi(self)
+        self.setWindowTitle(f"Статистика — {project.name}")
+
+        self.project = project
+        self.fill_statistics()
+
+    def fill_statistics(self):
+        """Заполняет все лейблы статистики данными из проекта"""
+        stats = self.project.get_statistic()
+
+        # === Основные соответствия лейблов ===
+        self.stat_notes_count.setText(str(stats['Кол-во записей']))
+
+        self.stat_total_in_unit.setText(
+            f"{self._format_number(stats['Всего написано в единице проекта'])} {self._get_unit_name()}"
+        )
+
+        self.stat_avg_symbols_per_active_day.setText(
+            f"{stats['Среднее символов в день']} символов"
+        )
+
+        self.stat_avg_symbols_per_note.setText(
+            f"{stats['Среднее кол-во символов в записи']} символов"
+        )
+
+        self.stat_avg_notes_per_day.setText(
+            str(stats['Среднее кол-во записей в день'])
+        )
+
+        self.stat_freezes_used.setText(str(stats['Использовано заморозок']))
+
+        self.stat_best_day.setText(stats['Лучший день'])
+
+        self.stat_best_weekday.setText(stats['Самый продуктивный день недели'])
+
+        self.stat_current_streak.setText(str(stats['Текущий стрик (дней)']))
+
+        self.stat_max_streak.setText(str(stats['Максимальный стрик']))
+
+        self.stat_days_since_start.setText(str(stats['Дней с начала проекта']))
+
+        self.stat_active_days_count.setText(str(stats['Активных дней']))
+
+        self.stat_active_days_percent.setText(stats['Процент активных дней'])
+
+    def _format_number(self, num):
+        """Форматирует числа для красивого отображения"""
+        if isinstance(num, float):
+            if num.is_integer():
+                return str(int(num))
+            return f"{num:.1f}".rstrip('0').rstrip('.')
+        return str(num)
+
+    def _get_unit_name(self):
+        """Возвращает название единицы измерения проекта"""
+        unit_map = {
+            'symbols': 'символов',
+            'A4': 'листов А4',
+            'author_list': 'авторских листов',
+            'ficbook_pages': 'страниц Ficbook'
+        }
+        return unit_map.get(self.project.unit, self.project.unit)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
