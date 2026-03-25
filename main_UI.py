@@ -2,7 +2,8 @@ import datetime
 import os
 import sys
 
-from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt
+from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags
+from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel
@@ -85,12 +86,18 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Подключение действий меню "Проект"
         self.synch_action.triggered.connect(self.on_sync_menu_triggered)
-        self.del_synch_action.triggered.connect(self.on_delete_sync_menu_triggered)
-        self.create_project_action.triggered.connect(self.create_project)
-        self.change_project_action.triggered.connect(self.on_change_project_menu_triggered)
-        self.delete_project_action.triggered.connect(self.on_delete_project_menu_triggered)
+        self.synch_action.setShortcut(QKeySequence.StandardKey.Save)
 
-        self.show()
+        self.del_synch_action.triggered.connect(self.on_delete_sync_menu_triggered)
+
+        self.create_project_action.triggered.connect(self.create_project)
+        self.create_project_action.setShortcut(QKeySequence.StandardKey.New)
+
+        self.change_project_action.triggered.connect(self.on_change_project_menu_triggered)
+        self.change_project_action.setShortcut(QKeySequence("Ctrl+E"))  # → Cmd+E на Mac автоматически
+
+        self.delete_project_action.triggered.connect(self.on_delete_project_menu_triggered)
+        self.delete_project_action.setShortcut(QKeySequence.StandardKey.Delete)
 
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
