@@ -46,8 +46,29 @@ def get_app_data_dir():
     return app_data_dir
 
 
+def get_test_data_dir():
+    """Возвращает путь к директории тестовых данных и создаёт её при необходимости."""
+    test_dir = get_app_data_dir() / 'test_data'
+    test_dir.mkdir(parents=True, exist_ok=True)
+    return test_dir
+
+
+def cleanup_test_data():
+    """Удаляет директорию тестовых данных вместе со всем содержимым."""
+    import shutil
+    test_dir = get_app_data_dir() / 'test_data'
+    if test_dir.exists():
+        shutil.rmtree(test_dir)
+
+
 def get_data_file_path(name):
-    """Возвращает путь к файлу данных"""
+    """Возвращает путь к файлу данных.
+
+    В режиме разработчика файлы читаются и пишутся из папки test_data.
+    При выключении режима разработчика папка test_data удаляется.
+    """
+    if dev_mode:
+        return get_test_data_dir() / f'{name}.pkl'
     return get_app_data_dir() / f'{name}.pkl'
 
 
@@ -60,7 +81,7 @@ def resource_path(relative_path):
 
 
 # Версия приложения
-version = '3.3.7'
+version = '3.3.8 test'
 
 
 def today_for_test():
@@ -875,5 +896,9 @@ def count_symbols_in_docx(filepath):
         # Для символов возвращаем точное значение (без округления)
         return result
 
-# При импорте модуля создаём директорию для данных
-get_app_data_dir()
+# При импорте модуля: создаём нужные директории или удаляем тестовые данные
+if dev_mode:
+    get_test_data_dir()
+else:
+    get_app_data_dir()
+    cleanup_test_data()
