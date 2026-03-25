@@ -95,14 +95,20 @@ class MainWindow(QMainWindow, main_window_ui):
         self.create_project_action.setShortcut(QKeySequence.StandardKey.New)
 
         self.change_project_action.triggered.connect(self.on_change_project_menu_triggered)
-        self.change_project_action.setShortcut(QKeySequence("Ctrl+E"))  # → Cmd+E на Mac автоматически
+        self.change_project_action.setShortcut(QKeySequence("Ctrl+E"))
 
         self.delete_project_action.triggered.connect(self.on_delete_project_menu_triggered)
         self.delete_project_action.setShortcut(QKeySequence.StandardKey.Delete)
 
+        # === НОВЫЕ ПОДКЛЮЧЕНИЯ ===
         self.project_stats_action.triggered.connect(self.show_project_stats)
-        self.project_stats_action.setShortcut(QKeySequence('Ctrl+A'))
+        self.project_stats_action.setShortcut(QKeySequence('Alt+S'))  # лучше Ctrl+S для статистики
 
+        self.arcchive_project_action.triggered.connect(self.on_archive_project_menu_triggered)
+        self.arcchive_project_action.setShortcut(QKeySequence('Ctrl+Shift+H'))  # H от "Hide" / "Archive"
+
+        self.complete_project_action.triggered.connect(self.on_complete_project_menu_triggered)
+        self.complete_project_action.setShortcut(QKeySequence('Ctrl+Shift+C'))
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
         # Получаем текущий выбранный проект
@@ -1468,6 +1474,30 @@ class MainWindow(QMainWindow, main_window_ui):
             self.project_info.setVisible(False)
             self.note_widget.setVisible(False)
             self.change_project_widget.setVisible(False)
+
+    def on_archive_project_menu_triggered(self):
+        """Обработчик меню 'Архивировать проект'"""
+        project = self.get_current_project()
+        if project is None:
+            self.notifications.show_warning("Сначала выберите проект!")
+            return
+        self.archive_project(project)
+
+    def on_complete_project_menu_triggered(self):
+        """Обработчик меню 'Завершить проект'"""
+        project = self.get_current_project()
+        if project is None:
+            self.notifications.show_warning("Сначала выберите проект!")
+            return
+
+        # Дополнительная проверка: можно завершить только если цель достигнута
+        if project.total_symbols < project.goal and project.goal != float('inf'):
+            self.notifications.show_warning(
+                "Нельзя завершить проект, пока не достигнута цель!"
+            )
+            return
+
+        self.complete_project(project)
 
     def update_sync_status_label(self, project):
         """Обновляет текст метки с информацией о последней синхронизации."""
