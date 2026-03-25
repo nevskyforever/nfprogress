@@ -226,7 +226,13 @@ class Project:
         return unit_converter('symbols', added_sym, self.unit)
 
     def get_today_goal_value(self):
-        """Возвращает цель на сегодня в символах."""
+        """Возвращает накопленную цель на сегодня в символах.
+
+        Логика: уже написано + одна дневная доля от остатка.
+        Это корректно работает при любом дедлайне и не зависит от даты
+        создания или редактирования проекта — пересчитывается каждый день
+        от текущего состояния.
+        """
         if self.deadline == 'Нет':
             return 0
 
@@ -234,28 +240,27 @@ class Project:
         if not isinstance(self.deadline, date):
             return 0
 
-        edit_date = self.edit_date
-        if today < edit_date:
-            edit_date = today
-        elif isinstance(edit_date, datetime):
-            edit_date = edit_date.date()
-        elif not isinstance(edit_date, date):
-            edit_date = today
-
         goal_sym = self.get_goal_symbols()
         if goal_sym == float('inf'):
             return float('inf')
 
-        total_days = (self.deadline - edit_date).days + 1
-        if total_days <= 0:
+        total_sym = self.get_total_symbols()
+
+        # Цель уже достигнута или превышена
+        if total_sym >= goal_sym:
             return goal_sym
 
-        days_passed = (today - edit_date).days + 1
-        if days_passed <= 0:
-            days_passed = 1
+        remaining = goal_sym - total_sym
 
-        target = (goal_sym * days_passed + total_days - 1) // total_days
-        return min(target, goal_sym)
+        # Количество дней до дедлайна включая сегодня
+        days_left = (self.deadline - today).days + 1
+        if days_left <= 0:
+            # Дедлайн прошёл — весь остаток должен быть написан
+            return goal_sym
+
+        # Накопленная цель на сегодня: написано + одна дневная доля от остатка
+        daily = math.ceil(remaining / days_left)
+        return min(total_sym + daily, goal_sym)
 
     def get_today_goal_in_unit(self):
         """Возвращает цель на сегодня в единице проекта."""
