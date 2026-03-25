@@ -1170,8 +1170,12 @@ class MainWindow(QMainWindow, main_window_ui):
             else:
                 added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
 
+            # Получаем дату последнего изменения файла
+            file_mtime = os.path.getmtime(file_path)  # timestamp в секундах
+            note_date = datetime.datetime.fromtimestamp(file_mtime)  # datetime объект
+
             # Создаём заметку (added_symbols может быть отрицательным)
-            note = en.Note(new_total_symbols, added_symbols, added_progress)
+            note = en.Note(new_total_symbols, added_symbols, added_progress, date_create=note_date)
             project.set_new_notes(note)
             project.get_streak_status()
 
@@ -1303,8 +1307,19 @@ class MainWindow(QMainWindow, main_window_ui):
             else:
                 added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
 
-            # Создаём заметку (added_symbols может быть отрицательным)
-            note = en.Note(new_total_symbols, added_symbols, added_progress)
+            # Для Scrivener берём дату последнего изменения самого проекта (папки .scriv)
+            # или конкретного файла .scrivx / content.xml — как удобнее.
+            # Самый простой вариант — mtime папки проекта:
+            proj_mtime = os.path.getmtime(proj_path)
+            note_date = datetime.datetime.fromtimestamp(proj_mtime)
+
+            note = en.Note(
+                new_total_symbols,
+                added_symbols,
+                added_progress,
+                date_create=note_date
+            )
+
             project.set_new_notes(note)
             project.get_streak_status()
 
