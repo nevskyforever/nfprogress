@@ -12,6 +12,9 @@ from docx import Document
 # Режим разработчика
 dev_mode = True
 
+# Версия приложения
+version = '3.3.8'
+
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 
@@ -79,10 +82,6 @@ def resource_path(relative_path):
         # PyInstaller создает временную папку и хранит путь в _MEIPASS
         return os.path.join(sys._MEIPASS, relative_path)
     return os.path.join(os.path.abspath("."), relative_path)
-
-
-# Версия приложения
-version = '3.3.8 test'
 
 
 def today_for_test():
