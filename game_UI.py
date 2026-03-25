@@ -633,7 +633,7 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
 
             # Проект можно заморозить если последний стрик был вчера
             # и статус 'Active' (активный, но не продленный)
-            if last_streak_day == yesterday and streak_status in ['Active', 'Freeze']:
+            if streak_status in ['Active', 'Freeze']:
                 display_text = f"{project.name} (стрик: {len(project.streaks)} дн.)"
                 item = QListWidgetItem(display_text)
                 # Сохраняем объект проекта или его имя для последующего использования

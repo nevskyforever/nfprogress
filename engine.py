@@ -424,10 +424,6 @@ class Project:
             if msg_type == 'min':
                 return '🚀 стрик продлен'
             return f'🚀 Стрик в {self.name} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
-        elif status == 'Done':
-            if msg_type == 'min':
-                return '✌️ Стрик продлен'
-            return f'✌️ Стрик в {self.name} сегодня уже продлен, но символы лишними не будут'
         elif status == 'Active':
             streaks = len(self.streaks)
             if msg_type == 'min':
