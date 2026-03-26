@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'project_statsfKeWqU.ui'
+## Form generated from reading UI file 'project_statsReMPZh.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -27,6 +27,9 @@ class Ui_project_stats(object):
         font = QFont()
         font.setFamilies([u"Arial"])
         project_stats.setFont(font)
+        project_stats.setStyleSheet(u"QScrollArea {\n"
+"    border: none;\n"
+"}")
         self.verticalLayout = QVBoxLayout(project_stats)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.scrollArea = QScrollArea(project_stats)
@@ -34,7 +37,7 @@ class Ui_project_stats(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 370, 416))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 372, 416))
         self.gridLayout = QGridLayout(self.scrollAreaWidgetContents)
         self.gridLayout.setObjectName(u"gridLayout")
         self.stat_best_day = QLabel(self.scrollAreaWidgetContents)

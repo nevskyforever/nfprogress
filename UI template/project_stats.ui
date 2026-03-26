@@ -18,6 +18,11 @@
   <property name="windowTitle">
    <string>Статистика по проекту</string>
   </property>
+  <property name="styleSheet">
+   <string notr="true">QScrollArea {
+    border: none;
+}</string>
+  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QScrollArea" name="scrollArea">
@@ -29,7 +34,7 @@
        <rect>
         <x>0</x>
         <y>0</y>
-        <width>370</width>
+        <width>372</width>
         <height>416</height>
        </rect>
       </property>
