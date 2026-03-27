@@ -82,14 +82,13 @@ class Gamer:
         self.migrate()  # Просто вызываем migrate вместо ручной проверки
 
     def save(self):
-        """Сохраняет данные игрока в кроссплатформенную директорию"""
         data_file = get_data_file_path()
-
-        # Создаём временную копию для безопасного сохранения
+        # Создаём родительскую директорию, если её нет
+        data_file.parent.mkdir(parents=True, exist_ok=True)
         temp_file = data_file.with_suffix('.tmp')
         with open(temp_file, 'wb') as f:
             pickle.dump(self, f)
-        # Заменяем старый файл новым
+        # Замена
         temp_file.replace(data_file)
 
     # === 4. ИГРОВАЯ ЛОГИКА ===
