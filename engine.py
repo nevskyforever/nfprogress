@@ -10,10 +10,10 @@ from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = True
+dev_mode = False
 
 # Версия приложения
-version = '3.3.9'
+version = '3.3.10'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -247,12 +247,9 @@ class Project:
         return unit_converter('symbols', added_sym, self.unit)
 
     def get_today_goal_value(self):
-        """Возвращает накопленную цель на сегодня в символах.
-
-        Логика: уже написано + одна дневная доля от остатка.
-        Это корректно работает при любом дедлайне и не зависит от даты
-        создания или редактирования проекта — пересчитывается каждый день
-        от текущего состояния.
+        """Возвращает плановую накопленную цель на сегодня в символах.
+        Цель рассчитывается линейно от даты создания до дедлайна.
+        Значение фиксируется на день (кэшируется), чтобы не менялось при добавлении записей.
         """
         if self.deadline == 'Нет':
             return 0
@@ -265,23 +262,31 @@ class Project:
         if goal_sym == float('inf'):
             return float('inf')
 
-        total_sym = self.get_total_symbols()
+        # Кэширование на день (если дата изменилась или атрибуты отсутствуют)
+        if (not hasattr(self, '_today_goal_date') or
+                self._today_goal_date != today or
+                not hasattr(self, '_today_planned_goal')):
+            # Если дедлайн уже прошёл – нужно было написать всё
+            if today > self.deadline:
+                planned = goal_sym
+            else:
+                start_date = self.create_date
+                end_date = self.deadline
+                total_days = (end_date - start_date).days + 1
+                if total_days <= 0:
+                    planned = 0
+                else:
+                    days_passed = (today - start_date).days + 1
+                    # Плановая доля (линейно)
+                    planned = (goal_sym * days_passed) / total_days
+                    planned = math.ceil(planned)  # округление вверх
+                    planned = min(planned, goal_sym)  # не больше общей цели
 
-        # Цель уже достигнута или превышена
-        if total_sym >= goal_sym:
-            return goal_sym
+            self._today_planned_goal = planned
+            self._today_goal_date = today
 
-        remaining = goal_sym - total_sym
-
-        # Количество дней до дедлайна включая сегодня
-        days_left = (self.deadline - today).days + 1
-        if days_left <= 0:
-            # Дедлайн прошёл — весь остаток должен быть написан
-            return goal_sym
-
-        # Накопленная цель на сегодня: написано + одна дневная доля от остатка
-        daily = math.ceil(remaining / days_left)
-        return min(total_sym + daily, goal_sym)
+        # Возвращаем только плановое значение, без учёта фактического прогресса
+        return self._today_planned_goal
 
     def get_today_goal_in_unit(self):
         """Возвращает цель на сегодня в единице проекта."""
