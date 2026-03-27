@@ -203,16 +203,16 @@ class MainWindow(QMainWindow, main_window_ui):
                     # Создаём новую вкладку (используем существующую из UI)
                     self.tabWidget.addTab(self.game_tab, 'Игровой режим')
 
-            # Добавляем/удаляем пункт меню "Режим разработчика" в зависимости от режима разработчика
-            if en.dev_mode:
-                if not self.developer_mode_action:
-                    self.developer_mode_action = self.settings_menu.addAction('Режим разработчика')
-                    self.developer_mode_action.setShortcut(QKeySequence('Ctrl+D'))
-                    self.developer_mode_action.triggered.connect(self.developer_mode)
-            else:
-                if self.developer_mode_action:
-                    self.settings_menu.removeAction(self.developer_mode_action)
-                    self.developer_mode_action = None
+        # Добавляем/удаляем пункт меню "Режим разработчика" в зависимости от режима разработчика
+        if en.dev_mode:
+            if not self.developer_mode_action:
+                self.developer_mode_action = self.settings_menu.addAction('Режим разработчика')
+                self.developer_mode_action.setShortcut(QKeySequence('Ctrl+D'))
+                self.developer_mode_action.triggered.connect(self.developer_mode)
+        else:
+            if self.developer_mode_action:
+                self.settings_menu.removeAction(self.developer_mode_action)
+                self.developer_mode_action = None
 
         if settings['inf_project'] is True:
             data = en.load_data()
