@@ -503,6 +503,8 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.new_symbols.setEnabled(True)
                 self.delete_note.setEnabled(True)
                 self.new_symbols.setPlaceholderText("")
+        if project.goal == float('inf'):
+            self.btn_change_project.setEnabled(False)
 
         # Загружаем список заметок
         self.load_notes(project)
