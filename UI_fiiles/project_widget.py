@@ -3,6 +3,7 @@ from PySide6.QtGui import (QColor, QFont, QPainter,
                            QPen)
 from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
                                QSizePolicy, QVBoxLayout, QWidget)
+from PySide6.scripts.pyside_tool import project
 
 
 # =============================================================================
@@ -325,7 +326,10 @@ class ProjectWidget(QWidget, Ui_Form):
 
         # Значения уже в единице проекта с отображением единицы измерения
         total_str = self._format_number(self.project.total_symbols)
-        goal_str = self._format_number(self.project.goal)
+        if self.project.goal != float('inf'):
+            goal_str = self._format_number(self.project.goal)
+        else:
+            goal_str = '∞'
 
         # Получаем сокращённое название единицы измерения
         unit_short = self.unit_display.get(self.project.unit, '')

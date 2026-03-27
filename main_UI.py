@@ -308,7 +308,11 @@ class MainWindow(QMainWindow, main_window_ui):
         # Основная информация
         self.status.setText(project.status)
         self.progress.setText(f"{project.progress:.1f}%")
-        self.goal.setText(self._format_number(project.goal))
+        # Обрабатываем бесконечный проект
+        if project.goal == float('inf'):
+            self.goal.setText('∞')
+        else:
+            self.goal.setText(self._format_number(project.goal))
         self.total.setText(self._format_number(project.total_symbols))
         self.unit.setText(units_for_view[project.unit])
 
