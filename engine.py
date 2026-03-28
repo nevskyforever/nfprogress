@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.3.10'
+version = '3.3.11'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -117,6 +117,7 @@ class Project:
         self.last_streak_bonus = None
         self.last_streak_lost_date = None
         self.freezes = 0
+        self.deadline_set_date = None
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -139,7 +140,8 @@ class Project:
             'last_synch': None,
             'last_streak_bonus': None,
             'last_streak_lost_date': None,
-            'freezes': 0
+            'freezes': 0,
+            'deadline_set_date': today_for_test(),
         }
 
         for attr, default_value in defaults.items():
@@ -190,8 +192,10 @@ class Project:
     def deadline(self, deadline):
         if deadline == '':
             self._deadline = 'Нет'
+            self.deadline_set_date = None
         else:
             self._deadline = deadline
+            self.deadline_set_date = today_for_test()
 
     @property
     def deadline_str(self):
@@ -247,9 +251,8 @@ class Project:
         return unit_converter('symbols', added_sym, self.unit)
 
     def get_today_goal_value(self):
-        """Возвращает плановую накопленную цель на сегодня в символах.
-        Цель рассчитывается линейно от даты создания до дедлайна.
-        Значение фиксируется на день (кэшируется), чтобы не менялось при добавлении записей.
+        """Возвращает накопленный план на сегодня в символах.
+        Равномерно распределяет цель от даты установки дедлайна до дедлайна.
         """
         if self.deadline == 'Нет':
             return 0
@@ -262,31 +265,20 @@ class Project:
         if goal_sym == float('inf'):
             return float('inf')
 
-        # Кэширование на день (если дата изменилась или атрибуты отсутствуют)
-        if (not hasattr(self, '_today_goal_date') or
-                self._today_goal_date != today or
-                not hasattr(self, '_today_planned_goal')):
-            # Если дедлайн уже прошёл – нужно было написать всё
-            if today > self.deadline:
-                planned = goal_sym
-            else:
-                start_date = self.create_date
-                end_date = self.deadline
-                total_days = (end_date - start_date).days + 1
-                if total_days <= 0:
-                    planned = 0
-                else:
-                    days_passed = (today - start_date).days + 1
-                    # Плановая доля (линейно)
-                    planned = (goal_sym * days_passed) / total_days
-                    planned = math.ceil(planned)  # округление вверх
-                    planned = min(planned, goal_sym)  # не больше общей цели
+        # Если дата установки дедлайна не сохранена — fallback на дату создания
+        start_date = self.deadline_set_date if self.deadline_set_date else today_for_test()
 
-            self._today_planned_goal = planned
-            self._today_goal_date = today
+        total_days = (self.deadline - start_date).days + 1
+        if total_days <= 0:
+            return goal_sym
 
-        # Возвращаем только плановое значение, без учёта фактического прогресса
-        return self._today_planned_goal
+        day_number = (today - start_date).days + 1
+        day_number = max(1, min(day_number, total_days))  # зажимаем в [1, total_days]
+
+        daily_norm = goal_sym / total_days
+        planned = daily_norm * day_number
+
+        return min(math.ceil(planned), goal_sym)
 
     def get_today_goal_in_unit(self):
         """Возвращает цель на сегодня в единице проекта."""
