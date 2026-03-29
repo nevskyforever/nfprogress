@@ -1,24 +1,29 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'gamer_editLXiTAv.ui'
+## Form generated from reading UI file 'developer_modeTOYsjn.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide6.QtCore import (QCoreApplication, QMetaObject, Qt)
-from PySide6.QtGui import (QFont)
-from PySide6.QtWidgets import (QCheckBox, QDateEdit,
-                               QDialogButtonBox, QGridLayout, QLabel,
-                               QLineEdit, QSizePolicy, QSpacerItem)
+from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
+    QFont, QFontDatabase, QGradient, QIcon,
+    QImage, QKeySequence, QLinearGradient, QPainter,
+    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QDateEdit,
+    QDialog, QDialogButtonBox, QGridLayout, QLabel,
+    QLineEdit, QSizePolicy, QSpacerItem, QWidget)
 
 class Ui_developer_node(object):
     def setupUi(self, developer_node):
         if not developer_node.objectName():
             developer_node.setObjectName(u"developer_node")
-        developer_node.resize(400, 300)
+        developer_node.resize(428, 300)
         font = QFont()
         font.setFamilies([u"Arial"])
         developer_node.setFont(font)
@@ -41,6 +46,7 @@ class Ui_developer_node(object):
 
         self.test_date = QDateEdit(developer_node)
         self.test_date.setObjectName(u"test_date")
+        self.test_date.setCalendarPopup(True)
 
         self.gridLayout.addWidget(self.test_date, 1, 2, 1, 1)
 
