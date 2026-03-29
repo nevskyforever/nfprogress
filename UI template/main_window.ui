@@ -516,7 +516,7 @@
                   <item row="5" column="0">
                    <widget class="QLabel" name="label_today_goal">
                     <property name="text">
-                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Осталось написать,&lt;/p&gt;&lt;p&gt;чтобы выполнить цель на сегодня:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Нужно написать,&lt;br/&gt;чтобы выполнить цель на сегодня:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                     </property>
                     <property name="wordWrap">
                      <bool>true</bool>
@@ -692,8 +692,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>223</width>
-                    <height>133</height>
+                    <width>98</width>
+                    <height>88</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_14">
@@ -1071,8 +1071,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>267</width>
-                   <height>152</height>
+                   <width>98</width>
+                   <height>112</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_19">
@@ -1300,8 +1300,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>223</width>
-                    <height>161</height>
+                    <width>100</width>
+                    <height>168</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_23">
@@ -1585,7 +1585,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>263</width>
+                    <width>98</width>
                     <height>136</height>
                    </rect>
                   </property>
@@ -1734,7 +1734,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>93</width>
+                    <width>98</width>
                     <height>112</height>
                    </rect>
                   </property>
