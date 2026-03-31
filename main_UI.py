@@ -109,6 +109,11 @@ class MainWindow(QMainWindow, main_window_ui):
 
         self.complete_project_action.triggered.connect(self.on_complete_project_menu_triggered)
         self.complete_project_action.setShortcut(QKeySequence('Ctrl+Shift+C'))
+
+        # Открываем последний проект
+        if en.load_settings().get('last_project', False):
+            self.show_last_project(en.load_settings()['last_project'])
+
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
         # Получаем текущий выбранный проект
@@ -297,6 +302,11 @@ class MainWindow(QMainWindow, main_window_ui):
         self.change_project_widget.setVisible(True)
         self.name_selected_project.setText(project.name)
 
+        # Сохраняем последний выбранный проект
+        settings = en.load_settings()
+        settings['last_project'] = project.name
+        save_settings(settings)
+
     def show_project_info(self, project):
         """Заполняет виджеты информацией о проекте."""
         units_for_view = {
@@ -385,6 +395,11 @@ class MainWindow(QMainWindow, main_window_ui):
             self.l.setText(f"{last_note.get_date_create_str()} (+{self._format_number(added_disp)})")
         else:
             self.l.setText("Нет записей")
+
+
+    def show_last_project(self, project_name):
+        self.select_project_by_name(project_name)
+        self.view_project()
 
     def show_project_stats(self):
         """Открывает окно статистики для текущего выбранного проекта"""
