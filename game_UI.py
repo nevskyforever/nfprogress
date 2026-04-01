@@ -6,6 +6,7 @@ import datetime
 from PySide6.QtCore import QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
 
+import engine
 import game
 import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
@@ -100,6 +101,10 @@ class GameMenuController:
         # Очистка информации при смене выбора в магазинах
         self.ui.item_shop_list.itemClicked.connect(lambda: self.clear_potion_info())
         self.ui.potion_shop_list.itemClicked.connect(lambda: self.clear_item_info())
+
+        # Банк
+
+        self.ui.bank_btn.clicked.connect(self.bank)
 
     def refresh_all(self):
         """Обновление всех данных в интерфейсе"""
@@ -605,6 +610,7 @@ class GameMenuController:
 
     def bank(self):
         dialog = Bank(self.gamer)
+        dialog.show()
         result = dialog.exec_()
 
 
@@ -695,6 +701,11 @@ class Bank(QDialog, Ui_Bamk):
         self.setupUi(self)
         self.gamer = gamer
 
+        # Скрываем кнопку взятия кредита, если уровень меньше 3
+        if gamer.level < 3:
+            self.credit_status.setVisible(False)
+            self.take_credit_btn.setVisible(False)
+
         # Убираем кнопки возврата продуктов
         self.return_credit_btn.setVisible(False)
         self.return_deposit_btn.setVisible(False)
@@ -702,20 +713,33 @@ class Bank(QDialog, Ui_Bamk):
         # Убираем даты возврата
         self.return_credit_date.setVisible(False)
         self.return_deposit_date.setVisible(False)
-    def load_bank_account(self):
+
+        # Убираем суммы к возврату
+        self.credit_total_sum.setVisible(False)
+        self.deposit_total_sum.setVisible(False)
+
         # Получаем банковский аккаунт
-        account = self.gamer.bank_account()
-        # Получаем из него статусы продуктов
+        account: game_data.BankAccount = self.gamer.bank_account
+        # Получаем из него продукты
+        credit: game_data.Credit = account.credit
+        deposit: game_data.Deposit = account.deposit
 
-        # Получаем даты возврата продуктов
-        credit_return_date = None
-        deposit_return_date = None
-
-        # Устанавливаем статусы продуктов
-        if credit_return_date:
+        # Устанавливаем статусы продуктов и даты возврата
+        if credit:
+            self.credit_status.setText(credit.get_status())
             self.return_credit_date.setVisible(True)
-            self.return_credit_date.setText(credit_return_date)
-        if deposit_return_date:
+            self.return_credit_date.setText(credit.get_return_date())
+            # Скрываем кнопку взятия
+            self.take_credit_btn.setVisible(False)
+            # Показываем кнопку возврата
+            self.return_credit_btn.setVisible(True)
+        if deposit:
+            # Получаем данные
+            self.deposit_status.setText(deposit.get_status())
             self.return_deposit_date.setVisible(True)
-            self.return_deposit_date.setText(deposit_return_date)
+            self.return_deposit_date.setText(deposit.get_return_date())
+            # Скрываем кнопку взятия
+            self.make_deposit_btn.setVisible(False)
+            if deposit.get_return_date() <= engine.today_for_test():
+                self.return_deposit_btn.setVisible(True)
 

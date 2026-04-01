@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowUKzcCA.ui'
+## Form generated from reading UI file 'main_windowhGFLmx.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -27,7 +27,7 @@ class Ui_main_window(object):
     def setupUi(self, main_window):
         if not main_window.objectName():
             main_window.setObjectName(u"main_window")
-        main_window.resize(1104, 722)
+        main_window.resize(1104, 765)
         font = QFont()
         font.setFamilies([u"Arial"])
         font.setPointSize(14)
@@ -58,6 +58,9 @@ class Ui_main_window(object):
         self.tabWidget = QTabWidget(self.centralwidget)
         self.tabWidget.setObjectName(u"tabWidget")
         self.tabWidget.setEnabled(True)
+        font1 = QFont()
+        font1.setFamilies([u"Arial"])
+        self.tabWidget.setFont(font1)
         self.tabWidget.setTabShape(QTabWidget.TabShape.Rounded)
         self.tabWidget.setUsesScrollButtons(False)
         self.tabWidget.setDocumentMode(False)
@@ -74,10 +77,10 @@ class Ui_main_window(object):
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(self.list_projects.sizePolicy().hasHeightForWidth())
         self.list_projects.setSizePolicy(sizePolicy)
-        font1 = QFont()
-        font1.setFamilies([u"Arial"])
-        font1.setPointSize(12)
-        self.list_projects.setFont(font1)
+        font2 = QFont()
+        font2.setFamilies([u"Arial"])
+        font2.setPointSize(12)
+        self.list_projects.setFont(font2)
         self.list_projects.setMouseTracking(True)
         self.list_projects.setStyleSheet(u"")
         self.list_projects.setSortingEnabled(False)
@@ -138,10 +141,10 @@ class Ui_main_window(object):
         self.gridLayout_4.setObjectName(u"gridLayout_4")
         self.name_selected_project = QLabel(self.project_detail_widget)
         self.name_selected_project.setObjectName(u"name_selected_project")
-        font2 = QFont()
-        font2.setFamilies([u"Arial"])
-        font2.setPointSize(20)
-        self.name_selected_project.setFont(font2)
+        font3 = QFont()
+        font3.setFamilies([u"Arial"])
+        font3.setPointSize(20)
+        self.name_selected_project.setFont(font3)
         self.name_selected_project.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.name_selected_project.setWordWrap(True)
 
@@ -212,7 +215,7 @@ class Ui_main_window(object):
         self.note_list.setSizePolicy(sizePolicy2)
         palette = QPalette()
         self.note_list.setPalette(palette)
-        self.note_list.setFont(font1)
+        self.note_list.setFont(font2)
         self.note_list.setStyleSheet(u"")
 
         self.verticalLayout_2.addWidget(self.note_list)
@@ -262,7 +265,7 @@ class Ui_main_window(object):
         self.scrollArea_5.setWidgetResizable(True)
         self.scrollAreaWidgetContents_11 = QWidget()
         self.scrollAreaWidgetContents_11.setObjectName(u"scrollAreaWidgetContents_11")
-        self.scrollAreaWidgetContents_11.setGeometry(QRect(0, 0, 556, 356))
+        self.scrollAreaWidgetContents_11.setGeometry(QRect(0, 0, 556, 344))
         self.gridLayout_28 = QGridLayout(self.scrollAreaWidgetContents_11)
         self.gridLayout_28.setObjectName(u"gridLayout_28")
         self.status = QLabel(self.scrollAreaWidgetContents_11)
@@ -438,6 +441,7 @@ class Ui_main_window(object):
         sizePolicy3.setVerticalStretch(0)
         sizePolicy3.setHeightForWidth(self.quests_tabs.sizePolicy().hasHeightForWidth())
         self.quests_tabs.setSizePolicy(sizePolicy3)
+        self.quests_tabs.setFont(font1)
         self.available_quests_tab = QWidget()
         self.available_quests_tab.setObjectName(u"available_quests_tab")
         self.gridLayout_8 = QGridLayout(self.available_quests_tab)
@@ -450,35 +454,41 @@ class Ui_main_window(object):
         sizePolicy4.setHeightForWidth(self.available_quests_list.sizePolicy().hasHeightForWidth())
         self.available_quests_list.setSizePolicy(sizePolicy4)
         self.available_quests_list.setMaximumSize(QSize(193, 16777215))
+        self.available_quests_list.setFont(font1)
 
         self.gridLayout_8.addWidget(self.available_quests_list, 0, 0, 1, 1)
 
         self.about_selected_available_quest = QGroupBox(self.available_quests_tab)
         self.about_selected_available_quest.setObjectName(u"about_selected_available_quest")
+        self.about_selected_available_quest.setFont(font1)
         self.gridLayout_13 = QGridLayout(self.about_selected_available_quest)
         self.gridLayout_13.setObjectName(u"gridLayout_13")
         self.scrollArea_3 = QScrollArea(self.about_selected_available_quest)
         self.scrollArea_3.setObjectName(u"scrollArea_3")
+        self.scrollArea_3.setFont(font1)
         self.scrollArea_3.setWidgetResizable(True)
         self.scrollAreaWidgetContents_4 = QWidget()
         self.scrollAreaWidgetContents_4.setObjectName(u"scrollAreaWidgetContents_4")
-        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 223, 133))
+        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 232, 131))
         self.gridLayout_14 = QGridLayout(self.scrollAreaWidgetContents_4)
         self.gridLayout_14.setObjectName(u"gridLayout_14")
         self.name_selected_available_quest = QLabel(self.scrollAreaWidgetContents_4)
         self.name_selected_available_quest.setObjectName(u"name_selected_available_quest")
+        self.name_selected_available_quest.setFont(font1)
         self.name_selected_available_quest.setWordWrap(True)
 
         self.gridLayout_14.addWidget(self.name_selected_available_quest, 0, 0, 1, 1)
 
         self.description_selected_available_quest = QLabel(self.scrollAreaWidgetContents_4)
         self.description_selected_available_quest.setObjectName(u"description_selected_available_quest")
+        self.description_selected_available_quest.setFont(font1)
         self.description_selected_available_quest.setWordWrap(True)
 
         self.gridLayout_14.addWidget(self.description_selected_available_quest, 1, 0, 1, 1)
 
         self.prize_selected_available_quest = QLabel(self.scrollAreaWidgetContents_4)
         self.prize_selected_available_quest.setObjectName(u"prize_selected_available_quest")
+        self.prize_selected_available_quest.setFont(font1)
         self.prize_selected_available_quest.setWordWrap(True)
 
         self.gridLayout_14.addWidget(self.prize_selected_available_quest, 2, 0, 1, 1)
@@ -491,6 +501,7 @@ class Ui_main_window(object):
         self.button_for_start_selected_quest.setObjectName(u"button_for_start_selected_quest")
         sizePolicy1.setHeightForWidth(self.button_for_start_selected_quest.sizePolicy().hasHeightForWidth())
         self.button_for_start_selected_quest.setSizePolicy(sizePolicy1)
+        self.button_for_start_selected_quest.setFont(font1)
 
         self.gridLayout_13.addWidget(self.button_for_start_selected_quest, 3, 1, 1, 1)
 
@@ -634,6 +645,7 @@ class Ui_main_window(object):
 
         self.inventory_label = QLabel(self.game_tab)
         self.inventory_label.setObjectName(u"inventory_label")
+        self.inventory_label.setFont(font1)
         self.inventory_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.gridLayout_5.addWidget(self.inventory_label, 1, 1, 1, 1)
@@ -642,6 +654,7 @@ class Ui_main_window(object):
         self.inventory_frame.setObjectName(u"inventory_frame")
         sizePolicy3.setHeightForWidth(self.inventory_frame.sizePolicy().hasHeightForWidth())
         self.inventory_frame.setSizePolicy(sizePolicy3)
+        self.inventory_frame.setFont(font1)
         self.inventory_frame.setFrameShape(QFrame.Shape.StyledPanel)
         self.inventory_frame.setFrameShadow(QFrame.Shadow.Raised)
         self.horizontalLayout_5 = QHBoxLayout(self.inventory_frame)
@@ -651,17 +664,20 @@ class Ui_main_window(object):
         sizePolicy.setHeightForWidth(self.inventory_list.sizePolicy().hasHeightForWidth())
         self.inventory_list.setSizePolicy(sizePolicy)
         self.inventory_list.setMaximumSize(QSize(193, 16777215))
+        self.inventory_list.setFont(font1)
 
         self.horizontalLayout_5.addWidget(self.inventory_list)
 
         self.inventory_scroll_area = QGroupBox(self.inventory_frame)
         self.inventory_scroll_area.setObjectName(u"inventory_scroll_area")
+        self.inventory_scroll_area.setFont(font1)
         self.gridLayout_12 = QGridLayout(self.inventory_scroll_area)
         self.gridLayout_12.setObjectName(u"gridLayout_12")
         self.button_for_selected_item = QPushButton(self.inventory_scroll_area)
         self.button_for_selected_item.setObjectName(u"button_for_selected_item")
         sizePolicy1.setHeightForWidth(self.button_for_selected_item.sizePolicy().hasHeightForWidth())
         self.button_for_selected_item.setSizePolicy(sizePolicy1)
+        self.button_for_selected_item.setFont(font1)
 
         self.gridLayout_12.addWidget(self.button_for_selected_item, 3, 2, 1, 2)
 
@@ -669,6 +685,7 @@ class Ui_main_window(object):
         self.label_13.setObjectName(u"label_13")
         sizePolicy1.setHeightForWidth(self.label_13.sizePolicy().hasHeightForWidth())
         self.label_13.setSizePolicy(sizePolicy1)
+        self.label_13.setFont(font1)
         self.label_13.setAlignment(Qt.AlignmentFlag.AlignLeading|Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
 
         self.gridLayout_12.addWidget(self.label_13, 3, 0, 1, 1)
@@ -677,6 +694,7 @@ class Ui_main_window(object):
         self.value_for_use_selected_item.setObjectName(u"value_for_use_selected_item")
         sizePolicy1.setHeightForWidth(self.value_for_use_selected_item.sizePolicy().hasHeightForWidth())
         self.value_for_use_selected_item.setSizePolicy(sizePolicy1)
+        self.value_for_use_selected_item.setFont(font1)
         self.value_for_use_selected_item.setMinimum(1)
         self.value_for_use_selected_item.setSingleStep(1)
         self.value_for_use_selected_item.setValue(1)
@@ -685,32 +703,37 @@ class Ui_main_window(object):
 
         self.about_selected_inventory_item = QScrollArea(self.inventory_scroll_area)
         self.about_selected_inventory_item.setObjectName(u"about_selected_inventory_item")
+        self.about_selected_inventory_item.setFont(font1)
         self.about_selected_inventory_item.setWidgetResizable(True)
         self.scrollAreaWidgetContents_6 = QWidget()
         self.scrollAreaWidgetContents_6.setObjectName(u"scrollAreaWidgetContents_6")
-        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 267, 152))
+        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 258, 150))
         self.gridLayout_19 = QGridLayout(self.scrollAreaWidgetContents_6)
         self.gridLayout_19.setObjectName(u"gridLayout_19")
         self.name_selected_item = QLabel(self.scrollAreaWidgetContents_6)
         self.name_selected_item.setObjectName(u"name_selected_item")
+        self.name_selected_item.setFont(font1)
         self.name_selected_item.setWordWrap(True)
 
         self.gridLayout_19.addWidget(self.name_selected_item, 0, 0, 1, 1)
 
         self.level_selected_item = QLabel(self.scrollAreaWidgetContents_6)
         self.level_selected_item.setObjectName(u"level_selected_item")
+        self.level_selected_item.setFont(font1)
         self.level_selected_item.setWordWrap(True)
 
         self.gridLayout_19.addWidget(self.level_selected_item, 2, 0, 1, 1)
 
         self.effect_selected_item = QLabel(self.scrollAreaWidgetContents_6)
         self.effect_selected_item.setObjectName(u"effect_selected_item")
+        self.effect_selected_item.setFont(font1)
         self.effect_selected_item.setWordWrap(True)
 
         self.gridLayout_19.addWidget(self.effect_selected_item, 3, 0, 1, 1)
 
         self.description_selected_item = QLabel(self.scrollAreaWidgetContents_6)
         self.description_selected_item.setObjectName(u"description_selected_item")
+        self.description_selected_item.setFont(font1)
         self.description_selected_item.setWordWrap(True)
 
         self.gridLayout_19.addWidget(self.description_selected_item, 1, 0, 1, 1)
@@ -728,84 +751,16 @@ class Ui_main_window(object):
         self.gamer_params_label = QLabel(self.game_tab)
         self.gamer_params_label.setObjectName(u"gamer_params_label")
         self.gamer_params_label.setMaximumSize(QSize(16777215, 18))
+        self.gamer_params_label.setFont(font1)
         self.gamer_params_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.gridLayout_5.addWidget(self.gamer_params_label, 1, 0, 1, 1)
-
-        self.frame_5 = QFrame(self.game_tab)
-        self.frame_5.setObjectName(u"frame_5")
-        sizePolicy5 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        sizePolicy5.setHorizontalStretch(0)
-        sizePolicy5.setVerticalStretch(43)
-        sizePolicy5.setHeightForWidth(self.frame_5.sizePolicy().hasHeightForWidth())
-        self.frame_5.setSizePolicy(sizePolicy5)
-        self.frame_5.setMinimumSize(QSize(0, 55))
-        self.frame_5.setFrameShape(QFrame.Shape.StyledPanel)
-        self.frame_5.setFrameShadow(QFrame.Shadow.Raised)
-        self.gridLayout_6 = QGridLayout(self.frame_5)
-        self.gridLayout_6.setObjectName(u"gridLayout_6")
-        self.label = QLabel(self.frame_5)
-        self.label.setObjectName(u"label")
-        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.gridLayout_6.addWidget(self.label, 0, 0, 1, 1)
-
-        self.gamer_health = QLabel(self.frame_5)
-        self.gamer_health.setObjectName(u"gamer_health")
-        self.gamer_health.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.gridLayout_6.addWidget(self.gamer_health, 0, 3, 1, 1)
-
-        self.gamer_health_progressbar = QProgressBar(self.frame_5)
-        self.gamer_health_progressbar.setObjectName(u"gamer_health_progressbar")
-        sizePolicy6 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-        sizePolicy6.setHorizontalStretch(0)
-        sizePolicy6.setVerticalStretch(0)
-        sizePolicy6.setHeightForWidth(self.gamer_health_progressbar.sizePolicy().hasHeightForWidth())
-        self.gamer_health_progressbar.setSizePolicy(sizePolicy6)
-        self.gamer_health_progressbar.setValue(24)
-
-        self.gridLayout_6.addWidget(self.gamer_health_progressbar, 1, 3, 1, 1)
-
-        self.gamer_coins = QLabel(self.frame_5)
-        self.gamer_coins.setObjectName(u"gamer_coins")
-        self.gamer_coins.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.gridLayout_6.addWidget(self.gamer_coins, 1, 1, 1, 1)
-
-        self.gamer_label = QLabel(self.frame_5)
-        self.gamer_label.setObjectName(u"gamer_label")
-        self.gamer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.gridLayout_6.addWidget(self.gamer_label, 1, 0, 1, 1)
-
-        self.label_3 = QLabel(self.frame_5)
-        self.label_3.setObjectName(u"label_3")
-        self.label_3.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.gridLayout_6.addWidget(self.label_3, 0, 1, 1, 1)
-
-        self.gamer_exp = QLabel(self.frame_5)
-        self.gamer_exp.setObjectName(u"gamer_exp")
-        self.gamer_exp.setAlignment(Qt.AlignmentFlag.AlignCenter)
-
-        self.gridLayout_6.addWidget(self.gamer_exp, 0, 2, 1, 1)
-
-        self.exp_progressbar = QProgressBar(self.frame_5)
-        self.exp_progressbar.setObjectName(u"exp_progressbar")
-        sizePolicy6.setHeightForWidth(self.exp_progressbar.sizePolicy().hasHeightForWidth())
-        self.exp_progressbar.setSizePolicy(sizePolicy6)
-        self.exp_progressbar.setValue(24)
-
-        self.gridLayout_6.addWidget(self.exp_progressbar, 1, 2, 1, 1)
-
-
-        self.gridLayout_5.addWidget(self.frame_5, 0, 0, 1, 2)
 
         self.parameters_tabs = QTabWidget(self.game_tab)
         self.parameters_tabs.setObjectName(u"parameters_tabs")
         sizePolicy3.setHeightForWidth(self.parameters_tabs.sizePolicy().hasHeightForWidth())
         self.parameters_tabs.setSizePolicy(sizePolicy3)
+        self.parameters_tabs.setFont(font1)
         self.bufs_tab = QWidget()
         self.bufs_tab.setObjectName(u"bufs_tab")
         self.horizontalLayout_7 = QHBoxLayout(self.bufs_tab)
@@ -815,47 +770,55 @@ class Ui_main_window(object):
         sizePolicy4.setHeightForWidth(self.buf_list.sizePolicy().hasHeightForWidth())
         self.buf_list.setSizePolicy(sizePolicy4)
         self.buf_list.setMaximumSize(QSize(193, 16777215))
+        self.buf_list.setFont(font1)
 
         self.horizontalLayout_7.addWidget(self.buf_list)
 
         self.about_selected_buf = QGroupBox(self.bufs_tab)
         self.about_selected_buf.setObjectName(u"about_selected_buf")
+        self.about_selected_buf.setFont(font1)
         self.gridLayout_22 = QGridLayout(self.about_selected_buf)
         self.gridLayout_22.setObjectName(u"gridLayout_22")
         self.scrollArea_7 = QScrollArea(self.about_selected_buf)
         self.scrollArea_7.setObjectName(u"scrollArea_7")
+        self.scrollArea_7.setFont(font1)
         self.scrollArea_7.setWidgetResizable(True)
         self.scrollAreaWidgetContents_8 = QWidget()
         self.scrollAreaWidgetContents_8.setObjectName(u"scrollAreaWidgetContents_8")
-        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 223, 161))
+        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 232, 159))
         self.gridLayout_23 = QGridLayout(self.scrollAreaWidgetContents_8)
         self.gridLayout_23.setObjectName(u"gridLayout_23")
         self.label_37 = QLabel(self.scrollAreaWidgetContents_8)
         self.label_37.setObjectName(u"label_37")
+        self.label_37.setFont(font1)
         self.label_37.setWordWrap(True)
 
         self.gridLayout_23.addWidget(self.label_37, 4, 0, 1, 1)
 
         self.label_38 = QLabel(self.scrollAreaWidgetContents_8)
         self.label_38.setObjectName(u"label_38")
+        self.label_38.setFont(font1)
         self.label_38.setWordWrap(True)
 
         self.gridLayout_23.addWidget(self.label_38, 2, 0, 1, 1)
 
         self.label_39 = QLabel(self.scrollAreaWidgetContents_8)
         self.label_39.setObjectName(u"label_39")
+        self.label_39.setFont(font1)
         self.label_39.setWordWrap(True)
 
         self.gridLayout_23.addWidget(self.label_39, 1, 0, 1, 1)
 
         self.label_40 = QLabel(self.scrollAreaWidgetContents_8)
         self.label_40.setObjectName(u"label_40")
+        self.label_40.setFont(font1)
         self.label_40.setWordWrap(True)
 
         self.gridLayout_23.addWidget(self.label_40, 0, 0, 1, 1)
 
         self.label_41 = QLabel(self.scrollAreaWidgetContents_8)
         self.label_41.setObjectName(u"label_41")
+        self.label_41.setFont(font1)
         self.label_41.setWordWrap(True)
 
         self.gridLayout_23.addWidget(self.label_41, 3, 0, 1, 1)
@@ -936,6 +899,7 @@ class Ui_main_window(object):
         self.quests_label = QLabel(self.game_tab)
         self.quests_label.setObjectName(u"quests_label")
         self.quests_label.setMaximumSize(QSize(16777215, 18))
+        self.quests_label.setFont(font1)
         self.quests_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.gridLayout_5.addWidget(self.quests_label, 3, 0, 1, 1)
@@ -944,6 +908,7 @@ class Ui_main_window(object):
         self.game_shop_tabs.setObjectName(u"game_shop_tabs")
         sizePolicy3.setHeightForWidth(self.game_shop_tabs.sizePolicy().hasHeightForWidth())
         self.game_shop_tabs.setSizePolicy(sizePolicy3)
+        self.game_shop_tabs.setFont(font1)
         self.items_shop_tab = QWidget()
         self.items_shop_tab.setObjectName(u"items_shop_tab")
         self.gridLayout_27 = QGridLayout(self.items_shop_tab)
@@ -953,20 +918,23 @@ class Ui_main_window(object):
         sizePolicy4.setHeightForWidth(self.item_shop_list.sizePolicy().hasHeightForWidth())
         self.item_shop_list.setSizePolicy(sizePolicy4)
         self.item_shop_list.setMaximumSize(QSize(193, 16777215))
+        self.item_shop_list.setFont(font1)
 
         self.gridLayout_27.addWidget(self.item_shop_list, 0, 0, 1, 1)
 
         self.selected_goods_item_infobox = QGroupBox(self.items_shop_tab)
         self.selected_goods_item_infobox.setObjectName(u"selected_goods_item_infobox")
+        self.selected_goods_item_infobox.setFont(font1)
         self.gridLayout_20 = QGridLayout(self.selected_goods_item_infobox)
         self.gridLayout_20.setObjectName(u"gridLayout_20")
         self.button_for_buy_selected_item = QPushButton(self.selected_goods_item_infobox)
         self.button_for_buy_selected_item.setObjectName(u"button_for_buy_selected_item")
-        sizePolicy7 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        sizePolicy7.setHorizontalStretch(19)
-        sizePolicy7.setVerticalStretch(0)
-        sizePolicy7.setHeightForWidth(self.button_for_buy_selected_item.sizePolicy().hasHeightForWidth())
-        self.button_for_buy_selected_item.setSizePolicy(sizePolicy7)
+        sizePolicy5 = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        sizePolicy5.setHorizontalStretch(19)
+        sizePolicy5.setVerticalStretch(0)
+        sizePolicy5.setHeightForWidth(self.button_for_buy_selected_item.sizePolicy().hasHeightForWidth())
+        self.button_for_buy_selected_item.setSizePolicy(sizePolicy5)
+        self.button_for_buy_selected_item.setFont(font1)
         self.button_for_buy_selected_item.setMouseTracking(False)
         self.button_for_buy_selected_item.setTabletTracking(False)
         self.button_for_buy_selected_item.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -977,6 +945,7 @@ class Ui_main_window(object):
         self.value_for_buy_selected_item.setObjectName(u"value_for_buy_selected_item")
         sizePolicy1.setHeightForWidth(self.value_for_buy_selected_item.sizePolicy().hasHeightForWidth())
         self.value_for_buy_selected_item.setSizePolicy(sizePolicy1)
+        self.value_for_buy_selected_item.setFont(font1)
         self.value_for_buy_selected_item.setMinimum(1)
         self.value_for_buy_selected_item.setValue(1)
 
@@ -986,44 +955,51 @@ class Ui_main_window(object):
         self.label_14.setObjectName(u"label_14")
         sizePolicy1.setHeightForWidth(self.label_14.sizePolicy().hasHeightForWidth())
         self.label_14.setSizePolicy(sizePolicy1)
+        self.label_14.setFont(font1)
         self.label_14.setAlignment(Qt.AlignmentFlag.AlignRight|Qt.AlignmentFlag.AlignTrailing|Qt.AlignmentFlag.AlignVCenter)
 
         self.gridLayout_20.addWidget(self.label_14, 2, 0, 1, 1)
 
         self.about_selected_goods = QScrollArea(self.selected_goods_item_infobox)
         self.about_selected_goods.setObjectName(u"about_selected_goods")
+        self.about_selected_goods.setFont(font1)
         self.about_selected_goods.setWidgetResizable(True)
         self.scrollAreaWidgetContents_7 = QWidget()
         self.scrollAreaWidgetContents_7.setObjectName(u"scrollAreaWidgetContents_7")
-        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 263, 136))
+        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 254, 131))
         self.gridLayout_21 = QGridLayout(self.scrollAreaWidgetContents_7)
         self.gridLayout_21.setObjectName(u"gridLayout_21")
         self.effect_selected_item_on_shop = QLabel(self.scrollAreaWidgetContents_7)
         self.effect_selected_item_on_shop.setObjectName(u"effect_selected_item_on_shop")
+        self.effect_selected_item_on_shop.setFont(font1)
         self.effect_selected_item_on_shop.setWordWrap(True)
 
         self.gridLayout_21.addWidget(self.effect_selected_item_on_shop, 4, 0, 1, 1)
 
         self.peice_selected_item_on_shop = QLabel(self.scrollAreaWidgetContents_7)
         self.peice_selected_item_on_shop.setObjectName(u"peice_selected_item_on_shop")
+        self.peice_selected_item_on_shop.setFont(font1)
         self.peice_selected_item_on_shop.setWordWrap(True)
 
         self.gridLayout_21.addWidget(self.peice_selected_item_on_shop, 3, 0, 1, 1)
 
         self.name_selected_item_on_shop = QLabel(self.scrollAreaWidgetContents_7)
         self.name_selected_item_on_shop.setObjectName(u"name_selected_item_on_shop")
+        self.name_selected_item_on_shop.setFont(font1)
         self.name_selected_item_on_shop.setWordWrap(True)
 
         self.gridLayout_21.addWidget(self.name_selected_item_on_shop, 0, 0, 1, 1)
 
         self.description_selected_item_on_shop = QLabel(self.scrollAreaWidgetContents_7)
         self.description_selected_item_on_shop.setObjectName(u"description_selected_item_on_shop")
+        self.description_selected_item_on_shop.setFont(font1)
         self.description_selected_item_on_shop.setWordWrap(True)
 
         self.gridLayout_21.addWidget(self.description_selected_item_on_shop, 2, 0, 1, 1)
 
         self.level_selected_item_on_shop = QLabel(self.scrollAreaWidgetContents_7)
         self.level_selected_item_on_shop.setObjectName(u"level_selected_item_on_shop")
+        self.level_selected_item_on_shop.setFont(font1)
         self.level_selected_item_on_shop.setScaledContents(False)
         self.level_selected_item_on_shop.setWordWrap(True)
 
@@ -1082,7 +1058,7 @@ class Ui_main_window(object):
         self.scrollArea_4.setWidgetResizable(True)
         self.scrollAreaWidgetContents_5 = QWidget()
         self.scrollAreaWidgetContents_5.setObjectName(u"scrollAreaWidgetContents_5")
-        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 98, 112))
+        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 93, 112))
         self.gridLayout_18 = QGridLayout(self.scrollAreaWidgetContents_5)
         self.gridLayout_18.setObjectName(u"gridLayout_18")
         self.name_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
@@ -1122,9 +1098,97 @@ class Ui_main_window(object):
 
         self.shop_label = QLabel(self.game_tab)
         self.shop_label.setObjectName(u"shop_label")
+        self.shop_label.setFont(font1)
         self.shop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.gridLayout_5.addWidget(self.shop_label, 3, 1, 1, 1)
+
+        self.frame_5 = QFrame(self.game_tab)
+        self.frame_5.setObjectName(u"frame_5")
+        sizePolicy6 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        sizePolicy6.setHorizontalStretch(0)
+        sizePolicy6.setVerticalStretch(0)
+        sizePolicy6.setHeightForWidth(self.frame_5.sizePolicy().hasHeightForWidth())
+        self.frame_5.setSizePolicy(sizePolicy6)
+        self.frame_5.setMinimumSize(QSize(0, 100))
+        self.frame_5.setFont(font1)
+        self.frame_5.setFrameShape(QFrame.Shape.StyledPanel)
+        self.frame_5.setFrameShadow(QFrame.Shadow.Raised)
+        self.gridLayout_6 = QGridLayout(self.frame_5)
+        self.gridLayout_6.setObjectName(u"gridLayout_6")
+        self.gamer_health = QLabel(self.frame_5)
+        self.gamer_health.setObjectName(u"gamer_health")
+        self.gamer_health.setFont(font1)
+        self.gamer_health.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_6.addWidget(self.gamer_health, 0, 3, 1, 1)
+
+        self.gamer_exp = QLabel(self.frame_5)
+        self.gamer_exp.setObjectName(u"gamer_exp")
+        self.gamer_exp.setFont(font1)
+        self.gamer_exp.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_6.addWidget(self.gamer_exp, 0, 2, 1, 1)
+
+        self.gamer_coins = QLabel(self.frame_5)
+        self.gamer_coins.setObjectName(u"gamer_coins")
+        self.gamer_coins.setFont(font1)
+        self.gamer_coins.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_6.addWidget(self.gamer_coins, 1, 1, 1, 1)
+
+        self.exp_progressbar = QProgressBar(self.frame_5)
+        self.exp_progressbar.setObjectName(u"exp_progressbar")
+        sizePolicy7 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        sizePolicy7.setHorizontalStretch(0)
+        sizePolicy7.setVerticalStretch(0)
+        sizePolicy7.setHeightForWidth(self.exp_progressbar.sizePolicy().hasHeightForWidth())
+        self.exp_progressbar.setSizePolicy(sizePolicy7)
+        self.exp_progressbar.setFont(font1)
+        self.exp_progressbar.setValue(24)
+
+        self.gridLayout_6.addWidget(self.exp_progressbar, 1, 2, 1, 1)
+
+        self.gamer_health_progressbar = QProgressBar(self.frame_5)
+        self.gamer_health_progressbar.setObjectName(u"gamer_health_progressbar")
+        sizePolicy7.setHeightForWidth(self.gamer_health_progressbar.sizePolicy().hasHeightForWidth())
+        self.gamer_health_progressbar.setSizePolicy(sizePolicy7)
+        self.gamer_health_progressbar.setFont(font1)
+        self.gamer_health_progressbar.setValue(24)
+
+        self.gridLayout_6.addWidget(self.gamer_health_progressbar, 1, 3, 1, 1)
+
+        self.label_3 = QLabel(self.frame_5)
+        self.label_3.setObjectName(u"label_3")
+        self.label_3.setFont(font1)
+        self.label_3.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_6.addWidget(self.label_3, 0, 1, 1, 1)
+
+        self.label = QLabel(self.frame_5)
+        self.label.setObjectName(u"label")
+        self.label.setFont(font1)
+        self.label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_6.addWidget(self.label, 0, 0, 1, 1)
+
+        self.gamer_label = QLabel(self.frame_5)
+        self.gamer_label.setObjectName(u"gamer_label")
+        self.gamer_label.setFont(font1)
+        self.gamer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_6.addWidget(self.gamer_label, 1, 0, 1, 1)
+
+        self.bank_btn = QPushButton(self.frame_5)
+        self.bank_btn.setObjectName(u"bank_btn")
+        sizePolicy1.setHeightForWidth(self.bank_btn.sizePolicy().hasHeightForWidth())
+        self.bank_btn.setSizePolicy(sizePolicy1)
+        self.bank_btn.setFont(font1)
+
+        self.gridLayout_6.addWidget(self.bank_btn, 2, 1, 1, 1)
+
+
+        self.gridLayout_5.addWidget(self.frame_5, 0, 0, 1, 2)
 
         self.tabWidget.addTab(self.game_tab, "")
 
@@ -1253,12 +1317,6 @@ class Ui_main_window(object):
         self.effect_selected_item.setText(QCoreApplication.translate("main_window", u"\u042d\u0444\u0444\u0435\u043a\u0442\u044b", None))
         self.description_selected_item.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", None))
         self.gamer_params_label.setText(QCoreApplication.translate("main_window", u"\u041f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u044b \u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0430", None))
-        self.label.setText(QCoreApplication.translate("main_window", u"\u0423\u0440\u043e\u0432\u0435\u043d\u044c", None))
-        self.gamer_health.setText(QCoreApplication.translate("main_window", u"\u0417\u0434\u043e\u0440\u043e\u0432\u044c\u0435 100/100", None))
-        self.gamer_coins.setText(QCoreApplication.translate("main_window", u"0", None))
-        self.gamer_label.setText(QCoreApplication.translate("main_window", u"1", None))
-        self.label_3.setText(QCoreApplication.translate("main_window", u"\u041c\u043e\u043d\u0435\u0442\u044b", None))
-        self.gamer_exp.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u044b\u0442: 0/100", None))
         self.about_selected_buf.setTitle(QCoreApplication.translate("main_window", u"\u041e \u0431\u0430\u0444\u0435", None))
         self.label_37.setText(QCoreApplication.translate("main_window", u"\u0414\u0430\u0442\u0430 \u0437\u0430\u0432\u0435\u0440\u0448\u0435\u043d\u0438\u044f", None))
         self.label_38.setText(QCoreApplication.translate("main_window", u"\u042d\u0444\u0444\u0435\u043a\u0442", None))
@@ -1292,6 +1350,13 @@ class Ui_main_window(object):
         self.description_selected_potion_on_shop.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", None))
         self.game_shop_tabs.setTabText(self.game_shop_tabs.indexOf(self.potions_shop_tab), QCoreApplication.translate("main_window", u"\u0417\u0435\u043b\u044c\u044f", None))
         self.shop_label.setText(QCoreApplication.translate("main_window", u"\u041c\u0430\u0433\u0430\u0437\u0438\u043d", None))
+        self.gamer_health.setText(QCoreApplication.translate("main_window", u"\u0417\u0434\u043e\u0440\u043e\u0432\u044c\u0435 100/100", None))
+        self.gamer_exp.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u044b\u0442: 0/100", None))
+        self.gamer_coins.setText(QCoreApplication.translate("main_window", u"0", None))
+        self.label_3.setText(QCoreApplication.translate("main_window", u"\u041c\u043e\u043d\u0435\u0442\u044b", None))
+        self.label.setText(QCoreApplication.translate("main_window", u"\u0423\u0440\u043e\u0432\u0435\u043d\u044c", None))
+        self.gamer_label.setText(QCoreApplication.translate("main_window", u"1", None))
+        self.bank_btn.setText(QCoreApplication.translate("main_window", u"\u0411\u0430\u043d\u043a", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.game_tab), QCoreApplication.translate("main_window", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
         self.settings_menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
         self.project_menu.setTitle(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442", None))

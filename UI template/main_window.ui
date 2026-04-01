@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1104</width>
-    <height>722</height>
+    <height>765</height>
    </rect>
   </property>
   <property name="font">
@@ -30,6 +30,11 @@
      <widget class="QTabWidget" name="tabWidget">
       <property name="enabled">
        <bool>true</bool>
+      </property>
+      <property name="font">
+       <font>
+        <family>Arial</family>
+       </font>
       </property>
       <property name="tabShape">
        <enum>QTabWidget::TabShape::Rounded</enum>
@@ -390,7 +395,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>556</width>
-                   <height>356</height>
+                   <height>344</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_28">
@@ -652,6 +657,11 @@
             <verstretch>0</verstretch>
            </sizepolicy>
           </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <property name="currentIndex">
            <number>0</number>
           </property>
@@ -674,16 +684,31 @@
                 <height>16777215</height>
                </size>
               </property>
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
              </widget>
             </item>
             <item row="0" column="1">
              <widget class="QGroupBox" name="about_selected_available_quest">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
               <property name="title">
                <string>О квесте</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_13">
                <item row="2" column="1">
                 <widget class="QScrollArea" name="scrollArea_3">
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
                  <property name="widgetResizable">
                   <bool>true</bool>
                  </property>
@@ -692,13 +717,18 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
-                    <height>88</height>
+                    <width>232</width>
+                    <height>131</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_14">
                    <item row="0" column="0">
                     <widget class="QLabel" name="name_selected_available_quest">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Название</string>
                      </property>
@@ -709,6 +739,11 @@
                    </item>
                    <item row="1" column="0">
                     <widget class="QLabel" name="description_selected_available_quest">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Описание</string>
                      </property>
@@ -719,6 +754,11 @@
                    </item>
                    <item row="2" column="0">
                     <widget class="QLabel" name="prize_selected_available_quest">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Награда</string>
                      </property>
@@ -738,6 +778,11 @@
                    <horstretch>0</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
                  </property>
                  <property name="text">
                   <string>Взять квест</string>
@@ -968,6 +1013,11 @@
         </item>
         <item row="1" column="1">
          <widget class="QLabel" name="inventory_label">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <property name="text">
            <string>Инвентарь</string>
           </property>
@@ -983,6 +1033,11 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
           </property>
           <property name="frameShape">
            <enum>QFrame::Shape::StyledPanel</enum>
@@ -1005,10 +1060,20 @@
                <height>16777215</height>
               </size>
              </property>
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
             </widget>
            </item>
            <item>
             <widget class="QGroupBox" name="inventory_scroll_area">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
              <property name="title">
               <string>О товаре</string>
              </property>
@@ -1020,6 +1085,11 @@
                   <horstretch>0</horstretch>
                   <verstretch>0</verstretch>
                  </sizepolicy>
+                </property>
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
                 </property>
                 <property name="text">
                  <string>Использовать</string>
@@ -1033,6 +1103,11 @@
                   <horstretch>0</horstretch>
                   <verstretch>0</verstretch>
                  </sizepolicy>
+                </property>
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
                 </property>
                 <property name="text">
                  <string>Количество:</string>
@@ -1050,6 +1125,11 @@
                   <verstretch>0</verstretch>
                  </sizepolicy>
                 </property>
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
                 <property name="minimum">
                  <number>1</number>
                 </property>
@@ -1063,6 +1143,11 @@
               </item>
               <item row="0" column="0" colspan="4">
                <widget class="QScrollArea" name="about_selected_inventory_item">
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
                 <property name="widgetResizable">
                  <bool>true</bool>
                 </property>
@@ -1071,13 +1156,18 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>98</width>
-                   <height>112</height>
+                   <width>258</width>
+                   <height>150</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_19">
                   <item row="0" column="0">
                    <widget class="QLabel" name="name_selected_item">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Название</string>
                     </property>
@@ -1088,6 +1178,11 @@
                   </item>
                   <item row="2" column="0">
                    <widget class="QLabel" name="level_selected_item">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Стоимость</string>
                     </property>
@@ -1098,6 +1193,11 @@
                   </item>
                   <item row="3" column="0">
                    <widget class="QLabel" name="effect_selected_item">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Эффекты</string>
                     </property>
@@ -1108,6 +1208,11 @@
                   </item>
                   <item row="1" column="0">
                    <widget class="QLabel" name="description_selected_item">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Описание</string>
                     </property>
@@ -1134,122 +1239,17 @@
             <height>18</height>
            </size>
           </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <property name="text">
            <string>Параметры персонажа</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
-         </widget>
-        </item>
-        <item row="0" column="0" colspan="2">
-         <widget class="QFrame" name="frame_5">
-          <property name="sizePolicy">
-           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-            <horstretch>0</horstretch>
-            <verstretch>43</verstretch>
-           </sizepolicy>
-          </property>
-          <property name="minimumSize">
-           <size>
-            <width>0</width>
-            <height>55</height>
-           </size>
-          </property>
-          <property name="frameShape">
-           <enum>QFrame::Shape::StyledPanel</enum>
-          </property>
-          <property name="frameShadow">
-           <enum>QFrame::Shadow::Raised</enum>
-          </property>
-          <layout class="QGridLayout" name="gridLayout_6">
-           <item row="0" column="0">
-            <widget class="QLabel" name="label">
-             <property name="text">
-              <string>Уровень</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="3">
-            <widget class="QLabel" name="gamer_health">
-             <property name="text">
-              <string>Здоровье 100/100</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="3">
-            <widget class="QProgressBar" name="gamer_health_progressbar">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="value">
-              <number>24</number>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="1">
-            <widget class="QLabel" name="gamer_coins">
-             <property name="text">
-              <string>0</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="0">
-            <widget class="QLabel" name="gamer_label">
-             <property name="text">
-              <string>1</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="1">
-            <widget class="QLabel" name="label_3">
-             <property name="text">
-              <string>Монеты</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="0" column="2">
-            <widget class="QLabel" name="gamer_exp">
-             <property name="text">
-              <string>Опыт: 0/100</string>
-             </property>
-             <property name="alignment">
-              <set>Qt::AlignmentFlag::AlignCenter</set>
-             </property>
-            </widget>
-           </item>
-           <item row="1" column="2">
-            <widget class="QProgressBar" name="exp_progressbar">
-             <property name="sizePolicy">
-              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
-               <horstretch>0</horstretch>
-               <verstretch>0</verstretch>
-              </sizepolicy>
-             </property>
-             <property name="value">
-              <number>24</number>
-             </property>
-            </widget>
-           </item>
-          </layout>
          </widget>
         </item>
         <item row="2" column="0">
@@ -1259,6 +1259,11 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
           </property>
           <property name="currentIndex">
            <number>0</number>
@@ -1282,16 +1287,31 @@
                 <height>16777215</height>
                </size>
               </property>
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
              </widget>
             </item>
             <item>
              <widget class="QGroupBox" name="about_selected_buf">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
               <property name="title">
                <string>О бафе</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_22">
                <item row="0" column="0">
                 <widget class="QScrollArea" name="scrollArea_7">
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
                  <property name="widgetResizable">
                   <bool>true</bool>
                  </property>
@@ -1300,13 +1320,18 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>100</width>
-                    <height>168</height>
+                    <width>232</width>
+                    <height>159</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_23">
                    <item row="4" column="0">
                     <widget class="QLabel" name="label_37">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Дата завершения</string>
                      </property>
@@ -1317,6 +1342,11 @@
                    </item>
                    <item row="2" column="0">
                     <widget class="QLabel" name="label_38">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Эффект</string>
                      </property>
@@ -1327,6 +1357,11 @@
                    </item>
                    <item row="1" column="0">
                     <widget class="QLabel" name="label_39">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Описание</string>
                      </property>
@@ -1337,6 +1372,11 @@
                    </item>
                    <item row="0" column="0">
                     <widget class="QLabel" name="label_40">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Название</string>
                      </property>
@@ -1347,6 +1387,11 @@
                    </item>
                    <item row="3" column="0">
                     <widget class="QLabel" name="label_41">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Дата начала</string>
                      </property>
@@ -1475,6 +1520,11 @@
             <height>18</height>
            </size>
           </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <property name="text">
            <string>Квесты</string>
           </property>
@@ -1490,6 +1540,11 @@
             <horstretch>0</horstretch>
             <verstretch>0</verstretch>
            </sizepolicy>
+          </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
           </property>
           <property name="currentIndex">
            <number>0</number>
@@ -1513,10 +1568,20 @@
                 <height>16777215</height>
                </size>
               </property>
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
              </widget>
             </item>
             <item row="0" column="1">
              <widget class="QGroupBox" name="selected_goods_item_infobox">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
               <property name="title">
                <string>О товаре</string>
               </property>
@@ -1528,6 +1593,11 @@
                    <horstretch>19</horstretch>
                    <verstretch>0</verstretch>
                   </sizepolicy>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
                  </property>
                  <property name="mouseTracking">
                   <bool>false</bool>
@@ -1551,6 +1621,11 @@
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
                  <property name="minimum">
                   <number>1</number>
                  </property>
@@ -1567,6 +1642,11 @@
                    <verstretch>0</verstretch>
                   </sizepolicy>
                  </property>
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
                  <property name="text">
                   <string>Количество:</string>
                  </property>
@@ -1577,6 +1657,11 @@
                </item>
                <item row="0" column="0" colspan="4">
                 <widget class="QScrollArea" name="about_selected_goods">
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
                  <property name="widgetResizable">
                   <bool>true</bool>
                  </property>
@@ -1585,13 +1670,18 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
-                    <height>136</height>
+                    <width>254</width>
+                    <height>131</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_21">
                    <item row="4" column="0">
                     <widget class="QLabel" name="effect_selected_item_on_shop">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Эффекты</string>
                      </property>
@@ -1602,6 +1692,11 @@
                    </item>
                    <item row="3" column="0">
                     <widget class="QLabel" name="peice_selected_item_on_shop">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Стоимость</string>
                      </property>
@@ -1612,6 +1707,11 @@
                    </item>
                    <item row="0" column="0">
                     <widget class="QLabel" name="name_selected_item_on_shop">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Название</string>
                      </property>
@@ -1622,6 +1722,11 @@
                    </item>
                    <item row="2" column="0">
                     <widget class="QLabel" name="description_selected_item_on_shop">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Описание</string>
                      </property>
@@ -1632,6 +1737,11 @@
                    </item>
                    <item row="1" column="0">
                     <widget class="QLabel" name="level_selected_item_on_shop">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Уровень</string>
                      </property>
@@ -1734,7 +1844,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
+                    <width>93</width>
                     <height>112</height>
                    </rect>
                   </property>
@@ -1792,12 +1902,190 @@
         </item>
         <item row="3" column="1">
          <widget class="QLabel" name="shop_label">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <property name="text">
            <string>Магазин</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
+         </widget>
+        </item>
+        <item row="0" column="0" colspan="2">
+         <widget class="QFrame" name="frame_5">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="minimumSize">
+           <size>
+            <width>0</width>
+            <height>100</height>
+           </size>
+          </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
+          <property name="frameShape">
+           <enum>QFrame::Shape::StyledPanel</enum>
+          </property>
+          <property name="frameShadow">
+           <enum>QFrame::Shadow::Raised</enum>
+          </property>
+          <layout class="QGridLayout" name="gridLayout_6">
+           <item row="0" column="3">
+            <widget class="QLabel" name="gamer_health">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="text">
+              <string>Здоровье 100/100</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="2">
+            <widget class="QLabel" name="gamer_exp">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="text">
+              <string>Опыт: 0/100</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="1">
+            <widget class="QLabel" name="gamer_coins">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="text">
+              <string>0</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="2">
+            <widget class="QProgressBar" name="exp_progressbar">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="value">
+              <number>24</number>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="3">
+            <widget class="QProgressBar" name="gamer_health_progressbar">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Minimum" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="value">
+              <number>24</number>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="1">
+            <widget class="QLabel" name="label_3">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="text">
+              <string>Монеты</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="0" column="0">
+            <widget class="QLabel" name="label">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="text">
+              <string>Уровень</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="1" column="0">
+            <widget class="QLabel" name="gamer_label">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="text">
+              <string>1</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+            </widget>
+           </item>
+           <item row="2" column="1">
+            <widget class="QPushButton" name="bank_btn">
+             <property name="sizePolicy">
+              <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+               <horstretch>0</horstretch>
+               <verstretch>0</verstretch>
+              </sizepolicy>
+             </property>
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="text">
+              <string>Банк</string>
+             </property>
+            </widget>
+           </item>
+          </layout>
          </widget>
         </item>
        </layout>
