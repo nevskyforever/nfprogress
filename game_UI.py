@@ -9,6 +9,7 @@ from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
 import game
 import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
+from UI_fiiles.bank import Ui_Bamk
 from engine import load_data, save_data, today_for_test, unit_converter
 
 
