@@ -74,7 +74,7 @@
     </widget>
    </item>
    <item row="0" column="3">
-    <widget class="QLabel" name="credit_return_date">
+    <widget class="QLabel" name="return_credit_date">
      <property name="text">
       <string>Дата возврата</string>
      </property>
@@ -115,7 +115,7 @@
     </widget>
    </item>
    <item row="1" column="3">
-    <widget class="QLabel" name="deposit_return_date">
+    <widget class="QLabel" name="return_deposit_date">
      <property name="text">
       <string>Дата снятия</string>
      </property>

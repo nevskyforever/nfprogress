@@ -603,6 +603,11 @@ class GameMenuController:
             self.update_inventory()
         dialog.close()
 
+    def bank(self):
+        dialog = Bank(self.gamer)
+        result = dialog.exec_()
+
+
 class FreezeProject(QDialog, Ui_freeze_projrct):
     def __init__(self):
         super().__init__()
@@ -683,3 +688,34 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
             return f'Проект "{project_name}" заморожен!'
 
         return f'Ошибка: проект "{project_name}" не найден'
+
+class Bank(QDialog, Ui_Bamk):
+    def __init__(self, gamer: game.Gamer):
+        super().__init__()
+        self.setupUi(self)
+        self.gamer = gamer
+
+        # Убираем кнопки возврата продуктов
+        self.return_credit_btn.setVisible(False)
+        self.return_deposit_btn.setVisible(False)
+
+        # Убираем даты возврата
+        self.return_credit_date.setVisible(False)
+        self.return_deposit_date.setVisible(False)
+    def load_bank_account(self):
+        # Получаем банковский аккаунт
+        account = self.gamer.bank_account()
+        # Получаем из него статусы продуктов
+
+        # Получаем даты возврата продуктов
+        credit_return_date = None
+        deposit_return_date = None
+
+        # Устанавливаем статусы продуктов
+        if credit_return_date:
+            self.return_credit_date.setVisible(True)
+            self.return_credit_date.setText(credit_return_date)
+        if deposit_return_date:
+            self.return_deposit_date.setVisible(True)
+            self.return_deposit_date.setText(deposit_return_date)
+
