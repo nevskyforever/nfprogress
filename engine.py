@@ -265,8 +265,8 @@ class Project:
         if goal_sym == float('inf'):
             return float('inf')
 
-        # Если дата установки дедлайна не сохранена — fallback на дату создания
-        start_date = self.deadline_set_date if self.deadline_set_date else today_for_test()
+        # Если дата установки дедлайна не сохранена или дата установеи больеш текущей - меняем на ткущую
+        start_date = self.deadline_set_date if today_for_test() >= self.deadline_set_date else today_for_test()
 
         total_days = (self.deadline - start_date).days + 1
         if total_days <= 0:
