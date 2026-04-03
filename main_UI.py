@@ -114,6 +114,47 @@ class MainWindow(QMainWindow, main_window_ui):
         if en.load_settings().get('last_project', False):
             self.show_last_project(en.load_settings()['last_project'])
 
+        # Фоновая проверка системной даты/времени для автообновления UI
+        self._setup_time_watcher()
+
+    def _setup_time_watcher(self):
+        """Запускает таймер, который периодически проверяет системное время."""
+        self._last_effective_date = en.today_for_test()
+        self._last_checked_minute = datetime.datetime.now().replace(second=0, microsecond=0)
+
+        self._clock_timer = QTimer(self)
+        self._clock_timer.setInterval(60_000)  # 1 раз в минуту
+        self._clock_timer.timeout.connect(self._on_clock_tick)
+        self._clock_timer.start()
+
+    def _on_clock_tick(self):
+        """Обновляет проекты при смене даты, чтобы дедлайны/стрики не требовали перезапуска."""
+        current_minute = datetime.datetime.now().replace(second=0, microsecond=0)
+        current_effective_date = en.today_for_test()
+
+        # Защита от лишних обновлений, если тикер сработал в ту же минуту
+        if current_minute == self._last_checked_minute:
+            return
+        self._last_checked_minute = current_minute
+
+        if current_effective_date == self._last_effective_date:
+            return
+
+        self._last_effective_date = current_effective_date
+        # На смене даты запускаем фоновую синхронизацию только для активных синхронизированных проектов.
+        self.background_synch(silent=True)
+        self.refresh_projects()
+
+        current_project = self.get_current_project()
+        if current_project is not None:
+            self.show_project_info(current_project)
+            self.setup_project_buttons(current_project)
+
+        if en.load_settings().get('global_streak', False):
+            self.refresh_global_streak_status()
+
+        self.notifications.show_info('Новый день. Проекты обновлены.', duration=10000, position='bottom-right')
+
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
         # Получаем текущий выбранный проект
@@ -1225,17 +1266,15 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Даем бонус за стрик проекта и глобальный, если он включен
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                                  len(project.streaks)):
+                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', len(project.streaks)):
                             project.last_streak_bonus = en.today_for_test()
                             data['projects'][project.name] = project
                             save_data(data)
-                    # Даем бонус за глобальный стрик
-                    if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
-                                                                  len(data['global_streaks'])):
-                            data['last_global_streak_bonus'] = en.today_for_test()
-                            save_data(data)
+                # Даем бонус за глобальный стрик
+                if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global', len(data['global_streaks'])):
+                        data['last_global_streak_bonus'] = en.today_for_test()
+                        save_data(data)
 
             # Сохраняем изменения
             data['projects'][project.name] = project
@@ -1369,17 +1408,15 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Даем бонус за стрик проекта и глобальный, если он включен
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                                  len(project.streaks)):
+                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', len(project.streaks)):
                             project.last_streak_bonus = en.today_for_test()
                             data['projects'][project.name] = project
                             save_data(data)
-                    # Даем бонус за глобальный стрик
-                    if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
-                                                                  len(data['global_streaks'])):
-                            data['last_global_streak_bonus'] = en.today_for_test()
-                            save_data(data)
+                # Даем бонус за глобальный стрик
+                if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global', len(data['global_streaks'])):
+                        data['last_global_streak_bonus'] = en.today_for_test()
+                        save_data(data)
 
             # Сохраняем изменения
             data['projects'][project.name] = project
@@ -1550,7 +1587,7 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             self.synch_status.setText("Не синхронизирован")
 
-    def background_synch(self):
+    def background_synch(self, silent=False):
         data = en.load_data()
         projects = list(data['projects'].values())
         # Оставляем только проекты с настроенной синхронизацией
@@ -1563,7 +1600,8 @@ class MainWindow(QMainWindow, main_window_ui):
         for project in projects_with_sync:
             self.sync_project(project, True)  # фоновая синхронизация
 
-        self.notifications.show_success(f'Синхронизировано проектов: {len(projects_with_sync)}')
+        if not silent:
+            self.notifications.show_success(f'Синхронизировано проектов: {len(projects_with_sync)}')
 
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
@@ -1950,6 +1988,7 @@ class EditProject(QDialog, create_project_ui):
 
     def get_name(self):
         return self.le_name.text().strip()
+
 
 class NotificationManager:
     """Менеджер для показа уведомлений с поддержкой очереди и накопления."""
