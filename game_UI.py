@@ -45,6 +45,9 @@ class GameMenuController:
         self.timer.timeout.connect(self.update_game_data)
         self.timer.start(1000)  # Обновление каждую секунду
 
+        # Скрываем банк
+        self.ui.bank_btn.setVisible(False)
+
     def load_gamer(self):
         """Загрузка или создание игрока"""
         self.gamer = game.load_game()
