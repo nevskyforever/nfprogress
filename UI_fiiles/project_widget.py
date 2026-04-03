@@ -287,6 +287,9 @@ class ProjectWidget(QWidget, Ui_Form):
         for row in (0, 2, 3, 4, 5):
             self.gridLayout.setRowStretch(row, 1)
         self.gridLayout.setRowStretch(1, 0)
+        # Гарантируем минимальную высоту строки с прогресс-баром,
+        # чтобы лейблы не перекрывали его на Windows (разные DPI/шрифты)
+        self.gridLayout.setRowMinimumHeight(1, 95)
 
         # Увеличиваем вертикальный промежуток между строками, чтобы текст не касался круга
         self.gridLayout.setVerticalSpacing(15)
@@ -297,15 +300,18 @@ class ProjectWidget(QWidget, Ui_Form):
         # 6. Обеспечиваем, что внутренний виджет-контейнер расширяется
         self.widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        # --- ДОБАВЛЕНО: настройка текстовых меток ---
+        # --- Настройка текстовых меток ---
         for label in (self.name, self.symbols, self.deadline,
                       self.streak, self.streak_status):
             label.setWordWrap(True)  # разрешаем перенос строк
-            label.setSizePolicy(QSizePolicy.Preferred,  # по горизонтали как обычно
-                                QSizePolicy.MinimumExpanding)  # по вертикали может расти
+            # Preferred вместо MinimumExpanding: лейблы не разрастаются
+            # бесконтрольно на Windows с крупными системными шрифтами
+            label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         self.project = project
-        self.circular_progress.lower()
+        # raise_() вместо lower(): прогресс-бар поверх Z-стека,
+        # иначе на Windows лейблы рисуются поверх кольца
+        self.circular_progress.raise_()
 
         # Словарь для отображения единиц измерения
         self.unit_display = {
