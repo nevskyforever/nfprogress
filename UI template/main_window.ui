@@ -1844,7 +1844,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>93</width>
+                    <width>98</width>
                     <height>112</height>
                    </rect>
                   </property>
@@ -2117,7 +2117,7 @@
     <addaction name="create_project_action"/>
     <addaction name="change_project_action"/>
     <addaction name="project_stats_action"/>
-    <addaction name="arcchive_project_action"/>
+    <addaction name="archive_project_action"/>
     <addaction name="complete_project_action"/>
     <addaction name="delete_project_action"/>
    </widget>
@@ -2154,7 +2154,7 @@
     <string>Статистика по проекту</string>
    </property>
   </action>
-  <action name="arcchive_project_action">
+  <action name="archive_project_action">
    <property name="text">
     <string>Архивировать проект</string>
    </property>
