@@ -104,8 +104,8 @@ class MainWindow(QMainWindow, main_window_ui):
         self.project_stats_action.triggered.connect(self.show_project_stats)
         self.project_stats_action.setShortcut(QKeySequence('Ctrl+Shift+S'))  # лучше Ctrl+S для статистики
 
-        self.arcchive_project_action.triggered.connect(self.on_archive_project_menu_triggered)
-        self.arcchive_project_action.setShortcut(QKeySequence('Ctrl+Shift+H'))  # H от "Hide" / "Archive"
+        self.archive_project_action.triggered.connect(self.on_archive_project_menu_triggered)
+        self.archive_project_action.setShortcut(QKeySequence('Ctrl+Shift+H'))  # H от "Hide" / "Archive"
 
         self.complete_project_action.triggered.connect(self.on_complete_project_menu_triggered)
         self.complete_project_action.setShortcut(QKeySequence('Ctrl+Shift+C'))
@@ -565,6 +565,10 @@ class MainWindow(QMainWindow, main_window_ui):
             self.btn_complete_project.setEnabled(False)
             self.change_project_action.setEnabled(False)
             self.complete_project_action.setEnabled(False)
+            self.delete_project_action.setEnabled(False)
+            self.btn_delete_project.setEnabled(False)
+            self.archive_project_action.setEnabled(False)
+            self.btn_archived_project.setEnabled(False)
 
         # Загружаем список заметок
         self.load_notes(project)

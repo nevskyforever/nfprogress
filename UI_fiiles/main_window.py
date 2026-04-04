@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowhGFLmx.ui'
+## Form generated from reading UI file 'main_windowBUPRhv.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -47,8 +47,8 @@ class Ui_main_window(object):
         self.create_project_action.setObjectName(u"create_project_action")
         self.project_stats_action = QAction(main_window)
         self.project_stats_action.setObjectName(u"project_stats_action")
-        self.arcchive_project_action = QAction(main_window)
-        self.arcchive_project_action.setObjectName(u"arcchive_project_action")
+        self.archive_project_action = QAction(main_window)
+        self.archive_project_action.setObjectName(u"archive_project_action")
         self.complete_project_action = QAction(main_window)
         self.complete_project_action.setObjectName(u"complete_project_action")
         self.centralwidget = QWidget(main_window)
@@ -469,7 +469,7 @@ class Ui_main_window(object):
         self.scrollArea_3.setWidgetResizable(True)
         self.scrollAreaWidgetContents_4 = QWidget()
         self.scrollAreaWidgetContents_4.setObjectName(u"scrollAreaWidgetContents_4")
-        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 232, 131))
+        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 98, 85))
         self.gridLayout_14 = QGridLayout(self.scrollAreaWidgetContents_4)
         self.gridLayout_14.setObjectName(u"gridLayout_14")
         self.name_selected_available_quest = QLabel(self.scrollAreaWidgetContents_4)
@@ -707,7 +707,7 @@ class Ui_main_window(object):
         self.about_selected_inventory_item.setWidgetResizable(True)
         self.scrollAreaWidgetContents_6 = QWidget()
         self.scrollAreaWidgetContents_6.setObjectName(u"scrollAreaWidgetContents_6")
-        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 258, 150))
+        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 98, 108))
         self.gridLayout_19 = QGridLayout(self.scrollAreaWidgetContents_6)
         self.gridLayout_19.setObjectName(u"gridLayout_19")
         self.name_selected_item = QLabel(self.scrollAreaWidgetContents_6)
@@ -785,7 +785,7 @@ class Ui_main_window(object):
         self.scrollArea_7.setWidgetResizable(True)
         self.scrollAreaWidgetContents_8 = QWidget()
         self.scrollAreaWidgetContents_8.setObjectName(u"scrollAreaWidgetContents_8")
-        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 232, 159))
+        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 98, 146))
         self.gridLayout_23 = QGridLayout(self.scrollAreaWidgetContents_8)
         self.gridLayout_23.setObjectName(u"gridLayout_23")
         self.label_37 = QLabel(self.scrollAreaWidgetContents_8)
@@ -966,7 +966,7 @@ class Ui_main_window(object):
         self.about_selected_goods.setWidgetResizable(True)
         self.scrollAreaWidgetContents_7 = QWidget()
         self.scrollAreaWidgetContents_7.setObjectName(u"scrollAreaWidgetContents_7")
-        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 254, 131))
+        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 98, 131))
         self.gridLayout_21 = QGridLayout(self.scrollAreaWidgetContents_7)
         self.gridLayout_21.setObjectName(u"gridLayout_21")
         self.effect_selected_item_on_shop = QLabel(self.scrollAreaWidgetContents_7)
@@ -1058,7 +1058,7 @@ class Ui_main_window(object):
         self.scrollArea_4.setWidgetResizable(True)
         self.scrollAreaWidgetContents_5 = QWidget()
         self.scrollAreaWidgetContents_5.setObjectName(u"scrollAreaWidgetContents_5")
-        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 93, 112))
+        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 98, 112))
         self.gridLayout_18 = QGridLayout(self.scrollAreaWidgetContents_5)
         self.gridLayout_18.setObjectName(u"gridLayout_18")
         self.name_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
@@ -1211,7 +1211,7 @@ class Ui_main_window(object):
         self.project_menu.addAction(self.create_project_action)
         self.project_menu.addAction(self.change_project_action)
         self.project_menu.addAction(self.project_stats_action)
-        self.project_menu.addAction(self.arcchive_project_action)
+        self.project_menu.addAction(self.archive_project_action)
         self.project_menu.addAction(self.complete_project_action)
         self.project_menu.addAction(self.delete_project_action)
 
@@ -1234,7 +1234,7 @@ class Ui_main_window(object):
         self.change_project_action.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.create_project_action.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.project_stats_action.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430 \u043f\u043e \u043f\u0440\u043e\u0435\u043a\u0442\u0443", None))
-        self.arcchive_project_action.setText(QCoreApplication.translate("main_window", u"\u0410\u0440\u0445\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
+        self.archive_project_action.setText(QCoreApplication.translate("main_window", u"\u0410\u0440\u0445\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.complete_project_action.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.sort_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
         self.sort_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0414\u0435\u0434\u043b\u0430\u0439\u043d", None))
