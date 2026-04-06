@@ -828,6 +828,9 @@ class MainWindow(QMainWindow, main_window_ui):
         if result == QDialog.Accepted:
             data = en.load_data()
             old_name = project.name
+            old_goal = project.goal
+            old_total = project.total_symbols
+            old_deadline = project.deadline
 
             # Получаем новые значения из диалога
             new_name = dialog.get_name()
@@ -835,7 +838,8 @@ class MainWindow(QMainWindow, main_window_ui):
             new_total = dialog.get_total()
             new_unit = dialog.get_unit()
             new_deadline = dialog.get_deadline()
-            edit_date = en.today_for_test()
+            if [old_name != new_name, old_goal != new_goal, old_total != new_total, old_deadline != new_deadline]:
+                edit_date = en.today_for_test()
 
             # Проверяем, изменилась ли единица измерения
             unit_changed = (new_unit != project.unit)

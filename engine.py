@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.3.15'
+version = '3.3.16'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -91,6 +91,30 @@ def today_for_test():
         return load_settings()['today_for_test_date']
     return date.today()
 
+def load_settings():
+    """Загружает данные из кроссплатформенной директории"""
+    data_file = get_data_file_path('settings')
+    try:
+        with open(data_file, 'rb') as f:
+            return pickle.load(f)
+    except (FileNotFoundError, EOFError):
+        # Если файл не найден, создаём пустую структуру
+        return {
+            'game_mode': False,
+            'inf_project': False,
+            'global_streak': False,
+        }
+
+def save_settings(data):
+    """Сохраняет данные в кроссплатформенную директорию"""
+    data_file = get_data_file_path('settings')
+
+    # Создаём временную копию для безопасного сохранения
+    temp_file = data_file.with_suffix('.tmp')
+    with open(temp_file, 'wb') as f:
+        pickle.dump(data, f)
+    # Заменяем старый файл новым
+    temp_file.replace(data_file)
 
 class Project:
     def __init__(self, name='Без имени', goal=None,
@@ -117,7 +141,7 @@ class Project:
         self.last_streak_bonus = None
         self.last_streak_lost_date = None
         self.freezes = 0
-        self.deadline_set_date = None
+        self.deadline_set_date = today_for_test()
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -151,6 +175,8 @@ class Project:
                 setattr(self, attr, [])
         if self.synch is not None and isinstance(self.synch, str):
             self.synch = {'type': 'word', 'path': self.synch}
+        if self.deadline_set_date is None or not isinstance(self.deadline_set_date, str):
+            self.deadline_set_date = today_for_test()
 
     @property
     def name(self):
@@ -714,31 +740,6 @@ def get_data_directory_info():
         'data_file_exists': data_file.exists(),
         'data_file_size': data_file.stat().st_size if data_file.exists() else 0
     }
-
-def load_settings():
-    """Загружает данные из кроссплатформенной директории"""
-    data_file = get_data_file_path('settings')
-    try:
-        with open(data_file, 'rb') as f:
-            return pickle.load(f)
-    except (FileNotFoundError, EOFError):
-        # Если файл не найден, создаём пустую структуру
-        return {
-            'game_mode': False,
-            'inf_project': False,
-            'global_streak': False,
-        }
-
-def save_settings(data):
-    """Сохраняет данные в кроссплатформенную директорию"""
-    data_file = get_data_file_path('settings')
-
-    # Создаём временную копию для безопасного сохранения
-    temp_file = data_file.with_suffix('.tmp')
-    with open(temp_file, 'wb') as f:
-        pickle.dump(data, f)
-    # Заменяем старый файл новым
-    temp_file.replace(data_file)
 
 def global_streak_status(data, today=None):
     """Возвращает статус глобального стрика. Статусы потери возвращаются только в день потери."""
