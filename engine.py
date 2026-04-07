@@ -3,6 +3,7 @@ import os
 import pickle
 import platform
 import sys
+import tempfile
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from collections import defaultdict
@@ -108,13 +109,31 @@ def load_settings():
 def save_settings(data):
     """Сохраняет данные в кроссплатформенную директорию"""
     data_file = get_data_file_path('settings')
+    atomic_pickle_save(data, data_file)
 
-    # Создаём временную копию для безопасного сохранения
-    temp_file = data_file.with_suffix('.tmp')
-    with open(temp_file, 'wb') as f:
-        pickle.dump(data, f)
-    # Заменяем старый файл новым
-    temp_file.replace(data_file)
+
+def atomic_pickle_save(data, data_file):
+    """Атомарно сохраняет pickle в файл через уникенный временный файл в той же директории."""
+    data_file = Path(data_file)
+    data_file.parent.mkdir(parents=True, exist_ok=True)
+
+    fd, temp_path_str = tempfile.mkstemp(
+        prefix=f'{data_file.stem}_',
+        suffix='.tmp',
+        dir=str(data_file.parent)
+    )
+    temp_path = Path(temp_path_str)
+
+    try:
+        with os.fdopen(fd, 'wb') as f:
+            pickle.dump(data, f)
+            f.flush()
+            os.fsync(f.fileno())
+        temp_path.replace(data_file)
+    except Exception:
+        if temp_path.exists():
+            temp_path.unlink()
+        raise
 
 class Project:
     def __init__(self, name='Без имени', goal=None,
@@ -702,13 +721,7 @@ def load_data():
 def save_data(data):
     """Сохраняет данные в кроссплатформенную директорию"""
     data_file = get_data_file_path('data')
-
-    # Создаём временную копию для безопасного сохранения
-    temp_file = data_file.with_suffix('.tmp')
-    with open(temp_file, 'wb') as f:
-        pickle.dump(data, f)
-    # Заменяем старый файл новым
-    temp_file.replace(data_file)
+    atomic_pickle_save(data, data_file)
 
 
 def export_data_to_file(file_path):

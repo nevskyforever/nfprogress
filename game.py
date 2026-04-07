@@ -1,46 +1,9 @@
 import os
 import pickle
-import platform  # Добавляем импорт platform
 import sys
-from pathlib import Path
 
 import engine
 import game_data
-
-# Определяем систему
-SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
-
-
-def get_app_data_dir():
-    """
-    Возвращает путь к директории для хранения данных приложения
-    в зависимости от операционной системы.
-    """
-    if SYSTEM == 'Windows':
-        # Windows: C:\Users\<USER>\Documents\MyAppData
-        base_dir = Path(os.environ.get('USERPROFILE', '')) / 'Documents'
-    elif SYSTEM == 'Darwin':  # macOS
-        # macOS: /Users/<USER>/Documents/MyAppData
-        base_dir = Path.home() / 'Documents'
-    else:  # Linux и другие
-        # Linux: /home/<USER>/Documents или ~/.local/share/MyApp
-        base_dir = Path.home() / 'Documents'
-        # Если папки Documents нет, используем стандартную директорию для данных
-        if not base_dir.exists():
-            base_dir = Path.home() / '.local' / 'share'
-
-    # Создаем папку для нашего приложения
-    app_data_dir = base_dir / 'nfprogress'
-
-    # Создаем директорию, если её нет
-    try:
-        app_data_dir.mkdir(parents=True, exist_ok=True)
-    except PermissionError:
-        # Если нет прав на запись в Documents, используем домашнюю папку
-        app_data_dir = Path.home() / '.nfprogress'
-        app_data_dir.mkdir(parents=True, exist_ok=True)
-
-    return app_data_dir
 
 
 def get_data_file_path():
@@ -48,9 +11,7 @@ def get_data_file_path():
 
     В режиме разработчика файл хранится в папке test_data.
     """
-    if engine.dev_mode:
-        return engine.get_test_data_dir() / 'gamer.pkl'
-    return get_app_data_dir() / 'gamer.pkl'
+    return engine.get_data_file_path('gamer')
 
 
 def resource_path(relative_path):
@@ -83,13 +44,7 @@ class Gamer:
 
     def save(self):
         data_file = get_data_file_path()
-        # Создаём родительскую директорию, если её нет
-        data_file.parent.mkdir(parents=True, exist_ok=True)
-        temp_file = data_file.with_suffix('.tmp')
-        with open(temp_file, 'wb') as f:
-            pickle.dump(self, f)
-        # Замена
-        temp_file.replace(data_file)
+        engine.atomic_pickle_save(self, data_file)
 
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols):
