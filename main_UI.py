@@ -54,7 +54,8 @@ class MainWindow(QMainWindow, main_window_ui):
         self.sort_project_box.setCurrentText(en.load_settings().get('project_sort', 'Прогресс'))
 
         # Проверяем пользовательское соглашение
-        self.check_user_agreement()
+        if not en.dev_mode:
+            self.check_user_agreement()
 
         # Обновляем проекты
         self.background_synch()
