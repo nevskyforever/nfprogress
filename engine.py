@@ -175,7 +175,8 @@ class Project:
                 setattr(self, attr, [])
         if self.synch is not None and isinstance(self.synch, str):
             self.synch = {'type': 'word', 'path': self.synch}
-        if self.deadline_set_date is None or not isinstance(self.deadline_set_date, str):
+        # deadline_set_date должен храниться как date, иначе старт плана "прыгает".
+        if self.deadline_set_date is None or not isinstance(self.deadline_set_date, date):
             self.deadline_set_date = today_for_test()
 
     @property
@@ -291,8 +292,13 @@ class Project:
         if goal_sym == float('inf'):
             return float('inf')
 
-        # Если дата установки дедлайна не сохранена или дата установеи больеш текущей - меняем на ткущую
-        start_date = self.deadline_set_date if today_for_test() >= self.deadline_set_date else today_for_test()
+        # Берём стабильную дату старта плана; для старых/битых данных откатываемся к текущей дате.
+        if isinstance(self.deadline_set_date, date):
+            start_date = self.deadline_set_date
+        else:
+            start_date = today
+        if start_date > today:
+            start_date = today
 
         total_days = (self.deadline - start_date).days + 1
         if total_days <= 0:
