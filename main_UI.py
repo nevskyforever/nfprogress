@@ -261,27 +261,26 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.settings_menu.removeAction(self.developer_mode_action)
                 self.developer_mode_action = None
 
-        data = en.load_data()
-        if settings['inf_project']:
-            # Опция включена еще в старой версии - перемещаем старый проект.
-            if data['projects'].get('inf_project', False):
+        if settings.get('inf_project'):
+            # 1. Если есть старый ключ, мигрируем данные
+            if 'inf_project' in en.load_data()['projects']:
+                data = en.load_data()
                 old_inf_project = data['projects']['inf_project']
-                del data['projects']['inf_project']
+                old_inf_project.name = 'Общий проект'  # Обновляем имя внутри объекта проекта
                 data['projects']['Общий проект'] = old_inf_project
+                del data['projects']['inf_project']
                 save_data(data)
                 self.refresh_projects()
-            # Опция включена: создаём проект только если его нет
-            if not data['projects'].get('Общий проект', False):
+
+
+            # 2. Если старого ключа нет И нового еще не создано — создаем с нуля
+            elif 'Общий проект' not in en.load_data()['projects']:
+                data = en.load_data()
                 inf_project = en.Project(name='Общий проект', goal=float('inf'), progress=100)
                 data['projects']['Общий проект'] = inf_project
                 save_data(data)
                 self.refresh_projects()
-        else:
-            # Опция отключена: удаляем проект (пользователь отключил опцию сознательно)
-            if data['projects'].get('Общий проект', False):
-                del data['projects']['Общий проект']
-                save_data(data)
-                self.refresh_projects()
+
 
         if settings.get('global_streak', False):
             self.global_streak_status.setVisible(True)
