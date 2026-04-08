@@ -395,6 +395,7 @@ class GameMenuController:
     def clear_inventory_item_info(self):
         self.ui.name_selected_item.setText("Выберите предмет")
         self.ui.description_selected_item.clear()
+        self.ui.level_selected_item.clear()
         self.ui.peice_selected_item.clear()
         self.ui.effect_selected_item.clear()
 
