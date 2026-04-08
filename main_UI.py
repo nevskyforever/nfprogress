@@ -1316,6 +1316,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 if widget and hasattr(widget, 'project') and widget.project.name == project.name:
                     # Обновляем существующий виджет
                     widget.update_display()
+                    self.written_today_in_all_projects()
                 else:
                     # Если текущий виджет не соответствует проекту, ищем нужный
                     self.refresh_projects()
@@ -1460,6 +1461,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 if widget and hasattr(widget, 'project') and widget.project.name == project.name:
                     # Обновляем существующий виджет
                     widget.update_display()
+                    self.written_today_in_all_projects()
                 else:
                     # Если текущий виджет не соответствует проекту, ищем нужный
                     self.refresh_projects()
