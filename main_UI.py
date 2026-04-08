@@ -524,7 +524,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Устанавливаем состояние кнопок в зависимости от статуса проекта
         self.change_project_widget.setEnabled(True)
 
-        if project.status == 'завершен':
+        if project.status == 'завершен' and not en.dev_mode:
             # Проект завершён — отключаем изменение, повторное завершение, архивацию и работу с заметками
             self.btn_change_project.setEnabled(False)
             self.btn_complete_project.setEnabled(False)
@@ -561,7 +561,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.new_symbols.setEnabled(True)
                 self.delete_note.setEnabled(True)
                 self.new_symbols.setPlaceholderText("")
-        if project.goal == float('inf'):
+        if project.goal == float('inf') and not en.dev_mode:
             self.btn_change_project.setEnabled(False)
             self.btn_complete_project.setEnabled(False)
             self.change_project_action.setEnabled(False)
