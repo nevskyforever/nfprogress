@@ -775,6 +775,8 @@ class MainWindow(QMainWindow, main_window_ui):
         # Обновляем панель информации и список заметок
         self.show_project_info(project)
         self.load_notes(project)
+        # Обновляем написанное сегодня во всех проектах
+        self.written_today_in_all_projects()
 
         added_in_unit = new_total_in_unit - old_total_in_unit
         abs_added = abs(added_in_unit)
@@ -1273,6 +1275,8 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем информацию о проекте
             self.load_notes(project)
             self.show_project_info(project)
+            # Обновляем написанное сегодня во всех проектах
+            self.written_today_in_all_projects()
 
             # Обновляем дату последней синхронизации
             project.last_synch = datetime.datetime.now()  # используем текущее время
@@ -1417,6 +1421,8 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем информацию о проекте
             self.load_notes(project)
             self.show_project_info(project)
+            # Обновляем написанное сегодня во всех проектах
+            self.written_today_in_all_projects()
 
             # Обновляем дату последней синхронизации
             project.last_synch = datetime.datetime.now()  # используем текущее время
@@ -1635,7 +1641,8 @@ class MainWindow(QMainWindow, main_window_ui):
         total = 0
         for project in projects.values():
             project: en.Project = project
-            total += project.get_added_today_in_unit()
+            added = en.unit_converter(project.unit, project.get_added_today_in_unit())
+            total += added
 
         self.written_today_in_all_projects_label.setText(f'Написано сегодня {int(total)} сим.')
 
