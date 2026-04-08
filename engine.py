@@ -14,7 +14,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.3.17'
+version = '3.3.18'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
