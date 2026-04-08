@@ -104,6 +104,7 @@ def load_settings():
             'game_mode': False,
             'inf_project': False,
             'global_streak': False,
+            'show_written_today_in_all_projects': False,
         }
 
 def save_settings(data):

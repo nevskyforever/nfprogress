@@ -290,6 +290,11 @@ class MainWindow(QMainWindow, main_window_ui):
             self.global_streak_status.setVisible(False)
             self.refresh_projects()
             self.view_project()
+        if settings.get('show_written_today_in_all_projects'):
+            self.written_today_in_all_projects_label.setVisible(True)
+            self.written_today_in_all_projects()
+        else:
+            self.written_today_in_all_projects_label.setVisible(False)
 
     def edit_settings(self):
         dialog = Settings()
@@ -298,10 +303,12 @@ class MainWindow(QMainWindow, main_window_ui):
                 inf_project = dialog.enable_inf_projects_checkBox.isChecked()
                 game_mode = dialog.enable_game_mode_checkBox.isChecked()
                 global_streak = dialog.enable_global_streak_checkBox.isChecked()
+                show_written_today_in_all_projects = dialog.written_today_in_all_projects_checkBox.isChecked()
                 settings = en.load_settings()
                 settings['inf_project'] = inf_project
                 settings['game_mode'] = game_mode
                 settings['global_streak'] = global_streak
+                settings['show_written_today_in_all_projects'] = show_written_today_in_all_projects
                 if not global_streak:
                     data = en.load_data()
                     data['global_streaks'] = []
@@ -1055,6 +1062,8 @@ class MainWindow(QMainWindow, main_window_ui):
         # Обнововляем глобальный стрик
         if en.load_settings()['global_streak']:
             self.refresh_global_streak_status()
+        # Показываем, сколько написано сегодня в символах
+        self.written_today_in_all_projects()
 
         # Получаем выбранный фильтр
         current_sort = self.sort_project_box.currentText()
@@ -1153,7 +1162,6 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             sys.exit(0)
 
-
     def check_user_agreement(self):
         settings = en.load_settings()
         user_agreement = settings.get('user_agreement', False)
@@ -1207,9 +1215,9 @@ class MainWindow(QMainWindow, main_window_ui):
         if not os.path.exists(file_path):
             if not background_synch:
                 self.notifications.show_error(
-                "Файл не найден. Возможно, он был перемещён.\n"
-                "Настройте синхронизацию заново."
-            )
+                    "Файл не найден. Возможно, он был перемещён.\n"
+                    "Настройте синхронизацию заново."
+                )
             project.synch = None
             return
 
@@ -1220,9 +1228,9 @@ class MainWindow(QMainWindow, main_window_ui):
             elif ext == '.doc':
                 if not background_synch:
                     self.notifications.show_error(
-                    "Поддержка .doc временно недоступна.\n"
-                    "Пожалуйста, сохраните файл как .docx."
-                )
+                        "Поддержка .doc временно недоступна.\n"
+                        "Пожалуйста, сохраните файл как .docx."
+                    )
                 return
             else:
                 if not background_synch:
@@ -1237,8 +1245,8 @@ class MainWindow(QMainWindow, main_window_ui):
             if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
                 if not background_synch:
                     self.notifications.show_info(
-                    "Количество символов не изменилось."
-                )
+                        "Количество символов не изменилось."
+                    )
                 return
 
             # Вычисляем изменение
@@ -1281,13 +1289,15 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Даем бонус за стрик проекта и глобальный, если он включен
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', len(project.streaks)):
+                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
+                                                                  len(project.streaks)):
                             project.last_streak_bonus = en.today_for_test()
                             data['projects'][project.name] = project
                             save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global', len(data['global_streaks'])):
+                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
+                                                              len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
                         save_data(data)
 
@@ -1325,17 +1335,17 @@ class MainWindow(QMainWindow, main_window_ui):
             if added_in_unit > 0:
                 if not background_synch:
                     self.notifications.show_success(
-                    f"Синхронизация завершена.\n"
-                    f"Добавлено {self._format_number(abs_added)} {unit_display}",
-                    position="bottom-right"
-                )
+                        f"Синхронизация завершена.\n"
+                        f"Добавлено {self._format_number(abs_added)} {unit_display}",
+                        position="bottom-right"
+                    )
             else:
                 if not background_synch:
                     self.notifications.show_warning(
-                    f"Синхронизация завершена.\n"
-                    f"Удалено {self._format_number(abs_added)} {unit_display}",
-                    position="bottom-right"
-                )
+                        f"Синхронизация завершена.\n"
+                        f"Удалено {self._format_number(abs_added)} {unit_display}",
+                        position="bottom-right"
+                    )
 
         except Exception as e:
             if not background_synch:
@@ -1349,9 +1359,9 @@ class MainWindow(QMainWindow, main_window_ui):
         if not os.path.exists(proj_path):
             if not background_synch:
                 self.notifications.show_error(
-                "Папка проекта Scrivener не найдена.\n"
-                "Настройте синхронизацию заново."
-            )
+                    "Папка проекта Scrivener не найдена.\n"
+                    "Настройте синхронизацию заново."
+                )
             project.synch = None
             return
 
@@ -1360,8 +1370,8 @@ class MainWindow(QMainWindow, main_window_ui):
             if symbols == 0 and project.total_symbols == 0:
                 if not background_synch:
                     self.notifications.show_warning(
-                    "Не удалось подсчитать символы. Возможно, документ пуст."
-                )
+                        "Не удалось подсчитать символы. Возможно, документ пуст."
+                    )
                 return
 
             # Конвертируем количество символов в единицу проекта
@@ -1372,8 +1382,8 @@ class MainWindow(QMainWindow, main_window_ui):
             if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
                 if not background_synch:
                     self.notifications.show_info(
-                    "Количество символов не изменилось."
-                )
+                        "Количество символов не изменилось."
+                    )
                 return
 
             # Вычисляем изменение
@@ -1423,13 +1433,15 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Даем бонус за стрик проекта и глобальный, если он включен
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', len(project.streaks)):
+                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
+                                                                  len(project.streaks)):
                             project.last_streak_bonus = en.today_for_test()
                             data['projects'][project.name] = project
                             save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global', len(data['global_streaks'])):
+                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
+                                                              len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
                         save_data(data)
 
@@ -1467,17 +1479,17 @@ class MainWindow(QMainWindow, main_window_ui):
             if added_in_unit > 0:
                 if not background_synch:
                     self.notifications.show_success(
-                    f"Синхронизация Scrivener завершена.\n"
-                    f"Добавлено {self._format_number(abs_added)} {unit_display}",
-                    position="bottom-right"
-                )
+                        f"Синхронизация Scrivener завершена.\n"
+                        f"Добавлено {self._format_number(abs_added)} {unit_display}",
+                        position="bottom-right"
+                    )
             else:
                 if not background_synch:
                     self.notifications.show_warning(
-                    f"Синхронизация Scrivener завершена.\n"
-                    f"Удалено {self._format_number(abs_added)} {unit_display}",
-                    position="bottom-right"
-                )
+                        f"Синхронизация Scrivener завершена.\n"
+                        f"Удалено {self._format_number(abs_added)} {unit_display}",
+                        position="bottom-right"
+                    )
 
         except Exception as e:
             if not background_synch:
@@ -1618,10 +1630,21 @@ class MainWindow(QMainWindow, main_window_ui):
         if not silent:
             self.notifications.show_success(f'Синхронизировано проектов: {len(projects_with_sync)}')
 
+    def written_today_in_all_projects(self):
+        projects = en.load_data()['projects']
+        total = 0
+        for project in projects.values():
+            project: en.Project = project
+            total += project.get_added_today_in_unit()
+
+        self.written_today_in_all_projects_label.setText(f'Написано сегодня {int(total)} сим.')
+
+
 class ConfirmDialog(QDialog, confirm_dialog_ui):
     def __init__(self):
         super().__init__()
         self.setupUi(self)
+
 
 class CreateProject(QDialog, create_project_ui):
     def __init__(self, parent=None):
@@ -1698,8 +1721,10 @@ class CreateProject(QDialog, create_project_ui):
         new_total = en.unit_converter(self.current_unit, total_val, new_unit)
 
         # Округляем до 2 знаков для отображения
-        self.le_goal.setText(f"{new_goal:.2f}".rstrip('0').rstrip('.') if '.' in f"{new_goal:.2f}" else f"{new_goal:.0f}")
-        self.le_total_symbols.setText(f"{new_total:.2f}".rstrip('0').rstrip('.') if '.' in f"{new_total:.2f}" else f"{new_total:.0f}")
+        self.le_goal.setText(
+            f"{new_goal:.2f}".rstrip('0').rstrip('.') if '.' in f"{new_goal:.2f}" else f"{new_goal:.0f}")
+        self.le_total_symbols.setText(
+            f"{new_total:.2f}".rstrip('0').rstrip('.') if '.' in f"{new_total:.2f}" else f"{new_total:.0f}")
 
         self.current_unit = new_unit
         self.validate_all()
@@ -1777,9 +1802,9 @@ class CreateProject(QDialog, create_project_ui):
 
         # Финальное состояние кнопок
         buttons_enabled = (
-            name_filled and not name_incorrect and
-            not deadline_incorrect and
-            goal_valid and total_valid and goal_ge_total
+                name_filled and not name_incorrect and
+                not deadline_incorrect and
+                goal_valid and total_valid and goal_ge_total
         )
         self.buttons.setEnabled(buttons_enabled)
 
@@ -1975,9 +2000,9 @@ class EditProject(QDialog, create_project_ui):
             self.incorrect_data.setVisible(False)
 
         buttons_enabled = (
-            name_filled and not name_incorrect and
-            not deadline_incorrect and
-            goal_valid and total_valid and goal_ge_total
+                name_filled and not name_incorrect and
+                not deadline_incorrect and
+                goal_valid and total_valid and goal_ge_total
         )
         self.buttons.setEnabled(buttons_enabled)
 
@@ -2010,10 +2035,10 @@ class NotificationManager:
 
     def __init__(self, parent_widget):
         self.parent = parent_widget
-        self.toasts = []          # все активные уведомления в порядке добавления
-        self.spacing = 10        # отступ между уведомлениями
-        self.max_toasts = 5        # максимальное количество одновременно видимых
-        self.margin = 5           # отступ от края окна
+        self.toasts = []  # все активные уведомления в порядке добавления
+        self.spacing = 10  # отступ между уведомлениями
+        self.max_toasts = 5  # максимальное количество одновременно видимых
+        self.margin = 5  # отступ от края окна
 
     def _compute_x(self, toast, position):
         """Вычисляет x-координату для уведомления в зависимости от его позиции и ширины."""
@@ -2025,7 +2050,7 @@ class NotificationManager:
             return self.margin
         elif position in ("top-center", "bottom-center"):
             return (parent_rect.width() - width) // 2
-        else:   # по умолчанию правый нижний
+        else:  # по умолчанию правый нижний
             return parent_rect.width() - width - self.margin
 
     def _rearrange_toasts(self):
@@ -2039,22 +2064,22 @@ class NotificationManager:
         parent_rect = self.parent.rect()
 
         for position, toasts in groups.items():
-            if position.startswith("top"):      # верхние позиции – новые сверху
+            if position.startswith("top"):  # верхние позиции – новые сверху
                 current_y = self.margin
-                for toast in reversed(toasts):   # от новых к старым
+                for toast in reversed(toasts):  # от новых к старым
                     x = self._compute_x(toast, position)
                     toast.set_global_position(x, current_y)
                     current_y += toast.height() + self.spacing
 
-            elif position.startswith("bottom"): # нижние позиции – новые снизу
+            elif position.startswith("bottom"):  # нижние позиции – новые снизу
                 current_y = parent_rect.height() - self.margin
-                for toast in reversed(toasts):   # от новых к старым
+                for toast in reversed(toasts):  # от новых к старым
                     x = self._compute_x(toast, position)
                     current_y -= toast.height()
                     toast.set_global_position(x, current_y)
                     current_y -= self.spacing
 
-            else:   # на случай других значений – просто по порядку сверху
+            else:  # на случай других значений – просто по порядку сверху
                 current_y = self.margin
                 for toast in toasts:
                     x = self._compute_x(toast, position)
@@ -2130,6 +2155,7 @@ class NotificationManager:
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         self._add_toast(toast)
 
+
 class Settings(QDialog, settings_ui):
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -2149,11 +2175,17 @@ class Settings(QDialog, settings_ui):
             self.enable_global_streak_checkBox.setChecked(False)
         else:
             self.enable_global_streak_checkBox.setChecked(True)
+        if not settings.get('show_written_today_in_all_projects', False):
+            self.written_today_in_all_projects_checkBox.setChecked(False)
+        else:
+            self.written_today_in_all_projects_checkBox.setChecked(True)
+
 
 class UserAgreement(QDialog, user_agreement_ui):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
+
 
 class ScrivenerItemDialog(QDialog):
     def __init__(self, items, parent=None):
@@ -2197,6 +2229,7 @@ class ScrivenerItemDialog(QDialog):
             title = item.text(0)
             return item_id, title
         return None, None
+
 
 class SynchWindow(QDialog, Ui_sych_window):
     def __init__(self, project, parent=None):
@@ -2330,6 +2363,7 @@ class DeveloperMode(QDialog, Ui_developer_node):
         if self.test_date_cb.isChecked():
             return self.test_date.date().toPython()
         return None
+
     def on_checkbox_toggled(self, checked):
         """Обработчик чекбокса 'Нет дедлайна'."""
         if checked:
@@ -2403,6 +2437,7 @@ class ProjectStatsDialog(QDialog, project_stats_ui):
             'ficbook_pages': 'страниц Ficbook'
         }
         return unit_map.get(self.project.unit, self.project.unit)
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

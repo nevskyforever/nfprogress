@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowBUPRhv.ui'
+## Form generated from reading UI file 'main_windowtxAdQx.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -425,11 +425,17 @@ class Ui_main_window(object):
 
         self.gridLayout_3.addWidget(self.global_streak_status, 3, 0, 1, 1)
 
+        self.written_today_in_all_projects_label = QLabel(self.projects_tab)
+        self.written_today_in_all_projects_label.setObjectName(u"written_today_in_all_projects_label")
+
+        self.gridLayout_3.addWidget(self.written_today_in_all_projects_label, 2, 0, 1, 1)
+
         self.tabWidget.addTab(self.projects_tab, "")
         self.project_detail_widget.raise_()
         self.btns_create_filter.raise_()
         self.list_projects.raise_()
         self.global_streak_status.raise_()
+        self.written_today_in_all_projects_label.raise_()
         self.game_tab = QWidget()
         self.game_tab.setObjectName(u"game_tab")
         self.gridLayout_5 = QGridLayout(self.game_tab)
@@ -469,7 +475,7 @@ class Ui_main_window(object):
         self.scrollArea_3.setWidgetResizable(True)
         self.scrollAreaWidgetContents_4 = QWidget()
         self.scrollAreaWidgetContents_4.setObjectName(u"scrollAreaWidgetContents_4")
-        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 98, 85))
+        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 232, 131))
         self.gridLayout_14 = QGridLayout(self.scrollAreaWidgetContents_4)
         self.gridLayout_14.setObjectName(u"gridLayout_14")
         self.name_selected_available_quest = QLabel(self.scrollAreaWidgetContents_4)
@@ -707,7 +713,7 @@ class Ui_main_window(object):
         self.about_selected_inventory_item.setWidgetResizable(True)
         self.scrollAreaWidgetContents_6 = QWidget()
         self.scrollAreaWidgetContents_6.setObjectName(u"scrollAreaWidgetContents_6")
-        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 98, 108))
+        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 258, 150))
         self.gridLayout_19 = QGridLayout(self.scrollAreaWidgetContents_6)
         self.gridLayout_19.setObjectName(u"gridLayout_19")
         self.name_selected_item = QLabel(self.scrollAreaWidgetContents_6)
@@ -785,7 +791,7 @@ class Ui_main_window(object):
         self.scrollArea_7.setWidgetResizable(True)
         self.scrollAreaWidgetContents_8 = QWidget()
         self.scrollAreaWidgetContents_8.setObjectName(u"scrollAreaWidgetContents_8")
-        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 98, 146))
+        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 232, 159))
         self.gridLayout_23 = QGridLayout(self.scrollAreaWidgetContents_8)
         self.gridLayout_23.setObjectName(u"gridLayout_23")
         self.label_37 = QLabel(self.scrollAreaWidgetContents_8)
@@ -966,7 +972,7 @@ class Ui_main_window(object):
         self.about_selected_goods.setWidgetResizable(True)
         self.scrollAreaWidgetContents_7 = QWidget()
         self.scrollAreaWidgetContents_7.setObjectName(u"scrollAreaWidgetContents_7")
-        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 98, 131))
+        self.scrollAreaWidgetContents_7.setGeometry(QRect(0, 0, 254, 131))
         self.gridLayout_21 = QGridLayout(self.scrollAreaWidgetContents_7)
         self.gridLayout_21.setObjectName(u"gridLayout_21")
         self.effect_selected_item_on_shop = QLabel(self.scrollAreaWidgetContents_7)
@@ -1286,6 +1292,7 @@ class Ui_main_window(object):
         self.unit_label.setText(QCoreApplication.translate("main_window", u"\u041e\u0442\u0441\u043b\u0435\u0436\u0438\u0432\u0430\u044e\u0442\u0441\u044f:", None))
         self.unit.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u0438", None))
         self.global_streak_status.setText(QCoreApplication.translate("main_window", u"\u0413\u043b\u043e\u0431\u0430\u043b\u044c\u043d\u044b\u0439 \u0441\u0442\u0440\u0438\u043a", None))
+        self.written_today_in_all_projects_label.setText(QCoreApplication.translate("main_window", u"TextLabel", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.projects_tab), QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442\u044b", None))
         self.about_selected_available_quest.setTitle(QCoreApplication.translate("main_window", u"\u041e \u043a\u0432\u0435\u0441\u0442\u0435", None))
         self.name_selected_available_quest.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))

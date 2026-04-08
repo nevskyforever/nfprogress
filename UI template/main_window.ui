@@ -636,6 +636,13 @@
           </property>
          </widget>
         </item>
+        <item row="2" column="0">
+         <widget class="QLabel" name="written_today_in_all_projects_label">
+          <property name="text">
+           <string>TextLabel</string>
+          </property>
+         </widget>
+        </item>
        </layout>
        <zorder>project_detail_widget</zorder>
        <zorder>btns_create_filter</zorder>
@@ -643,6 +650,7 @@
        <zorder>horizontalSpacer_3</zorder>
        <zorder>horizontalSpacer_4</zorder>
        <zorder>global_streak_status</zorder>
+       <zorder>written_today_in_all_projects_label</zorder>
       </widget>
       <widget class="QWidget" name="game_tab">
        <attribute name="title">
