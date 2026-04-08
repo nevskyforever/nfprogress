@@ -263,10 +263,11 @@ class MainWindow(QMainWindow, main_window_ui):
 
         data = en.load_data()
         if settings['inf_project']:
-            # Опция включена еще в старой версии - перемещаем ее.
+            # Опция включена еще в старой версии - перемещаем старый проект.
             if data['projects'].get('inf_project', False):
-                data['projects']['Общий проект'] = data['projects']['inf_project']
+                old_inf_project = data['projects']['inf_project']
                 del data['projects']['inf_project']
+                data['projects']['Общий проект'] = old_inf_project
                 save_data(data)
                 self.refresh_projects()
             # Опция включена: создаём проект только если его нет
