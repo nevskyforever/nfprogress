@@ -48,6 +48,11 @@ class GameMenuController:
         # Скрываем банк
         self.ui.bank_btn.setVisible(False)
 
+        # Просим выбрать элементы в мазазинах и инвентаре
+        self.ui.name_selected_item_on_shop.setText('Выберите товар')
+        self.ui.name_selected_potion_on_shop.setText('Выберите товар')
+        self.ui.name_selected_item.setText('Выберите предмет')
+
     def load_gamer(self):
         """Загрузка или создание игрока"""
         self.gamer = game.load_game()
@@ -317,6 +322,8 @@ class GameMenuController:
                 "Ошибка",
                 "Не удалось использовать предмет"
             )
+        self.clear_inventory_item_info()
+        self.clear_item_info()
 
     # === ОБРАБОТЧИКИ МАГАЗИНА ===
 
@@ -373,17 +380,23 @@ class GameMenuController:
 
     def clear_item_info(self):
         """Очистка информации о предметах в магазине"""
-        self.ui.name_selected_item_on_shop.clear()
+        self.ui.name_selected_item_on_shop.setText('Выберите товар')
         self.ui.description_selected_item_on_shop.clear()
         self.ui.peice_selected_item_on_shop.clear()
         self.ui.effect_selected_item_on_shop.clear()
 
     def clear_potion_info(self):
         """Очистка информации о зельях в магазине"""
-        self.ui.name_selected_potion_on_shop.clear()
+        self.ui.name_selected_potion_on_shop.setText('Выберите товар')
         self.ui.description_selected_potion_on_shop.clear()
         self.ui.price_selected_potion_on_shop.clear()
         self.ui.effect_selected_potion_on_shop.clear()
+
+    def clear_inventory_item_info(self):
+        self.ui.name_selected_item.setText("Выберите предмет")
+        self.ui.description_selected_item.clear()
+        self.ui.peice_selected_item.clear()
+        self.ui.effect_selected_item.clear()
 
     def on_buy_item(self):
         """Покупка предмета"""
@@ -471,6 +484,8 @@ class GameMenuController:
                     f"✅ Куплено {success_count} x {item_name}\n"
                     f"Потрачено: {item_obj.price * success_count}💰"
                 )
+                self.clear_item_info()
+
 
     # === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
 
