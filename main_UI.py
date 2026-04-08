@@ -261,16 +261,24 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.settings_menu.removeAction(self.developer_mode_action)
                 self.developer_mode_action = None
 
-        if settings['inf_project'] is True:
-            data = en.load_data()
-            inf_project = en.Project(name='Общий проект', goal=float('inf'), total_symbols=0)
-            data['projects']['inf_project'] = inf_project
-            save_data(data)
-            self.refresh_projects()
-        else:
-            data = en.load_data()
-            if data['projects'].get('inf_project'):
+        data = en.load_data()
+        if settings['inf_project']:
+            # Опция включена еще в старой версии - перемещаем ее.
+            if data['projects'].get('inf_project', False):
+                data['projects']['Общий проект'] = data['projects']['inf_project']
                 del data['projects']['inf_project']
+                save_data(data)
+                self.refresh_projects()
+            # Опция включена: создаём проект только если его нет
+            if not data['projects'].get('Общий проект', False):
+                inf_project = en.Project(name='Общий проект', goal=float('inf'), progress=100)
+                data['projects']['Общий проект'] = inf_project
+                save_data(data)
+                self.refresh_projects()
+        else:
+            # Опция отключена: удаляем проект (пользователь отключил опцию сознательно)
+            if data['projects'].get('Общий проект', False):
+                del data['projects']['Общий проект']
                 save_data(data)
                 self.refresh_projects()
 
