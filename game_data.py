@@ -26,9 +26,16 @@ class Item:
     def __init__(self, name, price, item_type=None, level=1, description='Нет описания'):
         self.name = name
         self.item_type = item_type
-        self.price = price
+        self._price = price
         self.level = level
         self.description = description
+
+    @property
+    def price(self):
+        # Если в price передана функция, вызываем её. Если число — возвращаем число.
+        if callable(self._price):
+            return self._price()
+        return self._price
 
     def buy(self):
         gamer = game.load_game()
@@ -325,9 +332,20 @@ def freeze_global_func(do, add=None):
     elif do == '?':
         return 'Заморозка позволяет засчитать день в стрике без написания кода.'
 
+# Считаем цену заморозки
+
+def calculate_freeze_price():
+    projects = engine.load_data()['projects']
+    used_freezes = 1
+    total_price = 100
+    for project in projects.values():
+        used_freezes += project.freezes
+        total_price = 100 * used_freezes
+    return total_price
+
 # Инициализация объектов
 
-freeze = FuncItem('Заморозка', price=100, item_type='Предметы', level=3,
+freeze = FuncItem('Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком')
 lottery_ticket = FuncItem("Лотерейный билет", price=10, item_type='Предметы', level=2, func=lottery_ticket_func,
                           description='Лотерейный билет позволяет выиграть от 100 до 10К монет')

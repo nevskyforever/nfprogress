@@ -609,6 +609,9 @@ class GameMenuController:
             self.gamer.save()
             self.notifications.show_success(msg)
             self.update_inventory()
+            self.refresh_all()
+            self.notifications.show_success(result)
+            return True
         dialog.close()
 
     def bank(self):
