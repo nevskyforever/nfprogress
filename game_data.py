@@ -337,11 +337,13 @@ def freeze_global_func(do, add=None):
 def calculate_freeze_price():
     """Считает стоимость заморозки в зависимости от кол-ва использований"""
     projects = engine.load_data()['projects']
+    gamer = game.load_game()
+    coin_cf = gamer.cf['coins']
     used_freezes = 1
     total_price = 100
     for project in projects.values():
         used_freezes += project.freezes
-        total_price = 100 * used_freezes
+        total_price = 100 * used_freezes * coin_cf
     return total_price
 
 def calculate_item_price(price):
