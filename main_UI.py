@@ -570,7 +570,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.new_symbols.setEnabled(False)
                 self.delete_note.setEnabled(True)  # удаление записей всё ещё разрешено
                 # Добавляем подсказку для пользователя
-                self.new_symbols.setPlaceholderText("Синхронизация активна")
+                self.new_symbols.setPlaceholderText("Включена синхронизация")
             else:
                 self.pb_save_flash_note.setEnabled(True)
                 self.new_symbols.setEnabled(True)

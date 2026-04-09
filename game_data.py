@@ -335,6 +335,7 @@ def freeze_global_func(do, add=None):
 # Считаем цену заморозки
 
 def calculate_freeze_price():
+    """Считает стоимость заморозки в зависимости от кол-ва использований"""
     projects = engine.load_data()['projects']
     used_freezes = 1
     total_price = 100
@@ -343,19 +344,26 @@ def calculate_freeze_price():
         total_price = 100 * used_freezes
     return total_price
 
+def calculate_item_price(price):
+    """Считает стоимость предмета для игрока"""
+    gamer = game.load_game()
+    coin_cf = gamer.cf['coins']
+    price = price * coin_cf
+    return price
+
 # Инициализация объектов
 
 freeze = FuncItem('Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком')
-lottery_ticket = FuncItem("Лотерейный билет", price=10, item_type='Предметы', level=2, func=lottery_ticket_func,
+lottery_ticket = FuncItem("Лотерейный билет", price=calculate_item_price(10), item_type='Предметы', level=3, func=lottery_ticket_func,
                           description='Лотерейный билет позволяет выиграть от 100 до 10К монет')
-health_potion_5 = FuncItem('Малое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=10, add=5,
+health_potion_5 = FuncItem('Малое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=calculate_item_price(10), add=5,
                            description='Восстанавливает здоровье на 5 единиц')
-health_potion_25 = FuncItem('Среднее зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=50, add=25,
+health_potion_25 = FuncItem('Среднее зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=calculate_item_price(25), add=25,
                             description='Восстанавливает здоровье на 25 единиц')
-health_potion_50 = FuncItem('Большое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=100, add=50,
+health_potion_50 = FuncItem('Большое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=calculate_item_price(100), add=50,
                             description='Восстанавливает здоровье на 50 единиц')
-health_recovery = FuncItem('Зелье воскрешения', item_type='Зелья', level=3, func=health_potion_func, price=200, add=100,
+health_recovery = FuncItem('Зелье воскрешения', item_type='Зелья', level=3, func=health_potion_func, price=calculate_item_price(200), add=100,
                            description='Полностью восстанавливает здоровье')
 
 
