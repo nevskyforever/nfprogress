@@ -313,6 +313,10 @@ class GameMenuController:
             self.update_inventory()
             self.update_game_data()
 
+            # Очищаем панель информации до показа диалога, чтобы устаревший текст не был виден
+            self.clear_inventory_item_info()
+            self.clear_item_info()
+
             QMessageBox.information(
                 self.ui.centralwidget,
                 "Результат",
@@ -324,8 +328,8 @@ class GameMenuController:
                 "Ошибка",
                 "Не удалось использовать предмет"
             )
-        self.clear_inventory_item_info()
-        self.clear_item_info()
+            self.clear_inventory_item_info()
+            self.clear_item_info()
 
     # === ОБРАБОТЧИКИ МАГАЗИНА ===
 
