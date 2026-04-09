@@ -299,8 +299,8 @@ def lottery_ticket_func(do, add=None):
 
         if win_prize > 0:
             # Сохраняем текущее количество монет для отладки
-            old_coins = gamer.coins
             gamer.coins += win_prize
+            gamer.save()
 
         return message
 

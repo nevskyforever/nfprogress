@@ -399,10 +399,10 @@ class GameMenuController:
         self.ui.effect_selected_potion_on_shop.clear()
 
     def clear_inventory_item_info(self):
+        """Очистка информации о предмете"""
         self.ui.name_selected_item.setText("Выберите предмет")
         self.ui.level_selected_item.clear()
         self.ui.description_selected_item.clear()
-        self.ui.peice_selected_item.clear()
         self.ui.effect_selected_item.clear()
         self.ui.value_for_use_selected_item.setValue(1)
         self.ui.value_for_use_selected_item.setMaximum(999)
