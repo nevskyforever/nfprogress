@@ -259,6 +259,9 @@ def health_potion_func(do, add=None):
         healed_amount = gamer.health - old_health
         return f'\nЗдоровье восстановлено на {healed_amount}. Текущее: {gamer.health}'
 
+    if do == '?':
+        return 'Восстанавливает здоровье'
+
     return 'Неизвестное действие'
 
 
@@ -300,6 +303,9 @@ def lottery_ticket_func(do, add=None):
             gamer.coins += win_prize
 
         return message
+
+    if do == '?':
+        return 'Лотерейный билет: попытайте удачу!'
 
     return 'Неизвестное действие'
 
