@@ -74,6 +74,11 @@ class Gamer:
     def set_coins(self, coins):
         self.coins += coins
 
+    def update_cf(self):
+        """Обновляет коэффициенты монет и опыта согласно текущему уровню"""
+        self.cf['coins'] = game_data.cf_coins[self.level]
+        self.cf['exp'] = game_data.cf_exp[self.level]
+
     def level_up(self):
         data = engine.load_data()
         notifications = data.get('notifications', {'new': [], 'read': []})
