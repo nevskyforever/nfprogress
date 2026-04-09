@@ -117,6 +117,8 @@ class GameMenuController:
     def refresh_all(self):
         """Обновление всех данных в интерфейсе"""
         self.update_game_data()
+        self.clear_all_info()
+        self.clear_item_info()
         self.update_inventory()
         self.update_shops()
 
