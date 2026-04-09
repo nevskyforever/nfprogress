@@ -4,7 +4,7 @@
 import datetime
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
+from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog, QInputDialog
 
 import engine
 import game
@@ -630,19 +630,17 @@ class GameMenuController:
         result = dialog.exec_()
         if result == QDialog.Accepted:
             msg = dialog.freeze()
-            self.gamer.items['Предметы']['Заморозка'] -= 1
-            self.gamer.save()
+            self.gamer = game.load_game()
             self.notifications.show_success(msg)
             self.update_inventory()
             self.refresh_all()
-            self.notifications.show_success(result)
             return True
-        dialog.close()
 
     def bank(self):
         dialog = Bank(self.gamer)
-        dialog.show()
-        result = dialog.exec_()
+        dialog.exec_()
+        self.gamer = game.load_game()
+        self.update_game_data()
 
 
 class FreezeProject(QDialog, Ui_freeze_projrct):
@@ -722,6 +720,13 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
 
             data['projects'][project_name] = project
             save_data(data)
+
+            # Уменьшаем количество заморозок у игрока
+            gamer = game.load_game()
+            if 'Предметы' in gamer.items and 'Заморозка' in gamer.items['Предметы']:
+                gamer.items['Предметы']['Заморозка'] -= 1
+                gamer.save()
+
             return f'Проект "{project_name}" заморожен!'
 
         return f'Ошибка: проект "{project_name}" не найден'
@@ -749,28 +754,157 @@ class Bank(QDialog, Ui_Bamk):
         self.credit_total_sum.setVisible(False)
         self.deposit_total_sum.setVisible(False)
 
-        # Получаем банковский аккаунт
+        # Отображаем текущее состояние счёта
+        self._update_ui_state()
+
+        # Подключаем сигналы кнопок
+        self.take_credit_btn.clicked.connect(self.on_take_credit)
+        self.return_credit_btn.clicked.connect(self.on_return_credit)
+        self.make_deposit_btn.clicked.connect(self.on_make_deposit)
+        self.return_deposit_btn.clicked.connect(self.on_return_deposit)
+
+    def _update_ui_state(self):
+        """Обновляет виджеты кредита и депозита по текущему состоянию self.gamer."""
         account: game_data.BankAccount = self.gamer.bank_account
-        # Получаем из него продукты
         credit: game_data.Credit = account.credit
         deposit: game_data.Deposit = account.deposit
 
-        # Устанавливаем статусы продуктов и даты возврата
+        # Сбрасываем видимость
+        self.credit_total_sum.setVisible(False)
+        self.deposit_total_sum.setVisible(False)
+        self.return_credit_date.setVisible(False)
+        self.return_deposit_date.setVisible(False)
+        self.return_credit_btn.setVisible(False)
+        self.return_deposit_btn.setVisible(False)
+
+        # Кредит
         if credit:
+            self.credit_status.setVisible(True)
             self.credit_status.setText(credit.get_status())
             self.return_credit_date.setVisible(True)
-            self.return_credit_date.setText(credit.get_return_date())
-            # Скрываем кнопку взятия
+            self.return_credit_date.setText(str(credit.get_return_date()))
+            self.credit_total_sum.setVisible(True)
+            self.credit_total_sum.setText(f'К возврату: {round(credit.get_total_sum(), 1)} монет')
             self.take_credit_btn.setVisible(False)
-            # Показываем кнопку возврата
             self.return_credit_btn.setVisible(True)
+        else:
+            self.credit_status.setText('В банке нет кредита')
+            if self.gamer.level >= 3:
+                self.credit_status.setVisible(True)
+                self.take_credit_btn.setVisible(True)
+            self.return_credit_btn.setVisible(False)
+
+        # Депозит
         if deposit:
-            # Получаем данные
             self.deposit_status.setText(deposit.get_status())
             self.return_deposit_date.setVisible(True)
-            self.return_deposit_date.setText(deposit.get_return_date())
-            # Скрываем кнопку взятия
+            self.return_deposit_date.setText(str(deposit.get_return_date()))
+            self.deposit_total_sum.setVisible(True)
+            self.deposit_total_sum.setText(f'Итого с процентами: {round(deposit.get_total_sum(), 1)} монет')
             self.make_deposit_btn.setVisible(False)
             if deposit.get_return_date() <= engine.today_for_test():
                 self.return_deposit_btn.setVisible(True)
+            else:
+                self.return_deposit_btn.setVisible(False)
+        else:
+            self.deposit_status.setText('В банке нет вклада')
+            self.make_deposit_btn.setVisible(True)
+            self.return_deposit_btn.setVisible(False)
+
+    def refresh_ui(self):
+        """Перезагружает игрока с диска и обновляет интерфейс банка."""
+        self.gamer = game.load_game()
+        self._update_ui_state()
+
+    def on_take_credit(self):
+        """Взять кредит у игрока."""
+        amount, ok = QInputDialog.getDouble(
+            self, 'Взять кредит', 'Введите сумму кредита (монет):', min=1.0, decimals=1
+        )
+        if not ok or amount <= 0:
+            return
+        days, ok2 = QInputDialog.getInt(
+            self, 'Взять кредит', 'Введите срок кредита (дней):', value=30, min=1, max=365
+        )
+        if not ok2:
+            return
+        credit = game_data.Credit(amount, days)
+        self.gamer.coins += amount
+        self.gamer.bank_account.set_credit(credit)
+        self.gamer.save()
+        QMessageBox.information(
+            self, 'Кредит получен',
+            f'Вы получили {amount} монет.\nВозврат до: {credit.get_return_date()}'
+        )
+        self.refresh_ui()
+
+    def on_return_credit(self):
+        """Погасить кредит."""
+        account = self.gamer.bank_account
+        if not account.credit:
+            QMessageBox.warning(self, 'Ошибка', 'У вас нет активного кредита')
+            return
+        total = round(account.credit.get_total_sum(), 1)
+        reply = QMessageBox.question(
+            self, 'Погасить кредит',
+            f'Погасить кредит?\nСумма к возврату: {total} монет',
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+        if self.gamer.coins < total:
+            QMessageBox.warning(
+                self, 'Ошибка',
+                f'Недостаточно монет. Нужно: {total}, у вас: {round(self.gamer.coins, 1)}'
+            )
+            return
+        result = account.return_credit()
+        QMessageBox.information(self, 'Кредит погашен', result)
+        self.refresh_ui()
+
+    def on_make_deposit(self):
+        """Внести вклад."""
+        amount, ok = QInputDialog.getDouble(
+            self, 'Внести вклад', 'Введите сумму вклада (монет):', min=1.0, decimals=1
+        )
+        if not ok or amount <= 0:
+            return
+        if self.gamer.coins < amount:
+            QMessageBox.warning(
+                self, 'Ошибка',
+                f'Недостаточно монет. У вас: {round(self.gamer.coins, 1)}'
+            )
+            return
+        days, ok2 = QInputDialog.getInt(
+            self, 'Внести вклад', 'Введите срок вклада (дней):', value=30, min=1, max=365
+        )
+        if not ok2:
+            return
+        deposit = game_data.Deposit(amount, days)
+        self.gamer.coins -= amount
+        self.gamer.bank_account.set_deposit(deposit)
+        self.gamer.save()
+        QMessageBox.information(
+            self, 'Вклад открыт',
+            f'Вклад на {amount} монет открыт.\nСнять можно: {deposit.get_return_date()}'
+        )
+        self.refresh_ui()
+
+    def on_return_deposit(self):
+        """Снять вклад."""
+        account = self.gamer.bank_account
+        if not account.deposit:
+            QMessageBox.warning(self, 'Ошибка', 'У вас нет активного вклада')
+            return
+        total = round(account.deposit.get_total_sum(), 1)
+        reply = QMessageBox.question(
+            self, 'Снять вклад',
+            f'Снять вклад?\nСумма с процентами: {total} монет',
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+        result = account.return_deposit()
+        QMessageBox.information(self, 'Вклад снят', result)
+        self.refresh_ui()
 
