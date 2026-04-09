@@ -7,7 +7,6 @@ import tempfile
 from datetime import datetime, timedelta, date
 from pathlib import Path
 from collections import defaultdict
-
 from docx import Document
 
 # Режим разработчика
