@@ -774,3 +774,26 @@ class Bank(QDialog, Ui_Bamk):
             if deposit.get_return_date() <= engine.today_for_test():
                 self.return_deposit_btn.setVisible(True)
 
+        def take_credit():
+            """Метод дял взятия кредита''"""
+            pass
+
+class BankProduct(QDialog, Ui_bank_product):
+    def __init__(self, gamer: game.Gamer, product_type):
+        super().__init__()
+        self.setupUi(self)
+        self.gamer = gamer
+        self.bank_account = self.gamer.bank_account
+        self.product_type = product_type
+
+    def on_sum_changed(self, changed):
+        """Обработчик изменения суммы в продукте (кредит или депозит)"""
+        pass
+
+    def take_credit(self):
+        """Метод для взятия кредита"""
+        pass
+
+    def make_deposit(self):
+        """Метод для создания депозита"""
+        pass
