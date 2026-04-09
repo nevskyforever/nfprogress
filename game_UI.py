@@ -11,6 +11,7 @@ import game
 import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
 from UI_fiiles.bank import Ui_Bamk
+from UI_fiiles.bank_product import Ui_bank_product
 from engine import load_data, save_data, today_for_test, unit_converter
 
 
@@ -44,9 +45,6 @@ class GameMenuController:
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_game_data)
         self.timer.start(1000)  # Обновление каждую секунду
-
-        # Скрываем банк
-        self.ui.bank_btn.setVisible(False)
 
         # Просим выбрать элементы в мазазинах и инвентаре
         self.ui.name_selected_item_on_shop.setText('Выберите товар')

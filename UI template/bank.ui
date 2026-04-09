@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>562</width>
-    <height>303</height>
+    <height>162</height>
    </rect>
   </property>
   <property name="font">
@@ -19,26 +19,25 @@
    <string>Банк</string>
   </property>
   <layout class="QGridLayout" name="gridLayout">
-   <item row="1" column="2">
-    <widget class="QLabel" name="deposit_total_sum">
+   <item row="0" column="0">
+    <widget class="QLabel" name="deposit_status">
      <property name="text">
-      <string>Сумма к снятию</string>
+      <string>В банке нет вклада</string>
      </property>
     </widget>
    </item>
-   <item row="1" column="3">
-    <widget class="QLabel" name="return_deposit_date">
-     <property name="text">
-      <string>Дата снятия</string>
+   <item row="1" column="1">
+    <spacer name="horizontalSpacer">
+     <property name="orientation">
+      <enum>Qt::Orientation::Horizontal</enum>
      </property>
-    </widget>
-   </item>
-   <item row="1" column="0">
-    <widget class="QLabel" name="credit_status">
-     <property name="text">
-      <string>В банке нет кредита</string>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>40</width>
+       <height>20</height>
+      </size>
      </property>
-    </widget>
+    </spacer>
    </item>
    <item row="0" column="2">
     <widget class="QLabel" name="credit_total_sum">
@@ -47,7 +46,7 @@
      </property>
     </widget>
    </item>
-   <item row="2" column="0" colspan="4">
+   <item row="3" column="0" colspan="4">
     <widget class="QWidget" name="widget" native="true">
      <layout class="QGridLayout" name="gridLayout_2">
       <item row="1" column="0">
@@ -118,10 +117,10 @@
      </property>
     </widget>
    </item>
-   <item row="0" column="0">
-    <widget class="QLabel" name="deposit_status">
+   <item row="1" column="2">
+    <widget class="QLabel" name="deposit_total_sum">
      <property name="text">
-      <string>В банке нет вклада</string>
+      <string>Сумма к снятию</string>
      </property>
     </widget>
    </item>
@@ -138,15 +137,29 @@
      </property>
     </spacer>
    </item>
-   <item row="1" column="1">
-    <spacer name="horizontalSpacer">
+   <item row="1" column="3">
+    <widget class="QLabel" name="return_deposit_date">
+     <property name="text">
+      <string>Дата снятия</string>
+     </property>
+    </widget>
+   </item>
+   <item row="1" column="0">
+    <widget class="QLabel" name="credit_status">
+     <property name="text">
+      <string>В банке нет кредита</string>
+     </property>
+    </widget>
+   </item>
+   <item row="2" column="1">
+    <spacer name="verticalSpacer">
      <property name="orientation">
-      <enum>Qt::Orientation::Horizontal</enum>
+      <enum>Qt::Orientation::Vertical</enum>
      </property>
      <property name="sizeHint" stdset="0">
       <size>
-       <width>40</width>
-       <height>20</height>
+       <width>20</width>
+       <height>40</height>
       </size>
      </property>
     </spacer>
