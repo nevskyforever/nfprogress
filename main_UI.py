@@ -377,7 +377,7 @@ class MainWindow(QMainWindow, main_window_ui):
         }
 
         # Обрабатыааем бесконечный проект
-        if project.goal is float('inf'):
+        if project.goal == float('inf'):
             self.label_deadline.setVisible(False)
             self.deadline.setVisible(False)
             self.label_max_streak.setVisible(False)
