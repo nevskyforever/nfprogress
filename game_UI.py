@@ -774,3 +774,6 @@ class Bank(QDialog, Ui_Bamk):
             if deposit.get_return_date() <= engine.today_for_test():
                 self.return_deposit_btn.setVisible(True)
 
+        def take_credit():
+            """Метод дял взятия кредита''"""
+            pass
