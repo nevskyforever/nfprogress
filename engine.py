@@ -789,13 +789,6 @@ def global_streak_status(data, today=None):
     last_lost_len = data.get('last_global_streak_lose_len', 0)
     projects = data.get('projects', {})
 
-    # Если стрик какого-то проекта длиннее глобального — заменяем глобальный стрик на него
-
-    for project in projects.values():
-        if len(project.streaks) >= len(streaks) and project.streaks != streaks:
-            streaks = list(project.streaks)
-            data['global_streaks'] = streaks
-
     # Заморозка (оставляем как есть)
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
         return 'Freeze'

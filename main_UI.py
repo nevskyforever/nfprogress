@@ -909,6 +909,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Обновляем интерфейс
             self.refresh_projects()
+            self.refresh_global_streak_status()
             self.select_project_by_name(project.name)
             self.name_selected_project.setText(project.name)
             self.view_project()
