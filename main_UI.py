@@ -563,8 +563,11 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             # Проект активен или в архиве — настраиваем кнопки по логике
             self.btn_change_project.setEnabled(True)
+            self.change_project_action.setEnabled(True)
+            self.archive_project_action.setEnabled(True)
             # Кнопка завершения активна, если цель достигнута
             self.btn_complete_project.setEnabled(project.goal <= project.total_symbols)
+            self.complete_project_action.setEnabled(project.goal <= project.total_symbols)
 
             # Меняем текст кнопки в зависимости от статуса
             if project.status == 'в архиве':
@@ -862,6 +865,7 @@ class MainWindow(QMainWindow, main_window_ui):
             old_goal = project.goal
             old_total = project.total_symbols
             old_deadline = project.deadline
+            old_personal_goal = project.personal_goal_for_the_day
 
             # Получаем новые значения из диалога
             new_name = dialog.get_name()
@@ -875,6 +879,11 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Проверяем, изменилась ли единица измерения
             unit_changed = (new_unit != project.unit)
+
+            # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
+            if old_personal_goal < new_personal_goal and project.streaks:
+                if project.streaks[-1] == en.today_for_test():
+                    project.streaks.remove(en.today_for_test())
 
             # Если единица изменилась, показываем предупреждение
             if unit_changed:
@@ -909,6 +918,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Обновляем интерфейс
             self.refresh_projects()
+            self.refresh_global_streak_status()
             self.select_project_by_name(project.name)
             self.name_selected_project.setText(project.name)
             self.view_project()

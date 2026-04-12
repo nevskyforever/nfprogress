@@ -10,10 +10,10 @@ from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = True
+dev_mode = False
 
 # Версия приложения
-version = '3.3.21'
+version = '3.4'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -302,6 +302,11 @@ class Project:
         """Возвращает накопленный план на сегодня в символах.
         Равномерно распределяет цель от даты установки дедлайна до дедлайна.
         """
+
+        # Если есть персональная цель на сегодня - возвращаем ее
+        if self.personal_goal_for_the_day:
+            return self.personal_goal_for_the_day
+
         if self.deadline == 'Нет':
             return 0
 
@@ -785,13 +790,7 @@ def global_streak_status(data, today=None):
     prev_status = data.get('global_streak_status', 'No')
     last_lost_date = data.get('last_global_streak_lost_date')
     last_lost_len = data.get('last_global_streak_lose_len', 0)
-
-    # Если стрик какого-то проекта длиннее глобального — заменяем глобальный стрик на него
     projects = data.get('projects', {})
-    for project in projects.values():
-        if isinstance(project, Project) and isinstance(project.streaks, list) and len(project.streaks) > len(streaks):
-            streaks = list(project.streaks)
-            data['global_streaks'] = streaks
 
     # Заморозка (оставляем как есть)
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
