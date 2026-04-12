@@ -1813,14 +1813,12 @@ class CreateProject(QDialog, create_project_ui):
         days_needed = math.ceil(remaining / personal_goal)
         today = en.today_for_test()
         computed_deadline = today + datetime.timedelta(days=days_needed - 1)
-        current_deadline = self.de_deadline.date().toPython()
-        if computed_deadline > current_deadline:
-            self._updating = True
-            try:
-                qdate = QDate(computed_deadline.year, computed_deadline.month, computed_deadline.day)
-                self.de_deadline.setDate(qdate)
-            finally:
-                self._updating = False
+        self._updating = True
+        try:
+            qdate = QDate(computed_deadline.year, computed_deadline.month, computed_deadline.day)
+            self.de_deadline.setDate(qdate)
+        finally:
+            self._updating = False
 
     def validate_all(self):
         """Валидация всех полей."""
@@ -2099,14 +2097,12 @@ class EditProject(QDialog, create_project_ui):
         days_needed = math.ceil(remaining / personal_goal)
         today = en.today_for_test()
         computed_deadline = today + datetime.timedelta(days=days_needed - 1)
-        current_deadline = self.de_deadline.date().toPython()
-        if computed_deadline > current_deadline:
-            self._updating = True
-            try:
-                qdate = QDate(computed_deadline.year, computed_deadline.month, computed_deadline.day)
-                self.de_deadline.setDate(qdate)
-            finally:
-                self._updating = False
+        self._updating = True
+        try:
+            qdate = QDate(computed_deadline.year, computed_deadline.month, computed_deadline.day)
+            self.de_deadline.setDate(qdate)
+        finally:
+            self._updating = False
 
     def validate_all(self):
         data = en.load_data()
