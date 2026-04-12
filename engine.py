@@ -358,7 +358,8 @@ class Project:
 
     def get_today_goal_remaining_in_unit(self):
         """Возвращает остаток цели на сегодня в единице проекта с учётом уже написанного.
-        Для личной дневной цели: max(накопленная_цель - total, 0).
+        Для личной дневной цели: max(days_elapsed × daily_goal - total_written, 0),
+        где days_elapsed × daily_goal — накопленная цель за все прошедшие дни с создания проекта.
         Для остальных случаев: то же, что get_today_goal_in_unit().
         """
         if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
