@@ -9,6 +9,8 @@ from pathlib import Path
 from collections import defaultdict
 from docx import Document
 
+import engine
+
 # Режим разработчика
 dev_mode = True
 
@@ -785,13 +787,16 @@ def global_streak_status(data, today=None):
     prev_status = data.get('global_streak_status', 'No')
     last_lost_date = data.get('last_global_streak_lost_date')
     last_lost_len = data.get('last_global_streak_lose_len', 0)
+    projects = data.get('projects', {})
 
     # Если стрик какого-то проекта длиннее глобального — заменяем глобальный стрик на него
-    projects = data.get('projects', {})
+
     for project in projects.values():
-        if isinstance(project, Project) and isinstance(project.streaks, list) and len(project.streaks) > len(streaks):
+        if len(project.streaks) >= len(streaks) and project.streaks != streaks:
             streaks = list(project.streaks)
             data['global_streaks'] = streaks
+            data['global_streak_status'] = engine.global_streak_status(data, today)
+            save_data(data)
 
     # Заморозка (оставляем как есть)
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
