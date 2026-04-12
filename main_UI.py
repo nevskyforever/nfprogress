@@ -877,7 +877,7 @@ class MainWindow(QMainWindow, main_window_ui):
             # Проверяем, изменилась ли единица измерения
             unit_changed = (new_unit != project.unit)
 
-            # Если персональная цель проекта изменилась и сеголдня есть в стриках - удаляем сегодняшнюю дату
+            # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
             if old_personal_goal < new_personal_goal and project.streaks:
                 if project.streaks[-1] == en.today_for_test():
                     project.streaks.remove(en.today_for_test())

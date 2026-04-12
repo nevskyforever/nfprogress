@@ -188,7 +188,7 @@ class Project:
             'last_streak_lost_date': None,
             'freezes': 0,
             'deadline_set_date': today_for_test(),
-            'personal_goal_for_the_day': 0
+            'personal_goal_for_the_day': self.get_today_goal_in_unit()
         }
 
         for attr, default_value in defaults.items():
