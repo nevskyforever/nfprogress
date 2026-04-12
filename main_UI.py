@@ -411,11 +411,12 @@ class MainWindow(QMainWindow, main_window_ui):
             elif project.personal_goal_for_the_day and project.personal_goal_for_the_day > 0:
                 today_added_sym = project.get_added_symbols_today_value()
                 today_added_in_unit = en.unit_converter('symbols', today_added_sym, project.unit)
-                remaining_today = project.personal_goal_for_the_day - today_added_in_unit
-                if remaining_today <= 0:
-                    self.today_goal.setText(f'Цель на сегодня выполнена! ({self._format_number(project.personal_goal_for_the_day)})')
+                total_before_today = project.total_symbols - today_added_in_unit
+                target_today = total_before_today + project.personal_goal_for_the_day
+                if today_added_in_unit >= project.personal_goal_for_the_day:
+                    self.today_goal.setText(f'Цель на сегодня выполнена! ({self._format_number(target_today)})')
                 else:
-                    self.today_goal.setText(self._format_number(remaining_today))
+                    self.today_goal.setText(self._format_number(target_today))
             else:
                 # Используем сравнение в символах для точности
                 if project.get_total_symbols() >= project.get_today_goal_value():
