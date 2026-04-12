@@ -2730,16 +2730,33 @@ class ProjectStatsDialog(QDialog, project_stats_ui):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    translator = QTranslator()
-    translations_path = QLibraryInfo.path(QLibraryInfo.TranslationsPath)
+    if "__compiled__" in globals():
+        base_dir = os.path.dirname(__file__)
+    else:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+
+    translations_path = os.path.join(base_dir, "translations")
+
     system_language = QLocale.system().language()
     if system_language == QLocale.Language.Russian:
-        locale_name = "qt_ru"
+        qt_locale = "qt_ru"
+        qtbase_locale = "qtbase_ru"
     else:
         QLocale.setDefault(QLocale(QLocale.Language.English))
-        locale_name = "qt_en"
-    if translator.load(locale_name, translations_path):
-        app.installTranslator(translator)
+        qt_locale = "qt_en"
+        qtbase_locale = "qtbase_en"
+
+    translator_qt = QTranslator()
+    if translator_qt.load(qt_locale, translations_path):
+        app.installTranslator(translator_qt)
+    else:
+        print(f"Ошибка загрузки перевода из {translations_path}")
+
+    translator_qtbase = QTranslator()
+    if translator_qtbase.load(qtbase_locale, translations_path):
+        app.installTranslator(translator_qtbase)
+    else:
+        print(f"Ошибка загрузки перевода из {translations_path}")
 
     window = MainWindow()
     window.show()
