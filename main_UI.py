@@ -3,7 +3,7 @@ import math
 import os
 import sys
 
-from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags
+from PySide6.QtCore import QTranslator, QLibraryInfo, QLocale, QDate, QTimer, Qt, QCborKnownTags
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
@@ -2732,7 +2732,13 @@ if __name__ == "__main__":
 
     translator = QTranslator()
     translations_path = QLibraryInfo.path(QLibraryInfo.TranslationsPath)
-    if translator.load("qt_ru", translations_path):
+    system_language = QLocale.system().language()
+    if system_language == QLocale.Language.Russian:
+        locale_name = "qt_ru"
+    else:
+        QLocale.setDefault(QLocale(QLocale.Language.English))
+        locale_name = "qt_en"
+    if translator.load(locale_name, translations_path):
         app.installTranslator(translator)
 
     window = MainWindow()
