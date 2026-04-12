@@ -884,25 +884,27 @@ class MainWindow(QMainWindow, main_window_ui):
             if old_personal_goal < new_personal_goal and project.streaks:
                 if project.streaks[-1] == en.today_for_test():
                     # 1. Создаем диалог
-                    confirm_dialog = ConfirmDialog()
+                    confirm_goal_dialog = ConfirmDialog()
 
                     # 2. НАСТРАИВАЕМ текст (ДО вызова exec)
                     # Получаем настройки один раз, чтобы не дергать функцию дважды
                     settings = en.load_settings()
 
                     if settings.get('game_mode') and settings.get('global_streak'):
-                        confirm_dialog.message.setText(
+                        confirm_goal_dialog.message.setText(
                             'Вы увеличиваете цель на день в проекте, где стрик уже продлен, если вы сохраните изменения, вам придется продлить стрик заново. Нового бонуса за стрик не будет.')
                     elif settings.get('global_streak'):  # ВАЖНО: используем elif, чтобы не перезаписать текст
-                        confirm_dialog.message.setText(
+                        confirm_goal_dialog.message.setText(
                             'Вы увеличиваете цель на день в проекте, где стрик уже продлен, если вы сохраните изменения, вам придется продлить стрик заново.')
 
                     # 3. Показываем диалог и ждем решения пользователя
-                    result = confirm_dialog.exec()
+                    result_personal_goal = confirm_goal_dialog.exec()
 
                     # 4. Обрабатываем результат
-                    if result:
+                    if result_personal_goal == QDialog.Accepted:
                         project.streaks.remove(en.today_for_test())
+                    else:
+                        return
 
             # Если единица изменилась, показываем предупреждение
             if unit_changed:
