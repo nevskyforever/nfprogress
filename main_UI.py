@@ -410,15 +410,12 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.today_goal.setText('∞')
             elif project.personal_goal_for_the_day and project.personal_goal_for_the_day > 0:
                 today_added_sym = project.get_added_symbols_today_value()
-                total_sym = project.get_total_symbols()
-                total_before_today_sym = total_sym - today_added_sym
-                personal_goal_sym = en.unit_converter(project.unit, project.personal_goal_for_the_day, 'symbols')
-                accumulated_goal_sym = total_before_today_sym + personal_goal_sym
-                accumulated_goal_in_unit = en.unit_converter('symbols', accumulated_goal_sym, project.unit)
-                if total_sym >= accumulated_goal_sym:
-                    self.today_goal.setText(f'Цель на сегодня выполнена! ({self._format_number(accumulated_goal_in_unit)})')
+                today_added_in_unit = en.unit_converter('symbols', today_added_sym, project.unit)
+                remaining_today = project.personal_goal_for_the_day - today_added_in_unit
+                if remaining_today <= 0:
+                    self.today_goal.setText(f'Цель на сегодня выполнена! ({self._format_number(project.personal_goal_for_the_day)})')
                 else:
-                    self.today_goal.setText(self._format_number(accumulated_goal_in_unit))
+                    self.today_goal.setText(self._format_number(remaining_today))
             else:
                 # Используем сравнение в символах для точности
                 if project.get_total_symbols() >= project.get_today_goal_value():
@@ -1704,7 +1701,7 @@ class CreateProject(QDialog, create_project_ui):
         self.le_goal.textChanged.connect(self.validate_all)
         self.le_goal.textChanged.connect(self.on_deadline_changed)
         self.le_total_symbols.textChanged.connect(self.validate_all)
-        self.le_total_symbols.textChanged.connect(self.on_deadline_changed)
+        self.le_total_symbols.textChanged.connect(self.on_total_symbols_changed)
         self.le_personal_goal_for_the_day.textChanged.connect(self.on_personal_goal_changed)
         self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
 
@@ -1769,6 +1766,18 @@ class CreateProject(QDialog, create_project_ui):
         self.current_unit = new_unit
         self.on_deadline_changed()
         self.validate_all()
+
+    def on_total_symbols_changed(self):
+        """При изменении текущего кол-ва: если дневная цель задана — пересчитывает дедлайн,
+        иначе — пересчитывает дневную цель из дедлайна."""
+        try:
+            personal_goal = float(self.le_personal_goal_for_the_day.text())
+        except (ValueError, AttributeError):
+            personal_goal = 0
+        if personal_goal > 0:
+            self.on_personal_goal_changed()
+        else:
+            self.on_deadline_changed()
 
     def on_deadline_changed(self):
         """При изменении дедлайна пересчитывает дневную цель."""
@@ -1988,7 +1997,7 @@ class EditProject(QDialog, create_project_ui):
         self.le_goal.textChanged.connect(self.validate_all)
         self.le_goal.textChanged.connect(self.on_deadline_changed)
         self.le_total_symbols.textChanged.connect(self.validate_all)
-        self.le_total_symbols.textChanged.connect(self.on_deadline_changed)
+        self.le_total_symbols.textChanged.connect(self.on_total_symbols_changed)
         self.le_personal_goal_for_the_day.textChanged.connect(self.on_personal_goal_changed)
         self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
 
@@ -2053,6 +2062,18 @@ class EditProject(QDialog, create_project_ui):
         self.current_unit = new_unit
         self.on_deadline_changed()
         self.validate_all()
+
+    def on_total_symbols_changed(self):
+        """При изменении текущего кол-ва: если дневная цель задана — пересчитывает дедлайн,
+        иначе — пересчитывает дневную цель из дедлайна."""
+        try:
+            personal_goal = float(self.le_personal_goal_for_the_day.text())
+        except (ValueError, AttributeError):
+            personal_goal = 0
+        if personal_goal > 0:
+            self.on_personal_goal_changed()
+        else:
+            self.on_deadline_changed()
 
     def on_deadline_changed(self):
         """При изменении дедлайна пересчитывает дневную цель."""
