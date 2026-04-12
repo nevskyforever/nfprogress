@@ -373,7 +373,10 @@ class Project:
         if not isinstance(self.streaks, list):
             self.streaks = []
 
-        day_completed = total >= planned
+        if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
+            day_completed = self.get_added_today_in_unit() >= self.personal_goal_for_the_day
+        else:
+            day_completed = total >= planned
 
         # === СБРОС УСТАРЕВШЕГО СТАТУСА ПОТЕРИ (чистого) ===
         if (isinstance(self.streak_status, str) and

@@ -1,4 +1,5 @@
 import datetime
+import math
 import os
 import sys
 
@@ -183,6 +184,7 @@ class MainWindow(QMainWindow, main_window_ui):
             total = dialog.get_total()
             unit = dialog.get_unit()
             deadline = dialog.get_deadline()
+            personal_goal_for_the_day = dialog.get_personal_goal_for_the_day()
 
             # Проверяем, что проект с таким именем не существует
             if name in data['projects']:
@@ -194,7 +196,8 @@ class MainWindow(QMainWindow, main_window_ui):
                 goal=goal,
                 deadline=deadline,
                 total_symbols=total,
-                unit=unit
+                unit=unit,
+                personal_goal_for_the_day=personal_goal_for_the_day
             )
 
             # Если это бесконечный проект (inf_project), устанавливаем goal = inf
@@ -405,6 +408,13 @@ class MainWindow(QMainWindow, main_window_ui):
             today_goal = project.get_today_goal_in_unit()
             if today_goal == float('inf'):
                 self.today_goal.setText('∞')
+            elif project.personal_goal_for_the_day and project.personal_goal_for_the_day > 0:
+                pg = project.personal_goal_for_the_day
+                added_today = project.get_added_today_in_unit()
+                if added_today >= pg:
+                    self.today_goal.setText(f'Цель на сегодня выполнена! ({self._format_number(pg)})')
+                else:
+                    self.today_goal.setText(self._format_number(pg))
             else:
                 # Используем сравнение в символах для точности
                 if project.get_total_symbols() >= project.get_today_goal_value():
@@ -857,6 +867,7 @@ class MainWindow(QMainWindow, main_window_ui):
             new_total = dialog.get_total()
             new_unit = dialog.get_unit()
             new_deadline = dialog.get_deadline()
+            new_personal_goal = dialog.get_personal_goal_for_the_day()
             if [old_name != new_name, old_goal != new_goal, old_total != new_total, old_deadline != new_deadline]:
                 edit_date = en.today_for_test()
 
@@ -882,6 +893,7 @@ class MainWindow(QMainWindow, main_window_ui):
             project.total_symbols = new_total
             project.unit = new_unit
             project.deadline = new_deadline
+            project.personal_goal_for_the_day = new_personal_goal
             project.edit_date = edit_date
 
             # Обновляем статус проекта (если цель достигнута)
@@ -1683,10 +1695,17 @@ class CreateProject(QDialog, create_project_ui):
         # Подключаем сигналы
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
         self.de_deadline.dateChanged.connect(self.validate_all)
+        self.de_deadline.dateChanged.connect(self.on_deadline_changed)
         self.le_name.textChanged.connect(self.validate_all)
         self.le_goal.textChanged.connect(self.validate_all)
+        self.le_goal.textChanged.connect(self.on_deadline_changed)
         self.le_total_symbols.textChanged.connect(self.validate_all)
+        self.le_total_symbols.textChanged.connect(self.on_deadline_changed)
+        self.le_personal_goal_for_the_day.textChanged.connect(self.on_personal_goal_changed)
         self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
+
+        # Флаг для предотвращения циклических обновлений
+        self._updating = False
 
         # Устанавливаем минимальную дату - сегодня
         self.de_deadline.setMinimumDate(en.today_for_test())
@@ -1705,10 +1724,14 @@ class CreateProject(QDialog, create_project_ui):
         """Обработчик чекбокса 'Нет дедлайна'."""
         if checked:
             self.de_deadline.setDisabled(True)
+            self.le_personal_goal_for_the_day.setDisabled(True)
+            self.le_personal_goal_for_the_day.setText("0")
             self.incorrect_data.setVisible(False)
         else:
             self.de_deadline.setEnabled(True)
             self.de_deadline.setMinimumDate(en.today_for_test())
+            self.le_personal_goal_for_the_day.setEnabled(True)
+            self.on_deadline_changed()
         self.validate_all()
 
     def on_unit_changed(self, new_unit_text):
@@ -1740,7 +1763,64 @@ class CreateProject(QDialog, create_project_ui):
             f"{new_total:.2f}".rstrip('0').rstrip('.') if '.' in f"{new_total:.2f}" else f"{new_total:.0f}")
 
         self.current_unit = new_unit
+        self.on_deadline_changed()
         self.validate_all()
+
+    def on_deadline_changed(self):
+        """При изменении дедлайна пересчитывает дневную цель."""
+        if self._updating or self.checkBox.isChecked():
+            return
+        try:
+            goal = float(self.le_goal.text())
+            total = float(self.le_total_symbols.text())
+        except (ValueError, AttributeError):
+            return
+        remaining = goal - total
+        if remaining <= 0:
+            self._updating = True
+            try:
+                self.le_personal_goal_for_the_day.setText("0")
+            finally:
+                self._updating = False
+            return
+        deadline = self.de_deadline.date().toPython()
+        today = en.today_for_test()
+        days = (deadline - today).days + 1
+        if days <= 0:
+            daily = remaining
+        else:
+            daily = remaining / days
+        self._updating = True
+        try:
+            formatted = f"{daily:.2f}".rstrip('0').rstrip('.')
+            self.le_personal_goal_for_the_day.setText(formatted)
+        finally:
+            self._updating = False
+
+    def on_personal_goal_changed(self):
+        """При изменении дневной цели обновляет дедлайн, если нужно."""
+        if self._updating or self.checkBox.isChecked():
+            return
+        try:
+            personal_goal = float(self.le_personal_goal_for_the_day.text())
+            goal = float(self.le_goal.text())
+            total = float(self.le_total_symbols.text())
+        except (ValueError, AttributeError):
+            return
+        if personal_goal <= 0 or goal <= total:
+            return
+        remaining = goal - total
+        days_needed = math.ceil(remaining / personal_goal)
+        today = en.today_for_test()
+        computed_deadline = today + datetime.timedelta(days=days_needed - 1)
+        current_deadline = self.de_deadline.date().toPython()
+        if computed_deadline > current_deadline:
+            self._updating = True
+            try:
+                qdate = QDate(computed_deadline.year, computed_deadline.month, computed_deadline.day)
+                self.de_deadline.setDate(qdate)
+            finally:
+                self._updating = False
 
     def validate_all(self):
         """Валидация всех полей."""
@@ -1844,6 +1924,15 @@ class CreateProject(QDialog, create_project_ui):
     def get_name(self):
         return self.le_name.text().strip()
 
+    def get_personal_goal_for_the_day(self):
+        if self.checkBox.isChecked():
+            return 0
+        try:
+            val = float(self.le_personal_goal_for_the_day.text())
+            return val if val > 0 else 0
+        except (ValueError, AttributeError):
+            return 0
+
 
 class EditProject(QDialog, create_project_ui):
     def __init__(self, project, parent=None):
@@ -1886,12 +1975,19 @@ class EditProject(QDialog, create_project_ui):
             self.checkBox.setChecked(True)
             self.de_deadline.setDisabled(True)
 
+        # Флаг для предотвращения циклических обновлений
+        self._updating = False
+
         # Подключаем сигналы
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
         self.de_deadline.dateChanged.connect(self.validate_all)
+        self.de_deadline.dateChanged.connect(self.on_deadline_changed)
         self.le_name.textChanged.connect(self.validate_all)
         self.le_goal.textChanged.connect(self.validate_all)
+        self.le_goal.textChanged.connect(self.on_deadline_changed)
         self.le_total_symbols.textChanged.connect(self.validate_all)
+        self.le_total_symbols.textChanged.connect(self.on_deadline_changed)
+        self.le_personal_goal_for_the_day.textChanged.connect(self.on_personal_goal_changed)
         self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
 
         # Устанавливаем минимальную дату - сегодня
@@ -1899,7 +1995,16 @@ class EditProject(QDialog, create_project_ui):
 
         # Начальное состояние кнопок (после заполнения данных они должны быть активны)
         self.buttons.setEnabled(True)
+        # on_checkbox_toggled выставит enabled/disabled и вызовет on_deadline_changed (автоматический расчёт)
         self.on_checkbox_toggled(self.checkBox.isChecked())
+
+        # Если у проекта сохранена своя дневная цель — восстанавливаем её поверх автоматической
+        if project.deadline != 'Нет' and project.personal_goal_for_the_day and project.personal_goal_for_the_day > 0:
+            self._updating = True
+            try:
+                self.le_personal_goal_for_the_day.setText(self._format_number(project.personal_goal_for_the_day))
+            finally:
+                self._updating = False
 
         QTimer.singleShot(0, self.validate_all)
 
@@ -1911,10 +2016,14 @@ class EditProject(QDialog, create_project_ui):
     def on_checkbox_toggled(self, checked):
         if checked:
             self.de_deadline.setDisabled(True)
+            self.le_personal_goal_for_the_day.setDisabled(True)
+            self.le_personal_goal_for_the_day.setText("0")
             self.incorrect_data.setVisible(False)
         else:
             self.de_deadline.setEnabled(True)
             self.de_deadline.setMinimumDate(en.today_for_test())
+            self.le_personal_goal_for_the_day.setEnabled(True)
+            self.on_deadline_changed()
         self.validate_all()
 
     def on_unit_changed(self, new_unit_text):
@@ -1940,7 +2049,64 @@ class EditProject(QDialog, create_project_ui):
         self.le_total_symbols.setText(self._format_number(new_total))
 
         self.current_unit = new_unit
+        self.on_deadline_changed()
         self.validate_all()
+
+    def on_deadline_changed(self):
+        """При изменении дедлайна пересчитывает дневную цель."""
+        if self._updating or self.checkBox.isChecked():
+            return
+        try:
+            goal = float(self.le_goal.text())
+            total = float(self.le_total_symbols.text())
+        except (ValueError, AttributeError):
+            return
+        remaining = goal - total
+        if remaining <= 0:
+            self._updating = True
+            try:
+                self.le_personal_goal_for_the_day.setText("0")
+            finally:
+                self._updating = False
+            return
+        deadline = self.de_deadline.date().toPython()
+        today = en.today_for_test()
+        days = (deadline - today).days + 1
+        if days <= 0:
+            daily = remaining
+        else:
+            daily = remaining / days
+        self._updating = True
+        try:
+            formatted = f"{daily:.2f}".rstrip('0').rstrip('.')
+            self.le_personal_goal_for_the_day.setText(formatted)
+        finally:
+            self._updating = False
+
+    def on_personal_goal_changed(self):
+        """При изменении дневной цели обновляет дедлайн, если нужно."""
+        if self._updating or self.checkBox.isChecked():
+            return
+        try:
+            personal_goal = float(self.le_personal_goal_for_the_day.text())
+            goal = float(self.le_goal.text())
+            total = float(self.le_total_symbols.text())
+        except (ValueError, AttributeError):
+            return
+        if personal_goal <= 0 or goal <= total:
+            return
+        remaining = goal - total
+        days_needed = math.ceil(remaining / personal_goal)
+        today = en.today_for_test()
+        computed_deadline = today + datetime.timedelta(days=days_needed - 1)
+        current_deadline = self.de_deadline.date().toPython()
+        if computed_deadline > current_deadline:
+            self._updating = True
+            try:
+                qdate = QDate(computed_deadline.year, computed_deadline.month, computed_deadline.day)
+                self.de_deadline.setDate(qdate)
+            finally:
+                self._updating = False
 
     def validate_all(self):
         data = en.load_data()
@@ -2041,6 +2207,15 @@ class EditProject(QDialog, create_project_ui):
 
     def get_name(self):
         return self.le_name.text().strip()
+
+    def get_personal_goal_for_the_day(self):
+        if self.checkBox.isChecked():
+            return 0
+        try:
+            val = float(self.le_personal_goal_for_the_day.text())
+            return val if val > 0 else 0
+        except (ValueError, AttributeError):
+            return 0
 
 
 class NotificationManager:
