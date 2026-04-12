@@ -1800,13 +1800,12 @@ class CreateProject(QDialog, create_project_ui):
         today = en.today_for_test()
         days = (deadline - today).days + 1
         if days <= 0:
-            daily = remaining
+            daily = math.ceil(remaining)
         else:
-            daily = remaining / days
+            daily = math.ceil(remaining / days)
         self._updating = True
         try:
-            formatted = f"{daily:.2f}".rstrip('0').rstrip('.')
-            self.le_personal_goal_for_the_day.setText(formatted)
+            self.le_personal_goal_for_the_day.setText(str(daily))
         finally:
             self._updating = False
 
@@ -1940,7 +1939,7 @@ class CreateProject(QDialog, create_project_ui):
             return 0
         try:
             val = float(self.le_personal_goal_for_the_day.text())
-            return val if val > 0 else 0
+            return math.ceil(val) if val > 0 else 0
         except (ValueError, AttributeError):
             return 0
 
@@ -2096,13 +2095,12 @@ class EditProject(QDialog, create_project_ui):
         today = en.today_for_test()
         days = (deadline - today).days + 1
         if days <= 0:
-            daily = remaining
+            daily = math.ceil(remaining)
         else:
-            daily = remaining / days
+            daily = math.ceil(remaining / days)
         self._updating = True
         try:
-            formatted = f"{daily:.2f}".rstrip('0').rstrip('.')
-            self.le_personal_goal_for_the_day.setText(formatted)
+            self.le_personal_goal_for_the_day.setText(str(daily))
         finally:
             self._updating = False
 
@@ -2234,7 +2232,7 @@ class EditProject(QDialog, create_project_ui):
             return 0
         try:
             val = float(self.le_personal_goal_for_the_day.text())
-            return val if val > 0 else 0
+            return math.ceil(val) if val > 0 else 0
         except (ValueError, AttributeError):
             return 0
 
