@@ -1680,7 +1680,7 @@ class CreateProject(QDialog, create_project_ui):
         # Словари для преобразования
         self.text_to_unit = {
             'Символы': 'symbols',
-            'Листы A4': 'A4',
+            'Листы А4': 'A4',
             'Авторские листы': 'author_list',
             'Страницы Фикбука': 'ficbook_pages'
         }
@@ -1957,7 +1957,7 @@ class EditProject(QDialog, create_project_ui):
         # Словари для преобразования
         self.text_to_unit = {
             'Символы': 'symbols',
-            'Листы A4': 'A4',
+            'Листы А4': 'A4',
             'Авторские листы': 'author_list',
             'Страницы Фикбука': 'ficbook_pages'
         }
