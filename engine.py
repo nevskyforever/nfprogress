@@ -302,6 +302,11 @@ class Project:
         """Возвращает накопленный план на сегодня в символах.
         Равномерно распределяет цель от даты установки дедлайна до дедлайна.
         """
+
+        # Если есть персональная цель на сегодня - возвращаем ее
+        if self.personal_goal_for_the_day:
+            return self.personal_goal_for_the_day
+
         if self.deadline == 'Нет':
             return 0
 
