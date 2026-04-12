@@ -776,13 +776,19 @@ def global_streak_status(data, today=None):
     last_lost_date = data.get('last_global_streak_lost_date')
     last_lost_len = data.get('last_global_streak_lose_len', 0)
 
+    # Если стрик какого-то проекта длиннее глобального — заменяем глобальный стрик на него
+    projects = data.get('projects', {})
+    for project in projects.values():
+        if isinstance(project, Project) and isinstance(project.streaks, list) and len(project.streaks) > len(streaks):
+            streaks = list(project.streaks)
+            data['global_streaks'] = streaks
+
     # Заморозка (оставляем как есть)
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
         return 'Freeze'
 
     # Определяем, есть ли сегодня проекты, выполнившие план
     has_active_today = False
-    projects = data.get('projects', {})
     for project in projects.values():
         if isinstance(project, Project):
             if project.get_total_symbols() >= project.get_today_goal_value() and project.get_today_goal_value() > 0:
