@@ -862,6 +862,7 @@ class MainWindow(QMainWindow, main_window_ui):
             old_goal = project.goal
             old_total = project.total_symbols
             old_deadline = project.deadline
+            old_personal_goal = project.personal_goal_for_the_day
 
             # Получаем новые значения из диалога
             new_name = dialog.get_name()
@@ -875,6 +876,11 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Проверяем, изменилась ли единица измерения
             unit_changed = (new_unit != project.unit)
+
+            # Если персональная цель проекта изменилась и сеголдня есть в стриках - удаляем сегодняшнюю дату
+            if old_personal_goal < new_personal_goal and project.streaks:
+                if project.streaks[-1] == en.today_for_test():
+                    project.streaks.remove(en.today_for_test())
 
             # Если единица изменилась, показываем предупреждение
             if unit_changed:
