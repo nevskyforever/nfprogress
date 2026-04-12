@@ -301,11 +301,22 @@ class Project:
     def get_today_goal_value(self):
         """Возвращает накопленный план на сегодня в символах.
         Равномерно распределяет цель от даты установки дедлайна до дедлайна.
+        Если задана личная дневная цель, накапливает её по дням от даты создания проекта.
         """
 
-        # Если есть персональная цель на сегодня - возвращаем ее
-        if self.personal_goal_for_the_day:
-            return self.personal_goal_for_the_day
+        # Если есть персональная цель на сегодня — считаем накопленную цель
+        if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
+            today = today_for_test()
+            start_date = self.create_date if isinstance(self.create_date, date) else today
+            if start_date > today:
+                start_date = today
+            days_elapsed = (today - start_date).days + 1
+            personal_goal_sym = unit_converter(self.unit, self.personal_goal_for_the_day, 'symbols')
+            accumulated = days_elapsed * personal_goal_sym
+            goal_sym = self.get_goal_symbols()
+            if goal_sym and goal_sym != float('inf') and goal_sym > 0:
+                accumulated = min(accumulated, goal_sym)
+            return math.ceil(accumulated)
 
         if self.deadline == 'Нет':
             return 0
@@ -377,14 +388,6 @@ class Project:
         # Убедимся, что streaks — список
         if not isinstance(self.streaks, list):
             self.streaks = []
-
-        # Если установлена личная дневная цель — planned вычисляется через неё,
-        # но проверка остаётся прежней: total (накопленное) >= planned (накопленный план)
-        if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
-            today_added_sym = self.get_added_symbols_today_value()
-            total_before_today = total - today_added_sym
-            personal_goal_sym = unit_converter(self.unit, self.personal_goal_for_the_day, 'symbols')
-            planned = total_before_today + personal_goal_sym
 
         day_completed = total >= planned
 
