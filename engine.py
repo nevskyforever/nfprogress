@@ -373,6 +373,14 @@ class Project:
         if not isinstance(self.streaks, list):
             self.streaks = []
 
+        # Если установлена личная дневная цель — planned вычисляется через неё,
+        # но проверка остаётся прежней: total (накопленное) >= planned (накопленный план)
+        if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
+            today_added_sym = self.get_added_symbols_today_value()
+            total_before_today = total - today_added_sym
+            personal_goal_sym = unit_converter(self.unit, self.personal_goal_for_the_day, 'symbols')
+            planned = total_before_today + personal_goal_sym
+
         day_completed = total >= planned
 
         # === СБРОС УСТАРЕВШЕГО СТАТУСА ПОТЕРИ (чистого) ===
