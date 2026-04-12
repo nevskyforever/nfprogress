@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.3.21'
+version = '3.4'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -139,7 +139,7 @@ class Project:
     def __init__(self, name='Без имени', goal=None,
                  create_date=None, total_symbols=0, progress=0,
                  notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
-                 status='активен', unit='symbols'):
+                 status='активен', unit='symbols', personal_goal_for_the_day=0):
 
         self._name = name
         self._goal = goal  # хранится в выбранной единице
@@ -161,6 +161,7 @@ class Project:
         self.last_streak_lost_date = None
         self.freezes = 0
         self.deadline_set_date = today_for_test()
+        self.personal_goal_for_the_day = personal_goal_for_the_day
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -185,6 +186,7 @@ class Project:
             'last_streak_lost_date': None,
             'freezes': 0,
             'deadline_set_date': today_for_test(),
+            'personal_goal_for_the_day': self.get_today_goal_in_unit()
         }
 
         for attr, default_value in defaults.items():
@@ -300,6 +302,11 @@ class Project:
         """Возвращает накопленный план на сегодня в символах.
         Равномерно распределяет цель от даты установки дедлайна до дедлайна.
         """
+
+        # Если есть персональная цель на сегодня - возвращаем ее
+        if self.personal_goal_for_the_day:
+            return self.personal_goal_for_the_day
+
         if self.deadline == 'Нет':
             return 0
 
@@ -370,6 +377,14 @@ class Project:
         # Убедимся, что streaks — список
         if not isinstance(self.streaks, list):
             self.streaks = []
+
+        # Если установлена личная дневная цель — planned вычисляется через неё,
+        # но проверка остаётся прежней: total (накопленное) >= planned (накопленный план)
+        if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
+            today_added_sym = self.get_added_symbols_today_value()
+            total_before_today = total - today_added_sym
+            personal_goal_sym = unit_converter(self.unit, self.personal_goal_for_the_day, 'symbols')
+            planned = total_before_today + personal_goal_sym
 
         day_completed = total >= planned
 
@@ -775,6 +790,7 @@ def global_streak_status(data, today=None):
     prev_status = data.get('global_streak_status', 'No')
     last_lost_date = data.get('last_global_streak_lost_date')
     last_lost_len = data.get('last_global_streak_lose_len', 0)
+    projects = data.get('projects', {})
 
     # Заморозка (оставляем как есть)
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
@@ -782,7 +798,6 @@ def global_streak_status(data, today=None):
 
     # Определяем, есть ли сегодня проекты, выполнившие план
     has_active_today = False
-    projects = data.get('projects', {})
     for project in projects.values():
         if isinstance(project, Project):
             if project.get_total_symbols() >= project.get_today_goal_value() and project.get_today_goal_value() > 0:
