@@ -356,6 +356,20 @@ class Project:
             return float('inf')
         return unit_converter('symbols', goal_sym, self.unit)
 
+    def get_today_goal_remaining_in_unit(self):
+        """Возвращает остаток цели на сегодня в единице проекта с учётом уже написанного.
+        Для личной дневной цели: max(накопленная_цель - total, 0).
+        Для остальных случаев: то же, что get_today_goal_in_unit().
+        """
+        if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
+            accumulated_sym = self.get_today_goal_value()
+            if accumulated_sym == float('inf'):
+                return float('inf')
+            total_sym = self.get_total_symbols()
+            remaining_sym = max(accumulated_sym - total_sym, 0)
+            return unit_converter('symbols', remaining_sym, self.unit)
+        return self.get_today_goal_in_unit()
+
     def get_need_write_value(self):
         """Возвращает остаток написать в символах."""
         goal_sym = self.get_goal_symbols()
