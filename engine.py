@@ -139,7 +139,7 @@ class Project:
     def __init__(self, name='Без имени', goal=None,
                  create_date=None, total_symbols=0, progress=0,
                  notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
-                 status='активен', unit='symbols'):
+                 status='активен', unit='symbols', personal_goal_for_the_day=0):
 
         self._name = name
         self._goal = goal  # хранится в выбранной единице
@@ -161,6 +161,7 @@ class Project:
         self.last_streak_lost_date = None
         self.freezes = 0
         self.deadline_set_date = today_for_test()
+        self.personal_goal_for_the_day = personal_goal_for_the_day
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -185,6 +186,7 @@ class Project:
             'last_streak_lost_date': None,
             'freezes': 0,
             'deadline_set_date': today_for_test(),
+            'personal_goal_for_the_day': 0
         }
 
         for attr, default_value in defaults.items():
