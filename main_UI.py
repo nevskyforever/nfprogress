@@ -563,8 +563,11 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             # Проект активен или в архиве — настраиваем кнопки по логике
             self.btn_change_project.setEnabled(True)
+            self.change_project_action.setEnabled(True)
+            self.archive_project_action.setEnabled(True)
             # Кнопка завершения активна, если цель достигнута
             self.btn_complete_project.setEnabled(project.goal <= project.total_symbols)
+            self.complete_project_action.setEnabled(project.goal <= project.total_symbols)
 
             # Меняем текст кнопки в зависимости от статуса
             if project.status == 'в архиве':
