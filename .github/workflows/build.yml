@@ -55,10 +55,10 @@ jobs:
             --lto=yes `
             --windows-icon-from-ico=icon.ico `
             --include-data-file=icon.ico=icon.ico `
-            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qt_ru.qm=PySide6/translations/qt_ru.qm" `
-            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qtbase_ru.qm=PySide6/translations/qtbase_ru.qm" `
-            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qt_en.qm=PySide6/translations/qt_en.qm" `
-            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qtbase_en.qm=PySide6/translations/qtbase_en.qm" `
+            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qt_ru.qm=translations/qt_ru.qm" `
+            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qtbase_ru.qm=translations/qtbase_ru.qm" `
+            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qt_en.qm=translations/qt_en.qm" `
+            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qtbase_en.qm=translations/qtbase_en.qm" `
             --output-dir=build `
             --output-filename=nfprogress.exe `
             --company-name="nfproject" `

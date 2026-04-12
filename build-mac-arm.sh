@@ -16,10 +16,10 @@ nuitka --standalone \
        --file-description="Трекер для писателей" \
        --enable-plugin=pyside6 \
        --output-dir=build-arm \
-       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qt_ru.qm=PySide6/Qt/translations/qt_ru.qm \
-       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qtbase_ru.qm=PySide6/Qt/translations/qtbase_ru.qm \
-       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qt_en.qm=PySide6/Qt/translations/qt_en.qm \
-       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qtbase_en.qm=PySide6/Qt/translations/qtbase_en.qm \
+       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qt_ru.qm=translations/qt_ru.qm \
+       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qtbase_ru.qm=translations/qtbase_ru.qm \
+       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qt_en.qm=translations/qt_en.qm \
+       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qtbase_en.qm=translations/qtbase_en.qm \
        --lto=yes \
        --disable-ccache \
        --remove-output \
