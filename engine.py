@@ -9,13 +9,11 @@ from pathlib import Path
 from collections import defaultdict
 from docx import Document
 
-import engine
-
 # Режим разработчика
-dev_mode = True
+dev_mode = False
 
 # Версия приложения
-version = '3.3.21'
+version = '3.4'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
