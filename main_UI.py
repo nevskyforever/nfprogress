@@ -376,6 +376,13 @@ class MainWindow(QMainWindow, main_window_ui):
             'ficbook_pages': 'Страницы Фикбука'
         }
 
+        # Обрабатыааем бесконечный проект
+        if project.goal is float('inf'):
+            self.label_deadline.setVisible(False)
+            self.deadline.setVisible(False)
+            self.label_max_streak.setVisible(False)
+            self.max_streak.setVisible(False)
+
         # Основная информация
         self.status.setText(project.status)
         self.progress.setText(f"{project.progress:.1f}%")
