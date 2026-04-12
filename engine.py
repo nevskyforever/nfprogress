@@ -795,8 +795,6 @@ def global_streak_status(data, today=None):
         if len(project.streaks) >= len(streaks) and project.streaks != streaks:
             streaks = list(project.streaks)
             data['global_streaks'] = streaks
-            data['global_streak_status'] = engine.global_streak_status(data, today)
-            save_data(data)
 
     # Заморозка (оставляем как есть)
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
