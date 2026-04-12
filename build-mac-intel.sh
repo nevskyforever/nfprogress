@@ -7,6 +7,14 @@ if [ -d "build-intel" ]; then
   rm -rf build-intel
 fi
 
+rm -rf app_translations
+mkdir app_translations
+PYSIDE_TRANS_DIR=$(python3 -c "import sys; from PySide6.QtCore import QLibraryInfo; sys.stdout.write(QLibraryInfo.path(QLibraryInfo.TranslationsPath))")
+cp "$PYSIDE_TRANS_DIR/qt_ru.qm" app_translations/
+cp "$PYSIDE_TRANS_DIR/qtbase_ru.qm" app_translations/
+cp "$PYSIDE_TRANS_DIR/qt_en.qm" app_translations/
+cp "$PYSIDE_TRANS_DIR/qtbase_en.qm" app_translations/
+
 nuitka --standalone \
        --macos-create-app-bundle \
        --macos-app-icon=appIcon.icns \
@@ -17,10 +25,7 @@ nuitka --standalone \
        --enable-plugin=pyside6 \
        --macos-target-arch=x86_64 \
        --output-dir=build-intel \
-       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qt_ru.qm=translations/qt_ru.qm \
-       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qtbase_ru.qm=translations/qtbase_ru.qm \
-       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qt_en.qm=translations/qt_en.qm \
-       --include-data-file=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations/qtbase_en.qm=translations/qtbase_en.qm \
+       --include-data-dir=app_translations=translations \
        --lto=yes \
        --disable-ccache \
        --remove-output \

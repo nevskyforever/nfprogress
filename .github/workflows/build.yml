@@ -44,6 +44,15 @@ jobs:
           $VERSION = python -c "import engine; print(engine.version)"
           echo "APP_VERSION=$VERSION" >> $env:GITHUB_ENV
 
+      - name: Prepare translations
+        run: |
+          mkdir app_translations
+          $PYSIDE_TRANS_DIR = python -c "import sys; from PySide6.QtCore import QLibraryInfo; sys.stdout.write(QLibraryInfo.path(QLibraryInfo.TranslationsPath))"
+          Copy-Item "$PYSIDE_TRANS_DIR\qt_ru.qm" -Destination "app_translations\"
+          Copy-Item "$PYSIDE_TRANS_DIR\qtbase_ru.qm" -Destination "app_translations\"
+          Copy-Item "$PYSIDE_TRANS_DIR\qt_en.qm" -Destination "app_translations\"
+          Copy-Item "$PYSIDE_TRANS_DIR\qtbase_en.qm" -Destination "app_translations\"
+
       - name: Build EXE with Nuitka
         run: |
           python -m nuitka `
@@ -55,10 +64,7 @@ jobs:
             --lto=yes `
             --windows-icon-from-ico=icon.ico `
             --include-data-file=icon.ico=icon.ico `
-            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qt_ru.qm=translations/qt_ru.qm" `
-            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qtbase_ru.qm=translations/qtbase_ru.qm" `
-            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qt_en.qm=translations/qt_en.qm" `
-            --include-data-file="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations/qtbase_en.qm=translations/qtbase_en.qm" `
+            --include-data-dir=app_translations=translations `
             --output-dir=build `
             --output-filename=nfprogress.exe `
             --company-name="nfproject" `

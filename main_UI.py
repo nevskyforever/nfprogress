@@ -2747,16 +2747,14 @@ if __name__ == "__main__":
         qtbase_locale = "qtbase_en"
 
     translator_qt = QTranslator()
-    if translator_qt.load(qt_locale, translations_path):
+    qt_file = os.path.join(translations_path, f"{qt_locale}.qm")
+    if translator_qt.load(qt_file):
         app.installTranslator(translator_qt)
-    else:
-        print(f"Ошибка загрузки перевода из {translations_path}")
 
     translator_qtbase = QTranslator()
-    if translator_qtbase.load(qtbase_locale, translations_path):
+    qtbase_file = os.path.join(translations_path, f"{qtbase_locale}.qm")
+    if translator_qtbase.load(qtbase_file):
         app.installTranslator(translator_qtbase)
-    else:
-        print(f"Ошибка загрузки перевода из {translations_path}")
 
     window = MainWindow()
     window.show()
