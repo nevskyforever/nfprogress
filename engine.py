@@ -796,13 +796,15 @@ def global_streak_status(data, today=None):
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
         return 'Freeze'
 
-    # Определяем, есть ли сегодня проекты, выполнившие план
+    # Определяем, есть ли сегодня проекты, выполнившие план и есть ли активные
     has_active_today = False
     for project in projects.values():
         if isinstance(project, Project):
             if project.streak_status in ['Start', 'Go', 'Complete']:
                 has_active_today = True
                 break
+            elif project.streak_status == 'Active':
+                streaks = project.streaks
 
     # === ОБРАБОТКА СОХРАНЁННОГО СТАТУСА ПОТЕРИ (только в день потери) ===
     if (isinstance(prev_status, str) and

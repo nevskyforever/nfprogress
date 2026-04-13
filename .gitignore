@@ -18,3 +18,5 @@
 /.idea/shelf/Uncommitted_changes_before_rebase___1.xml
 /.idea/vcs.xml
 /.idea/workspace.xml
+/build-arm/
+/build-intel/
