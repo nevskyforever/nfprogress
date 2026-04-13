@@ -1056,7 +1056,7 @@ class MainWindow(QMainWindow, main_window_ui):
             project.complete_date = en.today_for_test()
             if en.load_settings()['game_mode']:
                 self.game_controller.give_complete_bonus(project.status, project.total_symbols, project.unit)
-                if en.load_settings()['global_streak'] and project.deadline != 'Нет':
+                if en.load_settings()['global_streak'] and project.deadline != 'Нет' and len(project.streaks):
                     self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local', streak_len=len(project.streaks))
 
             data = en.load_data()
