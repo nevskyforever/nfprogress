@@ -803,7 +803,7 @@ def global_streak_status(data, today=None):
             if project.streak_status in ['Start', 'Go', 'Complete']:
                 has_active_today = True
                 break
-            elif project.streak_status == 'Active':
+            elif project.streak_status == 'Active' and len(streaks) < len(project.streaks):
                 streaks = project.streaks
 
     # === ОБРАБОТКА СОХРАНЁННОГО СТАТУСА ПОТЕРИ (только в день потери) ===
