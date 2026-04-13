@@ -800,7 +800,7 @@ def global_streak_status(data, today=None):
     has_active_today = False
     for project in projects.values():
         if isinstance(project, Project):
-            if project.get_total_symbols() >= project.get_today_goal_value() and project.get_today_goal_value() > 0:
+            if project.streak_status in ['Start', 'Go', 'Complete']:
                 has_active_today = True
                 break
 
