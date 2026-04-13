@@ -283,6 +283,16 @@ class MainWindow(QMainWindow, main_window_ui):
                 data['projects']['Общий проект'] = inf_project
                 save_data(data)
                 self.refresh_projects()
+        else:
+            data = en.load_data()
+            if data['projects'].get('Общий проект', False):
+                del data['projects']['Общий проект']
+                save_data(data)
+                self.refresh_projects()
+            if data['projects'].get('inf_project', False):
+                del data['projects']['inf_project']
+                save_data(data)
+                self.refresh_projects()
 
 
         if settings.get('global_streak', False):
