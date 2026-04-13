@@ -907,10 +907,10 @@ class MainWindow(QMainWindow, main_window_ui):
 
                     # 4. Обрабатываем результат
                     if result_personal_goal == QDialog.Accepted:
-                        return
+                        project.personal_goal_for_the_day = new_personal_goal
 
             # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
-            if old_personal_goal < new_personal_goal and project.streakы and settings.get('global_streak', False):
+            if old_personal_goal < new_personal_goal and project.streaks and settings.get('global_streak', False):
                 if project.streaks[-1] == en.today_for_test():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
