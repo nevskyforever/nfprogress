@@ -283,6 +283,16 @@ class MainWindow(QMainWindow, main_window_ui):
                 data['projects']['Общий проект'] = inf_project
                 save_data(data)
                 self.refresh_projects()
+        else:
+            data = en.load_data()
+            if data['projects'].get('Общий проект', False):
+                del data['projects']['Общий проект']
+                save_data(data)
+                self.refresh_projects()
+            if data['projects'].get('inf_project', False):
+                del data['projects']['inf_project']
+                save_data(data)
+                self.refresh_projects()
 
 
         if settings.get('global_streak', False):
@@ -904,10 +914,10 @@ class MainWindow(QMainWindow, main_window_ui):
 
                     # 4. Обрабатываем результат
                     if result_personal_goal == QDialog.Accepted:
-                        return
+                        project.personal_goal_for_the_day = new_personal_goal
 
             # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
-            if old_personal_goal < new_personal_goal and project.streakы and settings.get('global_streak', False):
+            if old_personal_goal < new_personal_goal and project.streaks and settings.get('global_streak', False):
                 if project.streaks[-1] == en.today_for_test():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
