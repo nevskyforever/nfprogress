@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = True
 
 # Версия приложения
-version = '3.4'
+version = '3.4.5'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -796,13 +796,15 @@ def global_streak_status(data, today=None):
     if prev_status == 'Freeze' and streaks and streaks[-1] == today:
         return 'Freeze'
 
-    # Определяем, есть ли сегодня проекты, выполнившие план
+    # Определяем, есть ли сегодня проекты, выполнившие план и есть ли активные
     has_active_today = False
     for project in projects.values():
         if isinstance(project, Project):
-            if project.get_total_symbols() >= project.get_today_goal_value() and project.get_today_goal_value() > 0:
+            if project.streak_status in ['Start', 'Go', 'Complete']:
                 has_active_today = True
                 break
+            elif project.streak_status == 'Active' and len(streaks) < len(project.streaks):
+                streaks = project.streaks
 
     # === ОБРАБОТКА СОХРАНЁННОГО СТАТУСА ПОТЕРИ (только в день потери) ===
     if (isinstance(prev_status, str) and

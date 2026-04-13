@@ -328,7 +328,10 @@ class ProjectWidget(QWidget, Ui_Form):
         self.name.setText(self.project.name)
 
         # Прогресс (всегда в процентах)
-        self.circular_progress.setValue(int(self.project.progress), animated=True)
+        if self.project.goal != float('inf'):
+            self.circular_progress.setValue(int(self.project.progress), animated=True)
+        else:
+            self.circular_progress.setValue(100, animated=False)
 
         # Значения уже в единице проекта с отображением единицы измерения
         total_str = self._format_number(self.project.total_symbols)

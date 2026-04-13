@@ -283,6 +283,16 @@ class MainWindow(QMainWindow, main_window_ui):
                 data['projects']['Общий проект'] = inf_project
                 save_data(data)
                 self.refresh_projects()
+        else:
+            data = en.load_data()
+            if data['projects'].get('Общий проект', False):
+                del data['projects']['Общий проект']
+                save_data(data)
+                self.refresh_projects()
+            if data['projects'].get('inf_project', False):
+                del data['projects']['inf_project']
+                save_data(data)
+                self.refresh_projects()
 
 
         if settings.get('global_streak', False):
@@ -375,6 +385,15 @@ class MainWindow(QMainWindow, main_window_ui):
             'author_list': 'Авторские листы',
             'ficbook_pages': 'Страницы Фикбука'
         }
+
+        # Обрабатыааем бесконечный проект
+        if project.goal == float('inf'):
+            self.label_deadline.setVisible(False)
+            self.deadline.setVisible(False)
+            self.label_max_streak.setVisible(False)
+            self.max_streak.setVisible(False)
+            self.label_progress.setVisible(False)
+            self.progress.setVisible(False)
 
         # Основная информация
         self.status.setText(project.status)
@@ -880,29 +899,71 @@ class MainWindow(QMainWindow, main_window_ui):
             # Проверяем, изменилась ли единица измерения
             unit_changed = (new_unit != project.unit)
 
-            # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
-            if old_personal_goal < new_personal_goal and project.streaks:
-                if project.streaks[-1] == en.today_for_test():
+            settings = en.load_settings()
+
+            # Предупреждаем, что уменьшить цель на день не выйдет
+            if old_personal_goal < new_personal_goal and settings.get('global_streak', False):
+                if en.today_for_test() not in project.streaks:
                     # 1. Создаем диалог
-                    confirm_dialog = ConfirmDialog()
+                    confirm_goal_dialog = ConfirmDialog()
 
                     # 2. НАСТРАИВАЕМ текст (ДО вызова exec)
-                    # Получаем настройки один раз, чтобы не дергать функцию дважды
-                    settings = en.load_settings()
-
-                    if settings.get('game_mode') and settings.get('global_streak'):
-                        confirm_dialog.message.setText(
-                            'Вы увеличиваете цель на день в проекте, где стрик уже продлен, если вы сохраните изменения, вам придется продлить стрик заново. Нового бонуса за стрик не будет.')
-                    elif settings.get('global_streak'):  # ВАЖНО: используем elif, чтобы не перезаписать текст
-                        confirm_dialog.message.setText(
-                            'Вы увеличиваете цель на день в проекте, где стрик уже продлен, если вы сохраните изменения, вам придется продлить стрик заново.')
+                    confirm_goal_dialog.message.setText(
+                        'Вы хотите увеличить цель на день, уменьшить ее не выйдет, пока она не будет выполнена.'
+                        '\nПродолжить?')
 
                     # 3. Показываем диалог и ждем решения пользователя
-                    result = confirm_dialog.exec()
+                    result_personal_goal = confirm_goal_dialog.exec()
 
                     # 4. Обрабатываем результат
-                    if result:
+                    if result_personal_goal == QDialog.Accepted:
+                        project.personal_goal_for_the_day = new_personal_goal
+
+            # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
+            if old_personal_goal < new_personal_goal and project.streaks and settings.get('global_streak', False):
+                if project.streaks[-1] == en.today_for_test():
+                    # 1. Создаем диалог
+                    confirm_goal_dialog = ConfirmDialog()
+
+                    # 2. НАСТРАИВАЕМ текст (ДО вызова exec)
+
+                    if settings.get('game_mode') and settings.get('global_streak'):
+                        confirm_goal_dialog.message.setText(
+                            'Вы увеличиваете цель на день в проекте, где стрик уже продлен, если вы сохраните изменения, вам придется продлить стрик заново. Нового бонуса за стрик не будет.'
+                            '\nУменьшить цель не получится, пока вы ее не выполните!'
+                            '\nПродолжить?'
+                        )
+                    elif settings.get('global_streak'):  # ВАЖНО: используем elif, чтобы не перезаписать текст
+                        confirm_goal_dialog.message.setText(
+                            'Вы увеличиваете цель на день в проекте, где стрик уже продлен, если вы сохраните изменения, вам придется продлить стрик заново.'
+                            '\nУменьшить цель не получится, пока вы ее не выполните!'
+                            '\nПродолжить?')
+
+                    # 3. Показываем диалог и ждем решения пользователя
+                    result_personal_goal = confirm_goal_dialog.exec()
+
+                    # 4. Обрабатываем результат
+                    if result_personal_goal == QDialog.Accepted:
                         project.streaks.remove(en.today_for_test())
+                    else:
+                        return
+            # Запрещаем менять цель на день, если стрик не продлен сегодня
+            if old_personal_goal > new_personal_goal:
+                if en.today_for_test() not in project.streaks:
+                    # 1. Создаем диалог
+                    confirm_goal_dialog = ConfirmDialog()
+
+                    # 2. НАСТРАИВАЕМ текст (ДО вызова exec)
+                    confirm_goal_dialog.message.setText(
+                            'Нельзя уменьшить цель на день, пока не выполнена текущая.')
+
+                    # 3. Показываем диалог и ждем решения пользователя
+                    result_personal_goal = confirm_goal_dialog.exec()
+
+                    # 4. Обрабатываем результат
+                    if result_personal_goal == QDialog.Accepted:
+                        return
+
 
             # Если единица изменилась, показываем предупреждение
             if unit_changed:
