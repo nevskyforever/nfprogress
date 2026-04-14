@@ -394,6 +394,9 @@ class MainWindow(QMainWindow, main_window_ui):
             self.max_streak.setVisible(False)
             self.label_progress.setVisible(False)
             self.progress.setVisible(False)
+        else:
+            self.label_progress.setVisible(True)
+            self.progress.setVisible(True)
 
         # Основная информация
         self.status.setText(project.status)
