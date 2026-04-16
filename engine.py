@@ -10,7 +10,7 @@ from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = False
+dev_mode = True
 
 # Версия приложения
 version = '3.4.5'
@@ -162,6 +162,7 @@ class Project:
         self.freezes = 0
         self.deadline_set_date = today_for_test()
         self.personal_goal_for_the_day = personal_goal_for_the_day
+        self.project_plan = {}
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -186,7 +187,7 @@ class Project:
             'last_streak_lost_date': None,
             'freezes': 0,
             'deadline_set_date': today_for_test(),
-            'personal_goal_for_the_day': self.get_today_goal_in_unit()
+            'project_plan': {},
         }
 
         for attr, default_value in defaults.items():
@@ -194,8 +195,14 @@ class Project:
                 setattr(self, attr, default_value)
             elif attr in ('notes', 'streaks') and not isinstance(getattr(self, attr), list):
                 setattr(self, attr, [])
+
+        # --- Вычисляем динамические данные ПОСЛЕ того, как базовые атрибуты созданы ---
+        if not hasattr(self, 'personal_goal_for_the_day'):
+            self.personal_goal_for_the_day = self.get_today_goal_in_unit()
+
         if self.synch is not None and isinstance(self.synch, str):
             self.synch = {'type': 'word', 'path': self.synch}
+
         # deadline_set_date должен храниться как date, иначе старт плана "прыгает".
         if self.deadline_set_date is None or not isinstance(self.deadline_set_date, date):
             self.deadline_set_date = today_for_test()
@@ -304,19 +311,24 @@ class Project:
         Если задана личная дневная цель, накапливает её по дням от даты создания проекта.
         """
 
+        today = today_for_test()
+
         # Если есть персональная цель на сегодня — считаем накопленную цель
-        if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
-            today = today_for_test()
-            start_date = self.create_date if isinstance(self.create_date, date) else today
-            if start_date > today:
-                start_date = today
-            days_elapsed = (today - start_date).days + 1
-            personal_goal_sym = unit_converter(self.unit, self.personal_goal_for_the_day, 'symbols')
-            accumulated = days_elapsed * personal_goal_sym
-            goal_sym = self.get_goal_symbols()
-            if goal_sym and goal_sym != float('inf') and goal_sym > 0:
-                accumulated = min(accumulated, goal_sym)
-            return math.ceil(accumulated)
+        if self.personal_goal_for_the_day:
+            plan = self.project_plan
+            today_goal = self.get_today_goal_in_unit()
+            if today not in plan.keys():
+                if today >= self.deadline:
+                    plan[today] = today_goal
+                    return today_goal
+                plan[today] = today_goal
+                return today_goal
+            else:
+                if plan[today] != today_goal and self.deadline_set_date == today:
+                    plan[today] = today_goal
+                    return today_goal
+                else:
+                    return plan[today]
 
         if self.deadline == 'Нет':
             return 0
@@ -351,7 +363,7 @@ class Project:
 
     def get_today_goal_in_unit(self):
         """Возвращает цель на сегодня в единице проекта."""
-        goal_sym = self.get_today_goal_value()
+        goal_sym = self.personal_goal_for_the_day + self.total_symbols
         if goal_sym == float('inf'):
             return float('inf')
         return unit_converter('symbols', goal_sym, self.unit)

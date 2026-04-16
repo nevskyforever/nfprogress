@@ -434,12 +434,11 @@ class MainWindow(QMainWindow, main_window_ui):
                 if project.get_total_symbols() >= project.get_today_goal_value():
                     self.today_goal.setText(f'Цель на сегодня выполнена! ({self._format_number(today_goal)})')
                 else:
-                    remaining_goal = project.get_today_goal_remaining_in_unit()
-                    self.today_goal.setText(self._format_number(remaining_goal))
+                    self.today_goal.setText(self._format_number(project.get_today_goal_value()))
             else:
                 # Используем сравнение в символах для точности
-                if project.get_total_symbols() >= project.get_today_goal_value():
-                    self.today_goal.setText(f'Цель на сегодня выполнена! ({int(project.get_today_goal_value())})')
+                if project.get_total_symbols() >= today_goal:
+                    self.today_goal.setText(f'Цель на сегодня выполнена! ({int(project.get_today_goal_in_unit())})')
                 else:
                     self.today_goal.setText(self._format_number(today_goal))
 
