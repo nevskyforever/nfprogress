@@ -1028,18 +1028,6 @@ def global_streak_status_msg(data, status=None):
 def unit_converter(unit, value, convert_to=None):
     """
     Конвертирует количество value из исходной единицы unit в целевую единицу convert_to.
-    Если convert_to не указан или равен False, конвертирует в символы.
-
-    Поддерживаемые единицы:
-        'symbols'       – символы
-        'A4'            – страницы A4 (1 стр. = 1800 символов)
-        'author_list'   – авторские листы (1 а.л. = 40 000 символов)
-        'ficbook_pages' – страницы Ficbook (1 стр. = 4500 символов)
-
-    Возвращает:
-        - для convert_to = 'symbols' – точное значение (float)
-        - для остальных единиц – округлённое вверх до целого числа (int)
-        - None, если единицы не поддерживаются
     """
     factors = {
         'symbols': 1,
@@ -1048,24 +1036,25 @@ def unit_converter(unit, value, convert_to=None):
         'ficbook_pages': 4500
     }
 
-    # Если целевая единица не задана – конвертируем в символы
     if convert_to in (None, False):
         convert_to = 'symbols'
 
-    # Проверяем, что обе единицы есть в словаре
     if unit not in factors or convert_to not in factors:
         return None
 
-    # Приводим исходное значение к символам, затем к целевой единице
+    # Приводим к общему знаменателю (символам) и вычисляем результат
     symbols_value = value * factors[unit]
     result = symbols_value / factors[convert_to]
 
-    # Для не-символьных единиц округляем вверх до целого
-    if convert_to != 'symbols':
-        return math.ceil(result)
-    else:
-        # Для символов возвращаем точное значение (без округления)
+    # Логика округления в зависимости от типа единицы
+    if convert_to == 'symbols':
         return result
+    elif convert_to == 'author_list':
+        # Для авторских листов — 1 знак после запятой
+        return round(result, 1)
+    else:
+        # Для страниц (A4, Ficbook) оставляем округление вверх до целого
+        return math.ceil(result)
 
 def count_symbols_in_docx(filepath):
     """
