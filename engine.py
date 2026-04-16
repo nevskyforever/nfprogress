@@ -307,66 +307,111 @@ class Project:
 
     def get_today_goal_value(self):
         """
-        Возвращает накопленный план на сегодня в символах.
-        Использует кэширование, чтобы избежать лишних вычислений и "убегания" цели при наборе текста.
+        Возвращает накопительный план на сегодня в символах.
+        Генерирует план от текущей даты до дедлайна по принципу "лесенки".
         """
         today = today_for_test()
 
-        # Убеждаемся, что словарь кэша инициализирован (на случай старых сохранений)
         if getattr(self, 'project_plan', None) is None:
             self.project_plan = {}
 
         plan = self.project_plan
 
-        # === 1. БЫСТРЫЙ ВОЗВРАТ ИЗ КЭША ===
-        # Если цель уже рассчитана и настройки (например, дедлайн) СЕГОДНЯ не менялись — отдаем кэш.
-        if today in plan and getattr(self, 'deadline_set_date', None) != today:
+        # === 1. ПРОВЕРКА ДЕДЛАЙНА (Если он наступил или прошел) ===
+        if self.deadline != 'Нет' and isinstance(self.deadline, date):
+            if today >= self.deadline:
+                return self.get_goal_symbols()
+
+        # === 2. БЫСТРЫЙ ВОЗВРАТ ИЗ КЭША (Защита от "убегания" цели) ===
+        # Создаем "слепок" параметров, от которых зависит план
+        current_signature = str((
+            getattr(self, 'deadline', 'Нет'),
+            getattr(self, 'personal_goal_for_the_day', 0),
+            getattr(self, '_goal', 0),
+            getattr(self, 'unit', 'symbols'),
+            getattr(self, 'deadline_set_date', None)
+        ))
+
+        # Если день есть в плане И настройки не менялись с момента последнего расчета — отдаем кэш
+        if today in plan and plan.get('signature') == current_signature:
             return plan[today]
 
-        # === 2. ВЫЧИСЛЕНИЕ НОВОЙ ЦЕЛИ ===
-        result = 0
+        # === 3. ПЕРЕСЧЕТ ПЛАНА (Инициализация) ===
 
-        # А) Если установлена личная дневная цель
+        today_added_symbols = 0
+        if hasattr(self, 'streaks') and isinstance(self.streaks, list):
+            for streak in self.streaks:
+                if isinstance(streak, dict) and streak.get('date') == today:
+                    today_added_symbols = streak.get('count', 0)
+                    break
+
+        base_total = self.total_symbols - today_added_symbols
+        daily_goal_symbols = 0
+
         if getattr(self, 'personal_goal_for_the_day', 0):
-            # Чтобы цель не росла на глазах при наборе текста в день создания проекта,
-            # мы отнимаем написанное за сегодня. Берем базу на НАЧАЛО дня.
-            base_total = self.total_symbols - self.get_added_today_in_unit()
-            goal_in_unit = self.personal_goal_for_the_day + base_total
-
-            # Проверяем, не наступил ли дедлайн (если он есть, план = 100% цели проекта)
-            if self.deadline != 'Нет' and isinstance(self.deadline, date) and today >= self.deadline:
-                result = self.get_goal_symbols()
+            converted = unit_converter(self.unit, self.personal_goal_for_the_day, 'symbols')
+            if converted == float('inf'):
+                daily_goal_symbols = float('inf')
             else:
-                # Переводим полученную цель в символы
-                if goal_in_unit == float('inf'):
-                    result = float('inf')
-                else:
-                    converted = unit_converter(self.unit, goal_in_unit, 'symbols')
-                    result = math.ceil(converted) if isinstance(converted, float) else converted
+                daily_goal_symbols = math.ceil(converted) if isinstance(converted, float) else converted
 
-        # Б) Если личной цели нет, считаем стандартное распределение по дедлайну
         elif self.deadline != 'Нет' and isinstance(self.deadline, date):
-            goal_sym = self.goal
-            if goal_sym == float('inf'):
-                result = float('inf')
-            else:
-                # Защита от битой даты старта
-                start_date = getattr(self, 'deadline_set_date', today)
-                if not isinstance(start_date, date) or start_date > today:
-                    start_date = today
-
-                total_days = (self.deadline - start_date).days + 1
+            goal_sym = self.get_goal_symbols()
+            if goal_sym != float('inf'):
+                total_days = (self.deadline - today).days + 1
                 if total_days > 0:
-                    day_number = max(1, min((today - start_date).days + 1, total_days))
-                    planned = (goal_sym / total_days) * day_number
-                    result = min(math.ceil(planned), goal_sym)
+                    remaining = max(0, goal_sym - base_total)
+                    daily_goal_symbols = math.ceil(remaining / total_days)
                 else:
-                    result = goal_sym
+                    daily_goal_symbols = goal_sym
 
-        # === 3. СОХРАНЕНИЕ И ВОЗВРАТ ===
-        # Записываем вычисленный результат в кэш
-        plan[today] = result
-        return result
+        # === 4. ГЕНЕРАЦИЯ ЛЕСЕНКИ ПЛАНА ===
+
+        # Если кэш устарел (настройки поменялись) или его нет — строим заново
+        if not plan or plan.get('signature') != current_signature:
+            plan.clear()
+            plan['signature'] = current_signature  # Сохраняем слепок настроек
+
+            end_date = self.deadline if (self.deadline != 'Нет' and isinstance(self.deadline, date)) else (
+                        today + timedelta(days=30))
+
+            current_date = today
+            current_goal = base_total
+
+            while current_date <= end_date:
+                current_goal += daily_goal_symbols
+                if self.deadline != 'Нет' and isinstance(self.deadline, date):
+                    max_sym = self.get_goal_symbols()
+                    if current_goal > max_sym:
+                        current_goal = max_sym
+
+                plan[current_date] = current_goal
+                current_date += timedelta(days=1)
+
+        else:
+            # Сценарий достройки плана (если закончились 30 дней запаса)
+            # Отфильтровываем строковые ключи (наш signature), оставляем только даты
+            date_keys = [k for k in plan.keys() if isinstance(k, date)]
+            if not date_keys:
+                last_date = today
+                current_goal = base_total
+            else:
+                last_date = max(date_keys)
+                current_goal = plan[last_date]
+
+            current_date = last_date + timedelta(days=1)
+            end_date = today + timedelta(days=30)
+
+            while current_date <= end_date:
+                current_goal += daily_goal_symbols
+                if self.deadline != 'Нет' and isinstance(self.deadline, date):
+                    max_sym = self.get_goal_symbols()
+                    if current_goal > max_sym:
+                        current_goal = max_sym
+                plan[current_date] = current_goal
+                current_date += timedelta(days=1)
+
+        return plan.get(today, base_total + daily_goal_symbols)
 
     def get_today_goal_in_unit(self):
         """Возвращает цель на сегодня в единице проекта."""
