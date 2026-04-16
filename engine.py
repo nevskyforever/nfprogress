@@ -442,7 +442,7 @@ class Project:
         total = self.get_total_symbols()
         planned = self.get_today_goal_value()
 
-        if planned == 0 or planned == float('inf'):
+        if planned == 0 or planned == float('inf') or self.goal == float('inf'):
             return 'No'
 
         # Заморозка
