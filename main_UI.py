@@ -379,7 +379,7 @@ class MainWindow(QMainWindow, main_window_ui):
         settings['last_project'] = project.name
         save_settings(settings)
 
-    def show_project_info(self, project):
+    def show_project_info(self, project: en.Project):
         """Заполняет виджеты информацией о проекте."""
         units_for_view = {
             'symbols': 'Символы',
@@ -422,40 +422,36 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             self.need.setText(self._format_number(need))
 
-        # Дедлайн
-        if project.deadline != 'Нет':
-            self.deadline.setText(project.deadline_str)
-            self.label_today_goal.setVisible(True)
-            self.today_goal.setVisible(True)
+            # Дедлайн
+            if project.deadline != 'Нет':
+                self.deadline.setText(project.deadline_str)
+                self.label_today_goal.setVisible(True)
+                self.today_goal.setVisible(True)
 
-            # Цель на сегодня (в единице проекта)
-            today_goal = project.get_today_goal_in_unit()
-            if today_goal == float('inf'):
-                self.today_goal.setText('∞')
-            elif project.personal_goal_for_the_day and project.personal_goal_for_the_day > 0:
-                if project.get_total_symbols() >= project.get_today_goal_value():
-                    self.today_goal.setText(f'Цель на сегодня выполнена! ({self._format_number(today_goal)})')
+                # Цель на сегодня (в единице проекта)
+                today_goal = project.get_today_goal_in_unit()
+                if today_goal == float('inf'):
+                    self.today_goal.setText('∞')
                 else:
-                    self.today_goal.setText(self._format_number(project.get_today_goal_in_unit()))
-            else:
-                # Используем сравнение в символах для точности
-                if project.get_total_symbols() >= today_goal:
-                    self.today_goal.setText(f'Цель на сегодня выполнена! ({int(project.get_today_goal_in_unit())})')
-                else:
-                    self.today_goal.setText(self._format_number(today_goal))
+                    # Всегда показываем цель, если есть дедлайн (независимо от personal_goal)
+                    if project.get_total_symbols() >= project.get_today_goal_value():
+                        self.today_goal.setText(
+                            f'Цель на сегодня выполнена! ({self._format_number_for_unit(today_goal, project.unit)})')
+                    else:
+                        self.today_goal.setText(self._format_number_for_unit(today_goal, project.unit))
 
-            # Расчёт оставшихся дней
-            days_left = (project.deadline - en.today_for_test()).days
-            if days_left > 0:
-                self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
-            elif days_left == 0:
-                self.deadline.setText(f"{project.deadline_str} (сегодня!)")
+                # Расчёт оставшихся дней
+                days_left = (project.deadline - en.today_for_test()).days
+                if days_left > 0:
+                    self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
+                elif days_left == 0:
+                    self.deadline.setText(f"{project.deadline_str} (сегодня!)")
+                else:
+                    self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
             else:
-                self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
-        else:
-            self.label_today_goal.setVisible(False)
-            self.today_goal.setVisible(False)
-            self.deadline.setText("Не установлен")
+                self.label_today_goal.setVisible(False)
+                self.today_goal.setVisible(False)
+                self.deadline.setText("Не установлен")
 
         # Информация о стриках
         if en.load_settings().get('global_streak', False) and project.deadline != 'Нет':
@@ -509,6 +505,14 @@ class MainWindow(QMainWindow, main_window_ui):
             # Оставляем 1-2 знака после запятой, убираем лишние нули
             return f"{num:.2f}".rstrip('0').rstrip('.') if '.' in f"{num:.2f}" else str(int(num))
         return str(num)
+
+    def _format_number_for_unit(self, num, unit):
+        """Форматирует число для отображения с учётом единицы измерения."""
+        if unit == 'author_list':
+            # Для авторских листов всегда показываем один десятичный знак
+            return f"{num:.1f}"
+        else:
+            return self._format_number(num)
 
     def select_project_by_name(self, project_name):
         """Выделяет проект по имени в списке"""
@@ -1895,10 +1899,13 @@ class CreateProject(QDialog, create_project_ui):
         if days <= 0:
             daily = math.ceil(remaining)
         else:
-            daily = math.ceil(remaining / days)
+            daily = remaining / days
         self._updating = True
         try:
-            self.le_personal_goal_for_the_day.setText(str(daily))
+            if self.current_unit == 'author_list':
+                self.le_personal_goal_for_the_day.setText(f"{daily:.1f}")
+            else:
+                self.le_personal_goal_for_the_day.setText(str(math.ceil(daily)))
         finally:
             self._updating = False
 
@@ -2031,7 +2038,7 @@ class CreateProject(QDialog, create_project_ui):
             return 0
         try:
             val = float(self.le_personal_goal_for_the_day.text())
-            return math.ceil(val) if val > 0 else 0
+            return val
         except (ValueError, AttributeError):
             return 0
 
@@ -2188,10 +2195,13 @@ class EditProject(QDialog, create_project_ui):
         if days <= 0:
             daily = math.ceil(remaining)
         else:
-            daily = math.ceil(remaining / days)
+            daily = remaining / days
         self._updating = True
         try:
-            self.le_personal_goal_for_the_day.setText(str(daily))
+            if self.current_unit == 'author_list':
+                self.le_personal_goal_for_the_day.setText(f"{daily:.1f}")
+            else:
+                self.le_personal_goal_for_the_day.setText(str(math.ceil(daily)))
         finally:
             self._updating = False
 
@@ -2322,7 +2332,7 @@ class EditProject(QDialog, create_project_ui):
             return 0
         try:
             val = float(self.le_personal_goal_for_the_day.text())
-            return math.ceil(val) if val > 0 else 0
+            return val
         except (ValueError, AttributeError):
             return 0
 

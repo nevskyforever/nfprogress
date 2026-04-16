@@ -353,7 +353,8 @@ class Project:
             if converted == float('inf'):
                 daily_goal_symbols = float('inf')
             else:
-                daily_goal_symbols = math.ceil(converted) if isinstance(converted, float) else converted
+                # Убираем ceil – оставляем дробное значение
+                daily_goal_symbols = converted
 
         elif self.deadline != 'Нет' and isinstance(self.deadline, date):
 
@@ -362,7 +363,8 @@ class Project:
                 total_days = (self.deadline - today).days + 1
                 if total_days > 0:
                     remaining = max(0, goal_sym - base_total)
-                    daily_goal_symbols = math.ceil(remaining / total_days)
+                    # Деление без округления вверх
+                    daily_goal_symbols = remaining / total_days
                 else:
                     daily_goal_symbols = goal_sym
 
@@ -704,10 +706,6 @@ class Stage(Project):
         self.status = 'в работе'
 
 class Note:
-    new_total = 0
-    added_symbols = 0
-    added_progress = 0
-    date_create = None
 
     def __init__(self, new_total, added_symbols, added_progress, date_create=None):
         if date_create is None:
@@ -1072,25 +1070,6 @@ def count_symbols_in_docx(filepath):
                 for paragraph in cell.paragraphs:
                     total += len(paragraph.text)
     return total
-
-    # Если целевая единица не задана – конвертируем в символы
-    if convert_to in (None, False):
-        convert_to = 'symbols'
-
-    # Проверяем, что обе единицы есть в словаре
-    if unit not in factors or convert_to not in factors:
-        return None
-
-    # Приводим исходное значение к символам, затем к целевой единице
-    symbols_value = value * factors[unit]
-    result = symbols_value / factors[convert_to]
-
-    # Для не-символьных единиц округляем вверх до целого
-    if convert_to != 'symbols':
-        return math.ceil(result)
-    else:
-        # Для символов возвращаем точное значение (без округления)
-        return result
 
 # При импорте модуля: создаём нужные директории или удаляем тестовые данные
 if dev_mode:
