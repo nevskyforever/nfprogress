@@ -442,14 +442,20 @@ class Project:
         total = self.get_total_symbols()
         planned = self.get_today_goal_value()
 
-        if planned == 0 or planned == float('inf') or self.goal == float('inf'):
-            return 'No'
+        # Если стрик уже завершен - дальше не проверяем
+        if self.status == 'завершен':
+            return 'Complete'
 
         # Заморозка
         if self.streak_status == 'Freeze' and self.streaks and self.streaks[-1] == today:
             return 'Freeze'
 
-        # Убедимся, что streaks — список
+        # Если проект бесконечный - стрика нет
+        if planned == 0 or self.goal == float('inf'):
+            return 'No'
+
+
+            # Убедимся, что streaks — список
         if not isinstance(self.streaks, list):
             self.streaks = []
 
@@ -867,7 +873,7 @@ def global_streak_status(data, today=None):
     has_active_today = False
     for project in projects.values():
         if isinstance(project, Project):
-            if project.streak_status in ['Start', 'Go', 'Complete']:
+            if project.status == 'активен' and project.streak_status in ['Start', 'Go']:
                 has_active_today = True
                 break
             elif project.streak_status == 'Active' and len(streaks) < len(project.streaks):
