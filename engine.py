@@ -345,7 +345,7 @@ class Project:
                     today_added_symbols = streak.get('count', 0)
                     break
 
-        base_total = self.total_units - today_added_symbols
+        base_total = unit_converter(self.unit, self.total_units) - today_added_symbols
         daily_goal_symbols = 0
 
         if getattr(self, 'personal_goal_for_the_day', 0):
@@ -356,8 +356,9 @@ class Project:
                 daily_goal_symbols = math.ceil(converted) if isinstance(converted, float) else converted
 
         elif self.deadline != 'Нет' and isinstance(self.deadline, date):
-            goal_sym = self.get_goal_symbols()
-            if goal_sym != float('inf'):
+
+            if self.goal != float('inf'):
+                goal_sym = unit_converter(self.unit, self.goal)
                 total_days = (self.deadline - today).days + 1
                 if total_days > 0:
                     remaining = max(0, goal_sym - base_total)
