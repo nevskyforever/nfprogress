@@ -408,7 +408,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.goal.setText('∞')
         else:
             self.goal.setText(self._format_number(project.goal))
-        self.total.setText(self._format_number(project.total_symbols))
+        self.total.setText(self._format_number(project.total_units))
         self.unit.setText(units_for_view[project.unit])
 
         # Статистика за сегодня (в единице проекта)
@@ -586,8 +586,8 @@ class MainWindow(QMainWindow, main_window_ui):
             self.change_project_action.setEnabled(True)
             self.archive_project_action.setEnabled(True)
             # Кнопка завершения активна, если цель достигнута
-            self.btn_complete_project.setEnabled(project.goal <= project.total_symbols)
-            self.complete_project_action.setEnabled(project.goal <= project.total_symbols)
+            self.btn_complete_project.setEnabled(project.goal <= project.total_units)
+            self.complete_project_action.setEnabled(project.goal <= project.total_units)
 
             # Меняем текст кнопки в зависимости от статуса
             if project.status == 'в архиве':
@@ -737,7 +737,7 @@ class MainWindow(QMainWindow, main_window_ui):
             return
 
         # Сохраняем старое значение для уведомления
-        old_total_in_unit = project.total_symbols
+        old_total_in_unit = project.total_units
 
         # Проверяем, изменилось ли количество
         if abs(new_total_in_unit - old_total_in_unit) < 0.01:
@@ -760,7 +760,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Создаём заметку (храним new_total в символах)
         note = en.Note(new_total_symbols, added_symbols, added_progress)
 
-        # Обновляем проект (total_symbols обновится в единице проекта через set_new_notes)
+        # Обновляем проект (total_units обновится в единице проекта через set_new_notes)
         project.set_new_notes(note)
 
         # Обновляем стрики
@@ -794,7 +794,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.refresh_global_streak_status()
 
         # Обновляем состояние кнопок, если цель достигнута
-        if project.total_symbols >= project.goal:
+        if project.total_units >= project.goal:
             self.setup_project_buttons(project)
 
         # Очищаем поле ввода
@@ -853,13 +853,13 @@ class MainWindow(QMainWindow, main_window_ui):
             # Удаляем заметку
             deleted_note = project.notes.pop(note_index)
 
-            # Обновляем total_symbols, беря последнюю запись
+            # Обновляем total_units, беря последнюю запись
             if project.notes:
                 last_note = project.notes[-1]
                 # last_note.new_total в символах, конвертируем в единицу проекта
-                project.total_symbols = en.unit_converter('symbols', last_note.new_total, project.unit)
+                project.total_units = en.unit_converter('symbols', last_note.new_total, project.unit)
             else:
-                project.total_symbols = 0
+                project.total_units = 0
 
             # Сохраняем изменения
             data = en.load_data()
@@ -883,7 +883,7 @@ class MainWindow(QMainWindow, main_window_ui):
             data = en.load_data()
             old_name = project.name
             old_goal = project.goal
-            old_total = project.total_symbols
+            old_total = project.total_units
             old_deadline = project.deadline
             old_personal_goal = project.personal_goal_for_the_day
 
@@ -982,14 +982,14 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем поля проекта
             project.name = new_name
             project.goal = new_goal
-            project.total_symbols = new_total
+            project.total_units = new_total
             project.unit = new_unit
             project.deadline = new_deadline
             project.personal_goal_for_the_day = new_personal_goal
             project.edit_date = edit_date
 
             # Обновляем статус проекта (если цель достигнута)
-            if project.total_symbols >= project.goal and project.status != 'завершен':
+            if project.total_units >= project.goal and project.status != 'завершен':
                 # Не завершаем автоматически, но обновим кнопки позже
                 pass
 
@@ -1058,7 +1058,7 @@ class MainWindow(QMainWindow, main_window_ui):
             project.status = "завершен"
             project.complete_date = en.today_for_test()
             if en.load_settings()['game_mode']:
-                self.game_controller.give_complete_bonus(project.status, project.total_symbols, project.unit)
+                self.game_controller.give_complete_bonus(project.status, project.total_units, project.unit)
                 if en.load_settings()['global_streak'] and project.deadline != 'Нет' and len(project.streaks):
                     self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local', streak_len=len(project.streaks))
 
@@ -1350,7 +1350,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Конвертируем количество символов в единицу проекта
             new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
-            current_total_in_unit = project.total_symbols
+            current_total_in_unit = project.total_units
 
             # Проверяем, изменилось ли количество
             if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
@@ -1482,7 +1482,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         try:
             symbols = count_symbols_in_scrivener_item(proj_path, item_id)
-            if symbols == 0 and project.total_symbols == 0:
+            if symbols == 0 and project.total_units == 0:
                 if not background_synch:
                     self.notifications.show_warning(
                         "Не удалось подсчитать символы. Возможно, документ пуст."
@@ -1491,7 +1491,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Конвертируем количество символов в единицу проекта
             new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
-            current_total_in_unit = project.total_symbols
+            current_total_in_unit = project.total_units
 
             # Проверяем, изменилось ли количество
             if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
@@ -2067,7 +2067,7 @@ class EditProject(QDialog, create_project_ui):
         # Заполняем поля данными из проекта
         self.le_name.setText(project.name)
         self.le_goal.setText(self._format_number(project.goal))
-        self.le_total_symbols.setText(self._format_number(project.total_symbols))
+        self.le_total_symbols.setText(self._format_number(project.total_units))
 
         # Дедлайн
         if project.deadline != 'Нет':
@@ -2308,7 +2308,7 @@ class EditProject(QDialog, create_project_ui):
         try:
             return float(self.le_total_symbols.text())
         except:
-            return self.project.total_symbols
+            return self.project.total_units
 
     def get_unit(self):
         return self.current_unit

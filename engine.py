@@ -267,11 +267,11 @@ class Project:
         self._status = status
 
     @property
-    def total_symbols(self):
+    def total_units(self):
         return self._total_symbols
 
-    @total_symbols.setter
-    def total_symbols(self, total_symbols):
+    @total_units.setter
+    def total_units(self, total_symbols):
         self._total_symbols = total_symbols
 
     def get_goal_symbols(self):
@@ -345,7 +345,7 @@ class Project:
                     today_added_symbols = streak.get('count', 0)
                     break
 
-        base_total = self.total_symbols - today_added_symbols
+        base_total = self.total_units - today_added_symbols
         daily_goal_symbols = 0
 
         if getattr(self, 'personal_goal_for_the_day', 0):
@@ -584,7 +584,7 @@ class Project:
         return 'Вывод статуса не работает'
 
     def set_new_notes(self, new_note):
-        """Добавляет заметку и обновляет total_symbols в единице проекта."""
+        """Добавляет заметку и обновляет total_units в единице проекта."""
         self.notes.append(new_note)
         # new_note.new_total хранится в символах, конвертируем в единицу проекта
         self._total_symbols = unit_converter('symbols', new_note.new_total, self.unit)
