@@ -348,8 +348,9 @@ def calculate_freeze_price():
     used_freezes = 1
     total_price = 100
     for project in projects.values():
-        used_freezes += project.freezes
-        total_price = 100 * used_freezes * coin_cf
+        if project.status == 'активен':
+            used_freezes += project.freezes
+            total_price = 100 * used_freezes * coin_cf
     return total_price
 
 def calculate_item_price(price):
