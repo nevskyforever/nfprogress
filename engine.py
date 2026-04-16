@@ -306,82 +306,74 @@ class Project:
         return unit_converter('symbols', added_sym, self.unit)
 
     def get_today_goal_value(self):
-        """Возвращает накопленный план на сегодня в символах.
-        Равномерно распределяет цель от даты установки дедлайна до дедлайна.
-        Если задана личная дневная цель, накапливает её по дням от даты создания проекта.
         """
-
+        Возвращает накопленный план на сегодня в символах.
+        Использует кэширование, чтобы избежать лишних вычислений и "убегания" цели при наборе текста.
+        """
         today = today_for_test()
 
-        # Если есть персональная цель на сегодня — считаем накопленную цель
-        if self.personal_goal_for_the_day:
-            plan = self.project_plan
-            today_goal = self.get_today_goal_in_unit()
-            if today not in plan.keys():
-                if today >= self.deadline:
-                    plan[today] = today_goal
-                    return today_goal
-                plan[today] = today_goal
-                return today_goal
+        # Убеждаемся, что словарь кэша инициализирован (на случай старых сохранений)
+        if getattr(self, 'project_plan', None) is None:
+            self.project_plan = {}
+
+        plan = self.project_plan
+
+        # === 1. БЫСТРЫЙ ВОЗВРАТ ИЗ КЭША ===
+        # Если цель уже рассчитана и настройки (например, дедлайн) СЕГОДНЯ не менялись — отдаем кэш.
+        if today in plan and getattr(self, 'deadline_set_date', None) != today:
+            return plan[today]
+
+        # === 2. ВЫЧИСЛЕНИЕ НОВОЙ ЦЕЛИ ===
+        result = 0
+
+        # А) Если установлена личная дневная цель
+        if getattr(self, 'personal_goal_for_the_day', 0):
+            # Чтобы цель не росла на глазах при наборе текста в день создания проекта,
+            # мы отнимаем написанное за сегодня. Берем базу на НАЧАЛО дня.
+            base_total = self.total_symbols - self.get_added_today_in_unit()
+            goal_in_unit = self.personal_goal_for_the_day + base_total
+
+            # Проверяем, не наступил ли дедлайн (если он есть, план = 100% цели проекта)
+            if self.deadline != 'Нет' and isinstance(self.deadline, date) and today >= self.deadline:
+                result = self.get_goal_symbols()
             else:
-                if plan[today] != today_goal and self.deadline_set_date == today:
-                    plan[today] = today_goal
-                    return today_goal
+                # Переводим полученную цель в символы
+                if goal_in_unit == float('inf'):
+                    result = float('inf')
                 else:
-                    return plan[today]
+                    converted = unit_converter(self.unit, goal_in_unit, 'symbols')
+                    result = math.ceil(converted) if isinstance(converted, float) else converted
 
-        if self.deadline == 'Нет':
-            return 0
+        # Б) Если личной цели нет, считаем стандартное распределение по дедлайну
+        elif self.deadline != 'Нет' and isinstance(self.deadline, date):
+            goal_sym = self.goal
+            if goal_sym == float('inf'):
+                result = float('inf')
+            else:
+                # Защита от битой даты старта
+                start_date = getattr(self, 'deadline_set_date', today)
+                if not isinstance(start_date, date) or start_date > today:
+                    start_date = today
 
-        today = today_for_test()
-        if not isinstance(self.deadline, date):
-            return 0
+                total_days = (self.deadline - start_date).days + 1
+                if total_days > 0:
+                    day_number = max(1, min((today - start_date).days + 1, total_days))
+                    planned = (goal_sym / total_days) * day_number
+                    result = min(math.ceil(planned), goal_sym)
+                else:
+                    result = goal_sym
 
-        goal_sym = self.get_goal_symbols()
-        if goal_sym == float('inf'):
-            return float('inf')
-
-        # Берём стабильную дату старта плана; для старых/битых данных откатываемся к текущей дате.
-        if isinstance(self.deadline_set_date, date):
-            start_date = self.deadline_set_date
-        else:
-            start_date = today
-        if start_date > today:
-            start_date = today
-
-        total_days = (self.deadline - start_date).days + 1
-        if total_days <= 0:
-            return goal_sym
-
-        day_number = (today - start_date).days + 1
-        day_number = max(1, min(day_number, total_days))  # зажимаем в [1, total_days]
-
-        daily_norm = goal_sym / total_days
-        planned = daily_norm * day_number
-
-        return min(math.ceil(planned), goal_sym)
+        # === 3. СОХРАНЕНИЕ И ВОЗВРАТ ===
+        # Записываем вычисленный результат в кэш
+        plan[today] = result
+        return result
 
     def get_today_goal_in_unit(self):
         """Возвращает цель на сегодня в единице проекта."""
-        goal_sym = self.personal_goal_for_the_day + self.total_symbols
+        goal_sym = self.get_today_goal_value()
         if goal_sym == float('inf'):
             return float('inf')
         return unit_converter('symbols', goal_sym, self.unit)
-
-    def get_today_goal_remaining_in_unit(self):
-        """Возвращает остаток цели на сегодня в единице проекта с учётом уже написанного.
-        Для личной дневной цели: max(days_elapsed × daily_goal - total_written, 0),
-        где days_elapsed × daily_goal — накопленная цель за все прошедшие дни с создания проекта.
-        Для остальных случаев: то же, что get_today_goal_in_unit().
-        """
-        if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
-            accumulated_sym = self.get_today_goal_value()
-            if accumulated_sym == float('inf'):
-                return float('inf')
-            total_sym = self.get_total_symbols()
-            remaining_sym = max(accumulated_sym - total_sym, 0)
-            return unit_converter('symbols', remaining_sym, self.unit)
-        return self.get_today_goal_in_unit()
 
     def get_need_write_value(self):
         """Возвращает остаток написать в символах."""

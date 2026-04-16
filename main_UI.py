@@ -204,6 +204,8 @@ class MainWindow(QMainWindow, main_window_ui):
             if en.load_settings().get('inf_project', False) and name == 'Общий проект':
                 new_project.goal = float('inf')
 
+            # Считаем цель на день
+            new_project.get_today_goal_value()
             data['projects'][new_project.name] = new_project
             en.save_data(data)
 
@@ -901,7 +903,7 @@ class MainWindow(QMainWindow, main_window_ui):
             settings = en.load_settings()
 
             # Предупреждаем, что уменьшить цель на день не выйдет
-            if old_personal_goal < new_personal_goal and settings.get('global_streak', False):
+            if old_personal_goal < new_personal_goal and settings.get('global_streak', False) and not en.dev_mode:
                 if en.today_for_test() not in project.streaks:
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -947,7 +949,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     else:
                         return
             # Запрещаем менять цель на день, если стрик не продлен сегодня
-            if old_personal_goal > new_personal_goal:
+            if old_personal_goal > new_personal_goal and not en.dev_mode:
                 if en.today_for_test() not in project.streaks:
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -991,6 +993,8 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Не завершаем автоматически, но обновим кнопки позже
                 pass
 
+            # Обновляем цель на день
+            project.get_today_goal_value()
             # Сохраняем под новым именем (или старым, если не изменилось)
             data['projects'][project.name] = project
             en.save_data(data)
