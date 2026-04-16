@@ -200,6 +200,10 @@ class Project:
         if not hasattr(self, 'personal_goal_for_the_day'):
             self.personal_goal_for_the_day = self.get_today_goal_in_unit()
 
+        # Если если нет плана - генерируем его
+        if self.project_plan == {}:
+            self.get_today_goal_value()
+
         if self.synch is not None and isinstance(self.synch, str):
             self.synch = {'type': 'word', 'path': self.synch}
 
