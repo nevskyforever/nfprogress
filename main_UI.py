@@ -190,6 +190,9 @@ class MainWindow(QMainWindow, main_window_ui):
             if name in data['projects']:
                 self.notifications.show_error(f'Проект "{name}" уже существует!')
                 return
+            if unit != 'author_list':
+                goal = math.ceil(goal)
+                total = math.ceil(total)
 
             new_project = en.Project(
                 name=name,
@@ -904,6 +907,9 @@ class MainWindow(QMainWindow, main_window_ui):
             new_goal = dialog.get_goal()
             new_total = dialog.get_total()
             new_unit = dialog.get_unit()
+            if new_unit != 'author_list':
+                new_goal = math.ceil(new_goal)
+                new_total = math.ceil(new_total)
             new_deadline = dialog.get_deadline()
             new_personal_goal = dialog.get_personal_goal_for_the_day()
             if [old_name != new_name, old_goal != new_goal, old_total != new_total, old_deadline != new_deadline]:
