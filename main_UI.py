@@ -1784,7 +1784,6 @@ class CreateProject(QDialog, create_project_ui):
         self.current_unit = self.text_to_unit[self.cb_unit.currentText()]
 
         # Скрываем предупреждения
-        self.incorrect_name.setVisible(False)
         self.incorrect_data.setVisible(False)
 
         # Подключаем сигналы
@@ -1939,7 +1938,6 @@ class CreateProject(QDialog, create_project_ui):
         current_name = self.le_name.text().strip()
         name_filled = bool(current_name)
         name_incorrect = current_name in existing_names and current_name != ""
-        self.incorrect_name.setVisible(name_incorrect)
         if name_incorrect:
             error_messages.append("Проект с таким именем уже существует")
 
@@ -2061,7 +2059,6 @@ class EditProject(QDialog, create_project_ui):
         self.cb_unit.setCurrentText(self.unit_to_text[self.current_unit])
 
         # Скрываем предупреждения
-        self.incorrect_name.setVisible(False)
         self.incorrect_data.setVisible(False)
 
         # Заполняем поля данными из проекта
@@ -2234,7 +2231,6 @@ class EditProject(QDialog, create_project_ui):
         name_incorrect = False
         if name_filled and current_name != self.original_name:
             name_incorrect = current_name in existing_names
-        self.incorrect_name.setVisible(name_incorrect)
         if name_incorrect:
             error_messages.append("Проект с таким именем уже существует")
 
