@@ -726,7 +726,7 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             return form5
 
-    def add_note(self, project):
+    def add_note(self, project: en.Project):
         """Добавляет заметку к проекту."""
         text = self.new_symbols.text().strip()
 
@@ -739,7 +739,10 @@ class MainWindow(QMainWindow, main_window_ui):
         try:
             if ',' in text:
                 text = text.replace(',', '.')
-            new_total_in_unit = float(text)
+            if project.unit != 'author_list':
+                new_total_in_unit = math.ceil(float(text))
+            else:
+                new_total_in_unit = float(text)
         except ValueError:
             self.new_symbols.clear()
             self.notifications.show_error('Введите число!')
