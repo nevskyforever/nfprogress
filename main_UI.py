@@ -509,8 +509,11 @@ class MainWindow(QMainWindow, main_window_ui):
     def _format_number_for_unit(self, num, unit):
         """Форматирует число для отображения с учётом единицы измерения."""
         if unit == 'author_list':
-            # Для авторских листов всегда показываем один десятичный знак
-            return f"{num:.1f}"
+            # Проверяем, целое ли число (с учётом погрешности float)
+            if abs(num - round(num)) < 1e-9:
+                return str(int(round(num)))
+            else:
+                return f"{num:.1f}"
         else:
             return self._format_number(num)
 
