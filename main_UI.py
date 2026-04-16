@@ -445,7 +445,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     self.today_goal.setText(self._format_number(today_goal))
 
             # Расчёт оставшихся дней
-            days_left = (project.deadline - en.today_for_test()).days + 1
+            days_left = (project.deadline - en.today_for_test()).days
             if days_left > 0:
                 self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
             elif days_left == 0:
