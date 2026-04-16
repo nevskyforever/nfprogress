@@ -737,6 +737,8 @@ class MainWindow(QMainWindow, main_window_ui):
             return
 
         try:
+            if ',' in text:
+                text = text.replace(',', '.')
             new_total_in_unit = float(text)
         except ValueError:
             self.new_symbols.clear()
