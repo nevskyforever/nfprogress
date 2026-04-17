@@ -1,11 +1,16 @@
 name: Build Windows EXE
 
 on:
-  workflow_dispatch:  # только ручной запуск через GitHub UI
+  push:
+    branches:
+      - main  # Укажи свою основную ветку (например, master или main)
+  workflow_dispatch:  # Сохраняем возможность ручного запуска
 
 jobs:
   build:
     runs-on: windows-latest
+    # Условие: выполнять только если в коммите есть 'Обновление' ИЛИ запущено вручную
+    if: contains(github.event.head_commit.message, 'Обновление') || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository
