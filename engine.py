@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.5.1'
+version = '3.5.2'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>1104</width>
-    <height>765</height>
+    <height>777</height>
    </rect>
   </property>
   <property name="font">
@@ -395,56 +395,52 @@
                    <x>0</x>
                    <y>0</y>
                    <width>556</width>
-                   <height>344</height>
+                   <height>328</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_28">
-                  <item row="0" column="1">
-                   <widget class="QLabel" name="status">
+                  <item row="16" column="0">
+                   <widget class="QLabel" name="label_today_added">
                     <property name="text">
-                     <string>Нет информации</string>
+                     <string>Написано сегодня:</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="7" column="1">
-                   <widget class="QLabel" name="need">
+                  <item row="21" column="0">
+                   <widget class="QLabel" name="label_max_streak">
                     <property name="text">
-                     <string>Нет информации</string>
+                     <string>Максимальный стрик: </string>
                     </property>
                    </widget>
                   </item>
-                  <item row="1" column="1">
-                   <widget class="QLabel" name="progress">
+                  <item row="2" column="0">
+                   <widget class="QLabel" name="label_today_goal">
                     <property name="text">
-                     <string>Нет информации</string>
+                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Цель на сегодня:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+                    </property>
+                    <property name="wordWrap">
+                     <bool>true</bool>
                     </property>
                    </widget>
                   </item>
-                  <item row="8" column="0">
-                   <widget class="QLabel" name="label_deadline">
+                  <item row="18" column="0">
+                   <widget class="QLabel" name="unit_label">
                     <property name="text">
-                     <string>Дедлайн:</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="4" column="1">
-                   <widget class="QLabel" name="total">
-                    <property name="text">
-                     <string>Нет информации</string>
+                     <string>Отслеживаются:</string>
                     </property>
                    </widget>
                   </item>
                   <item row="3" column="1">
-                   <widget class="QLabel" name="goal">
+                   <widget class="QLabel" name="deadline">
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="11" column="0">
-                   <widget class="QLabel" name="label_max_streak">
+                  <item row="3" column="0">
+                   <widget class="QLabel" name="label_deadline">
                     <property name="text">
-                     <string>Максимальный стрик: </string>
+                     <string>Дедлайн:</string>
                     </property>
                    </widget>
                   </item>
@@ -455,45 +451,128 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="6" column="0">
-                   <widget class="QLabel" name="label_today_added">
-                    <property name="text">
-                     <string>Написано сегодня:</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="8" column="1">
-                   <widget class="QLabel" name="deadline">
+                  <item row="2" column="1">
+                   <widget class="QLabel" name="today_goal">
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
                    </widget>
                   </item>
                   <item row="9" column="1">
+                   <widget class="QLabel" name="total">
+                    <property name="text">
+                     <string>Нет информации</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="6" column="0">
+                   <widget class="QLabel" name="label_streaks">
+                    <property name="text">
+                     <string>Текущий стрик: </string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="6" column="1">
                    <widget class="QLabel" name="streaks">
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="3" column="0">
+                  <item row="10" column="1">
+                   <widget class="QLabel" name="goal">
+                    <property name="text">
+                     <string>Нет информации</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="22" column="1">
+                   <widget class="QLabel" name="l">
+                    <property name="text">
+                     <string>Нет информации</string>
+                    </property>
+                    <property name="wordWrap">
+                     <bool>true</bool>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="5" column="0">
+                   <widget class="QLabel" name="label_streak_status">
+                    <property name="text">
+                     <string>Cтатус стрика:</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="9" column="0">
                    <widget class="QLabel" name="label_goal">
                     <property name="text">
                      <string>Цель:</string>
                     </property>
                    </widget>
                   </item>
-                  <item row="7" column="0">
+                  <item row="0" column="1">
+                   <widget class="QLabel" name="status">
+                    <property name="text">
+                     <string>Нет информации</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="17" column="1">
+                   <widget class="QLabel" name="need">
+                    <property name="text">
+                     <string>Нет информации</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="22" column="0">
+                   <widget class="QLabel" name="last_note">
+                    <property name="text">
+                     <string>Последняя запись: </string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="17" column="0">
                    <widget class="QLabel" name="label_need">
                     <property name="text">
                      <string>Осталось написать: </string>
                     </property>
                    </widget>
                   </item>
-                  <item row="6" column="1">
+                  <item row="21" column="1">
+                   <widget class="QLabel" name="max_streak">
+                    <property name="text">
+                     <string>Нет информации</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="5" column="1">
+                   <widget class="QLabel" name="streak_status">
+                    <property name="text">
+                     <string>Нет информации</string>
+                    </property>
+                    <property name="wordWrap">
+                     <bool>true</bool>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="18" column="1">
+                   <widget class="QLabel" name="unit">
+                    <property name="text">
+                     <string>Нет информации</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="16" column="1">
                    <widget class="QLabel" name="added_today">
                     <property name="text">
                      <string>Нет информации</string>
+                    </property>
+                   </widget>
+                  </item>
+                  <item row="10" column="0">
+                   <widget class="QLabel" name="label_total">
+                    <property name="text">
+                     <string>Написано:</string>
                     </property>
                    </widget>
                   </item>
@@ -504,87 +583,8 @@
                     </property>
                    </widget>
                   </item>
-                  <item row="11" column="1">
-                   <widget class="QLabel" name="max_streak">
-                    <property name="text">
-                     <string>Нет информации</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="4" column="0">
-                   <widget class="QLabel" name="label_total">
-                    <property name="text">
-                     <string>Написано:</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="5" column="0">
-                   <widget class="QLabel" name="label_today_goal">
-                    <property name="text">
-                     <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Нужно написать,&lt;br/&gt;чтобы выполнить цель на сегодня:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-                    </property>
-                    <property name="wordWrap">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="9" column="0">
-                   <widget class="QLabel" name="label_streaks">
-                    <property name="text">
-                     <string>Текущий стрик: </string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="10" column="0">
-                   <widget class="QLabel" name="label_streak_status">
-                    <property name="text">
-                     <string>Cтатус стрика:</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="12" column="1">
-                   <widget class="QLabel" name="l">
-                    <property name="text">
-                     <string>Нет информации</string>
-                    </property>
-                    <property name="wordWrap">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="10" column="1">
-                   <widget class="QLabel" name="streak_status">
-                    <property name="text">
-                     <string>Нет информации</string>
-                    </property>
-                    <property name="wordWrap">
-                     <bool>true</bool>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="5" column="1">
-                   <widget class="QLabel" name="today_goal">
-                    <property name="text">
-                     <string>Нет информации</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="12" column="0">
-                   <widget class="QLabel" name="last_note">
-                    <property name="text">
-                     <string>Последняя запись: </string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="0">
-                   <widget class="QLabel" name="unit_label">
-                    <property name="text">
-                     <string>Отслеживаются:</string>
-                    </property>
-                   </widget>
-                  </item>
-                  <item row="2" column="1">
-                   <widget class="QLabel" name="unit">
+                  <item row="1" column="1">
+                   <widget class="QLabel" name="progress">
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -725,8 +725,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>232</width>
-                    <height>131</height>
+                    <width>84</width>
+                    <height>85</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_14">
@@ -1164,8 +1164,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>258</width>
-                   <height>150</height>
+                   <width>90</width>
+                   <height>108</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_19">
@@ -1328,8 +1328,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>232</width>
-                    <height>159</height>
+                    <width>98</width>
+                    <height>161</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_23">
@@ -1678,7 +1678,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>254</width>
+                    <width>90</width>
                     <height>131</height>
                    </rect>
                   </property>
@@ -1852,7 +1852,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
+                    <width>93</width>
                     <height>112</height>
                    </rect>
                   </property>
