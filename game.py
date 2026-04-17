@@ -31,7 +31,7 @@ class Gamer:
         self.health = health
 
         self.cf = {'coins': 1.0, 'exp': 1.0}
-        self.items = {}  # Теперь словарь: "Название предмета": количество
+        self.items = {}
 
         self.bank_account = game_data.BankAccount()
         self.last_lose_global_streak_damage = None
