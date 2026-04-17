@@ -427,6 +427,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Дедлайн
             if project.deadline != 'Нет':
+                self.deadline.setVisible(True)
                 self.deadline.setText(project.deadline_str)
                 self.label_today_goal.setVisible(True)
                 self.today_goal.setVisible(True)
