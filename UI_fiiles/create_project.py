@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'create_projectIkexwA.ui'
+## Form generated from reading UI file 'create_projectWBRmnt.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -24,14 +24,14 @@ class Ui_create_project(object):
     def setupUi(self, create_project):
         if not create_project.objectName():
             create_project.setObjectName(u"create_project")
-        create_project.resize(349, 311)
+        create_project.resize(350, 320)
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         sizePolicy.setHorizontalStretch(3)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(create_project.sizePolicy().hasHeightForWidth())
         create_project.setSizePolicy(sizePolicy)
-        create_project.setMinimumSize(QSize(349, 311))
-        create_project.setMaximumSize(QSize(349, 311))
+        create_project.setMinimumSize(QSize(350, 320))
+        create_project.setMaximumSize(QSize(350, 320))
         font = QFont()
         font.setFamilies([u"Arial"])
         create_project.setFont(font)
@@ -68,15 +68,6 @@ class Ui_create_project(object):
 
         self.gridLayout.addWidget(self.checkBox, 2, 2, 1, 1)
 
-        self.incorrect_name = QLabel(self.widget)
-        self.incorrect_name.setObjectName(u"incorrect_name")
-        self.incorrect_name.setEnabled(True)
-        self.incorrect_name.setStyleSheet(u"QLabel {\n"
-"    color: rgb(255, 0, 0);\n"
-"}")
-
-        self.gridLayout.addWidget(self.incorrect_name, 0, 2, 1, 1)
-
         self.le_total_symbols = QLineEdit(self.widget)
         self.le_total_symbols.setObjectName(u"le_total_symbols")
         self.le_total_symbols.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -110,6 +101,7 @@ class Ui_create_project(object):
         self.incorrect_data.setStyleSheet(u"QLabel {\n"
 "    color: rgb(255, 0, 0);\n"
 "}")
+        self.incorrect_data.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.gridLayout.addWidget(self.incorrect_data, 6, 0, 1, 3)
 
@@ -138,7 +130,7 @@ class Ui_create_project(object):
         self.de_deadline = QDateEdit(self.widget)
         self.de_deadline.setObjectName(u"de_deadline")
         self.de_deadline.setEnabled(True)
-        self.de_deadline.setDateTime(QDateTime(QDate(2026, 3, 1), QTime(20, 0, 0)))
+        self.de_deadline.setDateTime(QDateTime(QDate(2026, 3, 1), QTime(16, 0, 0)))
         self.de_deadline.setMaximumDate(QDate(9999, 12, 31))
         self.de_deadline.setCalendarPopup(True)
         self.de_deadline.setDate(QDate(2026, 3, 1))
@@ -191,7 +183,6 @@ class Ui_create_project(object):
         self.label_4.setText(QCoreApplication.translate("create_project", u"<html><head/><body><p>\u0422\u0435\u043a\u0443\u0449\u0435\u0435<br/>\u043a\u043e\u043b-\u0432\u043e</p></body></html>", None))
         self.label_2.setText(QCoreApplication.translate("create_project", u"\u0426\u0435\u043b\u044c", None))
         self.checkBox.setText(QCoreApplication.translate("create_project", u"\u041d\u0435\u0442", None))
-        self.incorrect_name.setText(QCoreApplication.translate("create_project", u"<html><head/><body><p align=\"center\">\u0418\u043c\u044f \u0443\u0436\u0435<br/>\u0438\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0435\u0442\u0441\u044f</p></body></html>", None))
         self.le_total_symbols.setText(QCoreApplication.translate("create_project", u"0", None))
         self.label_7.setText(QCoreApplication.translate("create_project", u"\u0427\u0442\u043e \u043e\u0442\u0441\u043b\u0435\u0436\u0438\u0432\u0430\u0435\u043c:", None))
         self.label.setText(QCoreApplication.translate("create_project", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))

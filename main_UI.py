@@ -190,6 +190,9 @@ class MainWindow(QMainWindow, main_window_ui):
             if name in data['projects']:
                 self.notifications.show_error(f'Проект "{name}" уже существует!')
                 return
+            if unit != 'author_list':
+                goal = math.ceil(goal)
+                total = math.ceil(total)
 
             new_project = en.Project(
                 name=name,
@@ -204,6 +207,8 @@ class MainWindow(QMainWindow, main_window_ui):
             if en.load_settings().get('inf_project', False) and name == 'Общий проект':
                 new_project.goal = float('inf')
 
+            # Считаем цель на день
+            new_project.get_today_goal_value()
             data['projects'][new_project.name] = new_project
             en.save_data(data)
 
@@ -377,7 +382,7 @@ class MainWindow(QMainWindow, main_window_ui):
         settings['last_project'] = project.name
         save_settings(settings)
 
-    def show_project_info(self, project):
+    def show_project_info(self, project: en.Project):
         """Заполняет виджеты информацией о проекте."""
         units_for_view = {
             'symbols': 'Символы',
@@ -406,7 +411,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.goal.setText('∞')
         else:
             self.goal.setText(self._format_number(project.goal))
-        self.total.setText(self._format_number(project.total_symbols))
+        self.total.setText(self._format_number(project.total_units))
         self.unit.setText(units_for_view[project.unit])
 
         # Статистика за сегодня (в единице проекта)
@@ -420,44 +425,37 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             self.need.setText(self._format_number(need))
 
-        # Дедлайн
-        if project.deadline != 'Нет':
-            self.deadline.setText(project.deadline_str)
-            self.label_today_goal.setVisible(True)
-            self.today_goal.setVisible(True)
+            # Дедлайн
+            if project.deadline != 'Нет':
+                self.deadline.setVisible(True)
+                self.deadline.setText(project.deadline_str)
+                self.label_today_goal.setVisible(True)
+                self.today_goal.setVisible(True)
 
-            # Цель на сегодня (в единице проекта)
-            today_goal = project.get_today_goal_in_unit()
-            if today_goal == float('inf'):
-                self.today_goal.setText('∞')
-            elif project.personal_goal_for_the_day and project.personal_goal_for_the_day > 0:
-                today_added_sym = project.get_added_symbols_today_value()
-                today_added_in_unit = en.unit_converter('symbols', today_added_sym, project.unit)
-                total_before_today = project.total_symbols - today_added_in_unit
-                target_today = total_before_today + project.personal_goal_for_the_day
-                if today_added_in_unit >= project.personal_goal_for_the_day:
-                    self.today_goal.setText(f'Цель на сегодня выполнена! ({self._format_number(target_today)})')
+                # Цель на сегодня (в единице проекта)
+                today_goal = project.get_today_goal_in_unit()
+                if today_goal == float('inf'):
+                    self.today_goal.setText('∞')
                 else:
-                    self.today_goal.setText(self._format_number(target_today))
-            else:
-                # Используем сравнение в символах для точности
-                if project.get_total_symbols() >= project.get_today_goal_value():
-                    self.today_goal.setText(f'Цель на сегодня выполнена! ({int(project.get_today_goal_value())})')
-                else:
-                    self.today_goal.setText(self._format_number(today_goal))
+                    # Всегда показываем цель, если есть дедлайн (независимо от personal_goal)
+                    if project.get_total_symbols() >= project.get_today_goal_value():
+                        self.today_goal.setText(
+                            f'Цель на сегодня выполнена! ({self._format_number_for_unit(today_goal, project.unit)})')
+                    else:
+                        self.today_goal.setText(self._format_number_for_unit(today_goal, project.unit))
 
-            # Расчёт оставшихся дней
-            days_left = (project.deadline - en.today_for_test()).days + 1
-            if days_left > 0:
-                self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
-            elif days_left == 0:
-                self.deadline.setText(f"{project.deadline_str} (сегодня!)")
+                # Расчёт оставшихся дней
+                days_left = (project.deadline - en.today_for_test()).days
+                if days_left > 0:
+                    self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
+                elif days_left == 0:
+                    self.deadline.setText(f"{project.deadline_str} (сегодня!)")
+                else:
+                    self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
             else:
-                self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
-        else:
-            self.label_today_goal.setVisible(False)
-            self.today_goal.setVisible(False)
-            self.deadline.setText("Не установлен")
+                self.label_today_goal.setVisible(False)
+                self.today_goal.setVisible(False)
+                self.deadline.setText("Не установлен")
 
         # Информация о стриках
         if en.load_settings().get('global_streak', False) and project.deadline != 'Нет':
@@ -511,6 +509,17 @@ class MainWindow(QMainWindow, main_window_ui):
             # Оставляем 1-2 знака после запятой, убираем лишние нули
             return f"{num:.2f}".rstrip('0').rstrip('.') if '.' in f"{num:.2f}" else str(int(num))
         return str(num)
+
+    def _format_number_for_unit(self, num, unit):
+        """Форматирует число для отображения с учётом единицы измерения."""
+        if unit == 'author_list':
+            # Проверяем, целое ли число (с учётом погрешности float)
+            if abs(num - round(num)) < 1e-9:
+                return str(int(round(num)))
+            else:
+                return f"{num:.1f}"
+        else:
+            return self._format_number(num)
 
     def select_project_by_name(self, project_name):
         """Выделяет проект по имени в списке"""
@@ -588,8 +597,8 @@ class MainWindow(QMainWindow, main_window_ui):
             self.change_project_action.setEnabled(True)
             self.archive_project_action.setEnabled(True)
             # Кнопка завершения активна, если цель достигнута
-            self.btn_complete_project.setEnabled(project.goal <= project.total_symbols)
-            self.complete_project_action.setEnabled(project.goal <= project.total_symbols)
+            self.btn_complete_project.setEnabled(project.goal <= project.total_units)
+            self.complete_project_action.setEnabled(project.goal <= project.total_units)
 
             # Меняем текст кнопки в зависимости от статуса
             if project.status == 'в архиве':
@@ -721,7 +730,7 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             return form5
 
-    def add_note(self, project):
+    def add_note(self, project: en.Project):
         """Добавляет заметку к проекту."""
         text = self.new_symbols.text().strip()
 
@@ -732,14 +741,19 @@ class MainWindow(QMainWindow, main_window_ui):
             return
 
         try:
-            new_total_in_unit = float(text)
+            if ',' in text:
+                text = text.replace(',', '.')
+            if project.unit != 'author_list':
+                new_total_in_unit = math.ceil(float(text))
+            else:
+                new_total_in_unit = float(text)
         except ValueError:
             self.new_symbols.clear()
             self.notifications.show_error('Введите число!')
             return
 
         # Сохраняем старое значение для уведомления
-        old_total_in_unit = project.total_symbols
+        old_total_in_unit = project.total_units
 
         # Проверяем, изменилось ли количество
         if abs(new_total_in_unit - old_total_in_unit) < 0.01:
@@ -762,7 +776,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Создаём заметку (храним new_total в символах)
         note = en.Note(new_total_symbols, added_symbols, added_progress)
 
-        # Обновляем проект (total_symbols обновится в единице проекта через set_new_notes)
+        # Обновляем проект (total_units обновится в единице проекта через set_new_notes)
         project.set_new_notes(note)
 
         # Обновляем стрики
@@ -796,7 +810,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.refresh_global_streak_status()
 
         # Обновляем состояние кнопок, если цель достигнута
-        if project.total_symbols >= project.goal:
+        if project.total_units >= project.goal:
             self.setup_project_buttons(project)
 
         # Очищаем поле ввода
@@ -855,13 +869,13 @@ class MainWindow(QMainWindow, main_window_ui):
             # Удаляем заметку
             deleted_note = project.notes.pop(note_index)
 
-            # Обновляем total_symbols, беря последнюю запись
+            # Обновляем total_units, беря последнюю запись
             if project.notes:
                 last_note = project.notes[-1]
                 # last_note.new_total в символах, конвертируем в единицу проекта
-                project.total_symbols = en.unit_converter('symbols', last_note.new_total, project.unit)
+                project.total_units = en.unit_converter('symbols', last_note.new_total, project.unit)
             else:
-                project.total_symbols = 0
+                project.total_units = 0
 
             # Сохраняем изменения
             data = en.load_data()
@@ -885,7 +899,7 @@ class MainWindow(QMainWindow, main_window_ui):
             data = en.load_data()
             old_name = project.name
             old_goal = project.goal
-            old_total = project.total_symbols
+            old_total = project.total_units
             old_deadline = project.deadline
             old_personal_goal = project.personal_goal_for_the_day
 
@@ -894,6 +908,9 @@ class MainWindow(QMainWindow, main_window_ui):
             new_goal = dialog.get_goal()
             new_total = dialog.get_total()
             new_unit = dialog.get_unit()
+            if new_unit != 'author_list':
+                new_goal = math.ceil(new_goal)
+                new_total = math.ceil(new_total)
             new_deadline = dialog.get_deadline()
             new_personal_goal = dialog.get_personal_goal_for_the_day()
             if [old_name != new_name, old_goal != new_goal, old_total != new_total, old_deadline != new_deadline]:
@@ -905,7 +922,7 @@ class MainWindow(QMainWindow, main_window_ui):
             settings = en.load_settings()
 
             # Предупреждаем, что уменьшить цель на день не выйдет
-            if old_personal_goal < new_personal_goal and settings.get('global_streak', False):
+            if old_personal_goal < new_personal_goal and settings.get('global_streak', False) and not en.dev_mode:
                 if en.today_for_test() not in project.streaks:
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -951,7 +968,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     else:
                         return
             # Запрещаем менять цель на день, если стрик не продлен сегодня
-            if old_personal_goal > new_personal_goal:
+            if old_personal_goal > new_personal_goal and not en.dev_mode:
                 if en.today_for_test() not in project.streaks:
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -984,17 +1001,19 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем поля проекта
             project.name = new_name
             project.goal = new_goal
-            project.total_symbols = new_total
+            project.total_units = new_total
             project.unit = new_unit
             project.deadline = new_deadline
             project.personal_goal_for_the_day = new_personal_goal
             project.edit_date = edit_date
 
             # Обновляем статус проекта (если цель достигнута)
-            if project.total_symbols >= project.goal and project.status != 'завершен':
+            if project.total_units >= project.goal and project.status != 'завершен':
                 # Не завершаем автоматически, но обновим кнопки позже
                 pass
 
+            # Обновляем цель на день
+            project.get_today_goal_value()
             # Сохраняем под новым именем (или старым, если не изменилось)
             data['projects'][project.name] = project
             en.save_data(data)
@@ -1058,7 +1077,7 @@ class MainWindow(QMainWindow, main_window_ui):
             project.status = "завершен"
             project.complete_date = en.today_for_test()
             if en.load_settings()['game_mode']:
-                self.game_controller.give_complete_bonus(project.status, project.total_symbols, project.unit)
+                self.game_controller.give_complete_bonus(project.status, project.total_units, project.unit)
                 if en.load_settings()['global_streak'] and project.deadline != 'Нет' and len(project.streaks):
                     self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local', streak_len=len(project.streaks))
 
@@ -1350,7 +1369,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Конвертируем количество символов в единицу проекта
             new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
-            current_total_in_unit = project.total_symbols
+            current_total_in_unit = project.total_units
 
             # Проверяем, изменилось ли количество
             if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
@@ -1482,7 +1501,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         try:
             symbols = count_symbols_in_scrivener_item(proj_path, item_id)
-            if symbols == 0 and project.total_symbols == 0:
+            if symbols == 0 and project.total_units == 0:
                 if not background_synch:
                     self.notifications.show_warning(
                         "Не удалось подсчитать символы. Возможно, документ пуст."
@@ -1491,7 +1510,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Конвертируем количество символов в единицу проекта
             new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
-            current_total_in_unit = project.total_symbols
+            current_total_in_unit = project.total_units
 
             # Проверяем, изменилось ли количество
             if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
@@ -1784,7 +1803,6 @@ class CreateProject(QDialog, create_project_ui):
         self.current_unit = self.text_to_unit[self.cb_unit.currentText()]
 
         # Скрываем предупреждения
-        self.incorrect_name.setVisible(False)
         self.incorrect_data.setVisible(False)
 
         # Подключаем сигналы
@@ -1896,10 +1914,13 @@ class CreateProject(QDialog, create_project_ui):
         if days <= 0:
             daily = math.ceil(remaining)
         else:
-            daily = math.ceil(remaining / days)
+            daily = remaining / days
         self._updating = True
         try:
-            self.le_personal_goal_for_the_day.setText(str(daily))
+            if self.current_unit == 'author_list':
+                self.le_personal_goal_for_the_day.setText(f"{daily:.1f}")
+            else:
+                self.le_personal_goal_for_the_day.setText(str(math.ceil(daily)))
         finally:
             self._updating = False
 
@@ -1939,7 +1960,6 @@ class CreateProject(QDialog, create_project_ui):
         current_name = self.le_name.text().strip()
         name_filled = bool(current_name)
         name_incorrect = current_name in existing_names and current_name != ""
-        self.incorrect_name.setVisible(name_incorrect)
         if name_incorrect:
             error_messages.append("Проект с таким именем уже существует")
 
@@ -2033,7 +2053,7 @@ class CreateProject(QDialog, create_project_ui):
             return 0
         try:
             val = float(self.le_personal_goal_for_the_day.text())
-            return math.ceil(val) if val > 0 else 0
+            return val
         except (ValueError, AttributeError):
             return 0
 
@@ -2061,13 +2081,12 @@ class EditProject(QDialog, create_project_ui):
         self.cb_unit.setCurrentText(self.unit_to_text[self.current_unit])
 
         # Скрываем предупреждения
-        self.incorrect_name.setVisible(False)
         self.incorrect_data.setVisible(False)
 
         # Заполняем поля данными из проекта
         self.le_name.setText(project.name)
         self.le_goal.setText(self._format_number(project.goal))
-        self.le_total_symbols.setText(self._format_number(project.total_symbols))
+        self.le_total_symbols.setText(self._format_number(project.total_units))
 
         # Дедлайн
         if project.deadline != 'Нет':
@@ -2191,10 +2210,13 @@ class EditProject(QDialog, create_project_ui):
         if days <= 0:
             daily = math.ceil(remaining)
         else:
-            daily = math.ceil(remaining / days)
+            daily = remaining / days
         self._updating = True
         try:
-            self.le_personal_goal_for_the_day.setText(str(daily))
+            if self.current_unit == 'author_list':
+                self.le_personal_goal_for_the_day.setText(f"{daily:.1f}")
+            else:
+                self.le_personal_goal_for_the_day.setText(str(math.ceil(daily)))
         finally:
             self._updating = False
 
@@ -2234,7 +2256,6 @@ class EditProject(QDialog, create_project_ui):
         name_incorrect = False
         if name_filled and current_name != self.original_name:
             name_incorrect = current_name in existing_names
-        self.incorrect_name.setVisible(name_incorrect)
         if name_incorrect:
             error_messages.append("Проект с таким именем уже существует")
 
@@ -2308,7 +2329,7 @@ class EditProject(QDialog, create_project_ui):
         try:
             return float(self.le_total_symbols.text())
         except:
-            return self.project.total_symbols
+            return self.project.total_units
 
     def get_unit(self):
         return self.current_unit
@@ -2326,7 +2347,7 @@ class EditProject(QDialog, create_project_ui):
             return 0
         try:
             val = float(self.le_personal_goal_for_the_day.text())
-            return math.ceil(val) if val > 0 else 0
+            return val
         except (ValueError, AttributeError):
             return 0
 

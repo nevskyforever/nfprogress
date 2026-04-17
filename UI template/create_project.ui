@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>349</width>
-    <height>311</height>
+    <width>350</width>
+    <height>320</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -18,14 +18,14 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>349</width>
-    <height>311</height>
+    <width>350</width>
+    <height>320</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
-    <width>349</width>
-    <height>311</height>
+    <width>350</width>
+    <height>320</height>
    </size>
   </property>
   <property name="font">
@@ -91,21 +91,6 @@
         </property>
        </widget>
       </item>
-      <item row="0" column="2">
-       <widget class="QLabel" name="incorrect_name">
-        <property name="enabled">
-         <bool>true</bool>
-        </property>
-        <property name="styleSheet">
-         <string notr="true">QLabel {
-    color: rgb(255, 0, 0);
-}</string>
-        </property>
-        <property name="text">
-         <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Имя уже&lt;br/&gt;используется&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
-        </property>
-       </widget>
-      </item>
       <item row="4" column="1">
        <widget class="QLineEdit" name="le_total_symbols">
         <property name="text">
@@ -159,6 +144,9 @@
         </property>
         <property name="text">
          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p align=&quot;center&quot;&gt;Некорректные данные&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
+        </property>
+        <property name="alignment">
+         <set>Qt::AlignmentFlag::AlignCenter</set>
         </property>
        </widget>
       </item>
@@ -216,7 +204,7 @@
         </property>
         <property name="dateTime">
          <datetime>
-          <hour>20</hour>
+          <hour>16</hour>
           <minute>0</minute>
           <second>0</second>
           <year>2026</year>

@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.4.5'
+version = '3.5.1'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -162,6 +162,7 @@ class Project:
         self.freezes = 0
         self.deadline_set_date = today_for_test()
         self.personal_goal_for_the_day = personal_goal_for_the_day
+        self.project_plan = {}
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -186,7 +187,7 @@ class Project:
             'last_streak_lost_date': None,
             'freezes': 0,
             'deadline_set_date': today_for_test(),
-            'personal_goal_for_the_day': self.get_today_goal_in_unit()
+            'project_plan': {},
         }
 
         for attr, default_value in defaults.items():
@@ -194,8 +195,18 @@ class Project:
                 setattr(self, attr, default_value)
             elif attr in ('notes', 'streaks') and not isinstance(getattr(self, attr), list):
                 setattr(self, attr, [])
+
+        # --- Вычисляем динамические данные ПОСЛЕ того, как базовые атрибуты созданы ---
+        if not hasattr(self, 'personal_goal_for_the_day'):
+            self.personal_goal_for_the_day = self.get_today_goal_in_unit()
+
+        # Если если нет плана - генерируем его
+        if self.project_plan == {}:
+            self.get_today_goal_value()
+
         if self.synch is not None and isinstance(self.synch, str):
             self.synch = {'type': 'word', 'path': self.synch}
+
         # deadline_set_date должен храниться как date, иначе старт плана "прыгает".
         if self.deadline_set_date is None or not isinstance(self.deadline_set_date, date):
             self.deadline_set_date = today_for_test()
@@ -260,11 +271,11 @@ class Project:
         self._status = status
 
     @property
-    def total_symbols(self):
+    def total_units(self):
         return self._total_symbols
 
-    @total_symbols.setter
-    def total_symbols(self, total_symbols):
+    @total_units.setter
+    def total_units(self, total_symbols):
         self._total_symbols = total_symbols
 
     def get_goal_symbols(self):
@@ -299,44 +310,115 @@ class Project:
         return unit_converter('symbols', added_sym, self.unit)
 
     def get_today_goal_value(self):
-        """Возвращает накопленный план на сегодня в символах.
-        Равномерно распределяет цель от даты установки дедлайна до дедлайна.
         """
-
-        # Если есть персональная цель на сегодня - возвращаем ее
-        if self.personal_goal_for_the_day:
-            return self.personal_goal_for_the_day
-
-        if self.deadline == 'Нет':
-            return 0
-
+        Возвращает накопительный план на сегодня в символах.
+        Генерирует план от текущей даты до дедлайна по принципу "лесенки".
+        """
         today = today_for_test()
-        if not isinstance(self.deadline, date):
-            return 0
 
-        goal_sym = self.get_goal_symbols()
-        if goal_sym == float('inf'):
-            return float('inf')
+        if getattr(self, 'project_plan', None) is None:
+            self.project_plan = {}
 
-        # Берём стабильную дату старта плана; для старых/битых данных откатываемся к текущей дате.
-        if isinstance(self.deadline_set_date, date):
-            start_date = self.deadline_set_date
+        plan = self.project_plan
+
+        # === 1. ПРОВЕРКА ДЕДЛАЙНА (Если он наступил или прошел) ===
+        if self.deadline != 'Нет' and isinstance(self.deadline, date):
+            if today >= self.deadline:
+                return self.get_goal_symbols()
+
+        # === 2. БЫСТРЫЙ ВОЗВРАТ ИЗ КЭША (Защита от "убегания" цели) ===
+        # Создаем "слепок" параметров, от которых зависит план
+        current_signature = str((
+            getattr(self, 'deadline', 'Нет'),
+            getattr(self, 'personal_goal_for_the_day', 0),
+            getattr(self, '_goal', 0),
+            getattr(self, 'unit', 'symbols'),
+            getattr(self, 'deadline_set_date', None)
+        ))
+
+        # Если день есть в плане И настройки не менялись с момента последнего расчета — отдаем кэш
+        if today in plan and plan.get('signature') == current_signature:
+            return plan[today]
+
+        # === 3. ПЕРЕСЧЕТ ПЛАНА (Инициализация) ===
+
+        today_added_symbols = 0
+        if hasattr(self, 'streaks') and isinstance(self.streaks, list):
+            for streak in self.streaks:
+                if isinstance(streak, dict) and streak.get('date') == today:
+                    today_added_symbols = streak.get('count', 0)
+                    break
+
+        base_total = unit_converter(self.unit, self.total_units) - today_added_symbols
+        daily_goal_symbols = 0
+
+        if getattr(self, 'personal_goal_for_the_day', 0):
+            converted = unit_converter(self.unit, self.personal_goal_for_the_day, 'symbols')
+            if converted == float('inf'):
+                daily_goal_symbols = float('inf')
+            else:
+                # Убираем ceil – оставляем дробное значение
+                daily_goal_symbols = converted
+
+        elif self.deadline != 'Нет' and isinstance(self.deadline, date):
+
+            if self.goal != float('inf'):
+                goal_sym = unit_converter(self.unit, self.goal)
+                total_days = (self.deadline - today).days + 1
+                if total_days > 0:
+                    remaining = max(0, goal_sym - base_total)
+                    # Деление без округления вверх
+                    daily_goal_symbols = remaining / total_days
+                else:
+                    daily_goal_symbols = goal_sym
+
+        # === 4. ГЕНЕРАЦИЯ ЛЕСЕНКИ ПЛАНА ===
+
+        # Если кэш устарел (настройки поменялись) или его нет — строим заново
+        if not plan or plan.get('signature') != current_signature:
+            plan.clear()
+            plan['signature'] = current_signature  # Сохраняем слепок настроек
+
+            end_date = self.deadline if (self.deadline != 'Нет' and isinstance(self.deadline, date)) else (
+                        today + timedelta(days=30))
+
+            current_date = today
+            current_goal = base_total
+
+            while current_date <= end_date:
+                current_goal += daily_goal_symbols
+                if self.deadline != 'Нет' and isinstance(self.deadline, date):
+                    max_sym = self.get_goal_symbols()
+                    if current_goal > max_sym:
+                        current_goal = max_sym
+
+                plan[current_date] = current_goal
+                current_date += timedelta(days=1)
+
         else:
-            start_date = today
-        if start_date > today:
-            start_date = today
+            # Сценарий достройки плана (если закончились 30 дней запаса)
+            # Отфильтровываем строковые ключи (наш signature), оставляем только даты
+            date_keys = [k for k in plan.keys() if isinstance(k, date)]
+            if not date_keys:
+                last_date = today
+                current_goal = base_total
+            else:
+                last_date = max(date_keys)
+                current_goal = plan[last_date]
 
-        total_days = (self.deadline - start_date).days + 1
-        if total_days <= 0:
-            return goal_sym
+            current_date = last_date + timedelta(days=1)
+            end_date = today + timedelta(days=30)
 
-        day_number = (today - start_date).days + 1
-        day_number = max(1, min(day_number, total_days))  # зажимаем в [1, total_days]
+            while current_date <= end_date:
+                current_goal += daily_goal_symbols
+                if self.deadline != 'Нет' and isinstance(self.deadline, date):
+                    max_sym = self.get_goal_symbols()
+                    if current_goal > max_sym:
+                        current_goal = max_sym
+                plan[current_date] = current_goal
+                current_date += timedelta(days=1)
 
-        daily_norm = goal_sym / total_days
-        planned = daily_norm * day_number
-
-        return min(math.ceil(planned), goal_sym)
+        return plan.get(today, base_total + daily_goal_symbols)
 
     def get_today_goal_in_unit(self):
         """Возвращает цель на сегодня в единице проекта."""
@@ -367,24 +449,22 @@ class Project:
         total = self.get_total_symbols()
         planned = self.get_today_goal_value()
 
-        if planned == 0 or planned == float('inf'):
-            return 'No'
+        # Если стрик уже завершен - дальше не проверяем
+        if self.status == 'завершен':
+            return 'Complete'
 
         # Заморозка
         if self.streak_status == 'Freeze' and self.streaks and self.streaks[-1] == today:
             return 'Freeze'
 
-        # Убедимся, что streaks — список
+        # Если проект бесконечный - стрика нет
+        if planned == 0 or self.goal == float('inf'):
+            return 'No'
+
+
+            # Убедимся, что streaks — список
         if not isinstance(self.streaks, list):
             self.streaks = []
-
-        # Если установлена личная дневная цель — planned вычисляется через неё,
-        # но проверка остаётся прежней: total (накопленное) >= planned (накопленный план)
-        if self.personal_goal_for_the_day and self.personal_goal_for_the_day > 0:
-            today_added_sym = self.get_added_symbols_today_value()
-            total_before_today = total - today_added_sym
-            personal_goal_sym = unit_converter(self.unit, self.personal_goal_for_the_day, 'symbols')
-            planned = total_before_today + personal_goal_sym
 
         day_completed = total >= planned
 
@@ -511,7 +591,7 @@ class Project:
         return 'Вывод статуса не работает'
 
     def set_new_notes(self, new_note):
-        """Добавляет заметку и обновляет total_symbols в единице проекта."""
+        """Добавляет заметку и обновляет total_units в единице проекта."""
         self.notes.append(new_note)
         # new_note.new_total хранится в символах, конвертируем в единицу проекта
         self._total_symbols = unit_converter('symbols', new_note.new_total, self.unit)
@@ -630,10 +710,6 @@ class Stage(Project):
         self.status = 'в работе'
 
 class Note:
-    new_total = 0
-    added_symbols = 0
-    added_progress = 0
-    date_create = None
 
     def __init__(self, new_total, added_symbols, added_progress, date_create=None):
         if date_create is None:
@@ -800,7 +876,7 @@ def global_streak_status(data, today=None):
     has_active_today = False
     for project in projects.values():
         if isinstance(project, Project):
-            if project.streak_status in ['Start', 'Go', 'Complete']:
+            if project.status == 'активен' and project.streak_status in ['Start', 'Go']:
                 has_active_today = True
                 break
             elif project.streak_status == 'Active' and len(streaks) < len(project.streaks):
@@ -954,18 +1030,6 @@ def global_streak_status_msg(data, status=None):
 def unit_converter(unit, value, convert_to=None):
     """
     Конвертирует количество value из исходной единицы unit в целевую единицу convert_to.
-    Если convert_to не указан или равен False, конвертирует в символы.
-
-    Поддерживаемые единицы:
-        'symbols'       – символы
-        'A4'            – страницы A4 (1 стр. = 1800 символов)
-        'author_list'   – авторские листы (1 а.л. = 40 000 символов)
-        'ficbook_pages' – страницы Ficbook (1 стр. = 4500 символов)
-
-    Возвращает:
-        - для convert_to = 'symbols' – точное значение (float)
-        - для остальных единиц – округлённое вверх до целого числа (int)
-        - None, если единицы не поддерживаются
     """
     factors = {
         'symbols': 1,
@@ -974,24 +1038,25 @@ def unit_converter(unit, value, convert_to=None):
         'ficbook_pages': 4500
     }
 
-    # Если целевая единица не задана – конвертируем в символы
     if convert_to in (None, False):
         convert_to = 'symbols'
 
-    # Проверяем, что обе единицы есть в словаре
     if unit not in factors or convert_to not in factors:
         return None
 
-    # Приводим исходное значение к символам, затем к целевой единице
+    # Приводим к общему знаменателю (символам) и вычисляем результат
     symbols_value = value * factors[unit]
     result = symbols_value / factors[convert_to]
 
-    # Для не-символьных единиц округляем вверх до целого
-    if convert_to != 'symbols':
-        return math.ceil(result)
-    else:
-        # Для символов возвращаем точное значение (без округления)
+    # Логика округления в зависимости от типа единицы
+    if convert_to == 'symbols':
         return result
+    elif convert_to == 'author_list':
+        # Для авторских листов — 1 знак после запятой
+        return round(result, 1)
+    else:
+        # Для страниц (A4, Ficbook) оставляем округление вверх до целого
+        return math.ceil(result)
 
 def count_symbols_in_docx(filepath):
     """
@@ -1009,25 +1074,6 @@ def count_symbols_in_docx(filepath):
                 for paragraph in cell.paragraphs:
                     total += len(paragraph.text)
     return total
-
-    # Если целевая единица не задана – конвертируем в символы
-    if convert_to in (None, False):
-        convert_to = 'symbols'
-
-    # Проверяем, что обе единицы есть в словаре
-    if unit not in factors or convert_to not in factors:
-        return None
-
-    # Приводим исходное значение к символам, затем к целевой единице
-    symbols_value = value * factors[unit]
-    result = symbols_value / factors[convert_to]
-
-    # Для не-символьных единиц округляем вверх до целого
-    if convert_to != 'symbols':
-        return math.ceil(result)
-    else:
-        # Для символов возвращаем точное значение (без округления)
-        return result
 
 # При импорте модуля: создаём нужные директории или удаляем тестовые данные
 if dev_mode:
