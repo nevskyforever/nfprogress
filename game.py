@@ -167,33 +167,38 @@ class Gamer:
 
         # Обычный старт (без потери)
         elif 'Start' in st and 'Lose' not in st:
-            bonus = 25 * cf_coins
-            self.coins += bonus
             if streak_type == 'Local':
+                bonus = round((25 * cf_coins), 2)
                 msg = f'Получен бонус {bonus} монет за старт стрика в проекте.'
             else:
+                bonus = round((50 * cf_coins), 2)
                 msg = f'Получен бонус {bonus} монет за старт глобального стрика.'
+            self.coins += bonus
 
         # Продолжение стрика
         elif 'Go' in st:
             coin_bonus = round((10 * streak_len * cf_coins), 2)
             exp_bonus = round((100 * streak_len * cf_exp))
-            self.coins += coin_bonus
-            self.exp += exp_bonus
             if streak_type == 'Local':
+                coin_bonus = round((10 * streak_len * cf_coins), 2)
+                exp_bonus = round((100 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление стрика в проекте.'
             else:
+                coin_bonus = round((25 * streak_len * cf_coins), 2)
+                exp_bonus = round((250 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
+            self.coins += coin_bonus
+            self.exp += exp_bonus
 
         # Завершение стрика (только локальный)
         elif 'Complete' in st:
             coin_bonus = round((25 * streak_len * cf_coins), 2)
             exp_bonus = round((250 * streak_len * cf_exp))
-            self.coins += coin_bonus
-            self.exp += exp_bonus
             msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
                    f'\nВы были в цели {streak_len} д. подряд!'
                    f'\nВы получили награду: {coin_bonus} монет и {exp_bonus} опыта!')
+            self.coins += coin_bonus
+            self.exp += exp_bonus
 
         # Чистая потеря (только глобальный)
         elif 'Lose' in st and streak_type == 'Global':
