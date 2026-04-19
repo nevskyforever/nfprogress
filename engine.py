@@ -453,6 +453,9 @@ class Project:
         if self.deadline == 'Нет':
             return 'No'
 
+        # Если стрик сегодня уже продлен - не проверяем
+        if self.streak_status == 'Go' and self.streaks[-1] == today:
+            return 'Go'
         # Если стрик уже завершен - дальше не проверяем
         if self.status == 'завершен':
             return 'Complete'
@@ -950,11 +953,17 @@ def global_streak_status(data, today=None):
             data['last_global_streak_lost_date'] = None
             data['last_global_streak_lose_len'] = 0
         elif streaks[-1] == today:
-            # Уже сегодня обновляли — возвращаем текущий статус
-            data['global_streaks'] = streaks
-            data['max_global_streak'] = max_streak
-            save_data(data)
-            return prev_status
+            # ИСПРАВЛЕНИЕ: Стрик уже обновлён сегодня (глобально ранее, либо только что переняли от проекта).
+            # Вычисляем статус вместо возврата старого prev_status.
+            if len(streaks) > 1:
+                status = 'Go'
+            else:
+                if last_lost_date is not None:
+                    status = f'Lose {last_lost_len} Start'
+                else:
+                    status = 'Start'
+            data['last_global_streak_lost_date'] = None
+            data['last_global_streak_lose_len'] = 0
         else:
             # Пропуск дней: потеря старого стрика и начало нового
             lose_len = len(streaks)
