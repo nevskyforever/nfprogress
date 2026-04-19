@@ -269,48 +269,53 @@ def lottery_ticket_func(do, add=None):
     """Функция лотерейного билета"""
 
     gamer = game.load_game()
-    price = 10  # Базовая цена билета для расчета выигрыша
+    price = round(calculate_item_price(10))  # Базовая цена билета
 
     if do == 'use':
-
-        # Генерируем сеты чисел
+        # Классическая система лотереи "5 из 30"
         chance = set()
         win = set()
-        while len(chance) < 3:
-            chance.add(randint(1, 10))
-        while len(win) < 3:
-            win.add(randint(1, 10))
+
+        # Генерируем 5 уникальных чисел от 1 до 30 для игрока
+        while len(chance) < 5:
+            chance.add(randint(1, 30))
+
+        # Генерируем 5 уникальных выигрышных чисел
+        while len(win) < 5:
+            win.add(randint(1, 30))
 
         # Считаем совпадения
         matches = len(chance.intersection(win))
 
         win_prize = 0
-        message = 'В этот раз не повезло :('
+        # Показываем игроку, какие числа выпали, чтобы добавить азарта
+        message = f'Ваши числа: {sorted(chance)}\nВыигрышные: {sorted(win)}\n\n'
 
-        if matches == 1:
-            win_prize = price * 5
-            message = f'Совпало 1 число! Выигрыш: {win_prize} монет.'
-        elif matches == 2:
-            win_prize = price * 50
-            message = f'Совпало 2 числа!! Выигрыш: {win_prize} монет.'
+        if matches == 2:
+            win_prize = price * 2
+            message += f'Совпало 2 числа! Выигрыш: {win_prize} монет.'
         elif matches == 3:
-            win_prize = price * 1000
-            message = f'ДЖЕКПОТ!!! 3 из 3! Выигрыш: {win_prize} монет.'
+            win_prize = price * 10
+            message += f'Совпало 3 числа! Выигрыш: {win_prize} монет.'
+        elif matches == 4:
+            win_prize = price * 250
+            message += f'Отлично! Совпало 4 числа! Выигрыш: {win_prize} монет.'
+        elif matches == 5:
+            win_prize = price * 10000
+            message += f'ДЖЕКПОТ!! Совпало 5 чисел из 5! Выигрыш: {win_prize} монет!'
+        else:
+            message += f'Совпало чисел: {matches}. В этот раз не повезло :('
 
         if win_prize > 0:
-            # Сохраняем текущее количество монет для отладки
             gamer.coins += win_prize
             gamer.save()
 
         return message
 
     if do == '?':
-        return 'Лотерейный билет: попытайте удачу!'
+        return 'Лотерейный билет "5 из 30". Угадайте числа и сорвите джекпот!'
 
     return 'Неизвестное действие'
-
-def freeze_local_func(do, add=None):
-    pass
 
 def freeze_global_func(do, add=None):
     if do == 'use':
@@ -338,34 +343,30 @@ def freeze_global_func(do, add=None):
     elif do == '?':
         return 'Заморозка позволяет засчитать день в стрике без написания кода.'
 
-# Считаем цену заморозки
+def calculate_item_price(price):
+    """Считает стоимость предмета для игрока с учетом инфляции"""
+    gamer = game.load_game()
+    inflation = gamer.calculate_inflation()
+
+    return price * inflation
 
 def calculate_freeze_price():
     """Считает стоимость заморозки в зависимости от кол-ва использований"""
     projects = engine.load_data()['projects']
-    gamer = game.load_game()
-    coin_cf = gamer.cf['coins']
     used_freezes = 1
     total_price = 100
     for project in projects.values():
         if project.status == 'активен':
             used_freezes += project.freezes
-            total_price = 100 * used_freezes * coin_cf
-    return total_price
-
-def calculate_item_price(price):
-    """Считает стоимость предмета для игрока"""
-    gamer = game.load_game()
-    coin_cf = gamer.cf['coins']
-    price = price * coin_cf
-    return price
+            total_price = 100 * used_freezes
+    return calculate_item_price(total_price)
 
 # Инициализация объектов
 
 freeze = FuncItem('Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком')
 lottery_ticket = FuncItem("Лотерейный билет", price=lambda: calculate_item_price(10), item_type='Предметы', level=3, func=lottery_ticket_func,
-                          description='Лотерейный билет позволяет выиграть от 100 до 10К монет')
+                          description=f'Лотерейный билет - твоя возможность сорвать куш!')
 health_potion_5 = FuncItem('Микро зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(10), add=5,
                            description='Восстанавливает здоровье на 5 единиц')
 health_potion_10 = FuncItem('Малое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(20), add=10,

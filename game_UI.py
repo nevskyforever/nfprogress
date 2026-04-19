@@ -532,12 +532,18 @@ class GameMenuController:
     def show_death_warning(self):
         """Показать предупреждение о смерти"""
         if hasattr(self, '_death_warning_shown') and self._death_warning_shown:
+            self.gamer.level = 1
+            self.gamer.coins /= 2
+            self.gamer.exp = 0
+            self.gamer.items = {}
+            self.gamer.health = 100
+            self.gamer.save()
             return
 
         self._death_warning_shown = True
 
         msg = "💀 ВАШ ПЕРСОНАЖ ПОГИБ! 💀\n\n"
-        msg += "Прогресс сброшен до 1 уровня.\n"
+        msg += "Прогресс сброшен до 1 уровня, вы потеряли половину монет, весь опыт и предметы в инвентаре.\n"
         msg += "Будьте внимательнее со здоровьем!"
 
         QMessageBox.critical(self.ui.centralwidget, "Персонаж погиб", msg)
