@@ -449,6 +449,10 @@ class Project:
         total = self.get_total_symbols()
         planned = self.get_today_goal_value()
 
+        # Проверяем, есть ли дедлайн
+        if self.deadline == 'Нет':
+            return 'No'
+
         # Если стрик уже завершен - дальше не проверяем
         if self.status == 'завершен':
             return 'Complete'
@@ -460,7 +464,6 @@ class Project:
         # Если проект бесконечный - стрика нет
         if planned == 0 or self.goal == float('inf'):
             return 'No'
-
 
             # Убедимся, что streaks — список
         if not isinstance(self.streaks, list):
