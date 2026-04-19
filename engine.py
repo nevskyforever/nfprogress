@@ -879,11 +879,16 @@ def global_streak_status(data, today=None):
     has_active_today = False
     for project in projects.values():
         if isinstance(project, Project):
-            if project.status == 'активен' and project.streak_status in ['Start', 'Go']:
-                has_active_today = True
-                break
-            elif project.streak_status == 'Active' and len(streaks) < len(project.streaks):
-                streaks = project.streaks
+            # ВАЖНО: обязательно вызываем метод для актуализации статуса на текущий день
+            actual_status = project.get_streak_status()
+
+            if project.status == 'активен':
+                if actual_status in ['Start', 'Go']:
+                    has_active_today = True
+
+                # Перенимаем стрик, если он активен и длиннее текущего глобального (используем copy!)
+                if actual_status in ['Start', 'Go', 'Active'] and len(streaks) < len(project.streaks):
+                    streaks = project.streaks.copy()
 
     # === ОБРАБОТКА СОХРАНЁННОГО СТАТУСА ПОТЕРИ (только в день потери) ===
     if (isinstance(prev_status, str) and
@@ -966,9 +971,8 @@ def global_streak_status(data, today=None):
         elif streaks[-1] == yesterday:
             status = 'Active'
         elif streaks[-1] == today:
-            # Странная ситуация: запись в streaks сегодня есть, но активности нет — очищаем
-            streaks.clear()
-            status = 'No'
+            # Запись за сегодня есть, но план не выполнен (находится в процессе) — статус активен
+            status = 'Active'
         else:
             # Потеря стрика из-за пропуска более одного дня
             lose_len = len(streaks)
