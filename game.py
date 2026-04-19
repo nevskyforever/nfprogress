@@ -28,6 +28,7 @@ class Gamer:
         self.level = level
         self.exp = exp
         self.coins = coins
+        self.inflation = self.calculate_inflation()
         self.health = health
 
         self.cf = {'coins': 1.0, 'exp': 1.0}
@@ -73,6 +74,7 @@ class Gamer:
 
     def set_coins(self, coins):
         self.coins += coins
+        self.calculate_inflation()
 
     def update_cf(self):
         """Обновляет коэффициенты монет и опыта согласно текущему уровню"""
@@ -245,7 +247,8 @@ class Gamer:
             'notifications': {'new': [], 'read': []},
             'bank_account': None,
             'last_lose_global_streak_damage': None,
-            'last_bonus_dates': {}
+            'last_bonus_dates': {},
+            'inflation': 1,
         }
 
         for attr, default_value in defaults.items():
@@ -269,6 +272,28 @@ class Gamer:
         # Особая обработка для bank_account
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
+
+    def calculate_inflation(self):
+        """Считает инфляцию игрока"""
+        # Проверяем от самых богатых к самым бедным
+        if self.coins >= 10 ** 9:
+            self.inflation = 512
+        elif self.coins >= 10 ** 8:
+            self.inflation = 256
+        elif self.coins > 10 ** 7:
+            self.inflation = 128
+        elif self.coins >= 10 ** 6:
+            self.inflation = 64
+        elif self.coins >= 10 ** 5:
+            self.inflation = 32
+        elif self.coins >= 10 ** 4:
+            self.inflation = 16
+        elif self.coins >= 10 ** 3:
+            self.inflation = 8
+        else:
+            self.inflation = 1  # Без инфляции
+        self.save()
+        return self.inflation
 
 
 def load_game():
