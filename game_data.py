@@ -269,47 +269,51 @@ def lottery_ticket_func(do, add=None):
     """Функция лотерейного билета"""
 
     gamer = game.load_game()
-    price = round(calculate_item_price(10))  # Базовая цена билета для расчета выигрыша
+    price = round(calculate_item_price(10))  # Базовая цена билета
 
     if do == 'use':
-
-        # Генерируем сеты чисел
+        # Классическая система лотереи "5 из 30"
         chance = set()
         win = set()
-        while len(chance) < 8:
-            chance.add(randint(1, 16))
-        while len(win) < 8:
-            win.add(randint(1, 16))
+
+        # Генерируем 5 уникальных чисел от 1 до 30 для игрока
+        while len(chance) < 5:
+            chance.add(randint(1, 30))
+
+        # Генерируем 5 уникальных выигрышных чисел
+        while len(win) < 5:
+            win.add(randint(1, 30))
 
         # Считаем совпадения
         matches = len(chance.intersection(win))
 
         win_prize = 0
-        message = 'В этот раз не повезло :('
+        # Показываем игроку, какие числа выпали, чтобы добавить азарта
+        message = f'Ваши числа: {sorted(chance)}\nВыигрышные: {sorted(win)}\n\n'
 
-        if matches == 1:
-            win_prize = price
-            message = f'Совпало 1 число из 8! Выигрыш: {win_prize} монет.'
-        elif matches == 2:
-            win_prize = price * 10**2
-            message = f'Совпало 2 числа из 8!! Выигрыш: {win_prize} монет.'
+        if matches == 2:
+            win_prize = price * 2
+            message += f'Совпало 2 числа! Выигрыш: {win_prize} монет.'
+        elif matches == 3:
+            win_prize = price * 10
+            message += f'Совпало 3 числа! Выигрыш: {win_prize} монет.'
         elif matches == 4:
-            win_prize = price * 10**4
-            message = f'Совпало 4 числа из 8! Выигрыш: {win_prize} монет.'
-        elif matches == 8:
-            win_prize = price * 10**6
-            message = (f'\nДЖЕКПОТ!!'
-                       f'\nСовпало 8 чисел  из 8! Выигрыш: {win_prize} монет.')
+            win_prize = price * 250
+            message += f'Отлично! Совпало 4 числа! Выигрыш: {win_prize} монет.'
+        elif matches == 5:
+            win_prize = price * 10000
+            message += f'ДЖЕКПОТ!! Совпало 5 чисел из 5! Выигрыш: {win_prize} монет!'
+        else:
+            message += f'Совпало чисел: {matches}. В этот раз не повезло :('
 
         if win_prize > 0:
-            # Сохраняем текущее количество монет для отладки
             gamer.coins += win_prize
             gamer.save()
 
         return message
 
     if do == '?':
-        return 'Лотерейный билет: попытайте удачу!'
+        return 'Лотерейный билет "5 из 30". Угадайте числа и сорвите джекпот!'
 
     return 'Неизвестное действие'
 
