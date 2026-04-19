@@ -1,6 +1,7 @@
 import os
 import pickle
 import sys
+import math
 
 import engine
 import game_data
@@ -274,27 +275,20 @@ class Gamer:
             self.bank_account = game_data.BankAccount()
 
     def calculate_inflation(self):
-        """Считает инфляцию игрока"""
-        # Проверяем от самых богатых к самым бедным
-        if self.coins >= 10 ** 9:
-            self.inflation = 512
-        elif self.coins >= 10 ** 8:
-            self.inflation = 256
-        elif self.coins > 10 ** 7:
-            self.inflation = 128
-        elif self.coins >= 10 ** 6:
-            self.inflation = 64
-        elif self.coins >= 10 ** 5:
-            self.inflation = 32
-        elif self.coins >= 10 ** 4:
-            self.inflation = 16
-        elif self.coins >= 10 ** 3:
-            self.inflation = 8
+        """Считает адаптивную инфляцию игрока (без ограничений по балансу)"""
+        # Защита от логарифма нуля/отрицательных чисел и порог начала инфляции
+        if self.coins < 1000:
+            self.inflation = 1
         else:
-            self.inflation = 1  # Без инфляции
+            # math.log10() вернет 3 для 1000, 4 для 10000 и т.д.
+            # int() отбрасывает дробную часть, оставляя "ступенчатую" инфляцию
+            power_of_ten = int(math.log10(self.coins))
+
+            # Возводим 2 в полученную степень
+            self.inflation = 2 ** power_of_ten
+
         self.save()
         return self.inflation
-
 
 def load_game():
     """Загружает данные игрока из кроссплатформенной директории"""
