@@ -1,6 +1,7 @@
 import os
 import pickle
 import sys
+import math
 
 import engine
 import game_data
@@ -28,10 +29,11 @@ class Gamer:
         self.level = level
         self.exp = exp
         self.coins = coins
+        self.inflation = self.calculate_inflation()
         self.health = health
 
         self.cf = {'coins': 1.0, 'exp': 1.0}
-        self.items = {}  # Теперь словарь: "Название предмета": количество
+        self.items = {}
 
         self.bank_account = game_data.BankAccount()
         self.last_lose_global_streak_damage = None
@@ -53,11 +55,107 @@ class Gamer:
         self.exp += exps
         self.save()
         coins_cf = self.cf.get('coins', 1.0)
-        coins = round((symbols / 100 * coins_cf), 1)
+        coins = round((symbols / 100 * coins_cf) * self.calculate_inflation(True), 1)
         self.coins += coins
         self.save()
         return (f'Получено {coins} монет'
                 f'\nПолучено {exps} опыта')
+
+    def give_streak_bonus(self, status, streak_type, streak_len=1):
+        st = status.split()
+        cf_coins = self.cf['coins']
+        cf_exp = self.cf['exp']
+        msg = None
+
+        # Комбинированный статус для глобального стрика (урон + бонус)
+        if 'Lose' in st and 'Start' in st and streak_type == 'Global':
+            today = engine.today_for_test()
+            days = int(st[1]) if len(st) > 1 and st[1].isdigit() else 1
+            if self.last_lose_global_streak_damage != today:
+                damage = days * 5
+                self.damage(damage)
+                self.last_lose_global_streak_damage = today
+            else:
+                damage = days * 5  # для отображения
+            bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+            self.coins += bonus
+            msg = (f'🥺 СТРИК ПОТЕРЯН\n'
+                   f'Урон за потерю глобального стрика: {damage}❤️\n'
+                   f'🔥 Новый стрик начат! Бонус: {bonus} монет')
+
+        # Комбинированный статус для локального стрика (только бонус за старт)
+        elif 'Lose' in st and 'Start' in st and streak_type == 'Local':
+            bonus = 25 * cf_coins
+            self.coins += bonus
+            msg = f'Получен бонус {bonus} монет за старт стрика в проекте (после потери).'
+
+        # Обычный старт (без потери)
+        elif 'Start' in st and 'Lose' not in st:
+            if streak_type == 'Local':
+                bonus = round((25 * cf_coins), 2)
+                msg = f'Получен бонус {bonus} монет за старт стрика в проекте.'
+            else:
+                bonus = round((50 * cf_coins), 2)
+                msg = f'Получен бонус {bonus} монет за старт глобального стрика.'
+            self.coins += bonus
+
+        # Продолжение стрика
+        elif 'Go' in st:
+            coin_bonus = round((10 * streak_len * cf_coins), 2)
+            exp_bonus = round((100 * streak_len * cf_exp))
+            if streak_type == 'Local':
+                coin_bonus = round((10 * streak_len * cf_coins), 2)
+                exp_bonus = round((100 * streak_len * cf_exp))
+                msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление стрика в проекте.'
+            else:
+                coin_bonus = round((25 * streak_len * cf_coins), 2)
+                exp_bonus = round((250 * streak_len * cf_exp))
+                msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
+            self.coins += coin_bonus
+            self.exp += exp_bonus
+
+        # Завершение стрика (только локальный)
+        elif 'Complete' in st:
+            coin_bonus = round((25 * streak_len * cf_coins), 2)
+            exp_bonus = round((250 * streak_len * cf_exp))
+            msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
+                   f'\nВы были в цели {streak_len} д. подряд!'
+                   f'\nВы получили награду: {coin_bonus} монет и {exp_bonus} опыта!')
+            self.coins += coin_bonus
+            self.exp += exp_bonus
+
+        # Чистая потеря (только глобальный)
+        elif 'Lose' in st and streak_type == 'Global':
+            today = engine.today_for_test()
+            if self.last_lose_global_streak_damage != today:
+                days = 1
+                for part in st:
+                    if part.isdigit():
+                        days = int(part)
+                        break
+                damage = days * 5
+                self.damage(damage)
+                self.last_lose_global_streak_damage = today
+                msg = (f'🥺 СТРИК ПОТЕРЯН\n'
+                       f'Урон за потерю глобального стрика: {damage}❤️')
+
+        self.save()
+        return msg
+
+    def give_complete_bonus(self, project_status, project_total):
+        cf_total = round(project_total / 1000 + 0.5)  # обычное деление, не целочисленное
+        cf_coins = self.cf['coins']
+        cf_exp = self.cf['exp']
+
+        coin_bonus = round((100 * cf_total * cf_coins) * self.calculate_inflation(True), 1)
+        exp_bonus = round(1000 * cf_total * cf_exp)
+
+        self.coins += coin_bonus
+        self.exp += exp_bonus
+        msg = f'Вы получили награду {coin_bonus} монет и {exp_bonus} оп.'
+
+        self.save()
+        return msg
 
     def get_items(self):
         return self.items
@@ -73,6 +171,7 @@ class Gamer:
 
     def set_coins(self, coins):
         self.coins += coins
+        self.calculate_inflation()
 
     def update_cf(self):
         """Обновляет коэффициенты монет и опыта согласно текущему уровню"""
@@ -137,97 +236,6 @@ class Gamer:
     def check_loan_penalty(self):
         pass
 
-    def give_streak_bonus(self, status, streak_type, streak_len=1):
-        st = status.split()
-        cf_coins = self.cf['coins']
-        cf_exp = self.cf['exp']
-        msg = None
-
-        # Комбинированный статус для глобального стрика (урон + бонус)
-        if 'Lose' in st and 'Start' in st and streak_type == 'Global':
-            today = engine.today_for_test()
-            days = int(st[1]) if len(st) > 1 and st[1].isdigit() else 1
-            if self.last_lose_global_streak_damage != today:
-                damage = days * 5
-                self.damage(damage)
-                self.last_lose_global_streak_damage = today
-            else:
-                damage = days * 5  # для отображения
-            bonus = 25 * cf_coins
-            self.coins += bonus
-            msg = (f'🥺 СТРИК ПОТЕРЯН\n'
-                   f'Урон за потерю глобального стрика: {damage}❤️\n'
-                   f'🔥 Новый стрик начат! Бонус: {bonus} монет')
-
-        # Комбинированный статус для локального стрика (только бонус за старт)
-        elif 'Lose' in st and 'Start' in st and streak_type == 'Local':
-            bonus = 25 * cf_coins
-            self.coins += bonus
-            msg = f'Получен бонус {bonus} монет за старт стрика в проекте (после потери).'
-
-        # Обычный старт (без потери)
-        elif 'Start' in st and 'Lose' not in st:
-            bonus = 25 * cf_coins
-            self.coins += bonus
-            if streak_type == 'Local':
-                msg = f'Получен бонус {bonus} монет за старт стрика в проекте.'
-            else:
-                msg = f'Получен бонус {bonus} монет за старт глобального стрика.'
-
-        # Продолжение стрика
-        elif 'Go' in st:
-            coin_bonus = round((10 * streak_len * cf_coins), 2)
-            exp_bonus = round((100 * streak_len * cf_exp))
-            self.coins += coin_bonus
-            self.exp += exp_bonus
-            if streak_type == 'Local':
-                msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление стрика в проекте.'
-            else:
-                msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
-
-        # Завершение стрика (только локальный)
-        elif 'Complete' in st:
-            coin_bonus = round((25 * streak_len * cf_coins), 2)
-            exp_bonus = round((250 * streak_len * cf_exp))
-            self.coins += coin_bonus
-            self.exp += exp_bonus
-            msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
-                   f'\nВы были в цели {streak_len} д. подряд!'
-                   f'\nВы получили награду: {coin_bonus} монет и {exp_bonus} опыта!')
-
-        # Чистая потеря (только глобальный)
-        elif 'Lose' in st and streak_type == 'Global':
-            today = engine.today_for_test()
-            if self.last_lose_global_streak_damage != today:
-                days = 1
-                for part in st:
-                    if part.isdigit():
-                        days = int(part)
-                        break
-                damage = days * 5
-                self.damage(damage)
-                self.last_lose_global_streak_damage = today
-                msg = (f'🥺 СТРИК ПОТЕРЯН\n'
-                       f'Урон за потерю глобального стрика: {damage}❤️')
-
-        self.save()
-        return msg
-
-    def give_complete_bonus(self, project_status, project_total):
-        cf_total = round(project_total / 1000 + 0.5)  # обычное деление, не целочисленное
-        cf_coins = self.cf['coins']
-        cf_exp = self.cf['exp']
-
-        coin_bonus = round((100 * cf_total * cf_coins), 2)
-        exp_bonus = round(1000 * cf_total * cf_exp)
-
-        self.coins += coin_bonus
-        self.exp += exp_bonus
-        msg = f'Вы получили награду {coin_bonus} монет и {exp_bonus} оп.'
-
-        self.save()
-        return msg
-
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
         defaults = {
@@ -240,7 +248,8 @@ class Gamer:
             'notifications': {'new': [], 'read': []},
             'bank_account': None,
             'last_lose_global_streak_damage': None,
-            'last_bonus_dates': {}
+            'last_bonus_dates': {},
+            'inflation': 1,
         }
 
         for attr, default_value in defaults.items():
@@ -265,6 +274,24 @@ class Gamer:
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
 
+    def calculate_inflation(self, income=None):
+        """Считает адаптивную инфляцию игрока (без ограничений по балансу)"""
+        # Защита от логарифма нуля/отрицательных чисел и порог начала инфляции
+        if self.coins < 1000:
+            self.inflation = 1
+        else:
+            # math.log10() вернет 3 для 1000, 4 для 10000 и т.д.
+            # int() отбрасывает дробную часть, оставляя "ступенчатую" инфляцию
+            power_of_ten = int(math.log10(self.coins))
+
+            # Возводим 2 в полученную степень
+            self.inflation = 2 ** power_of_ten
+
+        if income is not None:
+            return self.inflation / 100 * 75
+        else:
+            self.save()
+            return self.inflation
 
 def load_game():
     """Загружает данные игрока из кроссплатформенной директории"""

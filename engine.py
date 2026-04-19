@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.5.2'
+version = '3.6.1'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -449,6 +449,13 @@ class Project:
         total = self.get_total_symbols()
         planned = self.get_today_goal_value()
 
+        # Проверяем, есть ли дедлайн
+        if self.deadline == 'Нет':
+            return 'No'
+
+        # Если стрик сегодня уже продлен - не проверяем
+        if self.streak_status == 'Go' and self.streaks[-1] == today:
+            return 'Go'
         # Если стрик уже завершен - дальше не проверяем
         if self.status == 'завершен':
             return 'Complete'
@@ -460,7 +467,6 @@ class Project:
         # Если проект бесконечный - стрика нет
         if planned == 0 or self.goal == float('inf'):
             return 'No'
-
 
             # Убедимся, что streaks — список
         if not isinstance(self.streaks, list):
@@ -876,11 +882,16 @@ def global_streak_status(data, today=None):
     has_active_today = False
     for project in projects.values():
         if isinstance(project, Project):
-            if project.status == 'активен' and project.streak_status in ['Start', 'Go']:
-                has_active_today = True
-                break
-            elif project.streak_status == 'Active' and len(streaks) < len(project.streaks):
-                streaks = project.streaks
+            # ВАЖНО: обязательно вызываем метод для актуализации статуса на текущий день
+            actual_status = project.get_streak_status()
+
+            if project.status == 'активен':
+                if actual_status in ['Start', 'Go']:
+                    has_active_today = True
+
+                # Перенимаем стрик, если он активен и длиннее текущего глобального (используем copy!)
+                if actual_status in ['Start', 'Go', 'Active'] and len(streaks) < len(project.streaks):
+                    streaks = project.streaks.copy()
 
     # === ОБРАБОТКА СОХРАНЁННОГО СТАТУСА ПОТЕРИ (только в день потери) ===
     if (isinstance(prev_status, str) and
@@ -942,11 +953,17 @@ def global_streak_status(data, today=None):
             data['last_global_streak_lost_date'] = None
             data['last_global_streak_lose_len'] = 0
         elif streaks[-1] == today:
-            # Уже сегодня обновляли — возвращаем текущий статус
-            data['global_streaks'] = streaks
-            data['max_global_streak'] = max_streak
-            save_data(data)
-            return prev_status
+            # ИСПРАВЛЕНИЕ: Стрик уже обновлён сегодня (глобально ранее, либо только что переняли от проекта).
+            # Вычисляем статус вместо возврата старого prev_status.
+            if len(streaks) > 1:
+                status = 'Go'
+            else:
+                if last_lost_date is not None:
+                    status = f'Lose {last_lost_len} Start'
+                else:
+                    status = 'Start'
+            data['last_global_streak_lost_date'] = None
+            data['last_global_streak_lose_len'] = 0
         else:
             # Пропуск дней: потеря старого стрика и начало нового
             lose_len = len(streaks)
@@ -963,9 +980,8 @@ def global_streak_status(data, today=None):
         elif streaks[-1] == yesterday:
             status = 'Active'
         elif streaks[-1] == today:
-            # Странная ситуация: запись в streaks сегодня есть, но активности нет — очищаем
-            streaks.clear()
-            status = 'No'
+            # Запись за сегодня есть, но план не выполнен (находится в процессе) — статус активен
+            status = 'Active'
         else:
             # Потеря стрика из-за пропуска более одного дня
             lose_len = len(streaks)
