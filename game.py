@@ -55,7 +55,7 @@ class Gamer:
         self.exp += exps
         self.save()
         coins_cf = self.cf.get('coins', 1.0)
-        coins = round((symbols / 100 * coins_cf) * (self.inflation / 100 * 75), 1)
+        coins = round((symbols / 100 * coins_cf) * self.calculate_inflation(True), 1)
         self.coins += coins
         self.save()
         return (f'Получено {coins} монет'
@@ -77,7 +77,7 @@ class Gamer:
                 self.last_lose_global_streak_damage = today
             else:
                 damage = days * 5  # для отображения
-            bonus = round(25 * cf_coins * (self.inflation / 100 * 75), 1)
+            bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
             self.coins += bonus
             msg = (f'🥺 СТРИК ПОТЕРЯН\n'
                    f'Урон за потерю глобального стрика: {damage}❤️\n'
@@ -147,7 +147,7 @@ class Gamer:
         cf_coins = self.cf['coins']
         cf_exp = self.cf['exp']
 
-        coin_bonus = round((100 * cf_total * cf_coins) * (self.inflation / 100 * 75), 1)
+        coin_bonus = round((100 * cf_total * cf_coins) * self.calculate_inflation(True), 1)
         exp_bonus = round(1000 * cf_total * cf_exp)
 
         self.coins += coin_bonus
@@ -274,7 +274,7 @@ class Gamer:
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
 
-    def calculate_inflation(self):
+    def calculate_inflation(self, income=None):
         """Считает адаптивную инфляцию игрока (без ограничений по балансу)"""
         # Защита от логарифма нуля/отрицательных чисел и порог начала инфляции
         if self.coins < 1000:
@@ -287,8 +287,11 @@ class Gamer:
             # Возводим 2 в полученную степень
             self.inflation = 2 ** power_of_ten
 
-        self.save()
-        return self.inflation
+        if income is not None:
+            return self.inflation / 100 * 75
+        else:
+            self.save()
+            return self.inflation
 
 def load_game():
     """Загружает данные игрока из кроссплатформенной директории"""
