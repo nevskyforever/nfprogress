@@ -420,42 +420,45 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Осталось написать (в единице проекта)
         need = project.get_need_write_in_unit()
-        if need == float('inf'):
+        if need == float('inf') or project.goal == float('inf'):
             self.need.setText('∞')
+            self.today_goal.setVisible(False)
+            self.label_today_goal.setVisible(False)
         else:
             self.need.setText(self._format_number(need))
 
-            # Дедлайн
-            if project.deadline != 'Нет':
-                self.deadline.setVisible(True)
-                self.deadline.setText(project.deadline_str)
-                self.label_today_goal.setVisible(True)
-                self.today_goal.setVisible(True)
+        # Дедлайн
+        if project.deadline != 'Нет':
+            self.label_deadline.setVisible(True)
+            self.deadline.setVisible(True)
+            self.deadline.setText(project.deadline_str)
+            self.label_today_goal.setVisible(True)
+            self.today_goal.setVisible(True)
 
-                # Цель на сегодня (в единице проекта)
-                today_goal = project.get_today_goal_in_unit()
-                if today_goal == float('inf'):
-                    self.today_goal.setText('∞')
-                else:
-                    # Всегда показываем цель, если есть дедлайн (независимо от personal_goal)
-                    if project.get_total_symbols() >= project.get_today_goal_value():
-                        self.today_goal.setText(
-                            f'Цель на сегодня выполнена! ({self._format_number_for_unit(today_goal, project.unit)})')
-                    else:
-                        self.today_goal.setText(self._format_number_for_unit(today_goal, project.unit))
-
-                # Расчёт оставшихся дней
-                days_left = (project.deadline - en.today_for_test()).days
-                if days_left > 0:
-                    self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
-                elif days_left == 0:
-                    self.deadline.setText(f"{project.deadline_str} (сегодня!)")
-                else:
-                    self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
-            else:
-                self.label_today_goal.setVisible(False)
+            # Цель на сегодня (в единице проекта)
+            if project.goal == float('inf'):
                 self.today_goal.setVisible(False)
-                self.deadline.setText("Не установлен")
+                self.label_today_goal.setVisible(False)
+            else:
+                # Всегда показываем цель, если есть дедлайн (независимо от personal_goal)
+                if project.get_total_symbols() >= project.get_today_goal_value():
+                    self.today_goal.setText(
+                        f'Цель на сегодня выполнена! ({self._format_number_for_unit(project.get_today_goal_in_unit(), project.unit)})')
+                else:
+                    self.today_goal.setText(self._format_number_for_unit(project.get_today_goal_in_unit(), project.unit))
+
+            # Расчёт оставшихся дней
+            days_left = (project.deadline - en.today_for_test()).days
+            if days_left > 0:
+                self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
+            elif days_left == 0:
+                self.deadline.setText(f"{project.deadline_str} (сегодня!)")
+            else:
+                self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
+        else:
+            self.label_today_goal.setVisible(False)
+            self.today_goal.setVisible(False)
+            self.deadline.setText("Не установлен")
 
         # Информация о стриках
         if en.load_settings().get('global_streak', False) and project.deadline != 'Нет':

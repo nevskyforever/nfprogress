@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.6.1'
+version = '3.6.2'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -290,6 +290,7 @@ class Project:
 
     @property
     def progress(self):
+        """Прогресс проекта в процентах"""
         goal_sym = self.get_goal_symbols()
         total_sym = self.get_total_symbols()
         if goal_sym and goal_sym > 0 and goal_sym != float('inf'):
