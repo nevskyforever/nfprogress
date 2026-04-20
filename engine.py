@@ -886,8 +886,8 @@ def global_streak_status(data, today=None):
             # ВАЖНО: обязательно вызываем метод для актуализации статуса на текущий день
             actual_status = project.get_streak_status()
 
-            if project.status == 'активен':
-                if actual_status in ['Start', 'Go']:
+            if project.status in ['активен', 'завершен']:
+                if actual_status in ['Start', 'Go', 'Complete']:
                     has_active_today = True
 
                 # Перенимаем стрик, если он активен и длиннее текущего глобального (используем copy!)
