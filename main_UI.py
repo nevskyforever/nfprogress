@@ -420,8 +420,10 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Осталось написать (в единице проекта)
         need = project.get_need_write_in_unit()
-        if need == float('inf'):
+        if need == float('inf') or project.goal == float('inf'):
             self.need.setText('∞')
+            self.today_goal.setVisible(False)
+            self.label_today_goal.setVisible(False)
         else:
             self.need.setText(self._format_number(need))
 
@@ -433,9 +435,9 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.today_goal.setVisible(True)
 
                 # Цель на сегодня (в единице проекта)
-                today_goal = project.get_today_goal_in_unit()
-                if today_goal == float('inf'):
-                    self.today_goal.setText('∞')
+                if project.goal == float('inf'):
+                    self.today_goal.setVisible(False)
+                    self.label_today_goal.setVisible(False)
                 else:
                     # Всегда показываем цель, если есть дедлайн (независимо от personal_goal)
                     if project.get_total_symbols() >= project.get_today_goal_value():
