@@ -442,9 +442,9 @@ class MainWindow(QMainWindow, main_window_ui):
                 # Всегда показываем цель, если есть дедлайн (независимо от personal_goal)
                 if project.get_total_symbols() >= project.get_today_goal_value():
                     self.today_goal.setText(
-                        f'Цель на сегодня выполнена! ({self._format_number_for_unit(project.get_today_goal_value(), project.unit)})')
+                        f'Цель на сегодня выполнена! ({self._format_number_for_unit(project.get_today_goal_in_unit(), project.unit)})')
                 else:
-                    self.today_goal.setText(self._format_number_for_unit(project.get_today_goal_value(), project.unit))
+                    self.today_goal.setText(self._format_number_for_unit(project.get_today_goal_in_unit(), project.unit))
 
             # Расчёт оставшихся дней
             days_left = (project.deadline - en.today_for_test()).days
