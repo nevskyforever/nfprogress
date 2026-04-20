@@ -313,7 +313,7 @@ def lottery_ticket_func(do, add=None):
         return message
 
     if do == '?':
-        return 'Лотерейный билет "5 из 30". Угадайте числа и сорвите джекпот!'
+        return 'Усугубляет лудоманию'
 
     return 'Неизвестное действие'
 
@@ -366,7 +366,7 @@ def calculate_freeze_price():
 freeze = FuncItem('Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком')
 lottery_ticket = FuncItem("Лотерейный билет", price=lambda: calculate_item_price(10), item_type='Предметы', level=3, func=lottery_ticket_func,
-                          description=f'Лотерейный билет - твоя возможность сорвать куш!')
+                          description=f'Лотерейный билет "5 из 30". Угадайте числа и сорвите джекпот!')
 health_potion_5 = FuncItem('Микро зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(10), add=5,
                            description='Восстанавливает здоровье на 5 единиц')
 health_potion_10 = FuncItem('Малое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(20), add=10,
