@@ -290,6 +290,7 @@ class Project:
 
     @property
     def progress(self):
+        """Прогресс проекта в процентах"""
         goal_sym = self.get_goal_symbols()
         total_sym = self.get_total_symbols()
         if goal_sym and goal_sym > 0 and goal_sym != float('inf'):
