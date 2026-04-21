@@ -925,7 +925,7 @@ class MainWindow(QMainWindow, main_window_ui):
             settings = en.load_settings()
 
             # Предупреждаем, что уменьшить цель на день не выйдет
-            if old_personal_goal < new_personal_goal and settings.get('global_streak', False) and not en.dev_mode:
+            if old_personal_goal < new_personal_goal and project.streaks and not en.dev_mode:
                 if en.today_for_test() not in project.streaks:
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -943,7 +943,7 @@ class MainWindow(QMainWindow, main_window_ui):
                         project.personal_goal_for_the_day = new_personal_goal
 
             # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
-            if old_personal_goal < new_personal_goal and project.streaks and settings.get('global_streak', False):
+            if old_personal_goal < new_personal_goal and project.streaks:
                 if project.streaks[-1] == en.today_for_test():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
