@@ -971,14 +971,14 @@ class MainWindow(QMainWindow, main_window_ui):
                     else:
                         return
             # Запрещаем менять цель на день, если стрик не продлен сегодня
-            if old_personal_goal > new_personal_goal and not en.dev_mode:
+            if old_personal_goal > new_personal_goal and project.streaks and not en.dev_mode:
                 if en.today_for_test() not in project.streaks:
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
 
                     # 2. НАСТРАИВАЕМ текст (ДО вызова exec)
                     confirm_goal_dialog.message.setText(
-                            'Нельзя уменьшить цель на день, пока не выполнена текущая.')
+                            'Нельзя уменьшить цель на день, пока стрик не продлен.')
 
                     # 3. Показываем диалог и ждем решения пользователя
                     result_personal_goal = confirm_goal_dialog.exec()
