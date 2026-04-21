@@ -594,6 +594,8 @@ class MainWindow(QMainWindow, main_window_ui):
             self.pb_save_flash_note.setEnabled(False)
             self.delete_note.setEnabled(False)
             self.new_symbols.setEnabled(False)  # отключаем поле ввода
+            self.synch_action.setEnabled(False)
+            self.btn_synch_project.setEnabled(False)
         else:
             # Проект активен или в архиве — настраиваем кнопки по логике
             self.btn_change_project.setEnabled(True)
