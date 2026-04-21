@@ -10,7 +10,7 @@ from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = False
+dev_mode = True
 
 # Версия приложения
 version = '3.6.4'
@@ -455,8 +455,10 @@ class Project:
             return 'No'
 
         # Если стрик сегодня уже продлен - не проверяем
-        if self.streak_status == 'Go' and self.streaks[-1] == today:
+        # Добавлена проверка на наличие элементов в self.streaks перед обращением к [-1]
+        if self.streak_status == 'Go' and self.streaks and self.streaks[-1] == today:
             return 'Go'
+
         # Если стрик уже завершен - дальше не проверяем
         if self.status == 'завершен':
             return 'Complete'
@@ -469,7 +471,7 @@ class Project:
         if planned == 0 or self.goal == float('inf'):
             return 'No'
 
-            # Убедимся, что streaks — список
+        # Убедимся, что streaks — список
         if not isinstance(self.streaks, list):
             self.streaks = []
 
@@ -505,6 +507,23 @@ class Project:
                 not day_completed):
             return self.streak_status
 
+        # === ❗️ РЕТРОСПЕКТИВНАЯ ПРОВЕРКА ПРОПУЩЕННЫХ ДНЕЙ ===
+        # Проверяем и "дописываем" прошлые дни ДО обработки сегодняшнего результата
+        if self.streaks and self.streaks[-1] < yesterday:
+            current_day = self.streaks[-1] + timedelta(days=1)
+            plan = self.project_plan
+
+            # Проверяем дни вплоть до вчерашнего
+            while current_day < today:
+                day_goal_symbols = plan.get(current_day)
+                # Если цель на пропущенный день известна и у нас хватает символов:
+                if day_goal_symbols is not None and total >= day_goal_symbols:
+                    self.streaks.append(current_day)
+                else:
+                    # Символов не хватает — обрываем восстановление
+                    break
+                current_day += timedelta(days=1)
+
         # Случай 1: сегодня уже есть запись в streaks (уже продлили сегодня)
         if self.streaks and self.streaks[-1] == today and day_completed:
             self.streak_status = 'Go' if len(self.streaks) > 1 else 'Start'
@@ -519,19 +538,20 @@ class Project:
                 self.streak_status = 'Start'
                 self.last_streak_lost_date = None
             elif self.streaks[-1] == yesterday:
-                # Продолжение стрика
+                # Продолжение стрика (в том числе если мы его восстановили шагом выше)
                 self.streaks.append(today)
                 self.streak_status = 'Go'
                 self.last_streak_lost_date = None
             else:
                 # Перерыв: потеря предыдущего + начало нового
+                # (Сюда мы попадем, если ретроспективная проверка прервалась из-за нехватки символов)
                 lose_len = len(self.streaks)
                 if lose_len > self.max_streak:
                     self.max_streak = lose_len
                 self.streaks = [today]
-                # Комбинированный статус (потеря + старт) — устанавливаем и сразу возвращаем
+                # Комбинированный статус (потеря + старт)
                 self.streak_status = f'Lose {lose_len} Start'
-                self.last_streak_lost_date = None  # потеря учтена в комбо, начинаем новый стрик
+                self.last_streak_lost_date = None
                 return self.streak_status
         else:
             # День не выполнен
@@ -541,16 +561,16 @@ class Project:
                 # Уже сегодня была запись, но план не выполнен
                 self.streak_status = 'Active'
             elif self.streaks[-1] == yesterday:
-                # Вчера был стрик, сегодня ещё не выполнен → активный (риск потери)
+                # Вчера был стрик, сегодня ещё не выполнен → активный
                 self.streak_status = 'Active'
             else:
-                # Потеря стрика (пропуск >1 дня)
+                # Потеря стрика (пропуск >1 дня и недобор символов)
                 lose_len = len(self.streaks)
                 if lose_len > self.max_streak:
                     self.max_streak = lose_len
                 self.streaks = []
                 self.streak_status = f'Lose {lose_len}'
-                self.last_streak_lost_date = today  # фиксируем дату потери
+                self.last_streak_lost_date = today
 
         # Обновляем максимальный стрик, если текущая длина больше
         if len(self.streaks) > self.max_streak:
