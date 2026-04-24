@@ -450,6 +450,13 @@ class Project:
         total = self.get_total_symbols()
         planned = self.get_today_goal_value()
 
+        # Чистим стрики
+        if self.streaks:
+            # Чистим стрики
+            for streak in self.streaks:
+                if self.streaks.count(streak) > 1:
+                    self.streaks.remove(streak)
+
         # Проверяем, есть ли дедлайн
         if self.deadline == 'Нет':
             return 'No'
@@ -885,6 +892,11 @@ def global_streak_status(data, today=None):
     yesterday = today - timedelta(days=1)
 
     streaks = data.get('global_streaks', [])
+    if streaks:
+        # Чистим стрики от повторных дат
+        for streak in streaks:
+            if streaks.count(streak) > 1:
+                streaks.remove(streak)
     if not isinstance(streaks, list):
         streaks = []
         data['global_streaks'] = streaks
