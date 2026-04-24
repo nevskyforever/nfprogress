@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.6.2'
+version = '3.6.4'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -899,8 +899,13 @@ def global_streak_status(data, today=None):
             # ВАЖНО: обязательно вызываем метод для актуализации статуса на текущий день
             actual_status = project.get_streak_status()
 
+            # Проект активен или завершен
             if project.status in ['активен', 'завершен']:
-                if actual_status in ['Start', 'Go', 'Complete']:
+                # Стрик начат/продлен
+                if actual_status in ['Start', 'Go']:
+                    has_active_today = True
+                # Стрик завершен сегодня
+                elif actual_status == 'Complete' and project.streaks[-1] == today:
                     has_active_today = True
 
                 # Перенимаем стрик, если он активен и длиннее текущего глобального (используем copy!)
