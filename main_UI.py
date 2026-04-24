@@ -594,8 +594,6 @@ class MainWindow(QMainWindow, main_window_ui):
             self.pb_save_flash_note.setEnabled(False)
             self.delete_note.setEnabled(False)
             self.new_symbols.setEnabled(False)  # отключаем поле ввода
-            self.synch_action.setEnabled(False)
-            self.btn_synch_project.setEnabled(False)
         else:
             # Проект активен или в архиве — настраиваем кнопки по логике
             self.btn_change_project.setEnabled(True)
@@ -927,7 +925,7 @@ class MainWindow(QMainWindow, main_window_ui):
             settings = en.load_settings()
 
             # Предупреждаем, что уменьшить цель на день не выйдет
-            if old_personal_goal < new_personal_goal and project.streaks and not en.dev_mode:
+            if old_personal_goal < new_personal_goal and settings.get('global_streak', False) and not en.dev_mode:
                 if en.today_for_test() not in project.streaks:
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -945,7 +943,7 @@ class MainWindow(QMainWindow, main_window_ui):
                         project.personal_goal_for_the_day = new_personal_goal
 
             # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
-            if old_personal_goal < new_personal_goal and project.streaks:
+            if old_personal_goal < new_personal_goal and project.streaks and settings.get('global_streak', False):
                 if project.streaks[-1] == en.today_for_test():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -973,14 +971,14 @@ class MainWindow(QMainWindow, main_window_ui):
                     else:
                         return
             # Запрещаем менять цель на день, если стрик не продлен сегодня
-            if old_personal_goal > new_personal_goal and project.streaks and not en.dev_mode:
-                if en.today_for_test() not in project.streaks:
+            if old_personal_goal > new_personal_goal and not en.dev_mode:
+                if en.today_for_test() not in project.streaks and not dialog.checkBox.isChecked():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
 
                     # 2. НАСТРАИВАЕМ текст (ДО вызова exec)
                     confirm_goal_dialog.message.setText(
-                            'Нельзя уменьшить цель на день, пока стрик не продлен.')
+                            'Нельзя уменьшить цель на день, пока не выполнена текущая.')
 
                     # 3. Показываем диалог и ждем решения пользователя
                     result_personal_goal = confirm_goal_dialog.exec()
@@ -988,6 +986,23 @@ class MainWindow(QMainWindow, main_window_ui):
                     # 4. Обрабатываем результат
                     if result_personal_goal == QDialog.Accepted:
                         return
+            # Если удаляем дедлайн с активным стриком
+            if dialog.checkBox.isChecked() and project.streaks:
+                # 1. Создаем диалог
+                confirm_goal_dialog = ConfirmDialog()
+
+                # 2. НАСТРАИВАЕМ текст (ДО вызова exec)
+                confirm_goal_dialog.message.setText(
+                    'Если вы удалите дедлайн, стрик проекта будет потерян!')
+
+                # 3. Показываем диалог и ждем решения пользователя
+                result_personal_goal = confirm_goal_dialog.exec()
+
+                # 4. Обрабатываем результат
+                if result_personal_goal == QDialog.Accepted:
+                    project.streaks.clear()
+                else:
+                    return
 
 
             # Если единица изменилась, показываем предупреждение
