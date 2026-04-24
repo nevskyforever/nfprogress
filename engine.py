@@ -457,6 +457,10 @@ class Project:
                 if self.streaks.count(streak) > 1:
                     self.streaks.remove(streak)
 
+        # Если стрик уже завершен - дальше не проверяем
+        if self.status == 'завершен':
+            return 'Complete'
+
         # Проверяем, есть ли дедлайн
         if self.deadline == 'Нет':
             return 'No'
@@ -464,9 +468,6 @@ class Project:
         # Если стрик сегодня уже продлен - не проверяем
         if self.streak_status == 'Go' and self.streaks[-1] == today:
             return 'Go'
-        # Если стрик уже завершен - дальше не проверяем
-        if self.status == 'завершен':
-            return 'Complete'
 
         # Заморозка
         if self.streak_status == 'Freeze' and self.streaks and self.streaks[-1] == today:
