@@ -450,6 +450,17 @@ class Project:
         total = self.get_total_symbols()
         planned = self.get_today_goal_value()
 
+        # Чистим стрики
+        if self.streaks:
+            # Чистим стрики
+            for streak in self.streaks:
+                if self.streaks.count(streak) > 1:
+                    self.streaks.remove(streak)
+
+        # Если стрик уже завершен - дальше не проверяем
+        if self.status == 'завершен':
+            return 'Complete'
+
         # Проверяем, есть ли дедлайн
         if self.deadline == 'Нет':
             return 'No'
@@ -457,9 +468,6 @@ class Project:
         # Если стрик сегодня уже продлен - не проверяем
         if self.streak_status == 'Go' and self.streaks[-1] == today:
             return 'Go'
-        # Если стрик уже завершен - дальше не проверяем
-        if self.status == 'завершен':
-            return 'Complete'
 
         # Заморозка
         if self.streak_status == 'Freeze' and self.streaks and self.streaks[-1] == today:
@@ -865,6 +873,11 @@ def global_streak_status(data, today=None):
     yesterday = today - timedelta(days=1)
 
     streaks = data.get('global_streaks', [])
+    if streaks:
+        # Чистим стрики от повторных дат
+        for streak in streaks:
+            if streaks.count(streak) > 1:
+                streaks.remove(streak)
     if not isinstance(streaks, list):
         streaks = []
         data['global_streaks'] = streaks
@@ -886,8 +899,8 @@ def global_streak_status(data, today=None):
             # ВАЖНО: обязательно вызываем метод для актуализации статуса на текущий день
             actual_status = project.get_streak_status()
 
-            if project.status == 'активен':
-                if actual_status in ['Start', 'Go']:
+            if project.status in ['активен', 'завершен']:
+                if actual_status in ['Start', 'Go', 'Complete']:
                     has_active_today = True
 
                 # Перенимаем стрик, если он активен и длиннее текущего глобального (используем copy!)
