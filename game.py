@@ -85,17 +85,17 @@ class Gamer:
 
         # Комбинированный статус для локального стрика (только бонус за старт)
         elif 'Lose' in st and 'Start' in st and streak_type == 'Local':
-            bonus = 25 * cf_coins
+            bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
             self.coins += bonus
             msg = f'Получен бонус {bonus} монет за старт стрика в проекте (после потери).'
 
         # Обычный старт (без потери)
         elif 'Start' in st and 'Lose' not in st:
             if streak_type == 'Local':
-                bonus = round((25 * cf_coins), 2)
+                bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
                 msg = f'Получен бонус {bonus} монет за старт стрика в проекте.'
             else:
-                bonus = round((50 * cf_coins), 2)
+                bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
                 msg = f'Получен бонус {bonus} монет за старт глобального стрика.'
             self.coins += bonus
 
@@ -104,11 +104,11 @@ class Gamer:
             coin_bonus = round((10 * streak_len * cf_coins), 2)
             exp_bonus = round((100 * streak_len * cf_exp))
             if streak_type == 'Local':
-                coin_bonus = round((10 * streak_len * cf_coins), 2)
+                coin_bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
                 exp_bonus = round((100 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление стрика в проекте.'
             else:
-                coin_bonus = round((25 * streak_len * cf_coins), 2)
+                coin_bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
                 exp_bonus = round((250 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
             self.coins += coin_bonus
@@ -116,7 +116,7 @@ class Gamer:
 
         # Завершение стрика (только локальный)
         elif 'Complete' in st:
-            coin_bonus = round((25 * streak_len * cf_coins), 2)
+            coin_bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
             exp_bonus = round((250 * streak_len * cf_exp))
             msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
                    f'\nВы были в цели {streak_len} д. подряд!'
@@ -287,7 +287,7 @@ class Gamer:
             # Возводим 2 в полученную степень
             self.inflation = 2 ** power_of_ten
 
-        if income is not None:
+        if not income:
             return self.inflation / 100 * 75
         else:
             self.save()
