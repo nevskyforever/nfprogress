@@ -104,11 +104,11 @@ class Gamer:
             coin_bonus = round((10 * streak_len * cf_coins), 2)
             exp_bonus = round((100 * streak_len * cf_exp))
             if streak_type == 'Local':
-                coin_bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+                coin_bonus = round(25 * cf_coins * streak_len * self.calculate_inflation(True), 1)
                 exp_bonus = round((100 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление стрика в проекте.'
             else:
-                coin_bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+                coin_bonus = round(25 * cf_coins * streak_len * self.calculate_inflation(True), 1)
                 exp_bonus = round((250 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
             self.coins += coin_bonus
@@ -116,7 +116,7 @@ class Gamer:
 
         # Завершение стрика (только локальный)
         elif 'Complete' in st:
-            coin_bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+            coin_bonus = round(50 * cf_coins * streak_len * self.calculate_inflation(True), 1)
             exp_bonus = round((250 * streak_len * cf_exp))
             msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
                    f'\nВы были в цели {streak_len} д. подряд!'
