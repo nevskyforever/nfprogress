@@ -184,7 +184,7 @@ class Gamer:
         msg = False
         while self.level < len(game_data.levels) - 1 and self.exp >= game_data.levels[self.level]:
             new_level = self.level + 1
-            coins_bonus = game_data.lvl_coins_bonus[self.level]
+            coins_bonus = game_data.lvl_coins_bonus[self.level] * self.calculate_inflation(True)
 
             self.level = new_level
             self.exp = self.exp - game_data.levels[self.level - 1]
