@@ -346,7 +346,7 @@ def freeze_global_func(do, add=None):
 def calculate_item_price(price):
     """Считает стоимость предмета для игрока с учетом инфляции"""
     gamer = game.load_game()
-    inflation = gamer.calculate_inflation()
+    inflation = gamer.inflation
 
     return price * inflation
 

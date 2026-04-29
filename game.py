@@ -56,7 +56,7 @@ class Gamer:
         self.save()
         coins_cf = self.cf.get('coins', 1.0)
         coins = round((symbols / 100 * coins_cf) * self.calculate_inflation(True), 1)
-        self.coins += coins
+        self.set_coins(coins)
         self.save()
         return (f'Получено {coins} монет'
                 f'\nПолучено {exps} опыта')
@@ -78,7 +78,7 @@ class Gamer:
             else:
                 damage = days * 5  # для отображения
             bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
-            self.coins += bonus
+            self.set_coins(bonus)
             msg = (f'🥺 СТРИК ПОТЕРЯН\n'
                    f'Урон за потерю глобального стрика: {damage}❤️\n'
                    f'🔥 Новый стрик начат! Бонус: {bonus} монет')
@@ -86,7 +86,7 @@ class Gamer:
         # Комбинированный статус для локального стрика (только бонус за старт)
         elif 'Lose' in st and 'Start' in st and streak_type == 'Local':
             bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
-            self.coins += bonus
+            self.set_coins(bonus)
             msg = f'Получен бонус {bonus} монет за старт стрика в проекте (после потери).'
 
         # Обычный старт (без потери)
@@ -97,7 +97,7 @@ class Gamer:
             else:
                 bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
                 msg = f'Получен бонус {bonus} монет за старт глобального стрика.'
-            self.coins += bonus
+            self.set_coins(bonus)
 
         # Продолжение стрика
         elif 'Go' in st:
@@ -111,7 +111,7 @@ class Gamer:
                 coin_bonus = round(25 * cf_coins * streak_len * self.calculate_inflation(True), 1)
                 exp_bonus = round((250 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
-            self.coins += coin_bonus
+            self.set_coins(coin_bonus)
             self.exp += exp_bonus
 
         # Завершение стрика (только локальный)
@@ -121,7 +121,7 @@ class Gamer:
             msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
                    f'\nВы были в цели {streak_len} д. подряд!'
                    f'\nВы получили награду: {coin_bonus} монет и {exp_bonus} опыта!')
-            self.coins += coin_bonus
+            self.set_coins(coin_bonus)
             self.exp += exp_bonus
 
         # Чистая потеря (только глобальный)
@@ -150,7 +150,7 @@ class Gamer:
         coin_bonus = round((100 * cf_total * cf_coins) * self.calculate_inflation(True), 1)
         exp_bonus = round(1000 * cf_total * cf_exp)
 
-        self.coins += coin_bonus
+        self.set_coins(coin_bonus)
         self.exp += exp_bonus
         msg = f'Вы получили награду {coin_bonus} монет и {exp_bonus} оп.'
 
@@ -165,6 +165,7 @@ class Gamer:
 
     def remove_coins(self, removed):
         self.coins -= removed
+        self.calculate_inflation()
 
     def get_coins(self):
         return self.coins
