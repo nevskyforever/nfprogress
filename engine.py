@@ -11,10 +11,10 @@ from docx import Document
 import game
 
 # Режим разработчика
-dev_mode = True
+dev_mode = False
 
 # Версия приложения
-version = '3.6.5'
+version = '3.7'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
