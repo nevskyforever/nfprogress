@@ -346,19 +346,22 @@ def freeze_global_func(do, add=None):
 def calculate_item_price(price):
     """Считает стоимость предмета для игрока с учетом инфляции"""
     gamer = game.load_game()
-    inflation = gamer.calculate_inflation()
+    inflation = gamer.inflation
 
     return price * inflation
 
 def calculate_freeze_price():
     """Считает стоимость заморозки в зависимости от кол-ва использований"""
     projects = engine.load_data()['projects']
-    used_freezes = 1
-    total_price = 100
+    used_freezes = 0
+    total_price = 1000
+
     for project in projects.values():
         if project.status == 'активен':
             used_freezes += project.freezes
-            total_price = 100 * used_freezes
+    if not used_freezes:
+        used_freezes = 1
+    total_price *= used_freezes
     return calculate_item_price(total_price)
 
 # Инициализация объектов
