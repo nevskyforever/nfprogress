@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'create_projectWBRmnt.ui'
+## Form generated from reading UI file 'create_projectoTVyBm.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -24,13 +24,13 @@ class Ui_create_project(object):
     def setupUi(self, create_project):
         if not create_project.objectName():
             create_project.setObjectName(u"create_project")
-        create_project.resize(350, 320)
+        create_project.resize(360, 320)
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         sizePolicy.setHorizontalStretch(3)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(create_project.sizePolicy().hasHeightForWidth())
         create_project.setSizePolicy(sizePolicy)
-        create_project.setMinimumSize(QSize(350, 320))
+        create_project.setMinimumSize(QSize(360, 320))
         create_project.setMaximumSize(QSize(350, 320))
         font = QFont()
         font.setFamilies([u"Arial"])
@@ -130,7 +130,7 @@ class Ui_create_project(object):
         self.de_deadline = QDateEdit(self.widget)
         self.de_deadline.setObjectName(u"de_deadline")
         self.de_deadline.setEnabled(True)
-        self.de_deadline.setDateTime(QDateTime(QDate(2026, 3, 1), QTime(16, 0, 0)))
+        self.de_deadline.setDateTime(QDateTime(QDate(2026, 3, 1), QTime(12, 0, 0)))
         self.de_deadline.setMaximumDate(QDate(9999, 12, 31))
         self.de_deadline.setCalendarPopup(True)
         self.de_deadline.setDate(QDate(2026, 3, 1))
