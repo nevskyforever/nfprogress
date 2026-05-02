@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>350</width>
+    <width>360</width>
     <height>320</height>
    </rect>
   </property>
@@ -18,7 +18,7 @@
   </property>
   <property name="minimumSize">
    <size>
-    <width>350</width>
+    <width>360</width>
     <height>320</height>
    </size>
   </property>
@@ -150,36 +150,6 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="1" colspan="2">
-       <widget class="QComboBox" name="cb_unit">
-        <property name="minimumSize">
-         <size>
-          <width>0</width>
-          <height>0</height>
-         </size>
-        </property>
-        <item>
-         <property name="text">
-          <string>Символы</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Листы А4</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Авторские листы</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Страницы Фикбука</string>
-         </property>
-        </item>
-       </widget>
-      </item>
       <item row="1" column="1">
        <widget class="QLineEdit" name="le_goal">
         <property name="text">
@@ -204,7 +174,7 @@
         </property>
         <property name="dateTime">
          <datetime>
-          <hour>16</hour>
+          <hour>12</hour>
           <minute>0</minute>
           <second>0</second>
           <year>2026</year>
@@ -263,6 +233,36 @@
         <property name="text">
          <string>единиц (число)</string>
         </property>
+       </widget>
+      </item>
+      <item row="5" column="1" colspan="2">
+       <widget class="QComboBox" name="cb_unit">
+        <property name="minimumSize">
+         <size>
+          <width>0</width>
+          <height>0</height>
+         </size>
+        </property>
+        <item>
+         <property name="text">
+          <string>Символы</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Листы А4</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Авторские листы</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Страницы Фикбука</string>
+         </property>
+        </item>
        </widget>
       </item>
      </layout>
