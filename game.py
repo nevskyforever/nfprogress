@@ -51,7 +51,7 @@ class Gamer:
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols):
         exp_cf = self.cf.get('exp', 1.0)
-        exps = symbols * 2 * exp_cf
+        exps = symbols * 4 * exp_cf
         self.exp += exps
         self.save()
         coins_cf = self.cf.get('coins', 1.0)
@@ -109,7 +109,7 @@ class Gamer:
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление стрика в проекте.'
             else:
                 coin_bonus = round(25 * cf_coins * streak_len * self.calculate_inflation(True), 1)
-                exp_bonus = round((250 * streak_len * cf_exp))
+                exp_bonus = round((1000 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
             self.set_coins(coin_bonus)
             self.exp += exp_bonus
@@ -117,7 +117,7 @@ class Gamer:
         # Завершение стрика (только локальный)
         elif 'Complete' in st:
             coin_bonus = round(50 * cf_coins * streak_len * self.calculate_inflation(True), 1)
-            exp_bonus = round((250 * streak_len * cf_exp))
+            exp_bonus = round((5000 * streak_len * cf_exp))
             msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
                    f'\nВы были в цели {streak_len} д. подряд!'
                    f'\nВы получили награду: {coin_bonus} монет и {exp_bonus} опыта!')
@@ -148,7 +148,7 @@ class Gamer:
         cf_exp = self.cf['exp']
 
         coin_bonus = round((100 * cf_total * cf_coins) * self.calculate_inflation(True), 1)
-        exp_bonus = round(1000 * cf_total * cf_exp)
+        exp_bonus = round(10000 * cf_total * cf_exp)
 
         self.set_coins(coin_bonus)
         self.exp += exp_bonus
