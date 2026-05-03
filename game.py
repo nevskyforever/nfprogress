@@ -39,6 +39,8 @@ class Gamer:
         self.last_lose_global_streak_damage = None
         self.last_bonus_dates = {}
 
+        self.global_streak_len_bonus = 0
+
     # === 3. СЛУЖЕБНЫЕ МЕТОДЫ ===
     def check_integrity(self):
         """Лечит старые сохранения"""
@@ -157,6 +159,61 @@ class Gamer:
         self.save()
         return msg
 
+    def give_len_streak_bonus(self, streak_status, streak_len):
+        """Выдача бонуса за длительность стрика"""
+
+        cf_coins = self.cf['coins']
+        cf_exp = self.cf['exp']
+        msg = None
+
+        if streak_len >= 365 and self.global_streak_len_bonus != 365:
+            coins_bonus = round((365 * 50 * cf_coins) * self.calculate_inflation(True), 1)
+            exp_bonus = round(10000 * 182 * cf_exp)
+            self.global_streak_len_bonus = 365
+            msg = (f'Вы получили бонус за 365 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 182 and self.global_streak_len_bonus != 182:
+            coins_bonus = round((182 * 50 * cf_coins) * self.calculate_inflation(True), 1)
+            exp_bonus = round(10000 * 182 * cf_exp)
+            self.global_streak_len_bonus = 182
+            msg = (f'Вы получили бонус за 182 дня непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 90 and self.global_streak_len_bonus != 90:
+            coins_bonus = round((90 * 50 * cf_coins) * self.calculate_inflation(True), 1)
+            exp_bonus = round(10000 * 90 * cf_exp)
+            self.global_streak_len_bonus = 90
+            msg = (f'Вы получили бонус за 90 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 30 and self.global_streak_len_bonus != 30:
+            coins_bonus = round((50 * 30 * cf_coins) * self.calculate_inflation(True), 1)
+            exp_bonus = round(10000 * 30 * cf_exp)
+            self.global_streak_len_bonus = 30
+            msg = (f'Вы получили бонус за 90 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 21 and self.global_streak_len_bonus != 21:
+            coins_bonus = round((50 * 21 * cf_coins) * self.calculate_inflation(True), 1)
+            exp_bonus = round(10000 * 21 * cf_exp)
+            self.global_streak_len_bonus = 21
+            msg = (f'Вы получили бонус за 21 день непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 14 and self.global_streak_len_bonus != 14:
+            coins_bonus = round((50 * 14 * cf_coins) * self.calculate_inflation(True), 1)
+            exp_bonus = round(10000 * 14 * cf_exp)
+            self.global_streak_len_bonus = 14
+            msg = (f'Вы получили бонус за 14 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 7 and self.global_streak_len_bonus != 7:
+            coins_bonus = round((50 * 7 * cf_coins) * self.calculate_inflation(True), 1)
+            exp_bonus = round(10000 * 7 * cf_exp)
+            self.global_streak_len_bonus = 7
+            msg = (f'Вы получили бонус за 7 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+
+        self.set_coins(coins_bonus)
+        self.exp += exp_bonus
+        self.save()
+        return msg
+
     def get_items(self):
         return self.items
 
@@ -251,6 +308,7 @@ class Gamer:
             'last_lose_global_streak_damage': None,
             'last_bonus_dates': {},
             'inflation': 1,
+            'global_streak_len_bonus': 0
         }
 
         for attr, default_value in defaults.items():
