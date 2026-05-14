@@ -11,7 +11,7 @@ from docx import Document
 import game
 
 # Режим разработчика
-dev_mode = False
+dev_mode = True
 
 # Версия приложения
 version = '3.7'
