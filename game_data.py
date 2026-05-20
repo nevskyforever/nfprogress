@@ -3,6 +3,7 @@ from random import randint
 
 import engine
 import game
+from engine import global_streak_status
 
 about_mode = ('Игровой режим позволяет улучшить мотивацию, сделав из писательства игру.\n'
               '1. При написании текста за каждые 100 символов вы получаете 1 монету, а так же бонус за достигнутый уровень на данный момент\n'
@@ -324,6 +325,7 @@ def freeze_global_func(do, add=None):
         gamer = game.load_game()
         items = gamer.get_items()
         streaks = data.get('global_streaks', [])
+        streak_status = data.get('global_streak_status', 'No')
         today = engine.today_for_test()
         if len(streaks) > 0:
             if today in streaks:
@@ -334,7 +336,8 @@ def freeze_global_func(do, add=None):
                 gamer.set_items(items)  # Обновляем данные в объекте игрока
                 engine.save_data(data)
                 gamer.save()
-                data['global_streak_status'] = 'Freeze'
+                if streak_status != 'Go':
+                    streak_status = 'Freeze'
                 engine.save_data(data)
                 return f'Глобальный стрик заморожен'
         else:
