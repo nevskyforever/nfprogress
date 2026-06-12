@@ -369,7 +369,8 @@ def calculate_freeze_price():
 
 freeze = FuncItem('Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком'
-                              '️\n⚠️ Важно: чем больше заморозок вы используете, тем дороже они становятся.')
+                              '️\n⚠️ Важно: чем больше заморозок вы используете, тем дороже они становятся.'
+                              '\nМожно иметь не более 2 заморозок в инвентаре и купить только 1 за раз.')
 lottery_ticket = FuncItem("Лотерейный билет", price=lambda: calculate_item_price(10), item_type='Предметы', level=3, func=lottery_ticket_func,
                           description=f'Лотерейный билет "5 из 30". Угадайте числа и сорвите джекпот!')
 health_potion_5 = FuncItem('Микро зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(10), add=5,
