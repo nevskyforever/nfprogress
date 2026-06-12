@@ -972,7 +972,7 @@ class MainWindow(QMainWindow, main_window_ui):
                         return
             # Запрещаем менять цель на день, если стрик не продлен сегодня
             if old_personal_goal > new_personal_goal and not en.dev_mode:
-                if en.today_for_test() not in project.streaks and not dialog.checkBox.isChecked():
+                if project.streaks and en.today_for_test() not in project.streaks and not dialog.checkBox.isChecked():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
 
