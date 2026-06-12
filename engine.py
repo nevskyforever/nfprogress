@@ -8,7 +8,6 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 from collections import defaultdict
 from docx import Document
-import game
 
 # Режим разработчика
 dev_mode = False
