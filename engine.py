@@ -14,7 +14,7 @@ import game
 dev_mode = False
 
 # Версия приложения
-version = '3.7.1'
+version = '3.7.2'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
