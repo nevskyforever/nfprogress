@@ -195,6 +195,9 @@ class GameMenuController:
         if 'Предметы' in game_data.ITEM_REGISTRY:
             for item_name, item_obj in game_data.ITEM_REGISTRY['Предметы'].items():
                 if game.load_game().level >= item_obj.level:
+                    # Проверяем кол-во заморозок в инвентаре и скрываем их, если их больше 2
+                    if item_name == 'Заморозка' and game.load_game().items['Предметы']['Заморозка'] >= 2:
+                        continue
                     display_text = f"{item_name}"
                     item = QListWidgetItem(display_text)
                     item.setData(1, ('Предметы', item_name))
@@ -443,58 +446,68 @@ class GameMenuController:
 
         count = spinbox.value()
 
-        if category in game_data.ITEM_REGISTRY and item_name in game_data.ITEM_REGISTRY[category]:
-            item_obj = game_data.ITEM_REGISTRY[category][item_name]
-            total_price = item_obj.price * count
-
-            # Проверяем достаточно ли монет
-            if self.gamer.coins < total_price:
-                QMessageBox.warning(
-                    self.ui.centralwidget,
-                    "Ошибка",
-                    f"Недостаточно монет!\nНужно: {total_price}💰\nУ вас: {int(self.gamer.coins)}💰"
-                )
-                return
-
-            # Подтверждение покупки
-            reply = QMessageBox.question(
+        # Если выбрана заморозка и пытаются купить больше одной
+        if item_name == 'Заморозка' and count > 1:
+            QMessageBox.warning(
                 self.ui.centralwidget,
-                "Подтверждение покупки",
-                f"Купить {count} x {item_name} за {total_price}💰?",
-                QMessageBox.Yes | QMessageBox.No
+                "Ошибка",
+                f"Нельзя купить больше одной заморозки за раз"
             )
+        else:
 
-            if reply == QMessageBox.No:
-                return
+            if category in game_data.ITEM_REGISTRY and item_name in game_data.ITEM_REGISTRY[category]:
+                item_obj = game_data.ITEM_REGISTRY[category][item_name]
+                total_price = item_obj.price * count
 
-            # Покупаем предметы
-            success_count = 0
-            for i in range(count):
-                result = item_obj.buy()
-                if "Недостаточно" not in result:
-                    success_count += 1
-                else:
+                # Проверяем достаточно ли монет
+                if self.gamer.coins < total_price:
                     QMessageBox.warning(
                         self.ui.centralwidget,
                         "Ошибка",
-                        f"Покупка остановлена: {result}"
+                        f"Недостаточно монет!\nНужно: {total_price}💰\nУ вас: {int(self.gamer.coins)}💰"
                     )
-                    break
+                    return
 
-            if success_count > 0:
-                # Перезагружаем игрока для актуальных данных
-                self.gamer = game.load_game()
-                self.update_game_data()
-                self.update_inventory()
-
-                QMessageBox.information(
+                # Подтверждение покупки
+                reply = QMessageBox.question(
                     self.ui.centralwidget,
-                    "Успех",
-                    f"✅ Куплено {success_count} x {item_name}\n"
-                    f"Потрачено: {item_obj.price * success_count}💰"
+                    "Подтверждение покупки",
+                    f"Купить {count} x {item_name} за {total_price}💰?",
+                    QMessageBox.Yes | QMessageBox.No
                 )
-                self.clear_item_info()
-                self.clear_inventory_item_info()
+
+                if reply == QMessageBox.No:
+                    return
+
+                # Покупаем предметы
+                success_count = 0
+                for i in range(count):
+                    result = item_obj.buy()
+                    if "Недостаточно" not in result:
+                        success_count += 1
+                    else:
+                        QMessageBox.warning(
+                            self.ui.centralwidget,
+                            "Ошибка",
+                            f"Покупка остановлена: {result}"
+                        )
+                        break
+
+                if success_count > 0:
+                    # Перезагружаем игрока для актуальных данных
+                    self.gamer = game.load_game()
+                    self.update_game_data()
+                    self.update_inventory()
+
+                    QMessageBox.information(
+                        self.ui.centralwidget,
+                        "Успех",
+                        f"✅ Куплено {success_count} x {item_name}\n"
+                        f"Потрачено: {item_obj.price * success_count}💰"
+                    )
+                    self.clear_item_info()
+                    self.clear_inventory_item_info()
+                    self.update_shops()
 
 
     # === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
@@ -682,7 +695,7 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
 
             # Проект можно заморозить если последний стрик был вчера
             # и статус 'Active' (активный, но не продленный)
-            if streak_status in ['Active']:
+            if streak_status in ['Active', 'Freeze']:
                 display_text = f"{project.name} (стрик: {len(project.streaks)} дн.)"
                 item = QListWidgetItem(display_text)
                 # Сохраняем объект проекта или его имя для последующего использования
