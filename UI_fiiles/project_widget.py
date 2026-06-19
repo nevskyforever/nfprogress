@@ -24,7 +24,7 @@ class CircularProgressBar(QWidget):
         self.setMinimumSize(80, 80)
 
         # Цвета для градиента прогресса
-        self._start_color = QColor(255, 0, 0)  # красный
+        self._start_color = QColor(169, 169, 169)  # светло-серый
         self._end_color = QColor(76, 175, 80)  # зелёный
 
         # Анимация
@@ -272,7 +272,7 @@ class ProjectWidget(QWidget, Ui_Form):
         self.circular_progress.setFixedSize(90, 90)
 
         # Устанавливаем цвета градиента
-        self.circular_progress.setStartColor("#FF0000")  # красный для 0%
+        self.circular_progress.setStartColor("#A9A9A9")  # светло-серый для 0%
         self.circular_progress.setEndColor("#4CAF50")  # зелёный для 100%
         self.circular_progress.setBackgroundColor("#E0E0E0")
 
