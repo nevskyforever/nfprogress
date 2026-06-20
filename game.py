@@ -302,7 +302,7 @@ class Gamer:
             'coins': 0,
             'health': 100,
             'cf': {'coins': 1.0, 'exp': 1.0},
-            'items': {},
+            'items': {'Предметы': {},'Зелья': {},'Награды': {}},
             'notifications': {'new': [], 'read': []},
             'bank_account': None,
             'last_lose_global_streak_damage': None,
@@ -356,6 +356,10 @@ class Gamer:
             # Отмечаем, что реформа пройдена
             self.economy_rebalanced_v1 = True
             self.save()
+
+        # Задаем структуру инвентаря
+        if self.items == {}:
+            self.items = {'Предметы': {},'Зелья': {},'Награды': {}}
 
         # Особая обработка для bank_account
         if self.bank_account is None:
