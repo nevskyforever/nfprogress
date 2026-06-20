@@ -8,13 +8,12 @@ from datetime import datetime, timedelta, date
 from pathlib import Path
 from collections import defaultdict
 from docx import Document
-import game
 
 # Режим разработчика
 dev_mode = True
 
 # Версия приложения
-version = '3.7'
+version = '3.7.4'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'

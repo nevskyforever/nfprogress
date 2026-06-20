@@ -3,7 +3,6 @@ from random import randint
 
 import engine
 import game
-
 about_mode = ('Игровой режим позволяет улучшить мотивацию, сделав из писательства игру.\n'
               '1. При написании текста за каждые 100 символов вы получаете 1 монету, а так же бонус за достигнутый уровень на данный момент\n'
               '2. Монеты можно тратить на предметы, которые улучшают ваш игровой опыт.\n'
@@ -332,6 +331,7 @@ def freeze_global_func(do, add=None):
         gamer = game.load_game()
         items = gamer.get_items()
         streaks = data.get('global_streaks', [])
+        streak_status = data.get('global_streak_status', 'No')
         today = engine.today_for_test()
         if len(streaks) > 0:
             if today in streaks:
@@ -342,7 +342,8 @@ def freeze_global_func(do, add=None):
                 gamer.set_items(items)  # Обновляем данные в объекте игрока
                 engine.save_data(data)
                 gamer.save()
-                data['global_streak_status'] = 'Freeze'
+                if streak_status != 'Go':
+                    streak_status = 'Freeze'
                 engine.save_data(data)
                 return f'Глобальный стрик заморожен'
         else:
@@ -375,7 +376,9 @@ def calculate_freeze_price():
 # Инициализация объектов
 
 freeze = FuncItem('Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
-                  description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком')
+                  description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком'
+                              '️\n⚠️ Важно: чем больше заморозок вы используете, тем дороже они становятся.'
+                              '\nМожно иметь не более 2 заморозок в инвентаре и купить только 1 за раз.')
 lottery_ticket = FuncItem("Лотерейный билет", price=lambda: calculate_item_price(10), item_type='Предметы', level=3, func=lottery_ticket_func,
                           description=f'Лотерейный билет "5 из 30". Угадайте числа и сорвите джекпот!')
 health_potion_5 = FuncItem('Микро зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(10), add=5,
