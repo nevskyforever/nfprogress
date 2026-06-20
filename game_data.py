@@ -362,7 +362,7 @@ def calculate_freeze_price():
     """Считает стоимость заморозки в зависимости от кол-ва использований"""
     projects = engine.load_data()['projects']
     used_freezes = 0
-    total_price = 1000
+    total_price = 100
 
     for project in projects.values():
         if project.status == 'активен':
@@ -388,7 +388,10 @@ health_potion_50 = FuncItem('Большое зелье здоровья', item_t
                             description='Восстанавливает здоровье на 50 единиц')
 health_recovery = FuncItem('Зелье воскрешения', item_type='Зелья', level=3, func=health_potion_func, price=lambda: calculate_item_price(200), add=100,
                            description='Полностью восстанавливает здоровье')
-
+crown_of_the_first_era = Item(name='👑 Корона Первой Эпохи', item_type='Награды', price=0,
+                              description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре')
+millionaires_pen = Item(name='💎 Перо Миллионера', item_type='Награды', price=0,
+                        description='Перо выдается игрокам, которые заработали больше миллиона монет до первой экономической реформы в игре')
 
 # Реестр предметов
 ITEM_REGISTRY = {'Зелья':
@@ -398,4 +401,6 @@ ITEM_REGISTRY = {'Зелья':
                       'Большое зелье здоровья': health_potion_50,
                       'Зелье воскрешения': health_recovery,},
                  'Предметы': {'Заморозка': freeze,
-                              'Лотерейный билет': lottery_ticket,}}
+                              'Лотерейный билет': lottery_ticket,},
+                 'Награды': {'👑 Корона Первой Эпохи': crown_of_the_first_era,
+                             '💎 Перо Миллионера': millionaires_pen,},}

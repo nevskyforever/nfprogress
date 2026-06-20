@@ -254,6 +254,9 @@ class Gamer:
         }
 
         for attr, default_value in defaults.items():
+            # Проверка флага финансовой реформы
+            if not hasattr(self, 'economy_rebalanced_v1'):
+                setattr(self, 'economy_rebalanced_v1', False)
             if not hasattr(self, attr):
                 setattr(self, attr, default_value)
             elif attr == 'cf' and not isinstance(getattr(self, attr), dict):
@@ -270,6 +273,31 @@ class Gamer:
                         notifications['new'] = []
                     if 'read' not in notifications:
                         notifications['read'] = []
+
+        if not self.economy_rebalanced_v1:
+            # Считаем, сколько сейчас стоит зелье для игрока
+            current_potion_cost = int(200 * self.calculate_inflation())
+
+            # Определяем потолок адекватного богатства (например, стоимость 15 зелий)
+            sane_balance_limit = current_potion_cost * 10
+
+            if self.coins > sane_balance_limit:
+                # Создаем раздел 'Награды', если его еще нет в инвентаре
+                if 'Награды' not in self.items:
+                    self.items['Награды'] = {}
+                # Если игрок сверхбогат, даем ему памятный предмет ветерана
+                self.items['Награды']['👑 Корона Первой Эпохи'] = 1
+
+                # Если у него больше миллиона монет, даем еще один уникальный статус
+                if self.coins >= 1000000:
+                    self.items['Награды']['💎 Перо Миллионера'] = 1
+
+                # Срезаем баланс до адекватного лимита
+                self.coins = sane_balance_limit
+
+            # Отмечаем, что реформа пройдена
+            self.economy_rebalanced_v1 = True
+            self.save()
 
         # Особая обработка для bank_account
         if self.bank_account is None:
