@@ -55,7 +55,7 @@ class Gamer:
         self.exp += exps
         self.save()
         coins_cf = self.cf.get('coins', 1.0)
-        coins = round((symbols / 100 * coins_cf) * self.calculate_inflation(True), 1)
+        coins = round((symbols / 100 * coins_cf), 1)
         self.set_coins(coins)
         self.save()
         return (f'Получено {coins} монет'
@@ -92,10 +92,10 @@ class Gamer:
         # Обычный старт (без потери)
         elif 'Start' in st and 'Lose' not in st:
             if streak_type == 'Local':
-                bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+                bonus = round(25 * cf_coins, 1)
                 msg = f'Получен бонус {bonus} монет за старт стрика в проекте.'
             else:
-                bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+                bonus = round(25 * cf_coins, 1)
                 msg = f'Получен бонус {bonus} монет за старт глобального стрика.'
             self.set_coins(bonus)
 
@@ -147,7 +147,7 @@ class Gamer:
         cf_coins = self.cf['coins']
         cf_exp = self.cf['exp']
 
-        coin_bonus = round((100 * cf_total * cf_coins) * self.calculate_inflation(True), 1)
+        coin_bonus = round((100 * cf_total * cf_coins), 1)
         exp_bonus = round(10000 * cf_total * cf_exp)
 
         self.set_coins(coin_bonus)
@@ -275,24 +275,17 @@ class Gamer:
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
 
-    def calculate_inflation(self, income=None):
-        """Считает адаптивную инфляцию игрока (без ограничений по балансу)"""
-        # Защита от логарифма нуля/отрицательных чисел и порог начала инфляции
-        if self.coins < 1000:
-            self.inflation = 1
-        else:
-            # math.log10() вернет 3 для 1000, 4 для 10000 и т.д.
-            # int() отбрасывает дробную часть, оставляя "ступенчатую" инфляцию
-            power_of_ten = int(math.log10(self.coins))
-
-            # Возводим 2 в полученную степень
-            self.inflation = 2 ** power_of_ten
-
-        if not income:
-            return self.inflation / 100 * 75
-        else:
-            self.save()
-            return self.inflation
+    def calculate_inflation(self):
+        """
+        Считает инфляцию цен в зависимости от уровня игрока.
+        Например, +15% к базовой цене за каждый уровень после первого.
+        Уровень 1: множитель 1.0 (базовые цены)
+        Уровень 2: множитель 1.15
+        Уровень 10: множитель 2.35
+        """
+        self.inflation = 1.0 + (self.level - 1) * 0.15
+        self.save()
+        return self.inflation
 
 def load_game():
     """Загружает данные игрока из кроссплатформенной директории"""
