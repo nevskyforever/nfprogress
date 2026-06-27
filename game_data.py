@@ -335,7 +335,7 @@ def calculate_freeze_price():
     """Считает стоимость заморозки в зависимости от кол-ва использований"""
     projects = engine.load_data()['projects']
     used_freezes = 0
-    total_price = 100
+    total_price = 250
 
     for project in projects.values():
         if project.status == 'активен':
