@@ -324,34 +324,6 @@ def lottery_ticket_func(do, add=None):
 
     return 'Неизвестное действие'
 
-def freeze_global_func(do, add=None):
-    if do == 'use':
-        # 1. Выбираем проект
-        data = engine.load_data()
-        gamer = game.load_game()
-        items = gamer.get_items()
-        streaks = data.get('global_streaks', [])
-        streak_status = data.get('global_streak_status', 'No')
-        today = engine.today_for_test()
-        if len(streaks) > 0:
-            if today in streaks:
-                return 'Сейчас для глобального стрика заморозка не нужна'
-            else:
-                streaks.append(today)
-                items['Предметы']["Глобальная заморозка"] -= 1  # Уменьшаем кол-во
-                gamer.set_items(items)  # Обновляем данные в объекте игрока
-                engine.save_data(data)
-                gamer.save()
-                if streak_status != 'Go':
-                    streak_status = 'Freeze'
-                engine.save_data(data)
-                return f'Глобальный стрик заморожен'
-        else:
-            return 'Глобальный стрик не начат'
-
-    elif do == '?':
-        return 'Заморозка позволяет засчитать день в стрике без написания кода.'
-
 def calculate_item_price(price):
     """Считает стоимость предмета для игрока с учетом инфляции"""
     gamer = game.load_game()
