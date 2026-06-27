@@ -196,7 +196,7 @@ class GameMenuController:
             for item_name, item_obj in game_data.ITEM_REGISTRY['Предметы'].items():
                 if game.load_game().level >= item_obj.level:
                     # Проверяем кол-во заморозок в инвентаре и скрываем их, если их больше 2
-                    if item_name == 'Заморозка' and game.load_game().items['Предметы']['Заморозка'] >= 2:
+                    if item_name == 'Заморозка' and game.load_game().items['Предметы'].get('Заморозка', 0) >= 2:
                         continue
                     display_text = f"{item_name}"
                     item = QListWidgetItem(display_text)
