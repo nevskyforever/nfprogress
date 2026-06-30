@@ -334,6 +334,8 @@ def calculate_item_price(price):
 def calculate_freeze_price():
     """Считает стоимость заморозки в зависимости от кол-ва использований"""
     projects = engine.load_data()['projects']
+    len_global_streak = len(engine.load_data()['global_streaks'])
+    global_streak_cf = (len_global_streak / 100) + 1
     used_freezes = 0
     total_price = 250
 
@@ -343,6 +345,7 @@ def calculate_freeze_price():
     if not used_freezes:
         used_freezes = 1
     total_price *= used_freezes
+    total_price *= global_streak_cf
     return calculate_item_price(total_price)
 
 # Инициализация объектов
