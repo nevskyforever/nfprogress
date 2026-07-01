@@ -1,8 +1,6 @@
 import os
 import pickle
 import sys
-import math
-
 import engine
 import game_data
 
@@ -39,6 +37,8 @@ class Gamer:
         self.last_lose_global_streak_damage = None
         self.last_bonus_dates = {}
 
+        self.global_streak_len_bonus = 0
+
     # === 3. СЛУЖЕБНЫЕ МЕТОДЫ ===
     def check_integrity(self):
         """Лечит старые сохранения"""
@@ -55,7 +55,7 @@ class Gamer:
         self.exp += exps
         self.save()
         coins_cf = self.cf.get('coins', 1.0)
-        coins = round((symbols / 100 * coins_cf) * self.calculate_inflation(True), 1)
+        coins = round((symbols / 100 * coins_cf), 1)
         self.set_coins(coins)
         self.save()
         return (f'Получено {coins} монет'
@@ -77,7 +77,7 @@ class Gamer:
                 self.last_lose_global_streak_damage = today
             else:
                 damage = days * 5  # для отображения
-            bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+            bonus = round(10 * cf_coins * self.calculate_inflation(), 1)
             self.set_coins(bonus)
             msg = (f'🥺 СТРИК ПОТЕРЯН\n'
                    f'Урон за потерю глобального стрика: {damage}❤️\n'
@@ -85,30 +85,28 @@ class Gamer:
 
         # Комбинированный статус для локального стрика (только бонус за старт)
         elif 'Lose' in st and 'Start' in st and streak_type == 'Local':
-            bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+            bonus = round(10 * cf_coins * self.calculate_inflation(), 1)
             self.set_coins(bonus)
             msg = f'Получен бонус {bonus} монет за старт стрика в проекте (после потери).'
 
         # Обычный старт (без потери)
         elif 'Start' in st and 'Lose' not in st:
             if streak_type == 'Local':
-                bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+                bonus = round(50 * cf_coins, 1)
                 msg = f'Получен бонус {bonus} монет за старт стрика в проекте.'
             else:
-                bonus = round(25 * cf_coins * self.calculate_inflation(True), 1)
+                bonus = round(50 * cf_coins, 1)
                 msg = f'Получен бонус {bonus} монет за старт глобального стрика.'
             self.set_coins(bonus)
 
         # Продолжение стрика
         elif 'Go' in st:
-            coin_bonus = round((10 * streak_len * cf_coins), 2)
-            exp_bonus = round((100 * streak_len * cf_exp))
             if streak_type == 'Local':
-                coin_bonus = round(25 * cf_coins * streak_len * self.calculate_inflation(True), 1)
+                coin_bonus = round(10 * cf_coins * streak_len * self.calculate_inflation(), 1)
                 exp_bonus = round((100 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление стрика в проекте.'
             else:
-                coin_bonus = round(25 * cf_coins * streak_len * self.calculate_inflation(True), 1)
+                coin_bonus = round(10 * cf_coins * streak_len * self.calculate_inflation(), 1)
                 exp_bonus = round((1000 * streak_len * cf_exp))
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
             self.set_coins(coin_bonus)
@@ -116,7 +114,7 @@ class Gamer:
 
         # Завершение стрика (только локальный)
         elif 'Complete' in st:
-            coin_bonus = round(50 * cf_coins * streak_len * self.calculate_inflation(True), 1)
+            coin_bonus = round(25 * cf_coins * streak_len * self.calculate_inflation(), 1)
             exp_bonus = round((5000 * streak_len * cf_exp))
             msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
                    f'\nВы были в цели {streak_len} д. подряд!'
@@ -147,13 +145,68 @@ class Gamer:
         cf_coins = self.cf['coins']
         cf_exp = self.cf['exp']
 
-        coin_bonus = round((100 * cf_total * cf_coins) * self.calculate_inflation(True), 1)
+        coin_bonus = round((100 * cf_total * cf_coins), 1)
         exp_bonus = round(10000 * cf_total * cf_exp)
 
         self.set_coins(coin_bonus)
         self.exp += exp_bonus
         msg = f'Вы получили награду {coin_bonus} монет и {exp_bonus} оп.'
 
+        self.save()
+        return msg
+
+    def give_len_streak_bonus(self, streak_status, streak_len):
+        """Выдача бонуса за длительность стрика"""
+
+        cf_coins = self.cf['coins']
+        cf_exp = self.cf['exp']
+        msg = None
+
+        if streak_len >= 365 and self.global_streak_len_bonus != 365:
+            coins_bonus = round((365 * 25 * cf_coins) * self.calculate_inflation(), 1)
+            exp_bonus = round(10000 * 182 * cf_exp)
+            self.global_streak_len_bonus = 365
+            msg = (f'Вы получили бонус за 365 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 182 and self.global_streak_len_bonus != 182:
+            coins_bonus = round((182 * 25 * cf_coins) * self.calculate_inflation(), 1)
+            exp_bonus = round(10000 * 182 * cf_exp)
+            self.global_streak_len_bonus = 182
+            msg = (f'Вы получили бонус за 182 дня непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 90 and self.global_streak_len_bonus != 90:
+            coins_bonus = round((90 * 25 * cf_coins) * self.calculate_inflation(), 1)
+            exp_bonus = round(10000 * 25 * cf_exp)
+            self.global_streak_len_bonus = 90
+            msg = (f'Вы получили бонус за 90 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 30 and self.global_streak_len_bonus != 30:
+            coins_bonus = round((50 * 15 * cf_coins) * self.calculate_inflation(), 1)
+            exp_bonus = round(10000 * 15 * cf_exp)
+            self.global_streak_len_bonus = 30
+            msg = (f'Вы получили бонус за 90 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 21 and self.global_streak_len_bonus != 21:
+            coins_bonus = round((10 * 21 * cf_coins) * self.calculate_inflation(), 1)
+            exp_bonus = round(10000 * 21 * cf_exp)
+            self.global_streak_len_bonus = 21
+            msg = (f'Вы получили бонус за 21 день непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 14 and self.global_streak_len_bonus != 14:
+            coins_bonus = round((10 * 14 * cf_coins) * self.calculate_inflation(), 1)
+            exp_bonus = round(10000 * 14 * cf_exp)
+            self.global_streak_len_bonus = 14
+            msg = (f'Вы получили бонус за 14 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        elif streak_len >= 7 and self.global_streak_len_bonus != 7:
+            coins_bonus = round((50 * 7 * cf_coins) * self.calculate_inflation(), 1)
+            exp_bonus = round(10000 * 7 * cf_exp)
+            self.global_streak_len_bonus = 7
+            msg = (f'Вы получили бонус за 7 дней непрерывного стрика!'
+                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+
+        self.set_coins(coins_bonus)
+        self.exp += exp_bonus
         self.save()
         return msg
 
@@ -185,7 +238,7 @@ class Gamer:
         msg = False
         while self.level < len(game_data.levels) - 1 and self.exp >= game_data.levels[self.level]:
             new_level = self.level + 1
-            coins_bonus = game_data.lvl_coins_bonus[self.level] * self.calculate_inflation(True)
+            coins_bonus = game_data.lvl_coins_bonus[self.level] * self.calculate_inflation()
 
             self.level = new_level
             self.exp = self.exp - game_data.levels[self.level - 1]
@@ -245,15 +298,19 @@ class Gamer:
             'coins': 0,
             'health': 100,
             'cf': {'coins': 1.0, 'exp': 1.0},
-            'items': {},
+            'items': {'Предметы': {},'Зелья': {},'Награды': {}},
             'notifications': {'new': [], 'read': []},
             'bank_account': None,
             'last_lose_global_streak_damage': None,
             'last_bonus_dates': {},
             'inflation': 1,
+            'global_streak_len_bonus': 0
         }
 
         for attr, default_value in defaults.items():
+            # Проверка флага финансовой реформы
+            if not hasattr(self, 'economy_rebalanced_v1'):
+                setattr(self, 'economy_rebalanced_v1', False)
             if not hasattr(self, attr):
                 setattr(self, attr, default_value)
             elif attr == 'cf' and not isinstance(getattr(self, attr), dict):
@@ -271,28 +328,50 @@ class Gamer:
                     if 'read' not in notifications:
                         notifications['read'] = []
 
+        if not self.economy_rebalanced_v1:
+            # Считаем, сколько сейчас стоит зелье для игрока
+            current_potion_cost = int(200 * self.calculate_inflation())
+
+            # Определяем потолок адекватного богатства (например, стоимость 15 зелий)
+            sane_balance_limit = current_potion_cost * 10
+
+            if self.coins > sane_balance_limit:
+                # Создаем раздел 'Награды', если его еще нет в инвентаре
+                if 'Награды' not in self.items:
+                    self.items['Награды'] = {}
+                # Если игрок сверхбогат, даем ему памятный предмет ветерана
+                self.items['Награды']['👑 Корона Первой Эпохи'] = 1
+
+                # Если у него больше миллиона монет, даем еще один уникальный статус
+                if self.coins >= 1000000:
+                    self.items['Награды']['💎 Перо Миллионера'] = 1
+
+                # Срезаем баланс до адекватного лимита
+                self.coins = sane_balance_limit
+
+            # Отмечаем, что реформа пройдена
+            self.economy_rebalanced_v1 = True
+            self.save()
+
+        # Задаем структуру инвентаря
+        if self.items == {}:
+            self.items = {'Предметы': {},'Зелья': {},'Награды': {}}
+
         # Особая обработка для bank_account
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
 
-    def calculate_inflation(self, income=None):
-        """Считает адаптивную инфляцию игрока (без ограничений по балансу)"""
-        # Защита от логарифма нуля/отрицательных чисел и порог начала инфляции
-        if self.coins < 1000:
-            self.inflation = 1
-        else:
-            # math.log10() вернет 3 для 1000, 4 для 10000 и т.д.
-            # int() отбрасывает дробную часть, оставляя "ступенчатую" инфляцию
-            power_of_ten = int(math.log10(self.coins))
-
-            # Возводим 2 в полученную степень
-            self.inflation = 2 ** power_of_ten
-
-        if not income:
-            return self.inflation / 100 * 75
-        else:
-            self.save()
-            return self.inflation
+    def calculate_inflation(self):
+        """
+        Считает инфляцию цен в зависимости от уровня игрока.
+        Например, +15% к базовой цене за каждый уровень после первого.
+        Уровень 1: множитель 1.0 (базовые цены)
+        Уровень 2: множитель 1.15
+        Уровень 10: множитель 2.35
+        """
+        self.inflation = 1.0 + (self.level - 1) * 0.15
+        self.save()
+        return self.inflation
 
 def load_game():
     """Загружает данные игрока из кроссплатформенной директории"""
