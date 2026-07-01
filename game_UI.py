@@ -543,7 +543,49 @@ class GameMenuController:
         QTimer.singleShot(30000, lambda: setattr(self, '_health_warning_shown', False))
 
     def show_death_warning(self):
-        """Показать предупреждение о смерти"""
+        """Показать предупреждение о смерти и попытаться воскресить персонажа"""
+        revival_name = 'Зелье воскрешения'
+        has_revival_potion = self.gamer.items.get('Зелья', {}).get(revival_name, 0) > 0
+
+        if has_revival_potion:
+            self.gamer.items['Зелья'][revival_name] -= 1
+            self.gamer.health = 100
+            self.gamer.save()
+            self._death_warning_shown = False
+            self.update_inventory()
+            self.update_game_data()
+            QMessageBox.information(
+                self.ui.centralwidget,
+                "Воскрешение",
+                "💀 Ваше здоровье закончилось, но зелье воскрешения спасло вас!\n"
+                "Здоровье восстановлено до 100, прогресс сохранён."
+            )
+            return
+
+        revival_item = game_data.ITEM_REGISTRY['Зелья'][revival_name]
+        revival_price = revival_item.price
+        if self.gamer.coins >= revival_price:
+            choice = QMessageBox.question(
+                self.ui.centralwidget,
+                "Воскрешение",
+                f"💀 Ваше здоровье закончилось!\n\n"
+                f"Купить и использовать зелье воскрешения за {revival_price} монет, "
+                f"чтобы избежать сброса прогресса?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if choice == QMessageBox.Yes:
+                self.gamer.coins -= revival_price
+                self.gamer.health = 100
+                self.gamer.save()
+                self._death_warning_shown = False
+                self.update_game_data()
+                QMessageBox.information(
+                    self.ui.centralwidget,
+                    "Воскрешение",
+                    "Вы воскрешены! Здоровье восстановлено до 100, прогресс сохранён."
+                )
+                return
+
         if hasattr(self, '_death_warning_shown') and self._death_warning_shown:
             self.gamer.level = 1
             self.gamer.coins /= 2
