@@ -57,19 +57,24 @@ def get_test_data_dir():
     return test_dir
 
 
-def cleanup_test_data():
-    """Удаляет директорию тестовых данных вместе со всем содержимым."""
+def sync_test_data():
+    """Копирует текущие рабочие файлы данных в папку test_data.
+
+    Для каждого *.pkl файла из основной директории данных создаёт
+    (или перезаписывает) одноимённый файл в test_data. Файлы, которых
+    нет в основной директории, не создаются и не удаляются в test_data.
+    """
     import shutil
-    test_dir = get_app_data_dir() / 'test_data'
-    if test_dir.exists():
-        shutil.rmtree(test_dir)
+    source_dir = get_app_data_dir()
+    test_dir = get_test_data_dir()
+    for data_file in source_dir.glob('*.pkl'):
+        shutil.copy2(data_file, test_dir / data_file.name)
 
 
 def get_data_file_path(name):
     """Возвращает путь к файлу данных.
 
     В режиме разработчика файлы читаются и пишутся из папки test_data.
-    При выключении режима разработчика папка test_data удаляется.
     """
     if dev_mode:
         return get_test_data_dir() / f'{name}.pkl'
@@ -1132,9 +1137,8 @@ def count_symbols_in_docx(filepath):
                     total += len(paragraph.text)
     return total
 
-# При импорте модуля: создаём нужные директории или удаляем тестовые данные
+# При импорте модуля: в режиме разработчика синхронизируем test_data с текущими данными
 if dev_mode:
-    get_test_data_dir()
+    sync_test_data()
 else:
     get_app_data_dir()
-    cleanup_test_data()
