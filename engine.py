@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.7.9'
+version = '3.7.10'
 
 # Определяем систему
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
@@ -58,17 +58,22 @@ def get_test_data_dir():
 
 
 def sync_test_data():
-    """Копирует текущие рабочие файлы данных в папку test_data.
+    """Копирует рабочие файлы данных в папку test_data, если они новее.
 
     Для каждого *.pkl файла из основной директории данных создаёт
-    (или перезаписывает) одноимённый файл в test_data. Файлы, которых
-    нет в основной директории, не создаются и не удаляются в test_data.
+    (или перезаписывает) одноимённый файл в test_data, но только если
+    рабочий файл отсутствует в test_data или новее уже лежащей там копии
+    (по времени последнего изменения). Более свежие файлы в test_data
+    не затираются устаревшими рабочими файлами. Файлы, которых нет
+    в основной директории, не создаются и не удаляются в test_data.
     """
     import shutil
     source_dir = get_app_data_dir()
     test_dir = get_test_data_dir()
     for data_file in source_dir.glob('*.pkl'):
-        shutil.copy2(data_file, test_dir / data_file.name)
+        test_file = test_dir / data_file.name
+        if not test_file.exists() or data_file.stat().st_mtime > test_file.stat().st_mtime:
+            shutil.copy2(data_file, test_file)
 
 
 def get_data_file_path(name):
