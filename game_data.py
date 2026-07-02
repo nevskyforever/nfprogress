@@ -329,7 +329,7 @@ def calculate_item_price(price):
     gamer = game.load_game()
     inflation = gamer.inflation
 
-    return price * inflation
+    return round((price * inflation), 1)
 
 def calculate_freeze_price():
     """Считает стоимость заморозки в зависимости от кол-ва использований"""
