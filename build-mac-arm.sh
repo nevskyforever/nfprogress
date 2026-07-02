@@ -7,6 +7,14 @@ if [ -d "build-arm" ]; then
   rm -rf build-arm
 fi
 
+# Оставляем только .qm-файлы для ru/en: QTranslator подгружает qt_ru.qm
+# вместе со всеми его подкаталогами (qtbase_ru.qm и т.д.) из той же папки,
+# поэтому нельзя брать один произвольный файл - нужны все *_ru.qm/*_en.qm.
+PYSIDE_TRANSLATIONS=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations
+TRANSLATIONS_TMP=$(mktemp -d)/translations
+mkdir -p "$TRANSLATIONS_TMP"
+cp "$PYSIDE_TRANSLATIONS"/*_ru.qm "$PYSIDE_TRANSLATIONS"/*_en.qm "$TRANSLATIONS_TMP"/
+
 nuitka --standalone \
        --macos-create-app-bundle \
        --macos-app-icon=appIcon.icns \
@@ -16,7 +24,7 @@ nuitka --standalone \
        --file-description="Трекер для писателей" \
        --enable-plugin=pyside6 \
        --output-dir=build-arm \
-       --include-data-dir=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations=PySide6/Qt/translations \
+       --include-data-dir="$TRANSLATIONS_TMP=PySide6/Qt/translations" \
        --lto=yes \
        --disable-ccache \
        --remove-output \
@@ -26,7 +34,9 @@ nuitka --standalone \
        main_UI.py
 
 # Проверяем успешность сборки
-if [ $? -ne 0 ]; then
+NUITKA_STATUS=$?
+rm -rf "$(dirname "$TRANSLATIONS_TMP")"
+if [ $NUITKA_STATUS -ne 0 ]; then
   echo "Ошибка сборки Nuitka!"
   exit 1
 fi
