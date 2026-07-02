@@ -49,6 +49,17 @@ jobs:
           $VERSION = python -c "import engine; print(engine.version)"
           echo "APP_VERSION=$VERSION" >> $env:GITHUB_ENV
 
+      - name: Prepare Qt translations (ru/en only)
+        run: |
+          # QTranslator подгружает qt_ru.qm вместе со всеми его подкаталогами
+          # (qtbase_ru.qm и т.д.) из той же папки, поэтому нужны все *_ru.qm/*_en.qm,
+          # а не один произвольный файл - иначе перевод стандартных кнопок не сработает.
+          $src = "${{ env.pythonLocation }}\Lib\site-packages\PySide6\translations"
+          $dst = "$env:RUNNER_TEMP\translations"
+          New-Item -ItemType Directory -Path $dst -Force | Out-Null
+          Copy-Item "$src\*_ru.qm" $dst
+          Copy-Item "$src\*_en.qm" $dst
+
       - name: Build EXE with Nuitka
         run: |
           python -m nuitka `
@@ -60,7 +71,7 @@ jobs:
             --lto=yes `
             --windows-icon-from-ico=icon.ico `
             --include-data-file=icon.ico=icon.ico `
-            --include-data-dir="${{ env.pythonLocation }}/Lib/site-packages/PySide6/translations=PySide6/translations" `
+            --include-data-dir="$env:RUNNER_TEMP/translations=PySide6/translations" `
             --output-dir=build `
             --output-filename=nfprogress.exe `
             --company-name="nfproject" `
