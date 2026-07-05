@@ -1,7 +1,7 @@
 import os
 import pickle
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 import engine
 import game_data
 
@@ -175,7 +175,28 @@ class Gamer:
 
     def add_buff(self, buff):
         active_buff = buff.activate()
+        self.remove_expired_buffs()
         target_list = self.buffs if active_buff.is_positive() else self.debuffs
+
+        for existing_buff in target_list:
+            if (
+                existing_buff.name == active_buff.name
+                and existing_buff.target_cf == active_buff.target_cf
+                and existing_buff.buff_type == active_buff.buff_type
+            ):
+                if existing_buff.end_time is None:
+                    self.apply_buffs_to_cf(save=True)
+                    return existing_buff
+
+                if active_buff.end_time is None:
+                    existing_buff.end_time = None
+                else:
+                    duration_delta = active_buff.end_time - active_buff.start_time
+                    existing_buff.end_time = max(datetime.now(), existing_buff.end_time) + duration_delta
+
+                self.apply_buffs_to_cf(save=True)
+                return existing_buff
+
         target_list.append(active_buff)
         self.apply_buffs_to_cf(save=True)
         return active_buff
@@ -188,6 +209,21 @@ class Gamer:
         if changed:
             self.apply_buffs_to_cf(save=True)
         return changed
+
+    def adjust_buff_duration(self, buff_name, minutes, positive=True):
+        """Добавляет или отнимает минуты у активного временного бафа."""
+        self.remove_expired_buffs()
+        target_list = self.buffs if positive else self.debuffs
+
+        for buff in target_list:
+            if buff.name != buff_name or buff.end_time is None:
+                continue
+
+            buff.end_time += timedelta(minutes=minutes)
+            self.apply_buffs_to_cf(save=True)
+            return True
+
+        return False
 
     def get_cf_description(self, key):
         parameter = self.cf.get(key, self._make_cf_parameter(key, 1.0))

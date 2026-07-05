@@ -457,6 +457,17 @@ millionaires_pen = Item(name='💎 Перо Миллионера', item_type='Н
                                   buff_type=Buff.POSITIVE,
                                   target_cf='coins',
                                   value= 1.0))
+exp_potion_1hrs = FuncItem(name='Часовое зелье опыта',
+                           item_type='Зелья',
+                           level=2,
+                           price=100,
+                           description='Увеличивает коэффициент опыта на 1 на один час',
+                           buff=Buff(name='Бустер опыта',
+                                     description='Применен бустер опыта',
+                                     target_cf='exp',
+                                     value=1.0,
+                                     buff_type=Buff.POSITIVE,
+                                     duration_minutes=60))
 
 # Реестр предметов
 ITEM_REGISTRY = {'Зелья':
@@ -464,7 +475,8 @@ ITEM_REGISTRY = {'Зелья':
                       'Малое зелье здоровья': health_potion_10,
                       'Среднее зелье здоровья': health_potion_25,
                       'Большое зелье здоровья': health_potion_50,
-                      'Зелье воскрешения': health_recovery,},
+                      'Зелье воскрешения': health_recovery,
+                      'Часовое зелье опыта': exp_potion_1hrs},
                  'Предметы': {'Заморозка': freeze,
                               'Лотерейный билет': lottery_ticket,},
                  'Награды': {'👑 Корона Первой Эпохи': crown_of_the_first_era,
