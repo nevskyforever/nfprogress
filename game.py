@@ -129,6 +129,8 @@ class Gamer:
                 buff = getattr(item, 'buff', None)
                 if not buff:
                     continue
+                if buff.duration_minutes is not None:
+                    continue
 
                 item_buff = buff.activate(start_time=None)
                 item_buff.start_time = None
