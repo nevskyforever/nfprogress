@@ -39,7 +39,7 @@
     </spacer>
    </item>
    <item row="1" column="2">
-    <widget class="QLineEdit" name="item_name_le">
+    <widget class="QLineEdit" name="award_name_le">
      <property name="statusTip">
       <string/>
      </property>
@@ -75,7 +75,7 @@
     </widget>
    </item>
    <item row="3" column="2">
-    <widget class="QLineEdit" name="item_price_le">
+    <widget class="QLineEdit" name="award_price_le">
      <property name="alignment">
       <set>Qt::AlignmentFlag::AlignCenter</set>
      </property>

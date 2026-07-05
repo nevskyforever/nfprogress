@@ -11,7 +11,7 @@ import game
 import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
 from UI_fiiles.bank import Ui_Bamk
-from UI_fiiles.create_custom_item import Ui_create_castom_item
+from UI_fiiles.create_custom_award import Ui_create_castom_item
 from engine import load_data, save_data, today_for_test, unit_converter
 
 
@@ -866,12 +866,12 @@ class CreateCustomAward(QDialog, Ui_create_castom_item):
         self.awards = gamer.custom_awards
 
     def get_name(self):
-        if self.item_name_le.text():
-            return self.item_name_le.text()
+        if self.award_name_le.text():
+            return self.award_name_le.text()
         else:
             return "Новая награда"
     def get_price(self):
-        if self.item_name_le.text():
-            return float(self.item_price_le.text())
+        if self.award_name_le.text():
+            return float(self.award_price_le.text())
         else:
             return 1

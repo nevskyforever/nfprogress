@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'create_custom_itemFGYHXL.ui'
+## Form generated from reading UI file 'create_custom_itempeIVDa.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -38,11 +38,11 @@ class Ui_create_castom_item(object):
 
         self.gridLayout.addItem(self.horizontalSpacer_2, 0, 3, 1, 1)
 
-        self.item_name_le = QLineEdit(create_castom_item)
-        self.item_name_le.setObjectName(u"item_name_le")
-        self.item_name_le.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.award_name_le = QLineEdit(create_castom_item)
+        self.award_name_le.setObjectName(u"award_name_le")
+        self.award_name_le.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.gridLayout.addWidget(self.item_name_le, 1, 2, 1, 1)
+        self.gridLayout.addWidget(self.award_name_le, 1, 2, 1, 1)
 
         self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
@@ -54,13 +54,13 @@ class Ui_create_castom_item(object):
 
         self.gridLayout.addWidget(self.label_3, 0, 1, 1, 2)
 
-        self.item_price_le = QLineEdit(create_castom_item)
-        self.item_price_le.setObjectName(u"item_price_le")
-        self.item_price_le.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.item_price_le.setReadOnly(False)
-        self.item_price_le.setClearButtonEnabled(False)
+        self.award_price_le = QLineEdit(create_castom_item)
+        self.award_price_le.setObjectName(u"award_price_le")
+        self.award_price_le.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.award_price_le.setReadOnly(False)
+        self.award_price_le.setClearButtonEnabled(False)
 
-        self.gridLayout.addWidget(self.item_price_le, 3, 2, 1, 1)
+        self.gridLayout.addWidget(self.award_price_le, 3, 2, 1, 1)
 
         self.horizontalSpacer = QSpacerItem(40, 20, QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Minimum)
 
@@ -95,11 +95,11 @@ class Ui_create_castom_item(object):
     def retranslateUi(self, create_castom_item):
         create_castom_item.setWindowTitle(QCoreApplication.translate("create_castom_item", u"\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u043d\u0430\u0433\u0440\u0430\u0434\u044b", None))
 #if QT_CONFIG(statustip)
-        self.item_name_le.setStatusTip("")
+        self.award_name_le.setStatusTip("")
 #endif // QT_CONFIG(statustip)
-        self.item_name_le.setPlaceholderText(QCoreApplication.translate("create_castom_item", u"\u041f\u0435\u0447\u0435\u043d\u044c\u043a\u0430", None))
+        self.award_name_le.setPlaceholderText(QCoreApplication.translate("create_castom_item", u"\u041f\u0435\u0447\u0435\u043d\u044c\u043a\u0430", None))
         self.label_3.setText(QCoreApplication.translate("create_castom_item", u"<html><head/><body><p>\u0412\u044b \u043c\u043e\u0436\u0435\u0442\u0435 \u0441\u043e\u0437\u0434\u0430\u0442\u044c \u0441\u043e\u0431\u0441\u0442\u0432\u0435\u043d\u043d\u0443\u044e \u043d\u0430\u0433\u0440\u0430\u0434\u0443.</p><p>\u041d\u0430 \u0435\u0435 \u0446\u0435\u043d\u0443 \u043d\u0435 \u0432\u043b\u0438\u044f\u0435\u0442 \u0438\u043d\u0444\u043b\u044f\u0446\u0438\u044f \u0438 \u0443\u0440\u043e\u0432\u0435\u043d\u044c \u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0430.</p><p>\u041d\u0430\u0433\u0440\u0430\u0434\u044b \u043a\u043e\u043f\u044f\u0442\u0441\u044f \u0432 \u0438\u043d\u0432\u0435\u043d\u0442\u0430\u0440\u0435 \u0438 \u043c\u043e\u0433\u0443\u0442 \u0438\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c\u0441\u044f, \u043d\u043e \u043d\u0435 \u0438\u043c\u0435\u044e\u0442 \u044d\u0444\u0444\u0435\u043a\u0442\u0430.</p></body></html>", None))
-        self.item_price_le.setPlaceholderText(QCoreApplication.translate("create_castom_item", u"\u0442\u043e\u043b\u044c\u043a\u043e \u0446\u0438\u0444\u0440\u044b (1.0)", None))
+        self.award_price_le.setPlaceholderText(QCoreApplication.translate("create_castom_item", u"\u0442\u043e\u043b\u044c\u043a\u043e \u0446\u0438\u0444\u0440\u044b (1.0)", None))
         self.item_price_label.setText(QCoreApplication.translate("create_castom_item", u"\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c:", None))
         self.item_name_label.setText(QCoreApplication.translate("create_castom_item", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435:", None))
     # retranslateUi
