@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1104</width>
-    <height>777</height>
+    <width>1154</width>
+    <height>773</height>
    </rect>
   </property>
   <property name="font">
@@ -40,7 +40,7 @@
        <enum>QTabWidget::TabShape::Rounded</enum>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <property name="usesScrollButtons">
        <bool>false</bool>
@@ -639,7 +639,7 @@
         <item row="2" column="0">
          <widget class="QLabel" name="written_today_in_all_projects_label">
           <property name="text">
-           <string>TextLabel</string>
+           <string>Написано сегодня</string>
           </property>
          </widget>
         </item>
@@ -1241,7 +1241,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>326</width>
+                   <width>376</width>
                    <height>150</height>
                   </rect>
                  </property>
@@ -1400,7 +1400,7 @@
                     <x>0</x>
                     <y>0</y>
                     <width>164</width>
-                    <height>143</height>
+                    <height>139</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_14">
@@ -1743,7 +1743,7 @@
            </font>
           </property>
           <property name="currentIndex">
-           <number>2</number>
+           <number>0</number>
           </property>
           <widget class="QWidget" name="items_shop_tab">
            <attribute name="title">
@@ -1866,8 +1866,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>254</width>
-                    <height>141</height>
+                    <width>372</width>
+                    <height>139</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_21">
@@ -2152,33 +2152,6 @@
                  </property>
                 </widget>
                </item>
-               <item row="2" column="3" colspan="2">
-                <widget class="QPushButton" name="button_for_buy_selected_item_3">
-                 <property name="sizePolicy">
-                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                   <horstretch>19</horstretch>
-                   <verstretch>0</verstretch>
-                  </sizepolicy>
-                 </property>
-                 <property name="font">
-                  <font>
-                   <family>Arial</family>
-                  </font>
-                 </property>
-                 <property name="mouseTracking">
-                  <bool>false</bool>
-                 </property>
-                 <property name="tabletTracking">
-                  <bool>false</bool>
-                 </property>
-                 <property name="focusPolicy">
-                  <enum>Qt::FocusPolicy::NoFocus</enum>
-                 </property>
-                 <property name="text">
-                  <string>Купить</string>
-                 </property>
-                </widget>
-               </item>
                <item row="2" column="1">
                 <widget class="QSpinBox" name="value_for_buy_selected_item_3">
                  <property name="sizePolicy">
@@ -2200,14 +2173,20 @@
                  </property>
                 </widget>
                </item>
-               <item row="2" column="5">
-                <widget class="QPushButton" name="button_for_create_custom_award">
-                 <property name="text">
-                  <string>Создать</string>
+               <item row="2" column="6">
+                <spacer name="horizontalSpacer_2">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Horizontal</enum>
                  </property>
-                </widget>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>40</width>
+                   <height>20</height>
+                  </size>
+                 </property>
+                </spacer>
                </item>
-               <item row="0" column="0" colspan="6">
+               <item row="0" column="0" colspan="7">
                 <widget class="QScrollArea" name="about_selected_goods_3">
                  <property name="font">
                   <font>
@@ -2222,8 +2201,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>306</width>
-                    <height>131</height>
+                    <width>356</width>
+                    <height>127</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_33">
@@ -2274,6 +2253,40 @@
                  </widget>
                 </widget>
                </item>
+               <item row="2" column="2">
+                <widget class="QPushButton" name="button_for_buy_selected_item_3">
+                 <property name="sizePolicy">
+                  <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                   <horstretch>19</horstretch>
+                   <verstretch>0</verstretch>
+                  </sizepolicy>
+                 </property>
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
+                 <property name="mouseTracking">
+                  <bool>false</bool>
+                 </property>
+                 <property name="tabletTracking">
+                  <bool>false</bool>
+                 </property>
+                 <property name="focusPolicy">
+                  <enum>Qt::FocusPolicy::NoFocus</enum>
+                 </property>
+                 <property name="text">
+                  <string>Купить</string>
+                 </property>
+                </widget>
+               </item>
+               <item row="2" column="3">
+                <widget class="QPushButton" name="button_for_create_custom_award">
+                 <property name="text">
+                  <string>Создать</string>
+                 </property>
+                </widget>
+               </item>
               </layout>
              </widget>
             </item>
@@ -2292,7 +2305,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1104</width>
+     <width>1154</width>
      <height>30</height>
     </rect>
    </property>
