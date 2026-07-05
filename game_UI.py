@@ -67,8 +67,7 @@ class GameMenuController:
         # Устанавливаем максимумы для spinbox'ов
         self.ui.gamer_params_label.setVisible(False)
 
-        self.ui.quests_label.setVisible(False)
-        self.ui.quests_tabs.setVisible(False)
+        self.setup_quests_stub()
 
         self.ui.value_for_use_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_item.setMaximum(999)
@@ -77,6 +76,41 @@ class GameMenuController:
 
         # Очищаем информационные поля
         self.clear_all_info()
+
+    def setup_quests_stub(self):
+        """Показывает отключенные вкладки квестов до реализации механики."""
+        # TODO: убрать заглушки, setEnabled(False) и скрытие полей после разработки квестов.
+        self.ui.quests_label.setVisible(True)
+        self.ui.quests_tabs.setVisible(True)
+        self.ui.quests_tabs.setEnabled(False)
+
+        description_labels = [
+            self.ui.description_selected_available_quest,
+            self.ui.description_selected_active_quest,
+            self.ui.description_selected_completed_quest,
+        ]
+        hidden_labels = [
+            self.ui.name_selected_available_quest,
+            self.ui.prize_selected_available_quest,
+            self.ui.name_selected_active_quest,
+            self.ui.prize_selected_active_quest,
+            self.ui.date_start_selected_active_quest,
+            self.ui.date_end_selected_active_quest,
+            self.ui.name_selected_completed_quest,
+            self.ui.prize_selected_completed_quest,
+            self.ui.date_start_selected_completed_quest,
+            self.ui.date_end_selected_completed_quest,
+        ]
+
+        for label in description_labels:
+            label.setVisible(True)
+            label.setText("В разработке")
+
+        for label in hidden_labels:
+            label.setVisible(False)
+
+        self.ui.button_for_start_selected_quest.setVisible(False)
+        self.ui.button_for_stop_selected_quest.setVisible(False)
 
     def clear_all_info(self):
         """Очистка всех информационных полей"""
