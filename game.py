@@ -378,9 +378,15 @@ def load_game():
     data_file = get_data_file_path()
 
     try:
+        # 1. Открываем и считываем файл.
+        # Как только этот блок завершается, Python автоматически закрывает файл.
         with open(data_file, 'rb') as f:
             gamer = pickle.load(f)
-            gamer.migrate()  # Добавляем вызов migrate здесь
-            return gamer
     except (FileNotFoundError, EOFError):
+        # Если файла нет или он пуст, создаем нового игрока
         return Gamer()
+
+    # 2. Файл гарантированно закрыт, блокировка Windows снята.
+    # Теперь вызов migrate() и все внутренние вызовы save() отработают без ошибок.
+    gamer.migrate()
+    return gamer
