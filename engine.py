@@ -16,6 +16,7 @@ dev_mode = True
 version = '3.8'
 
 # Определяем систему
+
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 
 def get_app_data_dir():
