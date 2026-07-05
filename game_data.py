@@ -443,9 +443,20 @@ health_potion_50 = FuncItem('Большое зелье здоровья', item_t
 health_recovery = FuncItem('Зелье воскрешения', item_type='Зелья', level=3, func=health_potion_func, price=lambda: calculate_item_price(200), add=100,
                            description='Полностью восстанавливает здоровье')
 crown_of_the_first_era = Item(name='👑 Корона Первой Эпохи', item_type='Награды', price=0,
-                              description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре')
+                              description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре',
+                              buff=Buff(name='Опыт миллионера',
+                                        description='+1 к коэффициенту опыта',
+                                        buff_type=Buff.POSITIVE,
+                                        target_cf='exp',
+                                        value=1.0)
+                              )
 millionaires_pen = Item(name='💎 Перо Миллионера', item_type='Награды', price=0,
-                        description='Перо выдается игрокам, которые заработали больше миллиона монет до первой экономической реформы в игре')
+                        description='Перо выдается игрокам, которые заработали больше миллиона монет до первой экономической реформы в игре',
+                        buff=Buff(name='Удача миллионера',
+                                  description='+1 к коэффициенту заработка',
+                                  buff_type=Buff.POSITIVE,
+                                  target_cf='coins',
+                                  value= 1.0))
 
 # Реестр предметов
 ITEM_REGISTRY = {'Зелья':

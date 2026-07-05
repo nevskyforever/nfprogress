@@ -290,9 +290,21 @@ class GameMenuController:
             return "Бессрочно"
         return value.strftime("%d.%m.%Y %H:%M")
 
+    def get_cf_display_name(self, cf_key):
+        if self.gamer:
+            self.gamer.normalize_cf()
+            parameter = self.gamer.cf.get(cf_key)
+            if isinstance(parameter, dict):
+                return parameter.get('name', cf_key)
+
+        return game.CF_META.get(cf_key, {}).get('name', cf_key)
+
     def get_buff_display_text(self, buff, stacks=1):
         stack_text = f" x{stacks}" if stacks > 1 else ""
-        return f"{buff.name}{stack_text} - {self.format_buff_remaining_time(buff)}"
+        name = f"{buff.name}{stack_text}"
+        if buff.end_time is None:
+            return name
+        return f"{name} - {self.format_buff_remaining_time(buff)}"
 
     def load_buffs_list(self, positive=True):
         list_widget = self.ui.buf_list if positive else self.ui.debuf_list
@@ -304,14 +316,15 @@ class GameMenuController:
 
         for buff, stacks in self.gamer.get_all_buffs(positive=positive):
             item = QListWidgetItem(self.get_buff_display_text(buff, stacks))
-            item.setData(1, buff)
-            item.setData(2, stacks)
+            item.setData(Qt.ItemDataRole.UserRole, buff)
+            item.setData(Qt.ItemDataRole.UserRole + 1, stacks)
             list_widget.addItem(item)
 
     def update_buffs_list(self, positive=True):
         list_widget = self.ui.buf_list if positive else self.ui.debuf_list
         current_item = list_widget.currentItem()
-        current_name = current_item.data(1).name if current_item and current_item.data(1) else None
+        current_buff = current_item.data(Qt.ItemDataRole.UserRole) if current_item else None
+        current_name = current_buff.name if current_buff else None
 
         self.load_buffs_list(positive)
 
@@ -321,7 +334,7 @@ class GameMenuController:
 
         for row in range(list_widget.count()):
             item = list_widget.item(row)
-            buff = item.data(1)
+            buff = item.data(Qt.ItemDataRole.UserRole)
             if buff and buff.name == current_name:
                 list_widget.setCurrentRow(row)
                 self.on_buff_selected(item, positive)
@@ -352,8 +365,8 @@ class GameMenuController:
             self.clear_buff_info(positive)
             return
 
-        buff = item.data(1)
-        stacks = item.data(2) or 1
+        buff = item.data(Qt.ItemDataRole.UserRole)
+        stacks = item.data(Qt.ItemDataRole.UserRole + 1) or 1
         if not buff:
             self.clear_buff_info(positive)
             return
@@ -365,15 +378,16 @@ class GameMenuController:
         )
         sign = "+" if buff.is_positive() else "-"
         stack_text = f"\nКоличество: {stacks}" if stacks > 1 else ""
+        parameter_name = self.get_cf_display_name(buff.target_cf)
 
         labels[0].setText(buff.name)
         labels[1].setText(buff.description)
-        labels[2].setText(f"Параметр: {buff.target_cf}\nЗначение: {sign}{abs(buff.value):g}{stack_text}")
-        labels[3].setText(f"Начало: {self.format_buff_datetime(buff.start_time)}")
-        labels[4].setText(
-            f"Окончание: {self.format_buff_datetime(buff.end_time)}"
-            f"\nОсталось: {self.format_buff_remaining_time(buff)}"
-        )
+        labels[2].setText(f"Параметр: {parameter_name}\nЗначение: {sign}{abs(buff.value):g}{stack_text}")
+        labels[3].clear()
+        if buff.end_time is None:
+            labels[4].clear()
+        else:
+            labels[4].setText(f"Осталось: {self.format_buff_remaining_time(buff)}")
 
     def describe_item_buff(self, item_obj):
         buff = getattr(item_obj, 'buff', None)
@@ -382,7 +396,8 @@ class GameMenuController:
 
         sign = "+" if buff.is_positive() else "-"
         duration = "бессрочно" if buff.duration_minutes is None else f"{buff.duration_minutes} мин."
-        return f"\nЭффект: {buff.name} ({buff.target_cf} {sign}{abs(buff.value):g}, {duration})"
+        parameter_name = self.get_cf_display_name(buff.target_cf)
+        return f"\nЭффект: {buff.name} ({parameter_name} {sign}{abs(buff.value):g}, {duration})"
 
     def update_inventory(self):
         """Обновление списка инвентаря"""
