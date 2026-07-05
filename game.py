@@ -1,8 +1,21 @@
 import os
 import pickle
 import sys
+from datetime import datetime, timedelta
 import engine
 import game_data
+
+
+CF_META = {
+    'coins': {
+        'name': 'Монеты',
+        'description': 'Коэффициент награды монетами. За 100 символов вы получите {coins_per_100} монет.',
+    },
+    'exp': {
+        'name': 'Опыт',
+        'description': 'Коэффициент награды опытом. За 100 символов вы получите {exp_per_100} опыта.',
+    },
+}
 
 
 def get_data_file_path():
@@ -30,7 +43,10 @@ class Gamer:
         self.inflation = self.calculate_inflation()
         self.health = health
 
-        self.cf = {'coins': 1.0, 'exp': 1.0}
+        self.cf = {
+            'coins': self._make_cf_parameter('coins', 1.0),
+            'exp': self._make_cf_parameter('exp', 1.0),
+        }
         self.items = {}
         self.custom_awards = []
         self.custom_awards_inventory = {}
@@ -38,8 +54,197 @@ class Gamer:
         self.bank_account = game_data.BankAccount()
         self.last_lose_global_streak_damage = None
         self.last_bonus_dates = {}
+        self.buffs = []
+        self.debuffs = []
 
         self.global_streak_len_bonus = 0
+
+    def _make_cf_parameter(self, key, value, base_value=None):
+        meta = CF_META.get(key, {})
+        if base_value is None:
+            base_value = value
+        return {
+            'value': float(value),
+            'base_value': float(base_value),
+            'name': meta.get('name', key),
+            'description': meta.get('description', ''),
+        }
+
+    def normalize_cf(self):
+        """Приводит коэффициенты к формату с названием, описанием и значением."""
+        if not isinstance(getattr(self, 'cf', None), dict):
+            self.cf = {}
+
+        normalized = {}
+        for key in CF_META:
+            current_value = self.cf.get(key, 1.0)
+            if isinstance(current_value, dict):
+                value = current_value.get('value', 1.0)
+                base_value = current_value.get('base_value', value)
+            else:
+                value = current_value
+                base_value = current_value
+            normalized[key] = self._make_cf_parameter(key, value, base_value)
+        self.cf = normalized
+
+    def get_cf_value(self, key, default=1.0):
+        current_value = self.cf.get(key, default)
+        if isinstance(current_value, dict):
+            return current_value.get('value', default)
+        return current_value
+
+    def set_cf_value(self, key, value):
+        self.cf[key] = self._make_cf_parameter(key, value)
+
+    def reset_cf_to_base(self):
+        self.normalize_cf()
+        for parameter in self.cf.values():
+            parameter['value'] = parameter.get('base_value', parameter.get('value', 1.0))
+
+    def _apply_buff_to_cf(self, buff, stacks=1):
+        if buff.target_cf not in self.cf:
+            return
+
+        parameter = self.cf[buff.target_cf]
+        parameter['value'] = max(0, parameter.get('value', 1.0) + buff.signed_value() * stacks)
+
+    def get_timed_buffs(self):
+        return list(self.buffs) + list(self.debuffs)
+
+    def get_inventory_buffs(self):
+        inventory_buffs = []
+
+        if not isinstance(self.items, dict):
+            return inventory_buffs
+
+        for category, items in self.items.items():
+            if category not in game_data.ITEM_REGISTRY or not isinstance(items, dict):
+                continue
+
+            for item_name, count in items.items():
+                if count <= 0 or item_name not in game_data.ITEM_REGISTRY[category]:
+                    continue
+
+                item = game_data.ITEM_REGISTRY[category][item_name]
+                buff = getattr(item, 'buff', None)
+                if not buff:
+                    continue
+                if buff.duration_minutes is not None:
+                    continue
+
+                item_buff = buff.activate(start_time=None)
+                item_buff.start_time = None
+                item_buff.end_time = None
+                item_buff.source = item.name
+                inventory_buffs.append((item_buff, count if item_buff.stackable else 1))
+
+        return inventory_buffs
+
+    def remove_expired_buffs(self, now=None):
+        now = now or datetime.now()
+        active_buffs = [buff for buff in self.buffs if not buff.is_expired(now)]
+        active_debuffs = [buff for buff in self.debuffs if not buff.is_expired(now)]
+        changed = len(active_buffs) != len(self.buffs) or len(active_debuffs) != len(self.debuffs)
+        self.buffs = active_buffs
+        self.debuffs = active_debuffs
+        return changed
+
+    def apply_buffs_to_cf(self, save=False):
+        changed = self.remove_expired_buffs()
+        self.reset_cf_to_base()
+
+        for buff in self.get_timed_buffs():
+            self._apply_buff_to_cf(buff)
+
+        for buff, stacks in self.get_inventory_buffs():
+            self._apply_buff_to_cf(buff, stacks)
+
+        if save or changed:
+            self.save()
+        return changed
+
+    def get_all_buffs(self, positive=True, include_inventory=True):
+        self.remove_expired_buffs()
+        timed = self.buffs if positive else self.debuffs
+        result = [(buff, 1) for buff in timed]
+
+        if include_inventory:
+            for buff, stacks in self.get_inventory_buffs():
+                if buff.is_positive() == positive:
+                    result.append((buff, stacks))
+
+        return result
+
+    def add_buff(self, buff):
+        active_buff = buff.activate()
+        self.remove_expired_buffs()
+        target_list = self.buffs if active_buff.is_positive() else self.debuffs
+
+        for existing_buff in target_list:
+            if (
+                existing_buff.name == active_buff.name
+                and existing_buff.target_cf == active_buff.target_cf
+                and existing_buff.buff_type == active_buff.buff_type
+            ):
+                if existing_buff.end_time is None:
+                    self.apply_buffs_to_cf(save=True)
+                    return existing_buff
+
+                if active_buff.end_time is None:
+                    existing_buff.end_time = None
+                else:
+                    duration_delta = active_buff.end_time - active_buff.start_time
+                    existing_buff.end_time = max(datetime.now(), existing_buff.end_time) + duration_delta
+
+                self.apply_buffs_to_cf(save=True)
+                return existing_buff
+
+        target_list.append(active_buff)
+        self.apply_buffs_to_cf(save=True)
+        return active_buff
+
+    def remove_buff(self, buff_name, positive=True):
+        target_list = self.buffs if positive else self.debuffs
+        initial_len = len(target_list)
+        target_list[:] = [buff for buff in target_list if buff.name != buff_name]
+        changed = len(target_list) != initial_len
+        if changed:
+            self.apply_buffs_to_cf(save=True)
+        return changed
+
+    def adjust_buff_duration(self, buff_name, minutes, positive=True):
+        """Добавляет или отнимает минуты у активного временного бафа."""
+        self.remove_expired_buffs()
+        target_list = self.buffs if positive else self.debuffs
+
+        for buff in target_list:
+            if buff.name != buff_name or buff.end_time is None:
+                continue
+
+            buff.end_time += timedelta(minutes=minutes)
+            self.apply_buffs_to_cf(save=True)
+            return True
+
+        return False
+
+    def get_cf_description(self, key):
+        parameter = self.cf.get(key, self._make_cf_parameter(key, 1.0))
+        template = parameter.get('description', '')
+        coins_per_100 = round(self.get_cf_value('coins', 1.0), 1)
+        exp_per_100 = round(100 * 4 * self.get_cf_value('exp', 1.0))
+        return template.format(coins_per_100=coins_per_100, exp_per_100=exp_per_100)
+
+    def get_cf_parameters(self):
+        self.normalize_cf()
+        return [
+            {
+                'key': key,
+                'name': parameter['name'],
+                'value': parameter['value'],
+                'description': self.get_cf_description(key),
+            }
+            for key, parameter in self.cf.items()
+        ]
 
     # === 3. СЛУЖЕБНЫЕ МЕТОДЫ ===
     def check_integrity(self):
@@ -52,11 +257,11 @@ class Gamer:
 
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols):
-        exp_cf = self.cf.get('exp', 1.0)
+        exp_cf = self.get_cf_value('exp', 1.0)
         exps = symbols * 4 * exp_cf
         self.exp += exps
         self.save()
-        coins_cf = self.cf.get('coins', 1.0)
+        coins_cf = self.get_cf_value('coins', 1.0)
         coins = round((symbols / 100 * coins_cf), 1)
         self.set_coins(coins)
         self.save()
@@ -65,8 +270,8 @@ class Gamer:
 
     def give_streak_bonus(self, status, streak_type, streak_len=1):
         st = status.split()
-        cf_coins = self.cf['coins']
-        cf_exp = self.cf['exp']
+        cf_coins = self.get_cf_value('coins')
+        cf_exp = self.get_cf_value('exp')
         msg = None
 
         # Комбинированный статус для глобального стрика (урон + бонус)
@@ -144,8 +349,8 @@ class Gamer:
 
     def give_complete_bonus(self, project_status, project_total):
         cf_total = round(project_total / 1000 + 0.5)  # обычное деление, не целочисленное
-        cf_coins = self.cf['coins']
-        cf_exp = self.cf['exp']
+        cf_coins = self.get_cf_value('coins')
+        cf_exp = self.get_cf_value('exp')
 
         coin_bonus = round((100 * cf_total * cf_coins), 1)
         exp_bonus = round(10000 * cf_total * cf_exp)
@@ -160,8 +365,8 @@ class Gamer:
     def give_len_streak_bonus(self, streak_status, streak_len):
         """Выдача бонуса за длительность стрика"""
 
-        cf_coins = self.cf['coins']
-        cf_exp = self.cf['exp']
+        cf_coins = self.get_cf_value('coins')
+        cf_exp = self.get_cf_value('exp')
         msg = None
 
         if streak_len >= 365 and self.global_streak_len_bonus != 365:
@@ -221,6 +426,7 @@ class Gamer:
     def remove_coins(self, removed):
         self.coins -= removed
         self.calculate_inflation()
+        self.save()
 
     def get_coins(self):
         return self.coins
@@ -228,11 +434,12 @@ class Gamer:
     def set_coins(self, coins):
         self.coins += coins
         self.calculate_inflation()
+        self.save()
 
     def update_cf(self):
         """Обновляет коэффициенты монет и опыта согласно текущему уровню"""
-        self.cf['coins'] = game_data.cf_coins[self.level]
-        self.cf['exp'] = game_data.cf_exp[self.level]
+        self.set_cf_value('coins', game_data.cf_coins[self.level])
+        self.set_cf_value('exp', game_data.cf_exp[self.level])
 
     def level_up(self):
         data = engine.load_data()
@@ -247,8 +454,8 @@ class Gamer:
             self.health = 100
             self.coins += coins_bonus
 
-            self.cf['coins'] = game_data.cf_coins[self.level]
-            self.cf['exp'] = game_data.cf_exp[self.level]
+            self.set_cf_value('coins', game_data.cf_coins[self.level])
+            self.set_cf_value('exp', game_data.cf_exp[self.level])
 
             msg = f'ПОЛУЧЕН НОВЫЙ {new_level} УРОВЕНЬ! Ваш бонус: {coins_bonus} монет'
 
@@ -299,7 +506,10 @@ class Gamer:
             'exp': 0,
             'coins': 0,
             'health': 100,
-            'cf': {'coins': 1.0, 'exp': 1.0},
+            'cf': {
+                'coins': self._make_cf_parameter('coins', 1.0),
+                'exp': self._make_cf_parameter('exp', 1.0),
+            },
             'items': {'Предметы': {},'Зелья': {},'Награды': {}},
             'custom_awards': [],
             'custom_awards_inventory': {},
@@ -308,7 +518,9 @@ class Gamer:
             'last_lose_global_streak_damage': None,
             'last_bonus_dates': {},
             'inflation': 1,
-            'global_streak_len_bonus': 0
+            'global_streak_len_bonus': 0,
+            'buffs': [],
+            'debuffs': [],
         }
 
         for attr, default_value in defaults.items():
@@ -318,7 +530,10 @@ class Gamer:
             if not hasattr(self, attr):
                 setattr(self, attr, default_value)
             elif attr == 'cf' and not isinstance(getattr(self, attr), dict):
-                setattr(self, attr, {'coins': 1.0, 'exp': 1.0})
+                setattr(self, attr, {
+                    'coins': self._make_cf_parameter('coins', 1.0),
+                    'exp': self._make_cf_parameter('exp', 1.0),
+                })
             elif attr == 'items' and not isinstance(getattr(self, attr), dict):
                 setattr(self, attr, {})
             elif attr == 'notifications':
@@ -331,6 +546,8 @@ class Gamer:
                         notifications['new'] = []
                     if 'read' not in notifications:
                         notifications['read'] = []
+            elif attr in ('buffs', 'debuffs') and not isinstance(getattr(self, attr), list):
+                setattr(self, attr, [])
 
         if not self.economy_rebalanced_v1:
             # Считаем, сколько сейчас стоит зелье для игрока
@@ -362,6 +579,8 @@ class Gamer:
             self.items = {'Предметы': {},'Зелья': {},'Награды': {}}
 
         # Особая обработка для bank_account
+        self.normalize_cf()
+        self.apply_buffs_to_cf()
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
 
@@ -374,7 +593,6 @@ class Gamer:
         Уровень 10: множитель 2.35
         """
         self.inflation = 1.0 + (self.level - 1) * 0.15
-        self.save()
         return self.inflation
 
 def load_game():
