@@ -11,6 +11,7 @@ import game
 import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
 from UI_fiiles.bank import Ui_Bamk
+from UI_fiiles.create_custom_item import Ui_create_castom_item
 from engine import load_data, save_data, today_for_test, unit_converter
 
 
@@ -113,6 +114,10 @@ class GameMenuController:
         # Банк
 
         self.ui.bank_btn.clicked.connect(self.bank)
+
+        # Создание своей награды
+
+        self.ui.button_for_create_custom_award.clicked.connect(self.create_custom_award)
 
     def refresh_all(self):
         """Обновление всех данных в интерфейсе"""
@@ -705,6 +710,20 @@ class GameMenuController:
         dialog.show()
         result = dialog.exec_()
 
+    def create_custom_award(self):
+        dialog = CreateCustomAward(self.gamer)
+        dialog.show()
+        result = dialog.exec_()
+
+        if result == QDialog.Accepted:
+            name = dialog.get_name()
+            price = dialog.get_price()
+
+            new_award = game_data.Item(name=name, price=price)
+
+            dialog.gamer.custom_awards.append(new_award)
+            dialog.gamer.save()
+            self.notifications.show_success('Награда создана')
 
 class FreezeProject(QDialog, Ui_freeze_projrct):
     def __init__(self):
@@ -838,3 +857,21 @@ class Bank(QDialog, Ui_Bamk):
         def take_credit():
             """Метод дял взятия кредита''"""
             pass
+
+class CreateCustomAward(QDialog, Ui_create_castom_item):
+    def __init__(self, gamer: game.Gamer):
+        super().__init__()
+        self.setupUi(self)
+        self.gamer = gamer
+        self.awards = gamer.custom_awards
+
+    def get_name(self):
+        if self.item_name_le.text():
+            return self.item_name_le.text()
+        else:
+            return "Новая награда"
+    def get_price(self):
+        if self.item_name_le.text():
+            return float(self.item_price_le.text())
+        else:
+            return 1
