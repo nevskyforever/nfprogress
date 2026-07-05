@@ -1,6 +1,7 @@
 import os
 import pickle
 import sys
+from datetime import datetime
 import engine
 import game_data
 
@@ -53,13 +54,18 @@ class Gamer:
         self.bank_account = game_data.BankAccount()
         self.last_lose_global_streak_damage = None
         self.last_bonus_dates = {}
+        self.buffs = []
+        self.debuffs = []
 
         self.global_streak_len_bonus = 0
 
-    def _make_cf_parameter(self, key, value):
+    def _make_cf_parameter(self, key, value, base_value=None):
         meta = CF_META.get(key, {})
+        if base_value is None:
+            base_value = value
         return {
             'value': float(value),
+            'base_value': float(base_value),
             'name': meta.get('name', key),
             'description': meta.get('description', ''),
         }
@@ -74,9 +80,11 @@ class Gamer:
             current_value = self.cf.get(key, 1.0)
             if isinstance(current_value, dict):
                 value = current_value.get('value', 1.0)
+                base_value = current_value.get('base_value', value)
             else:
                 value = current_value
-            normalized[key] = self._make_cf_parameter(key, value)
+                base_value = current_value
+            normalized[key] = self._make_cf_parameter(key, value, base_value)
         self.cf = normalized
 
     def get_cf_value(self, key, default=1.0):
@@ -87,6 +95,99 @@ class Gamer:
 
     def set_cf_value(self, key, value):
         self.cf[key] = self._make_cf_parameter(key, value)
+
+    def reset_cf_to_base(self):
+        self.normalize_cf()
+        for parameter in self.cf.values():
+            parameter['value'] = parameter.get('base_value', parameter.get('value', 1.0))
+
+    def _apply_buff_to_cf(self, buff, stacks=1):
+        if buff.target_cf not in self.cf:
+            return
+
+        parameter = self.cf[buff.target_cf]
+        parameter['value'] = max(0, parameter.get('value', 1.0) + buff.signed_value() * stacks)
+
+    def get_timed_buffs(self):
+        return list(self.buffs) + list(self.debuffs)
+
+    def get_inventory_buffs(self):
+        inventory_buffs = []
+
+        if not isinstance(self.items, dict):
+            return inventory_buffs
+
+        for category, items in self.items.items():
+            if category not in game_data.ITEM_REGISTRY or not isinstance(items, dict):
+                continue
+
+            for item_name, count in items.items():
+                if count <= 0 or item_name not in game_data.ITEM_REGISTRY[category]:
+                    continue
+
+                item = game_data.ITEM_REGISTRY[category][item_name]
+                buff = getattr(item, 'buff', None)
+                if not buff:
+                    continue
+
+                item_buff = buff.activate(start_time=None)
+                item_buff.start_time = None
+                item_buff.end_time = None
+                item_buff.source = item.name
+                inventory_buffs.append((item_buff, count if item_buff.stackable else 1))
+
+        return inventory_buffs
+
+    def remove_expired_buffs(self, now=None):
+        now = now or datetime.now()
+        active_buffs = [buff for buff in self.buffs if not buff.is_expired(now)]
+        active_debuffs = [buff for buff in self.debuffs if not buff.is_expired(now)]
+        changed = len(active_buffs) != len(self.buffs) or len(active_debuffs) != len(self.debuffs)
+        self.buffs = active_buffs
+        self.debuffs = active_debuffs
+        return changed
+
+    def apply_buffs_to_cf(self, save=False):
+        changed = self.remove_expired_buffs()
+        self.reset_cf_to_base()
+
+        for buff in self.get_timed_buffs():
+            self._apply_buff_to_cf(buff)
+
+        for buff, stacks in self.get_inventory_buffs():
+            self._apply_buff_to_cf(buff, stacks)
+
+        if save or changed:
+            self.save()
+        return changed
+
+    def get_all_buffs(self, positive=True, include_inventory=True):
+        self.remove_expired_buffs()
+        timed = self.buffs if positive else self.debuffs
+        result = [(buff, 1) for buff in timed]
+
+        if include_inventory:
+            for buff, stacks in self.get_inventory_buffs():
+                if buff.is_positive() == positive:
+                    result.append((buff, stacks))
+
+        return result
+
+    def add_buff(self, buff):
+        active_buff = buff.activate()
+        target_list = self.buffs if active_buff.is_positive() else self.debuffs
+        target_list.append(active_buff)
+        self.apply_buffs_to_cf(save=True)
+        return active_buff
+
+    def remove_buff(self, buff_name, positive=True):
+        target_list = self.buffs if positive else self.debuffs
+        initial_len = len(target_list)
+        target_list[:] = [buff for buff in target_list if buff.name != buff_name]
+        changed = len(target_list) != initial_len
+        if changed:
+            self.apply_buffs_to_cf(save=True)
+        return changed
 
     def get_cf_description(self, key):
         parameter = self.cf.get(key, self._make_cf_parameter(key, 1.0))
@@ -379,7 +480,9 @@ class Gamer:
             'last_lose_global_streak_damage': None,
             'last_bonus_dates': {},
             'inflation': 1,
-            'global_streak_len_bonus': 0
+            'global_streak_len_bonus': 0,
+            'buffs': [],
+            'debuffs': [],
         }
 
         for attr, default_value in defaults.items():
@@ -405,6 +508,8 @@ class Gamer:
                         notifications['new'] = []
                     if 'read' not in notifications:
                         notifications['read'] = []
+            elif attr in ('buffs', 'debuffs') and not isinstance(getattr(self, attr), list):
+                setattr(self, attr, [])
 
         if not self.economy_rebalanced_v1:
             # Считаем, сколько сейчас стоит зелье для игрока
@@ -437,6 +542,7 @@ class Gamer:
 
         # Особая обработка для bank_account
         self.normalize_cf()
+        self.apply_buffs_to_cf()
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
 

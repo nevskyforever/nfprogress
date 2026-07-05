@@ -135,6 +135,14 @@ class GameMenuController:
         self.ui.gamer_parameters_list.currentItemChanged.connect(
             lambda current, previous: self.on_gamer_parameter_selected(current)
         )
+        self.ui.buf_list.itemClicked.connect(lambda item: self.on_buff_selected(item, positive=True))
+        self.ui.buf_list.currentItemChanged.connect(
+            lambda current, previous: self.on_buff_selected(current, positive=True)
+        )
+        self.ui.debuf_list.itemClicked.connect(lambda item: self.on_buff_selected(item, positive=False))
+        self.ui.debuf_list.currentItemChanged.connect(
+            lambda current, previous: self.on_buff_selected(current, positive=False)
+        )
 
         # Создание своей награды
 
@@ -149,6 +157,7 @@ class GameMenuController:
         self.update_inventory()
         self.update_shops()
         self.load_gamer_parameters_list()
+        self.update_buffs_lists()
 
     def update_game_data(self):
         """Обновление основных параметров игрока"""
@@ -161,6 +170,7 @@ class GameMenuController:
 
         # Перезагружаем игрока для актуальных данных
         self.gamer = game.load_game()
+        self.gamer.apply_buffs_to_cf()
         self.register_custom_awards()
 
         # Обновляем отображение
@@ -194,6 +204,7 @@ class GameMenuController:
         self.ui.gamer_health_progressbar.setValue(health)
         self.ui.gamer_health_progressbar.setMaximum(100)
         self.update_gamer_parameters_list()
+        self.update_buffs_lists()
 
         # Проверяем критические состояния
         if self.gamer.health <= 20 and self.gamer.health > 0:
@@ -255,6 +266,123 @@ class GameMenuController:
                 return
 
         self.ui.description_selected_parameter.clear()
+
+    def format_buff_remaining_time(self, buff):
+        remaining = buff.remaining_time()
+        if remaining is None:
+            return "Бессрочно"
+
+        total_minutes = max(0, int(remaining.total_seconds() // 60))
+        days = total_minutes // (24 * 60)
+        hours = (total_minutes % (24 * 60)) // 60
+        minutes = total_minutes % 60
+
+        parts = []
+        if days:
+            parts.append(f"{days} д.")
+        if hours:
+            parts.append(f"{hours} ч.")
+        parts.append(f"{minutes} мин.")
+        return " ".join(parts)
+
+    def format_buff_datetime(self, value):
+        if value is None:
+            return "Бессрочно"
+        return value.strftime("%d.%m.%Y %H:%M")
+
+    def get_buff_display_text(self, buff, stacks=1):
+        stack_text = f" x{stacks}" if stacks > 1 else ""
+        return f"{buff.name}{stack_text} - {self.format_buff_remaining_time(buff)}"
+
+    def load_buffs_list(self, positive=True):
+        list_widget = self.ui.buf_list if positive else self.ui.debuf_list
+        list_widget.clear()
+
+        if not self.gamer:
+            self.clear_buff_info(positive)
+            return
+
+        for buff, stacks in self.gamer.get_all_buffs(positive=positive):
+            item = QListWidgetItem(self.get_buff_display_text(buff, stacks))
+            item.setData(1, buff)
+            item.setData(2, stacks)
+            list_widget.addItem(item)
+
+    def update_buffs_list(self, positive=True):
+        list_widget = self.ui.buf_list if positive else self.ui.debuf_list
+        current_item = list_widget.currentItem()
+        current_name = current_item.data(1).name if current_item and current_item.data(1) else None
+
+        self.load_buffs_list(positive)
+
+        if current_name is None:
+            self.clear_buff_info(positive)
+            return
+
+        for row in range(list_widget.count()):
+            item = list_widget.item(row)
+            buff = item.data(1)
+            if buff and buff.name == current_name:
+                list_widget.setCurrentRow(row)
+                self.on_buff_selected(item, positive)
+                return
+
+        self.clear_buff_info(positive)
+
+    def update_buffs_lists(self):
+        if not self.gamer:
+            self.clear_buff_info(True)
+            self.clear_buff_info(False)
+            return
+
+        self.update_buffs_list(True)
+        self.update_buffs_list(False)
+
+    def clear_buff_info(self, positive=True):
+        labels = (
+            [self.ui.label_40, self.ui.label_39, self.ui.label_38, self.ui.label_41, self.ui.label_37]
+            if positive else
+            [self.ui.label_45, self.ui.label_44, self.ui.label_43, self.ui.label_46, self.ui.label_42]
+        )
+        for label in labels:
+            label.clear()
+
+    def on_buff_selected(self, item, positive=True):
+        if not item:
+            self.clear_buff_info(positive)
+            return
+
+        buff = item.data(1)
+        stacks = item.data(2) or 1
+        if not buff:
+            self.clear_buff_info(positive)
+            return
+
+        labels = (
+            [self.ui.label_40, self.ui.label_39, self.ui.label_38, self.ui.label_41, self.ui.label_37]
+            if positive else
+            [self.ui.label_45, self.ui.label_44, self.ui.label_43, self.ui.label_46, self.ui.label_42]
+        )
+        sign = "+" if buff.is_positive() else "-"
+        stack_text = f"\nКоличество: {stacks}" if stacks > 1 else ""
+
+        labels[0].setText(buff.name)
+        labels[1].setText(buff.description)
+        labels[2].setText(f"Параметр: {buff.target_cf}\nЗначение: {sign}{abs(buff.value):g}{stack_text}")
+        labels[3].setText(f"Начало: {self.format_buff_datetime(buff.start_time)}")
+        labels[4].setText(
+            f"Окончание: {self.format_buff_datetime(buff.end_time)}"
+            f"\nОсталось: {self.format_buff_remaining_time(buff)}"
+        )
+
+    def describe_item_buff(self, item_obj):
+        buff = getattr(item_obj, 'buff', None)
+        if not buff:
+            return ""
+
+        sign = "+" if buff.is_positive() else "-"
+        duration = "бессрочно" if buff.duration_minutes is None else f"{buff.duration_minutes} мин."
+        return f"\nЭффект: {buff.name} ({buff.target_cf} {sign}{abs(buff.value):g}, {duration})"
 
     def update_inventory(self):
         """Обновление списка инвентаря"""
@@ -365,7 +493,7 @@ class GameMenuController:
             # Добавляем информацию о количестве
             count = self.gamer.items.get(category, {}).get(item_name, 0)
             self.ui.effect_selected_item.setText(
-                f"⚡ {effect_text}\n🔢 В наличии: {count}"
+                f"⚡ {effect_text}{self.describe_item_buff(item_obj)}\n🔢 В наличии: {count}"
             )
 
             # Устанавливаем максимум для spinbox
@@ -516,7 +644,7 @@ class GameMenuController:
                 effect_text = item_obj._func("?") or "Активируется при использовании"
             except:
                 effect_text = "Активируется при использовании"
-        effect_label.setText(f"⚡ {effect_text}")
+        effect_label.setText(f"⚡ {effect_text}{self.describe_item_buff(item_obj)}")
 
     def clear_item_info(self):
         """Очистка информации о предметах в магазине"""

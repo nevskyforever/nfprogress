@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from random import randint
 
 import engine
@@ -27,15 +27,80 @@ lvl_coins_bonus = [i * 250 for i in range(n)]
 
 # Классы объектов
 
+class Buff:
+    """Положительный или отрицательный эффект для коэффициента персонажа."""
+
+    POSITIVE = 'positive'
+    NEGATIVE = 'negative'
+
+    def __init__(self, name, description, buff_type, target_cf, value, duration_minutes=None,
+                 start_time=None, end_time=None, source=None, stackable=False):
+        self.name = name
+        self.description = description
+        self.buff_type = buff_type
+        self.target_cf = target_cf
+        self.value = value
+        self.duration_minutes = duration_minutes
+        self.start_time = start_time
+        self.end_time = end_time
+        self.source = source
+        self.stackable = stackable
+
+    def activate(self, start_time=None):
+        """Возвращает копию бафа с рассчитанным временем начала и окончания."""
+        start_time = start_time or datetime.now()
+        end_time = None
+        if self.duration_minutes is not None:
+            end_time = start_time + timedelta(minutes=self.duration_minutes)
+
+        return Buff(
+            name=self.name,
+            description=self.description,
+            buff_type=self.buff_type,
+            target_cf=self.target_cf,
+            value=self.value,
+            duration_minutes=self.duration_minutes,
+            start_time=start_time,
+            end_time=end_time,
+            source=self.source,
+            stackable=self.stackable,
+        )
+
+    def is_positive(self):
+        return self.buff_type == self.POSITIVE
+
+    def is_negative(self):
+        return self.buff_type == self.NEGATIVE
+
+    def is_expired(self, now=None):
+        if self.end_time is None:
+            return False
+        return (now or datetime.now()) >= self.end_time
+
+    def signed_value(self):
+        value = abs(self.value)
+        return value if self.is_positive() else -value
+
+    def remaining_time(self, now=None):
+        if self.end_time is None:
+            return None
+
+        remaining = self.end_time - (now or datetime.now())
+        if remaining.total_seconds() <= 0:
+            return timedelta(0)
+        return remaining
+
+
 class Item:
     """Основной класс"""
 
-    def __init__(self, name, price, item_type=None, level=1, description='Нет описания'):
+    def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None):
         self.name = name
         self.item_type = item_type
         self._price = price
         self.level = level
         self.description = description
+        self.buff = buff
 
     @property
     def price(self):
@@ -92,11 +157,21 @@ class FuncItem(Item):
 
         # Проверяем, есть ли предмет в наличии
         if items[self.item_type][self.name] > 0:
+            messages = []
+
             # Выполняем функцию предмета
             if self._func:
                 # Используем переданный add или сохраненный из конструктора
                 use_add = add if add is not None else self.add
-                return self._func(do, use_add)
+                messages.append(self._func(do, use_add))
+
+            if do == 'use' and self.buff:
+                gamer.add_buff(self.buff)
+                messages.append(f"Получен эффект: {self.buff.name}")
+
+            if messages:
+                return "\n".join(message for message in messages if message)
+
             return "Предмет использован."
         else:
             return "У вас нет этого предмета!"
