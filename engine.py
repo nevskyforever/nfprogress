@@ -10,7 +10,7 @@ from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = False
+dev_mode = True
 
 # Версия приложения
 version = '3.7.12'

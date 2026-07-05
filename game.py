@@ -33,6 +33,7 @@ class Gamer:
         self.cf = {'coins': 1.0, 'exp': 1.0}
         self.items = {}
         self.custom_awards = []
+        self.custom_awards_inventory = {}
 
         self.bank_account = game_data.BankAccount()
         self.last_lose_global_streak_damage = None
@@ -301,6 +302,7 @@ class Gamer:
             'cf': {'coins': 1.0, 'exp': 1.0},
             'items': {'Предметы': {},'Зелья': {},'Награды': {}},
             'custom_awards': [],
+            'custom_awards_inventory': {},
             'notifications': {'new': [], 'read': []},
             'bank_account': None,
             'last_lose_global_streak_damage': None,
