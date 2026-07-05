@@ -104,7 +104,8 @@ class Credit:
     def __init__(self, credit_sum, days_until_return, interest_rate_on_loan=2):
         self.take_date = engine.today_for_test()
         self.days_until_return = days_until_return
-        self.interest_rate_on_loan = interest_rate_on_loan * (game.load_game().cf['coins'] if game.load_game() else 1.0)
+        gamer = game.load_game()
+        self.interest_rate_on_loan = interest_rate_on_loan * (gamer.get_cf_value('coins') if gamer else 1.0)
         self.credit_sum = credit_sum
         self.interest = 0
 
@@ -170,7 +171,7 @@ class Deposit:
         self.give_date = engine.today_for_test()
         self.deposit_sum = deposit_sum
         self.days_until_return = days_until_return
-        self.interest_rate_on_deposit = interest_rate_on_deposit * game.load_game().cf['coins']
+        self.interest_rate_on_deposit = interest_rate_on_deposit * game.load_game().get_cf_value('coins')
         self.interest = 0
 
     def get_sum(self):

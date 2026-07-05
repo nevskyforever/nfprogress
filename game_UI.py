@@ -67,7 +67,6 @@ class GameMenuController:
         # Устанавливаем максимумы для spinbox'ов
         self.ui.gamer_params_label.setVisible(False)
 
-        self.ui.parameters_tabs.setVisible(False)
         self.ui.quests_label.setVisible(False)
         self.ui.quests_tabs.setVisible(False)
 
@@ -131,6 +130,12 @@ class GameMenuController:
 
         self.ui.bank_btn.clicked.connect(self.bank)
 
+        # Параметры персонажа
+        self.ui.gamer_parameters_list.itemClicked.connect(self.on_gamer_parameter_selected)
+        self.ui.gamer_parameters_list.currentItemChanged.connect(
+            lambda current, previous: self.on_gamer_parameter_selected(current)
+        )
+
         # Создание своей награды
 
         self.ui.button_for_create_custom_award.clicked.connect(self.create_custom_award)
@@ -143,6 +148,7 @@ class GameMenuController:
         self.clear_award_info()
         self.update_inventory()
         self.update_shops()
+        self.load_gamer_parameters_list()
 
     def update_game_data(self):
         """Обновление основных параметров игрока"""
@@ -187,12 +193,68 @@ class GameMenuController:
         self.ui.gamer_health.setText(f"Здоровье: {health}/100")
         self.ui.gamer_health_progressbar.setValue(health)
         self.ui.gamer_health_progressbar.setMaximum(100)
+        self.update_gamer_parameters_list()
 
         # Проверяем критические состояния
         if self.gamer.health <= 20 and self.gamer.health > 0:
             self.show_health_warning()
         elif self.gamer.health <= 0:
             self.show_death_warning()
+
+    def format_gamer_parameter_value(self, value):
+        """Форматирует числовой коэффициент для списка параметров."""
+        return f"{value:g}"
+
+    def load_gamer_parameters_list(self):
+        """Загружает список параметров персонажа."""
+        self.ui.gamer_parameters_list.clear()
+
+        if not self.gamer:
+            self.ui.description_selected_parameter.clear()
+            return
+
+        for parameter in self.gamer.get_cf_parameters():
+            value = self.format_gamer_parameter_value(parameter['value'])
+            item = QListWidgetItem(f"{parameter['name']} - х{value}")
+            item.setData(1, parameter['key'])
+            self.ui.gamer_parameters_list.addItem(item)
+
+        if self.ui.gamer_parameters_list.count() > 0:
+            self.ui.gamer_parameters_list.setCurrentRow(0)
+            self.on_gamer_parameter_selected(self.ui.gamer_parameters_list.currentItem())
+        else:
+            self.ui.description_selected_parameter.clear()
+
+    def update_gamer_parameters_list(self):
+        """Обновляет список параметров персонажа, сохраняя текущий выбор."""
+        current_item = self.ui.gamer_parameters_list.currentItem()
+        current_key = current_item.data(1) if current_item else None
+
+        self.load_gamer_parameters_list()
+
+        if current_key is None:
+            return
+
+        for row in range(self.ui.gamer_parameters_list.count()):
+            item = self.ui.gamer_parameters_list.item(row)
+            if item.data(1) == current_key:
+                self.ui.gamer_parameters_list.setCurrentRow(row)
+                self.on_gamer_parameter_selected(item)
+                return
+
+    def on_gamer_parameter_selected(self, item):
+        """Показывает описание выбранного параметра персонажа."""
+        if not item or not self.gamer:
+            self.ui.description_selected_parameter.clear()
+            return
+
+        parameter_key = item.data(1)
+        for parameter in self.gamer.get_cf_parameters():
+            if parameter['key'] == parameter_key:
+                self.ui.description_selected_parameter.setText(parameter['description'])
+                return
+
+        self.ui.description_selected_parameter.clear()
 
     def update_inventory(self):
         """Обновление списка инвентаря"""
