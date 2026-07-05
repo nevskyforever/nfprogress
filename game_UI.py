@@ -115,6 +115,9 @@ class GameMenuController:
         edit_award_button = self.get_edit_custom_award_button()
         if edit_award_button:
             edit_award_button.clicked.connect(self.edit_selected_custom_award)
+        delete_award_button = self.get_delete_custom_award_button()
+        if delete_award_button:
+            delete_award_button.clicked.connect(self.delete_selected_custom_award)
 
         # Очистка информации при смене выбора в магазинах
         self.ui.item_shop_list.itemClicked.connect(lambda: self.clear_potion_info())
@@ -252,6 +255,8 @@ class GameMenuController:
         # Магазин кастомных наград
         self.ui.item_shop_list_2.clear()
         for award in self.gamer.custom_awards:
+            if not self.is_custom_award_in_shop(award):
+                continue
             display_text = f"{award.name}"
             item = QListWidgetItem(display_text)
             item.setData(1, ('Награды', award.name))
@@ -574,6 +579,51 @@ class GameMenuController:
         self.show_award_info('Награды', new_name)
         self.notifications.show_success('Награда изменена')
 
+    def delete_selected_custom_award(self):
+        """Убирает выбранную кастомную награду из магазина."""
+        selected = self.ui.item_shop_list_2.currentItem()
+        if not selected:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите награду")
+            return
+
+        category, item_name = selected.data(1)
+        if category != "Награды":
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Этот товар не является наградой")
+            return
+
+        award = self.get_custom_award(item_name)
+        if not award:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Награда не найдена")
+            return
+
+        old_name = award.name
+        reply = QMessageBox.question(
+            self.ui.centralwidget,
+            "Удаление награды",
+            f"Убрать награду «{item_name}» из магазина?\n"
+            "Купленные экземпляры останутся в инвентаре.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        award = self.get_custom_award(old_name)
+        if not award:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Награда не найдена")
+            return
+
+        award.available_in_shop = False
+        self.cleanup_removed_custom_awards()
+        self.gamer.save()
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        self.update_shops()
+        self.update_inventory()
+        self.clear_award_info()
+        self.notifications.show_success('Награда удалена из магазина')
+
     def buy_selected_item(self, shop_list, spinbox, expected_category):
         """Общая логика покупки"""
         selected = shop_list.currentItem()
@@ -734,6 +784,8 @@ class GameMenuController:
             return
 
         self.set_custom_award_count(item_name, available - count)
+        if available - count <= 0 and not self.is_custom_award_in_shop(award):
+            self.cleanup_removed_custom_awards()
         self.gamer.save()
         self.gamer = game.load_game()
         self.register_custom_awards()
@@ -777,6 +829,9 @@ class GameMenuController:
             if not hasattr(award, 'count'):
                 award.count = 0
                 changed = True
+            if not hasattr(award, 'available_in_shop'):
+                award.available_in_shop = True
+                changed = True
             if award.count > 0:
                 self.gamer.custom_awards_inventory[award.name] = (
                     self.gamer.custom_awards_inventory.get(award.name, 0) + award.count
@@ -801,6 +856,10 @@ class GameMenuController:
         if changed:
             self.gamer.save()
 
+    def get_delete_custom_award_button(self):
+        """Возвращает кнопку удаления награды, если она есть в UI."""
+        return getattr(self.ui, 'button_for_delete_selected_custom_award', None)
+
     def get_edit_custom_award_button(self):
         """Возвращает кнопку редактирования награды с учётом разных имён в UI."""
         return (
@@ -817,6 +876,26 @@ class GameMenuController:
             if item_data == ('Награды', name):
                 self.ui.item_shop_list_2.setCurrentItem(item)
                 return
+
+    def is_custom_award_in_shop(self, award):
+        """Проверяет, должна ли кастомная награда показываться в магазине."""
+        return getattr(award, 'available_in_shop', True)
+
+    def cleanup_removed_custom_awards(self):
+        """Удаляет скрытые из магазина награды, если их больше нет в инвентаре."""
+        if not hasattr(self.gamer, 'custom_awards_inventory') or self.gamer.custom_awards_inventory is None:
+            self.gamer.custom_awards_inventory = {}
+
+        remaining_awards = []
+        for award in self.gamer.custom_awards:
+            count = self.gamer.custom_awards_inventory.get(award.name, 0)
+            if self.is_custom_award_in_shop(award) or count > 0:
+                remaining_awards.append(award)
+            else:
+                self.gamer.custom_awards_inventory.pop(award.name, None)
+                if 'Награды' in game_data.ITEM_REGISTRY:
+                    game_data.ITEM_REGISTRY['Награды'].pop(award.name, None)
+        self.gamer.custom_awards = remaining_awards
 
     def get_custom_award(self, name):
         """Возвращает кастомную награду игрока по названию."""
@@ -1056,6 +1135,7 @@ class GameMenuController:
                 description='Кастомная награда без эффекта'
             )
             new_award.count = 0
+            new_award.available_in_shop = True
 
             self.gamer.custom_awards.append(new_award)
             self.gamer.save()

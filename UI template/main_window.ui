@@ -794,7 +794,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>320</width>
+                    <width>372</width>
                     <height>139</height>
                    </rect>
                   </property>
@@ -968,7 +968,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>93</width>
+                    <width>98</width>
                     <height>112</height>
                    </rect>
                   </property>
@@ -1116,7 +1116,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>320</width>
+                    <width>372</width>
                     <height>110</height>
                    </rect>
                   </property>
@@ -1209,6 +1209,13 @@
                  </property>
                 </widget>
                </item>
+               <item row="3" column="3">
+                <widget class="QPushButton" name="button_for_delete_selected_custom_award">
+                 <property name="text">
+                  <string>Удалить</string>
+                 </property>
+                </widget>
+               </item>
               </layout>
              </widget>
             </item>
@@ -1284,7 +1291,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>216</width>
+                    <width>164</width>
                     <height>139</height>
                    </rect>
                   </property>
@@ -1682,7 +1689,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>216</width>
+                    <width>164</width>
                     <height>159</height>
                    </rect>
                   </property>
@@ -2040,7 +2047,7 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>324</width>
+                   <width>376</width>
                    <height>150</height>
                   </rect>
                  </property>
