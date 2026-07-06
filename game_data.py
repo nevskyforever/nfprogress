@@ -561,6 +561,62 @@ class BankAccount:
         gamer.save()
         return message
 
+    def partial_repay_credit(self, gamer, amount):
+        self.normalize()
+        self._attach_to_gamer(gamer)
+        if not self.credit:
+            return 'Нет активного кредита'
+
+        try:
+            amount = round(float(amount), 1)
+        except (TypeError, ValueError):
+            return 'Сумма погашения должна быть числом'
+
+        if amount <= 0:
+            return 'Сумма погашения должна быть больше 0'
+        if gamer.coins < amount:
+            return f'Недостаточно монет. Нужно: {amount}'
+
+        self.process_daily_events(gamer, auto_pay=False, notify=False, save=False, include_deposit=False)
+        if not self.credit:
+            gamer.save()
+            return 'Кредит закрыт'
+
+        amount = min(amount, self.credit.get_remaining_sum())
+        old_daily_payment = self.credit.get_daily_payment()
+        old_interest = self.credit.get_interest()
+
+        gamer.coins -= amount
+        principal_payment = min(amount, self.credit.credit_sum)
+        extra_payment = round(amount - principal_payment, 1)
+        self.credit.credit_sum = round(max(0, self.credit.credit_sum - principal_payment), 1)
+        if extra_payment > 0:
+            self.credit.paid_amount += extra_payment
+
+        if self.credit.get_remaining_sum() <= 0:
+            self.credit_history.append({
+                'sum': self.credit.credit_sum,
+                'interest': round(self.credit.get_interest(), 1),
+                'overdue_days': self.credit.total_overdue_days,
+                'status': 'paid',
+                'paid_date': engine.today_for_test(),
+            })
+            self.credit = None
+            message = f'Частичное погашение: {amount} монет. Кредит полностью погашен.'
+        else:
+            new_interest = self.credit.get_interest()
+            new_daily_payment = self.credit.get_daily_payment()
+            message = (
+                f'Частичное погашение: {amount} монет.\n'
+                f'Осталось: {self.credit.get_remaining_sum()} монет.\n'
+                f'Платеж: {old_daily_payment} -> {new_daily_payment} монет.\n'
+                f'Проценты: {old_interest} -> {new_interest} монет.'
+            )
+
+        self._add_notification(message)
+        gamer.save()
+        return message
+
     def return_deposit(self, gamer=None):
         self.normalize()
         gamer = gamer or game.load_game()

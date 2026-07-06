@@ -1684,6 +1684,8 @@ class Bank(QDialog, Ui_Bamk):
         self.make_deposit_btn.clicked.connect(self.make_deposit)
         self.return_credit_btn.clicked.connect(self.return_credit)
         self.make_a_loan_payment.clicked.connect(self.make_loan_payment)
+        self.partial_loan_repayment.clicked.connect(self.make_partial_loan_repayment)
+        self.loan_partial_repayment_amount.textChanged.connect(self.update_partial_repayment_button)
         self.return_deposit_btn.clicked.connect(self.return_deposit)
         self.withdraw_interest_from_a_deposit.clicked.connect(self.withdraw_deposit_interest)
 
@@ -1721,6 +1723,8 @@ class Bank(QDialog, Ui_Bamk):
         self.take_credit_btn.setVisible(True)
         self.return_credit_btn.setVisible(True)
         self.make_a_loan_payment.setVisible(True)
+        self.partial_loan_repayment.setVisible(True)
+        self.loan_partial_repayment_amount.setVisible(True)
         self.make_deposit_btn.setVisible(True)
         self.return_deposit_btn.setVisible(True)
         self.withdraw_interest_from_a_deposit.setVisible(True)
@@ -1728,6 +1732,8 @@ class Bank(QDialog, Ui_Bamk):
         self.take_credit_btn.setEnabled(False)
         self.return_credit_btn.setEnabled(False)
         self.make_a_loan_payment.setEnabled(False)
+        self.partial_loan_repayment.setEnabled(False)
+        self.loan_partial_repayment_amount.setEnabled(False)
         self.make_deposit_btn.setEnabled(False)
         self.return_deposit_btn.setEnabled(False)
         self.withdraw_interest_from_a_deposit.setEnabled(False)
@@ -1756,6 +1762,8 @@ class Bank(QDialog, Ui_Bamk):
                 and credit.last_payment_date != today
                 and credit.get_daily_payment() <= self.gamer.get_coins()
             )
+            self.loan_partial_repayment_amount.setEnabled(self.gamer.get_coins() > 0)
+            self.update_partial_repayment_button()
         else:
             self.credit_status.setText('В банке нет кредита')
             self.take_credit_btn.setEnabled(self.gamer.level >= 3)
@@ -1785,6 +1793,26 @@ class Bank(QDialog, Ui_Bamk):
         else:
             self.deposit_status.setText('В банке нет вклада')
 
+    def get_partial_repayment_amount(self):
+        text = self.loan_partial_repayment_amount.text().strip().replace(',', '.')
+        if not text:
+            return None
+        try:
+            amount = round(float(text), 1)
+        except ValueError:
+            return None
+        if amount <= 0:
+            return None
+        return amount
+
+    def update_partial_repayment_button(self):
+        amount = self.get_partial_repayment_amount()
+        self.partial_loan_repayment.setEnabled(
+            bool(self.account.credit)
+            and amount is not None
+            and amount <= self.gamer.get_coins()
+        )
+
     def _reload_after_action(self, message):
         self._show_message(message)
         self.gamer.bank_account = self.account
@@ -1809,6 +1837,15 @@ class Bank(QDialog, Ui_Bamk):
 
     def make_loan_payment(self):
         message = self.account.make_loan_payment(self.gamer)
+        self._reload_after_action(message)
+
+    def make_partial_loan_repayment(self):
+        amount = self.get_partial_repayment_amount()
+        if amount is None:
+            QMessageBox.warning(self, "Ошибка", "Введите корректную сумму погашения")
+            return
+        message = self.account.partial_repay_credit(self.gamer, amount)
+        self.loan_partial_repayment_amount.clear()
         self._reload_after_action(message)
 
     def return_deposit(self):
