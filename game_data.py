@@ -409,13 +409,30 @@ class BankAccount:
         score += min(55, max(0, gamer.get_cf_value('coins', 1.0) - 1) * 35)
         score += min(60, len(self.deposit_history) * 10)
         score += min(50, sum(item.get('interest', 0) for item in self.deposit_history) / 5)
-        successful_credits = len([item for item in self.credit_history if item.get('status') == 'paid'])
+        late_credits = [item for item in self.credit_history if item.get('overdue_days', 0) > 0]
+        history_overdue_days = sum(item.get('overdue_days', 0) for item in late_credits)
+        total_overdue_days = max(self.overdue_days_total, history_overdue_days)
+        worst_overdue_days = max([item.get('overdue_days', 0) for item in late_credits] + [0])
+        successful_credits = len([
+            item for item in self.credit_history
+            if item.get('status') == 'paid' and item.get('overdue_days', 0) == 0
+        ])
         score += min(65, successful_credits * 13)
         active_debt = self.credit.get_remaining_sum() if self.credit else 0
         score -= min(150, active_debt / max(1, daily_income * 3) * 40)
-        score -= min(180, self.overdue_days_total * 18)
+        score -= min(360, total_overdue_days * 32 + len(late_credits) * 45 + max(0, worst_overdue_days - 3) * 10)
         if self.credit and self.credit.get_status() == 'Просрочен':
-            score -= 70
+            score -= 120
+            worst_overdue_days = max(worst_overdue_days, self.credit.total_overdue_days)
+
+        if worst_overdue_days >= 14:
+            score = min(score, 500)
+        elif worst_overdue_days >= 7:
+            score = min(score, 560)
+        elif worst_overdue_days >= 3:
+            score = min(score, 630)
+        elif worst_overdue_days >= 1:
+            score = min(score, 700)
         self.credit_score = int(max(300, min(850, round(score))))
         return self.credit_score
 
@@ -599,6 +616,7 @@ class BankAccount:
                 'interest': round(self.credit.get_interest(), 1),
                 'overdue_days': self.credit.total_overdue_days,
                 'status': 'paid',
+                'paid_date': engine.today_for_test(),
             })
             self.credit = None
             self._add_notification(result)
@@ -699,6 +717,7 @@ class BankAccount:
                 'interest': round(self.credit.get_interest(), 1),
                 'overdue_days': self.credit.total_overdue_days,
                 'status': 'paid',
+                'paid_date': engine.today_for_test(),
             })
             self.credit = None
             prefix = 'Автоплатеж' if automatic else 'Платеж'
