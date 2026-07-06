@@ -426,6 +426,7 @@ class Gamer:
     def remove_coins(self, removed):
         self.coins -= removed
         self.calculate_inflation()
+        self.process_bank_events(save=False)
         self.save()
 
     def get_coins(self):
@@ -434,7 +435,17 @@ class Gamer:
     def set_coins(self, coins):
         self.coins += coins
         self.calculate_inflation()
+        self.process_bank_events(save=False)
         self.save()
+
+    def process_bank_events(self, save=True):
+        bank_account = getattr(self, 'bank_account', None)
+        if not bank_account:
+            return []
+        messages = bank_account.process_daily_events(self, auto_pay=True, notify=True, save=False)
+        if messages and save:
+            self.save()
+        return messages
 
     def update_cf(self):
         """Обновляет коэффициенты монет и опыта согласно текущему уровню"""
@@ -583,6 +594,8 @@ class Gamer:
         self.apply_buffs_to_cf()
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
+        else:
+            self.bank_account.normalize()
 
     def calculate_inflation(self):
         """

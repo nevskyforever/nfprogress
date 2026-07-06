@@ -3,7 +3,7 @@
 """
 import datetime
 
-from PySide6.QtCore import QTimer, Qt
+from PySide6.QtCore import QDate, QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog, QApplication
 
 import engine
@@ -11,6 +11,7 @@ import game
 import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
 from UI_fiiles.bank import Ui_Bamk
+from UI_fiiles.ew_bank_product import Ui_Dialog as Ui_NewBankProduct
 from UI_fiiles.create_custom_award import Ui_create_castom_item
 from engine import load_data, save_data, today_for_test, unit_converter
 
@@ -46,8 +47,9 @@ class GameMenuController:
         self.timer.timeout.connect(self.update_game_data)
         self.timer.start(1000)  # Обновление каждую секунду
 
-        # Скрываем банк
-        self.ui.bank_btn.setVisible(False)
+        # Банк доступен из игрового меню.
+        self.ui.bank_btn.setVisible(True)
+        self.ui.bank_btn.setEnabled(True)
 
         # Просим выбрать элементы в мазазинах и инвентаре
         self.ui.name_selected_item_on_shop.setText('Выберите товар')
@@ -206,6 +208,7 @@ class GameMenuController:
         self.gamer = game.load_game()
         self.gamer.apply_buffs_to_cf()
         self.register_custom_awards()
+        self.process_bank_events(show_toasts=True)
 
         # Обновляем отображение
         self.ui.gamer_label.setText(str(self.gamer.level))
@@ -245,6 +248,26 @@ class GameMenuController:
             self.show_health_warning()
         elif self.gamer.health <= 0:
             self.show_death_warning()
+
+    def process_bank_events(self, show_toasts=True):
+        if not self.gamer:
+            return []
+        messages = self.gamer.process_bank_events(save=True)
+        if show_toasts:
+            for message in messages:
+                self.show_bank_message(message)
+        return messages
+
+    def show_bank_message(self, message):
+        if not self.notifications or not message:
+            return
+        lowered = message.lower()
+        if 'просроч' in lowered or 'недостаточно' in lowered:
+            self.notifications.show_warning(message)
+        elif 'автоплатеж' in lowered or 'погашен' in lowered or 'возвращено' in lowered:
+            self.notifications.show_success(message)
+        else:
+            self.notifications.show_info(message)
 
     def format_gamer_parameter_value(self, value):
         """Форматирует числовой коэффициент для списка параметров."""
@@ -1344,9 +1367,12 @@ class GameMenuController:
         dialog.close()
 
     def bank(self):
-        dialog = Bank(self.gamer)
+        dialog = Bank(self.gamer, self.notifications)
         dialog.show()
         result = dialog.exec_()
+        if result in (QDialog.Accepted, QDialog.Rejected):
+            self.gamer = dialog.gamer
+            self.update_game_data()
 
     def create_custom_award(self):
         dialog = CreateCustomAward(self.gamer)
@@ -1466,57 +1492,251 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
 
         return f'Ошибка: проект "{project_name}" не найден'
 
-class Bank(QDialog, Ui_Bamk):
-    def __init__(self, gamer: game.Gamer):
+class NewBankProduct(QDialog, Ui_NewBankProduct):
+    def __init__(self, gamer: game.Gamer, product_type):
         super().__init__()
         self.setupUi(self)
         self.gamer = gamer
+        self.product_type = product_type
+        self.account = gamer.bank_account
+        self.account.normalize()
 
-        # Скрываем кнопку взятия кредита, если уровень меньше 3
-        if gamer.level < 3:
-            self.credit_status.setVisible(False)
-            self.take_credit_btn.setVisible(False)
+        today = engine.today_for_test()
+        self.return_date_dateedit.setMinimumDate(QDate(today.year, today.month, today.day).addDays(1))
+        self.return_date_dateedit.setDate(QDate(today.year, today.month, today.day).addDays(7))
+        self.lineEdit.setText("100")
 
-        # Убираем кнопки возврата продуктов
-        self.return_credit_btn.setVisible(False)
-        self.return_deposit_btn.setVisible(False)
+        if product_type == 'credit':
+            limit = self.account.get_credit_limit(self.gamer)
+            self.setWindowTitle('Новый кредит')
+            self.product_description.setText(
+                f'Кредитный рейтинг: {self.account.calculate_credit_score(self.gamer)}\n'
+                f'Лимит кредита: {limit} монет'
+            )
+        else:
+            self.setWindowTitle('Новый вклад')
+            self.product_description.setText(
+                f'Кредитный рейтинг: {self.account.calculate_credit_score(self.gamer)}\n'
+                f'Доступно на счете: {self.gamer.get_coins()} монет'
+            )
 
-        # Убираем даты возврата
+        try:
+            self.buttonBox.accepted.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        self.buttonBox.accepted.connect(self.on_accept)
+        self.lineEdit.textChanged.connect(self.update_preview)
+        self.return_date_dateedit.dateChanged.connect(self.update_preview)
+        self.update_preview()
+
+    def _parse_amount(self):
+        text = self.lineEdit.text().strip().replace(',', '.')
+        if not text:
+            raise ValueError('Введите сумму')
+        amount = float(text)
+        if amount <= 0:
+            raise ValueError('Сумма должна быть больше 0')
+        return round(amount, 1)
+
+    def get_days(self):
+        return max(1, (self.return_date_dateedit.date().toPython() - engine.today_for_test()).days)
+
+    def validate_product(self):
+        amount = self._parse_amount()
+        days = self.get_days()
+        if self.product_type == 'credit':
+            limit = self.account.get_credit_limit(self.gamer)
+            if amount > limit:
+                raise ValueError(f'Сумма выше кредитного лимита: {limit} монет')
+        elif self.gamer.get_coins() < amount:
+            raise ValueError(f'Недостаточно монет. Доступно: {self.gamer.get_coins()}')
+        return amount, days
+
+    def update_preview(self):
+        try:
+            amount, days = self.validate_product()
+            preview = self.account.preview_product(self.gamer, self.product_type, amount, days)
+            self.product_interest_rates.setText(
+                f'Ставка: {preview["rate"]}% в день\n'
+                f'Проценты за {days} д.: {preview["interest"]} монет'
+            )
+            if self.product_type == 'credit':
+                self.total_amount_to_be_refunded.setText(
+                    f'К возврату: {preview["total"]} монет\n'
+                    f'Ежедневный платеж: {round(preview["total"] / days, 1)} монет'
+                )
+            else:
+                self.total_amount_to_be_refunded.setText(f'К снятию в конце срока: {preview["total"]} монет')
+            self.buttonBox.button(self.buttonBox.StandardButton.Ok).setEnabled(True)
+        except ValueError as error:
+            self.product_interest_rates.setText(str(error))
+            self.total_amount_to_be_refunded.setText('')
+            self.buttonBox.button(self.buttonBox.StandardButton.Ok).setEnabled(False)
+
+    def on_accept(self):
+        try:
+            self.validate_product()
+        except ValueError as error:
+            QMessageBox.warning(self, "Ошибка", str(error))
+            return
+        self.accept()
+
+    def get_amount(self):
+        return self._parse_amount()
+
+
+class Bank(QDialog, Ui_Bamk):
+    def __init__(self, gamer: game.Gamer, notifications=None):
+        super().__init__()
+        self.setupUi(self)
+        self.gamer = gamer
+        self.notifications = notifications
+        self.account: game_data.BankAccount = self.gamer.bank_account
+        self.account.normalize()
+
+        messages = self.account.process_daily_events(self.gamer, auto_pay=True, notify=True, save=False)
+        self._show_messages(messages)
+        if messages:
+            self.gamer.save()
+
+        self.take_credit_btn.clicked.connect(self.take_credit)
+        self.make_deposit_btn.clicked.connect(self.make_deposit)
+        self.return_credit_btn.clicked.connect(self.return_credit)
+        self.make_a_loan_payment.clicked.connect(self.make_loan_payment)
+        self.return_deposit_btn.clicked.connect(self.return_deposit)
+        self.withdraw_interest_from_a_deposit.clicked.connect(self.withdraw_deposit_interest)
+
+        self.refresh()
+
+    def _show_message(self, message):
+        if not message:
+            return
+        if self.notifications:
+            self.notifications.show_success(message)
+        else:
+            QMessageBox.information(self, "Банк", message)
+
+    def _show_messages(self, messages):
+        for message in messages:
+            self._show_message(message)
+
+    def refresh(self):
+        self.account = self.gamer.bank_account
+        self.account.normalize()
+        score = self.account.calculate_credit_score(self.gamer)
+        credit_rate = self.account.get_credit_rate(self.gamer)
+        deposit_rate = self.account.get_deposit_rate(self.gamer)
+        credit_limit = self.account.get_credit_limit(self.gamer)
+
+        self.credit_score.setText(
+            f'Кредитный рейтинг: {score}\n'
+            f'Лимит: {credit_limit}'
+        )
+        self.label_2.setText(f'Кредит: {credit_rate}%/д.\nВклад: {deposit_rate}%/д.')
+        self.label.setText(f'Оценочный доход: {self.account.estimate_daily_income(self.gamer)} м./д.')
+
+        today = engine.today_for_test()
+
+        self.take_credit_btn.setVisible(True)
+        self.return_credit_btn.setVisible(True)
+        self.make_a_loan_payment.setVisible(True)
+        self.make_deposit_btn.setVisible(True)
+        self.return_deposit_btn.setVisible(True)
+        self.withdraw_interest_from_a_deposit.setVisible(True)
+
+        self.take_credit_btn.setEnabled(False)
+        self.return_credit_btn.setEnabled(False)
+        self.make_a_loan_payment.setEnabled(False)
+        self.make_deposit_btn.setEnabled(False)
+        self.return_deposit_btn.setEnabled(False)
+        self.withdraw_interest_from_a_deposit.setEnabled(False)
+
+        self.credit_status.setVisible(True)
         self.return_credit_date.setVisible(False)
-        self.return_deposit_date.setVisible(False)
-
-        # Убираем суммы к возврату
         self.credit_total_sum.setVisible(False)
+
+        if self.gamer.level < 3:
+            self.credit_status.setText('Кредиты доступны с 3 уровня')
+        elif self.account.credit:
+            credit = self.account.credit
+            credit.normalize()
+            self.credit_status.setText(
+                f'{credit.get_status()}\n'
+                f'Осталось: {credit.get_remaining_sum()} монет\n'
+                f'Платеж: {credit.get_daily_payment()} монет'
+            )
+            self.return_credit_date.setVisible(True)
+            self.return_credit_date.setText(f'До {credit.get_return_date().strftime("%d.%m.%Y")}')
+            self.credit_total_sum.setVisible(True)
+            self.credit_total_sum.setText(f'Всего: {credit.get_total_sum()}')
+            self.return_credit_btn.setEnabled(credit.get_remaining_sum() <= self.gamer.get_coins())
+            self.make_a_loan_payment.setEnabled(
+                today >= credit.get_first_payment_date()
+                and credit.last_payment_date != today
+                and credit.get_daily_payment() <= self.gamer.get_coins()
+            )
+        else:
+            self.credit_status.setText('В банке нет кредита')
+            self.take_credit_btn.setEnabled(self.gamer.level >= 3)
+
+        self.make_deposit_btn.setEnabled(not self.account.deposit and self.gamer.get_coins() > 0)
+        self.return_deposit_date.setVisible(False)
         self.deposit_total_sum.setVisible(False)
 
-        # Получаем банковский аккаунт
-        account: game_data.BankAccount = self.gamer.bank_account
-        # Получаем из него продукты
-        credit: game_data.Credit = account.credit
-        deposit: game_data.Deposit = account.deposit
-
-        # Устанавливаем статусы продуктов и даты возврата
-        if credit:
-            self.credit_status.setText(credit.get_status())
-            self.return_credit_date.setVisible(True)
-            self.return_credit_date.setText(credit.get_return_date())
-            # Скрываем кнопку взятия
-            self.take_credit_btn.setVisible(False)
-            # Показываем кнопку возврата
-            self.return_credit_btn.setVisible(True)
-        if deposit:
-            # Получаем данные
-            self.deposit_status.setText(deposit.get_status())
+        if self.account.deposit:
+            deposit = self.account.deposit
+            deposit.normalize()
+            self.deposit_status.setText(
+                f'{deposit.get_status()}\n'
+                f'Вклад: {deposit.get_sum()} монет\n'
+                f'Доступные проценты: {deposit.get_available_interest()}'
+            )
             self.return_deposit_date.setVisible(True)
-            self.return_deposit_date.setText(deposit.get_return_date())
-            # Скрываем кнопку взятия
-            self.make_deposit_btn.setVisible(False)
-            if deposit.get_return_date() <= engine.today_for_test():
-                self.return_deposit_btn.setVisible(True)
+            self.return_deposit_date.setText(f'До {deposit.get_return_date().strftime("%d.%m.%Y")}')
+            self.deposit_total_sum.setVisible(True)
+            self.deposit_total_sum.setText(f'К снятию: {deposit.get_total_sum()}')
+            self.return_deposit_btn.setEnabled(deposit.get_return_date() <= today)
+            self.withdraw_interest_from_a_deposit.setEnabled(
+                today > deposit.give_date
+                and deposit.last_interest_withdraw_date != today
+                and deposit.get_available_interest() > 0
+            )
+        else:
+            self.deposit_status.setText('В банке нет вклада')
 
-        def take_credit():
-            """Метод дял взятия кредита''"""
-            pass
+    def _reload_after_action(self, message):
+        self._show_message(message)
+        self.gamer.bank_account = self.account
+        self.account = self.gamer.bank_account
+        self.refresh()
+
+    def take_credit(self):
+        dialog = NewBankProduct(self.gamer, 'credit')
+        if dialog.exec_() == QDialog.Accepted:
+            ok, message = self.account.open_credit(self.gamer, dialog.get_amount(), dialog.get_days())
+            self._reload_after_action(message)
+
+    def make_deposit(self):
+        dialog = NewBankProduct(self.gamer, 'deposit')
+        if dialog.exec_() == QDialog.Accepted:
+            ok, message = self.account.open_deposit(self.gamer, dialog.get_amount(), dialog.get_days())
+            self._reload_after_action(message)
+
+    def return_credit(self):
+        message = self.account.return_credit(self.gamer)
+        self._reload_after_action(message)
+
+    def make_loan_payment(self):
+        message = self.account.make_loan_payment(self.gamer)
+        self._reload_after_action(message)
+
+    def return_deposit(self):
+        message = self.account.return_deposit(self.gamer)
+        self._reload_after_action(message)
+
+    def withdraw_deposit_interest(self):
+        message = self.account.withdraw_deposit_interest(self.gamer)
+        self._reload_after_action(message)
 
 class CreateCustomAward(QDialog, Ui_create_castom_item):
     def __init__(self, gamer: game.Gamer):

@@ -179,13 +179,39 @@ class Credit:
     def __init__(self, credit_sum, days_until_return, interest_rate_on_loan=2):
         self.take_date = engine.today_for_test()
         self.days_until_return = days_until_return
-        gamer = game.load_game()
-        self.interest_rate_on_loan = interest_rate_on_loan * (gamer.get_cf_value('coins') if gamer else 1.0)
+        self.interest_rate_on_loan = interest_rate_on_loan
         self.credit_sum = credit_sum
         self.interest = 0
+        self.paid_amount = 0
+        self.accrued_penalty = 0
+        self.last_payment_date = None
+        self.last_penalty_date = None
+        self.total_overdue_days = 0
+        self.last_daily_check_date = None
+        self.last_payment_notice_date = None
+
+    def normalize(self):
+        if not hasattr(self, 'paid_amount'):
+            self.paid_amount = 0
+        if not hasattr(self, 'accrued_penalty'):
+            self.accrued_penalty = 0
+        if not hasattr(self, 'last_payment_date'):
+            self.last_payment_date = None
+        if not hasattr(self, 'last_penalty_date'):
+            self.last_penalty_date = None
+        if not hasattr(self, 'total_overdue_days'):
+            self.total_overdue_days = 0
+        if not hasattr(self, 'last_daily_check_date'):
+            self.last_daily_check_date = None
+        if not hasattr(self, 'last_payment_notice_date'):
+            self.last_payment_notice_date = None
+        return self
 
     def get_return_date(self):
         return self.take_date + timedelta(days=self.days_until_return)
+
+    def get_first_payment_date(self):
+        return self.take_date + timedelta(days=1)
 
     def get_sum(self):
         return self.credit_sum
@@ -204,50 +230,67 @@ class Credit:
         return self.interest_rate_on_loan
 
     def calculate_interest(self):
-        today = engine.today_for_test()
-        passed_days = (today - self.take_date).days
+        self.normalize()
         rate = self.interest_rate_on_loan
-
-        if self.get_status() == 'Просрочен':
-            passed_days *= 2  # Удвоение за просрочку
-        self.interest = (self.credit_sum / 100) * (rate * passed_days)
+        self.interest = round((self.credit_sum / 100) * (rate * self.days_until_return), 1)
         return self.interest
 
     def get_interest(self):
         return self.calculate_interest()
 
     def get_total_sum(self):
-        return self.credit_sum + self.get_interest()
+        self.normalize()
+        return round(self.credit_sum + self.get_interest() + self.accrued_penalty, 1)
+
+    def get_remaining_sum(self):
+        self.normalize()
+        return max(0, round(self.get_total_sum() - self.paid_amount, 1))
+
+    def get_daily_payment(self):
+        self.normalize()
+        days = max(1, self.days_until_return)
+        return round(min(self.get_remaining_sum(), self.get_total_sum() / days), 1)
 
     def get_damage(self):
         today = engine.today_for_test()
         return_date = self.get_return_date()
         if today > return_date:
-            return (today - return_date).days * 5
+            return (today - return_date).days * 10
         return 0
 
     def repay(self, gamer):
-        """Полное погашение с учётом просрочки"""
-        total_sum = self.get_total_sum()
+        """Полное погашение с учётом уже внесенных платежей."""
+        self.normalize()
+        total_sum = self.get_remaining_sum()
 
         if gamer.coins < total_sum:
             return f'Недостаточно монет. Нужно: {total_sum}'
 
         gamer.coins -= total_sum
+        self.paid_amount = self.get_total_sum()
 
-        # Урон за просрочку
-        damage = self.get_damage()
-        if damage > 0:
-            gamer.health -= damage
+        return f'КРЕДИТ ПОГАШЕН\nСумма: {self.credit_sum}, проценты: {self.get_interest()}, штрафы: {round(self.accrued_penalty, 1)}'
 
-        return f'КРЕДИТ ПОГАШЕН\nСумма: {self.credit_sum}, Проценты: {self.interest}, Урон: {damage}'
+
 class Deposit:
     def __init__(self, deposit_sum, days_until_return, interest_rate_on_deposit=1):
         self.give_date = engine.today_for_test()
         self.deposit_sum = deposit_sum
         self.days_until_return = days_until_return
-        self.interest_rate_on_deposit = interest_rate_on_deposit * game.load_game().get_cf_value('coins')
+        self.interest_rate_on_deposit = interest_rate_on_deposit
         self.interest = 0
+        self.withdrawn_interest = 0
+        self.last_interest_withdraw_date = None
+        self.last_interest_notice_date = None
+
+    def normalize(self):
+        if not hasattr(self, 'withdrawn_interest'):
+            self.withdrawn_interest = 0
+        if not hasattr(self, 'last_interest_withdraw_date'):
+            self.last_interest_withdraw_date = None
+        if not hasattr(self, 'last_interest_notice_date'):
+            self.last_interest_notice_date = None
+        return self
 
     def get_sum(self):
         return self.deposit_sum
@@ -256,8 +299,10 @@ class Deposit:
         return self.give_date + timedelta(days=self.days_until_return)
 
     def set_interest(self):
+        self.normalize()
         rate = self.interest_rate_on_deposit
-        self.interest = (self.deposit_sum / 100) * (self.days_until_return * rate)
+        gross_interest = (self.deposit_sum / 100) * (self.days_until_return * rate)
+        self.interest = max(0, round(gross_interest - self.withdrawn_interest, 1))
 
     def get_interest(self):
         self.set_interest()
@@ -271,48 +316,433 @@ class Deposit:
         elif today == return_date or today > return_date:
             status = 'Можно снять'
         return status
+
     def get_total_sum(self):
-        return self.deposit_sum + self.get_interest()
+        return round(self.deposit_sum + self.get_interest(), 1)
+
+    def get_available_interest(self):
+        self.normalize()
+        today = engine.today_for_test()
+        passed_days = max(0, min((today - self.give_date).days, self.days_until_return))
+        gross_interest = (self.deposit_sum / 100) * (self.interest_rate_on_deposit * passed_days)
+        return max(0, round(gross_interest - self.withdrawn_interest, 1))
+
+
 class BankAccount:
     def __init__(self, credit=None, deposit=None):
         self.credit = credit
         self.deposit = deposit
+        self.credit_score = 600
+        self.credit_history = []
+        self.deposit_history = []
+        self.overdue_days_total = 0
+
+    def normalize(self):
+        if not hasattr(self, 'credit_score'):
+            self.credit_score = 600
+        if not hasattr(self, 'credit_history'):
+            self.credit_history = []
+        if not hasattr(self, 'deposit_history'):
+            self.deposit_history = []
+        if not hasattr(self, 'overdue_days_total'):
+            self.overdue_days_total = 0
+        if self.credit and hasattr(self.credit, 'normalize'):
+            self.credit.normalize()
+        if self.deposit and hasattr(self.deposit, 'normalize'):
+            self.deposit.normalize()
+        return self
+
     def set_credit(self, credit):
+        self.normalize()
         self.credit = credit
+
     def set_deposit(self, deposit):
+        self.normalize()
         self.deposit = deposit
+
     def get_credit(self):
+        self.normalize()
         return self.credit
+
     def get_deposit(self):
+        self.normalize()
         return self.deposit
 
-    def return_deposit(self):
-        gamer = game.load_game()
+    def _attach_to_gamer(self, gamer):
+        if gamer is not None:
+            gamer.bank_account = self
 
-        # Считаем итоговую сумму
+    def _inventory_value(self, gamer):
+        total = 0
+        items = getattr(gamer, 'items', {})
+        if not isinstance(items, dict):
+            return total
+
+        for category, category_items in items.items():
+            if category == 'Награды':
+                continue
+            if not isinstance(category_items, dict):
+                continue
+            for item_name, count in category_items.items():
+                if count <= 0:
+                    continue
+                item = ITEM_REGISTRY.get(category, {}).get(item_name)
+                if item:
+                    total += item.price * count
+        return round(total, 1)
+
+    def estimate_daily_income(self, gamer):
+        cf_income = max(1.0, gamer.get_cf_value('coins', 1.0)) * 10
+        level_income = max(0, gamer.level - 1) * 2
+        return round((cf_income + level_income) * gamer.calculate_inflation(), 1)
+
+    def calculate_credit_score(self, gamer):
+        self.normalize()
+        balance = max(0, gamer.get_coins())
+        inventory_value = self._inventory_value(gamer)
+        daily_income = self.estimate_daily_income(gamer)
+        score = 420
+        score += min(120, gamer.level * 8)
+        score += min(110, daily_income * 2)
+        score += min(90, balance / 8)
+        score += min(70, inventory_value / 20)
+        score += min(55, max(0, gamer.get_cf_value('coins', 1.0) - 1) * 35)
+        score += min(60, len(self.deposit_history) * 10)
+        score += min(50, sum(item.get('interest', 0) for item in self.deposit_history) / 5)
+        successful_credits = len([item for item in self.credit_history if item.get('status') == 'paid'])
+        score += min(65, successful_credits * 13)
+        active_debt = self.credit.get_remaining_sum() if self.credit else 0
+        score -= min(150, active_debt / max(1, daily_income * 3) * 40)
+        score -= min(180, self.overdue_days_total * 18)
+        if self.credit and self.credit.get_status() == 'Просрочен':
+            score -= 70
+        self.credit_score = int(max(300, min(850, round(score))))
+        return self.credit_score
+
+    def get_credit_limit(self, gamer):
+        score = self.calculate_credit_score(gamer)
+        daily_income = self.estimate_daily_income(gamer)
+        inventory_value = self._inventory_value(gamer)
+        multiplier = 4 + max(0, score - 300) / 80
+        return round(max(50, daily_income * multiplier + gamer.get_coins() * 0.45 + inventory_value * 0.25), 1)
+
+    def get_credit_rate(self, gamer, amount=None, days=None):
+        score = self.calculate_credit_score(gamer)
+        daily_income = self.estimate_daily_income(gamer)
+        inflation = gamer.calculate_inflation()
+
+        # Игровая дневная ставка. Кредит должен быть заметной нагрузкой:
+        # 14 дней при хорошем рейтинге стоят около 7-9%, при плохом - до 18-22%.
+        score_discount = (score - 300) / 550
+        rate = 1.45 - score_discount * 0.85
+        rate += min(0.25, max(0, inflation - 1) * 0.015)
+
+        if days is not None:
+            rate += min(0.30, max(0, int(days) - 14) * 0.006)
+
+        if amount is not None and days is not None:
+            payment_capacity = max(1, daily_income * max(1, int(days)) * 0.65)
+            burden = max(0, float(amount) - payment_capacity) / payment_capacity
+            rate += min(0.35, burden * 0.18)
+
+        deposit_rate = self.get_deposit_rate(gamer)
+        return round(max(deposit_rate + 0.35, min(1.85, rate)), 3)
+
+    def get_deposit_rate(self, gamer):
+        score = self.calculate_credit_score(gamer)
+        inflation = gamer.calculate_inflation()
+        rate = 0.025 + (score - 300) / 550 * 0.07
+        rate += min(0.035, max(0, inflation - 1) * 0.003)
+        return round(max(0.025, min(0.13, rate)), 3)
+
+    def preview_product(self, gamer, product_type, amount, days):
+        self.normalize()
+        amount = max(0, float(amount))
+        days = max(1, int(days))
+        if product_type == 'credit':
+            rate = self.get_credit_rate(gamer, amount, days)
+            limit = self.get_credit_limit(gamer)
+        else:
+            rate = self.get_deposit_rate(gamer)
+            limit = None
+        interest = round((amount / 100) * rate * days, 1)
+        return {'rate': rate, 'interest': interest, 'total': round(amount + interest, 1), 'limit': limit}
+
+    def open_credit(self, gamer, amount, days):
+        self.normalize()
+        self._attach_to_gamer(gamer)
+        if self.credit:
+            return False, 'У вас уже есть активный кредит'
+        if gamer.level < 3:
+            return False, 'Кредиты доступны с 3 уровня'
+        limit = self.get_credit_limit(gamer)
+        if amount > limit:
+            return False, f'Сумма выше кредитного лимита: {limit} монет'
+        preview = self.preview_product(gamer, 'credit', amount, days)
+        self.credit = Credit(amount, days, preview['rate'])
+        gamer.coins += amount
+        message = f'Кредит открыт. На счет зачислено {amount} монет'
+        self._add_notification(
+            f'{message}. Первый платеж {self.credit.get_first_payment_date().strftime("%d.%m.%Y")}: '
+            f'{self.credit.get_daily_payment()} монет.'
+        )
+        gamer.save()
+        return True, message
+
+    def open_deposit(self, gamer, amount, days):
+        self.normalize()
+        self._attach_to_gamer(gamer)
+        if self.deposit:
+            return False, 'У вас уже есть активный вклад'
+        if gamer.coins < amount:
+            return False, f'Недостаточно монет. Нужно: {amount}'
+        preview = self.preview_product(gamer, 'deposit', amount, days)
+        gamer.coins -= amount
+        self.deposit = Deposit(amount, days, preview['rate'])
+        message = f'Вклад открыт. Списано {amount} монет'
+        self._add_notification(f'{message}. Ожидаемый доход: {preview["interest"]} монет.')
+        gamer.save()
+        return True, message
+
+    def process_credit_penalty(self, gamer):
+        messages = self.process_daily_events(gamer, auto_pay=False, notify=True, save=True, include_deposit=False)
+        return '\n'.join(messages) if messages else None
+
+    def make_loan_payment(self, gamer):
+        self.normalize()
+        self._attach_to_gamer(gamer)
+        if not self.credit:
+            return 'Нет активного кредита'
+        today = engine.today_for_test()
+        if today < self.credit.get_first_payment_date():
+            return f'Первый платеж будет доступен {self.credit.get_first_payment_date().strftime("%d.%m.%Y")}'
+
+        self._process_overdue_credit_days(gamer, today)
+        if not self.credit:
+            gamer.save()
+            return 'Кредит закрыт'
+
+        if self.credit.last_payment_date == today:
+            return 'Платеж по кредиту сегодня уже внесен'
+
+        message = self._try_pay_credit_today(gamer, today, notify_if_not_enough=True, automatic=False)
+        self._add_notification(message)
+        gamer.save()
+        return message
+
+    def return_deposit(self, gamer=None):
+        self.normalize()
+        gamer = gamer or game.load_game()
+        self._attach_to_gamer(gamer)
+        if not self.deposit:
+            return 'Нет вклада'
+        if self.deposit.get_return_date() > engine.today_for_test():
+            return 'Срок вклада еще не наступил'
+
         total_sum = self.deposit.get_total_sum()
-
-        # ТОЛЬКО ОДНА операция с монетами!
+        interest = self.deposit.get_interest()
         gamer.coins += total_sum
-
-        # Удаляем депозит
-        gamer.bank_account.set_deposit(None)
-
-        # Сохраняем
+        self.deposit_history.append({'sum': self.deposit.deposit_sum, 'interest': interest, 'status': 'returned'})
+        self.deposit = None
+        self._add_notification(f'Депозит снят. Вы получили {total_sum} монет.')
         gamer.save()
 
         return (f'\nДЕПОЗИТ СНЯТ\n'
                 f'Вы получили {total_sum} монет')
 
-    def return_credit(self):
-        gamer = game.load_game()
+    def withdraw_deposit_interest(self, gamer):
+        self.normalize()
+        self._attach_to_gamer(gamer)
+        if not self.deposit:
+            return 'Нет активного вклада'
+        today = engine.today_for_test()
+        if self.deposit.last_interest_withdraw_date == today:
+            return 'Проценты сегодня уже сняты'
+        interest = self.deposit.get_available_interest()
+        if interest <= 0:
+            return 'Пока нет доступных процентов'
+        gamer.coins += interest
+        self.deposit.withdrawn_interest += interest
+        self.deposit.last_interest_withdraw_date = today
+        message = f'Сняты проценты по вкладу: {interest} монет'
+        self._add_notification(message)
+        gamer.save()
+        return message
+
+    def process_deposit_maturity(self, gamer):
+        self.normalize()
+        self._attach_to_gamer(gamer)
+        if not self.deposit or self.deposit.get_return_date() > engine.today_for_test():
+            return None
+        total_sum = self.deposit.get_total_sum()
+        interest = self.deposit.get_interest()
+        gamer.coins += total_sum
+        self.deposit_history.append({'sum': self.deposit.deposit_sum, 'interest': interest, 'status': 'auto_returned'})
+        self.deposit = None
+        message = f'Срок вклада завершен. На счет возвращено {total_sum} монет.'
+        self._add_notification(message)
+        gamer.save()
+        return message
+
+    def return_credit(self, gamer=None):
+        self.normalize()
+        gamer = gamer or game.load_game()
+        self._attach_to_gamer(gamer)
         if not self.credit:
             return 'Нет кредита'
 
+        self.process_daily_events(gamer, auto_pay=False, notify=False, save=False, include_deposit=False)
         result = self.credit.repay(gamer)
-        gamer.bank_account.credit = None  # Полное удаление
+        if self.credit.get_remaining_sum() <= 0:
+            self.credit_history.append({
+                'sum': self.credit.credit_sum,
+                'interest': round(self.credit.get_interest(), 1),
+                'overdue_days': self.credit.total_overdue_days,
+                'status': 'paid',
+            })
+            self.credit = None
+            self._add_notification(result)
         gamer.save()
         return result
+
+    def process_daily_events(self, gamer, auto_pay=True, notify=True, save=True, include_deposit=True):
+        self.normalize()
+        self._attach_to_gamer(gamer)
+        messages = []
+
+        if include_deposit:
+            deposit_message = self.process_deposit_maturity(gamer)
+            if deposit_message:
+                messages.append(deposit_message)
+            elif self.deposit:
+                interest_message = self._notify_available_deposit_interest()
+                if interest_message:
+                    messages.append(interest_message)
+
+        if self.credit:
+            messages.extend(self._process_credit_day(gamer, auto_pay=auto_pay, notify=notify))
+
+        if messages and save:
+            gamer.save()
+        return messages
+
+    def _process_credit_day(self, gamer, auto_pay=True, notify=True):
+        today = engine.today_for_test()
+        messages = []
+        self._process_overdue_credit_days(gamer, today, messages)
+        if not self.credit:
+            return messages
+        if today < self.credit.get_first_payment_date():
+            return messages
+        if self.credit.last_payment_date == today:
+            self.credit.last_daily_check_date = today
+            return messages
+
+        if auto_pay:
+            message = self._try_pay_credit_today(gamer, today, notify_if_not_enough=notify, automatic=True)
+            if message:
+                messages.append(message)
+        elif notify:
+            message = self._notify_credit_payment_due(today)
+            if message:
+                messages.append(message)
+        return messages
+
+    def _process_overdue_credit_days(self, gamer, today, messages=None):
+        if not self.credit:
+            return
+        credit = self.credit
+        first_payment_date = credit.get_first_payment_date()
+        if today <= first_payment_date:
+            return
+
+        start_date = first_payment_date
+        if credit.last_daily_check_date is not None:
+            start_date = max(start_date, credit.last_daily_check_date + timedelta(days=1))
+
+        current_date = start_date
+        while self.credit and current_date < today:
+            if credit.last_payment_date != current_date:
+                penalty = max(5, round(credit.get_remaining_sum() * 0.015, 1))
+                damage = 10
+                credit.accrued_penalty += penalty
+                credit.last_penalty_date = current_date
+                credit.total_overdue_days += 1
+                self.overdue_days_total += 1
+                gamer.health = max(0, gamer.health - damage)
+                message = (
+                    f'Просрочка платежа по кредиту за {current_date.strftime("%d.%m.%Y")}: '
+                    f'штраф {penalty} монет, урон здоровью {damage}.'
+                )
+                self._add_notification(message)
+                if messages is not None:
+                    messages.append(message)
+            credit.last_daily_check_date = current_date
+            current_date += timedelta(days=1)
+
+    def _try_pay_credit_today(self, gamer, today, notify_if_not_enough=True, automatic=True):
+        if not self.credit:
+            return None
+        payment = self.credit.get_daily_payment()
+        if gamer.coins < payment:
+            if notify_if_not_enough:
+                return self._notify_credit_payment_due(today)
+            return None
+
+        gamer.coins -= payment
+        self.credit.paid_amount += payment
+        self.credit.last_payment_date = today
+        self.credit.last_daily_check_date = today
+        if self.credit.get_remaining_sum() <= 0:
+            self.credit_history.append({
+                'sum': self.credit.credit_sum,
+                'interest': round(self.credit.get_interest(), 1),
+                'overdue_days': self.credit.total_overdue_days,
+                'status': 'paid',
+            })
+            self.credit = None
+            prefix = 'Автоплатеж' if automatic else 'Платеж'
+            return f'{prefix} по кредиту: {payment} монет. Кредит полностью погашен.'
+        prefix = 'Автоплатеж' if automatic else 'Платеж'
+        return f'{prefix} по кредиту: {payment} монет. Осталось: {self.credit.get_remaining_sum()} монет.'
+
+    def _notify_credit_payment_due(self, today):
+        if not self.credit or self.credit.last_payment_notice_date == today:
+            return None
+        payment = self.credit.get_daily_payment()
+        self.credit.last_payment_notice_date = today
+        message = f'Сегодня платеж по кредиту: {payment} монет. На балансе недостаточно средств для автоплатежа.'
+        self._add_notification(message)
+        return message
+
+    def _notify_available_deposit_interest(self):
+        if not self.deposit:
+            return None
+        today = engine.today_for_test()
+        if today <= self.deposit.give_date:
+            return None
+        if self.deposit.last_interest_withdraw_date == today:
+            return None
+        if self.deposit.last_interest_notice_date == today:
+            return None
+        interest = self.deposit.get_available_interest()
+        if interest <= 0:
+            return None
+        self.deposit.last_interest_notice_date = today
+        message = f'По вкладу доступны проценты к снятию: {interest} монет.'
+        self._add_notification(message)
+        return message
+
+    def _add_notification(self, text):
+        data = engine.load_data()
+        notifications = data.get('notifications', {'new': [], 'read': []})
+        if not isinstance(notifications, dict):
+            notifications = {'new': [], 'read': []}
+        notifications.setdefault('new', [])
+        notifications.setdefault('read', [])
+        notifications['new'].append(engine.Notification(text, tag='bank'))
+        data['notifications'] = notifications
+        engine.save_data(data)
 
 
 # Функции для объектов-функций

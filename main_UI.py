@@ -185,6 +185,8 @@ class MainWindow(QMainWindow, main_window_ui):
         if en.load_settings().get('global_streak', False):
             self.refresh_global_streak_status()
 
+        self.game_controller.process_bank_events(show_toasts=True)
+        self.game_controller.update_game_data()
         self.notifications.show_info('Новый день. Проекты обновлены.', duration=10000, position='bottom-right')
 
     def on_enter_pressed(self):
