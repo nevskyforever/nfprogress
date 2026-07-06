@@ -1557,7 +1557,14 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
 
         today = engine.today_for_test()
         self.return_date_dateedit.setMinimumDate(QDate(today.year, today.month, today.day).addDays(1))
-        self.return_date_dateedit.setDate(QDate(today.year, today.month, today.day).addDays(7))
+        default_days = 7
+        if product_type == 'credit':
+            self.max_credit_days = self.account.get_max_credit_days()
+            self.return_date_dateedit.setMaximumDate(
+                QDate(today.year, today.month, today.day).addDays(self.max_credit_days)
+            )
+            default_days = min(default_days, self.max_credit_days)
+        self.return_date_dateedit.setDate(QDate(today.year, today.month, today.day).addDays(default_days))
         default_amount = initial_amount if initial_amount is not None else min_amount
         self.lineEdit.setText(str(round(default_amount, 1) if default_amount else 100))
 
@@ -1566,7 +1573,8 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
             self.setWindowTitle('Новый кредит')
             description = (
                 f'Кредитный рейтинг: {self.account.calculate_credit_score(self.gamer)}\n'
-                f'Лимит кредита: {limit} монет'
+                f'Лимит кредита: {limit} монет\n'
+                f'Максимальный срок: {self.max_credit_days} дн.'
             )
             if self.min_amount:
                 description += f'\nМинимальная сумма: {self.min_amount} монет'
@@ -1608,6 +1616,9 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
             limit = self.account.get_credit_limit(self.gamer)
             if amount > limit:
                 raise ValueError(f'Сумма выше кредитного лимита: {limit} монет')
+            max_days = self.account.get_max_credit_days()
+            if days > max_days:
+                raise ValueError(f'Максимальный срок кредита: {max_days} дн.')
         elif self.gamer.get_coins() < amount:
             raise ValueError(f'Недостаточно монет. Доступно: {self.gamer.get_coins()}')
         return amount, days

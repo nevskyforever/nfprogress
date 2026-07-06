@@ -443,6 +443,16 @@ class BankAccount:
         multiplier = 4 + max(0, score - 300) / 80
         return round(max(50, daily_income * multiplier + gamer.get_coins() * 0.45 + inventory_value * 0.25), 1)
 
+    def get_max_credit_days(self):
+        max_days = 30
+        settings = engine.load_settings()
+        if settings.get('global_streak', False):
+            data = engine.load_data()
+            current_streak_len = len(data.get('global_streaks', []))
+            if current_streak_len > 0:
+                max_days += current_streak_len
+        return max(1, max_days)
+
     def get_credit_rate(self, gamer, amount=None, days=None):
         score = self.calculate_credit_score(gamer)
         daily_income = self.estimate_daily_income(gamer)
@@ -477,6 +487,7 @@ class BankAccount:
         amount = max(0, float(amount))
         days = max(1, int(days))
         if product_type == 'credit':
+            days = min(days, self.get_max_credit_days())
             rate = self.get_credit_rate(gamer, amount, days)
             limit = self.get_credit_limit(gamer)
         else:
@@ -495,6 +506,9 @@ class BankAccount:
         limit = self.get_credit_limit(gamer)
         if amount > limit:
             return False, f'Сумма выше кредитного лимита: {limit} монет'
+        max_days = self.get_max_credit_days()
+        if days > max_days:
+            return False, f'Максимальный срок кредита: {max_days} дн.'
         preview = self.preview_product(gamer, 'credit', amount, days)
         self.credit = Credit(amount, days, preview['rate'])
         gamer.coins += amount
