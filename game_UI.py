@@ -939,21 +939,9 @@ class GameMenuController:
                         return
 
                 # Покупаем предметы
-                success_count = 0
-                for i in range(count):
-                    result = item_obj.buy()
-                    if "Недостаточно" not in result:
-                        success_count += 1
-                    else:
-                        QMessageBox.warning(
-                            self.ui.centralwidget,
-                            "Ошибка",
-                            f"Покупка остановлена: {result}"
-                        )
-                        break
+                success_count = self.purchase_registry_item(item_obj, count, total_price)
 
                 if success_count > 0:
-                    # Перезагружаем игрока для актуальных данных
                     self.gamer = game.load_game()
                     self.register_custom_awards()
                     self.update_game_data()
@@ -1068,8 +1056,8 @@ class GameMenuController:
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", credit_message)
             return False
 
-        self.gamer.bank_account = account
-        self.gamer.save()
+        self.gamer = game.load_game()
+        self.register_custom_awards()
         if self.notifications:
             self.notifications.show_success(credit_message)
 
@@ -1081,6 +1069,28 @@ class GameMenuController:
             )
             return False
         return True
+
+    def purchase_registry_item(self, item_obj, count, total_price):
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        if self.gamer.coins < total_price:
+            QMessageBox.warning(
+                self.ui.centralwidget,
+                "Ошибка",
+                f"Покупка остановлена: недостаточно монет.\nНужно: {total_price}💰\nУ вас: {round(self.gamer.coins, 1)}💰"
+            )
+            return 0
+
+        self.gamer.remove_coins(total_price)
+        items = self.gamer.get_items()
+        if item_obj.item_type not in items:
+            items[item_obj.item_type] = {}
+        if item_obj.name not in items[item_obj.item_type]:
+            items[item_obj.item_type][item_obj.name] = 0
+        items[item_obj.item_type][item_obj.name] += count
+        self.gamer.set_items(items)
+        self.gamer.save()
+        return count
 
     def use_custom_award(self, item_name, count):
         """Использование кастомной награды без игрового эффекта."""
