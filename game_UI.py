@@ -212,7 +212,7 @@ class GameMenuController:
 
         # Обновляем отображение
         self.ui.gamer_label.setText(str(self.gamer.level))
-        self.ui.gamer_coins.setText(str(round(self.gamer.coins, 1)))
+        self.ui.gamer_coins.setText(str(self.gamer.get_coins()))
 
         # Опыт - получаем необходимое для следующего уровня
         current_level = self.gamer.level
@@ -920,14 +920,14 @@ class GameMenuController:
                 total_price = item_obj.price * count
 
                 # Проверяем достаточно ли монет
-                if self.gamer.coins < total_price:
+                if self.gamer.get_coins() < total_price:
                     if not getattr(item_obj, 'credit_allowed', True):
                         QMessageBox.warning(
                             self.ui.centralwidget,
                             "Ошибка",
                             f"Недостаточно монет!\n"
                             f"Нужно: {total_price}💰\n"
-                            f"У вас: {round(self.gamer.coins, 1)}💰\n\n"
+                            f"У вас: {self.gamer.get_coins()}💰\n\n"
                             f"Этот предмет нельзя купить в кредит."
                         )
                         return
@@ -988,7 +988,7 @@ class GameMenuController:
         count = self.ui.value_for_buy_selected_item_3.value()
         total_price = award.price * count
 
-        if self.gamer.coins < total_price:
+        if self.gamer.get_coins() < total_price:
             if not self.offer_purchase_credit(total_price, f"{count} x {item_name}"):
                 return
             skip_confirmation = True
@@ -1032,12 +1032,12 @@ class GameMenuController:
         self.register_custom_awards()
         account = self.gamer.bank_account
         account.normalize()
-        deficit = round(total_price - self.gamer.coins, 1)
+        deficit = self.gamer.round_money(total_price - self.gamer.get_coins())
 
         if deficit <= 0:
             return True
 
-        message = f"Недостаточно монет!\nНужно: {total_price}💰\nУ вас: {round(self.gamer.coins, 1)}💰"
+        message = f"Недостаточно монет!\nНужно: {total_price}💰\nУ вас: {self.gamer.get_coins()}💰"
 
         can_offer_credit = (
             self.gamer.level >= 3
@@ -1071,11 +1071,11 @@ class GameMenuController:
         if self.notifications:
             self.notifications.show_success(credit_message)
 
-        if self.gamer.coins < total_price:
+        if self.gamer.get_coins() < total_price:
             QMessageBox.warning(
                 self.ui.centralwidget,
                 "Ошибка",
-                f"После оформления кредита всё ещё не хватает монет.\nНужно: {total_price}💰\nУ вас: {round(self.gamer.coins, 1)}💰"
+                f"После оформления кредита всё ещё не хватает монет.\nНужно: {total_price}💰\nУ вас: {self.gamer.get_coins()}💰"
             )
             return False
         return True
@@ -1083,7 +1083,7 @@ class GameMenuController:
     def purchase_registry_item(self, item_obj, count, total_price):
         self.gamer = game.load_game()
         self.register_custom_awards()
-        if self.gamer.coins < total_price:
+        if self.gamer.get_coins() < total_price:
             credit_text = ''
             if not getattr(item_obj, 'credit_allowed', True):
                 credit_text = '\nЭтот предмет нельзя купить в кредит.'
@@ -1092,7 +1092,7 @@ class GameMenuController:
                 "Ошибка",
                 f"Покупка остановлена: недостаточно монет.\n"
                 f"Нужно: {total_price}💰\n"
-                f"У вас: {round(self.gamer.coins, 1)}💰"
+                f"У вас: {self.gamer.get_coins()}💰"
                 f"{credit_text}"
             )
             return 0
@@ -1309,7 +1309,7 @@ class GameMenuController:
 
         revival_item = game_data.ITEM_REGISTRY['Зелья'][revival_name]
         revival_price = revival_item.price
-        if self.gamer.coins >= revival_price:
+        if self.gamer.get_coins() >= revival_price:
             choice = QMessageBox.question(
                 self.ui.centralwidget,
                 "Воскрешение",
@@ -1319,7 +1319,7 @@ class GameMenuController:
                 QMessageBox.Yes | QMessageBox.No
             )
             if choice == QMessageBox.Yes:
-                self.gamer.coins -= revival_price
+                self.gamer.remove_coins(revival_price, process_bank_events=False, save=False)
                 self.gamer.health = 100
                 self.gamer.save()
                 self._death_warning_shown = False
@@ -1333,7 +1333,7 @@ class GameMenuController:
 
         if hasattr(self, '_death_warning_shown') and self._death_warning_shown:
             self.gamer.level = 1
-            self.gamer.coins /= 2
+            self.gamer.coins = self.gamer.round_money(self.gamer.get_coins() / 2)
             self.gamer.exp = 0
             self.gamer.items = {}
             self.gamer.health = 100
@@ -1625,12 +1625,12 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
         text = self.lineEdit.text().strip().replace(',', '.')
         if not text:
             raise ValueError('Введите сумму')
-        amount = float(text)
+        amount = self.gamer.round_money(float(text))
         if amount <= 0:
             raise ValueError('Сумма должна быть больше 0')
         if self.min_amount is not None and amount < self.min_amount:
             raise ValueError(f'Сумма не может быть меньше {self.min_amount} монет')
-        return round(amount, 1)
+        return amount
 
     def get_days(self):
         return max(1, (self.return_date_dateedit.date().toPython() - engine.today_for_test()).days)

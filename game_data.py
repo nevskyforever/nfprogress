@@ -273,10 +273,10 @@ class Credit:
         self.normalize()
         total_sum = self.get_remaining_sum()
 
-        if gamer.coins < total_sum:
+        if gamer.get_coins() < total_sum:
             return f'Недостаточно монет. Нужно: {total_sum}'
 
-        gamer.coins -= total_sum
+        gamer.remove_coins(total_sum, process_bank_events=False, save=False)
         self.paid_amount = self.get_total_sum()
 
         return f'КРЕДИТ ПОГАШЕН\nСумма: {self.credit_sum}, проценты: {self.get_interest()}, штрафы: {round(self.accrued_penalty, 1)}'
@@ -561,6 +561,7 @@ class BankAccount:
     def open_credit(self, gamer, amount, days):
         self.normalize()
         self._attach_to_gamer(gamer)
+        amount = gamer.round_money(amount)
         if self.credit:
             return False, 'У вас уже есть активный кредит'
         if gamer.level < 3:
@@ -573,7 +574,7 @@ class BankAccount:
             return False, f'Максимальный срок кредита: {max_days} дн.'
         preview = self.preview_product(gamer, 'credit', amount, days)
         self.credit = Credit(amount, days, preview['rate'])
-        gamer.coins += amount
+        gamer.set_coins(amount, process_bank_events=False, save=False)
         message = f'Кредит открыт. На счет зачислено {amount} монет'
         self._add_notification(
             f'{message}. Первый платеж {self.credit.get_first_payment_date().strftime("%d.%m.%Y")}: '
@@ -585,12 +586,13 @@ class BankAccount:
     def open_deposit(self, gamer, amount, days):
         self.normalize()
         self._attach_to_gamer(gamer)
+        amount = gamer.round_money(amount)
         if self.deposit:
             return False, 'У вас уже есть активный вклад'
-        if gamer.coins < amount:
+        if gamer.get_coins() < amount:
             return False, f'Недостаточно монет. Нужно: {amount}'
         preview = self.preview_product(gamer, 'deposit', amount, days)
-        gamer.coins -= amount
+        gamer.remove_coins(amount, process_bank_events=False, save=False)
         self.deposit = Deposit(amount, days, preview['rate'])
         message = f'Вклад открыт. Списано {amount} монет'
         self._add_notification(f'{message}. Ожидаемый доход: {preview["interest"]} монет.')
@@ -630,13 +632,13 @@ class BankAccount:
             return 'Нет активного кредита'
 
         try:
-            amount = round(float(amount), 1)
+            amount = gamer.round_money(float(amount))
         except (TypeError, ValueError):
             return 'Сумма погашения должна быть числом'
 
         if amount <= 0:
             return 'Сумма погашения должна быть больше 0'
-        if gamer.coins < amount:
+        if gamer.get_coins() < amount:
             return f'Недостаточно монет. Нужно: {amount}'
 
         self.process_daily_events(gamer, auto_pay=False, notify=False, save=False, include_deposit=False)
@@ -648,7 +650,7 @@ class BankAccount:
         old_daily_payment = self.credit.get_daily_payment()
         old_interest = self.credit.get_interest()
 
-        gamer.coins -= amount
+        gamer.remove_coins(amount, process_bank_events=False, save=False)
         principal_payment = min(amount, self.credit.credit_sum)
         extra_payment = round(amount - principal_payment, 1)
         self.credit.credit_sum = round(max(0, self.credit.credit_sum - principal_payment), 1)
@@ -709,7 +711,7 @@ class BankAccount:
             message = (f'\nДЕПОЗИТ СНЯТ\n'
                        f'Вы получили {total_sum} монет')
 
-        gamer.coins += total_sum
+        gamer.set_coins(total_sum, process_bank_events=False, save=False)
         self.deposit_history.append({
             'sum': principal,
             'interest': 0 if early else interest,
@@ -734,7 +736,7 @@ class BankAccount:
         interest = self.deposit.get_available_interest()
         if interest <= 0:
             return 'Пока нет доступных процентов'
-        gamer.coins += interest
+        gamer.set_coins(interest, process_bank_events=False, save=False)
         self.deposit.withdrawn_interest += interest
         self.deposit.interest_withdrawals.append({'date': today, 'amount': interest})
         self.deposit.last_interest_withdraw_date = today
@@ -750,7 +752,7 @@ class BankAccount:
             return None
         total_sum = self.deposit.get_total_sum()
         interest = self.deposit.get_interest()
-        gamer.coins += total_sum
+        gamer.set_coins(total_sum, process_bank_events=False, save=False)
         self.deposit_history.append({'sum': self.deposit.deposit_sum, 'interest': interest, 'status': 'auto_returned'})
         self.deposit = None
         message = f'Срок вклада завершен. На счет возвращено {total_sum} монет.'
@@ -859,12 +861,12 @@ class BankAccount:
         if not self.credit:
             return None
         payment = self.credit.get_daily_payment()
-        if gamer.coins < payment:
+        if gamer.get_coins() < payment:
             if notify_if_not_enough:
                 return self._notify_credit_payment_due(today)
             return None
 
-        gamer.coins -= payment
+        gamer.remove_coins(payment, process_bank_events=False, save=False)
         self.credit.paid_amount += payment
         self.credit.last_payment_date = today
         self.credit.last_daily_check_date = today
@@ -996,7 +998,7 @@ def lottery_ticket_func(do, add=None):
             message += f'Совпало чисел: {matches}. В этот раз не повезло :('
 
         if win_prize > 0:
-            gamer.coins += win_prize
+            gamer.set_coins(win_prize)
             gamer.save()
 
         return message

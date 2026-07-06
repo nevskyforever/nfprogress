@@ -1081,7 +1081,7 @@ class MainWindow(QMainWindow, main_window_ui):
             # Сохраняем данные персонажа
             self.game_controller.gamer.level = int(dialog.level.text())
             self.game_controller.gamer.health = int(dialog.health.text())
-            self.game_controller.gamer.coins = float(dialog.coins.text())
+            self.game_controller.gamer.coins = self.game_controller.gamer.round_money(dialog.coins.text())
             self.game_controller.gamer.exp = int(float(dialog.exp.text()))
             self.game_controller.gamer.update_cf()
             self.game_controller.gamer.calculate_inflation()
@@ -2729,7 +2729,7 @@ class DeveloperMode(QDialog, Ui_developer_node):
 
         self.level.setText(f'{gamer.level}')
         self.health.setText(f'{gamer.health}')
-        self.coins.setText(f'{gamer.coins}')
+        self.coins.setText(f'{gamer.get_coins()}')
         self.exp.setText(f'{gamer.exp}')
 
         # Вызываем обработчик чекбокса для начальной настройки
