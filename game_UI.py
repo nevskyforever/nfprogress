@@ -921,23 +921,22 @@ class GameMenuController:
 
                 # Проверяем достаточно ли монет
                 if self.gamer.coins < total_price:
-                    QMessageBox.warning(
+                    if not self.offer_purchase_credit(total_price, f"{count} x {item_name}"):
+                        return
+                    skip_confirmation = True
+                else:
+                    skip_confirmation = False
+
+                if not skip_confirmation:
+                    reply = QMessageBox.question(
                         self.ui.centralwidget,
-                        "Ошибка",
-                        f"Недостаточно монет!\nНужно: {total_price}💰\nУ вас: {int(self.gamer.coins)}💰"
+                        "Подтверждение покупки",
+                        f"Купить {count} x {item_name} за {total_price}💰?",
+                        QMessageBox.Yes | QMessageBox.No
                     )
-                    return
 
-                # Подтверждение покупки
-                reply = QMessageBox.question(
-                    self.ui.centralwidget,
-                    "Подтверждение покупки",
-                    f"Купить {count} x {item_name} за {total_price}💰?",
-                    QMessageBox.Yes | QMessageBox.No
-                )
-
-                if reply == QMessageBox.No:
-                    return
+                    if reply == QMessageBox.No:
+                        return
 
                 # Покупаем предметы
                 success_count = 0
@@ -992,22 +991,22 @@ class GameMenuController:
         total_price = award.price * count
 
         if self.gamer.coins < total_price:
-            QMessageBox.warning(
+            if not self.offer_purchase_credit(total_price, f"{count} x {item_name}"):
+                return
+            skip_confirmation = True
+        else:
+            skip_confirmation = False
+
+        if not skip_confirmation:
+            reply = QMessageBox.question(
                 self.ui.centralwidget,
-                "Ошибка",
-                f"Недостаточно монет!\nНужно: {total_price}💰\nУ вас: {int(self.gamer.coins)}💰"
+                "Подтверждение покупки",
+                f"Купить {count} x {item_name} за {total_price}💰?",
+                QMessageBox.Yes | QMessageBox.No
             )
-            return
 
-        reply = QMessageBox.question(
-            self.ui.centralwidget,
-            "Подтверждение покупки",
-            f"Купить {count} x {item_name} за {total_price}💰?",
-            QMessageBox.Yes | QMessageBox.No
-        )
-
-        if reply == QMessageBox.No:
-            return
+            if reply == QMessageBox.No:
+                return
 
         self.gamer.remove_coins(total_price)
         self.set_custom_award_count(item_name, self.get_custom_award_count(award) + count)
@@ -1028,6 +1027,60 @@ class GameMenuController:
             "Успех",
             f"✅ Куплено {count} x {item_name}\nПотрачено: {total_price}💰"
         )
+
+    def offer_purchase_credit(self, total_price, purchase_name):
+        """Предлагает кредит на недостающую сумму и оформляет его перед покупкой."""
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        account = self.gamer.bank_account
+        account.normalize()
+        deficit = round(total_price - self.gamer.coins, 1)
+
+        if deficit <= 0:
+            return True
+
+        message = f"Недостаточно монет!\nНужно: {total_price}💰\nУ вас: {round(self.gamer.coins, 1)}💰"
+
+        can_offer_credit = (
+            self.gamer.level >= 3
+            and not account.credit
+            and account.get_credit_limit(self.gamer) >= deficit
+        )
+        if not can_offer_credit:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", message)
+            return False
+
+        reply = QMessageBox.question(
+            self.ui.centralwidget,
+            "Недостаточно монет",
+            f"{message}\n\nВзять кредит минимум на {deficit}💰 для покупки «{purchase_name}»?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return False
+
+        dialog = NewBankProduct(self.gamer, 'credit', min_amount=deficit, initial_amount=deficit)
+        if dialog.exec_() != QDialog.Accepted:
+            return False
+
+        ok, credit_message = account.open_credit(self.gamer, dialog.get_amount(), dialog.get_days())
+        if not ok:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", credit_message)
+            return False
+
+        self.gamer.bank_account = account
+        self.gamer.save()
+        if self.notifications:
+            self.notifications.show_success(credit_message)
+
+        if self.gamer.coins < total_price:
+            QMessageBox.warning(
+                self.ui.centralwidget,
+                "Ошибка",
+                f"После оформления кредита всё ещё не хватает монет.\nНужно: {total_price}💰\nУ вас: {round(self.gamer.coins, 1)}💰"
+            )
+            return False
+        return True
 
     def use_custom_award(self, item_name, count):
         """Использование кастомной награды без игрового эффекта."""
@@ -1493,26 +1546,31 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
         return f'Ошибка: проект "{project_name}" не найден'
 
 class NewBankProduct(QDialog, Ui_NewBankProduct):
-    def __init__(self, gamer: game.Gamer, product_type):
+    def __init__(self, gamer: game.Gamer, product_type, min_amount=None, initial_amount=None):
         super().__init__()
         self.setupUi(self)
         self.gamer = gamer
         self.product_type = product_type
+        self.min_amount = min_amount
         self.account = gamer.bank_account
         self.account.normalize()
 
         today = engine.today_for_test()
         self.return_date_dateedit.setMinimumDate(QDate(today.year, today.month, today.day).addDays(1))
         self.return_date_dateedit.setDate(QDate(today.year, today.month, today.day).addDays(7))
-        self.lineEdit.setText("100")
+        default_amount = initial_amount if initial_amount is not None else min_amount
+        self.lineEdit.setText(str(round(default_amount, 1) if default_amount else 100))
 
         if product_type == 'credit':
             limit = self.account.get_credit_limit(self.gamer)
             self.setWindowTitle('Новый кредит')
-            self.product_description.setText(
+            description = (
                 f'Кредитный рейтинг: {self.account.calculate_credit_score(self.gamer)}\n'
                 f'Лимит кредита: {limit} монет'
             )
+            if self.min_amount:
+                description += f'\nМинимальная сумма: {self.min_amount} монет'
+            self.product_description.setText(description)
         else:
             self.setWindowTitle('Новый вклад')
             self.product_description.setText(
@@ -1536,6 +1594,8 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
         amount = float(text)
         if amount <= 0:
             raise ValueError('Сумма должна быть больше 0')
+        if self.min_amount is not None and amount < self.min_amount:
+            raise ValueError(f'Сумма не может быть меньше {self.min_amount} монет')
         return round(amount, 1)
 
     def get_days(self):
