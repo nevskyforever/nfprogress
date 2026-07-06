@@ -430,6 +430,20 @@ class BankAccount:
         details = self.estimate_daily_income_details(gamer)
         return details['total']
 
+    def get_level_reliability_label(self, gamer):
+        level = getattr(gamer, 'level', 1)
+        if level >= 50:
+            return 'идеальная'
+        if level >= 30:
+            return 'прекрасная'
+        if level >= 20:
+            return 'отличная'
+        if level >= 10:
+            return 'хорошая'
+        if level >= 5:
+            return 'средняя'
+        return 'начальная'
+
     def estimate_daily_income_details(self, gamer):
         coins_cf = max(0.1, gamer.get_cf_value('coins', 1.0))
         inflation = gamer.calculate_inflation()
@@ -440,7 +454,7 @@ class BankAccount:
         return {
             'symbols': round(symbol_income, 1),
             'streaks': round(streak_income, 1),
-            'level': round(level_income, 1),
+            'reliability': self.get_level_reliability_label(gamer),
             'total': total,
         }
 

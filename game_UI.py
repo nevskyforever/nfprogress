@@ -1735,7 +1735,7 @@ class Bank(QDialog, Ui_Bamk):
         self.label_2.setText(f'Кредит: {credit_rate}%/д.\nВклад: {deposit_rate}%/д.')
         self.label.setText(
             f'Оценочный доход: {income["total"]} м./д.\n'
-            f'Письмо: {income["symbols"]}, стрики: {income["streaks"]}, уровень: {income["level"]}'
+            f'Письмо: {income["symbols"]}, стрики: {income["streaks"]}, надёжность: {income["reliability"]}'
         )
 
         today = engine.today_for_test()
