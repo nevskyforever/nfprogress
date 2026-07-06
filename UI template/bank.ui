@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>364</width>
-    <height>304</height>
+    <height>316</height>
    </rect>
   </property>
   <property name="font">
@@ -32,6 +32,36 @@
    <item row="5" column="0" colspan="3">
     <widget class="QWidget" name="widget" native="true">
      <layout class="QGridLayout" name="gridLayout_2">
+      <item row="2" column="0">
+       <widget class="QPushButton" name="make_a_loan_payment">
+        <property name="text">
+         <string>Внести платеж</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0">
+       <widget class="QPushButton" name="return_credit_btn">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="text">
+         <string>Погасить кредит</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QPushButton" name="partial_loan_repayment">
+        <property name="text">
+         <string>Частичное погашение</string>
+        </property>
+        <property name="flat">
+         <bool>false</bool>
+        </property>
+       </widget>
+      </item>
       <item row="1" column="1">
        <widget class="QPushButton" name="make_deposit_btn">
         <property name="sizePolicy">
@@ -58,7 +88,7 @@
         </property>
        </widget>
       </item>
-      <item row="3" column="1">
+      <item row="4" column="1">
        <widget class="QPushButton" name="withdraw_interest_from_a_deposit">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -84,33 +114,10 @@
         </property>
        </widget>
       </item>
-      <item row="5" column="0">
-       <widget class="QPushButton" name="return_credit_btn">
-        <property name="sizePolicy">
-         <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-          <horstretch>0</horstretch>
-          <verstretch>0</verstretch>
-         </sizepolicy>
-        </property>
-        <property name="text">
-         <string>Погасить кредит</string>
-        </property>
-       </widget>
-      </item>
-      <item row="2" column="0">
-       <widget class="QPushButton" name="make_a_loan_payment">
-        <property name="text">
-         <string>Внести платеж</string>
-        </property>
-       </widget>
-      </item>
       <item row="3" column="0">
-       <widget class="QPushButton" name="partial_loan_repayment">
-        <property name="text">
-         <string>Частичное погашение</string>
-        </property>
-        <property name="flat">
-         <bool>false</bool>
+       <widget class="QLineEdit" name="loan_partial_repayment_amount">
+        <property name="placeholderText">
+         <string>Сумма к погашению (100.0)</string>
         </property>
        </widget>
       </item>
