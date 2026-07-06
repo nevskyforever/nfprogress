@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from random import randint
 
 import engine
@@ -27,15 +27,80 @@ lvl_coins_bonus = [i * 250 for i in range(n)]
 
 # Классы объектов
 
+class Buff:
+    """Положительный или отрицательный эффект для коэффициента персонажа."""
+
+    POSITIVE = 'positive'
+    NEGATIVE = 'negative'
+
+    def __init__(self, name, description, buff_type, target_cf, value, duration_minutes=None,
+                 start_time=None, end_time=None, source=None, stackable=False):
+        self.name = name
+        self.description = description
+        self.buff_type = buff_type
+        self.target_cf = target_cf
+        self.value = value
+        self.duration_minutes = duration_minutes
+        self.start_time = start_time
+        self.end_time = end_time
+        self.source = source
+        self.stackable = stackable
+
+    def activate(self, start_time=None):
+        """Возвращает копию бафа с рассчитанным временем начала и окончания."""
+        start_time = start_time or datetime.now()
+        end_time = None
+        if self.duration_minutes is not None:
+            end_time = start_time + timedelta(minutes=self.duration_minutes)
+
+        return Buff(
+            name=self.name,
+            description=self.description,
+            buff_type=self.buff_type,
+            target_cf=self.target_cf,
+            value=self.value,
+            duration_minutes=self.duration_minutes,
+            start_time=start_time,
+            end_time=end_time,
+            source=self.source,
+            stackable=self.stackable,
+        )
+
+    def is_positive(self):
+        return self.buff_type == self.POSITIVE
+
+    def is_negative(self):
+        return self.buff_type == self.NEGATIVE
+
+    def is_expired(self, now=None):
+        if self.end_time is None:
+            return False
+        return (now or datetime.now()) >= self.end_time
+
+    def signed_value(self):
+        value = abs(self.value)
+        return value if self.is_positive() else -value
+
+    def remaining_time(self, now=None):
+        if self.end_time is None:
+            return None
+
+        remaining = self.end_time - (now or datetime.now())
+        if remaining.total_seconds() <= 0:
+            return timedelta(0)
+        return remaining
+
+
 class Item:
     """Основной класс"""
 
-    def __init__(self, name, price, item_type=None, level=1, description='Нет описания'):
+    def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None):
         self.name = name
         self.item_type = item_type
         self._price = price
         self.level = level
         self.description = description
+        self.buff = buff
 
     @property
     def price(self):
@@ -92,11 +157,21 @@ class FuncItem(Item):
 
         # Проверяем, есть ли предмет в наличии
         if items[self.item_type][self.name] > 0:
+            messages = []
+
             # Выполняем функцию предмета
             if self._func:
                 # Используем переданный add или сохраненный из конструктора
                 use_add = add if add is not None else self.add
-                return self._func(do, use_add)
+                messages.append(self._func(do, use_add))
+
+            if do == 'use' and self.buff:
+                gamer.add_buff(self.buff)
+                messages.append(f"Получен эффект: {self.buff.name}")
+
+            if messages:
+                return "\n".join(message for message in messages if message)
+
             return "Предмет использован."
         else:
             return "У вас нет этого предмета!"
@@ -104,7 +179,8 @@ class Credit:
     def __init__(self, credit_sum, days_until_return, interest_rate_on_loan=2):
         self.take_date = engine.today_for_test()
         self.days_until_return = days_until_return
-        self.interest_rate_on_loan = interest_rate_on_loan * (game.load_game().cf['coins'] if game.load_game() else 1.0)
+        gamer = game.load_game()
+        self.interest_rate_on_loan = interest_rate_on_loan * (gamer.get_cf_value('coins') if gamer else 1.0)
         self.credit_sum = credit_sum
         self.interest = 0
 
@@ -170,7 +246,7 @@ class Deposit:
         self.give_date = engine.today_for_test()
         self.deposit_sum = deposit_sum
         self.days_until_return = days_until_return
-        self.interest_rate_on_deposit = interest_rate_on_deposit * game.load_game().cf['coins']
+        self.interest_rate_on_deposit = interest_rate_on_deposit * game.load_game().get_cf_value('coins')
         self.interest = 0
 
     def get_sum(self):
@@ -325,11 +401,16 @@ def lottery_ticket_func(do, add=None):
     return 'Неизвестное действие'
 
 def calculate_item_price(price):
-    """Считает стоимость предмета для игрока с учетом инфляции"""
-    gamer = game.load_game()
-    inflation = gamer.inflation
+    """Считает стоимость предмета с мягким ростом по уровню игрока.
 
-    return price * inflation
+    Доход монет растет через cf_coins примерно на 6.25% за уровень, поэтому
+    прежний рост цены на 15% за уровень делал предметы все менее доступными.
+    """
+    gamer = game.load_game()
+    level = max(gamer.level, 1)
+    level_multiplier = 1 + (level - 1) * 0.05
+
+    return round(price * level_multiplier, 1)
 
 def calculate_freeze_price():
     """Считает стоимость заморозки в зависимости от кол-ва использований"""
@@ -367,9 +448,87 @@ health_potion_50 = FuncItem('Большое зелье здоровья', item_t
 health_recovery = FuncItem('Зелье воскрешения', item_type='Зелья', level=3, func=health_potion_func, price=lambda: calculate_item_price(200), add=100,
                            description='Полностью восстанавливает здоровье')
 crown_of_the_first_era = Item(name='👑 Корона Первой Эпохи', item_type='Награды', price=0,
-                              description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре')
+                              description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре',
+                              buff=Buff(name='Опыт миллионера',
+                                        description='+1 к коэффициенту опыта',
+                                        buff_type=Buff.POSITIVE,
+                                        target_cf='exp',
+                                        value=1.0)
+                              )
 millionaires_pen = Item(name='💎 Перо Миллионера', item_type='Награды', price=0,
-                        description='Перо выдается игрокам, которые заработали больше миллиона монет до первой экономической реформы в игре')
+                        description='Перо выдается игрокам, которые заработали больше миллиона монет до первой экономической реформы в игре',
+                        buff=Buff(name='Удача миллионера',
+                                  description='+1 к коэффициенту заработка',
+                                  buff_type=Buff.POSITIVE,
+                                  target_cf='coins',
+                                  value= 1.0))
+exp_potion_1hrs = FuncItem(name='Часовое зелье познания',
+                           item_type='Зелья',
+                           level=2,
+                           price=lambda: calculate_item_price(50),
+                           description='Увеличивает коэффициент опыта на 1 на один час',
+                           buff=Buff(name='Бустер опыта',
+                                     description='Применено зелье познания',
+                                     target_cf='exp',
+                                     value=1.0,
+                                     buff_type=Buff.POSITIVE,
+                                     duration_minutes=60))
+exp_potion_24hrs = FuncItem(name='Суточное зелье опыта',
+                           item_type='Зелья',
+                           level=2,
+                           price=lambda: calculate_item_price(600),
+                           description='Увеличивает коэффициент опыта на 1 на один день',
+                           buff=Buff(name='Бустер опыта',
+                                     description='Применен зелье познания',
+                                     target_cf='exp',
+                                     value=1.0,
+                                     buff_type=Buff.POSITIVE,
+                                     duration_minutes=60*24))
+super_exp_potion_1hrs = FuncItem(name='Часовое зелье просвещения',
+                           item_type='Зелья',
+                           level=8,
+                           price=lambda: calculate_item_price(300),
+                           description='Увеличивает коэффициент опыта на 10 на один час',
+                           buff=Buff(name='Бустер опыта',
+                                     description='Применено зелье познания',
+                                     target_cf='exp',
+                                     value=10.0,
+                                     buff_type=Buff.POSITIVE,
+                                     duration_minutes=60))
+super_exp_potion_24hrs = FuncItem(name='Суточное зелье просвещения',
+                           item_type='Зелья',
+                           level=8,
+                           price=lambda: calculate_item_price(3600),
+                           description='Увеличивает коэффициент опыта на 10 на один день',
+                           buff=Buff(name='Бустер опыта',
+                                     description='Применен зелье познания',
+                                     target_cf='exp',
+                                     value=10.0,
+                                     buff_type=Buff.POSITIVE,
+                                     duration_minutes=60*24))
+
+coin_potion_1hrs = FuncItem(name='Часовое зелье доходности',
+                           item_type='Зелья',
+                           level=2,
+                           price=lambda: calculate_item_price(25),
+                           description='Увеличивает коэффициент монет на 0.5 на один час',
+                           buff=Buff(name='Минибустер прибыли',
+                                     description='Применено зелье прибыли',
+                                     target_cf='coins',
+                                     value=0.5,
+                                     buff_type=Buff.POSITIVE,
+                                     duration_minutes=60))
+coin_potion_24hrs = FuncItem(name='Суточное зелье доходности',
+                           item_type='Зелья',
+                           level=2,
+                           price=lambda: calculate_item_price(300),
+                           description='Увеличивает коэффициент монет на 0.5 на один день',
+                           buff=Buff(name='Минибустер прибыли',
+                                     description='Применен зелье прибыли',
+                                     target_cf='coins',
+                                     value=0.5,
+                                     buff_type=Buff.POSITIVE,
+                                     duration_minutes=60*24))
 
 # Реестр предметов
 ITEM_REGISTRY = {'Зелья':
@@ -377,7 +536,13 @@ ITEM_REGISTRY = {'Зелья':
                       'Малое зелье здоровья': health_potion_10,
                       'Среднее зелье здоровья': health_potion_25,
                       'Большое зелье здоровья': health_potion_50,
-                      'Зелье воскрешения': health_recovery,},
+                      'Зелье воскрешения': health_recovery,
+                      'Часовое зелье познания': exp_potion_1hrs,
+                      'Суточное зелье познания': exp_potion_24hrs,
+                      'Часовое зелье доходности': coin_potion_1hrs,
+                      'Суточное зелье доходности': coin_potion_24hrs,
+                      'Часовое зелье просвещения': super_exp_potion_1hrs,
+                      'Cуточное зелье просвещения': super_exp_potion_24hrs,},
                  'Предметы': {'Заморозка': freeze,
                               'Лотерейный билет': lottery_ticket,},
                  'Награды': {'👑 Корона Первой Эпохи': crown_of_the_first_era,

@@ -13,9 +13,10 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.7.7'
+version = '3.9'
 
 # Определяем систему
+
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 
 def get_app_data_dir():
@@ -57,19 +58,29 @@ def get_test_data_dir():
     return test_dir
 
 
-def cleanup_test_data():
-    """Удаляет директорию тестовых данных вместе со всем содержимым."""
+def sync_test_data():
+    """Копирует рабочие файлы данных в папку test_data, если они новее.
+
+    Для каждого *.pkl файла из основной директории данных создаёт
+    (или перезаписывает) одноимённый файл в test_data, но только если
+    рабочий файл отсутствует в test_data или новее уже лежащей там копии
+    (по времени последнего изменения). Более свежие файлы в test_data
+    не затираются устаревшими рабочими файлами. Файлы, которых нет
+    в основной директории, не создаются и не удаляются в test_data.
+    """
     import shutil
-    test_dir = get_app_data_dir() / 'test_data'
-    if test_dir.exists():
-        shutil.rmtree(test_dir)
+    source_dir = get_app_data_dir()
+    test_dir = get_test_data_dir()
+    for data_file in source_dir.glob('*.pkl'):
+        test_file = test_dir / data_file.name
+        if not test_file.exists() or data_file.stat().st_mtime > test_file.stat().st_mtime:
+            shutil.copy2(data_file, test_file)
 
 
 def get_data_file_path(name):
     """Возвращает путь к файлу данных.
 
     В режиме разработчика файлы читаются и пишутся из папки test_data.
-    При выключении режима разработчика папка test_data удаляется.
     """
     if dev_mode:
         return get_test_data_dir() / f'{name}.pkl'
@@ -1132,9 +1143,8 @@ def count_symbols_in_docx(filepath):
                     total += len(paragraph.text)
     return total
 
-# При импорте модуля: создаём нужные директории или удаляем тестовые данные
+# При импорте модуля: в режиме разработчика синхронизируем test_data с текущими данными
 if dev_mode:
-    get_test_data_dir()
+    sync_test_data()
 else:
     get_app_data_dir()
-    cleanup_test_data()

@@ -4,14 +4,14 @@
 import datetime
 
 from PySide6.QtCore import QTimer, Qt
-from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
+from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog, QApplication
 
 import engine
 import game
 import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
 from UI_fiiles.bank import Ui_Bamk
-from UI_fiiles.bank_product import Ui_bank_product
+from UI_fiiles.create_custom_award import Ui_create_castom_item
 from engine import load_data, save_data, today_for_test, unit_converter
 
 
@@ -46,9 +46,13 @@ class GameMenuController:
         self.timer.timeout.connect(self.update_game_data)
         self.timer.start(1000)  # Обновление каждую секунду
 
+        # Скрываем банк
+        self.ui.bank_btn.setVisible(False)
+
         # Просим выбрать элементы в мазазинах и инвентаре
         self.ui.name_selected_item_on_shop.setText('Выберите товар')
         self.ui.name_selected_potion_on_shop.setText('Выберите товар')
+        self.ui.name_selected_custom_award_on_shop.setText('Выберите награду')
         self.ui.name_selected_item.setText('Выберите предмет')
 
     def load_gamer(self):
@@ -63,16 +67,50 @@ class GameMenuController:
         # Устанавливаем максимумы для spinbox'ов
         self.ui.gamer_params_label.setVisible(False)
 
-        self.ui.parameters_tabs.setVisible(False)
-        self.ui.quests_label.setVisible(False)
-        self.ui.quests_tabs.setVisible(False)
+        self.setup_quests_stub()
 
         self.ui.value_for_use_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_potion.setMaximum(999)
+        self.ui.value_for_buy_selected_item_3.setMaximum(999)
 
         # Очищаем информационные поля
         self.clear_all_info()
+
+    def setup_quests_stub(self):
+        """Показывает отключенные вкладки квестов до реализации механики."""
+        # TODO: убрать заглушки, setEnabled(False) и скрытие полей после разработки квестов.
+        self.ui.quests_label.setVisible(True)
+        self.ui.quests_tabs.setVisible(True)
+        self.ui.quests_tabs.setEnabled(False)
+
+        description_labels = [
+            self.ui.description_selected_available_quest,
+            self.ui.description_selected_active_quest,
+            self.ui.description_selected_completed_quest,
+        ]
+        hidden_labels = [
+            self.ui.name_selected_available_quest,
+            self.ui.prize_selected_available_quest,
+            self.ui.name_selected_active_quest,
+            self.ui.prize_selected_active_quest,
+            self.ui.date_start_selected_active_quest,
+            self.ui.date_end_selected_active_quest,
+            self.ui.name_selected_completed_quest,
+            self.ui.prize_selected_completed_quest,
+            self.ui.date_start_selected_completed_quest,
+            self.ui.date_end_selected_completed_quest,
+        ]
+
+        for label in description_labels:
+            label.setVisible(True)
+            label.setText("В разработке")
+
+        for label in hidden_labels:
+            label.setVisible(False)
+
+        self.ui.button_for_start_selected_quest.setVisible(False)
+        self.ui.button_for_stop_selected_quest.setVisible(False)
 
     def clear_all_info(self):
         """Очистка всех информационных полей"""
@@ -104,21 +142,56 @@ class GameMenuController:
         self.ui.potion_shop_list.itemClicked.connect(self.on_potion_selected)
         self.ui.button_for_buy_selected_potion.clicked.connect(self.on_buy_potion)
 
+        # Магазин наград
+        self.ui.item_shop_list_2.itemClicked.connect(self.on_award_selected)
+        self.ui.button_for_buy_selected_item_3.clicked.connect(self.on_buy_award)
+        edit_award_button = self.get_edit_custom_award_button()
+        if edit_award_button:
+            edit_award_button.clicked.connect(self.edit_selected_custom_award)
+        delete_award_button = self.get_delete_custom_award_button()
+        if delete_award_button:
+            delete_award_button.clicked.connect(self.delete_selected_custom_award)
+
         # Очистка информации при смене выбора в магазинах
         self.ui.item_shop_list.itemClicked.connect(lambda: self.clear_potion_info())
+        self.ui.item_shop_list.itemClicked.connect(lambda: self.clear_award_info())
         self.ui.potion_shop_list.itemClicked.connect(lambda: self.clear_item_info())
+        self.ui.potion_shop_list.itemClicked.connect(lambda: self.clear_award_info())
+        self.ui.item_shop_list_2.itemClicked.connect(lambda: self.clear_item_info())
+        self.ui.item_shop_list_2.itemClicked.connect(lambda: self.clear_potion_info())
 
         # Банк
 
         self.ui.bank_btn.clicked.connect(self.bank)
+
+        # Параметры персонажа
+        self.ui.gamer_parameters_list.itemClicked.connect(self.on_gamer_parameter_selected)
+        self.ui.gamer_parameters_list.currentItemChanged.connect(
+            lambda current, previous: self.on_gamer_parameter_selected(current)
+        )
+        self.ui.buf_list.itemClicked.connect(lambda item: self.on_buff_selected(item, positive=True))
+        self.ui.buf_list.currentItemChanged.connect(
+            lambda current, previous: self.on_buff_selected(current, positive=True)
+        )
+        self.ui.debuf_list.itemClicked.connect(lambda item: self.on_buff_selected(item, positive=False))
+        self.ui.debuf_list.currentItemChanged.connect(
+            lambda current, previous: self.on_buff_selected(current, positive=False)
+        )
+
+        # Создание своей награды
+
+        self.ui.button_for_create_custom_award.clicked.connect(self.create_custom_award)
 
     def refresh_all(self):
         """Обновление всех данных в интерфейсе"""
         self.update_game_data()
         self.clear_all_info()
         self.clear_item_info()
+        self.clear_award_info()
         self.update_inventory()
         self.update_shops()
+        self.load_gamer_parameters_list()
+        self.update_buffs_lists()
 
     def update_game_data(self):
         """Обновление основных параметров игрока"""
@@ -131,6 +204,8 @@ class GameMenuController:
 
         # Перезагружаем игрока для актуальных данных
         self.gamer = game.load_game()
+        self.gamer.apply_buffs_to_cf()
+        self.register_custom_awards()
 
         # Обновляем отображение
         self.ui.gamer_label.setText(str(self.gamer.level))
@@ -162,6 +237,8 @@ class GameMenuController:
         self.ui.gamer_health.setText(f"Здоровье: {health}/100")
         self.ui.gamer_health_progressbar.setValue(health)
         self.ui.gamer_health_progressbar.setMaximum(100)
+        self.update_gamer_parameters_list()
+        self.update_buffs_lists()
 
         # Проверяем критические состояния
         if self.gamer.health <= 20 and self.gamer.health > 0:
@@ -169,12 +246,201 @@ class GameMenuController:
         elif self.gamer.health <= 0:
             self.show_death_warning()
 
+    def format_gamer_parameter_value(self, value):
+        """Форматирует числовой коэффициент для списка параметров."""
+        return f"{value:g}"
+
+    def load_gamer_parameters_list(self):
+        """Загружает список параметров персонажа."""
+        self.ui.gamer_parameters_list.clear()
+
+        if not self.gamer:
+            self.ui.description_selected_parameter.clear()
+            return
+
+        for parameter in self.gamer.get_cf_parameters():
+            value = self.format_gamer_parameter_value(parameter['value'])
+            item = QListWidgetItem(f"{parameter['name']} - х{value}")
+            item.setData(1, parameter['key'])
+            self.ui.gamer_parameters_list.addItem(item)
+
+        if self.ui.gamer_parameters_list.count() > 0:
+            self.ui.gamer_parameters_list.setCurrentRow(0)
+            self.on_gamer_parameter_selected(self.ui.gamer_parameters_list.currentItem())
+        else:
+            self.ui.description_selected_parameter.clear()
+
+    def update_gamer_parameters_list(self):
+        """Обновляет список параметров персонажа, сохраняя текущий выбор."""
+        current_item = self.ui.gamer_parameters_list.currentItem()
+        current_key = current_item.data(1) if current_item else None
+
+        self.load_gamer_parameters_list()
+
+        if current_key is None:
+            return
+
+        for row in range(self.ui.gamer_parameters_list.count()):
+            item = self.ui.gamer_parameters_list.item(row)
+            if item.data(1) == current_key:
+                self.ui.gamer_parameters_list.setCurrentRow(row)
+                self.on_gamer_parameter_selected(item)
+                return
+
+    def on_gamer_parameter_selected(self, item):
+        """Показывает описание выбранного параметра персонажа."""
+        if not item or not self.gamer:
+            self.ui.description_selected_parameter.clear()
+            return
+
+        parameter_key = item.data(1)
+        for parameter in self.gamer.get_cf_parameters():
+            if parameter['key'] == parameter_key:
+                self.ui.description_selected_parameter.setText(parameter['description'])
+                return
+
+        self.ui.description_selected_parameter.clear()
+
+    def format_buff_remaining_time(self, buff):
+        remaining = buff.remaining_time()
+        if remaining is None:
+            return "Бессрочно"
+
+        total_minutes = max(0, int(remaining.total_seconds() // 60))
+        days = total_minutes // (24 * 60)
+        hours = (total_minutes % (24 * 60)) // 60
+        minutes = total_minutes % 60
+
+        parts = []
+        if days:
+            parts.append(f"{days} д.")
+        if hours:
+            parts.append(f"{hours} ч.")
+        parts.append(f"{minutes} мин.")
+        return " ".join(parts)
+
+    def format_buff_datetime(self, value):
+        if value is None:
+            return "Бессрочно"
+        return value.strftime("%d.%m.%Y %H:%M")
+
+    def get_cf_display_name(self, cf_key):
+        if self.gamer:
+            self.gamer.normalize_cf()
+            parameter = self.gamer.cf.get(cf_key)
+            if isinstance(parameter, dict):
+                return parameter.get('name', cf_key)
+
+        return game.CF_META.get(cf_key, {}).get('name', cf_key)
+
+    def get_buff_display_text(self, buff, stacks=1):
+        stack_text = f" x{stacks}" if stacks > 1 else ""
+        name = f"{buff.name}{stack_text}"
+        if buff.end_time is None:
+            return name
+        return f"{name} - {self.format_buff_remaining_time(buff)}"
+
+    def load_buffs_list(self, positive=True):
+        list_widget = self.ui.buf_list if positive else self.ui.debuf_list
+        list_widget.clear()
+
+        if not self.gamer:
+            self.clear_buff_info(positive)
+            return
+
+        for buff, stacks in self.gamer.get_all_buffs(positive=positive):
+            item = QListWidgetItem(self.get_buff_display_text(buff, stacks))
+            item.setData(Qt.ItemDataRole.UserRole, buff)
+            item.setData(Qt.ItemDataRole.UserRole + 1, stacks)
+            list_widget.addItem(item)
+
+    def update_buffs_list(self, positive=True):
+        list_widget = self.ui.buf_list if positive else self.ui.debuf_list
+        current_item = list_widget.currentItem()
+        current_buff = current_item.data(Qt.ItemDataRole.UserRole) if current_item else None
+        current_name = current_buff.name if current_buff else None
+
+        self.load_buffs_list(positive)
+
+        if current_name is None:
+            self.clear_buff_info(positive)
+            return
+
+        for row in range(list_widget.count()):
+            item = list_widget.item(row)
+            buff = item.data(Qt.ItemDataRole.UserRole)
+            if buff and buff.name == current_name:
+                list_widget.setCurrentRow(row)
+                self.on_buff_selected(item, positive)
+                return
+
+        self.clear_buff_info(positive)
+
+    def update_buffs_lists(self):
+        if not self.gamer:
+            self.clear_buff_info(True)
+            self.clear_buff_info(False)
+            return
+
+        self.update_buffs_list(True)
+        self.update_buffs_list(False)
+
+    def clear_buff_info(self, positive=True):
+        labels = (
+            [self.ui.label_40, self.ui.label_39, self.ui.label_38, self.ui.label_41, self.ui.label_37]
+            if positive else
+            [self.ui.label_45, self.ui.label_44, self.ui.label_43, self.ui.label_46, self.ui.label_42]
+        )
+        for label in labels:
+            label.clear()
+
+    def on_buff_selected(self, item, positive=True):
+        if not item:
+            self.clear_buff_info(positive)
+            return
+
+        buff = item.data(Qt.ItemDataRole.UserRole)
+        stacks = item.data(Qt.ItemDataRole.UserRole + 1) or 1
+        if not buff:
+            self.clear_buff_info(positive)
+            return
+
+        labels = (
+            [self.ui.label_40, self.ui.label_39, self.ui.label_38, self.ui.label_41, self.ui.label_37]
+            if positive else
+            [self.ui.label_45, self.ui.label_44, self.ui.label_43, self.ui.label_46, self.ui.label_42]
+        )
+        sign = "+" if buff.is_positive() else "-"
+        stack_text = f"\nКоличество: {stacks}" if stacks > 1 else ""
+        parameter_name = self.get_cf_display_name(buff.target_cf)
+
+        labels[0].setText(buff.name)
+        labels[1].setText(buff.description)
+        labels[2].setText(f"Параметр: {parameter_name}\nЗначение: {sign}{abs(buff.value):g}{stack_text}")
+        labels[3].clear()
+        if buff.end_time is None:
+            labels[4].clear()
+        else:
+            labels[4].setText(f"Осталось: {self.format_buff_remaining_time(buff)}")
+
+    def describe_item_buff(self, item_obj):
+        buff = getattr(item_obj, 'buff', None)
+        if not buff:
+            return ""
+
+        sign = "+" if buff.is_positive() else "-"
+        duration = "бессрочно" if buff.duration_minutes is None else f"{buff.duration_minutes} мин."
+        parameter_name = self.get_cf_display_name(buff.target_cf)
+        return f"\nЭффект: {buff.name} ({parameter_name} {sign}{abs(buff.value):g}, {duration})"
+
     def update_inventory(self):
         """Обновление списка инвентаря"""
         self.ui.inventory_list.clear()
 
-        if not self.gamer or not self.gamer.items:
+        if not self.gamer:
             return
+
+        self.register_custom_awards()
 
         # Инвентарь: {категория: {предмет: количество}}
         for category, items in self.gamer.items.items():
@@ -186,8 +452,18 @@ class GameMenuController:
                     item.setData(1, (category, item_name))
                     self.ui.inventory_list.addItem(item)
 
+        for award in self.gamer.custom_awards:
+            count = self.get_custom_award_count(award)
+            if count > 0:
+                display_text = f"{award.name} x{count} [Награды]"
+                item = QListWidgetItem(display_text)
+                item.setData(1, ('Кастомные награды', award.name))
+                self.ui.inventory_list.addItem(item)
+
     def update_shops(self):
         """Обновление магазинов"""
+        self.register_custom_awards()
+
         # Магазин предметов
         self.ui.item_shop_list.clear()
         if 'Предметы' in game_data.ITEM_REGISTRY:
@@ -215,11 +491,36 @@ class GameMenuController:
                 else:
                     continue
 
+        # Магазин кастомных наград
+        self.ui.item_shop_list_2.clear()
+        for award in self.gamer.custom_awards:
+            if not self.is_custom_award_in_shop(award):
+                continue
+            display_text = f"{award.name}"
+            item = QListWidgetItem(display_text)
+            item.setData(1, ('Награды', award.name))
+            self.ui.item_shop_list_2.addItem(item)
+
     # === ОБРАБОТЧИКИ ИНВЕНТАРЯ ===
 
     def on_inventory_item_selected(self, item):
         """Выбор предмета в инвентаре"""
         category, item_name = item.data(1)
+
+        if category == 'Кастомные награды':
+            award = self.get_custom_award(item_name)
+            if not award:
+                return
+
+            count = self.get_custom_award_count(award)
+            self.ui.name_selected_item.setText(f"🏆 {award.name}")
+            self.ui.description_selected_item.setText(f"📝 {award.description}")
+            self.ui.level_selected_item.setText("⭐ Уровень: 1")
+            self.ui.effect_selected_item.setText(
+                f"⚡ Нет эффекта\n🔢 В наличии: {count}"
+            )
+            self.ui.value_for_use_selected_item.setMaximum(count)
+            return
 
         # Получаем объект предмета из реестра
         if category in game_data.ITEM_REGISTRY and item_name in game_data.ITEM_REGISTRY[category]:
@@ -241,7 +542,7 @@ class GameMenuController:
             # Добавляем информацию о количестве
             count = self.gamer.items.get(category, {}).get(item_name, 0)
             self.ui.effect_selected_item.setText(
-                f"⚡ {effect_text}\n🔢 В наличии: {count}"
+                f"⚡ {effect_text}{self.describe_item_buff(item_obj)}\n🔢 В наличии: {count}"
             )
 
             # Устанавливаем максимум для spinbox
@@ -256,6 +557,10 @@ class GameMenuController:
 
         category, item_name = selected.data(1)
         count = self.ui.value_for_use_selected_item.value()
+
+        if category == 'Кастомные награды':
+            self.use_custom_award(item_name, count)
+            return
 
         # Проверяем наличие
         available = self.gamer.items.get(category, {}).get(item_name, 0)
@@ -346,6 +651,11 @@ class GameMenuController:
         category, item_name = item.data(1)
         self.show_item_info(category, item_name, is_potion=True)
 
+    def on_award_selected(self, item):
+        """Выбор кастомной награды в магазине"""
+        category, item_name = item.data(1)
+        self.show_award_info(category, item_name)
+
     def show_item_info(self, category, item_name, is_potion=False):
         """Отображение информации о предмете в магазине"""
         if category not in game_data.ITEM_REGISTRY or item_name not in game_data.ITEM_REGISTRY[category]:
@@ -383,7 +693,7 @@ class GameMenuController:
                 effect_text = item_obj._func("?") or "Активируется при использовании"
             except:
                 effect_text = "Активируется при использовании"
-        effect_label.setText(f"⚡ {effect_text}")
+        effect_label.setText(f"⚡ {effect_text}{self.describe_item_buff(item_obj)}")
 
     def clear_item_info(self):
         """Очистка информации о предметах в магазине"""
@@ -398,6 +708,20 @@ class GameMenuController:
         self.ui.description_selected_potion_on_shop.clear()
         self.ui.price_selected_potion_on_shop.clear()
         self.ui.effect_selected_potion_on_shop.clear()
+
+    def show_award_info(self, category, item_name):
+        """Отображение информации о кастомной награде в магазине."""
+        if category not in game_data.ITEM_REGISTRY or item_name not in game_data.ITEM_REGISTRY[category]:
+            return
+
+        award = game_data.ITEM_REGISTRY[category][item_name]
+        self.ui.name_selected_custom_award_on_shop.setText(f"🏆 {award.name}")
+        self.ui.peice_selected_custom_award_on_shop.setText(f"💰 Цена: {award.price}")
+
+    def clear_award_info(self):
+        """Очистка информации о награде в магазине."""
+        self.ui.name_selected_custom_award_on_shop.setText('Выберите награду')
+        self.ui.peice_selected_custom_award_on_shop.clear()
 
     def clear_inventory_item_info(self):
         """Очистка информации о предмете"""
@@ -423,6 +747,121 @@ class GameMenuController:
             self.ui.value_for_buy_selected_potion,
             "Зелья"
         )
+
+    def on_buy_award(self):
+        """Покупка кастомной награды."""
+        self.buy_selected_custom_award()
+
+    def edit_selected_custom_award(self):
+        """Редактирование выбранной кастомной награды."""
+        selected = self.ui.item_shop_list_2.currentItem()
+        if not selected:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите награду")
+            return
+
+        category, item_name = selected.data(1)
+        if category != "Награды":
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Этот товар не является наградой")
+            return
+
+        award = self.get_custom_award(item_name)
+        if not award:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Награда не найдена")
+            return
+
+        old_name = award.name
+        dialog = EditCustomAward(self.gamer, award)
+        result = dialog.exec()
+        if result != QDialog.Accepted:
+            return
+
+        new_name = dialog.get_name()
+        new_price = dialog.get_price()
+
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        award = self.get_custom_award(old_name)
+        if not award:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Награда не найдена")
+            return
+
+        if new_name != old_name and self.get_custom_award(new_name):
+            QMessageBox.warning(
+                self.ui.centralwidget,
+                "Ошибка",
+                "Награда с таким названием уже существует"
+            )
+            return
+
+        award.name = new_name
+        award._price = new_price
+        award.item_type = 'Награды'
+        if not getattr(award, 'description', None):
+            award.description = 'Кастомная награда без эффекта'
+
+        if hasattr(self.gamer, 'custom_awards_inventory') and old_name in self.gamer.custom_awards_inventory:
+            self.gamer.custom_awards_inventory[new_name] = self.gamer.custom_awards_inventory.pop(old_name)
+
+        if 'Награды' in self.gamer.items and old_name in self.gamer.items['Награды']:
+            self.gamer.items['Награды'][new_name] = self.gamer.items['Награды'].pop(old_name)
+
+        if 'Награды' in game_data.ITEM_REGISTRY:
+            game_data.ITEM_REGISTRY['Награды'].pop(old_name, None)
+            game_data.ITEM_REGISTRY['Награды'][new_name] = award
+
+        self.gamer.save()
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        self.update_shops()
+        self.update_inventory()
+        self.select_custom_award_in_shop(new_name)
+        self.show_award_info('Награды', new_name)
+        self.notifications.show_success('Награда изменена')
+
+    def delete_selected_custom_award(self):
+        """Убирает выбранную кастомную награду из магазина."""
+        selected = self.ui.item_shop_list_2.currentItem()
+        if not selected:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите награду")
+            return
+
+        category, item_name = selected.data(1)
+        if category != "Награды":
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Этот товар не является наградой")
+            return
+
+        award = self.get_custom_award(item_name)
+        if not award:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Награда не найдена")
+            return
+
+        old_name = award.name
+        reply = QMessageBox.question(
+            self.ui.centralwidget,
+            "Удаление награды",
+            f"Убрать награду «{item_name}» из магазина?\n"
+            "Купленные экземпляры останутся в инвентаре.",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        award = self.get_custom_award(old_name)
+        if not award:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Награда не найдена")
+            return
+
+        award.available_in_shop = False
+        self.cleanup_removed_custom_awards()
+        self.gamer.save()
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        self.update_shops()
+        self.update_inventory()
+        self.clear_award_info()
+        self.notifications.show_success('Награда удалена из магазина')
 
     def buy_selected_item(self, shop_list, spinbox, expected_category):
         """Общая логика покупки"""
@@ -494,6 +933,7 @@ class GameMenuController:
                 if success_count > 0:
                     # Перезагружаем игрока для актуальных данных
                     self.gamer = game.load_game()
+                    self.register_custom_awards()
                     self.update_game_data()
                     self.update_inventory()
 
@@ -504,11 +944,216 @@ class GameMenuController:
                         f"Потрачено: {item_obj.price * success_count}💰"
                     )
                     self.clear_item_info()
+                    self.clear_award_info()
                     self.clear_inventory_item_info()
                     self.update_shops()
 
+    def buy_selected_custom_award(self):
+        """Покупка кастомной награды с хранением в gamer.custom_awards."""
+        selected = self.ui.item_shop_list_2.currentItem()
+        if not selected:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите награду")
+            return
+
+        category, item_name = selected.data(1)
+        if category != "Награды":
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Этот товар не является наградой")
+            return
+
+        award = self.get_custom_award(item_name)
+        if not award:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Награда не найдена")
+            return
+
+        count = self.ui.value_for_buy_selected_item_3.value()
+        total_price = award.price * count
+
+        if self.gamer.coins < total_price:
+            QMessageBox.warning(
+                self.ui.centralwidget,
+                "Ошибка",
+                f"Недостаточно монет!\nНужно: {total_price}💰\nУ вас: {int(self.gamer.coins)}💰"
+            )
+            return
+
+        reply = QMessageBox.question(
+            self.ui.centralwidget,
+            "Подтверждение покупки",
+            f"Купить {count} x {item_name} за {total_price}💰?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+
+        if reply == QMessageBox.No:
+            return
+
+        self.gamer.remove_coins(total_price)
+        self.set_custom_award_count(item_name, self.get_custom_award_count(award) + count)
+        self.gamer.save()
+
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        self.gamer.save()
+        self.update_game_data()
+        self.update_shops()
+        self.clear_award_info()
+        self.clear_inventory_item_info()
+        self.update_inventory()
+        QApplication.processEvents()
+
+        QMessageBox.information(
+            self.ui.centralwidget,
+            "Успех",
+            f"✅ Куплено {count} x {item_name}\nПотрачено: {total_price}💰"
+        )
+
+    def use_custom_award(self, item_name, count):
+        """Использование кастомной награды без игрового эффекта."""
+        award = self.get_custom_award(item_name)
+        if not award:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Награда не найдена")
+            return
+
+        available = self.get_custom_award_count(award)
+        if count > available:
+            QMessageBox.warning(
+                self.ui.centralwidget,
+                "Ошибка",
+                f"У вас только {available} шт."
+            )
+            return
+
+        self.set_custom_award_count(item_name, available - count)
+        if available - count <= 0 and not self.is_custom_award_in_shop(award):
+            self.cleanup_removed_custom_awards()
+        self.gamer.save()
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        self.update_inventory()
+        self.update_game_data()
+        self.clear_inventory_item_info()
+
+        QMessageBox.information(
+            self.ui.centralwidget,
+            "Результат",
+            f"🏆 Использовано {count} x {item_name}\nЭффекта нет."
+        )
+
 
     # === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
+
+    def register_custom_awards(self):
+        """Синхронизирует сохранённые кастомные награды с реестром предметов."""
+        if not self.gamer:
+            return
+
+        if not hasattr(self.gamer, 'custom_awards') or self.gamer.custom_awards is None:
+            self.gamer.custom_awards = []
+        if not hasattr(self.gamer, 'custom_awards_inventory') or self.gamer.custom_awards_inventory is None:
+            self.gamer.custom_awards_inventory = {}
+
+        if 'Награды' not in game_data.ITEM_REGISTRY:
+            game_data.ITEM_REGISTRY['Награды'] = {}
+
+        changed = False
+        for award in self.gamer.custom_awards:
+            if getattr(award, 'item_type', None) != 'Награды':
+                award.item_type = 'Награды'
+                changed = True
+            if not hasattr(award, 'level'):
+                award.level = 1
+                changed = True
+            if not getattr(award, 'description', None):
+                award.description = 'Кастомная награда без эффекта'
+                changed = True
+            if not hasattr(award, 'count'):
+                award.count = 0
+                changed = True
+            if not hasattr(award, 'available_in_shop'):
+                award.available_in_shop = True
+                changed = True
+            if award.count > 0:
+                self.gamer.custom_awards_inventory[award.name] = (
+                    self.gamer.custom_awards_inventory.get(award.name, 0) + award.count
+                )
+                award.count = 0
+                changed = True
+
+            old_inventory_count = self.gamer.items.get('Награды', {}).get(award.name, 0)
+            if old_inventory_count > 0:
+                self.gamer.custom_awards_inventory[award.name] = (
+                    self.gamer.custom_awards_inventory.get(award.name, 0) + old_inventory_count
+                )
+                self.gamer.items['Награды'].pop(award.name, None)
+                changed = True
+
+            game_data.ITEM_REGISTRY['Награды'][award.name] = award
+
+        if 'Награды' not in self.gamer.items:
+            self.gamer.items['Награды'] = {}
+            changed = True
+
+        if changed:
+            self.gamer.save()
+
+    def get_delete_custom_award_button(self):
+        """Возвращает кнопку удаления награды, если она есть в UI."""
+        return getattr(self.ui, 'button_for_delete_selected_custom_award', None)
+
+    def get_edit_custom_award_button(self):
+        """Возвращает кнопку редактирования награды с учётом разных имён в UI."""
+        return (
+            getattr(self.ui, 'button_for_edit_selected_custom_award', None) or
+            getattr(self.ui, 'button_for_edit_aelected_custom_award', None) or
+            getattr(self.ui, 'button_for_edit_custom_award', None)
+        )
+
+    def select_custom_award_in_shop(self, name):
+        """Выбирает награду в списке магазина после изменения."""
+        for row in range(self.ui.item_shop_list_2.count()):
+            item = self.ui.item_shop_list_2.item(row)
+            item_data = item.data(1)
+            if item_data == ('Награды', name):
+                self.ui.item_shop_list_2.setCurrentItem(item)
+                return
+
+    def is_custom_award_in_shop(self, award):
+        """Проверяет, должна ли кастомная награда показываться в магазине."""
+        return getattr(award, 'available_in_shop', True)
+
+    def cleanup_removed_custom_awards(self):
+        """Удаляет скрытые из магазина награды, если их больше нет в инвентаре."""
+        if not hasattr(self.gamer, 'custom_awards_inventory') or self.gamer.custom_awards_inventory is None:
+            self.gamer.custom_awards_inventory = {}
+
+        remaining_awards = []
+        for award in self.gamer.custom_awards:
+            count = self.gamer.custom_awards_inventory.get(award.name, 0)
+            if self.is_custom_award_in_shop(award) or count > 0:
+                remaining_awards.append(award)
+            else:
+                self.gamer.custom_awards_inventory.pop(award.name, None)
+                if 'Награды' in game_data.ITEM_REGISTRY:
+                    game_data.ITEM_REGISTRY['Награды'].pop(award.name, None)
+        self.gamer.custom_awards = remaining_awards
+
+    def get_custom_award(self, name):
+        """Возвращает кастомную награду игрока по названию."""
+        for award in self.gamer.custom_awards:
+            if award.name == name:
+                return award
+        return None
+
+    def get_custom_award_count(self, award):
+        """Возвращает количество купленных экземпляров кастомной награды."""
+        if not hasattr(self.gamer, 'custom_awards_inventory') or self.gamer.custom_awards_inventory is None:
+            self.gamer.custom_awards_inventory = {}
+        return self.gamer.custom_awards_inventory.get(award.name, 0)
+
+    def set_custom_award_count(self, award_name, count):
+        """Обновляет количество купленных экземпляров кастомной награды."""
+        if not hasattr(self.gamer, 'custom_awards_inventory') or self.gamer.custom_awards_inventory is None:
+            self.gamer.custom_awards_inventory = {}
+        self.gamer.custom_awards_inventory[award_name] = max(0, count)
 
     def show_health_warning(self):
         """Показать предупреждение о низком здоровье"""
@@ -541,7 +1186,49 @@ class GameMenuController:
         QTimer.singleShot(30000, lambda: setattr(self, '_health_warning_shown', False))
 
     def show_death_warning(self):
-        """Показать предупреждение о смерти"""
+        """Показать предупреждение о смерти и попытаться воскресить персонажа"""
+        revival_name = 'Зелье воскрешения'
+        has_revival_potion = self.gamer.items.get('Зелья', {}).get(revival_name, 0) > 0
+
+        if has_revival_potion:
+            self.gamer.items['Зелья'][revival_name] -= 1
+            self.gamer.health = 100
+            self.gamer.save()
+            self._death_warning_shown = False
+            self.update_inventory()
+            self.update_game_data()
+            QMessageBox.information(
+                self.ui.centralwidget,
+                "Воскрешение",
+                "💀 Ваше здоровье закончилось, но зелье воскрешения спасло вас!\n"
+                "Здоровье восстановлено до 100, прогресс сохранён."
+            )
+            return
+
+        revival_item = game_data.ITEM_REGISTRY['Зелья'][revival_name]
+        revival_price = revival_item.price
+        if self.gamer.coins >= revival_price:
+            choice = QMessageBox.question(
+                self.ui.centralwidget,
+                "Воскрешение",
+                f"💀 Ваше здоровье закончилось!\n\n"
+                f"Купить и использовать зелье воскрешения за {revival_price} монет, "
+                f"чтобы избежать сброса прогресса?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if choice == QMessageBox.Yes:
+                self.gamer.coins -= revival_price
+                self.gamer.health = 100
+                self.gamer.save()
+                self._death_warning_shown = False
+                self.update_game_data()
+                QMessageBox.information(
+                    self.ui.centralwidget,
+                    "Воскрешение",
+                    "Вы воскрешены! Здоровье восстановлено до 100, прогресс сохранён."
+                )
+                return
+
         if hasattr(self, '_death_warning_shown') and self._death_warning_shown:
             self.gamer.level = 1
             self.gamer.coins /= 2
@@ -661,6 +1348,42 @@ class GameMenuController:
         dialog.show()
         result = dialog.exec_()
 
+    def create_custom_award(self):
+        dialog = CreateCustomAward(self.gamer)
+        dialog.show()
+        result = dialog.exec_()
+
+        if result == QDialog.Accepted:
+            name = dialog.get_name()
+            price = dialog.get_price()
+            self.gamer = game.load_game()
+            self.register_custom_awards()
+
+            if name in game_data.ITEM_REGISTRY.get('Награды', {}):
+                QMessageBox.warning(
+                    self.ui.centralwidget,
+                    "Ошибка",
+                    "Награда с таким названием уже существует"
+                )
+                return
+
+            new_award = game_data.Item(
+                name=name,
+                price=price,
+                item_type='Награды',
+                description='Кастомная награда без эффекта'
+            )
+            new_award.count = 0
+            new_award.available_in_shop = True
+
+            self.gamer.custom_awards.append(new_award)
+            self.gamer.save()
+            self.gamer = game.load_game()
+            self.register_custom_awards()
+            self.update_shops()
+            self.update_inventory()
+            self.clear_award_info()
+            self.notifications.show_success('Награда создана')
 
 class FreezeProject(QDialog, Ui_freeze_projrct):
     def __init__(self):
@@ -794,3 +1517,52 @@ class Bank(QDialog, Ui_Bamk):
         def take_credit():
             """Метод дял взятия кредита''"""
             pass
+
+class CreateCustomAward(QDialog, Ui_create_castom_item):
+    def __init__(self, gamer: game.Gamer):
+        super().__init__()
+        self.setupUi(self)
+        self.gamer = gamer
+        self.awards = gamer.custom_awards
+
+        try:
+            self.buttonBox.accepted.disconnect()
+        except (TypeError, RuntimeError):
+            pass
+        self.buttonBox.accepted.connect(self.on_accept)
+
+    def on_accept(self):
+        try:
+            self.get_price()
+        except ValueError as error:
+            QMessageBox.warning(self, "Ошибка", str(error))
+            return
+
+        self.accept()
+
+    def get_name(self):
+        name = self.award_name_le.text().strip()
+        return name or "Новая награда"
+
+    def get_price(self):
+        price_text = self.award_price_le.text().strip().replace(',', '.')
+        if not price_text:
+            return 1
+
+        try:
+            price = float(price_text)
+        except ValueError:
+            raise ValueError("Стоимость должна быть числом")
+
+        if price <= 0:
+            raise ValueError("Стоимость должна быть больше 0")
+        return round(price, 1)
+
+
+class EditCustomAward(CreateCustomAward):
+    def __init__(self, gamer: game.Gamer, award: game_data.Item):
+        super().__init__(gamer)
+        self.award = award
+        self.setWindowTitle('Редактирование награды')
+        self.award_name_le.setText(award.name)
+        self.award_price_le.setText(str(award.price))

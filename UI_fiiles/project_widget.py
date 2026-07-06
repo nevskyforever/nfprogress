@@ -323,6 +323,15 @@ class ProjectWidget(QWidget, Ui_Form):
 
         self.update_display()
 
+    def stop_animations(self):
+        """Останавливает все анимации виджета перед его удалением.
+
+        Без этого QVariantAnimation продолжает тикать после того, как
+        QListWidget.clear() уничтожает виджет, и PySide пытается вызвать
+        слот на уже удалённом C++ объекте ("Called attribute on invalid object").
+        """
+        self.circular_progress.stopAnimation()
+
     def update_display(self):
         """Обновляет отображение виджета проекта."""
         self.name.setText(self.project.name)

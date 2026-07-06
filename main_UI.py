@@ -2,6 +2,7 @@ import datetime
 import math
 import os
 import sys
+import threading
 
 from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags
 from PySide6.QtGui import QKeySequence
@@ -47,6 +48,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # для отслеживания предыдущей вкладки
         self._previous_tab = None
+        # были ли уже подключены обработчики кнопок проекта (setup_project_buttons)
+        self._project_buttons_connected = False
 
         # Применяем настройки
         self.applying_settings()
@@ -118,6 +121,33 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Фоновая проверка системной даты/времени для автообновления UI
         self._setup_time_watcher()
+
+    def closeEvent(self, event):
+        """Останавливает все активные анимации перед уничтожением окна.
+
+        Иначе при закрытии приложения Qt рвёт дерево виджетов, пока
+        QVariantAnimation/QPropertyAnimation ещё тикают (круговые прогресс-бары
+        проектов, fade-анимации тостов), и shiboken печатает в консоль
+        "Called attribute on invalid object" для уже удалённых объектов.
+        """
+        for i in range(self.list_projects.count()):
+            widget = self.list_projects.itemWidget(self.list_projects.item(i))
+            if widget is not None and hasattr(widget, 'stop_animations'):
+                widget.stop_animations()
+
+        # Сбрасываем текущее выделение: нативная (macOS) анимация подсветки
+        # выбранного элемента списка может ещё проигрываться в момент закрытия
+        # окна — тогда она тикает на уже уничтоженных объектах.
+        self.list_projects.clearSelection()
+        self.list_projects.setCurrentItem(None)
+        self.note_list.clearSelection()
+        self.note_list.setCurrentItem(None)
+
+        for toast in list(self.notifications.toasts):
+            toast.fade_in_anim.stop()
+            toast.fade_out_anim.stop()
+
+        super().closeEvent(event)
 
     def _setup_time_watcher(self):
         """Запускает таймер, который периодически проверяет системное время."""
@@ -540,35 +570,19 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def setup_project_buttons(self, project):
         """Настраивает кнопки управления проектом"""
-        # Безопасное отключение старых соединений
-        try:
+        # Отключаем старые соединения только если они действительно были
+        # установлены — иначе PySide печатает RuntimeWarning "Failed to
+        # disconnect (None) from signal", даже если TypeError перехвачен.
+        if self._project_buttons_connected:
             self.btn_change_project.clicked.disconnect()
-        except:
-            pass
-        try:
             self.btn_complete_project.clicked.disconnect()
-        except:
-            pass
-        try:
             self.btn_archived_project.clicked.disconnect()
-        except:
-            pass
-        try:
             self.btn_delete_project.clicked.disconnect()
-        except:
-            pass
-        try:
             self.pb_save_flash_note.clicked.disconnect()
-        except:
-            pass
-        try:
             self.delete_note.clicked.disconnect()
-        except:
-            pass
-        try:
             self.btn_synch_project.clicked.disconnect()
-        except:
-            pass
+
+        self._project_buttons_connected = True
 
         # Подключаем новые
         self.btn_change_project.clicked.connect(lambda: self.edit_project(project))
@@ -643,6 +657,11 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def load_notes(self, project):
         """Загружает список заметок проекта с отображением добавленного и общего количества."""
+        # Сбрасываем выделение перед clear() — иначе нативная анимация смены
+        # выделенного элемента может тикать на уже уничтоженном QListWidgetItem
+        # (см. аналогичный фикс для list_projects в refresh_projects()).
+        self.note_list.clearSelection()
+        self.note_list.setCurrentItem(None)
         self.note_list.clear()
 
         # Получаем единицу измерения для отображения
@@ -1248,6 +1267,20 @@ class MainWindow(QMainWindow, main_window_ui):
             widget = self.list_projects.itemWidget(current_item)
             if widget and hasattr(widget, 'project'):
                 current_project_name = widget.project.name
+
+        # Сбрасываем текущее выделение перед clear(): нативная (macOS) анимация
+        # смены выделенного элемента продолжает тикать на уже уничтоженном
+        # QListWidgetItem, если элемент удалить прямо во время её проигрывания —
+        # это и есть настоящий источник "Called attribute on invalid object".
+        list_p.clearSelection()
+        list_p.setCurrentItem(None)
+
+        # Останавливаем анимации круговых прогресс-баров у старых виджетов,
+        # иначе после clear() они продолжают тикать на уже удалённых объектах
+        for i in range(list_p.count()):
+            old_widget = list_p.itemWidget(list_p.item(i))
+            if old_widget is not None and hasattr(old_widget, 'stop_animations'):
+                old_widget.stop_animations()
 
         list_p.clear()
 
@@ -2782,7 +2815,35 @@ class ProjectStatsDialog(QDialog, project_stats_ui):
         return unit_map.get(self.project.unit, self.project.unit)
 
 
+def _suppress_invalid_object_stderr_spam():
+    """Глушит безобидную диагностику shiboken/Qt "Called attribute on
+    invalid object", которая печатается при закрытии окна после выбора
+    элемента списка с кастомным виджетом (setItemWidget + setCurrentItem).
+    Сообщение пишется в файловый дескриптор stderr напрямую из C++,
+    минуя sys.stderr, поэтому фильтруется на уровне ОС через pipe.
+    Не влияет на работу приложения и не появляется в собранной сборке,
+    но засоряет консоль при разработке.
+    """
+    if "__compiled__" in globals():
+        return
+    real_stderr_fd = os.dup(sys.stderr.fileno())
+    read_fd, write_fd = os.pipe()
+    os.dup2(write_fd, sys.stderr.fileno())
+    os.close(write_fd)
+
+    def _pump():
+        real_stderr = os.fdopen(real_stderr_fd, "w")
+        with os.fdopen(read_fd, "r", buffering=1) as pipe_reader:
+            for line in pipe_reader:
+                if "Called attribute on invalid object" not in line:
+                    real_stderr.write(line)
+                    real_stderr.flush()
+
+    threading.Thread(target=_pump, daemon=True).start()
+
+
 if __name__ == "__main__":
+    _suppress_invalid_object_stderr_spam()
     app = QApplication(sys.argv)
 
     translator = QTranslator()
