@@ -94,13 +94,14 @@ class Buff:
 class Item:
     """Основной класс"""
 
-    def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None):
+    def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None, credit_allowed=True):
         self.name = name
         self.item_type = item_type
         self._price = price
         self.level = level
         self.description = description
         self.buff = buff
+        self.credit_allowed = credit_allowed
 
     @property
     def price(self):
@@ -229,10 +230,20 @@ class Credit:
     def get_interest_rate(self):
         return self.interest_rate_on_loan
 
+    def get_base_daily_payment(self):
+        self.normalize()
+        days = max(1, self.days_until_return)
+        daily_rate = self.interest_rate_on_loan / 100
+        if daily_rate <= 0:
+            return round(self.credit_sum / days, 1)
+        growth = (1 + daily_rate) ** days
+        payment = self.credit_sum * daily_rate * growth / (growth - 1)
+        return round(payment, 1)
+
     def calculate_interest(self):
         self.normalize()
-        rate = self.interest_rate_on_loan
-        self.interest = round((self.credit_sum / 100) * (rate * self.days_until_return), 1)
+        total_without_penalty = self.get_base_daily_payment() * max(1, self.days_until_return)
+        self.interest = max(0, round(total_without_penalty - self.credit_sum, 1))
         return self.interest
 
     def get_interest(self):
@@ -248,8 +259,7 @@ class Credit:
 
     def get_daily_payment(self):
         self.normalize()
-        days = max(1, self.days_until_return)
-        return round(min(self.get_remaining_sum(), self.get_total_sum() / days), 1)
+        return round(min(self.get_remaining_sum(), self.get_base_daily_payment()), 1)
 
     def get_damage(self):
         today = engine.today_for_test()
@@ -280,12 +290,21 @@ class Deposit:
         self.interest_rate_on_deposit = interest_rate_on_deposit
         self.interest = 0
         self.withdrawn_interest = 0
+        self.interest_withdrawals = []
         self.last_interest_withdraw_date = None
         self.last_interest_notice_date = None
 
     def normalize(self):
         if not hasattr(self, 'withdrawn_interest'):
             self.withdrawn_interest = 0
+        if not hasattr(self, 'interest_withdrawals'):
+            self.interest_withdrawals = []
+            if self.withdrawn_interest > 0:
+                withdrawal_date = getattr(self, 'last_interest_withdraw_date', None) or self.give_date
+                self.interest_withdrawals.append({
+                    'date': withdrawal_date,
+                    'amount': self.withdrawn_interest,
+                })
         if not hasattr(self, 'last_interest_withdraw_date'):
             self.last_interest_withdraw_date = None
         if not hasattr(self, 'last_interest_notice_date'):
@@ -298,11 +317,28 @@ class Deposit:
     def get_return_date(self):
         return self.give_date + timedelta(days=self.days_until_return)
 
+    def _remaining_interest_after_withdrawals(self, days):
+        self.normalize()
+        days = max(0, int(days))
+        daily_rate = self.interest_rate_on_deposit / 100
+        balance = float(self.deposit_sum)
+        withdrawals_by_day = {}
+        for withdrawal in self.interest_withdrawals:
+            withdrawal_date = withdrawal.get('date')
+            if not withdrawal_date:
+                continue
+            withdrawal_day = max(0, min((withdrawal_date - self.give_date).days, days))
+            withdrawals_by_day[withdrawal_day] = withdrawals_by_day.get(withdrawal_day, 0) + withdrawal.get('amount', 0)
+
+        for day in range(1, days + 1):
+            balance += balance * daily_rate
+            if day in withdrawals_by_day:
+                balance = max(self.deposit_sum, balance - withdrawals_by_day[day])
+        return max(0, round(balance - self.deposit_sum, 1))
+
     def set_interest(self):
         self.normalize()
-        rate = self.interest_rate_on_deposit
-        gross_interest = (self.deposit_sum / 100) * (self.days_until_return * rate)
-        self.interest = max(0, round(gross_interest - self.withdrawn_interest, 1))
+        self.interest = self._remaining_interest_after_withdrawals(self.days_until_return)
 
     def get_interest(self):
         self.set_interest()
@@ -312,7 +348,7 @@ class Deposit:
         today = engine.today_for_test()
         return_date = self.get_return_date()
         if today < return_date:
-            status = 'Нельзя снять'
+            status = 'Можно снять досрочно с потерей процентов'
         elif today == return_date or today > return_date:
             status = 'Можно снять'
         return status
@@ -324,8 +360,7 @@ class Deposit:
         self.normalize()
         today = engine.today_for_test()
         passed_days = max(0, min((today - self.give_date).days, self.days_until_return))
-        gross_interest = (self.deposit_sum / 100) * (self.interest_rate_on_deposit * passed_days)
-        return max(0, round(gross_interest - self.withdrawn_interest, 1))
+        return self._remaining_interest_after_withdrawals(passed_days)
 
 
 class BankAccount:
@@ -392,9 +427,22 @@ class BankAccount:
         return round(total, 1)
 
     def estimate_daily_income(self, gamer):
-        cf_income = max(1.0, gamer.get_cf_value('coins', 1.0)) * 10
-        level_income = max(0, gamer.level - 1) * 2
-        return round((cf_income + level_income) * gamer.calculate_inflation(), 1)
+        details = self.estimate_daily_income_details(gamer)
+        return details['total']
+
+    def estimate_daily_income_details(self, gamer):
+        coins_cf = max(0.1, gamer.get_cf_value('coins', 1.0))
+        inflation = gamer.calculate_inflation()
+        symbol_income = 5 * coins_cf
+        streak_income = 3 * coins_cf * inflation
+        level_income = min(12, max(0, gamer.level - 1) * 0.75)
+        total = round(symbol_income + streak_income + level_income, 1)
+        return {
+            'symbols': round(symbol_income, 1),
+            'streaks': round(streak_income, 1),
+            'level': round(level_income, 1),
+            'total': total,
+        }
 
     def calculate_credit_score(self, gamer):
         self.normalize()
@@ -482,6 +530,19 @@ class BankAccount:
         rate += min(0.035, max(0, inflation - 1) * 0.003)
         return round(max(0.025, min(0.13, rate)), 3)
 
+    def _preview_credit_interest(self, amount, rate, days):
+        daily_rate = rate / 100
+        if daily_rate <= 0:
+            total = amount
+        else:
+            growth = (1 + daily_rate) ** days
+            daily_payment = round(amount * daily_rate * growth / (growth - 1), 1)
+            total = daily_payment * days
+        return max(0, round(total - amount, 1))
+
+    def _preview_deposit_interest(self, amount, rate, days):
+        return round(amount * ((1 + rate / 100) ** days - 1), 1)
+
     def preview_product(self, gamer, product_type, amount, days):
         self.normalize()
         amount = max(0, float(amount))
@@ -490,10 +551,11 @@ class BankAccount:
             days = min(days, self.get_max_credit_days())
             rate = self.get_credit_rate(gamer, amount, days)
             limit = self.get_credit_limit(gamer)
+            interest = self._preview_credit_interest(amount, rate, days)
         else:
             rate = self.get_deposit_rate(gamer)
             limit = None
-        interest = round((amount / 100) * rate * days, 1)
+            interest = self._preview_deposit_interest(amount, rate, days)
         return {'rate': rate, 'interest': interest, 'total': round(amount + interest, 1), 'limit': limit}
 
     def open_credit(self, gamer, amount, days):
@@ -617,25 +679,49 @@ class BankAccount:
         gamer.save()
         return message
 
-    def return_deposit(self, gamer=None):
+    def return_deposit(self, gamer=None, early=False):
         self.normalize()
         gamer = gamer or game.load_game()
         self._attach_to_gamer(gamer)
         if not self.deposit:
             return 'Нет вклада'
-        if self.deposit.get_return_date() > engine.today_for_test():
+        if self.deposit.get_return_date() > engine.today_for_test() and not early:
             return 'Срок вклада еще не наступил'
 
-        total_sum = self.deposit.get_total_sum()
+        principal = self.deposit.deposit_sum
         interest = self.deposit.get_interest()
+        if early:
+            total_sum = principal
+            lost_interest = interest
+            status = 'early_returned'
+            notification = (
+                f'Депозит снят досрочно. Возвращено {total_sum} монет. '
+                f'Проценты {lost_interest} монет сгорели.'
+            )
+            message = (f'\nДЕПОЗИТ СНЯТ ДОСРОЧНО\n'
+                       f'Вы получили {total_sum} монет\n'
+                       f'Проценты сгорели: {lost_interest} монет')
+        else:
+            total_sum = self.deposit.get_total_sum()
+            lost_interest = 0
+            status = 'returned'
+            notification = f'Депозит снят. Вы получили {total_sum} монет.'
+            message = (f'\nДЕПОЗИТ СНЯТ\n'
+                       f'Вы получили {total_sum} монет')
+
         gamer.coins += total_sum
-        self.deposit_history.append({'sum': self.deposit.deposit_sum, 'interest': interest, 'status': 'returned'})
+        self.deposit_history.append({
+            'sum': principal,
+            'interest': 0 if early else interest,
+            'lost_interest': lost_interest,
+            'status': status,
+            'returned_date': engine.today_for_test(),
+        })
         self.deposit = None
-        self._add_notification(f'Депозит снят. Вы получили {total_sum} монет.')
+        self._add_notification(notification)
         gamer.save()
 
-        return (f'\nДЕПОЗИТ СНЯТ\n'
-                f'Вы получили {total_sum} монет')
+        return message
 
     def withdraw_deposit_interest(self, gamer):
         self.normalize()
@@ -650,6 +736,7 @@ class BankAccount:
             return 'Пока нет доступных процентов'
         gamer.coins += interest
         self.deposit.withdrawn_interest += interest
+        self.deposit.interest_withdrawals.append({'date': today, 'amount': interest})
         self.deposit.last_interest_withdraw_date = today
         message = f'Сняты проценты по вкладу: {interest} монет'
         self._add_notification(message)
@@ -955,6 +1042,7 @@ freeze = FuncItem('Заморозка', price=calculate_freeze_price, item_type=
                               '️\n⚠️ Важно: чем больше заморозок вы используете, тем дороже они становятся.'
                               '\nМожно иметь не более 2 заморозок в инвентаре и купить только 1 за раз.')
 lottery_ticket = FuncItem("Лотерейный билет", price=lambda: calculate_item_price(10), item_type='Предметы', level=3, func=lottery_ticket_func,
+                          credit_allowed=False,
                           description=f'Лотерейный билет "5 из 30". Угадайте числа и сорвите джекпот!')
 health_potion_5 = FuncItem('Микро зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(10), add=5,
                            description='Восстанавливает здоровье на 5 единиц')

@@ -921,6 +921,16 @@ class GameMenuController:
 
                 # Проверяем достаточно ли монет
                 if self.gamer.coins < total_price:
+                    if not getattr(item_obj, 'credit_allowed', True):
+                        QMessageBox.warning(
+                            self.ui.centralwidget,
+                            "Ошибка",
+                            f"Недостаточно монет!\n"
+                            f"Нужно: {total_price}💰\n"
+                            f"У вас: {round(self.gamer.coins, 1)}💰\n\n"
+                            f"Этот предмет нельзя купить в кредит."
+                        )
+                        return
                     if not self.offer_purchase_credit(total_price, f"{count} x {item_name}"):
                         return
                     skip_confirmation = True
@@ -1074,10 +1084,16 @@ class GameMenuController:
         self.gamer = game.load_game()
         self.register_custom_awards()
         if self.gamer.coins < total_price:
+            credit_text = ''
+            if not getattr(item_obj, 'credit_allowed', True):
+                credit_text = '\nЭтот предмет нельзя купить в кредит.'
             QMessageBox.warning(
                 self.ui.centralwidget,
                 "Ошибка",
-                f"Покупка остановлена: недостаточно монет.\nНужно: {total_price}💰\nУ вас: {round(self.gamer.coins, 1)}💰"
+                f"Покупка остановлена: недостаточно монет.\n"
+                f"Нужно: {total_price}💰\n"
+                f"У вас: {round(self.gamer.coins, 1)}💰"
+                f"{credit_text}"
             )
             return 0
 
@@ -1710,13 +1726,17 @@ class Bank(QDialog, Ui_Bamk):
         credit_rate = self.account.get_credit_rate(self.gamer)
         deposit_rate = self.account.get_deposit_rate(self.gamer)
         credit_limit = self.account.get_credit_limit(self.gamer)
+        income = self.account.estimate_daily_income_details(self.gamer)
 
         self.credit_score.setText(
             f'Кредитный рейтинг: {score}\n'
             f'Лимит: {credit_limit}'
         )
         self.label_2.setText(f'Кредит: {credit_rate}%/д.\nВклад: {deposit_rate}%/д.')
-        self.label.setText(f'Оценочный доход: {self.account.estimate_daily_income(self.gamer)} м./д.')
+        self.label.setText(
+            f'Оценочный доход: {income["total"]} м./д.\n'
+            f'Письмо: {income["symbols"]}, стрики: {income["streaks"]}, уровень: {income["level"]}'
+        )
 
         today = engine.today_for_test()
 
@@ -1784,7 +1804,7 @@ class Bank(QDialog, Ui_Bamk):
             self.return_deposit_date.setText(f'До {deposit.get_return_date().strftime("%d.%m.%Y")}')
             self.deposit_total_sum.setVisible(True)
             self.deposit_total_sum.setText(f'К снятию: {deposit.get_total_sum()}')
-            self.return_deposit_btn.setEnabled(deposit.get_return_date() <= today)
+            self.return_deposit_btn.setEnabled(True)
             self.withdraw_interest_from_a_deposit.setEnabled(
                 today > deposit.give_date
                 and deposit.last_interest_withdraw_date != today
@@ -1849,7 +1869,24 @@ class Bank(QDialog, Ui_Bamk):
         self._reload_after_action(message)
 
     def return_deposit(self):
-        message = self.account.return_deposit(self.gamer)
+        deposit = self.account.deposit
+        early = False
+        if deposit and deposit.get_return_date() > engine.today_for_test():
+            choice = QMessageBox.question(
+                self,
+                "Досрочное снятие вклада",
+                f"Срок вклада еще не наступил.\n\n"
+                f"При досрочном снятии на счет вернется только сумма вклада: "
+                f"{deposit.get_sum()} монет.\n"
+                f"Проценты сгорят: {deposit.get_interest()} монет.\n\n"
+                f"Снять вклад досрочно?",
+                QMessageBox.Yes | QMessageBox.No
+            )
+            if choice != QMessageBox.Yes:
+                return
+            early = True
+
+        message = self.account.return_deposit(self.gamer, early=early)
         self._reload_after_action(message)
 
     def withdraw_deposit_interest(self):
