@@ -420,18 +420,24 @@ class BankAccount:
         items = getattr(gamer, 'items', {})
         if not isinstance(items, dict):
             return total
+        custom_award_names = {
+            award.name
+            for award in getattr(gamer, 'custom_awards', [])
+            if hasattr(award, 'name')
+        }
 
         for category, category_items in items.items():
-            if category == 'Награды':
-                continue
             if not isinstance(category_items, dict):
                 continue
             for item_name, count in category_items.items():
                 if count <= 0:
                     continue
                 item = ITEM_REGISTRY.get(category, {}).get(item_name)
-                if item:
-                    total += item.price * count
+                if not item:
+                    continue
+                if category == 'Награды' and item_name in custom_award_names:
+                    continue
+                total += item.price * count
         return round(total, 1)
 
     def estimate_daily_income(self, gamer):
