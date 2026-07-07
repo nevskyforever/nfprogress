@@ -421,7 +421,7 @@ class BankAccount:
             for item_name, count in category_items.items():
                 if count <= 0:
                     continue
-                item = ITEM_REGISTRY.get(category, {}).get(item_name)
+                _, item = find_registry_item(category, item_name)
                 if item:
                     total += item.price * count
         return round(total, 1)
@@ -1170,3 +1170,27 @@ ITEM_REGISTRY = {'Зелья':
                               'Лотерейный билет': lottery_ticket,},
                  'Награды': {'👑 Корона Первой Эпохи': crown_of_the_first_era,
                              '💎 Перо Миллионера': millionaires_pen,},}
+
+
+def find_registry_item(category, item_identifier):
+    """Возвращает (ключ_реестра, объект) по ключу или отображаемому имени предмета."""
+    registry = ITEM_REGISTRY.get(category, {})
+    if not isinstance(registry, dict):
+        return None, None
+
+    item = registry.get(item_identifier)
+    if item is not None:
+        return item_identifier, item
+
+    for registry_key, registry_item in registry.items():
+        if getattr(registry_item, 'name', None) == item_identifier:
+            return registry_key, registry_item
+
+    folded_identifier = str(item_identifier).casefold()
+    for registry_key, registry_item in registry.items():
+        if str(registry_key).casefold() == folded_identifier:
+            return registry_key, registry_item
+        if str(getattr(registry_item, 'name', '')).casefold() == folded_identifier:
+            return registry_key, registry_item
+
+    return None, None
