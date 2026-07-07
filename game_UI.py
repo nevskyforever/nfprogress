@@ -261,7 +261,7 @@ class GameMenuController:
     def show_bank_message(self, message):
         if not self.notifications or not message:
             return
-        lowered = message.lower()
+        lowered = message.casefold()
         if 'просроч' in lowered or 'недостаточно' in lowered:
             self.notifications.show_warning(message)
         elif 'автоплатеж' in lowered or 'погашен' in lowered or 'возвращено' in lowered:
@@ -469,7 +469,9 @@ class GameMenuController:
         for category, items in self.gamer.items.items():
             for item_name, count in items.items():
                 if count > 0:
-                    display_text = f"{item_name} x{count} [{category}]"
+                    _, item_obj = game_data.find_registry_item(category, item_name)
+                    display_name = getattr(item_obj, 'name', item_name)
+                    display_text = f"{display_name} x{count} [{category}]"
                     item = QListWidgetItem(display_text)
                     # Сохраняем данные предмета (категория, имя)
                     item.setData(1, (category, item_name))
@@ -493,9 +495,9 @@ class GameMenuController:
             for item_name, item_obj in game_data.ITEM_REGISTRY['Предметы'].items():
                 if game.load_game().level >= item_obj.level:
                     # Проверяем кол-во заморозок в инвентаре и скрываем их, если их больше 2
-                    if item_name == 'Заморозка' and game.load_game().items['Предметы'].get('Заморозка', 0) >= 2:
+                    if item_name == 'Заморозка' and self.get_inventory_item_count('Предметы', item_obj, item_name) >= 2:
                         continue
-                    display_text = f"{item_name}"
+                    display_text = f"{item_obj.name}"
                     item = QListWidgetItem(display_text)
                     item.setData(1, ('Предметы', item_name))
                     self.ui.item_shop_list.addItem(item)
@@ -507,7 +509,7 @@ class GameMenuController:
         if 'Зелья' in game_data.ITEM_REGISTRY:
             for potion_name, potion_obj in game_data.ITEM_REGISTRY['Зелья'].items():
                 if game.load_game().level >= potion_obj.level:
-                    display_text = f"{potion_name}"
+                    display_text = f"{potion_obj.name}"
                     item = QListWidgetItem(display_text)
                     item.setData(1, ('Зелья', potion_name))
                     self.ui.potion_shop_list.addItem(item)
@@ -546,8 +548,8 @@ class GameMenuController:
             return
 
         # Получаем объект предмета из реестра
-        if category in game_data.ITEM_REGISTRY and item_name in game_data.ITEM_REGISTRY[category]:
-            item_obj = game_data.ITEM_REGISTRY[category][item_name]
+        registry_key, item_obj = game_data.find_registry_item(category, item_name)
+        if item_obj:
 
             # Отображаем информацию
             self.ui.name_selected_item.setText(f"📦 {item_obj.name}")
@@ -563,7 +565,7 @@ class GameMenuController:
                     effect_text = "Активируется при использовании"
 
             # Добавляем информацию о количестве
-            count = self.gamer.items.get(category, {}).get(item_name, 0)
+            count = self.get_inventory_item_count(category, item_obj, registry_key, item_name)
             self.ui.effect_selected_item.setText(
                 f"⚡ {effect_text}{self.describe_item_buff(item_obj)}\n🔢 В наличии: {count}"
             )
@@ -585,8 +587,13 @@ class GameMenuController:
             self.use_custom_award(item_name, count)
             return
 
+        registry_key, item_obj = game_data.find_registry_item(category, item_name)
+        if not item_obj:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Предмет не найден")
+            return
+
         # Проверяем наличие
-        available = self.gamer.items.get(category, {}).get(item_name, 0)
+        available = self.get_inventory_item_count(category, item_obj, registry_key, item_name)
         if count > available:
             QMessageBox.warning(
                 self.ui.centralwidget,
@@ -595,16 +602,9 @@ class GameMenuController:
             )
             return
 
-        # Получаем объект предмета
-        if category not in game_data.ITEM_REGISTRY or item_name not in game_data.ITEM_REGISTRY[category]:
-            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Предмет не найден")
-            return
-
-        item_obj = game_data.ITEM_REGISTRY[category][item_name]
-
         # Особый случай: Заморозка (используется один раз за вызов)
-        if item_name == 'Заморозка':
-            self.freeze_project()
+        if registry_key == 'Заморозка':
+            self.freeze_project(item_obj=item_obj, fallback_names=(item_name, registry_key))
             return
 
         # Проверяем наличие метода use
@@ -612,9 +612,11 @@ class GameMenuController:
             QMessageBox.information(
                 self.ui.centralwidget,
                 "Информация",
-                f"{item_name} нельзя использовать"
+                f"{item_obj.name} нельзя использовать"
             )
             return
+
+        self.ensure_inventory_item_name(category, item_obj, registry_key, item_name)
 
         # Используем предмет count раз
         result_messages = []
@@ -634,7 +636,7 @@ class GameMenuController:
             # Перезагружаем игрока, чтобы получить актуальные монеты/здоровье после всех использований
             self.gamer = game.load_game()
             # Уменьшаем количество использованных предметов в инвентаре (предполагаем, что use не трогает items)
-            self.gamer.items[category][item_name] -= success_count
+            self.decrease_inventory_item(category, item_obj, success_count, registry_key, item_name)
             # Сохраняем обновлённый инвентарь
             self.gamer.save()
 
@@ -681,10 +683,9 @@ class GameMenuController:
 
     def show_item_info(self, category, item_name, is_potion=False):
         """Отображение информации о предмете в магазине"""
-        if category not in game_data.ITEM_REGISTRY or item_name not in game_data.ITEM_REGISTRY[category]:
+        _, item_obj = game_data.find_registry_item(category, item_name)
+        if not item_obj:
             return
-
-        item_obj = game_data.ITEM_REGISTRY[category][item_name]
 
         # Определяем, какой ScrollArea использовать
         if is_potion:
@@ -915,8 +916,9 @@ class GameMenuController:
             )
         else:
 
-            if category in game_data.ITEM_REGISTRY and item_name in game_data.ITEM_REGISTRY[category]:
-                item_obj = game_data.ITEM_REGISTRY[category][item_name]
+            _, item_obj = game_data.find_registry_item(category, item_name)
+            if item_obj:
+                item_display_name = item_obj.name
                 total_price = item_obj.price * count
 
                 # Проверяем достаточно ли монет
@@ -931,7 +933,7 @@ class GameMenuController:
                             f"Этот предмет нельзя купить в кредит."
                         )
                         return
-                    if not self.offer_purchase_credit(total_price, f"{count} x {item_name}"):
+                    if not self.offer_purchase_credit(total_price, f"{count} x {item_display_name}"):
                         return
                     skip_confirmation = True
                 else:
@@ -941,7 +943,7 @@ class GameMenuController:
                     reply = QMessageBox.question(
                         self.ui.centralwidget,
                         "Подтверждение покупки",
-                        f"Купить {count} x {item_name} за {total_price}💰?",
+                        f"Купить {count} x {item_display_name} за {total_price}💰?",
                         QMessageBox.Yes | QMessageBox.No
                     )
 
@@ -960,7 +962,7 @@ class GameMenuController:
                     QMessageBox.information(
                         self.ui.centralwidget,
                         "Успех",
-                        f"✅ Куплено {success_count} x {item_name}\n"
+                        f"✅ Куплено {success_count} x {item_display_name}\n"
                         f"Потрачено: {item_obj.price * success_count}💰"
                     )
                     self.clear_item_info()
@@ -1143,6 +1145,54 @@ class GameMenuController:
 
     # === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
 
+    def get_inventory_item_aliases(self, item_obj, *fallback_names):
+        aliases = []
+        for name in (getattr(item_obj, 'name', None), *fallback_names):
+            if name and name not in aliases:
+                aliases.append(name)
+        return aliases
+
+    def get_inventory_item_count(self, category, item_obj, *fallback_names):
+        category_items = self.gamer.items.get(category, {})
+        if not isinstance(category_items, dict):
+            return 0
+
+        return sum(
+            category_items.get(name, 0)
+            for name in self.get_inventory_item_aliases(item_obj, *fallback_names)
+        )
+
+    def decrease_inventory_item(self, category, item_obj, count, *fallback_names):
+        category_items = self.gamer.items.setdefault(category, {})
+        remaining = count
+
+        for name in self.get_inventory_item_aliases(item_obj, *fallback_names):
+            if remaining <= 0:
+                break
+            available = category_items.get(name, 0)
+            if available <= 0:
+                continue
+
+            used = min(available, remaining)
+            category_items[name] = available - used
+            remaining -= used
+
+        return count - remaining
+
+    def ensure_inventory_item_name(self, category, item_obj, *fallback_names):
+        category_items = self.gamer.items.setdefault(category, {})
+        item_name = getattr(item_obj, 'name', None)
+        if not item_name:
+            return
+
+        for fallback_name in fallback_names:
+            if fallback_name == item_name:
+                continue
+            fallback_count = category_items.pop(fallback_name, 0)
+            if fallback_count > 0:
+                category_items[item_name] = category_items.get(item_name, 0) + fallback_count
+                self.gamer.save()
+
     def register_custom_awards(self):
         """Синхронизирует сохранённые кастомные награды с реестром предметов."""
         if not self.gamer:
@@ -1268,7 +1318,7 @@ class GameMenuController:
         has_health_potion = False
         if 'Зелья' in self.gamer.items:
             for potion_name in self.gamer.items['Зелья']:
-                if 'здоровья' in potion_name.lower() and self.gamer.items['Зелья'][potion_name] > 0:
+                if 'здоровья' in str(potion_name).casefold() and self.gamer.items['Зелья'][potion_name] > 0:
                     has_health_potion = True
                     break
 
@@ -1431,12 +1481,14 @@ class GameMenuController:
             return True
         return
 
-    def freeze_project(self):
+    def freeze_project(self, item_obj=None, fallback_names=()):
         dialog = FreezeProject()
         result = dialog.exec_()
         if result == QDialog.Accepted:
             msg = dialog.freeze()
-            self.gamer.items['Предметы']['Заморозка'] -= 1
+            if item_obj is None:
+                _, item_obj = game_data.find_registry_item('Предметы', 'Заморозка')
+            self.decrease_inventory_item('Предметы', item_obj, 1, *fallback_names, 'Заморозка')
             self.gamer.save()
             self.notifications.show_success(msg)
             self.update_inventory()

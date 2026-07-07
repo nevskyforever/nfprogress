@@ -123,10 +123,13 @@ class Gamer:
                 continue
 
             for item_name, count in items.items():
-                if count <= 0 or item_name not in game_data.ITEM_REGISTRY[category]:
+                if count <= 0:
                     continue
 
-                item = game_data.ITEM_REGISTRY[category][item_name]
+                _, item = game_data.find_registry_item(category, item_name)
+                if not item:
+                    continue
+
                 buff = getattr(item, 'buff', None)
                 if not buff:
                     continue
@@ -495,8 +498,11 @@ class Gamer:
         if self.health > 0:
             return True
 
-        # Ищем любое зелье в инвентаре по ключевому слову
-        has_potion = any('зелье' in k.lower() and v > 0 for k, v in self.items.items())
+        # Ищем любое зелье в инвентаре по категории и названию предмета.
+        has_potion = any(
+            count > 0 and 'зелье' in str(item_name).casefold()
+            for item_name, count in self.items.get('Зелья', {}).items()
+        )
 
         if has_potion:
             # Для простоты в критической ситуации даем шанс восстановиться вручную
