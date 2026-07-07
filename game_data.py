@@ -257,6 +257,12 @@ class Credit:
         self.normalize()
         return max(0, round(self.get_total_sum() - self.paid_amount, 1))
 
+    def get_full_repayment_sum(self):
+        self.normalize()
+        if engine.today_for_test() < self.get_first_payment_date():
+            return max(0, round(self.credit_sum + self.accrued_penalty - self.paid_amount, 1))
+        return self.get_remaining_sum()
+
     def get_daily_payment(self):
         self.normalize()
         return round(min(self.get_remaining_sum(), self.get_base_daily_payment()), 1)
@@ -271,15 +277,17 @@ class Credit:
     def repay(self, gamer):
         """Полное погашение с учётом уже внесенных платежей."""
         self.normalize()
-        total_sum = self.get_remaining_sum()
+        total_sum = self.get_full_repayment_sum()
 
         if gamer.get_coins() < total_sum:
             return f'Недостаточно монет. Нужно: {total_sum}'
 
         gamer.remove_coins(total_sum, process_bank_events=False, save=False)
         self.paid_amount = self.get_total_sum()
+        self.repaid_interest = max(0, round(total_sum - self.credit_sum - self.accrued_penalty, 1))
+        self.repaid_total = total_sum
 
-        return f'КРЕДИТ ПОГАШЕН\nСумма: {self.credit_sum}, проценты: {self.get_interest()}, штрафы: {round(self.accrued_penalty, 1)}'
+        return f'КРЕДИТ ПОГАШЕН\nСумма: {self.credit_sum}, проценты: {self.repaid_interest}, штрафы: {round(self.accrued_penalty, 1)}'
 
 
 class Deposit:
@@ -430,6 +438,13 @@ class BankAccount:
         details = self.estimate_daily_income_details(gamer)
         return details['total']
 
+    def _deposit_value_for_bank_scoring(self):
+        self.normalize()
+        active_deposit = self.deposit.get_sum() if self.deposit else 0
+        historical_principal = sum(item.get('sum', 0) for item in self.deposit_history)
+        historical_interest = sum(item.get('interest', 0) for item in self.deposit_history)
+        return round(active_deposit + historical_principal * 0.35 + historical_interest * 2, 1)
+
     def get_level_reliability_label(self, gamer):
         level = getattr(gamer, 'level', 1)
         if level >= 50:
@@ -444,29 +459,78 @@ class BankAccount:
             return 'средняя'
         return 'начальная'
 
-    def estimate_daily_income_details(self, gamer):
+    def _estimate_streak_income(self, gamer):
         coins_cf = max(0.1, gamer.get_cf_value('coins', 1.0))
         inflation = gamer.calculate_inflation()
-        symbol_income = 5 * coins_cf
-        streak_income = 3 * coins_cf * inflation
+        data = engine.load_data()
+        settings = engine.load_settings()
+        streak_candidates = []
+
+        if settings.get('global_streak', False):
+            global_streak_len = len(data.get('global_streaks', []))
+            if global_streak_len > 0:
+                streak_candidates.append(10 * coins_cf * global_streak_len * inflation)
+
+        for project in self._iter_loaded_projects():
+            streaks = getattr(project, 'streaks', [])
+            streak_len = len(streaks) if streaks else 0
+            if streak_len > 0:
+                streak_candidates.append(10 * coins_cf * streak_len * inflation)
+
+        if streak_candidates:
+            return gamer.round_money(max(streak_candidates))
+        return gamer.round_money(10 * coins_cf * inflation)
+
+    def _iter_loaded_projects(self):
+        data = engine.load_data()
+        projects = data.get('projects', [])
+        if isinstance(projects, dict):
+            return list(projects.values())
+        return list(projects)
+
+    def _estimate_daily_writing_symbols(self):
+        symbol_candidates = []
+        for project in self._iter_loaded_projects():
+            if getattr(project, 'status', 'активен') != 'активен':
+                continue
+            try:
+                today_goal = project.get_today_goal_value()
+            except Exception:
+                today_goal = getattr(project, 'personal_goal_for_the_day', 0)
+                try:
+                    today_goal = engine.unit_converter(getattr(project, 'unit', 'symbols'), today_goal, 'symbols')
+                except Exception:
+                    today_goal = 0
+
+            if today_goal and today_goal != float('inf'):
+                symbol_candidates.append(max(0, today_goal))
+
+        if symbol_candidates:
+            return max(symbol_candidates)
+        return 1000
+
+    def estimate_daily_income_details(self, gamer):
+        coins_cf = max(0.1, gamer.get_cf_value('coins', 1.0))
+        symbol_income = gamer.round_money(self._estimate_daily_writing_symbols() / 100 * coins_cf)
+        streak_income = self._estimate_streak_income(gamer)
         level_income = min(12, max(0, gamer.level - 1) * 0.75)
-        total = round(symbol_income + streak_income + level_income, 1)
+        total = gamer.round_money(symbol_income + streak_income + level_income)
         return {
-            'symbols': round(symbol_income, 1),
-            'streaks': round(streak_income, 1),
+            'symbols': gamer.round_money(symbol_income),
+            'streaks': gamer.round_money(streak_income),
             'reliability': self.get_level_reliability_label(gamer),
             'total': total,
         }
 
     def calculate_credit_score(self, gamer):
         self.normalize()
-        balance = max(0, gamer.get_coins())
+        deposit_value = self._deposit_value_for_bank_scoring()
         inventory_value = self._inventory_value(gamer)
         daily_income = self.estimate_daily_income(gamer)
         score = 420
         score += min(120, gamer.level * 8)
         score += min(110, daily_income * 2)
-        score += min(90, balance / 8)
+        score += min(90, deposit_value / 8)
         score += min(70, inventory_value / 20)
         score += min(55, max(0, gamer.get_cf_value('coins', 1.0) - 1) * 35)
         score += min(60, len(self.deposit_history) * 10)
@@ -502,8 +566,11 @@ class BankAccount:
         score = self.calculate_credit_score(gamer)
         daily_income = self.estimate_daily_income(gamer)
         inventory_value = self._inventory_value(gamer)
-        multiplier = 4 + max(0, score - 300) / 80
-        return round(max(50, daily_income * multiplier + gamer.get_coins() * 0.45 + inventory_value * 0.25), 1)
+        deposit_value = self._deposit_value_for_bank_scoring()
+        multiplier = 7 + max(0, score - 300) / 55
+        base_limit = daily_income * multiplier
+        asset_limit = inventory_value * 0.2 + deposit_value * 0.55
+        return gamer.round_money(max(250, base_limit + asset_limit))
 
     def get_max_credit_days(self):
         max_days = 30
@@ -516,6 +583,11 @@ class BankAccount:
         return max(1, max_days)
 
     def get_credit_rate(self, gamer, amount=None, days=None):
+        rate = self._calculate_credit_rate_base(gamer, amount, days)
+        deposit_rate = self.get_deposit_rate(gamer)
+        return round(max(deposit_rate + 0.18, min(1.85, rate)), 3)
+
+    def _calculate_credit_rate_base(self, gamer, amount=None, days=None):
         score = self.calculate_credit_score(gamer)
         daily_income = self.estimate_daily_income(gamer)
         inflation = gamer.calculate_inflation()
@@ -534,15 +606,14 @@ class BankAccount:
             burden = max(0, float(amount) - payment_capacity) / payment_capacity
             rate += min(0.35, burden * 0.18)
 
-        deposit_rate = self.get_deposit_rate(gamer)
-        return round(max(deposit_rate + 0.35, min(1.85, rate)), 3)
+        return round(max(0.55, min(1.85, rate)), 3)
 
     def get_deposit_rate(self, gamer):
+        credit_rate = self._calculate_credit_rate_base(gamer)
         score = self.calculate_credit_score(gamer)
-        inflation = gamer.calculate_inflation()
-        rate = 0.025 + (score - 300) / 550 * 0.07
-        rate += min(0.035, max(0, inflation - 1) * 0.003)
-        return round(max(0.025, min(0.13, rate)), 3)
+        spread = 0.26 - (score - 300) / 550 * 0.12
+        spread = max(0.14, min(0.26, spread))
+        return round(max(0.25, min(1.55, credit_rate - spread)), 3)
 
     def _preview_credit_interest(self, amount, rate, days):
         daily_rate = rate / 100
@@ -674,7 +745,7 @@ class BankAccount:
         if self.credit.get_remaining_sum() <= 0:
             self.credit_history.append({
                 'sum': self.credit.credit_sum,
-                'interest': round(self.credit.get_interest(), 1),
+                'interest': getattr(self.credit, 'repaid_interest', round(self.credit.get_interest(), 1)),
                 'overdue_days': self.credit.total_overdue_days,
                 'status': 'paid',
                 'paid_date': engine.today_for_test(),
@@ -784,9 +855,10 @@ class BankAccount:
         self.process_daily_events(gamer, auto_pay=False, notify=False, save=False, include_deposit=False)
         result = self.credit.repay(gamer)
         if self.credit.get_remaining_sum() <= 0:
+            paid_interest = self.credit.repaid_interest if hasattr(self.credit, 'repaid_interest') else round(self.credit.get_interest(), 1)
             self.credit_history.append({
                 'sum': self.credit.credit_sum,
-                'interest': round(self.credit.get_interest(), 1),
+                'interest': paid_interest,
                 'overdue_days': self.credit.total_overdue_days,
                 'status': 'paid',
                 'paid_date': engine.today_for_test(),

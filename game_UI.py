@@ -1775,8 +1775,11 @@ class Bank(QDialog, Ui_Bamk):
             self.return_credit_date.setVisible(True)
             self.return_credit_date.setText(f'До {credit.get_return_date().strftime("%d.%m.%Y")}')
             self.credit_total_sum.setVisible(True)
-            self.credit_total_sum.setText(f'Всего: {credit.get_total_sum()}')
-            self.return_credit_btn.setEnabled(credit.get_remaining_sum() <= self.gamer.get_coins())
+            self.credit_total_sum.setText(
+                f'Всего по графику: {credit.get_total_sum()}\n'
+                f'К погашению: {credit.get_full_repayment_sum()}'
+            )
+            self.return_credit_btn.setEnabled(credit.get_full_repayment_sum() <= self.gamer.get_coins())
             self.make_a_loan_payment.setEnabled(
                 today >= credit.get_first_payment_date()
                 and credit.last_payment_date != today
