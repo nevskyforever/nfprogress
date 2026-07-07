@@ -1131,7 +1131,7 @@ def calculate_freeze_price():
 
 # Инициализация объектов
 
-freeze = FuncItem('❄️Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
+freeze = FuncItem('❄️ Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком'
                               '️\n⚠️ Важно: чем больше заморозок вы используете, тем дороже они становятся.'
                               '\nМожно иметь не более 2 заморозок в инвентаре и купить только 1 за раз.')
@@ -1246,8 +1246,8 @@ ITEM_REGISTRY = {'Зелья':
                       'Cуточное зелье просвещения': super_exp_potion_24hrs,},
                  'Предметы': {'Заморозка': freeze,
                               'Лотерейный билет': lottery_ticket,},
-                 'Награды': {'👑 Корона Первой Эпохи': crown_of_the_first_era,
-                             '💎 Перо Миллионера': millionaires_pen,},}
+                 'Награды': {'Корона Первой Эпохи': crown_of_the_first_era,
+                             'Перо Миллионера': millionaires_pen,},}
 
 
 def find_registry_item(category, item_identifier):

@@ -532,6 +532,30 @@ class Gamer:
     def check_loan_penalty(self):
         pass
 
+    def migrate_legacy_award_names(self):
+        """Переносит старые ключи наград с эмодзи на ключи без эмодзи."""
+        if not isinstance(self.items, dict):
+            return False
+
+        awards = self.items.setdefault('Награды', {})
+        if not isinstance(awards, dict):
+            self.items['Награды'] = {}
+            return True
+
+        legacy_awards = {
+            '👑 Корона Первой Эпохи': 'Корона Первой Эпохи',
+            '💎 Перо Миллионера': 'Перо Миллионера',
+        }
+
+        changed = False
+        for old_name, new_name in legacy_awards.items():
+            old_count = awards.pop(old_name, 0)
+            if old_count > 0:
+                awards[new_name] = awards.get(new_name, 0) + old_count
+                changed = True
+
+        return changed
+
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
         defaults = {
@@ -610,6 +634,7 @@ class Gamer:
         # Задаем структуру инвентаря
         if self.items == {}:
             self.items = {'Предметы': {},'Зелья': {},'Награды': {}}
+        migrated_awards = self.migrate_legacy_award_names()
         self.normalize_coins()
 
         # Особая обработка для bank_account
@@ -619,6 +644,9 @@ class Gamer:
             self.bank_account = game_data.BankAccount()
         else:
             self.bank_account.normalize()
+
+        if migrated_awards:
+            self.save()
 
     def calculate_inflation(self):
         """
