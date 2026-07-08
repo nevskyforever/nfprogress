@@ -57,13 +57,27 @@ def _is_newer_version(latest_version, current_version):
 def _download_url_for_current_platform(manifest):
     system = platform.system()
     if system == "Windows":
-        return manifest.get("windows_url")
+        return _format_download_url(manifest.get("windows_url"), manifest)
     if system == "Darwin":
         machine = platform.machine().lower()
         if machine in ("arm64", "aarch64"):
-            return manifest.get("macos_arm_url") or manifest.get("macos_url")
-        return manifest.get("macos_intel_url") or manifest.get("macos_url")
+            return _format_download_url(
+                manifest.get("macos_arm_url") or manifest.get("macos_url"),
+                manifest,
+            )
+        return _format_download_url(
+            manifest.get("macos_intel_url") or manifest.get("macos_url"),
+            manifest,
+        )
     return None
+
+
+def _format_download_url(url, manifest):
+    if not url:
+        return None
+
+    version = str(manifest.get("version", "")).strip()
+    return str(url).replace("{version}", version)
 
 
 class UpdateCheckWorker(QObject):
