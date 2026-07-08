@@ -1712,16 +1712,13 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
             if not project.streaks:
                 continue
 
-            # Получаем последний день стрика
-            last_streak_day = project.streaks[-1]
-
             # Получаем статус стрика
             streak_status = project.get_streak_status()
 
             # Проект можно заморозить если последний стрик был вчера
             # и статус 'Active' (активный, но не продленный)
             if streak_status in ['Active', 'Freeze']:
-                display_text = f"{project.name} (стрик: {len(project.streaks)} дн.)"
+                display_text = f"{project.name} (стрик: {engine.streak_length(project.streaks)} дн.)"
                 item = QListWidgetItem(display_text)
                 # Сохраняем объект проекта или его имя для последующего использования
                 item.setData(1, project.name)
@@ -1753,16 +1750,17 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
         if project_name in data['projects']:
             project = data['projects'][project_name]
 
-            # Добавляем сегодняшний день в стрик (заморозка)
-            project.streaks.append(today)
+            # Заморозка хранится маркером, а эффективная дата считается как следующий день стрика.
+            project.streaks.append(engine.STREAK_FREEZE_MARKER)
             project.streak_status = 'Freeze'
             project.freezes += 1
-            data['global_streaks'].append(today)
+            data['global_streaks'].append(engine.STREAK_FREEZE_MARKER)
             data['global_streak_status'] = 'Freeze'
 
             # Обновляем максимальный стрик если нужно
-            if len(project.streaks) > project.max_streak:
-                project.max_streak = len(project.streaks)
+            current_streak_len = engine.streak_length(project.streaks)
+            if current_streak_len > project.max_streak:
+                project.max_streak = current_streak_len
 
             data['projects'][project_name] = project
             save_data(data)

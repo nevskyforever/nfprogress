@@ -4,6 +4,7 @@ from PySide6.QtGui import (QColor, QFont, QPainter,
 from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
                                QSizePolicy, QVBoxLayout, QWidget)
 from PySide6.scripts.pyside_tool import project
+from engine import streak_length as get_streak_length
 
 
 # =============================================================================
@@ -367,7 +368,7 @@ class ProjectWidget(QWidget, Ui_Form):
             # Показываем стрики только если они включены в настройках
             if self.global_streak_mode:
                 streak_status = self.project.get_streak_status()
-                streak_length = len(self.project.streaks)
+                streak_length = get_streak_length(self.project.streaks)
                 self.streak.setText(f'Стрик: {streak_length} д.')
                 self.streak.setVisible(True)
 

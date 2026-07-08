@@ -502,7 +502,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.max_streak.setVisible(True)
             self.streak_status.setVisible(True)
 
-            self.streaks.setText(str(len(project.streaks)))
+            self.streaks.setText(str(en.streak_length(project.streaks)))
             self.max_streak.setText(str(project.max_streak))
             self.streak_status.setText(project.get_streak_status_msg('min'))
         else:
@@ -816,7 +816,7 @@ class MainWindow(QMainWindow, main_window_ui):
             # Даем бонус за стрик проекта и глобальный, если он включен
             if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                 if project.last_streak_bonus != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', len(project.streaks)):
+                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', en.streak_length(project.streaks)):
                         project.last_streak_bonus = en.today_for_test()
                         data['projects'][project.name] = project
                         save_data(data)
@@ -948,7 +948,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Предупреждаем, что уменьшить цель на день не выйдет
             if old_personal_goal < new_personal_goal and settings.get('global_streak', False) and not en.dev_mode:
-                if en.today_for_test() not in project.streaks:
+                if not en.streak_contains_day(project.streaks, en.today_for_test()):
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
 
@@ -966,7 +966,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
             if old_personal_goal < new_personal_goal and project.streaks and settings.get('global_streak', False):
-                if project.streaks[-1] == en.today_for_test():
+                if en.streak_last_day(project.streaks) == en.today_for_test():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
 
@@ -989,12 +989,12 @@ class MainWindow(QMainWindow, main_window_ui):
 
                     # 4. Обрабатываем результат
                     if result_personal_goal == QDialog.Accepted:
-                        project.streaks.remove(en.today_for_test())
+                        en.remove_streak_day(project.streaks, en.today_for_test())
                     else:
                         return
             # Запрещаем менять цель на день, если стрик не продлен сегодня
             if old_personal_goal > new_personal_goal and not en.dev_mode:
-                if project.streaks and en.today_for_test() not in project.streaks and not dialog.checkBox.isChecked():
+                if project.streaks and not en.streak_contains_day(project.streaks, en.today_for_test()) and not dialog.checkBox.isChecked():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
 
@@ -1121,8 +1121,8 @@ class MainWindow(QMainWindow, main_window_ui):
             project.complete_date = en.today_for_test()
             if en.load_settings()['game_mode']:
                 self.game_controller.give_complete_bonus(project.status, project.total_units, project.unit)
-                if en.load_settings()['global_streak'] and project.deadline != 'Нет' and len(project.streaks):
-                    self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local', streak_len=len(project.streaks))
+                if en.load_settings()['global_streak'] and project.deadline != 'Нет' and en.streak_length(project.streaks):
+                    self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local', streak_len=en.streak_length(project.streaks))
 
             data = en.load_data()
             data['projects'][project.name] = project
@@ -1294,7 +1294,7 @@ class MainWindow(QMainWindow, main_window_ui):
             if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                 if project.last_streak_bonus != en.today_for_test():
                     if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                              len(project.streaks)):
+                                                              en.streak_length(project.streaks)):
                         project.last_streak_bonus = en.today_for_test()
                         data['projects'][project.name] = project
                         save_data(data)
@@ -1480,7 +1480,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
                         if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                                  len(project.streaks)):
+                                                                  en.streak_length(project.streaks)):
                             project.last_streak_bonus = en.today_for_test()
                             data['projects'][project.name] = project
                             save_data(data)
@@ -1628,7 +1628,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
                     if project.last_streak_bonus != en.today_for_test():
                         if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                                  len(project.streaks)):
+                                                                  en.streak_length(project.streaks)):
                             project.last_streak_bonus = en.today_for_test()
                             data['projects'][project.name] = project
                             save_data(data)

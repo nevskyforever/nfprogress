@@ -472,13 +472,13 @@ class BankAccount:
         streak_candidates = []
 
         if settings.get('global_streak', False):
-            global_streak_len = len(data.get('global_streaks', []))
+            global_streak_len = engine.streak_length(data.get('global_streaks', []))
             if global_streak_len > 0:
                 streak_candidates.append(10 * coins_cf * global_streak_len * inflation)
 
         for project in self._iter_loaded_projects():
             streaks = getattr(project, 'streaks', [])
-            streak_len = len(streaks) if streaks else 0
+            streak_len = engine.streak_length(streaks)
             if streak_len > 0:
                 streak_candidates.append(10 * coins_cf * streak_len * inflation)
 
