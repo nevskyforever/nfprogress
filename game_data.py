@@ -1154,6 +1154,8 @@ millionaires_pen = Item(name='💎  Перо Миллионера', item_type='�
                                   buff_type=Buff.POSITIVE,
                                   target_cf='coins',
                                   value= 1.0))
+health_care_badge = Item(name='Знак заботы о здоровье', item_type='Награды', price=0,
+                         description='Награда за подготовку аптечки автора.')
 exp_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье познания',
                            item_type='Зелья',
                            level=2,
@@ -1238,7 +1240,8 @@ ITEM_REGISTRY = {'Зелья':
                  'Предметы': {'Заморозка': freeze,
                               'Лотерейный билет': lottery_ticket,},
                  'Награды': {'👑 Корона Первой Эпохи': crown_of_the_first_era,
-                             '💎 Перо Миллионера': millionaires_pen,},}
+                             '💎 Перо Миллионера': millionaires_pen,
+                             'Знак заботы о здоровье': health_care_badge,},}
 
 
 def _normalize_item_identifier(value):

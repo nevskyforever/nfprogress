@@ -69,7 +69,7 @@ class GameMenuController:
         # Устанавливаем максимумы для spinbox'ов
         self.ui.gamer_params_label.setVisible(False)
 
-        self.setup_quests_stub()
+        self.setup_quests()
 
         self.ui.value_for_use_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_item.setMaximum(999)
@@ -79,40 +79,34 @@ class GameMenuController:
         # Очищаем информационные поля
         self.clear_all_info()
 
-    def setup_quests_stub(self):
-        """Показывает отключенные вкладки квестов до реализации механики."""
-        # TODO: убрать заглушки, setEnabled(False) и скрытие полей после разработки квестов.
+    def setup_quests(self):
+        """Включает вкладки квестов и приводит поля к начальному состоянию."""
         self.ui.quests_label.setVisible(True)
         self.ui.quests_tabs.setVisible(True)
-        self.ui.quests_tabs.setEnabled(False)
+        self.ui.quests_tabs.setEnabled(True)
 
-        description_labels = [
-            self.ui.description_selected_available_quest,
-            self.ui.description_selected_active_quest,
-            self.ui.description_selected_completed_quest,
-        ]
-        hidden_labels = [
+        for label in (
             self.ui.name_selected_available_quest,
+            self.ui.description_selected_available_quest,
             self.ui.prize_selected_available_quest,
             self.ui.name_selected_active_quest,
+            self.ui.description_selected_active_quest,
             self.ui.prize_selected_active_quest,
             self.ui.date_start_selected_active_quest,
             self.ui.date_end_selected_active_quest,
             self.ui.name_selected_completed_quest,
+            self.ui.description_selected_completed_quest,
             self.ui.prize_selected_completed_quest,
             self.ui.date_start_selected_completed_quest,
             self.ui.date_end_selected_completed_quest,
-        ]
-
-        for label in description_labels:
+        ):
             label.setVisible(True)
-            label.setText("В разработке")
 
-        for label in hidden_labels:
-            label.setVisible(False)
-
-        self.ui.button_for_start_selected_quest.setVisible(False)
-        self.ui.button_for_stop_selected_quest.setVisible(False)
+        self.ui.button_for_start_selected_quest.setVisible(True)
+        self.ui.button_for_stop_selected_quest.setVisible(True)
+        self.clear_quest_info(game.Quest.AVAILABLE)
+        self.clear_quest_info(game.Quest.ACTIVE)
+        self.clear_quest_info(game.Quest.COMPLETED)
 
     def clear_all_info(self):
         """Очистка всех информационных полей"""
@@ -166,6 +160,19 @@ class GameMenuController:
 
         self.ui.bank_btn.clicked.connect(self.bank)
 
+        # Квесты
+        self.ui.available_quests_list.itemClicked.connect(
+            lambda item: self.on_quest_selected(item, game.Quest.AVAILABLE)
+        )
+        self.ui.active_quests_list.itemClicked.connect(
+            lambda item: self.on_quest_selected(item, game.Quest.ACTIVE)
+        )
+        self.ui.completed_quests_list.itemClicked.connect(
+            lambda item: self.on_quest_selected(item, game.Quest.COMPLETED)
+        )
+        self.ui.button_for_start_selected_quest.clicked.connect(self.on_start_selected_quest)
+        self.ui.button_for_stop_selected_quest.clicked.connect(self.on_abandon_selected_quest)
+
         # Параметры персонажа
         self.ui.gamer_parameters_list.itemClicked.connect(self.on_gamer_parameter_selected)
         self.ui.gamer_parameters_list.currentItemChanged.connect(
@@ -194,6 +201,7 @@ class GameMenuController:
         self.update_shops()
         self.load_gamer_parameters_list()
         self.update_buffs_lists()
+        self.update_quests_lists()
 
     def update_game_data(self):
         """Обновление основных параметров игрока"""
@@ -209,6 +217,13 @@ class GameMenuController:
         self.gamer.apply_buffs_to_cf()
         self.register_custom_awards()
         self.process_bank_events(show_toasts=True)
+        quest_messages = self.gamer.update_quests(save=True)
+        if quest_messages:
+            self.gamer = game.load_game()
+            self.register_custom_awards()
+            for message in quest_messages:
+                if self.notifications:
+                    self.notifications.show_success(message)
 
         # Обновляем отображение
         self.ui.gamer_label.setText(str(self.gamer.level))
@@ -242,6 +257,7 @@ class GameMenuController:
         self.ui.gamer_health_progressbar.setMaximum(100)
         self.update_gamer_parameters_list()
         self.update_buffs_lists()
+        self.update_quests_lists()
 
         # Проверяем критические состояния
         if self.gamer.health <= 20 and self.gamer.health > 0:
@@ -268,6 +284,137 @@ class GameMenuController:
             self.notifications.show_success(message)
         else:
             self.notifications.show_info(message)
+
+    def get_quest_list_widget(self, status):
+        if status == game.Quest.ACTIVE:
+            return self.ui.active_quests_list
+        if status == game.Quest.COMPLETED:
+            return self.ui.completed_quests_list
+        return self.ui.available_quests_list
+
+    def get_quest_labels(self, status):
+        if status == game.Quest.ACTIVE:
+            return {
+                'name': self.ui.name_selected_active_quest,
+                'description': self.ui.description_selected_active_quest,
+                'reward': self.ui.prize_selected_active_quest,
+                'start': self.ui.date_start_selected_active_quest,
+                'end': self.ui.date_end_selected_active_quest,
+            }
+        if status == game.Quest.COMPLETED:
+            return {
+                'name': self.ui.name_selected_completed_quest,
+                'description': self.ui.description_selected_completed_quest,
+                'reward': self.ui.prize_selected_completed_quest,
+                'start': self.ui.date_start_selected_completed_quest,
+                'end': self.ui.date_end_selected_completed_quest,
+            }
+        return {
+            'name': self.ui.name_selected_available_quest,
+            'description': self.ui.description_selected_available_quest,
+            'reward': self.ui.prize_selected_available_quest,
+        }
+
+    def format_quest_date(self, value):
+        if not value:
+            return 'Дата не указана'
+        return value.strftime('%d.%m.%Y %H:%M')
+
+    def clear_quest_info(self, status):
+        labels = self.get_quest_labels(status)
+        labels['name'].setText('Выберите квест')
+        labels['description'].clear()
+        labels['reward'].clear()
+        if 'start' in labels:
+            labels['start'].clear()
+        if 'end' in labels:
+            labels['end'].clear()
+
+    def update_quests_list(self, status):
+        list_widget = self.get_quest_list_widget(status)
+        current_item = list_widget.currentItem()
+        current_quest_id = current_item.data(1) if current_item else None
+
+        list_widget.clear()
+        quests = self.gamer.get_quests_by_status(status) if self.gamer else []
+        for quest in quests:
+            item = QListWidgetItem(quest.name)
+            item.setData(1, quest.quest_id)
+            list_widget.addItem(item)
+
+        if current_quest_id:
+            for row in range(list_widget.count()):
+                item = list_widget.item(row)
+                if item.data(1) == current_quest_id:
+                    list_widget.setCurrentRow(row)
+                    self.on_quest_selected(item, status)
+                    return
+
+        self.clear_quest_info(status)
+
+    def update_quests_lists(self):
+        if not self.gamer:
+            self.clear_quest_info(game.Quest.AVAILABLE)
+            self.clear_quest_info(game.Quest.ACTIVE)
+            self.clear_quest_info(game.Quest.COMPLETED)
+            return
+
+        self.update_quests_list(game.Quest.AVAILABLE)
+        self.update_quests_list(game.Quest.ACTIVE)
+        self.update_quests_list(game.Quest.COMPLETED)
+
+    def on_quest_selected(self, item, status):
+        if not item or not self.gamer:
+            self.clear_quest_info(status)
+            return
+
+        quest = self.gamer.get_quest(item.data(1))
+        if not quest:
+            self.clear_quest_info(status)
+            return
+
+        labels = self.get_quest_labels(status)
+        labels['name'].setText(quest.name)
+        labels['description'].setText(f'{quest.description}\n\nУровень: {quest.level}')
+        labels['reward'].setText(quest.format_reward())
+        if 'start' in labels:
+            labels['start'].setText(f'Дата начала: {self.format_quest_date(quest.start_date)}')
+        if 'end' in labels:
+            labels['end'].setText(f'Дата завершения: {self.format_quest_date(quest.end_date)}')
+
+    def on_start_selected_quest(self):
+        selected = self.ui.available_quests_list.currentItem()
+        if not selected:
+            QMessageBox.warning(self.ui.centralwidget, 'Ошибка', 'Выберите квест')
+            return
+
+        ok, message = self.gamer.start_quest(selected.data(1))
+        self.gamer = game.load_game()
+        self.update_game_data()
+        self.update_quests_lists()
+
+        if ok:
+            if self.notifications:
+                self.notifications.show_success(message)
+        else:
+            QMessageBox.warning(self.ui.centralwidget, 'Ошибка', message)
+
+    def on_abandon_selected_quest(self):
+        selected = self.ui.active_quests_list.currentItem()
+        if not selected:
+            QMessageBox.warning(self.ui.centralwidget, 'Ошибка', 'Выберите активный квест')
+            return
+
+        ok, message = self.gamer.abandon_quest(selected.data(1))
+        self.gamer = game.load_game()
+        self.update_game_data()
+        self.update_quests_lists()
+
+        if ok:
+            if self.notifications:
+                self.notifications.show_info(message)
+        else:
+            QMessageBox.warning(self.ui.centralwidget, 'Ошибка', message)
 
     def format_gamer_parameter_value(self, value):
         """Форматирует числовой коэффициент для списка параметров."""
