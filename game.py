@@ -25,14 +25,15 @@ class Quest:
     COMPLETED = 'completed'
 
     def __init__(self, quest_id, name, description, reward_coins=0, reward_exp=0,
-                 reward_items=None, level=1, status=AVAILABLE, quest_func=None,
-                 start_date=None, end_date=None):
+                 reward_items=None, reward_buffs=None, level=1, status=AVAILABLE,
+                 quest_func=None, start_date=None, end_date=None):
         self.quest_id = quest_id
         self.name = name
         self.description = description
         self.reward_coins = reward_coins
         self.reward_exp = reward_exp
         self.reward_items = reward_items or []
+        self.reward_buffs = reward_buffs or []
         self.level = level
         self.status = status
         self.quest_func = quest_func
@@ -84,6 +85,7 @@ class Quest:
         if self.reward_exp:
             gamer.exp += self.reward_exp
         self.give_reward_items(gamer)
+        self.give_reward_buffs(gamer)
         return f'Квест "{self.name}" завершен. {self.format_reward()}'
 
     def give_reward_items(self, gamer):
@@ -95,6 +97,14 @@ class Quest:
                 continue
             gamer.items.setdefault(category, {})
             gamer.items[category][name] = gamer.items[category].get(name, 0) + count
+
+    def give_reward_buffs(self, gamer):
+        for buff in self.reward_buffs:
+            if buff:
+                active_buff = buff.activate()
+                target_list = gamer.buffs if active_buff.is_positive() else gamer.debuffs
+                target_list.append(active_buff)
+        gamer.apply_buffs_to_cf(save=False)
 
     def can_be_available(self, gamer):
         return self.status == self.AVAILABLE and gamer.level >= self.level
@@ -110,13 +120,32 @@ class Quest:
             count = reward_item.get('count', 1)
             if name:
                 parts.append(f'{name} x{count}')
+        for buff in self.reward_buffs:
+            duration = self.format_buff_duration(buff)
+            sign = '+' if buff.is_positive() else '-'
+            target_name = self.get_buff_target_name(buff)
+            parts.append(f'баф "{buff.name}" ({target_name} {sign}{abs(buff.value):g}, {duration})')
         if not parts:
             return 'Награда не указана'
         return 'Награда: ' + ', '.join(parts)
 
+    def get_buff_target_name(self, buff):
+        return CF_META.get(buff.target_cf, {}).get('name', buff.target_cf)
+
+    def format_buff_duration(self, buff):
+        if buff.duration_minutes is None:
+            return 'бессрочно'
+        if buff.duration_minutes % (24 * 60) == 0:
+            return f'{buff.duration_minutes // (24 * 60)} д.'
+        if buff.duration_minutes % 60 == 0:
+            return f'{buff.duration_minutes // 60} ч.'
+        return f'{buff.duration_minutes} мин.'
+
     def normalize(self):
         if not hasattr(self, 'reward_items') or self.reward_items is None:
             self.reward_items = []
+        if not hasattr(self, 'reward_buffs') or self.reward_buffs is None:
+            self.reward_buffs = []
         if not hasattr(self, 'status') or self.status not in (self.AVAILABLE, self.ACTIVE, self.COMPLETED):
             self.status = self.AVAILABLE
         if not hasattr(self, 'start_date'):
@@ -507,6 +536,7 @@ class Gamer:
                 saved_quest.reward_coins = catalog_quest.reward_coins
                 saved_quest.reward_exp = catalog_quest.reward_exp
                 saved_quest.reward_items = catalog_quest.reward_items
+                saved_quest.reward_buffs = catalog_quest.reward_buffs
                 saved_quest.level = catalog_quest.level
                 saved_quest.quest_func = catalog_quest.quest_func
                 synced_quests.append(saved_quest)
