@@ -29,6 +29,7 @@ class GameMenuController:
         self.ui = ui
         self.notifications = notifications
         self.gamer = None
+        self._last_quest_check_at = None
 
         # Загружаем игрока
         self.load_gamer()
@@ -203,28 +204,40 @@ class GameMenuController:
         self.update_buffs_lists()
         self.update_quests_lists()
 
-    def update_game_data(self):
+    def update_game_data(self, force_quests=False):
         """Обновление основных параметров игрока"""
         if not self.gamer:
             return
 
         # Проверяем уровень
 
-        self.gamer.level_up()
+        level_up_msg = self.gamer.level_up()
 
         # Перезагружаем игрока для актуальных данных
         self.gamer = game.load_game()
         self.gamer.apply_buffs_to_cf()
         self.register_custom_awards()
         self.process_bank_events(show_toasts=True)
-        quest_messages = self.gamer.update_quests(save=True)
-        if quest_messages:
-            self.gamer = game.load_game()
-            self.register_custom_awards()
-            self.update_inventory()
-            for message in quest_messages:
-                if self.notifications:
-                    self.notifications.show_success(message)
+        now = datetime.datetime.now()
+        should_check_quests = (
+            force_quests
+            or self._last_quest_check_at is None
+            or (now - self._last_quest_check_at).total_seconds() >= 5
+        )
+        quest_messages = []
+        if should_check_quests:
+            self._last_quest_check_at = now
+            quest_messages = self.gamer.update_quests(save=True)
+            if quest_messages:
+                self.gamer = game.load_game()
+                self.register_custom_awards()
+                self.update_inventory()
+                for message in quest_messages:
+                    if self.notifications:
+                        self.notifications.show_success(
+                            message,
+                            duration=self.get_quest_notification_duration(message)
+                        )
 
         # Обновляем отображение
         self.ui.gamer_label.setText(str(self.gamer.level))
@@ -258,7 +271,8 @@ class GameMenuController:
         self.ui.gamer_health_progressbar.setMaximum(100)
         self.update_gamer_parameters_list()
         self.update_buffs_lists()
-        self.update_quests_lists()
+        if should_check_quests or level_up_msg:
+            self.update_quests_lists()
 
         # Проверяем критические состояния
         if self.gamer.health <= 20 and self.gamer.health > 0:
@@ -274,6 +288,9 @@ class GameMenuController:
             for message in messages:
                 self.show_bank_message(message)
         return messages
+
+    def get_quest_notification_duration(self, message):
+        return max(20000, min(45000, 12000 + len(message) * 80))
 
     def show_bank_message(self, message):
         if not self.notifications or not message:
@@ -331,17 +348,33 @@ class GameMenuController:
         if 'end' in labels:
             labels['end'].clear()
 
-    def update_quests_list(self, status):
+    def get_quest_list_snapshot(self, list_widget):
+        return [
+            (list_widget.item(row).data(1), list_widget.item(row).text())
+            for row in range(list_widget.count())
+        ]
+
+    def update_quests_list(self, status, quests=None):
         list_widget = self.get_quest_list_widget(status)
         current_item = list_widget.currentItem()
         current_quest_id = current_item.data(1) if current_item else None
+        scroll_bar = list_widget.verticalScrollBar()
+        scroll_value = scroll_bar.value()
 
+        quests = quests if quests is not None else (self.gamer.get_quests_by_status(status) if self.gamer else [])
+        next_snapshot = [(quest.quest_id, quest.name) for quest in quests]
+        if self.get_quest_list_snapshot(list_widget) == next_snapshot:
+            return
+
+        list_widget.blockSignals(True)
         list_widget.clear()
-        quests = self.gamer.get_quests_by_status(status) if self.gamer else []
         for quest in quests:
             item = QListWidgetItem(quest.name)
             item.setData(1, quest.quest_id)
             list_widget.addItem(item)
+        list_widget.blockSignals(False)
+
+        scroll_bar.setValue(min(scroll_value, scroll_bar.maximum()))
 
         if current_quest_id:
             for row in range(list_widget.count()):
@@ -360,9 +393,13 @@ class GameMenuController:
             self.clear_quest_info(game.Quest.COMPLETED)
             return
 
-        self.update_quests_list(game.Quest.AVAILABLE)
-        self.update_quests_list(game.Quest.ACTIVE)
-        self.update_quests_list(game.Quest.COMPLETED)
+        self.gamer.sync_quests()
+        for status in (game.Quest.AVAILABLE, game.Quest.ACTIVE, game.Quest.COMPLETED):
+            quests = [
+                quest for quest in self.gamer.quests
+                if quest.status == status and self.gamer.level >= quest.level
+            ]
+            self.update_quests_list(status, quests)
 
     def on_quest_selected(self, item, status):
         if not item or not self.gamer:
@@ -790,7 +827,7 @@ class GameMenuController:
 
             # Обновляем интерфейс
             self.update_inventory()
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
 
             # Очищаем панель информации до показа диалога, чтобы устаревший текст не был виден
             self.clear_inventory_item_info()
@@ -1496,7 +1533,7 @@ class GameMenuController:
             self.gamer.save()
             self._death_warning_shown = False
             self.update_inventory()
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
             QMessageBox.information(
                 self.ui.centralwidget,
                 "Воскрешение",
@@ -1521,7 +1558,7 @@ class GameMenuController:
                 self.gamer.health = 100
                 self.gamer.save()
                 self._death_warning_shown = False
-                self.update_game_data()
+                self.update_game_data(force_quests=True)
                 QMessageBox.information(
                     self.ui.centralwidget,
                     "Воскрешение",
@@ -1566,7 +1603,7 @@ class GameMenuController:
                 self.notifications.show_success(level_up_msg)  # <-- показываем сразу
             self.gamer.save()
             self.gamer = game.load_game()  # Перезагружаем для актуальности
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
             self.update_inventory()
             self.notifications.show_success(result)
             return result
@@ -1588,7 +1625,7 @@ class GameMenuController:
         if result:
             self.gamer.save()
             self.gamer = game.load_game()  # Перезагружаем для актуальности
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
             self.notifications.show_success(result)
             return True
         return
@@ -1623,7 +1660,7 @@ class GameMenuController:
 
             self.gamer.save()
             self.gamer = game.load_game()  # Перезагружаем для актуальности
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
             self.update_inventory()
             self.notifications.show_success(result)
             return True
@@ -1651,7 +1688,7 @@ class GameMenuController:
         result = dialog.exec_()
         if result in (QDialog.Accepted, QDialog.Rejected):
             self.gamer = dialog.gamer
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
 
     def create_custom_award(self):
         dialog = CreateCustomAward(self.gamer)

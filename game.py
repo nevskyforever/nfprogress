@@ -86,7 +86,7 @@ class Quest:
             gamer.exp += self.reward_exp
         self.give_reward_items(gamer)
         self.give_reward_buffs(gamer)
-        return f'Квест "{self.name}" завершен. {self.format_reward()}'
+        return f'Квест "{self.name}" завершен.\n{self.format_reward()}'
 
     def give_reward_items(self, gamer):
         for reward_item in self.reward_items:
@@ -127,7 +127,7 @@ class Quest:
             parts.append(f'баф "{buff.name}" ({target_name} {sign}{abs(buff.value):g}, {duration})')
         if not parts:
             return 'Награда не указана'
-        return 'Награда: ' + ', '.join(parts)
+        return 'Награда:\n' + '\n'.join(f'- {part}' for part in parts)
 
     def get_buff_target_name(self, buff):
         return CF_META.get(buff.target_cf, {}).get('name', buff.target_cf)
