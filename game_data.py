@@ -1170,6 +1170,22 @@ warm_streak_badge = Item(name='Знак теплого стрика', item_type=
                          description='Награда за неделю без заморозки.')
 clean_finish_badge = Item(name='Знак чистого финиша', item_type='Награды', price=0,
                           description='Награда за завершение текста без заморозок.')
+two_weeks_badge = Item(name='Знак двух недель', item_type='Награды', price=0,
+                       description='Награда за четырнадцать дней записей подряд.')
+no_ice_badge = Item(name='Знак без льда', item_type='Награды', price=0,
+                    description='Награда за длительную серию без заморозок.')
+deep_days_badge = Item(name='Знак глубоких дней', item_type='Награды', price=0,
+                       description='Награда за несколько продуктивных дней.')
+three_finishes_badge = Item(name='Знак трех финалов', item_type='Награды', price=0,
+                            description='Награда за три завершенных текста.')
+long_form_badge = Item(name='Знак большой формы', item_type='Награды', price=0,
+                       description='Награда за завершение крупного текста.')
+marathon_badge = Item(name='Знак марафонца', item_type='Награды', price=0,
+                      description='Награда за длинный стрик до финиша.')
+two_lines_badge = Item(name='Знак двух линий', item_type='Награды', price=0,
+                       description='Награда за параллельную дисциплину в двух текстах.')
+hall_of_fame_badge = Item(name='Знак зала славы', item_type='Награды', price=0,
+                          description='Награда за большую коллекцию наград.')
 exp_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье познания',
                            item_type='Зелья',
                            level=2,
@@ -1262,7 +1278,15 @@ ITEM_REGISTRY = {'Зелья':
                              'Знак недельной практики': weekly_practice_badge,
                              'Знак быстрого финала': fast_finish_badge,
                              'Знак теплого стрика': warm_streak_badge,
-                             'Знак чистого финиша': clean_finish_badge,},}
+                             'Знак чистого финиша': clean_finish_badge,
+                             'Знак двух недель': two_weeks_badge,
+                             'Знак без льда': no_ice_badge,
+                             'Знак глубоких дней': deep_days_badge,
+                             'Знак трех финалов': three_finishes_badge,
+                             'Знак большой формы': long_form_badge,
+                             'Знак марафонца': marathon_badge,
+                             'Знак двух линий': two_lines_badge,
+                             'Знак зала славы': hall_of_fame_badge,},}
 
 
 def _normalize_item_identifier(value):
