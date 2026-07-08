@@ -25,6 +25,7 @@ from UI_fiiles.project_stats import Ui_project_stats as project_stats_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
+from update_checker import UpdateChecker
 
 
 class MainWindow(QMainWindow, main_window_ui):
@@ -2855,4 +2856,6 @@ if __name__ == "__main__":
 
     window = MainWindow()
     window.show()
+    update_checker = UpdateChecker(window)
+    QTimer.singleShot(1500, lambda: update_checker.check_for_updates(window))
     sys.exit(app.exec())
