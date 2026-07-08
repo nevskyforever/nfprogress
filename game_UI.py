@@ -221,6 +221,7 @@ class GameMenuController:
         if quest_messages:
             self.gamer = game.load_game()
             self.register_custom_awards()
+            self.update_inventory()
             for message in quest_messages:
                 if self.notifications:
                     self.notifications.show_success(message)
