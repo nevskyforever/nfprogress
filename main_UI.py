@@ -2858,4 +2858,8 @@ if __name__ == "__main__":
     window.show()
     update_checker = UpdateChecker(window)
     QTimer.singleShot(1500, lambda: update_checker.check_for_updates(window))
+    update_timer = QTimer(window)
+    update_timer.setInterval(60 * 60 * 1000)
+    update_timer.timeout.connect(lambda: update_checker.check_for_updates(window))
+    update_timer.start()
     sys.exit(app.exec())
