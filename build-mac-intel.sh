@@ -110,7 +110,10 @@ if [ -f "build-intel/nfprogress-mac-intel-$VERSION.zip" ]; then
 fi
 echo "========================================="
 
-python3 scripts/update-release-manifest.py "$VERSION" macos_intel
 ./scripts/upload-release.sh "build-intel/nfprogress-mac-intel-$VERSION.zip"
-./scripts/upload-release.sh "update_manifest.json"
-SSH_UPLOAD_DIR="nfproject/public_html" ./scripts/upload-release.sh "update_manifest.json"
+
+if [ "${NFPROGRESS_DEFER_MANIFEST:-0}" != "1" ]; then
+  python3 scripts/update-release-manifest.py "$VERSION" macos_intel
+  ./scripts/upload-release.sh "update_manifest.json"
+  SSH_UPLOAD_DIR="nfproject/public_html" ./scripts/upload-release.sh "update_manifest.json"
+fi
