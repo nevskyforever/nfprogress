@@ -10,7 +10,7 @@ from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = False
+dev_mode = True
 
 # Версия приложения
 version = '4.0.2'
@@ -594,18 +594,10 @@ class Project:
                 if day_goal_symbols is not None and total >= day_goal_symbols:
                     self.streaks.append(current_day)
                 else:
-                    # Проверяем, есть ли заморозка в инвентаре
-                    # if load_settings()['game_mode']:
-                    #     gamer = game.load_game()
-                    #     freezes = gamer.items['Предметы'].get('Заморозка', 0)
-                    #     if freezes:
-                    #         freezes -= 1
-                    #         self.freezes += 1
-                    #         self.streaks.append(current_day)
-                    #         gamer.save()
-
-                    # Символов не хватает и нет заморозок — обрываем восстановление
-                    break
+                    # Если день не был продлён, автоматически тратим заморозку из инвентаря.
+                    if not apply_project_freeze(self, current_day):
+                        # Символов не хватает и нет заморозок — обрываем восстановление
+                        break
                 current_day += timedelta(days=1)
 
         # Случай 1: сегодня уже есть запись в streaks (уже продлили сегодня)
@@ -926,6 +918,56 @@ def save_data(data):
     """Сохраняет данные в кроссплатформенную директорию"""
     data_file = get_data_file_path('data')
     atomic_pickle_save(data, data_file)
+
+
+def apply_project_freeze(project, freeze_day=None, gamer=None, save_gamer=True):
+    """Применяет заморозку к проекту и списывает её из инвентаря игрока."""
+    if freeze_day is None:
+        freeze_day = today_for_test()
+
+    if not isinstance(project, Project):
+        return False
+    if project.deadline == 'Нет' or project.status == 'завершен':
+        return False
+    if project.goal == float('inf') or project.get_today_goal_value() == 0:
+        return False
+    if not isinstance(project.streaks, list):
+        project.streaks = []
+
+    last_streak_day = streak_last_day(project.streaks)
+    if last_streak_day != freeze_day - timedelta(days=1):
+        return False
+    if not load_settings().get('game_mode', False):
+        return False
+
+    if gamer is None:
+        import game
+        gamer = game.load_game()
+
+    items = getattr(gamer, 'items', {})
+    category_items = items.get('Предметы', {})
+    if not isinstance(category_items, dict):
+        return False
+
+    freeze_names = ('Заморозка', '❄️Заморозка')
+    freeze_name = next((name for name in freeze_names if category_items.get(name, 0) > 0), None)
+    if freeze_name is None:
+        return False
+
+    category_items[freeze_name] -= 1
+    project.streaks.append(STREAK_FREEZE_MARKER)
+    if freeze_day == today_for_test():
+        project.streak_status = 'Freeze'
+    project.freezes += 1
+
+    current_streak_len = streak_length(project.streaks)
+    if current_streak_len > project.max_streak:
+        project.max_streak = current_streak_len
+
+    if save_gamer:
+        gamer.save()
+
+    return True
 
 
 def export_data_to_file(file_path):

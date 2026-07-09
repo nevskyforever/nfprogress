@@ -1671,10 +1671,7 @@ class GameMenuController:
         result = dialog.exec_()
         if result == QDialog.Accepted:
             msg = dialog.freeze()
-            if item_obj is None:
-                _, item_obj = game_data.find_registry_item('Предметы', 'Заморозка')
-            self.decrease_inventory_item('Предметы', item_obj, 1, *fallback_names, 'Заморозка')
-            self.gamer.save()
+            self.gamer = game.load_game()
             self.notifications.show_success(msg)
             self.update_inventory()
             self.refresh_all()
@@ -1788,17 +1785,12 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
         if project_name in data['projects']:
             project = data['projects'][project_name]
 
-            # Заморозка хранится маркером, а эффективная дата считается как следующий день стрика.
-            project.streaks.append(engine.STREAK_FREEZE_MARKER)
-            project.streak_status = 'Freeze'
-            project.freezes += 1
-            data['global_streaks'].append(engine.STREAK_FREEZE_MARKER)
-            data['global_streak_status'] = 'Freeze'
+            if not engine.apply_project_freeze(project, today):
+                return 'Не удалось применить заморозку: проверьте инвентарь и статус проекта.'
 
-            # Обновляем максимальный стрик если нужно
-            current_streak_len = engine.streak_length(project.streaks)
-            if current_streak_len > project.max_streak:
-                project.max_streak = current_streak_len
+            if engine.streak_last_day(data['global_streaks']) == today - datetime.timedelta(days=1):
+                data['global_streaks'].append(engine.STREAK_FREEZE_MARKER)
+            data['global_streak_status'] = 'Freeze'
 
             data['projects'][project_name] = project
             save_data(data)
