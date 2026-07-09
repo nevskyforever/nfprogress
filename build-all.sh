@@ -36,7 +36,8 @@ fi
 
 if [ $ARM_STATUS -eq 0 ] || [ $INTEL_STATUS -eq 0 ]; then
   ./scripts/upload-release.sh "update_manifest.json" || MANIFEST_STATUS=1
-  SSH_UPLOAD_DIR="nfproject/public_html" ./scripts/upload-release.sh "update_manifest.json" || MANIFEST_STATUS=1
+  python3 scripts/create-legacy-manifest.py || MANIFEST_STATUS=1
+  SSH_UPLOAD_DIR="nfproject/public_html" ./scripts/upload-release.sh "update_manifest_legacy.json" "update_manifest.json" || MANIFEST_STATUS=1
 fi
 
 if [ $ARM_STATUS -ne 0 ] || [ $INTEL_STATUS -ne 0 ] || [ $MANIFEST_STATUS -ne 0 ]; then

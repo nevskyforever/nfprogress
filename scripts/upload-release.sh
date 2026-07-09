@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ARTIFACT_PATH="${1:-}"
+REMOTE_NAME="${2:-}"
 
 SSH_UPLOAD_HOST="${SSH_UPLOAD_HOST:-77.222.62.219}"
 SSH_UPLOAD_USER="${SSH_UPLOAD_USER:-nevskyfore}"
@@ -37,5 +38,9 @@ fi
 
 echo "Uploading $(basename "$ARTIFACT_PATH") to $SSH_TARGET:$SSH_UPLOAD_DIR ..."
 ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "mkdir -p '$SSH_UPLOAD_DIR'"
-scp "${SCP_OPTS[@]}" "$ARTIFACT_PATH" "$SSH_TARGET:$SSH_UPLOAD_DIR/"
+if [ -n "$REMOTE_NAME" ]; then
+  scp "${SCP_OPTS[@]}" "$ARTIFACT_PATH" "$SSH_TARGET:$SSH_UPLOAD_DIR/$REMOTE_NAME"
+else
+  scp "${SCP_OPTS[@]}" "$ARTIFACT_PATH" "$SSH_TARGET:$SSH_UPLOAD_DIR/"
+fi
 echo "SSH upload completed."
