@@ -128,17 +128,40 @@ jobs:
           icacls $keyPath /inheritance:r | Out-Null
           icacls $keyPath /grant:r "$($env:USERNAME):R" | Out-Null
 
-          ssh-keyscan -p $env:SSH_UPLOAD_PORT $env:SSH_UPLOAD_HOST | Out-File -FilePath $knownHostsPath -Encoding ascii
+          ssh-keyscan -T 10 -t ed25519 -p $env:SSH_UPLOAD_PORT $env:SSH_UPLOAD_HOST 2>$null | Out-File -FilePath $knownHostsPath -Encoding ascii
 
           $target = "$($env:SSH_UPLOAD_USER)@$($env:SSH_UPLOAD_HOST)"
           $remoteFile = "nfprogress-windows-$($env:APP_VERSION).zip"
-          Write-Host "Uploading $remoteFile to $($target):$($env:SSH_UPLOAD_DIR) ..."
+          $artifactSize = [math]::Round((Get-Item $artifact).Length / 1MB, 1)
+          Write-Host "Uploading $remoteFile ($artifactSize MB) to $($target):$($env:SSH_UPLOAD_DIR) ..."
 
-          ssh -i $keyPath -p $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath $target "mkdir -p '$($env:SSH_UPLOAD_DIR)'"
-          scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json" update_manifest.json
+          $sshOptions = @(
+            "-i", $keyPath,
+            "-p", $env:SSH_UPLOAD_PORT,
+            "-o", "UserKnownHostsFile=$knownHostsPath",
+            "-o", "StrictHostKeyChecking=yes",
+            "-o", "ConnectTimeout=30",
+            "-o", "ServerAliveInterval=30"
+          )
+          $scpOptions = @(
+            "-i", $keyPath,
+            "-P", $env:SSH_UPLOAD_PORT,
+            "-o", "UserKnownHostsFile=$knownHostsPath",
+            "-o", "StrictHostKeyChecking=yes",
+            "-o", "ConnectTimeout=30",
+            "-o", "ServerAliveInterval=30"
+          )
+
+          ssh @sshOptions $target "mkdir -p '$($env:SSH_UPLOAD_DIR)'"
+          scp @scpOptions "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json" update_manifest.json
           python scripts/update-release-manifest.py $env:APP_VERSION windows
           python scripts/create-legacy-manifest.py
-          scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath $artifact "${target}:$($env:SSH_UPLOAD_DIR)/$remoteFile"
-          scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath update_manifest.json "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json"
-          scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath update_manifest_legacy.json "${target}:nfproject/public_html/update_manifest.json"
+
+          $uploadStarted = Get-Date
+          scp @scpOptions $artifact "${target}:$($env:SSH_UPLOAD_DIR)/$remoteFile"
+          $uploadSeconds = [math]::Round(((Get-Date) - $uploadStarted).TotalSeconds, 1)
+          Write-Host "Windows ZIP upload completed in $uploadSeconds seconds."
+
+          scp @scpOptions update_manifest.json "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json"
+          scp @scpOptions update_manifest_legacy.json "${target}:nfproject/public_html/update_manifest.json"
           Write-Host "SSH upload completed."
