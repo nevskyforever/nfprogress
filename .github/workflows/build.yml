@@ -84,14 +84,23 @@ jobs:
         run: |
           python scripts/update-release-manifest.py $env:APP_VERSION windows
 
-      - name: Upload EXE as artifact
+      - name: Package Windows ZIP
+        shell: pwsh
+        run: |
+          $zipPath = "build\nfprogress-windows-$($env:APP_VERSION).zip"
+          if (Test-Path $zipPath) {
+            Remove-Item $zipPath
+          }
+          Compress-Archive -Path "build\nfprogress.exe" -DestinationPath $zipPath
+
+      - name: Upload Windows ZIP as artifact
         uses: actions/upload-artifact@v4
         with:
           name: nfprogress-windows-${{ env.APP_VERSION }}
-          path: build/nfprogress.exe
+          path: build/nfprogress-windows-${{ env.APP_VERSION }}.zip
           retention-days: 30
 
-      - name: Upload EXE to hosting over SSH
+      - name: Upload Windows ZIP to hosting over SSH
         shell: pwsh
         env:
           SSH_UPLOAD_HOST: 77.222.62.219
@@ -112,7 +121,7 @@ jobs:
             $env:SSH_UPLOAD_PORT = "22"
           }
 
-          $artifact = "build\nfprogress.exe"
+          $artifact = "build\nfprogress-windows-$($env:APP_VERSION).zip"
           if (-not (Test-Path $artifact)) {
             throw "Artifact not found: $artifact"
           }
@@ -126,7 +135,7 @@ jobs:
           ssh-keyscan -p $env:SSH_UPLOAD_PORT $env:SSH_UPLOAD_HOST | Out-File -FilePath $knownHostsPath -Encoding ascii
 
           $target = "$($env:SSH_UPLOAD_USER)@$($env:SSH_UPLOAD_HOST)"
-          $remoteFile = "nfprogress-windows-$($env:APP_VERSION).exe"
+          $remoteFile = "nfprogress-windows-$($env:APP_VERSION).zip"
           Write-Host "Uploading $remoteFile to $($target):$($env:SSH_UPLOAD_DIR) ..."
 
           ssh -i $keyPath -p $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath $target "mkdir -p '$($env:SSH_UPLOAD_DIR)'"
