@@ -49,6 +49,10 @@ jobs:
           $VERSION = python -c "import engine; print(engine.version)"
           echo "APP_VERSION=$VERSION" >> $env:GITHUB_ENV
 
+      - name: Update release manifest
+        run: |
+          python scripts/update-release-manifest.py $env:APP_VERSION
+
       - name: Prepare Qt translations (ru/en only)
         run: |
           # QTranslator подгружает qt_ru.qm вместе со всеми его подкаталогами
@@ -86,3 +90,47 @@ jobs:
           name: nfprogress-windows-${{ env.APP_VERSION }}
           path: build/nfprogress.exe
           retention-days: 30
+
+      - name: Upload EXE to hosting over SSH
+        shell: pwsh
+        env:
+          SSH_UPLOAD_HOST: 77.222.62.219
+          SSH_UPLOAD_USER: nevskyfore
+          SSH_UPLOAD_DIR: nfproject/public_html/app
+          SSH_UPLOAD_PORT: 22
+          SSH_UPLOAD_PRIVATE_KEY: ${{ secrets.SSH_UPLOAD_PRIVATE_KEY }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_HOST) -or
+              [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_USER) -or
+              [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_DIR) -or
+              [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_PRIVATE_KEY)) {
+            Write-Host "SSH upload skipped: set SSH_UPLOAD_HOST, SSH_UPLOAD_USER, SSH_UPLOAD_DIR and SSH_UPLOAD_PRIVATE_KEY secrets to enable it."
+            exit 0
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_PORT)) {
+            $env:SSH_UPLOAD_PORT = "22"
+          }
+
+          $artifact = "build\nfprogress.exe"
+          if (-not (Test-Path $artifact)) {
+            throw "Artifact not found: $artifact"
+          }
+
+          $keyPath = Join-Path $env:RUNNER_TEMP "ssh_upload_key"
+          $knownHostsPath = Join-Path $env:RUNNER_TEMP "known_hosts"
+          $env:SSH_UPLOAD_PRIVATE_KEY | Set-Content -Path $keyPath -NoNewline
+          icacls $keyPath /inheritance:r | Out-Null
+          icacls $keyPath /grant:r "$($env:USERNAME):R" | Out-Null
+
+          ssh-keyscan -p $env:SSH_UPLOAD_PORT $env:SSH_UPLOAD_HOST | Out-File -FilePath $knownHostsPath -Encoding ascii
+
+          $target = "$($env:SSH_UPLOAD_USER)@$($env:SSH_UPLOAD_HOST)"
+          $remoteFile = "nfprogress-windows-$($env:APP_VERSION).exe"
+          Write-Host "Uploading $remoteFile to $($target):$($env:SSH_UPLOAD_DIR) ..."
+
+          ssh -i $keyPath -p $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath $target "mkdir -p '$($env:SSH_UPLOAD_DIR)'"
+          scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath $artifact "${target}:$($env:SSH_UPLOAD_DIR)/$remoteFile"
+          scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath update_manifest.json "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json"
+          scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath update_manifest.json "${target}:nfproject/public_html/update_manifest.json"
+          Write-Host "SSH upload completed."

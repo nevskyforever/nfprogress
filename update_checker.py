@@ -12,7 +12,7 @@ import engine as en
 
 
 # Замените на адрес JSON-файла на вашем хостинге Spaceweb.
-UPDATE_MANIFEST_URL = os.environ.get("NFPROGRESS_UPDATE_URL", "https://nfproject.ru/update_manifest.json")
+UPDATE_MANIFEST_URL = os.environ.get("NFPROGRESS_UPDATE_URL", "https://nfproject.ru/app/update_manifest.json")
 
 SETTINGS_ORG = "NFProgress"
 SETTINGS_APP = "NFProgress"
