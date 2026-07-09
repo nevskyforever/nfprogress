@@ -809,6 +809,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Загружаем данные
         data = en.load_data()
+        data['projects'][project.name] = project
 
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
         if en.load_settings().get('game_mode', False) and added_symbols > 0:
@@ -822,7 +823,7 @@ class MainWindow(QMainWindow, main_window_ui):
                         save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global', len(data['global_streaks'])):
+                    if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global', len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
                         save_data(data)
 
@@ -1087,16 +1088,17 @@ class MainWindow(QMainWindow, main_window_ui):
             self.game_controller.gamer.update_cf()
             self.game_controller.gamer.calculate_inflation()
             self.game_controller.gamer.save()
-            self.game_controller.refresh_all()
             # Сохраняем статус даты для теста и ее
             settings['today_for_test_mode'] = test_date_enabled
             settings['today_for_test_date'] = dialog.get_today_for_test()
             save_settings(settings)
+            self._last_effective_date = en.today_for_test()
 
             # Выводим уведомление и обновляем проекты с глобальным стриком
             self.notifications.show_success('Изменения сохранены')
             self.refresh_projects()
             self.refresh_global_streak_status()
+            self.game_controller.refresh_all()
         dialog.close()
 
     def _get_unit_name(self, unit_code):
@@ -1223,18 +1225,87 @@ class MainWindow(QMainWindow, main_window_ui):
     def refresh_global_streak_status(self):
         # Загружаем глобальный стрик
         data = en.load_data()
+        auto_freeze_changed = self._refresh_project_streak_statuses(data)
+        if auto_freeze_changed:
+            self._refresh_game_inventory()
         # Обновляем глобальный стрик на основе проектов
         global_status = en.global_streak_status(data)
         status_msg = en.global_streak_status_msg(data, global_status)
         self.global_streak_status.setText(status_msg if status_msg else "Глобальный стрик не начат")
 
+    def _refresh_game_inventory(self):
+        """Перезагружает игрока после фонового списания предметов."""
+        if not getattr(self, 'game_controller', None):
+            return
+
+        self.game_controller.gamer = game.load_game()
+        self.game_controller.update_inventory()
+        self.game_controller.update_shops()
+        self.game_controller.update_game_data()
+
+    def _get_global_streak_status_after_auto_freeze(self, data):
+        """Сначала применяет автозаморозки, потом считает глобальный стрик."""
+        auto_freeze_changed = self._refresh_project_streak_statuses(data)
+        if auto_freeze_changed:
+            self._refresh_game_inventory()
+        return en.global_streak_status(data)
+
+    def _refresh_project_streak_statuses(self, data, show_auto_freeze_toasts=True):
+        """Актуализирует локальные стрики и показывает уведомления об автозаморозках."""
+        projects = data.get('projects', {})
+        notifications = data.get('notifications', {'new': [], 'read': []})
+        if not isinstance(notifications, dict):
+            notifications = {'new': [], 'read': []}
+        notifications.setdefault('new', [])
+        notifications.setdefault('read', [])
+
+        changed = False
+        for project_name, project in projects.items():
+            if not isinstance(project, en.Project):
+                continue
+
+            freezes_before = getattr(project, 'freezes', 0)
+            project.get_streak_status()
+            freezes_after = getattr(project, 'freezes', 0)
+
+            if freezes_after > freezes_before:
+                changed = True
+                used_freezes = freezes_after - freezes_before
+                freeze_days = [
+                    effective_day
+                    for entry, effective_day in en.iter_streak_days(project.streaks)
+                    if entry == en.STREAK_FREEZE_MARKER
+                ][-used_freezes:]
+                days_text = ', '.join(day.strftime('%d.%m.%Y') for day in freeze_days)
+
+                if used_freezes == 1:
+                    message = f'Стрик проекта "{project.name}" автоматически заморожен за {days_text}.'
+                else:
+                    message = f'Стрик проекта "{project.name}" автоматически заморожен за дни: {days_text}.'
+
+                notifications['new'].append(en.Notification(message, tag='streak'))
+                if show_auto_freeze_toasts and self.notifications:
+                    self.notifications.show_info(message, duration=10000, position='bottom-right')
+
+            data['projects'][project_name] = project
+
+        if changed:
+            data['notifications'] = notifications
+            en.save_data(data)
+        return changed
+
     def refresh_projects(self):
         data = en.load_data()
+        auto_freeze_changed = self._refresh_project_streak_statuses(data)
+        if auto_freeze_changed:
+            self._refresh_game_inventory()
         projects = list(data['projects'].values())
 
         # Обнововляем глобальный стрик
         if en.load_settings()['global_streak']:
-            self.refresh_global_streak_status()
+            global_status = en.global_streak_status(data)
+            status_msg = en.global_streak_status_msg(data, global_status)
+            self.global_streak_status.setText(status_msg if status_msg else "Глобальный стрик не начат")
 
         # Получаем выбранный фильтр
         current_sort = self.sort_project_box.currentText()
@@ -1300,7 +1371,7 @@ class MainWindow(QMainWindow, main_window_ui):
                         save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
+                    if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
                                                               len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
                         save_data(data)
@@ -1472,6 +1543,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Загружаем данные
             data = en.load_data()
+            data['projects'][project.name] = project
 
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
@@ -1486,7 +1558,7 @@ class MainWindow(QMainWindow, main_window_ui):
                             save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
+                    if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
                                                               len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
                         save_data(data)
@@ -1620,6 +1692,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Загружаем данные
             data = en.load_data()
+            data['projects'][project.name] = project
 
             # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
             if en.load_settings().get('game_mode', False) and added_symbols > 0:
@@ -1634,7 +1707,7 @@ class MainWindow(QMainWindow, main_window_ui):
                             save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(en.global_streak_status(data), 'Global',
+                    if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
                                                               len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
                         save_data(data)

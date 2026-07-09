@@ -1064,6 +1064,18 @@ def global_streak_status(data, today=None):
             prev_status.startswith('Lose ') and
             len(prev_status.split()) == 2 and
             last_lost_date == today):
+        # Автозаморозка могла восстановить вчерашний день уже после того,
+        # как потеря была сохранена. В этом случае старый Lose больше не валиден.
+        if streak_last_day(streaks) == yesterday:
+            status = 'Active'
+            data['global_streaks'] = streaks
+            data['global_streak_status'] = status
+            data['last_global_streak_lost_date'] = None
+            data['last_global_streak_lose_len'] = 0
+            data['max_global_streak'] = max(streak_length(streaks), max_streak)
+            save_data(data)
+            return status
+
         # Если сегодня нет активности — оставляем статус потери
         if not has_active_today:
             return prev_status
