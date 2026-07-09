@@ -4,7 +4,7 @@
   "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.1.zip",
   "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.1.zip",
   "notes": "Добавлена автозаморозка. Теперь стрики в проекте будут замораиваться автоматически, если вы вчера его не продлили, пока в инвентаре есть замрозки.",
-  "windows_version": "4.0",
+  "windows_version": "4.1",
   "macos_arm_version": "4.1",
   "macos_intel_version": "4.1"
 }
