@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '4.0'
+version = '4.0.1'
 
 # Определяем систему
 

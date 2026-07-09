@@ -80,10 +80,6 @@ jobs:
             --file-description="Трекер для писателей" `
             main_UI.py
 
-      - name: Update release manifest
-        run: |
-          python scripts/update-release-manifest.py $env:APP_VERSION windows
-
       - name: Package Windows ZIP
         shell: pwsh
         run: |
@@ -139,6 +135,8 @@ jobs:
           Write-Host "Uploading $remoteFile to $($target):$($env:SSH_UPLOAD_DIR) ..."
 
           ssh -i $keyPath -p $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath $target "mkdir -p '$($env:SSH_UPLOAD_DIR)'"
+          scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json" update_manifest.json
+          python scripts/update-release-manifest.py $env:APP_VERSION windows
           scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath $artifact "${target}:$($env:SSH_UPLOAD_DIR)/$remoteFile"
           scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath update_manifest.json "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json"
           scp -i $keyPath -P $env:SSH_UPLOAD_PORT -o UserKnownHostsFile=$knownHostsPath update_manifest.json "${target}:nfproject/public_html/update_manifest.json"
