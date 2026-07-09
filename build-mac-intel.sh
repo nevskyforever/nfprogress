@@ -2,8 +2,6 @@
 VERSION=$(python3 -c "import engine; print(engine.version)")
 echo "Сборка Intel, версия: $VERSION"
 
-python3 scripts/update-release-manifest.py "$VERSION"
-
 if [ -d "build-intel" ]; then
   echo "Очистка старой сборки build-intel..."
   rm -rf build-intel
@@ -112,6 +110,7 @@ if [ -f "build-intel/nfprogress-mac-intel-$VERSION.zip" ]; then
 fi
 echo "========================================="
 
+python3 scripts/update-release-manifest.py "$VERSION" macos_intel
 ./scripts/upload-release.sh "build-intel/nfprogress-mac-intel-$VERSION.zip"
 ./scripts/upload-release.sh "update_manifest.json"
 SSH_UPLOAD_DIR="nfproject/public_html" ./scripts/upload-release.sh "update_manifest.json"

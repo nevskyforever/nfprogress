@@ -49,10 +49,6 @@ jobs:
           $VERSION = python -c "import engine; print(engine.version)"
           echo "APP_VERSION=$VERSION" >> $env:GITHUB_ENV
 
-      - name: Update release manifest
-        run: |
-          python scripts/update-release-manifest.py $env:APP_VERSION
-
       - name: Prepare Qt translations (ru/en only)
         run: |
           # QTranslator подгружает qt_ru.qm вместе со всеми его подкаталогами
@@ -83,6 +79,10 @@ jobs:
             --file-version="${{ env.APP_VERSION }}" `
             --file-description="Трекер для писателей" `
             main_UI.py
+
+      - name: Update release manifest
+        run: |
+          python scripts/update-release-manifest.py $env:APP_VERSION windows
 
       - name: Upload EXE as artifact
         uses: actions/upload-artifact@v4

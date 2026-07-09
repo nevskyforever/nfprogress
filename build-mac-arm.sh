@@ -2,8 +2,6 @@
 VERSION=$(python3 -c "import engine; print(engine.version)")
 echo "Сборка ARM, версия: $VERSION"
 
-python3 scripts/update-release-manifest.py "$VERSION"
-
 if [ -d "build-arm" ]; then
   echo "Очистка старой сборки build-arm..."
   rm -rf build-arm
@@ -111,6 +109,7 @@ if [ -f "build-arm/nfprogress-mac-arm-$VERSION.zip" ]; then
 fi
 echo "========================================="
 
+python3 scripts/update-release-manifest.py "$VERSION" macos_arm
 ./scripts/upload-release.sh "build-arm/nfprogress-mac-arm-$VERSION.zip"
 ./scripts/upload-release.sh "update_manifest.json"
 SSH_UPLOAD_DIR="nfproject/public_html" ./scripts/upload-release.sh "update_manifest.json"

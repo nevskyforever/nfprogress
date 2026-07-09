@@ -54,29 +54,40 @@ def _is_newer_version(latest_version, current_version):
     return latest > current
 
 
-def _download_url_for_current_platform(manifest):
+def _platform_release_info(manifest):
     system = platform.system()
     if system == "Windows":
-        return _format_download_url(manifest.get("windows_url"), manifest)
+        return (
+            str(manifest.get("windows_version") or manifest.get("version") or "").strip(),
+            _format_download_url(manifest.get("windows_url"), manifest, "windows_version"),
+        )
     if system == "Darwin":
         machine = platform.machine().lower()
         if machine in ("arm64", "aarch64"):
-            return _format_download_url(
+            return (
+                str(manifest.get("macos_arm_version") or manifest.get("macos_version") or manifest.get("version") or "").strip(),
+                _format_download_url(
                 manifest.get("macos_arm_url") or manifest.get("macos_url"),
                 manifest,
+                    "macos_arm_version",
+                ),
             )
-        return _format_download_url(
-            manifest.get("macos_intel_url") or manifest.get("macos_url"),
-            manifest,
+        return (
+            str(manifest.get("macos_intel_version") or manifest.get("macos_version") or manifest.get("version") or "").strip(),
+            _format_download_url(
+                manifest.get("macos_intel_url") or manifest.get("macos_url"),
+                manifest,
+                "macos_intel_version",
+            ),
         )
-    return None
+    return "", None
 
 
-def _format_download_url(url, manifest):
+def _format_download_url(url, manifest, version_key):
     if not url:
         return None
 
-    version = str(manifest.get("version", "")).strip()
+    version = str(manifest.get(version_key) or manifest.get("version") or "").strip()
     return str(url).replace("{version}", version)
 
 
@@ -154,16 +165,15 @@ class UpdateChecker(QObject):
         thread.deleteLater()
 
     def _handle_manifest(self, manifest, parent):
-        latest_version = str(manifest.get("version", "")).strip()
+        latest_version, download_url = _platform_release_info(manifest)
         if not latest_version:
-            _debug("manifest has no version")
+            _debug("manifest has no version for this platform")
             return
 
         if not _is_newer_version(latest_version, en.version):
             _debug(f"no update: current={en.version}, latest={latest_version}")
             return
 
-        download_url = _download_url_for_current_platform(manifest)
         if not download_url:
             _debug("manifest has no download URL for this platform")
             return
