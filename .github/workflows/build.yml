@@ -105,6 +105,21 @@ jobs:
           SSH_UPLOAD_PORT: 22
           SSH_UPLOAD_PRIVATE_KEY: ${{ secrets.SSH_UPLOAD_PRIVATE_KEY }}
         run: |
+          $ErrorActionPreference = "Stop"
+
+          function Invoke-Native {
+            param(
+              [string]$Command,
+              [Parameter(ValueFromRemainingArguments = $true)]
+              [string[]]$Arguments
+            )
+
+            & $Command @Arguments
+            if ($LASTEXITCODE -ne 0) {
+              throw "Command failed with exit code $LASTEXITCODE: $Command $($Arguments -join ' ')"
+            }
+          }
+
           if ([string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_HOST) -or
               [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_USER) -or
               [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_DIR) -or
@@ -128,8 +143,6 @@ jobs:
           icacls $keyPath /inheritance:r | Out-Null
           icacls $keyPath /grant:r "$($env:USERNAME):R" | Out-Null
 
-          ssh-keyscan -T 10 -t ed25519 -p $env:SSH_UPLOAD_PORT $env:SSH_UPLOAD_HOST 2>$null | Out-File -FilePath $knownHostsPath -Encoding ascii
-
           $target = "$($env:SSH_UPLOAD_USER)@$($env:SSH_UPLOAD_HOST)"
           $remoteFile = "nfprogress-windows-$($env:APP_VERSION).zip"
           $artifactSize = [math]::Round((Get-Item $artifact).Length / 1MB, 1)
@@ -139,7 +152,7 @@ jobs:
             "-i", $keyPath,
             "-p", $env:SSH_UPLOAD_PORT,
             "-o", "UserKnownHostsFile=$knownHostsPath",
-            "-o", "StrictHostKeyChecking=yes",
+            "-o", "StrictHostKeyChecking=accept-new",
             "-o", "ConnectTimeout=30",
             "-o", "ServerAliveInterval=30"
           )
@@ -147,21 +160,21 @@ jobs:
             "-i", $keyPath,
             "-P", $env:SSH_UPLOAD_PORT,
             "-o", "UserKnownHostsFile=$knownHostsPath",
-            "-o", "StrictHostKeyChecking=yes",
+            "-o", "StrictHostKeyChecking=accept-new",
             "-o", "ConnectTimeout=30",
             "-o", "ServerAliveInterval=30"
           )
 
-          ssh @sshOptions $target "mkdir -p '$($env:SSH_UPLOAD_DIR)'"
-          scp @scpOptions "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json" update_manifest.json
-          python scripts/update-release-manifest.py $env:APP_VERSION windows
-          python scripts/create-legacy-manifest.py
+          Invoke-Native ssh @sshOptions $target "mkdir -p '$($env:SSH_UPLOAD_DIR)'"
 
           $uploadStarted = Get-Date
-          scp @scpOptions $artifact "${target}:$($env:SSH_UPLOAD_DIR)/$remoteFile"
+          Invoke-Native scp @scpOptions $artifact "${target}:$($env:SSH_UPLOAD_DIR)/$remoteFile"
           $uploadSeconds = [math]::Round(((Get-Date) - $uploadStarted).TotalSeconds, 1)
           Write-Host "Windows ZIP upload completed in $uploadSeconds seconds."
 
-          scp @scpOptions update_manifest.json "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json"
-          scp @scpOptions update_manifest_legacy.json "${target}:nfproject/public_html/update_manifest.json"
+          Invoke-Native scp @scpOptions "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json" update_manifest.json
+          Invoke-Native python scripts/update-release-manifest.py $env:APP_VERSION windows
+          Invoke-Native python scripts/create-legacy-manifest.py
+          Invoke-Native scp @scpOptions update_manifest.json "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json"
+          Invoke-Native scp @scpOptions update_manifest_legacy.json "${target}:nfproject/public_html/update_manifest.json"
           Write-Host "SSH upload completed."
