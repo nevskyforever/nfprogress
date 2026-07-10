@@ -116,7 +116,7 @@ jobs:
 
             & $Command @Arguments
             if ($LASTEXITCODE -ne 0) {
-              throw "Command failed with exit code $LASTEXITCODE: $Command $($Arguments -join ' ')"
+              throw ("Command failed with exit code {0}: {1} {2}" -f $LASTEXITCODE, $Command, ($Arguments -join " "))
             }
           }
 
@@ -139,7 +139,20 @@ jobs:
 
           $keyPath = Join-Path $env:RUNNER_TEMP "ssh_upload_key"
           $knownHostsPath = Join-Path $env:RUNNER_TEMP "known_hosts"
-          $env:SSH_UPLOAD_PRIVATE_KEY | Set-Content -Path $keyPath -NoNewline
+          $privateKey = $env:SSH_UPLOAD_PRIVATE_KEY
+          if ($privateKey -match "\\n") {
+            $privateKey = $privateKey -replace "\\n", "`n"
+          }
+          $privateKey = $privateKey -replace "`r`n", "`n"
+          $privateKey = $privateKey.TrimEnd() + "`n"
+          if (-not $privateKey.StartsWith("-----BEGIN ")) {
+            throw "SSH_UPLOAD_PRIVATE_KEY does not look like a private SSH key. It must start with -----BEGIN."
+          }
+          [System.IO.File]::WriteAllText(
+            $keyPath,
+            $privateKey,
+            [System.Text.UTF8Encoding]::new($false)
+          )
           icacls $keyPath /inheritance:r | Out-Null
           icacls $keyPath /grant:r "$($env:USERNAME):R" | Out-Null
 
