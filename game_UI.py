@@ -1736,6 +1736,8 @@ class Bank(QDialog, Ui_Bamk):
         self.make_a_loan_payment.clicked.connect(self.make_loan_payment)
         self.partial_loan_repayment.clicked.connect(self.make_partial_loan_repayment)
         self.loan_partial_repayment_amount.textChanged.connect(self.update_partial_repayment_button)
+        self.active_deposit_topup_amount.textChanged.connect(self.update_deposit_topup_button)
+        self.active_deposit_topup_amount.returnPressed.connect(self.top_up_deposit)
         self.return_deposit_btn.clicked.connect(self.return_deposit)
         self.withdraw_interest_from_a_deposit.clicked.connect(self.withdraw_deposit_interest)
 
@@ -1782,6 +1784,7 @@ class Bank(QDialog, Ui_Bamk):
         self.make_deposit_btn.setVisible(True)
         self.return_deposit_btn.setVisible(True)
         self.withdraw_interest_from_a_deposit.setVisible(True)
+        self.active_deposit_topup_amount.setVisible(True)
 
         self.take_credit_btn.setEnabled(False)
         self.return_credit_btn.setEnabled(False)
@@ -1791,6 +1794,7 @@ class Bank(QDialog, Ui_Bamk):
         self.make_deposit_btn.setEnabled(False)
         self.return_deposit_btn.setEnabled(False)
         self.withdraw_interest_from_a_deposit.setEnabled(False)
+        self.active_deposit_topup_amount.setEnabled(False)
 
         self.credit_status.setVisible(True)
         self.return_credit_date.setVisible(False)
@@ -1825,6 +1829,7 @@ class Bank(QDialog, Ui_Bamk):
             self.credit_status.setText('В банке нет кредита')
             self.take_credit_btn.setEnabled(self.gamer.level >= 3)
 
+        self.make_deposit_btn.setText('Внести вклад')
         self.make_deposit_btn.setEnabled(not self.account.deposit and self.gamer.get_coins() > 0)
         self.return_deposit_date.setVisible(False)
         self.deposit_total_sum.setVisible(False)
@@ -1847,6 +1852,9 @@ class Bank(QDialog, Ui_Bamk):
                 and deposit.last_interest_withdraw_date != today
                 and deposit.get_available_interest() > 0
             )
+            self.make_deposit_btn.setText('Пополнить вклад')
+            self.active_deposit_topup_amount.setEnabled(self.gamer.get_coins() > 0)
+            self.update_deposit_topup_button()
         else:
             self.deposit_status.setText('В банке нет вклада')
 
@@ -1870,6 +1878,26 @@ class Bank(QDialog, Ui_Bamk):
             and amount <= self.gamer.get_coins()
         )
 
+    def get_deposit_topup_amount(self):
+        text = self.active_deposit_topup_amount.text().strip().replace(',', '.')
+        if not text:
+            return None
+        try:
+            amount = round(float(text), 1)
+        except ValueError:
+            return None
+        if amount <= 0:
+            return None
+        return amount
+
+    def update_deposit_topup_button(self):
+        amount = self.get_deposit_topup_amount()
+        self.make_deposit_btn.setEnabled(
+            bool(self.account.deposit)
+            and amount is not None
+            and amount <= self.gamer.get_coins()
+        )
+
     def _reload_after_action(self, message):
         self._show_message(message)
         self.gamer.bank_account = self.account
@@ -1883,10 +1911,24 @@ class Bank(QDialog, Ui_Bamk):
             self._reload_after_action(message)
 
     def make_deposit(self):
+        if self.account.deposit:
+            self.top_up_deposit()
+            return
         dialog = NewBankProduct(self.gamer, 'deposit')
         if dialog.exec_() == QDialog.Accepted:
             ok, message = self.account.open_deposit(self.gamer, dialog.get_amount(), dialog.get_days())
             self._reload_after_action(message)
+
+    def top_up_deposit(self):
+        if not self.account.deposit:
+            return
+        amount = self.get_deposit_topup_amount()
+        if amount is None:
+            QMessageBox.warning(self, "Ошибка", "Введите корректную сумму пополнения")
+            return
+        message = self.account.top_up_deposit(self.gamer, amount)
+        self.active_deposit_topup_amount.clear()
+        self._reload_after_action(message)
 
     def return_credit(self):
         message = self.account.return_credit(self.gamer)

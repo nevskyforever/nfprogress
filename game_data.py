@@ -299,6 +299,7 @@ class Deposit:
         self.interest = 0
         self.withdrawn_interest = 0
         self.interest_withdrawals = []
+        self.topups = []
         self.last_interest_withdraw_date = None
         self.last_interest_notice_date = None
 
@@ -313,6 +314,8 @@ class Deposit:
                     'date': withdrawal_date,
                     'amount': self.withdrawn_interest,
                 })
+        if not hasattr(self, 'topups'):
+            self.topups = []
         if not hasattr(self, 'last_interest_withdraw_date'):
             self.last_interest_withdraw_date = None
         if not hasattr(self, 'last_interest_notice_date'):
@@ -329,7 +332,18 @@ class Deposit:
         self.normalize()
         days = max(0, int(days))
         daily_rate = self.interest_rate_on_deposit / 100
-        balance = float(self.deposit_sum)
+        topups_total = sum(topup.get('amount', 0) for topup in self.topups)
+        initial_principal = max(0, round(self.deposit_sum - topups_total, 1))
+        balance = float(initial_principal)
+        principal_floor = float(initial_principal)
+        topups_by_day = {}
+        for topup in self.topups:
+            topup_date = topup.get('date')
+            if not topup_date:
+                continue
+            topup_day = max(1, (topup_date - self.give_date).days + 1)
+            if topup_day <= days:
+                topups_by_day[topup_day] = topups_by_day.get(topup_day, 0) + topup.get('amount', 0)
         withdrawals_by_day = {}
         for withdrawal in self.interest_withdrawals:
             withdrawal_date = withdrawal.get('date')
@@ -339,10 +353,20 @@ class Deposit:
             withdrawals_by_day[withdrawal_day] = withdrawals_by_day.get(withdrawal_day, 0) + withdrawal.get('amount', 0)
 
         for day in range(1, days + 1):
+            if day in topups_by_day:
+                balance += topups_by_day[day]
+                principal_floor += topups_by_day[day]
             balance += balance * daily_rate
             if day in withdrawals_by_day:
-                balance = max(self.deposit_sum, balance - withdrawals_by_day[day])
-        return max(0, round(balance - self.deposit_sum, 1))
+                balance = max(principal_floor, balance - withdrawals_by_day[day])
+        return max(0, round(balance - principal_floor, 1))
+
+    def top_up(self, amount):
+        self.normalize()
+        amount = round(float(amount), 1)
+        self.deposit_sum = round(self.deposit_sum + amount, 1)
+        self.topups.append({'date': engine.today_for_test(), 'amount': amount})
+        return amount
 
     def set_interest(self):
         self.normalize()
@@ -832,6 +856,29 @@ class BankAccount:
         self.deposit.interest_withdrawals.append({'date': today, 'amount': interest})
         self.deposit.last_interest_withdraw_date = today
         message = f'Сняты проценты по вкладу: {interest} монет'
+        self._add_notification(message)
+        gamer.save()
+        return message
+
+    def top_up_deposit(self, gamer, amount):
+        self.normalize()
+        self._attach_to_gamer(gamer)
+        if not self.deposit:
+            return 'Нет активного вклада'
+
+        try:
+            amount = gamer.round_money(float(amount))
+        except (TypeError, ValueError):
+            return 'Сумма пополнения должна быть числом'
+
+        if amount <= 0:
+            return 'Сумма пополнения должна быть больше 0'
+        if gamer.get_coins() < amount:
+            return f'Недостаточно монет. Нужно: {amount}'
+
+        gamer.remove_coins(amount, process_bank_events=False, save=False)
+        self.deposit.top_up(amount)
+        message = f'Вклад пополнен на {amount} монет'
         self._add_notification(message)
         gamer.save()
         return message
