@@ -29,6 +29,7 @@ class GameMenuController:
         self.ui = ui
         self.notifications = notifications
         self.gamer = None
+        self._last_quest_check_at = None
 
         # Загружаем игрока
         self.load_gamer()
@@ -69,7 +70,7 @@ class GameMenuController:
         # Устанавливаем максимумы для spinbox'ов
         self.ui.gamer_params_label.setVisible(False)
 
-        self.setup_quests_stub()
+        self.setup_quests()
 
         self.ui.value_for_use_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_item.setMaximum(999)
@@ -79,40 +80,34 @@ class GameMenuController:
         # Очищаем информационные поля
         self.clear_all_info()
 
-    def setup_quests_stub(self):
-        """Показывает отключенные вкладки квестов до реализации механики."""
-        # TODO: убрать заглушки, setEnabled(False) и скрытие полей после разработки квестов.
+    def setup_quests(self):
+        """Включает вкладки квестов и приводит поля к начальному состоянию."""
         self.ui.quests_label.setVisible(True)
         self.ui.quests_tabs.setVisible(True)
-        self.ui.quests_tabs.setEnabled(False)
+        self.ui.quests_tabs.setEnabled(True)
 
-        description_labels = [
-            self.ui.description_selected_available_quest,
-            self.ui.description_selected_active_quest,
-            self.ui.description_selected_completed_quest,
-        ]
-        hidden_labels = [
+        for label in (
             self.ui.name_selected_available_quest,
+            self.ui.description_selected_available_quest,
             self.ui.prize_selected_available_quest,
             self.ui.name_selected_active_quest,
+            self.ui.description_selected_active_quest,
             self.ui.prize_selected_active_quest,
             self.ui.date_start_selected_active_quest,
             self.ui.date_end_selected_active_quest,
             self.ui.name_selected_completed_quest,
+            self.ui.description_selected_completed_quest,
             self.ui.prize_selected_completed_quest,
             self.ui.date_start_selected_completed_quest,
             self.ui.date_end_selected_completed_quest,
-        ]
-
-        for label in description_labels:
+        ):
             label.setVisible(True)
-            label.setText("В разработке")
 
-        for label in hidden_labels:
-            label.setVisible(False)
-
-        self.ui.button_for_start_selected_quest.setVisible(False)
-        self.ui.button_for_stop_selected_quest.setVisible(False)
+        self.ui.button_for_start_selected_quest.setVisible(True)
+        self.ui.button_for_stop_selected_quest.setVisible(True)
+        self.clear_quest_info(game.Quest.AVAILABLE)
+        self.clear_quest_info(game.Quest.ACTIVE)
+        self.clear_quest_info(game.Quest.COMPLETED)
 
     def clear_all_info(self):
         """Очистка всех информационных полей"""
@@ -166,6 +161,19 @@ class GameMenuController:
 
         self.ui.bank_btn.clicked.connect(self.bank)
 
+        # Квесты
+        self.ui.available_quests_list.itemClicked.connect(
+            lambda item: self.on_quest_selected(item, game.Quest.AVAILABLE)
+        )
+        self.ui.active_quests_list.itemClicked.connect(
+            lambda item: self.on_quest_selected(item, game.Quest.ACTIVE)
+        )
+        self.ui.completed_quests_list.itemClicked.connect(
+            lambda item: self.on_quest_selected(item, game.Quest.COMPLETED)
+        )
+        self.ui.button_for_start_selected_quest.clicked.connect(self.on_start_selected_quest)
+        self.ui.button_for_stop_selected_quest.clicked.connect(self.on_abandon_selected_quest)
+
         # Параметры персонажа
         self.ui.gamer_parameters_list.itemClicked.connect(self.on_gamer_parameter_selected)
         self.ui.gamer_parameters_list.currentItemChanged.connect(
@@ -194,21 +202,42 @@ class GameMenuController:
         self.update_shops()
         self.load_gamer_parameters_list()
         self.update_buffs_lists()
+        self.update_quests_lists()
 
-    def update_game_data(self):
+    def update_game_data(self, force_quests=False):
         """Обновление основных параметров игрока"""
         if not self.gamer:
             return
 
         # Проверяем уровень
 
-        self.gamer.level_up()
+        level_up_msg = self.gamer.level_up()
 
         # Перезагружаем игрока для актуальных данных
         self.gamer = game.load_game()
         self.gamer.apply_buffs_to_cf()
         self.register_custom_awards()
         self.process_bank_events(show_toasts=True)
+        now = datetime.datetime.now()
+        should_check_quests = (
+            force_quests
+            or self._last_quest_check_at is None
+            or (now - self._last_quest_check_at).total_seconds() >= 5
+        )
+        quest_messages = []
+        if should_check_quests:
+            self._last_quest_check_at = now
+            quest_messages = self.gamer.update_quests(save=True)
+            if quest_messages:
+                self.gamer = game.load_game()
+                self.register_custom_awards()
+                self.update_inventory()
+                for message in quest_messages:
+                    if self.notifications:
+                        self.notifications.show_success(
+                            message,
+                            duration=self.get_quest_notification_duration(message)
+                        )
 
         # Обновляем отображение
         self.ui.gamer_label.setText(str(self.gamer.level))
@@ -242,6 +271,8 @@ class GameMenuController:
         self.ui.gamer_health_progressbar.setMaximum(100)
         self.update_gamer_parameters_list()
         self.update_buffs_lists()
+        if should_check_quests or level_up_msg:
+            self.update_quests_lists()
 
         # Проверяем критические состояния
         if self.gamer.health <= 20 and self.gamer.health > 0:
@@ -258,6 +289,9 @@ class GameMenuController:
                 self.show_bank_message(message)
         return messages
 
+    def get_quest_notification_duration(self, message):
+        return max(20000, min(45000, 12000 + len(message) * 80))
+
     def show_bank_message(self, message):
         if not self.notifications or not message:
             return
@@ -268,6 +302,157 @@ class GameMenuController:
             self.notifications.show_success(message)
         else:
             self.notifications.show_info(message)
+
+    def get_quest_list_widget(self, status):
+        if status == game.Quest.ACTIVE:
+            return self.ui.active_quests_list
+        if status == game.Quest.COMPLETED:
+            return self.ui.completed_quests_list
+        return self.ui.available_quests_list
+
+    def get_quest_labels(self, status):
+        if status == game.Quest.ACTIVE:
+            return {
+                'name': self.ui.name_selected_active_quest,
+                'description': self.ui.description_selected_active_quest,
+                'reward': self.ui.prize_selected_active_quest,
+                'start': self.ui.date_start_selected_active_quest,
+                'end': self.ui.date_end_selected_active_quest,
+            }
+        if status == game.Quest.COMPLETED:
+            return {
+                'name': self.ui.name_selected_completed_quest,
+                'description': self.ui.description_selected_completed_quest,
+                'reward': self.ui.prize_selected_completed_quest,
+                'start': self.ui.date_start_selected_completed_quest,
+                'end': self.ui.date_end_selected_completed_quest,
+            }
+        return {
+            'name': self.ui.name_selected_available_quest,
+            'description': self.ui.description_selected_available_quest,
+            'reward': self.ui.prize_selected_available_quest,
+        }
+
+    def format_quest_date(self, value):
+        if not value:
+            return 'Дата не указана'
+        return value.strftime('%d.%m.%Y %H:%M')
+
+    def clear_quest_info(self, status):
+        labels = self.get_quest_labels(status)
+        labels['name'].setText('Выберите квест')
+        labels['description'].clear()
+        labels['reward'].clear()
+        if 'start' in labels:
+            labels['start'].clear()
+        if 'end' in labels:
+            labels['end'].clear()
+
+    def get_quest_list_snapshot(self, list_widget):
+        return [
+            (list_widget.item(row).data(1), list_widget.item(row).text())
+            for row in range(list_widget.count())
+        ]
+
+    def update_quests_list(self, status, quests=None):
+        list_widget = self.get_quest_list_widget(status)
+        current_item = list_widget.currentItem()
+        current_quest_id = current_item.data(1) if current_item else None
+        scroll_bar = list_widget.verticalScrollBar()
+        scroll_value = scroll_bar.value()
+
+        quests = quests if quests is not None else (self.gamer.get_quests_by_status(status) if self.gamer else [])
+        next_snapshot = [(quest.quest_id, quest.name) for quest in quests]
+        if self.get_quest_list_snapshot(list_widget) == next_snapshot:
+            return
+
+        list_widget.blockSignals(True)
+        list_widget.clear()
+        for quest in quests:
+            item = QListWidgetItem(quest.name)
+            item.setData(1, quest.quest_id)
+            list_widget.addItem(item)
+        list_widget.blockSignals(False)
+
+        scroll_bar.setValue(min(scroll_value, scroll_bar.maximum()))
+
+        if current_quest_id:
+            for row in range(list_widget.count()):
+                item = list_widget.item(row)
+                if item.data(1) == current_quest_id:
+                    list_widget.setCurrentRow(row)
+                    self.on_quest_selected(item, status)
+                    return
+
+        self.clear_quest_info(status)
+
+    def update_quests_lists(self):
+        if not self.gamer:
+            self.clear_quest_info(game.Quest.AVAILABLE)
+            self.clear_quest_info(game.Quest.ACTIVE)
+            self.clear_quest_info(game.Quest.COMPLETED)
+            return
+
+        self.gamer.sync_quests()
+        for status in (game.Quest.AVAILABLE, game.Quest.ACTIVE, game.Quest.COMPLETED):
+            quests = [
+                quest for quest in self.gamer.quests
+                if quest.status == status and self.gamer.level >= quest.level
+            ]
+            self.update_quests_list(status, quests)
+
+    def on_quest_selected(self, item, status):
+        if not item or not self.gamer:
+            self.clear_quest_info(status)
+            return
+
+        quest = self.gamer.get_quest(item.data(1))
+        if not quest:
+            self.clear_quest_info(status)
+            return
+
+        labels = self.get_quest_labels(status)
+        labels['name'].setText(quest.name)
+        labels['description'].setText(f'{quest.description}\n\nУровень: {quest.level}')
+        labels['reward'].setText(quest.format_reward())
+        if 'start' in labels:
+            labels['start'].setText(f'Дата начала: {self.format_quest_date(quest.start_date)}')
+        if 'end' in labels:
+            labels['end'].setText(f'Дата завершения: {self.format_quest_date(quest.end_date)}')
+
+    def on_start_selected_quest(self):
+        selected = self.ui.available_quests_list.currentItem()
+        if not selected:
+            QMessageBox.warning(self.ui.centralwidget, 'Ошибка', 'Выберите квест')
+            return
+
+        ok, message = self.gamer.start_quest(selected.data(1))
+        self.gamer = game.load_game()
+        self.update_game_data()
+        self.update_quests_lists()
+
+        if ok:
+            if self.notifications:
+                self.notifications.show_success(message)
+        else:
+            QMessageBox.warning(self.ui.centralwidget, 'Ошибка', message)
+
+    def on_abandon_selected_quest(self):
+        selected = self.ui.active_quests_list.currentItem()
+        if not selected:
+            QMessageBox.warning(self.ui.centralwidget, 'Ошибка', 'Выберите активный квест')
+            return
+
+        ok, message = self.gamer.abandon_quest(selected.data(1))
+        self.gamer = game.load_game()
+        self.update_game_data()
+        self.update_quests_lists()
+
+        if ok:
+            if self.notifications:
+                self.notifications.show_info(message)
+        else:
+            QMessageBox.warning(self.ui.centralwidget, 'Ошибка', message)
 
     def format_gamer_parameter_value(self, value):
         """Форматирует числовой коэффициент для списка параметров."""
@@ -495,7 +680,7 @@ class GameMenuController:
             for item_name, item_obj in game_data.ITEM_REGISTRY['Предметы'].items():
                 if game.load_game().level >= item_obj.level:
                     # Проверяем кол-во заморозок в инвентаре и скрываем их, если их больше 2
-                    if item_obj.name == '❄️Заморозка' and self.get_inventory_item_count('Предметы', item_obj) >= 2:
+                    if item_name == 'Заморозка' and self.get_inventory_item_count('Предметы', item_obj, item_name) >= 2:
                         continue
                     display_text = f"{item_obj.name}"
                     item = QListWidgetItem(display_text)
@@ -548,7 +733,7 @@ class GameMenuController:
             return
 
         # Получаем объект предмета из реестра
-        _, item_obj = game_data.find_registry_item(category, item_name)
+        registry_key, item_obj = game_data.find_registry_item(category, item_name)
         if item_obj:
 
             # Отображаем информацию
@@ -565,7 +750,7 @@ class GameMenuController:
                     effect_text = "Активируется при использовании"
 
             # Добавляем информацию о количестве
-            count = self.get_inventory_item_count(category, item_obj, item_name)
+            count = self.get_inventory_item_count(category, item_obj, registry_key, item_name)
             self.ui.effect_selected_item.setText(
                 f"⚡ {effect_text}{self.describe_item_buff(item_obj)}\n🔢 В наличии: {count}"
             )
@@ -587,9 +772,13 @@ class GameMenuController:
             self.use_custom_award(item_name, count)
             return
 
+        registry_key, item_obj = game_data.find_registry_item(category, item_name)
+        if not item_obj:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Предмет не найден")
+            return
+
         # Проверяем наличие
-        _, item_obj = game_data.find_registry_item(category, item_name)
-        available = self.get_inventory_item_count(category, item_obj, item_name)
+        available = self.get_inventory_item_count(category, item_obj, registry_key, item_name)
         if count > available:
             QMessageBox.warning(
                 self.ui.centralwidget,
@@ -598,16 +787,9 @@ class GameMenuController:
             )
             return
 
-        # Получаем объект предмета
-        if not item_obj:
-            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Предмет не найден")
-            return
-
-        self.normalize_inventory_item_key(category, item_obj, item_name)
-
         # Особый случай: Заморозка (используется один раз за вызов)
-        if item_obj.name == '❄️Заморозка':
-            self.freeze_project()
+        if registry_key == 'Заморозка':
+            self.freeze_project(item_obj=item_obj, fallback_names=(item_name, registry_key))
             return
 
         # Проверяем наличие метода use
@@ -618,6 +800,8 @@ class GameMenuController:
                 f"{item_obj.name} нельзя использовать"
             )
             return
+
+        self.ensure_inventory_item_name(category, item_obj, registry_key, item_name)
 
         # Используем предмет count раз
         result_messages = []
@@ -637,13 +821,13 @@ class GameMenuController:
             # Перезагружаем игрока, чтобы получить актуальные монеты/здоровье после всех использований
             self.gamer = game.load_game()
             # Уменьшаем количество использованных предметов в инвентаре (предполагаем, что use не трогает items)
-            self.change_inventory_item_count(category, item_obj, item_name, -success_count)
+            self.decrease_inventory_item(category, item_obj, success_count, registry_key, item_name)
             # Сохраняем обновлённый инвентарь
             self.gamer.save()
 
             # Обновляем интерфейс
             self.update_inventory()
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
 
             # Очищаем панель информации до показа диалога, чтобы устаревший текст не был виден
             self.clear_inventory_item_info()
@@ -736,9 +920,10 @@ class GameMenuController:
 
     def show_award_info(self, category, item_name):
         """Отображение информации о кастомной награде в магазине."""
-        _, award = game_data.find_registry_item(category, item_name)
-        if not award:
+        if category not in game_data.ITEM_REGISTRY or item_name not in game_data.ITEM_REGISTRY[category]:
             return
+
+        award = game_data.ITEM_REGISTRY[category][item_name]
         self.ui.name_selected_custom_award_on_shop.setText(f"🏆 {award.name}")
         self.ui.peice_selected_custom_award_on_shop.setText(f"💰 Цена: {award.price}")
 
@@ -1145,37 +1330,53 @@ class GameMenuController:
 
     # === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
 
-    def get_inventory_item_count(self, category, item_obj, fallback_name=None):
-        """Возвращает количество предмета по текущему имени и старому ключу сохранения."""
+    def get_inventory_item_aliases(self, item_obj, *fallback_names):
+        aliases = []
+        for name in (getattr(item_obj, 'name', None), *fallback_names):
+            if name and name not in aliases:
+                aliases.append(name)
+        return aliases
+
+    def get_inventory_item_count(self, category, item_obj, *fallback_names):
         category_items = self.gamer.items.get(category, {})
         if not isinstance(category_items, dict):
             return 0
 
-        names = []
-        for name in (getattr(item_obj, 'name', None), fallback_name):
-            if name and name not in names:
-                names.append(name)
-        return sum(category_items.get(name, 0) for name in names if name)
+        return sum(
+            category_items.get(name, 0)
+            for name in self.get_inventory_item_aliases(item_obj, *fallback_names)
+        )
 
-    def change_inventory_item_count(self, category, item_obj, fallback_name, delta):
-        """Меняет количество предмета, сохраняя существующий ключ инвентаря."""
+    def decrease_inventory_item(self, category, item_obj, count, *fallback_names):
         category_items = self.gamer.items.setdefault(category, {})
-        preferred_name = getattr(item_obj, 'name', None) or fallback_name
-        existing_names = [name for name in (preferred_name, fallback_name) if name in category_items]
-        inventory_name = existing_names[0] if existing_names else preferred_name
-        category_items[inventory_name] = max(0, category_items.get(inventory_name, 0) + delta)
+        remaining = count
 
-    def normalize_inventory_item_key(self, category, item_obj, fallback_name):
-        """Переносит старый ключ инвентаря на отображаемое имя предмета."""
+        for name in self.get_inventory_item_aliases(item_obj, *fallback_names):
+            if remaining <= 0:
+                break
+            available = category_items.get(name, 0)
+            if available <= 0:
+                continue
+
+            used = min(available, remaining)
+            category_items[name] = available - used
+            remaining -= used
+
+        return count - remaining
+
+    def ensure_inventory_item_name(self, category, item_obj, *fallback_names):
+        category_items = self.gamer.items.setdefault(category, {})
         item_name = getattr(item_obj, 'name', None)
-        if not item_name or item_name == fallback_name:
+        if not item_name:
             return
 
-        category_items = self.gamer.items.setdefault(category, {})
-        legacy_count = category_items.pop(fallback_name, 0)
-        if legacy_count > 0:
-            category_items[item_name] = category_items.get(item_name, 0) + legacy_count
-            self.gamer.save()
+        for fallback_name in fallback_names:
+            if fallback_name == item_name:
+                continue
+            fallback_count = category_items.pop(fallback_name, 0)
+            if fallback_count > 0:
+                category_items[item_name] = category_items.get(item_name, 0) + fallback_count
+                self.gamer.save()
 
     def register_custom_awards(self):
         """Синхронизирует сохранённые кастомные награды с реестром предметов."""
@@ -1332,7 +1533,7 @@ class GameMenuController:
             self.gamer.save()
             self._death_warning_shown = False
             self.update_inventory()
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
             QMessageBox.information(
                 self.ui.centralwidget,
                 "Воскрешение",
@@ -1357,7 +1558,7 @@ class GameMenuController:
                 self.gamer.health = 100
                 self.gamer.save()
                 self._death_warning_shown = False
-                self.update_game_data()
+                self.update_game_data(force_quests=True)
                 QMessageBox.information(
                     self.ui.centralwidget,
                     "Воскрешение",
@@ -1402,7 +1603,7 @@ class GameMenuController:
                 self.notifications.show_success(level_up_msg)  # <-- показываем сразу
             self.gamer.save()
             self.gamer = game.load_game()  # Перезагружаем для актуальности
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
             self.update_inventory()
             self.notifications.show_success(result)
             return result
@@ -1424,7 +1625,7 @@ class GameMenuController:
         if result:
             self.gamer.save()
             self.gamer = game.load_game()  # Перезагружаем для актуальности
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
             self.notifications.show_success(result)
             return True
         return
@@ -1459,19 +1660,18 @@ class GameMenuController:
 
             self.gamer.save()
             self.gamer = game.load_game()  # Перезагружаем для актуальности
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
             self.update_inventory()
             self.notifications.show_success(result)
             return True
         return
 
-    def freeze_project(self):
+    def freeze_project(self, item_obj=None, fallback_names=()):
         dialog = FreezeProject()
         result = dialog.exec_()
         if result == QDialog.Accepted:
             msg = dialog.freeze()
-            self.gamer.items['Предметы']['Заморозка'] -= 1
-            self.gamer.save()
+            self.gamer = game.load_game()
             self.notifications.show_success(msg)
             self.update_inventory()
             self.refresh_all()
@@ -1485,7 +1685,7 @@ class GameMenuController:
         result = dialog.exec_()
         if result in (QDialog.Accepted, QDialog.Rejected):
             self.gamer = dialog.gamer
-            self.update_game_data()
+            self.update_game_data(force_quests=True)
 
     def create_custom_award(self):
         dialog = CreateCustomAward(self.gamer)
@@ -1547,16 +1747,13 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
             if not project.streaks:
                 continue
 
-            # Получаем последний день стрика
-            last_streak_day = project.streaks[-1]
-
             # Получаем статус стрика
             streak_status = project.get_streak_status()
 
             # Проект можно заморозить если последний стрик был вчера
             # и статус 'Active' (активный, но не продленный)
             if streak_status in ['Active', 'Freeze']:
-                display_text = f"{project.name} (стрик: {len(project.streaks)} дн.)"
+                display_text = f"{project.name} (стрик: {engine.streak_length(project.streaks)} дн.)"
                 item = QListWidgetItem(display_text)
                 # Сохраняем объект проекта или его имя для последующего использования
                 item.setData(1, project.name)
@@ -1588,16 +1785,12 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
         if project_name in data['projects']:
             project = data['projects'][project_name]
 
-            # Добавляем сегодняшний день в стрик (заморозка)
-            project.streaks.append(today)
-            project.streak_status = 'Freeze'
-            project.freezes += 1
-            data['global_streaks'].append(today)
-            data['global_streak_status'] = 'Freeze'
+            if not engine.apply_project_freeze(project, today):
+                return 'Не удалось применить заморозку: проверьте инвентарь и статус проекта.'
 
-            # Обновляем максимальный стрик если нужно
-            if len(project.streaks) > project.max_streak:
-                project.max_streak = len(project.streaks)
+            if engine.streak_last_day(data['global_streaks']) == today - datetime.timedelta(days=1):
+                data['global_streaks'].append(engine.STREAK_FREEZE_MARKER)
+            data['global_streak_status'] = 'Freeze'
 
             data['projects'][project_name] = project
             save_data(data)

@@ -19,6 +19,142 @@ CF_META = {
 }
 
 
+class Quest:
+    AVAILABLE = 'available'
+    ACTIVE = 'active'
+    COMPLETED = 'completed'
+
+    def __init__(self, quest_id, name, description, reward_coins=0, reward_exp=0,
+                 reward_items=None, reward_buffs=None, level=1, status=AVAILABLE,
+                 quest_func=None, start_date=None, end_date=None):
+        self.quest_id = quest_id
+        self.name = name
+        self.description = description
+        self.reward_coins = reward_coins
+        self.reward_exp = reward_exp
+        self.reward_items = reward_items or []
+        self.reward_buffs = reward_buffs or []
+        self.level = level
+        self.status = status
+        self.quest_func = quest_func
+        self.start_date = start_date
+        self.end_date = end_date
+
+    def start(self, gamer):
+        if self.status != self.AVAILABLE:
+            return False, 'Квест нельзя начать.'
+        if gamer.level < self.level:
+            return False, f'Квест доступен с {self.level} уровня.'
+
+        self.status = self.ACTIVE
+        self.start_date = datetime.now()
+        self.end_date = None
+        return True, f'Квест "{self.name}" начат.'
+
+    def check_conditions(self, gamer):
+        if self.status != self.ACTIVE:
+            return False
+
+        quest_function = self.get_quest_function()
+        if not quest_function:
+            return False
+
+        return bool(quest_function(gamer, self))
+
+    def get_quest_function(self):
+        if callable(self.quest_func):
+            return self.quest_func
+        if not self.quest_func:
+            return None
+
+        try:
+            import gama_quests
+        except ImportError:
+            return None
+
+        return getattr(gama_quests, self.quest_func, None)
+
+    def complete(self, gamer):
+        if self.status == self.COMPLETED:
+            return None
+
+        self.status = self.COMPLETED
+        self.end_date = datetime.now()
+        if self.reward_coins:
+            gamer.set_coins(self.reward_coins, save=False)
+        if self.reward_exp:
+            gamer.exp += self.reward_exp
+        self.give_reward_items(gamer)
+        self.give_reward_buffs(gamer)
+        return f'Квест "{self.name}" завершен.\n{self.format_reward()}'
+
+    def give_reward_items(self, gamer):
+        for reward_item in self.reward_items:
+            category = reward_item.get('category', 'Награды')
+            name = reward_item.get('name')
+            count = int(reward_item.get('count', 1))
+            if not name or count <= 0:
+                continue
+            gamer.items.setdefault(category, {})
+            gamer.items[category][name] = gamer.items[category].get(name, 0) + count
+
+    def give_reward_buffs(self, gamer):
+        for buff in self.reward_buffs:
+            if buff:
+                active_buff = buff.activate()
+                target_list = gamer.buffs if active_buff.is_positive() else gamer.debuffs
+                target_list.append(active_buff)
+        gamer.apply_buffs_to_cf(save=False)
+
+    def can_be_available(self, gamer):
+        return self.status == self.AVAILABLE and gamer.level >= self.level
+
+    def format_reward(self):
+        parts = []
+        if self.reward_coins:
+            parts.append(f'{self.reward_coins} монет')
+        if self.reward_exp:
+            parts.append(f'{self.reward_exp} опыта')
+        for reward_item in self.reward_items:
+            name = reward_item.get('name')
+            count = reward_item.get('count', 1)
+            if name:
+                parts.append(f'{name} x{count}')
+        for buff in self.reward_buffs:
+            duration = self.format_buff_duration(buff)
+            sign = '+' if buff.is_positive() else '-'
+            target_name = self.get_buff_target_name(buff)
+            parts.append(f'баф "{buff.name}" ({target_name} {sign}{abs(buff.value):g}, {duration})')
+        if not parts:
+            return 'Награда не указана'
+        return 'Награда:\n' + '\n'.join(f'- {part}' for part in parts)
+
+    def get_buff_target_name(self, buff):
+        return CF_META.get(buff.target_cf, {}).get('name', buff.target_cf)
+
+    def format_buff_duration(self, buff):
+        if buff.duration_minutes is None:
+            return 'бессрочно'
+        if buff.duration_minutes % (24 * 60) == 0:
+            return f'{buff.duration_minutes // (24 * 60)} д.'
+        if buff.duration_minutes % 60 == 0:
+            return f'{buff.duration_minutes // 60} ч.'
+        return f'{buff.duration_minutes} мин.'
+
+    def normalize(self):
+        if not hasattr(self, 'reward_items') or self.reward_items is None:
+            self.reward_items = []
+        if not hasattr(self, 'reward_buffs') or self.reward_buffs is None:
+            self.reward_buffs = []
+        if not hasattr(self, 'status') or self.status not in (self.AVAILABLE, self.ACTIVE, self.COMPLETED):
+            self.status = self.AVAILABLE
+        if not hasattr(self, 'start_date'):
+            self.start_date = None
+        if not hasattr(self, 'end_date'):
+            self.end_date = None
+        return self
+
+
 def get_data_file_path():
     """Возвращает путь к файлу данных игры.
 
@@ -58,7 +194,8 @@ class Gamer:
         self.buffs = []
         self.debuffs = []
 
-        self.global_streak_len_bonus = 0
+        self.quests = []
+        self.sync_quests()
 
     def _make_cf_parameter(self, key, value, base_value=None):
         meta = CF_META.get(key, {})
@@ -373,60 +510,103 @@ class Gamer:
         self.save()
         return msg
 
-    def give_len_streak_bonus(self, streak_status, streak_len):
-        """Выдача бонуса за длительность стрика"""
+    def sync_quests(self):
+        """Добавляет новые квесты из каталога, сохраняя прогресс существующих."""
+        if not isinstance(getattr(self, 'quests', None), list):
+            self.quests = []
 
-        cf_coins = self.get_cf_value('coins')
-        cf_exp = self.get_cf_value('exp')
-        msg = None
+        existing_quests = {}
+        for quest in self.quests:
+            if isinstance(quest, Quest):
+                quest.normalize()
+                existing_quests[quest.quest_id] = quest
 
-        if streak_len >= 365 and self.global_streak_len_bonus != 365:
-            coins_bonus = self.set_coins((365 * 25 * cf_coins) * self.calculate_inflation())
-            exp_bonus = round(10000 * 182 * cf_exp)
-            self.global_streak_len_bonus = 365
-            msg = (f'Вы получили бонус за 365 дней непрерывного стрика!'
-                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
-        elif streak_len >= 182 and self.global_streak_len_bonus != 182:
-            coins_bonus = self.set_coins((182 * 25 * cf_coins) * self.calculate_inflation())
-            exp_bonus = round(10000 * 182 * cf_exp)
-            self.global_streak_len_bonus = 182
-            msg = (f'Вы получили бонус за 182 дня непрерывного стрика!'
-                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
-        elif streak_len >= 90 and self.global_streak_len_bonus != 90:
-            coins_bonus = self.set_coins((90 * 25 * cf_coins) * self.calculate_inflation())
-            exp_bonus = round(10000 * 25 * cf_exp)
-            self.global_streak_len_bonus = 90
-            msg = (f'Вы получили бонус за 90 дней непрерывного стрика!'
-                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
-        elif streak_len >= 30 and self.global_streak_len_bonus != 30:
-            coins_bonus = self.set_coins((50 * 15 * cf_coins) * self.calculate_inflation())
-            exp_bonus = round(10000 * 15 * cf_exp)
-            self.global_streak_len_bonus = 30
-            msg = (f'Вы получили бонус за 90 дней непрерывного стрика!'
-                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
-        elif streak_len >= 21 and self.global_streak_len_bonus != 21:
-            coins_bonus = self.set_coins((10 * 21 * cf_coins) * self.calculate_inflation())
-            exp_bonus = round(10000 * 21 * cf_exp)
-            self.global_streak_len_bonus = 21
-            msg = (f'Вы получили бонус за 21 день непрерывного стрика!'
-                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
-        elif streak_len >= 14 and self.global_streak_len_bonus != 14:
-            coins_bonus = self.set_coins((10 * 14 * cf_coins) * self.calculate_inflation())
-            exp_bonus = round(10000 * 14 * cf_exp)
-            self.global_streak_len_bonus = 14
-            msg = (f'Вы получили бонус за 14 дней непрерывного стрика!'
-                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
-        elif streak_len >= 7 and self.global_streak_len_bonus != 7:
-            coins_bonus = self.set_coins((50 * 7 * cf_coins) * self.calculate_inflation())
-            exp_bonus = round(10000 * 7 * cf_exp)
-            self.global_streak_len_bonus = 7
-            msg = (f'Вы получили бонус за 7 дней непрерывного стрика!'
-                   f'\nВаш бонус: {coins_bonus} м. и {exp_bonus} оп.')
+        try:
+            import gama_quests
+            quest_catalog = gama_quests.get_quests()
+        except ImportError:
+            quest_catalog = []
 
-        if msg:
-            self.exp += exp_bonus
+        synced_quests = []
+        for catalog_quest in quest_catalog:
+            saved_quest = existing_quests.get(catalog_quest.quest_id)
+            if saved_quest:
+                saved_quest.name = catalog_quest.name
+                saved_quest.description = catalog_quest.description
+                saved_quest.reward_coins = catalog_quest.reward_coins
+                saved_quest.reward_exp = catalog_quest.reward_exp
+                saved_quest.reward_items = catalog_quest.reward_items
+                saved_quest.reward_buffs = catalog_quest.reward_buffs
+                saved_quest.level = catalog_quest.level
+                saved_quest.quest_func = catalog_quest.quest_func
+                synced_quests.append(saved_quest)
+            else:
+                synced_quests.append(catalog_quest)
+
+        self.quests = synced_quests
+        self.refresh_available_quests()
+        return self.quests
+
+    def refresh_available_quests(self):
+        """Проверяет условия доступности квестов, сейчас базовое условие - уровень."""
+        changed = False
+        for quest in self.quests:
+            quest.normalize()
+            if quest.status == Quest.AVAILABLE and self.level < quest.level:
+                continue
+            if quest.status not in (Quest.AVAILABLE, Quest.ACTIVE, Quest.COMPLETED):
+                quest.status = Quest.AVAILABLE
+                changed = True
+        return changed
+
+    def update_quests(self, save=True):
+        """Синхронизирует квесты и завершает активные, если условия выполнены."""
+        self.sync_quests()
+        messages = []
+        changed = self.refresh_available_quests()
+
+        for quest in self.quests:
+            if quest.check_conditions(self):
+                message = quest.complete(self)
+                if message:
+                    messages.append(message)
+                    changed = True
+
+        if changed and save:
+            self.save()
+        return messages
+
+    def get_quests_by_status(self, status):
+        self.sync_quests()
+        return [quest for quest in self.quests if quest.status == status and self.level >= quest.level]
+
+    def get_quest(self, quest_id):
+        self.sync_quests()
+        for quest in self.quests:
+            if quest.quest_id == quest_id:
+                return quest
+        return None
+
+    def start_quest(self, quest_id):
+        quest = self.get_quest(quest_id)
+        if not quest:
+            return False, 'Квест не найден.'
+
+        ok, message = quest.start(self)
+        if ok:
+            self.save()
+        return ok, message
+
+    def abandon_quest(self, quest_id):
+        quest = self.get_quest(quest_id)
+        if not quest or quest.status != Quest.ACTIVE:
+            return False, 'Активный квест не найден.'
+
+        quest.status = Quest.AVAILABLE
+        quest.start_date = None
+        quest.end_date = None
         self.save()
-        return msg
+        return True, f'Квест "{quest.name}" возвращен в доступные.'
 
     def get_items(self):
         return self.items
@@ -575,9 +755,9 @@ class Gamer:
             'last_lose_global_streak_damage': None,
             'last_bonus_dates': {},
             'inflation': 1,
-            'global_streak_len_bonus': 0,
             'buffs': [],
             'debuffs': [],
+            'quests': [],
         }
 
         for attr, default_value in defaults.items():
@@ -604,6 +784,8 @@ class Gamer:
                     if 'read' not in notifications:
                         notifications['read'] = []
             elif attr in ('buffs', 'debuffs') and not isinstance(getattr(self, attr), list):
+                setattr(self, attr, [])
+            elif attr == 'quests' and not isinstance(getattr(self, attr), list):
                 setattr(self, attr, [])
 
         if not self.economy_rebalanced_v1:
@@ -640,6 +822,7 @@ class Gamer:
         # Особая обработка для bank_account
         self.normalize_cf()
         self.apply_buffs_to_cf()
+        self.sync_quests()
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
         else:

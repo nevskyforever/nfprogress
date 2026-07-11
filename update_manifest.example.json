@@ -1,0 +1,7 @@
+{
+  "version": "3.11",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-{version}.exe",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-{version}.zip",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-{version}.zip",
+  "notes": "Исправлены ошибки и улучшена стабильность."
+}

@@ -26,6 +26,8 @@ class ToastNotification(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 5, 10, 5)
         self.label = QLabel(message)
+        self.label.setWordWrap(True)
+        self.label.setMaximumWidth(520)
         layout.addWidget(self.label)
 
         self.opacity_effect = QGraphicsOpacityEffect()

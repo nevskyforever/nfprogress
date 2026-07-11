@@ -20,3 +20,4 @@
 /.idea/workspace.xml
 /build-arm/
 /build-intel/
+/update_manifest_legacy.json

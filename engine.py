@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = False
 
 # Версия приложения
-version = '3.10'
+version = '4.2.1'
 
 # Определяем систему
 
@@ -97,10 +97,105 @@ def resource_path(relative_path):
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
-    # Для тестирования можно раскомментировать:
-    if load_settings().get('today_for_test_mode', False):
+    # Тестовая дата должна работать только в настоящем режиме разработчика.
+    # Если этот флаг случайно попал в пользовательские данные, обычная сборка
+    # не должна навсегда застревать на выбранном вручную дне.
+    if dev_mode and load_settings().get('today_for_test_mode', False):
         return load_settings()['today_for_test_date']
     return date.today()
+
+
+STREAK_FREEZE_MARKER = 'freeze'
+STREAK_DATE_BUG_START = date(2026, 7, 9)
+STREAK_DATE_BUG_LAST_SAFE_DAY = STREAK_DATE_BUG_START - timedelta(days=1)
+
+
+def is_streak_date(value):
+    return isinstance(value, date) and not isinstance(value, datetime)
+
+
+def iter_streak_days(streaks):
+    """Возвращает пары (запись, эффективная дата) для дат и маркеров заморозки."""
+    current_day = None
+    if not isinstance(streaks, list):
+        return
+
+    for entry in streaks:
+        if is_streak_date(entry):
+            current_day = entry
+            yield entry, current_day
+        elif entry == STREAK_FREEZE_MARKER and current_day is not None:
+            current_day = current_day + timedelta(days=1)
+            yield entry, current_day
+
+
+def streak_last_day(streaks):
+    last_day = None
+    for _, effective_day in iter_streak_days(streaks):
+        last_day = effective_day
+    return last_day
+
+
+def streak_contains_day(streaks, target_day):
+    return any(effective_day == target_day for _, effective_day in iter_streak_days(streaks))
+
+
+def streak_length(streaks):
+    return sum(1 for _ in iter_streak_days(streaks))
+
+
+def streak_is_freeze_for_day(streaks, target_day):
+    return any(entry == STREAK_FREEZE_MARKER and effective_day == target_day
+               for entry, effective_day in iter_streak_days(streaks))
+
+
+def remove_streak_day(streaks, target_day):
+    if not isinstance(streaks, list):
+        return False
+
+    current_day = None
+    for index, entry in enumerate(streaks):
+        if is_streak_date(entry):
+            current_day = entry
+        elif entry == STREAK_FREEZE_MARKER and current_day is not None:
+            current_day = current_day + timedelta(days=1)
+        else:
+            continue
+
+        if current_day == target_day:
+            del streaks[index]
+            return True
+    return False
+
+
+def repair_streak_gap_after_date_bug(streaks, target_day):
+    """Заполняет разрыв, возникший из-за зависшей смены даты после 09.07.2026."""
+    if not isinstance(streaks, list):
+        return False
+
+    last_day = streak_last_day(streaks)
+    if not last_day or last_day < STREAK_DATE_BUG_LAST_SAFE_DAY:
+        return False
+    if last_day >= target_day:
+        return False
+
+    changed = False
+    current_day = last_day + timedelta(days=1)
+    while current_day <= target_day:
+        if not streak_contains_day(streaks, current_day):
+            streaks.append(current_day)
+            changed = True
+        current_day += timedelta(days=1)
+    return changed
+
+
+def rebuild_streak_ending_at(end_day, length):
+    """Создает непрерывный стрик заданной длины с последним днем end_day."""
+    if not isinstance(end_day, date) or length <= 0:
+        return []
+
+    start_day = end_day - timedelta(days=length - 1)
+    return [start_day + timedelta(days=offset) for offset in range(length)]
 
 def load_settings():
     """Загружает данные из кроссплатформенной директории"""
@@ -467,7 +562,8 @@ class Project:
 
         # Если стрик сегодня уже продлен - не проверяем
         # Добавлена проверка на наличие элементов в self.streaks перед обращением к [-1]
-        if self.streak_status == 'Go' and self.streaks and self.streaks[-1] == today:
+        last_streak_day = streak_last_day(self.streaks)
+        if self.streak_status == 'Go' and last_streak_day == today:
             return 'Go'
 
         # Если стрик уже завершен - дальше не проверяем
@@ -475,7 +571,7 @@ class Project:
             return 'Complete'
 
         # Заморозка
-        if self.streak_status == 'Freeze' and self.streaks and self.streaks[-1] == today:
+        if self.streak_status == 'Freeze' and streak_is_freeze_for_day(self.streaks, today):
             return 'Freeze'
 
         # Если проект бесконечный - стрика нет
@@ -487,6 +583,18 @@ class Project:
             self.streaks = []
 
         day_completed = total >= planned
+
+        if (not self.streaks and
+                isinstance(self.streak_status, str) and
+                self.streak_status.startswith('Lose ') and
+                self.last_streak_lost_date is not None and
+                self.last_streak_lost_date >= STREAK_DATE_BUG_START):
+            status_parts = self.streak_status.split()
+            if len(status_parts) >= 2 and status_parts[1].isdigit():
+                lost_len = int(status_parts[1])
+                self.streaks = rebuild_streak_ending_at(STREAK_DATE_BUG_LAST_SAFE_DAY, lost_len)
+                self.streak_status = 'Active'
+                self.last_streak_lost_date = None
 
         # === СБРОС УСТАРЕВШЕГО СТАТУСА ПОТЕРИ (чистого) ===
         if (isinstance(self.streak_status, str) and
@@ -503,7 +611,7 @@ class Project:
                 self.streak_status.startswith('Lose ') and
                 len(self.streak_status.split()) == 3):
             # Если это не сегодняшний стрик, превращаем в обычный Start
-            if not (self.streaks and self.streaks[-1] == today):
+            if streak_last_day(self.streaks) != today:
                 self.streak_status = 'Start'
             else:
                 parts = self.streak_status.split()
@@ -520,8 +628,11 @@ class Project:
 
         # === ❗️ РЕТРОСПЕКТИВНАЯ ПРОВЕРКА ПРОПУЩЕННЫХ ДНЕЙ ===
         # Проверяем и "дописываем" прошлые дни ДО обработки сегодняшнего результата
-        if self.streaks and self.streaks[-1] < yesterday:
-            current_day = self.streaks[-1] + timedelta(days=1)
+        last_streak_day = streak_last_day(self.streaks)
+        repair_streak_gap_after_date_bug(self.streaks, yesterday)
+        last_streak_day = streak_last_day(self.streaks)
+        if last_streak_day and last_streak_day < yesterday:
+            current_day = last_streak_day + timedelta(days=1)
             plan = self.project_plan
 
             # Проверяем дни вплоть до вчерашнего
@@ -531,23 +642,16 @@ class Project:
                 if day_goal_symbols is not None and total >= day_goal_symbols:
                     self.streaks.append(current_day)
                 else:
-                    # Проверяем, есть ли заморозка в инвентаре
-                    # if load_settings()['game_mode']:
-                    #     gamer = game.load_game()
-                    #     freezes = gamer.items['Предметы'].get('Заморозка', 0)
-                    #     if freezes:
-                    #         freezes -= 1
-                    #         self.freezes += 1
-                    #         self.streaks.append(current_day)
-                    #         gamer.save()
-
-                    # Символов не хватает и нет заморозок — обрываем восстановление
-                    break
+                    # Если день не был продлён, автоматически тратим заморозку из инвентаря.
+                    if not apply_project_freeze(self, current_day):
+                        # Символов не хватает и нет заморозок — обрываем восстановление
+                        break
                 current_day += timedelta(days=1)
 
         # Случай 1: сегодня уже есть запись в streaks (уже продлили сегодня)
-        if self.streaks and self.streaks[-1] == today and day_completed:
-            self.streak_status = 'Go' if len(self.streaks) > 1 else 'Start'
+        last_streak_day = streak_last_day(self.streaks)
+        if last_streak_day == today and day_completed:
+            self.streak_status = 'Go' if streak_length(self.streaks) > 1 else 'Start'
             self.last_streak_lost_date = None  # стрик активен, потери нет
             return self.streak_status
 
@@ -558,7 +662,7 @@ class Project:
                 self.streaks = [today]
                 self.streak_status = 'Start'
                 self.last_streak_lost_date = None
-            elif self.streaks[-1] == yesterday:
+            elif last_streak_day == yesterday:
                 # Продолжение стрика (в том числе если мы его восстановили шагом выше)
                 self.streaks.append(today)
                 self.streak_status = 'Go'
@@ -566,7 +670,7 @@ class Project:
             else:
                 # Перерыв: потеря предыдущего + начало нового
                 # (Сюда мы попадем, если ретроспективная проверка прервалась из-за нехватки символов)
-                lose_len = len(self.streaks)
+                lose_len = streak_length(self.streaks)
                 if lose_len > self.max_streak:
                     self.max_streak = lose_len
                 self.streaks = [today]
@@ -578,15 +682,15 @@ class Project:
             # День не выполнен
             if not self.streaks:
                 self.streak_status = 'No'
-            elif self.streaks[-1] == today:
+            elif last_streak_day == today:
                 # Уже сегодня была запись, но план не выполнен
                 self.streak_status = 'Active'
-            elif self.streaks[-1] == yesterday:
+            elif last_streak_day == yesterday:
                 # Вчера был стрик, сегодня ещё не выполнен → активный
                 self.streak_status = 'Active'
             else:
                 # Потеря стрика (пропуск >1 дня и недобор символов)
-                lose_len = len(self.streaks)
+                lose_len = streak_length(self.streaks)
                 if lose_len > self.max_streak:
                     self.max_streak = lose_len
                 self.streaks = []
@@ -594,8 +698,9 @@ class Project:
                 self.last_streak_lost_date = today
 
         # Обновляем максимальный стрик, если текущая длина больше
-        if len(self.streaks) > self.max_streak:
-            self.max_streak = len(self.streaks)
+        current_streak_len = streak_length(self.streaks)
+        if current_streak_len > self.max_streak:
+            self.max_streak = current_streak_len
 
         return self.streak_status
 
@@ -611,17 +716,17 @@ class Project:
                 return f'❄️ Стрик заморожен'
             return f'❄️ Стрик в {self.name} заморожен'
         elif status == 'Go':
-            streaks = len(self.streaks)
+            streaks = streak_length(self.streaks)
             if msg_type == 'min':
                 return '🚀 стрик продлен'
             return f'🚀 Стрик в {self.name} продлен! Вы движетесь к цели уже {streaks} дней подряд!'
         elif status == 'Active':
-            streaks = len(self.streaks)
+            streaks = streak_length(self.streaks)
             if msg_type == 'min':
                 return f'⏳ Стрик в {streaks} дн не продлен'
             return f'⏳ Стрик в {self.name} активен ({streaks} дн.), но ещё не продлён сегодня'
         elif status == 'Complete':
-            streaks = len(self.streaks)
+            streaks = streak_length(self.streaks)
             if msg_type == 'min':
                 return '🎉 СТРИК ЗАВЕРШЕН'
             return f'🎉 СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
@@ -714,7 +819,7 @@ class Project:
             stat_best_weekday = '—'
 
         # --- 9. Текущий стрик (дней) ---
-        stat_current_streak = len(self.streaks) if isinstance(self.streaks, list) else 0
+        stat_current_streak = streak_length(self.streaks)
 
         # --- 10. Максимальный стрик ---
         # max_streak обновляется в get_streak_status, берём максимум с текущим
@@ -863,6 +968,56 @@ def save_data(data):
     atomic_pickle_save(data, data_file)
 
 
+def apply_project_freeze(project, freeze_day=None, gamer=None, save_gamer=True):
+    """Применяет заморозку к проекту и списывает её из инвентаря игрока."""
+    if freeze_day is None:
+        freeze_day = today_for_test()
+
+    if not isinstance(project, Project):
+        return False
+    if project.deadline == 'Нет' or project.status == 'завершен':
+        return False
+    if project.goal == float('inf') or project.get_today_goal_value() == 0:
+        return False
+    if not isinstance(project.streaks, list):
+        project.streaks = []
+
+    last_streak_day = streak_last_day(project.streaks)
+    if last_streak_day != freeze_day - timedelta(days=1):
+        return False
+    if not load_settings().get('game_mode', False):
+        return False
+
+    if gamer is None:
+        import game
+        gamer = game.load_game()
+
+    items = getattr(gamer, 'items', {})
+    category_items = items.get('Предметы', {})
+    if not isinstance(category_items, dict):
+        return False
+
+    freeze_names = ('Заморозка', '❄️Заморозка')
+    freeze_name = next((name for name in freeze_names if category_items.get(name, 0) > 0), None)
+    if freeze_name is None:
+        return False
+
+    category_items[freeze_name] -= 1
+    project.streaks.append(STREAK_FREEZE_MARKER)
+    if freeze_day == today_for_test():
+        project.streak_status = 'Freeze'
+    project.freezes += 1
+
+    current_streak_len = streak_length(project.streaks)
+    if current_streak_len > project.max_streak:
+        project.max_streak = current_streak_len
+
+    if save_gamer:
+        gamer.save()
+
+    return True
+
+
 def export_data_to_file(file_path):
     """Экспортирует данные в указанный файл"""
     data = load_data()
@@ -907,10 +1062,17 @@ def global_streak_status(data, today=None):
 
     streaks = data.get('global_streaks', [])
     if streaks:
-        # Чистим стрики от повторных дат
+        # Чистим только повторные даты. Маркеры заморозки могут повторяться подряд.
+        seen_dates = set()
+        normalized_streaks = []
         for streak in streaks:
-            if streaks.count(streak) > 1:
-                streaks.remove(streak)
+            if is_streak_date(streak):
+                if streak in seen_dates:
+                    continue
+                seen_dates.add(streak)
+            normalized_streaks.append(streak)
+        streaks = normalized_streaks
+        data['global_streaks'] = streaks
     if not isinstance(streaks, list):
         streaks = []
         data['global_streaks'] = streaks
@@ -921,8 +1083,24 @@ def global_streak_status(data, today=None):
     last_lost_len = data.get('last_global_streak_lose_len', 0)
     projects = data.get('projects', {})
 
-    # Заморозка (оставляем как есть)
-    if prev_status == 'Freeze' and streaks and streaks[-1] == today:
+    if (not streaks and
+            isinstance(prev_status, str) and
+            prev_status.startswith('Lose ') and
+            last_lost_date is not None and
+            last_lost_date >= STREAK_DATE_BUG_START):
+        repair_len = last_lost_len or max_streak
+        if repair_len > 0:
+            streaks = rebuild_streak_ending_at(STREAK_DATE_BUG_LAST_SAFE_DAY, repair_len)
+            data['global_streaks'] = streaks
+            data['global_streak_status'] = 'Active'
+            data['last_global_streak_lost_date'] = None
+            data['last_global_streak_lose_len'] = 0
+            prev_status = 'Active'
+            last_lost_date = None
+            last_lost_len = 0
+
+    # Заморозка
+    if prev_status == 'Freeze' and streak_is_freeze_for_day(streaks, today):
         return 'Freeze'
 
     # Определяем, есть ли сегодня проекты, выполнившие план и есть ли активные
@@ -938,18 +1116,33 @@ def global_streak_status(data, today=None):
                 if actual_status in ['Start', 'Go']:
                     has_active_today = True
                 # Стрик завершен сегодня
-                elif actual_status == 'Complete' and project.streaks[-1] == today:
+                elif actual_status == 'Complete' and streak_last_day(project.streaks) == today:
                     has_active_today = True
 
                 # Перенимаем стрик, если он активен и длиннее текущего глобального (используем copy!)
-                if actual_status in ['Start', 'Go', 'Active'] and len(streaks) < len(project.streaks):
+                if actual_status in ['Start', 'Go', 'Active'] and streak_length(streaks) < streak_length(project.streaks):
                     streaks = project.streaks.copy()
+
+    repair_streak_gap_after_date_bug(streaks, yesterday)
+    data['global_streaks'] = streaks
 
     # === ОБРАБОТКА СОХРАНЁННОГО СТАТУСА ПОТЕРИ (только в день потери) ===
     if (isinstance(prev_status, str) and
             prev_status.startswith('Lose ') and
             len(prev_status.split()) == 2 and
             last_lost_date == today):
+        # Автозаморозка могла восстановить вчерашний день уже после того,
+        # как потеря была сохранена. В этом случае старый Lose больше не валиден.
+        if streak_last_day(streaks) == yesterday:
+            status = 'Active'
+            data['global_streaks'] = streaks
+            data['global_streak_status'] = status
+            data['last_global_streak_lost_date'] = None
+            data['last_global_streak_lose_len'] = 0
+            data['max_global_streak'] = max(streak_length(streaks), max_streak)
+            save_data(data)
+            return status
+
         # Если сегодня нет активности — оставляем статус потери
         if not has_active_today:
             return prev_status
@@ -969,7 +1162,7 @@ def global_streak_status(data, today=None):
     if (isinstance(prev_status, str) and
             prev_status.startswith('Lose ') and
             len(prev_status.split()) == 3 and
-            streaks and streaks[-1] == today):
+            streak_last_day(streaks) == today):
         # Это комбинированный статус, установленный сегодня — возвращаем его
         return prev_status
 
@@ -998,16 +1191,16 @@ def global_streak_status(data, today=None):
                 data['last_global_streak_lose_len'] = 0
             else:
                 status = 'Start'
-        elif streaks[-1] == yesterday:
+        elif streak_last_day(streaks) == yesterday:
             # Продолжение стрика
             streaks.append(today)
             status = 'Go'
             data['last_global_streak_lost_date'] = None
             data['last_global_streak_lose_len'] = 0
-        elif streaks[-1] == today:
+        elif streak_last_day(streaks) == today:
             # ИСПРАВЛЕНИЕ: Стрик уже обновлён сегодня (глобально ранее, либо только что переняли от проекта).
             # Вычисляем статус вместо возврата старого prev_status.
-            if len(streaks) > 1:
+            if streak_length(streaks) > 1:
                 status = 'Go'
             else:
                 if last_lost_date is not None:
@@ -1018,7 +1211,7 @@ def global_streak_status(data, today=None):
             data['last_global_streak_lose_len'] = 0
         else:
             # Пропуск дней: потеря старого стрика и начало нового
-            lose_len = len(streaks)
+            lose_len = streak_length(streaks)
             if lose_len > max_streak:
                 max_streak = lose_len
             streaks = [today]
@@ -1029,14 +1222,14 @@ def global_streak_status(data, today=None):
         # Нет активности сегодня
         if not streaks:
             status = 'No'
-        elif streaks[-1] == yesterday:
+        elif streak_last_day(streaks) == yesterday:
             status = 'Active'
-        elif streaks[-1] == today:
+        elif streak_last_day(streaks) == today:
             # Запись за сегодня есть, но план не выполнен (находится в процессе) — статус активен
             status = 'Active'
         else:
             # Потеря стрика из-за пропуска более одного дня
-            lose_len = len(streaks)
+            lose_len = streak_length(streaks)
             if lose_len > max_streak:
                 max_streak = lose_len
             streaks.clear()
@@ -1045,7 +1238,7 @@ def global_streak_status(data, today=None):
             data['last_global_streak_lose_len'] = lose_len
 
     # Обновление максимальной длины стрика
-    current_len = len(streaks)
+    current_len = streak_length(streaks)
     if current_len > max_streak:
         max_streak = current_len
 
@@ -1065,12 +1258,12 @@ def global_streak_status_msg(data, status=None):
     if status == 'Start':
         return '🔥 Глобальный стрик начат!'
     elif status == 'Go':
-        return f'🚀 Глобальный стрик продлен! Дней подряд: {len(streaks)}'
+        return f'🚀 Глобальный стрик продлен! Дней подряд: {streak_length(streaks)}'
     elif status == 'Freeze':
-        return f'❄️ Глобальный стрик в {len(streaks)} д. заморожен'
+        return f'❄️ Глобальный стрик в {streak_length(streaks)} д. заморожен'
     elif status == 'Active':
         # Активный глобальный стрик (вчера продлен, сегодня не продлен)
-        return f'👀 Глобальный стрик в {len(streaks)} д. не продлен сегодня.'
+        return f'👀 Глобальный стрик в {streak_length(streaks)} д. не продлен сегодня.'
     elif isinstance(status, str) and status.startswith('Lose '):
         parts = status.split()
         if len(parts) == 2 and parts[1].isdigit():
@@ -1082,12 +1275,12 @@ def global_streak_status_msg(data, status=None):
         return '💔 Глобальный стрик потерян!'
     elif status == 'No':
         # Если нет активных стриков, но были раньше
-        if streaks and len(streaks) > 0:
-            last_streak_day = streaks[-1]
+        last_streak_day = streak_last_day(streaks)
+        if last_streak_day is not None:
             today = today_for_test()
             days_ago = (today - last_streak_day).days
             if days_ago == 1:
-                return f'👀 Глобальный стрик в {len(streaks)} д. не продлен.'
+                return f'👀 Глобальный стрик в {streak_length(streaks)} д. не продлен.'
             else:
                 return f'😴 Глобальный стрик не активен. Последний стрик был {days_ago} дней назад'
         else:
