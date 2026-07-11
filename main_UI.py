@@ -173,6 +173,13 @@ class MainWindow(QMainWindow, main_window_ui):
         if current_effective_date == self._last_effective_date:
             return
 
+        self._refresh_for_effective_date_change(current_effective_date, show_notification=True)
+
+    def _refresh_for_effective_date_change(self, current_effective_date=None, show_notification=False):
+        """Обновляет состояние приложения после смены эффективной даты."""
+        if current_effective_date is None:
+            current_effective_date = en.today_for_test()
+
         self._last_effective_date = current_effective_date
         # На смене даты запускаем фоновую синхронизацию только для активных синхронизированных проектов.
         self.background_synch(silent=True)
@@ -188,7 +195,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
         self.game_controller.process_bank_events(show_toasts=True)
         self.game_controller.update_game_data()
-        self.notifications.show_info('Новый день. Проекты обновлены.', duration=10000, position='bottom-right')
+        if show_notification:
+            self.notifications.show_info('Новый день. Проекты обновлены.', duration=10000, position='bottom-right')
 
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
@@ -1404,8 +1412,16 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def check_global_streak(self):
         """Проверяет глобальный стрик и показывает уведомление"""
-        data = en.load_data()
-        global_status = data.get('global_streak_status', 'No')
+        current_effective_date = en.today_for_test()
+        if not hasattr(self, '_last_effective_date'):
+            self._last_effective_date = current_effective_date
+
+        if current_effective_date != self._last_effective_date:
+            self._refresh_for_effective_date_change(current_effective_date, show_notification=True)
+        elif en.load_settings().get('global_streak', False):
+            self.refresh_global_streak_status()
+
+        QTimer.singleShot(60_000, self.check_global_streak)
 
     def user_agreement(self):
         dialog = UserAgreement()
