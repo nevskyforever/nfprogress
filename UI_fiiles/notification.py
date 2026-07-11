@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, Property
-from PySide6.QtWidgets import QFrame, QLabel, QHBoxLayout, QGraphicsOpacityEffect
+from PySide6.QtWidgets import QFrame, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QSizePolicy
 
 
 class ToastNotification(QFrame):
@@ -27,7 +27,12 @@ class ToastNotification(QFrame):
         layout.setContentsMargins(10, 5, 10, 5)
         self.label = QLabel(message)
         self.label.setWordWrap(True)
-        self.label.setMaximumWidth(520)
+        parent_width = parent.width() if parent else 560
+        toast_width = min(560, max(260, parent_width - 20))
+        label_width = max(220, toast_width - 40)
+        self.setMaximumWidth(toast_width)
+        self.label.setFixedWidth(label_width)
+        self.label.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Minimum)
         layout.addWidget(self.label)
 
         self.opacity_effect = QGraphicsOpacityEffect()

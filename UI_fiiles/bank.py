@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'bankMabRmZ.ui'
+## Form generated from reading UI file 'bankIFPPPJ.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -22,7 +22,7 @@ class Ui_Bamk(object):
     def setupUi(self, Bamk):
         if not Bamk.objectName():
             Bamk.setObjectName(u"Bamk")
-        Bamk.resize(381, 490)
+        Bamk.resize(396, 427)
         Bamk.setMinimumSize(QSize(381, 392))
         font = QFont()
         font.setFamilies([u"Arial"])
@@ -93,6 +93,11 @@ class Ui_Bamk(object):
 
         self.gridLayout_2.addWidget(self.loan_partial_repayment_amount, 3, 0, 1, 1)
 
+        self.active_deposit_topup_amount = QLineEdit(self.widget)
+        self.active_deposit_topup_amount.setObjectName(u"active_deposit_topup_amount")
+
+        self.gridLayout_2.addWidget(self.active_deposit_topup_amount, 3, 1, 1, 1)
+
 
         self.gridLayout.addWidget(self.widget, 5, 0, 1, 3)
 
@@ -158,6 +163,7 @@ class Ui_Bamk(object):
         self.withdraw_interest_from_a_deposit.setText(QCoreApplication.translate("Bamk", u"\u0421\u043d\u044f\u0442\u044c \u043f\u0440\u043e\u0446\u0435\u043d\u0442\u044b", None))
         self.take_credit_btn.setText(QCoreApplication.translate("Bamk", u"\u0412\u0437\u044f\u0442\u044c \u043a\u0440\u0435\u0434\u0438\u0442", None))
         self.loan_partial_repayment_amount.setPlaceholderText(QCoreApplication.translate("Bamk", u"\u0421\u0443\u043c\u043c\u0430 \u043a \u043f\u043e\u0433\u0430\u0448\u0435\u043d\u0438\u044e (100.0)", None))
+        self.active_deposit_topup_amount.setPlaceholderText(QCoreApplication.translate("Bamk", u"\u0421\u0443\u043c\u043c\u0430 \u043a \u043f\u043e\u043f\u043e\u043b\u043d\u0435\u043d\u0438\u044e (100.0)", None))
         self.return_credit_date.setText(QCoreApplication.translate("Bamk", u"\u0414\u0430\u0442\u0430 \u0432\u043e\u0437\u0432\u0440\u0430\u0442\u0430", None))
         self.return_deposit_date.setText(QCoreApplication.translate("Bamk", u"\u0414\u0430\u0442\u0430 \u0441\u043d\u044f\u0442\u0438\u044f", None))
         self.credit_total_sum.setText(QCoreApplication.translate("Bamk", u"\u0421\u0443\u043c\u043c\u0430 \u043a \u0432\u043e\u0437\u0432\u0440\u0430\u0442\u0443", None))
