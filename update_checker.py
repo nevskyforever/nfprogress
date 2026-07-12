@@ -160,6 +160,40 @@ def _read_update_log_tail(log_path, limit=3000):
     return text[-limit:].strip()
 
 
+def _windows_creationflags(*names):
+    fallback_values = {
+        "CREATE_NO_WINDOW": 0x08000000,
+        "DETACHED_PROCESS": 0x00000008,
+        "CREATE_NEW_PROCESS_GROUP": 0x00000200,
+        "CREATE_BREAKAWAY_FROM_JOB": 0x01000000,
+    }
+    flags = 0
+    for name in names:
+        flags |= getattr(subprocess, name, fallback_values[name])
+    return flags
+
+
+def _format_process_output(result):
+    parts = [f"exit={result.returncode}"]
+    stdout = (result.stdout or "").strip()
+    stderr = (result.stderr or "").strip()
+    if stdout:
+        parts.append(f"stdout={stdout}")
+    if stderr:
+        parts.append(f"stderr={stderr}")
+    return "; ".join(parts)
+
+
+def _wait_for_windows_updater_start(log_path, timeout=3.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        log_tail = _read_update_log_tail(log_path)
+        if "updater started" in log_tail:
+            return True
+        time.sleep(0.2)
+    return False
+
+
 def _build_windows_updater_script(download_url, target_path, parent_pid, log_path, task_name=None):
     target_dir = target_path.parent
     target_name = target_path.name
@@ -273,10 +307,13 @@ def _start_windows_updater_with_task_scheduler(script_path, task_name, log_path)
         text=True,
         encoding="utf-8",
         errors="replace",
-        creationflags=subprocess.CREATE_NO_WINDOW,
+        creationflags=_windows_creationflags("CREATE_NO_WINDOW"),
     )
     if create_result.returncode != 0:
-        raise RuntimeError((create_result.stderr or create_result.stdout or "schtasks /Create failed").strip())
+        details = _format_process_output(create_result)
+        _append_update_log(log_path, f"scheduled task create failed: {details}")
+        raise RuntimeError(details)
+    _append_update_log(log_path, f"scheduled task create ok: {_format_process_output(create_result)}")
 
     _append_update_log(log_path, f"running scheduled task {task_name}")
     run_result = subprocess.run(
@@ -286,39 +323,69 @@ def _start_windows_updater_with_task_scheduler(script_path, task_name, log_path)
         text=True,
         encoding="utf-8",
         errors="replace",
-        creationflags=subprocess.CREATE_NO_WINDOW,
+        creationflags=_windows_creationflags("CREATE_NO_WINDOW"),
     )
     if run_result.returncode != 0:
+        details = _format_process_output(run_result)
+        _append_update_log(log_path, f"scheduled task run failed: {details}")
         subprocess.run(
             ["schtasks.exe", "/Delete", "/TN", task_name, "/F"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW,
+            creationflags=_windows_creationflags("CREATE_NO_WINDOW"),
         )
-        raise RuntimeError((run_result.stderr or run_result.stdout or "schtasks /Run failed").strip())
+        raise RuntimeError(details)
+    _append_update_log(log_path, f"scheduled task run ok: {_format_process_output(run_result)}")
+    if not _wait_for_windows_updater_start(log_path):
+        details = _read_update_log_tail(log_path)
+        raise RuntimeError(f"scheduled task started but updater did not write startup marker. Log:\n{details}")
 
 
 def _start_windows_updater_direct(script_path, log_path):
-    _append_update_log(log_path, "starting PowerShell directly")
-    process = subprocess.Popen(
-        [
-            _windows_powershell_executable(),
-            "-NoProfile",
-            "-ExecutionPolicy",
-            "Bypass",
-            "-File",
-            str(script_path),
-        ],
-        creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-        close_fds=True,
+    command = [
+        _windows_powershell_executable(),
+        "-NoProfile",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        str(script_path),
+    ]
+    flags = _windows_creationflags(
+        "CREATE_NO_WINDOW",
+        "DETACHED_PROCESS",
+        "CREATE_NEW_PROCESS_GROUP",
+        "CREATE_BREAKAWAY_FROM_JOB",
     )
-    time.sleep(0.8)
-    if process.poll() is not None:
+    _append_update_log(log_path, "starting PowerShell directly with breakaway")
+    try:
+        process = subprocess.Popen(
+            command,
+            creationflags=flags,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+        )
+    except OSError as error:
+        _append_update_log(log_path, f"PowerShell breakaway start failed: {error}")
+        process = subprocess.Popen(
+            command,
+            creationflags=_windows_creationflags(
+                "CREATE_NO_WINDOW",
+                "DETACHED_PROCESS",
+                "CREATE_NEW_PROCESS_GROUP",
+            ),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+        )
+    if not _wait_for_windows_updater_start(log_path):
         log_tail = _read_update_log_tail(log_path)
-        details = f"PowerShell завершился сразу с кодом {process.returncode}."
+        return_code = process.poll()
+        details = "PowerShell не записал стартовую строку в лог."
+        if return_code is not None:
+            details += f" Процесс завершился с кодом {return_code}."
         if log_tail:
             details += f"\n\nЛог:\n{log_tail}"
         raise RuntimeError(details)
@@ -424,6 +491,12 @@ def _start_background_update(download_url, parent):
     parent_pid = os.getpid()
 
     if platform.system() == "Windows":
+        try:
+            log_path.unlink()
+        except FileNotFoundError:
+            pass
+        except OSError:
+            pass
         script_path = temp_dir / "nfprogress-update.ps1"
         task_name = f"NFProgressUpdate-{uuid.uuid4().hex}"
         _write_text_file(script_path, _build_windows_updater_script(download_url, target_path, parent_pid, log_path, task_name))
