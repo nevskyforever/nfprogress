@@ -939,24 +939,73 @@ class BankAccount:
     def _process_credit_day(self, gamer, auto_pay=True, notify=True):
         today = engine.today_for_test()
         messages = []
-        self._process_overdue_credit_days(gamer, today, messages)
         if not self.credit:
             return messages
         if today < self.credit.get_first_payment_date():
             return messages
-        if self.credit.last_payment_date == today:
-            self.credit.last_daily_check_date = today
-            return messages
 
-        if auto_pay:
-            message = self._try_pay_credit_today(gamer, today, notify_if_not_enough=notify, automatic=True)
+        start_date = self.credit.get_first_payment_date()
+        if self.credit.last_daily_check_date is not None:
+            start_date = max(start_date, self.credit.last_daily_check_date + timedelta(days=1))
+
+        current_date = start_date
+        while self.credit and current_date <= today:
+            if self.credit.last_payment_date == current_date:
+                self.credit.last_daily_check_date = current_date
+                current_date += timedelta(days=1)
+                continue
+
+            if auto_pay:
+                message = self._try_pay_credit_today(
+                    gamer,
+                    current_date,
+                    notify_if_not_enough=notify and current_date == today,
+                    automatic=True,
+                )
+                if message:
+                    messages.append(message)
+                if not self.credit:
+                    return messages
+                if self.credit.last_payment_date == current_date:
+                    current_date += timedelta(days=1)
+                    continue
+
+            if current_date == today:
+                if not auto_pay and notify:
+                    message = self._notify_credit_payment_due(today)
+                    if message:
+                        messages.append(message)
+                break
+
+            message = self._apply_credit_overdue_for_date(gamer, current_date)
             if message:
                 messages.append(message)
-        elif notify:
-            message = self._notify_credit_payment_due(today)
-            if message:
-                messages.append(message)
+            current_date += timedelta(days=1)
+
         return messages
+
+    def _apply_credit_overdue_for_date(self, gamer, overdue_date):
+        if not self.credit:
+            return None
+        credit = self.credit
+        if credit.last_payment_date == overdue_date:
+            credit.last_daily_check_date = overdue_date
+            return None
+
+        penalty = max(5, round(credit.get_remaining_sum() * 0.015, 1))
+        damage = 10
+        credit.accrued_penalty += penalty
+        credit.last_penalty_date = overdue_date
+        credit.total_overdue_days += 1
+        credit.last_daily_check_date = overdue_date
+        self.overdue_days_total += 1
+        gamer.health = max(0, gamer.health - damage)
+        message = (
+            f'Просрочка платежа по кредиту за {overdue_date.strftime("%d.%m.%Y")}: '
+            f'штраф {penalty} монет, урон здоровью {damage}.'
+        )
+        self._add_notification(message)
+        return message
 
     def _process_overdue_credit_days(self, gamer, today, messages=None):
         if not self.credit:
@@ -972,22 +1021,9 @@ class BankAccount:
 
         current_date = start_date
         while self.credit and current_date < today:
-            if credit.last_payment_date != current_date:
-                penalty = max(5, round(credit.get_remaining_sum() * 0.015, 1))
-                damage = 10
-                credit.accrued_penalty += penalty
-                credit.last_penalty_date = current_date
-                credit.total_overdue_days += 1
-                self.overdue_days_total += 1
-                gamer.health = max(0, gamer.health - damage)
-                message = (
-                    f'Просрочка платежа по кредиту за {current_date.strftime("%d.%m.%Y")}: '
-                    f'штраф {penalty} монет, урон здоровью {damage}.'
-                )
-                self._add_notification(message)
-                if messages is not None:
-                    messages.append(message)
-            credit.last_daily_check_date = current_date
+            message = self._apply_credit_overdue_for_date(gamer, current_date)
+            if message and messages is not None:
+                messages.append(message)
             current_date += timedelta(days=1)
 
     def _try_pay_credit_today(self, gamer, today, notify_if_not_enough=True, automatic=True):
