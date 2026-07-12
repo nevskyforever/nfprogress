@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'bankUcYICI.ui'
+## Form generated from reading UI file 'bankMabRmZ.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -22,7 +22,7 @@ class Ui_Bamk(object):
     def setupUi(self, Bamk):
         if not Bamk.objectName():
             Bamk.setObjectName(u"Bamk")
-        Bamk.resize(381, 392)
+        Bamk.resize(381, 490)
         Bamk.setMinimumSize(QSize(381, 392))
         font = QFont()
         font.setFamilies([u"Arial"])

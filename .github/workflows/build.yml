@@ -80,9 +80,114 @@ jobs:
             --file-description="Трекер для писателей" `
             main_UI.py
 
-      - name: Upload EXE as artifact
+      - name: Package Windows ZIP
+        shell: pwsh
+        run: |
+          $zipPath = "build\nfprogress-windows-$($env:APP_VERSION).zip"
+          if (Test-Path $zipPath) {
+            Remove-Item $zipPath
+          }
+          Compress-Archive -Path "build\nfprogress.exe" -DestinationPath $zipPath
+
+      - name: Upload Windows ZIP as artifact
         uses: actions/upload-artifact@v4
         with:
           name: nfprogress-windows-${{ env.APP_VERSION }}
-          path: build/nfprogress.exe
+          path: build/nfprogress-windows-${{ env.APP_VERSION }}.zip
           retention-days: 30
+
+      - name: Upload Windows ZIP to hosting over SSH
+        shell: pwsh
+        env:
+          SSH_UPLOAD_HOST: 77.222.62.219
+          SSH_UPLOAD_USER: nevskyfore
+          SSH_UPLOAD_DIR: nfproject/public_html/app
+          SSH_UPLOAD_PORT: 22
+          SSH_UPLOAD_PRIVATE_KEY: ${{ secrets.SSH_UPLOAD_PRIVATE_KEY }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          function Invoke-Native {
+            param(
+              [string]$Command,
+              [Parameter(ValueFromRemainingArguments = $true)]
+              [string[]]$Arguments
+            )
+
+            & $Command @Arguments
+            if ($LASTEXITCODE -ne 0) {
+              throw ("Command failed with exit code {0}: {1} {2}" -f $LASTEXITCODE, $Command, ($Arguments -join " "))
+            }
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_HOST) -or
+              [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_USER) -or
+              [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_DIR) -or
+              [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_PRIVATE_KEY)) {
+            Write-Host "SSH upload skipped: set SSH_UPLOAD_HOST, SSH_UPLOAD_USER, SSH_UPLOAD_DIR and SSH_UPLOAD_PRIVATE_KEY secrets to enable it."
+            exit 0
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_PORT)) {
+            $env:SSH_UPLOAD_PORT = "22"
+          }
+
+          $artifact = "build\nfprogress-windows-$($env:APP_VERSION).zip"
+          if (-not (Test-Path $artifact)) {
+            throw "Artifact not found: $artifact"
+          }
+
+          $keyPath = Join-Path $env:RUNNER_TEMP "ssh_upload_key"
+          $knownHostsPath = Join-Path $env:RUNNER_TEMP "known_hosts"
+          $privateKey = $env:SSH_UPLOAD_PRIVATE_KEY
+          if ($privateKey -match "\\n") {
+            $privateKey = $privateKey -replace "\\n", "`n"
+          }
+          $privateKey = $privateKey -replace "`r`n", "`n"
+          $privateKey = $privateKey.TrimEnd() + "`n"
+          if (-not $privateKey.StartsWith("-----BEGIN ")) {
+            throw "SSH_UPLOAD_PRIVATE_KEY does not look like a private SSH key. It must start with -----BEGIN."
+          }
+          [System.IO.File]::WriteAllText(
+            $keyPath,
+            $privateKey,
+            [System.Text.UTF8Encoding]::new($false)
+          )
+          icacls $keyPath /inheritance:r | Out-Null
+          icacls $keyPath /grant:r "$($env:USERNAME):R" | Out-Null
+
+          $target = "$($env:SSH_UPLOAD_USER)@$($env:SSH_UPLOAD_HOST)"
+          $remoteFile = "nfprogress-windows-$($env:APP_VERSION).zip"
+          $artifactSize = [math]::Round((Get-Item $artifact).Length / 1MB, 1)
+          Write-Host "Uploading $remoteFile ($artifactSize MB) to $($target):$($env:SSH_UPLOAD_DIR) ..."
+
+          $sshOptions = @(
+            "-i", $keyPath,
+            "-p", $env:SSH_UPLOAD_PORT,
+            "-o", "UserKnownHostsFile=$knownHostsPath",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "ConnectTimeout=30",
+            "-o", "ServerAliveInterval=30"
+          )
+          $scpOptions = @(
+            "-i", $keyPath,
+            "-P", $env:SSH_UPLOAD_PORT,
+            "-o", "UserKnownHostsFile=$knownHostsPath",
+            "-o", "StrictHostKeyChecking=accept-new",
+            "-o", "ConnectTimeout=30",
+            "-o", "ServerAliveInterval=30"
+          )
+
+          Invoke-Native ssh @sshOptions $target "mkdir -p '$($env:SSH_UPLOAD_DIR)'"
+
+          $uploadStarted = Get-Date
+          Invoke-Native scp @scpOptions $artifact "${target}:$($env:SSH_UPLOAD_DIR)/$remoteFile"
+          $uploadSeconds = [math]::Round(((Get-Date) - $uploadStarted).TotalSeconds, 1)
+          Write-Host "Windows ZIP upload completed in $uploadSeconds seconds."
+
+          Invoke-Native scp @scpOptions "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json" update_manifest.json
+          Invoke-Native python scripts/update-release-manifest.py $env:APP_VERSION windows
+          Invoke-Native python scripts/create-legacy-manifest.py
+          Invoke-Native scp @scpOptions update_manifest.json "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json"
+          Invoke-Native scp @scpOptions update_manifest_legacy.json "${target}:nfproject/public_html/update_manifest.json"
+          Write-Host "SSH upload completed."

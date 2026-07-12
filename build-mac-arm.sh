@@ -108,3 +108,13 @@ if [ -f "build-arm/nfprogress-mac-arm-$VERSION.zip" ]; then
   echo "   ZIP: build-arm/nfprogress-mac-arm-$VERSION.zip ($(ls -lh build-arm/nfprogress-mac-arm-$VERSION.zip | awk '{print $5}'))"
 fi
 echo "========================================="
+
+./scripts/upload-release.sh "build-arm/nfprogress-mac-arm-$VERSION.zip"
+
+if [ "${NFPROGRESS_DEFER_MANIFEST:-0}" != "1" ]; then
+  ./scripts/download-release-manifest.sh
+  python3 scripts/update-release-manifest.py "$VERSION" macos_arm
+  ./scripts/upload-release.sh "update_manifest.json"
+  python3 scripts/create-legacy-manifest.py
+  SSH_UPLOAD_DIR="nfproject/public_html" ./scripts/upload-release.sh "update_manifest_legacy.json" "update_manifest.json"
+fi

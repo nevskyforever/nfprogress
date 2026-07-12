@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'new_bank_productBhasPA.ui'
+## Form generated from reading UI file 'new_bank_productmkjYDA.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -17,28 +17,22 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QDateEdit, QDialog,
     QDialogButtonBox, QGridLayout, QLabel, QLineEdit,
-    QScrollArea, QSizePolicy, QVBoxLayout, QWidget)
+    QScrollArea, QSizePolicy, QSpacerItem, QVBoxLayout,
+    QWidget)
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
         if not Dialog.objectName():
             Dialog.setObjectName(u"Dialog")
-        Dialog.resize(234, 269)
+        Dialog.resize(276, 316)
         self.gridLayout = QGridLayout(Dialog)
         self.gridLayout.setObjectName(u"gridLayout")
-        self.buttonBox = QDialogButtonBox(Dialog)
-        self.buttonBox.setObjectName(u"buttonBox")
-        self.buttonBox.setOrientation(Qt.Orientation.Horizontal)
-        self.buttonBox.setStandardButtons(QDialogButtonBox.StandardButton.Cancel|QDialogButtonBox.StandardButton.Ok)
-
-        self.gridLayout.addWidget(self.buttonBox, 1, 0, 1, 1)
-
         self.scrollArea = QScrollArea(Dialog)
         self.scrollArea.setObjectName(u"scrollArea")
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 208, 203))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 250, 250))
         self.verticalLayout = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.product_description = QLabel(self.scrollAreaWidgetContents)
@@ -48,6 +42,11 @@ class Ui_Dialog(object):
 
         self.lineEdit = QLineEdit(self.scrollAreaWidgetContents)
         self.lineEdit.setObjectName(u"lineEdit")
+        sizePolicy = QSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        sizePolicy.setHorizontalStretch(0)
+        sizePolicy.setVerticalStretch(0)
+        sizePolicy.setHeightForWidth(self.lineEdit.sizePolicy().hasHeightForWidth())
+        self.lineEdit.setSizePolicy(sizePolicy)
 
         self.verticalLayout.addWidget(self.lineEdit)
 
@@ -58,6 +57,8 @@ class Ui_Dialog(object):
 
         self.return_date_dateedit = QDateEdit(self.scrollAreaWidgetContents)
         self.return_date_dateedit.setObjectName(u"return_date_dateedit")
+        sizePolicy.setHeightForWidth(self.return_date_dateedit.sizePolicy().hasHeightForWidth())
+        self.return_date_dateedit.setSizePolicy(sizePolicy)
         self.return_date_dateedit.setCalendarPopup(True)
 
         self.verticalLayout.addWidget(self.return_date_dateedit)
@@ -74,9 +75,20 @@ class Ui_Dialog(object):
 
         self.verticalLayout.addWidget(self.total_amount_to_be_refunded)
 
+        self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.verticalLayout.addItem(self.verticalSpacer)
+
         self.scrollArea.setWidget(self.scrollAreaWidgetContents)
 
         self.gridLayout.addWidget(self.scrollArea, 0, 0, 1, 1)
+
+        self.buttonBox = QDialogButtonBox(Dialog)
+        self.buttonBox.setObjectName(u"buttonBox")
+        self.buttonBox.setOrientation(Qt.Orientation.Horizontal)
+        self.buttonBox.setStandardButtons(QDialogButtonBox.StandardButton.Cancel|QDialogButtonBox.StandardButton.Ok)
+
+        self.gridLayout.addWidget(self.buttonBox, 1, 0, 1, 1)
 
 
         self.retranslateUi(Dialog)
