@@ -257,6 +257,9 @@ class Credit:
         self.normalize()
         return max(0, round(self.get_total_sum() - self.paid_amount, 1))
 
+    def get_full_repayment_sum(self):
+        return self.get_remaining_sum()
+
     def get_daily_payment(self):
         self.normalize()
         return round(min(self.get_remaining_sum(), self.get_base_daily_payment()), 1)
