@@ -4,13 +4,13 @@ import pickle
 import platform
 import sys
 import tempfile
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, date as date_type
 from pathlib import Path
 from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = False
+dev_mode = True
 
 # Версия приложения
 version = '4.2.3'
@@ -95,14 +95,29 @@ def resource_path(relative_path):
     return os.path.join(os.path.abspath("."), relative_path)
 
 
-def today_for_test():
-    """Возвращает сегодняшнюю дату."""
+def now_for_test():
+    """Возвращает текущие дату и время с учетом режима разработчика."""
     # Тестовая дата должна работать только в настоящем режиме разработчика.
     # Если этот флаг случайно попал в пользовательские данные, обычная сборка
     # не должна навсегда застревать на выбранном вручную дне.
-    if dev_mode and load_settings().get('today_for_test_mode', False):
-        return load_settings()['today_for_test_date']
-    return date.today()
+    settings = load_settings()
+    if dev_mode and settings.get('today_for_test_mode', False):
+        selected_datetime = settings.get('today_for_test_datetime')
+        if isinstance(selected_datetime, datetime):
+            return selected_datetime
+
+        selected_date = settings.get('today_for_test_date')
+        if isinstance(selected_date, datetime):
+            return selected_date
+        if isinstance(selected_date, date_type):
+            return datetime.combine(selected_date, datetime.now().time())
+
+    return datetime.combine(date.today(), datetime.now().time())
+
+
+def today_for_test():
+    """Возвращает сегодняшнюю дату."""
+    return now_for_test().date()
 
 
 STREAK_FREEZE_MARKER = 'freeze'

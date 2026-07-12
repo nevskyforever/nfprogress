@@ -10,11 +10,38 @@ import game_data
 CF_META = {
     'coins': {
         'name': 'Монеты',
+        'default': 1.0,
         'description': 'Коэффициент награды монетами. За 100 символов вы получите {coins_per_100} монет.',
     },
     'exp': {
         'name': 'Опыт',
+        'default': 1.0,
         'description': 'Коэффициент награды опытом. За 100 символов вы получите {exp_per_100} опыта.',
+    },
+    'health_recovery': {
+        'name': 'Восстановление',
+        'default': 0.0,
+        'description': 'Коэффициент восстановления здоровья. Сейчас восстанавливает {health_recovery_per_hour:g} здоровья в час.',
+    },
+}
+
+SKILL_POINTS_PER_LEVEL = 2
+SKILL_CF_STEP = 0.25
+BASE_MAX_HEALTH = 100
+MAX_HEALTH_PER_5_LEVELS = 10
+
+SKILL_META = {
+    'productivity': {
+        'name': 'Продуктивность',
+        'target_cf': 'exp',
+    },
+    'profitability': {
+        'name': 'Доходность',
+        'target_cf': 'coins',
+    },
+    'endurance': {
+        'name': 'Выносливость',
+        'target_cf': 'health_recovery',
     },
 }
 
@@ -171,6 +198,11 @@ def resource_path(relative_path):
     return os.path.join(os.path.abspath("."), relative_path)
 
 
+def get_effective_now():
+    """Возвращает текущее время с датой из режима разработчика, если она включена."""
+    return engine.now_for_test()
+
+
 class Gamer:
     # === 2. ИНИЦИАЛИЗАЦИЯ ===
     def __init__(self, level=1, exp=0, coins=0, health=100):
@@ -179,11 +211,17 @@ class Gamer:
         self.coins = self.round_money(coins)
         self.inflation = self.calculate_inflation()
         self.health = health
+        self.max_health = self.calculate_max_health()
 
         self.cf = {
             'coins': self._make_cf_parameter('coins', 1.0),
             'exp': self._make_cf_parameter('exp', 1.0),
+            'health_recovery': self._make_cf_parameter('health_recovery', 0.0),
         }
+        self.skills = self.get_default_skills()
+        self.available_skill_points = 0
+        self.skill_points_awarded_for_level = level
+        self.last_health_recovery_at = get_effective_now()
         self.items = {}
         self.custom_awards = []
         self.custom_awards_inventory = {}
@@ -208,16 +246,102 @@ class Gamer:
             'description': meta.get('description', ''),
         }
 
+    def get_default_skills(self):
+        return {skill_key: 0 for skill_key in SKILL_META}
+
+    def normalize_skills(self):
+        if not isinstance(getattr(self, 'skills', None), dict):
+            self.skills = {}
+
+        normalized = self.get_default_skills()
+        for key in normalized:
+            try:
+                normalized[key] = max(0, int(self.skills.get(key, 0)))
+            except (TypeError, ValueError):
+                normalized[key] = 0
+        self.skills = normalized
+
+        try:
+            self.available_skill_points = max(0, int(getattr(self, 'available_skill_points', 0)))
+        except (TypeError, ValueError):
+            self.available_skill_points = 0
+
+        try:
+            self.skill_points_awarded_for_level = max(1, int(getattr(self, 'skill_points_awarded_for_level', 1)))
+        except (TypeError, ValueError):
+            self.skill_points_awarded_for_level = 1
+
+    def add_skill_points_for_levels(self, target_level=None):
+        self.normalize_skills()
+        target_level = self.level if target_level is None else target_level
+        levels_to_award = max(0, target_level - self.skill_points_awarded_for_level)
+        if levels_to_award <= 0:
+            self.skill_points_awarded_for_level = max(self.skill_points_awarded_for_level, target_level)
+            return 0
+
+        points = levels_to_award * SKILL_POINTS_PER_LEVEL
+        self.available_skill_points += points
+        self.skill_points_awarded_for_level = target_level
+        return points
+
+    def increase_skill(self, skill_key, points=1, save=True):
+        self.normalize_skills()
+        if skill_key not in SKILL_META:
+            return False, 'Неизвестное умение.'
+
+        try:
+            points = int(points)
+        except (TypeError, ValueError):
+            points = 0
+        if points <= 0:
+            return False, 'Количество баллов должно быть положительным.'
+        if self.available_skill_points < points:
+            return False, 'Недостаточно доступных баллов умений.'
+
+        self.skills[skill_key] += points
+        self.available_skill_points -= points
+        self.update_cf()
+        if save:
+            self.save()
+
+        skill_name = SKILL_META[skill_key]['name']
+        return True, f'Умение "{skill_name}" увеличено на {points}.'
+
+    def get_skill_bonus(self, skill_key):
+        self.normalize_skills()
+        return self.skills.get(skill_key, 0) * SKILL_CF_STEP
+
+    def calculate_max_health(self, level=None):
+        level = self.level if level is None else level
+        try:
+            level = max(1, int(level))
+        except (TypeError, ValueError):
+            level = 1
+        return BASE_MAX_HEALTH + ((level - 1) // 5) * MAX_HEALTH_PER_5_LEVELS
+
+    def update_max_health(self):
+        self.max_health = self.calculate_max_health()
+        return self.max_health
+
+    def get_max_health(self):
+        if not hasattr(self, 'max_health'):
+            self.update_max_health()
+        expected_max_health = self.calculate_max_health()
+        if self.max_health != expected_max_health:
+            self.max_health = expected_max_health
+        return self.max_health
+
     def normalize_cf(self):
         """Приводит коэффициенты к формату с названием, описанием и значением."""
         if not isinstance(getattr(self, 'cf', None), dict):
             self.cf = {}
 
         normalized = {}
-        for key in CF_META:
-            current_value = self.cf.get(key, 1.0)
+        for key, meta in CF_META.items():
+            default_value = meta.get('default', 1.0)
+            current_value = self.cf.get(key, default_value)
             if isinstance(current_value, dict):
-                value = current_value.get('value', 1.0)
+                value = current_value.get('value', default_value)
                 base_value = current_value.get('base_value', value)
             else:
                 value = current_value
@@ -282,7 +406,7 @@ class Gamer:
         return inventory_buffs
 
     def remove_expired_buffs(self, now=None):
-        now = now or datetime.now()
+        now = now or get_effective_now()
         active_buffs = [buff for buff in self.buffs if not buff.is_expired(now)]
         active_debuffs = [buff for buff in self.debuffs if not buff.is_expired(now)]
         changed = len(active_buffs) != len(self.buffs) or len(active_debuffs) != len(self.debuffs)
@@ -373,7 +497,12 @@ class Gamer:
         template = parameter.get('description', '')
         coins_per_100 = round(self.get_cf_value('coins', 1.0), 1)
         exp_per_100 = round(100 * 4 * self.get_cf_value('exp', 1.0))
-        return template.format(coins_per_100=coins_per_100, exp_per_100=exp_per_100)
+        health_recovery_per_hour = self.get_cf_value('health_recovery', 0.0)
+        return template.format(
+            coins_per_100=coins_per_100,
+            exp_per_100=exp_per_100,
+            health_recovery_per_hour=health_recovery_per_hour,
+        )
 
     def get_cf_parameters(self):
         self.normalize_cf()
@@ -647,9 +776,50 @@ class Gamer:
         return messages
 
     def update_cf(self):
-        """Обновляет коэффициенты монет и опыта согласно текущему уровню"""
-        self.set_cf_value('coins', game_data.cf_coins[self.level])
-        self.set_cf_value('exp', game_data.cf_exp[self.level])
+        """Обновляет коэффициенты согласно уровню и вложенным баллам умений."""
+        self.normalize_skills()
+        self.set_cf_value('coins', game_data.cf_coins[self.level] + self.get_skill_bonus('profitability'))
+        self.set_cf_value('exp', game_data.cf_exp[self.level] + self.get_skill_bonus('productivity'))
+        self.set_cf_value('health_recovery', self.get_skill_bonus('endurance'))
+        self.apply_buffs_to_cf(save=False)
+
+    def recover_health_by_time(self, now=None, save=True):
+        now = now or get_effective_now()
+        if not isinstance(getattr(self, 'last_health_recovery_at', None), datetime):
+            self.last_health_recovery_at = now
+
+        if now < self.last_health_recovery_at:
+            self.last_health_recovery_at = now
+            if save:
+                self.save()
+            return None
+
+        recovery_per_hour = self.get_cf_value('health_recovery', 0.0)
+        if recovery_per_hour <= 0 or self.health <= 0:
+            self.last_health_recovery_at = now
+            return None
+
+        max_health = self.get_max_health()
+        if self.health >= max_health:
+            self.health = max_health
+            self.last_health_recovery_at = now
+            return None
+
+        elapsed_seconds = max(0, (now - self.last_health_recovery_at).total_seconds())
+        recovered = elapsed_seconds / 3600 * recovery_per_hour
+        if recovered < 0.1:
+            return None
+
+        old_health = self.health
+        self.health = round(min(max_health, self.health + recovered), 1)
+        self.last_health_recovery_at = now
+        restored = round(self.health - old_health, 1)
+        if save:
+            self.save()
+
+        if restored <= 0:
+            return None
+        return f'Здоровье восстановлено на {restored:g}. Текущее здоровье: {self.health:g}/{max_health}.'
 
     def level_up(self):
         data = engine.load_data()
@@ -661,13 +831,17 @@ class Gamer:
 
             self.level = new_level
             self.exp = self.exp - game_data.levels[self.level - 1]
-            self.health = 100
+            self.update_max_health()
+            self.health = self.get_max_health()
+            self.last_health_recovery_at = get_effective_now()
             coins_bonus = self.set_coins(coins_bonus, process_bank_events=False, save=False)
 
-            self.set_cf_value('coins', game_data.cf_coins[self.level])
-            self.set_cf_value('exp', game_data.cf_exp[self.level])
+            awarded_skill_points = self.add_skill_points_for_levels(self.level)
+            self.update_cf()
 
             msg = f'ПОЛУЧЕН НОВЫЙ {new_level} УРОВЕНЬ! Ваш бонус: {coins_bonus} монет'
+            if awarded_skill_points:
+                msg += f'\nПолучено {awarded_skill_points} балла умений.'
 
         self.save()
         data['notifications'] = notifications
@@ -691,7 +865,8 @@ class Gamer:
             choice = input('1 - Купить и применить зелье восстановления (100 монет): ')
             if choice == '1':
                 self.remove_coins(100, process_bank_events=False, save=False)
-                self.health = 100
+                self.update_max_health()
+                self.health = self.get_max_health()
                 self.save()
                 return True
 
@@ -701,6 +876,7 @@ class Gamer:
 
     def damage(self, damage):
         self.health -= damage
+        self.last_health_recovery_at = get_effective_now()
         self.save()
         return (f'Вы потеряли {damage} ед. здоровья'
                 f'У вас осталось {self.health} ед. здоровья')
@@ -738,15 +914,23 @@ class Gamer:
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
+        had_skill_award_marker = hasattr(self, 'skill_points_awarded_for_level')
+        had_max_health_marker = hasattr(self, 'max_health')
         defaults = {
             'level': 1,
             'exp': 0,
             'coins': 0,
             'health': 100,
+            'max_health': self.calculate_max_health(),
             'cf': {
                 'coins': self._make_cf_parameter('coins', 1.0),
                 'exp': self._make_cf_parameter('exp', 1.0),
+                'health_recovery': self._make_cf_parameter('health_recovery', 0.0),
             },
+            'skills': self.get_default_skills(),
+            'available_skill_points': 0,
+            'skill_points_awarded_for_level': 1,
+            'last_health_recovery_at': get_effective_now(),
             'items': {'Предметы': {},'Зелья': {},'Награды': {}},
             'custom_awards': [],
             'custom_awards_inventory': {},
@@ -787,6 +971,8 @@ class Gamer:
                 setattr(self, attr, [])
             elif attr == 'quests' and not isinstance(getattr(self, attr), list):
                 setattr(self, attr, [])
+            elif attr == 'last_health_recovery_at' and not isinstance(getattr(self, attr), datetime):
+                setattr(self, attr, get_effective_now())
 
         if not self.economy_rebalanced_v1:
             # Считаем, сколько сейчас стоит зелье для игрока
@@ -818,17 +1004,28 @@ class Gamer:
             self.items = {'Предметы': {},'Зелья': {},'Награды': {}}
         migrated_awards = self.migrate_legacy_award_names()
         self.normalize_coins()
+        old_health = getattr(self, 'health', 0)
+        old_max_health = getattr(self, 'max_health', None)
+        self.update_max_health()
+        max_health_migrated = not had_max_health_marker or old_max_health != self.max_health
+        if max_health_migrated and old_health == BASE_MAX_HEALTH and self.max_health > BASE_MAX_HEALTH:
+            self.health = self.max_health
 
         # Особая обработка для bank_account
         self.normalize_cf()
-        self.apply_buffs_to_cf()
+        self.normalize_skills()
+        skill_points_migrated = False
+        if not had_skill_award_marker:
+            self.skill_points_awarded_for_level = 1
+            skill_points_migrated = bool(self.add_skill_points_for_levels(self.level))
+        self.update_cf()
         self.sync_quests()
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
         else:
             self.bank_account.normalize()
 
-        if migrated_awards:
+        if migrated_awards or skill_points_migrated or max_health_migrated:
             self.save()
 
     def calculate_inflation(self):

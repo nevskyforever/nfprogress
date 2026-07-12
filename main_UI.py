@@ -1088,9 +1088,12 @@ class MainWindow(QMainWindow, main_window_ui):
         settings = load_settings()
         test_date_enabled = dialog.test_date_cb.isChecked()
         if result == QDialog.Accepted:
+            selected_test_datetime = dialog.get_today_for_test()
             # Сохраняем данные персонажа
             self.game_controller.gamer.level = int(dialog.level.text())
-            self.game_controller.gamer.health = int(dialog.health.text())
+            self.game_controller.gamer.update_max_health()
+            health = round(float(dialog.health.text().replace(',', '.')), 1)
+            self.game_controller.gamer.health = max(0, min(self.game_controller.gamer.get_max_health(), health))
             self.game_controller.gamer.coins = self.game_controller.gamer.round_money(dialog.coins.text())
             self.game_controller.gamer.exp = int(float(dialog.exp.text()))
             self.game_controller.gamer.update_cf()
@@ -1098,7 +1101,8 @@ class MainWindow(QMainWindow, main_window_ui):
             self.game_controller.gamer.save()
             # Сохраняем статус даты для теста и ее
             settings['today_for_test_mode'] = test_date_enabled
-            settings['today_for_test_date'] = dialog.get_today_for_test()
+            settings['today_for_test_datetime'] = selected_test_datetime
+            settings['today_for_test_date'] = selected_test_datetime.date() if selected_test_datetime else None
             save_settings(settings)
             self._last_effective_date = en.today_for_test()
 
@@ -2811,11 +2815,11 @@ class DeveloperMode(QDialog, Ui_developer_node):
         if settings.get('today_for_test_mode', False):
             self.test_date_cb.setChecked(True)
             self.test_date.setEnabled(True)
-            self.test_date.setDate(en.today_for_test())
+            self.test_date.setDateTime(en.now_for_test())
         else:
             self.test_date_cb.setChecked(False)
             self.test_date.setEnabled(False)
-            self.test_date.setDate(en.today_for_test())
+            self.test_date.setDateTime(en.now_for_test())
 
         self.level.setText(f'{gamer.level}')
         self.health.setText(f'{gamer.health}')
@@ -2829,7 +2833,7 @@ class DeveloperMode(QDialog, Ui_developer_node):
 
     def get_today_for_test(self):
         if self.test_date_cb.isChecked():
-            return self.test_date.date().toPython()
+            return self.test_date.dateTime().toPython()
         return None
 
     def on_checkbox_toggled(self, checked):

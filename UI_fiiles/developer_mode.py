@@ -15,7 +15,7 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QDateEdit,
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QDateTimeEdit,
     QDialog, QDialogButtonBox, QGridLayout, QLabel,
     QLineEdit, QSizePolicy, QSpacerItem, QWidget)
 
@@ -44,7 +44,7 @@ class Ui_developer_node(object):
 
         self.gridLayout.addWidget(self.label, 4, 1, 1, 1)
 
-        self.test_date = QDateEdit(developer_node)
+        self.test_date = QDateTimeEdit(developer_node)
         self.test_date.setObjectName(u"test_date")
         self.test_date.setCalendarPopup(True)
 
@@ -129,4 +129,3 @@ class Ui_developer_node(object):
         self.label_5.setText(QCoreApplication.translate("developer_node", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
         self.test_date_cb.setText(QCoreApplication.translate("developer_node", u"\u0414\u0430\u0442\u0430 \u0434\u043b\u044f \u0442\u0435\u0441\u0442\u0430:", None))
     # retranslateUi
-

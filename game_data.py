@@ -1060,21 +1060,23 @@ def health_potion_func(do, add=None):
     gamer = game.load_game()
 
     if do == 'use':
+        max_health = gamer.get_max_health()
         # Проверка: не лечим, если здоровье уже полное
-        if gamer.health >= 100:
+        if gamer.health >= max_health:
             # Возвращаем False или строку, чтобы FuncItem мог понять (опционально)
             # Но так как предмет уже списан в FuncItem.use, просто лечим "в пустоту"
             # или можно восстановить предмет, если здоровье полное (сложная логика).
-            # Пока просто восстанавливаем до 100.
+            # Пока просто восстанавливаем до максимума.
             pass
 
         old_health = gamer.health
         gamer.health += add
 
-        # Ограничиваем максимумом (100)
-        if gamer.health > 100:
-            gamer.health = 100
+        # Ограничиваем максимумом здоровья игрока.
+        if gamer.health > max_health:
+            gamer.health = max_health
 
+        gamer.last_health_recovery_at = game.get_effective_now()
         gamer.save()
 
         healed_amount = gamer.health - old_health
