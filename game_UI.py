@@ -282,11 +282,12 @@ class GameMenuController:
             self.ui.exp_progressbar.setValue(100)
 
         # Здоровье
-        health = max(0, min(100, self.gamer.health))  # Ограничиваем 0-100
+        max_health = self.gamer.get_max_health()
+        health = max(0, min(max_health, self.gamer.health))
         health_text = f"{health:g}" if isinstance(health, float) else str(health)
-        self.ui.gamer_health.setText(f"Здоровье: {health_text}/100")
+        self.ui.gamer_health.setText(f"Здоровье: {health_text}/{max_health}")
         self.ui.gamer_health_progressbar.setValue(int(health))
-        self.ui.gamer_health_progressbar.setMaximum(100)
+        self.ui.gamer_health_progressbar.setMaximum(max_health)
         self.update_gamer_parameters_list()
         self.update_skills_tab()
         self.update_buffs_lists()
@@ -1584,7 +1585,7 @@ class GameMenuController:
                     break
 
         msg = f"⚠️ КРИТИЧЕСКИЙ УРОВЕНЬ ЗДОРОВЬЯ! ⚠️\n\n"
-        msg += f"Ваше здоровье: {self.gamer.health}/100\n\n"
+        msg += f"Ваше здоровье: {self.gamer.health:g}/{self.gamer.get_max_health()}\n\n"
 
         if has_health_potion:
             msg += "💊 У вас есть зелья здоровья в инвентаре!\n"
@@ -1602,10 +1603,11 @@ class GameMenuController:
         """Показать предупреждение о смерти и попытаться воскресить персонажа"""
         revival_name = 'Зелье воскрешения'
         has_revival_potion = self.gamer.items.get('Зелья', {}).get(revival_name, 0) > 0
+        max_health = self.gamer.get_max_health()
 
         if has_revival_potion:
             self.gamer.items['Зелья'][revival_name] -= 1
-            self.gamer.health = 100
+            self.gamer.health = max_health
             self.gamer.save()
             self._death_warning_shown = False
             self.update_inventory()
@@ -1614,7 +1616,7 @@ class GameMenuController:
                 self.ui.centralwidget,
                 "Воскрешение",
                 "💀 Ваше здоровье закончилось, но зелье воскрешения спасло вас!\n"
-                "Здоровье восстановлено до 100, прогресс сохранён."
+                f"Здоровье восстановлено до {max_health}, прогресс сохранён."
             )
             return
 
@@ -1631,14 +1633,14 @@ class GameMenuController:
             )
             if choice == QMessageBox.Yes:
                 self.gamer.remove_coins(revival_price, process_bank_events=False, save=False)
-                self.gamer.health = 100
+                self.gamer.health = max_health
                 self.gamer.save()
                 self._death_warning_shown = False
                 self.update_game_data(force_quests=True)
                 QMessageBox.information(
                     self.ui.centralwidget,
                     "Воскрешение",
-                    "Вы воскрешены! Здоровье восстановлено до 100, прогресс сохранён."
+                    f"Вы воскрешены! Здоровье восстановлено до {max_health}, прогресс сохранён."
                 )
                 return
 
@@ -1647,7 +1649,8 @@ class GameMenuController:
             self.gamer.coins = self.gamer.round_money(self.gamer.get_coins() / 2)
             self.gamer.exp = 0
             self.gamer.items = {}
-            self.gamer.health = 100
+            self.gamer.update_max_health()
+            self.gamer.health = self.gamer.get_max_health()
             self.gamer.save()
             return
 

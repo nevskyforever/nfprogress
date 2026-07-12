@@ -1091,8 +1091,9 @@ class MainWindow(QMainWindow, main_window_ui):
             selected_test_datetime = dialog.get_today_for_test()
             # Сохраняем данные персонажа
             self.game_controller.gamer.level = int(dialog.level.text())
+            self.game_controller.gamer.update_max_health()
             health = round(float(dialog.health.text().replace(',', '.')), 1)
-            self.game_controller.gamer.health = max(0, min(100, health))
+            self.game_controller.gamer.health = max(0, min(self.game_controller.gamer.get_max_health(), health))
             self.game_controller.gamer.coins = self.game_controller.gamer.round_money(dialog.coins.text())
             self.game_controller.gamer.exp = int(float(dialog.exp.text()))
             self.game_controller.gamer.update_cf()

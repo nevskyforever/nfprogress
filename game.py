@@ -27,6 +27,8 @@ CF_META = {
 
 SKILL_POINTS_PER_LEVEL = 2
 SKILL_CF_STEP = 0.25
+BASE_MAX_HEALTH = 100
+MAX_HEALTH_PER_5_LEVELS = 10
 
 SKILL_META = {
     'productivity': {
@@ -209,6 +211,7 @@ class Gamer:
         self.coins = self.round_money(coins)
         self.inflation = self.calculate_inflation()
         self.health = health
+        self.max_health = self.calculate_max_health()
 
         self.cf = {
             'coins': self._make_cf_parameter('coins', 1.0),
@@ -307,6 +310,26 @@ class Gamer:
     def get_skill_bonus(self, skill_key):
         self.normalize_skills()
         return self.skills.get(skill_key, 0) * SKILL_CF_STEP
+
+    def calculate_max_health(self, level=None):
+        level = self.level if level is None else level
+        try:
+            level = max(1, int(level))
+        except (TypeError, ValueError):
+            level = 1
+        return BASE_MAX_HEALTH + ((level - 1) // 5) * MAX_HEALTH_PER_5_LEVELS
+
+    def update_max_health(self):
+        self.max_health = self.calculate_max_health()
+        return self.max_health
+
+    def get_max_health(self):
+        if not hasattr(self, 'max_health'):
+            self.update_max_health()
+        expected_max_health = self.calculate_max_health()
+        if self.max_health != expected_max_health:
+            self.max_health = expected_max_health
+        return self.max_health
 
     def normalize_cf(self):
         """Приводит коэффициенты к формату с названием, описанием и значением."""
@@ -776,8 +799,9 @@ class Gamer:
             self.last_health_recovery_at = now
             return None
 
-        if self.health >= 100:
-            self.health = 100
+        max_health = self.get_max_health()
+        if self.health >= max_health:
+            self.health = max_health
             self.last_health_recovery_at = now
             return None
 
@@ -787,7 +811,7 @@ class Gamer:
             return None
 
         old_health = self.health
-        self.health = round(min(100, self.health + recovered), 1)
+        self.health = round(min(max_health, self.health + recovered), 1)
         self.last_health_recovery_at = now
         restored = round(self.health - old_health, 1)
         if save:
@@ -795,7 +819,7 @@ class Gamer:
 
         if restored <= 0:
             return None
-        return f'Здоровье восстановлено на {restored:g}. Текущее здоровье: {self.health:g}/100.'
+        return f'Здоровье восстановлено на {restored:g}. Текущее здоровье: {self.health:g}/{max_health}.'
 
     def level_up(self):
         data = engine.load_data()
@@ -807,7 +831,8 @@ class Gamer:
 
             self.level = new_level
             self.exp = self.exp - game_data.levels[self.level - 1]
-            self.health = 100
+            self.update_max_health()
+            self.health = self.get_max_health()
             self.last_health_recovery_at = get_effective_now()
             coins_bonus = self.set_coins(coins_bonus, process_bank_events=False, save=False)
 
@@ -840,7 +865,8 @@ class Gamer:
             choice = input('1 - Купить и применить зелье восстановления (100 монет): ')
             if choice == '1':
                 self.remove_coins(100, process_bank_events=False, save=False)
-                self.health = 100
+                self.update_max_health()
+                self.health = self.get_max_health()
                 self.save()
                 return True
 
@@ -889,11 +915,13 @@ class Gamer:
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
         had_skill_award_marker = hasattr(self, 'skill_points_awarded_for_level')
+        had_max_health_marker = hasattr(self, 'max_health')
         defaults = {
             'level': 1,
             'exp': 0,
             'coins': 0,
             'health': 100,
+            'max_health': self.calculate_max_health(),
             'cf': {
                 'coins': self._make_cf_parameter('coins', 1.0),
                 'exp': self._make_cf_parameter('exp', 1.0),
@@ -976,6 +1004,12 @@ class Gamer:
             self.items = {'Предметы': {},'Зелья': {},'Награды': {}}
         migrated_awards = self.migrate_legacy_award_names()
         self.normalize_coins()
+        old_health = getattr(self, 'health', 0)
+        old_max_health = getattr(self, 'max_health', None)
+        self.update_max_health()
+        max_health_migrated = not had_max_health_marker or old_max_health != self.max_health
+        if max_health_migrated and old_health == BASE_MAX_HEALTH and self.max_health > BASE_MAX_HEALTH:
+            self.health = self.max_health
 
         # Особая обработка для bank_account
         self.normalize_cf()
@@ -991,7 +1025,7 @@ class Gamer:
         else:
             self.bank_account.normalize()
 
-        if migrated_awards or skill_points_migrated:
+        if migrated_awards or skill_points_migrated or max_health_migrated:
             self.save()
 
     def calculate_inflation(self):
