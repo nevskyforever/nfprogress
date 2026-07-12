@@ -3,7 +3,7 @@
 """
 import datetime
 
-from PySide6.QtCore import QDate, QTimer, Qt
+from PySide6.QtCore import QDate, QSignalBlocker, QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog, QApplication
 
 import engine
@@ -71,6 +71,7 @@ class GameMenuController:
         self.ui.gamer_params_label.setVisible(False)
 
         self.setup_quests()
+        self.setup_skill_controls()
 
         self.ui.value_for_use_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_item.setMaximum(999)
@@ -79,6 +80,12 @@ class GameMenuController:
 
         # Очищаем информационные поля
         self.clear_all_info()
+
+    def setup_skill_controls(self):
+        for spinbox in self.get_skill_widgets().values():
+            spinbox.setMinimum(0)
+            spinbox.setSingleStep(1)
+            spinbox.setKeyboardTracking(False)
 
     def setup_quests(self):
         """Включает вкладки квестов и приводит поля к начальному состоянию."""
@@ -187,6 +194,10 @@ class GameMenuController:
         self.ui.debuf_list.currentItemChanged.connect(
             lambda current, previous: self.on_buff_selected(current, positive=False)
         )
+        for skill_key, spinbox in self.get_skill_widgets().items():
+            spinbox.valueChanged.connect(
+                lambda value, current_skill_key=skill_key: self.on_skill_points_changed(current_skill_key, value)
+            )
 
         # Создание своей награды
 
@@ -201,6 +212,7 @@ class GameMenuController:
         self.update_inventory()
         self.update_shops()
         self.load_gamer_parameters_list()
+        self.update_skills_tab()
         self.update_buffs_lists()
         self.update_quests_lists()
 
@@ -215,9 +227,14 @@ class GameMenuController:
 
         # Перезагружаем игрока для актуальных данных
         self.gamer = game.load_game()
-        self.gamer.apply_buffs_to_cf()
+        recovery_msg = self.gamer.recover_health_by_time(save=True)
+        self.gamer.update_cf()
         self.register_custom_awards()
         self.process_bank_events(show_toasts=True)
+        if level_up_msg and self.notifications:
+            self.notifications.show_success(level_up_msg)
+        if recovery_msg and self.notifications:
+            self.notifications.show_info(recovery_msg)
         now = datetime.datetime.now()
         should_check_quests = (
             force_quests
@@ -266,10 +283,12 @@ class GameMenuController:
 
         # Здоровье
         health = max(0, min(100, self.gamer.health))  # Ограничиваем 0-100
-        self.ui.gamer_health.setText(f"Здоровье: {health}/100")
-        self.ui.gamer_health_progressbar.setValue(health)
+        health_text = f"{health:g}" if isinstance(health, float) else str(health)
+        self.ui.gamer_health.setText(f"Здоровье: {health_text}/100")
+        self.ui.gamer_health_progressbar.setValue(int(health))
         self.ui.gamer_health_progressbar.setMaximum(100)
         self.update_gamer_parameters_list()
+        self.update_skills_tab()
         self.update_buffs_lists()
         if should_check_quests or level_up_msg:
             self.update_quests_lists()
@@ -457,6 +476,63 @@ class GameMenuController:
     def format_gamer_parameter_value(self, value):
         """Форматирует числовой коэффициент для списка параметров."""
         return f"{value:g}"
+
+    def get_skill_widgets(self):
+        return {
+            'productivity': self.ui.productivity_skill_points,
+            'profitability': self.ui.skill_points_profitability,
+            'endurance': self.ui.endurance_skill_points,
+        }
+
+    def update_skills_tab(self):
+        if not self.gamer:
+            return
+
+        self.gamer.normalize_skills()
+        available_points = self.gamer.available_skill_points
+        self.ui.available_skill_points.setText(f'Доступные баллы умений: {available_points}')
+
+        for skill_key, spinbox in self.get_skill_widgets().items():
+            skill_value = self.gamer.skills.get(skill_key, 0)
+            with QSignalBlocker(spinbox):
+                spinbox.setMinimum(skill_value)
+                spinbox.setMaximum(skill_value + available_points)
+                spinbox.setValue(skill_value)
+
+        self.ui.skill_description_productivity.setText(
+            f'Влияет на количество получаемого опыта. +{game.SKILL_CF_STEP:g} к коэффициенту опыта за балл.'
+        )
+        self.ui.skill_description_profitability.setText(
+            f'Влияет на количество получаемых монет. +{game.SKILL_CF_STEP:g} к коэффициенту монет за балл.'
+        )
+        self.ui.endurance_skill_description.setText(
+            f'Влияет на восстановление здоровья. +{game.SKILL_CF_STEP:g} здоровья в час за балл.'
+        )
+
+    def on_skill_points_changed(self, skill_key, new_value):
+        if not self.gamer:
+            return
+
+        self.gamer.normalize_skills()
+        current_value = self.gamer.skills.get(skill_key, 0)
+        points_to_add = new_value - current_value
+        if points_to_add <= 0:
+            self.update_skills_tab()
+            return
+
+        ok, message = self.gamer.increase_skill(skill_key, points_to_add, save=True)
+        self.gamer = game.load_game()
+        self.update_skills_tab()
+        self.update_gamer_parameters_list()
+
+        if ok:
+            if self.notifications:
+                self.notifications.show_success(message)
+        else:
+            if self.notifications:
+                self.notifications.show_warning(message)
+            else:
+                QMessageBox.warning(self.ui.centralwidget, 'Умения', message)
 
     def load_gamer_parameters_list(self):
         """Загружает список параметров персонажа."""
