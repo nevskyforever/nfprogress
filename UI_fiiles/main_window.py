@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowXCbIWs.ui'
+## Form generated from reading UI file 'main_windowgsuEJf.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -1250,7 +1250,7 @@ class Ui_main_window(object):
         self.scrol_area.setWidgetResizable(True)
         self.scrollAreaWidgetContents_9 = QWidget()
         self.scrollAreaWidgetContents_9.setObjectName(u"scrollAreaWidgetContents_9")
-        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 162, 159))
+        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 357, 161))
         self.gridLayout_25 = QGridLayout(self.scrollAreaWidgetContents_9)
         self.gridLayout_25.setObjectName(u"gridLayout_25")
         self.label_42 = QLabel(self.scrollAreaWidgetContents_9)
@@ -1312,7 +1312,7 @@ class Ui_main_window(object):
         self.scrollArea_6.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 341, 153))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 357, 161))
         self.verticalLayout_4 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_4.setObjectName(u"verticalLayout_4")
         self.description_selected_parameter = QLabel(self.scrollAreaWidgetContents)
@@ -1329,6 +1329,93 @@ class Ui_main_window(object):
         self.horizontalLayout_4.addWidget(self.groupBox)
 
         self.parameters_tabs.addTab(self.gamer_parameters_tab, "")
+        self.skills_tab = QWidget()
+        self.skills_tab.setObjectName(u"skills_tab")
+        self.gridLayout_7 = QGridLayout(self.skills_tab)
+        self.gridLayout_7.setObjectName(u"gridLayout_7")
+        self.productivity_skill_points = QSpinBox(self.skills_tab)
+        self.productivity_skill_points.setObjectName(u"productivity_skill_points")
+        sizePolicy1.setHeightForWidth(self.productivity_skill_points.sizePolicy().hasHeightForWidth())
+        self.productivity_skill_points.setSizePolicy(sizePolicy1)
+        self.productivity_skill_points.setFont(font1)
+        self.productivity_skill_points.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_7.addWidget(self.productivity_skill_points, 3, 0, 1, 1)
+
+        self.skill_description_profitability = QLabel(self.skills_tab)
+        self.skill_description_profitability.setObjectName(u"skill_description_profitability")
+        self.skill_description_profitability.setFont(font1)
+        self.skill_description_profitability.setWordWrap(True)
+
+        self.gridLayout_7.addWidget(self.skill_description_profitability, 2, 1, 1, 1)
+
+        self.label_7 = QLabel(self.skills_tab)
+        self.label_7.setObjectName(u"label_7")
+        self.label_7.setFont(font1)
+        self.label_7.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_7.addWidget(self.label_7, 1, 1, 1, 1)
+
+        self.endurance_skill_description = QLabel(self.skills_tab)
+        self.endurance_skill_description.setObjectName(u"endurance_skill_description")
+        self.endurance_skill_description.setFont(font1)
+        self.endurance_skill_description.setWordWrap(True)
+
+        self.gridLayout_7.addWidget(self.endurance_skill_description, 2, 2, 1, 1)
+
+        self.skill_points_profitability = QSpinBox(self.skills_tab)
+        self.skill_points_profitability.setObjectName(u"skill_points_profitability")
+        sizePolicy1.setHeightForWidth(self.skill_points_profitability.sizePolicy().hasHeightForWidth())
+        self.skill_points_profitability.setSizePolicy(sizePolicy1)
+        font4 = QFont()
+        font4.setFamilies([u"Arial"])
+        font4.setHintingPreference(QFont.PreferDefaultHinting)
+        self.skill_points_profitability.setFont(font4)
+        self.skill_points_profitability.setLayoutDirection(Qt.LayoutDirection.LeftToRight)
+        self.skill_points_profitability.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_7.addWidget(self.skill_points_profitability, 3, 1, 1, 1)
+
+        self.skill_description_productivity = QLabel(self.skills_tab)
+        self.skill_description_productivity.setObjectName(u"skill_description_productivity")
+        self.skill_description_productivity.setFont(font1)
+        self.skill_description_productivity.setWordWrap(True)
+
+        self.gridLayout_7.addWidget(self.skill_description_productivity, 2, 0, 1, 1)
+
+        self.label_8 = QLabel(self.skills_tab)
+        self.label_8.setObjectName(u"label_8")
+        self.label_8.setFont(font1)
+        self.label_8.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_7.addWidget(self.label_8, 1, 2, 1, 1)
+
+        self.endurance_skill_points = QSpinBox(self.skills_tab)
+        self.endurance_skill_points.setObjectName(u"endurance_skill_points")
+        sizePolicy8 = QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        sizePolicy8.setHorizontalStretch(0)
+        sizePolicy8.setVerticalStretch(0)
+        sizePolicy8.setHeightForWidth(self.endurance_skill_points.sizePolicy().hasHeightForWidth())
+        self.endurance_skill_points.setSizePolicy(sizePolicy8)
+        self.endurance_skill_points.setFont(font1)
+        self.endurance_skill_points.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_7.addWidget(self.endurance_skill_points, 3, 2, 1, 1)
+
+        self.label_6 = QLabel(self.skills_tab)
+        self.label_6.setObjectName(u"label_6")
+        self.label_6.setFont(font1)
+        self.label_6.setAlignment(Qt.AlignmentFlag.AlignCenter)
+
+        self.gridLayout_7.addWidget(self.label_6, 1, 0, 1, 1)
+
+        self.available_skill_points = QLabel(self.skills_tab)
+        self.available_skill_points.setObjectName(u"available_skill_points")
+        self.available_skill_points.setFont(font1)
+
+        self.gridLayout_7.addWidget(self.available_skill_points, 0, 1, 1, 1)
+
+        self.parameters_tabs.addTab(self.skills_tab, "")
 
         self.gridLayout_5.addWidget(self.parameters_tabs, 2, 0, 1, 1)
 
@@ -1359,10 +1446,10 @@ class Ui_main_window(object):
 
         self.retranslateUi(main_window)
 
-        self.tabWidget.setCurrentIndex(0)
+        self.tabWidget.setCurrentIndex(1)
         self.game_shop_tabs.setCurrentIndex(0)
         self.quests_tabs.setCurrentIndex(0)
-        self.parameters_tabs.setCurrentIndex(0)
+        self.parameters_tabs.setCurrentIndex(3)
 
 
         QMetaObject.connectSlotsByName(main_window)
@@ -1509,9 +1596,17 @@ class Ui_main_window(object):
         self.label_45.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
         self.label_46.setText(QCoreApplication.translate("main_window", u"\u0414\u0430\u0442\u0430 \u043d\u0430\u0447\u0430\u043b\u0430", None))
         self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.defufs_tab), QCoreApplication.translate("main_window", u"\u0414\u0435\u0431\u0430\u0444\u044b", None))
-        self.groupBox.setTitle(QCoreApplication.translate("main_window", u"GroupBox", None))
+        self.groupBox.setTitle(QCoreApplication.translate("main_window", u"\u041e \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u0435", None))
         self.description_selected_parameter.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u0430", None))
         self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.gamer_parameters_tab), QCoreApplication.translate("main_window", u"\u041f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u044b \u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0430", None))
+        self.skill_description_profitability.setText(QCoreApplication.translate("main_window", u"\u0412\u043e\u0438\u044f\u0435\u0442 \u043d\u0430 \u043a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u043f\u043e\u043b\u0443\u0447\u0430\u0435\u043c\u044b\u0445 \u043c\u043e\u043d\u0435\u0442", None))
+        self.label_7.setText(QCoreApplication.translate("main_window", u"\u0414\u043e\u0445\u043e\u0434\u043d\u043e\u0441\u0442\u044c", None))
+        self.endurance_skill_description.setText(QCoreApplication.translate("main_window", u"\u0412\u043b\u0438\u044f\u0435\u0442 \u043d\u0430 \u043a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u0437\u0434\u043e\u0440\u043e\u0432\u044c\u044f", None))
+        self.skill_description_productivity.setText(QCoreApplication.translate("main_window", u"\u0412\u043b\u0438\u044f\u0435\u0442 \u043d\u0430 \u043a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e \u043f\u043e\u043b\u0443\u0447\u0430\u0435\u043c\u043e\u0433\u043e \u043e\u043f\u044b\u0442\u0430", None))
+        self.label_8.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u043d\u043e\u0441\u043b\u0438\u0432\u043e\u0441\u0442\u044c", None))
+        self.label_6.setText(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0434\u0443\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442\u044c", None))
+        self.available_skill_points.setText(QCoreApplication.translate("main_window", u"\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435 \u0431\u0430\u043b\u043b\u044b \u0443\u043c\u0435\u043d\u0438\u0439: 0", None))
+        self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.skills_tab), QCoreApplication.translate("main_window", u"\u0423\u043c\u0435\u043d\u0438\u044f", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.game_tab), QCoreApplication.translate("main_window", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
         self.settings_menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
         self.project_menu.setTitle(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442", None))

@@ -2359,7 +2359,7 @@
             <string>Умения</string>
            </attribute>
            <layout class="QGridLayout" name="gridLayout_7">
-            <item row="2" column="0">
+            <item row="3" column="0">
              <widget class="QSpinBox" name="productivity_skill_points">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -2367,13 +2367,38 @@
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
               <property name="alignment">
                <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
              </widget>
             </item>
-            <item row="0" column="1">
+            <item row="2" column="1">
+             <widget class="QLabel" name="skill_description_profitability">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
+              <property name="text">
+               <string>Воияет на количество получаемых монет</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="1">
              <widget class="QLabel" name="label_7">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
               <property name="text">
                <string>Доходность</string>
               </property>
@@ -2382,7 +2407,22 @@
               </property>
              </widget>
             </item>
-            <item row="2" column="1">
+            <item row="2" column="2">
+             <widget class="QLabel" name="endurance_skill_description">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
+              <property name="text">
+               <string>Влияет на количество здоровья</string>
+              </property>
+              <property name="wordWrap">
+               <bool>true</bool>
+              </property>
+             </widget>
+            </item>
+            <item row="3" column="1">
              <widget class="QSpinBox" name="skill_points_profitability">
               <property name="sizePolicy">
                <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -2392,6 +2432,7 @@
               </property>
               <property name="font">
                <font>
+                <family>Arial</family>
                 <hintingpreference>PreferDefaultHinting</hintingpreference>
                </font>
               </property>
@@ -2403,41 +2444,13 @@
               </property>
              </widget>
             </item>
-            <item row="0" column="2">
-             <widget class="QLabel" name="label_8">
-              <property name="text">
-               <string>Выносливость</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item row="2" column="2">
-             <widget class="QSpinBox" name="endurance_skill_points">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item row="0" column="0">
-             <widget class="QLabel" name="label_6">
-              <property name="text">
-               <string>Продуктивность</string>
-              </property>
-              <property name="alignment">
-               <set>Qt::AlignmentFlag::AlignCenter</set>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="0">
+            <item row="2" column="0">
              <widget class="QLabel" name="skill_description_productivity">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
               <property name="text">
                <string>Влияет на количество получаемого опыта</string>
               </property>
@@ -2446,23 +2459,63 @@
               </property>
              </widget>
             </item>
-            <item row="1" column="1">
-             <widget class="QLabel" name="skill_description_profitability">
-              <property name="text">
-               <string>Воияет на количество получаемых монет</string>
+            <item row="1" column="2">
+             <widget class="QLabel" name="label_8">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
               </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+              <property name="text">
+               <string>Выносливость</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
              </widget>
             </item>
-            <item row="1" column="2">
-             <widget class="QLabel" name="endurance_skill_description">
-              <property name="text">
-               <string>Влияет на количество здоровья</string>
+            <item row="3" column="2">
+             <widget class="QSpinBox" name="endurance_skill_points">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
               </property>
-              <property name="wordWrap">
-               <bool>true</bool>
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0">
+             <widget class="QLabel" name="label_6">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
+              <property name="text">
+               <string>Продуктивность</string>
+              </property>
+              <property name="alignment">
+               <set>Qt::AlignmentFlag::AlignCenter</set>
+              </property>
+             </widget>
+            </item>
+            <item row="0" column="1">
+             <widget class="QLabel" name="available_skill_points">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
+              <property name="text">
+               <string>Доступные баллы умений: 0</string>
               </property>
              </widget>
             </item>
