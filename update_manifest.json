@@ -1,10 +1,10 @@
 {
-  "version": "4.3",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.2.3.zip",
+  "version": "4.3.1",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.3.1.zip",
   "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.3.zip",
   "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.3.zip",
-  "notes": "Умения\n\nВ игровой режим добавлены Умения - навыки, кторые вы можете прокачивать с каждым уровнем. Каждый уровень вам дарит 2 балла умения, которые можно потратить на Дозодность (повыышает доход), \"Производительность\" (повышает кол-во опыта), \"Выносливость\" (повышает кол-во здоровтя, восстанавливаемого в час).\n\nПрогрессивная шкала здоровья - за каждые 5 уровней вы получаее +10 к максимальному значению здоровья.\n\nФильтр в инвентаре\n\nВ инвентарь добавлен фильтр преметов по типу.",
-  "windows_version": "4.2.3",
+  "notes": "Исправлено автообновление на Windows.",
+  "windows_version": "4.3.1",
   "macos_arm_version": "4.3",
   "macos_intel_version": "4.3"
 }

@@ -6,7 +6,9 @@ import ssl
 import subprocess
 import sys
 import tempfile
+import time
 import urllib.request
+import uuid
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QSettings, QThread, Signal, Slot
@@ -95,15 +97,33 @@ def _format_download_url(url, manifest, version_key):
     return str(url).replace("{version}", version)
 
 
-def _current_app_target():
-    executable = Path(sys.executable).resolve()
+def _is_packaged_app():
+    main_module = sys.modules.get("__main__")
+    return (
+        "__compiled__" in globals()
+        or getattr(main_module, "__compiled__", None) is not None
+        or bool(getattr(sys, "frozen", False))
+    )
 
+
+def _current_app_target():
     if platform.system() == "Windows":
-        if executable.suffix.lower() == ".exe":
-            return executable
+        if not _is_packaged_app():
+            return None
+
+        # Nuitka onefile keeps the original executable path in sys.argv[0].
+        # sys.executable can point at the temporary unpacked child process.
+        for raw_candidate in (sys.argv[0], sys.executable):
+            try:
+                candidate = Path(raw_candidate).resolve()
+            except OSError:
+                continue
+            if candidate.suffix.lower() == ".exe" and candidate.exists():
+                return candidate
         return None
 
     if platform.system() == "Darwin":
+        executable = Path(sys.executable).resolve()
         candidates = [Path(sys.argv[0]).resolve(), executable]
         for candidate in candidates:
             for parent in (candidate, *candidate.parents):
@@ -126,9 +146,24 @@ def _write_text_file(path, text):
     path.write_text(text, encoding="utf-8", newline="\n")
 
 
-def _build_windows_updater_script(download_url, target_path, parent_pid, log_path):
+def _append_update_log(log_path, message):
+    timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    with open(log_path, "a", encoding="utf-8") as log_file:
+        log_file.write(f"{timestamp} launcher {message}\n")
+
+
+def _read_update_log_tail(log_path, limit=3000):
+    try:
+        text = Path(log_path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+    return text[-limit:].strip()
+
+
+def _build_windows_updater_script(download_url, target_path, parent_pid, log_path, task_name=None):
     target_dir = target_path.parent
     target_name = target_path.name
+    task_name_literal = _powershell_literal(task_name or "")
     return f"""$ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $downloadUrl = {_powershell_literal(download_url)}
@@ -137,6 +172,7 @@ $targetDir = {_powershell_literal(target_dir)}
 $targetName = {_powershell_literal(target_name)}
 $parentPid = {int(parent_pid)}
 $logPath = {_powershell_literal(log_path)}
+$taskName = {task_name_literal}
 
 function Write-UpdateLog([string]$Message) {{
     Add-Content -Path $logPath -Value ("{{0}} {{1}}" -f (Get-Date -Format o), $Message)
@@ -193,8 +229,99 @@ try {{
     Write-UpdateLog ("failed: " + $_.Exception.Message)
     Add-Type -AssemblyName PresentationFramework -ErrorAction SilentlyContinue
     [System.Windows.MessageBox]::Show("Не удалось установить обновление.`n`n$($_.Exception.Message)`n`nПодробности: $logPath", "NFProgress") | Out-Null
+}} finally {{
+    if ($taskName) {{
+        schtasks.exe /Delete /TN $taskName /F | Out-Null
+    }}
 }}
 """
+
+
+def _windows_powershell_executable():
+    system_root = os.environ.get("SystemRoot")
+    if system_root:
+        powershell = Path(system_root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
+        if powershell.exists():
+            return str(powershell)
+    return "powershell.exe"
+
+
+def _start_windows_updater_with_task_scheduler(script_path, task_name, log_path):
+    powershell = _windows_powershell_executable()
+    task_action = f'"{powershell}" -NoProfile -ExecutionPolicy Bypass -File "{script_path}"'
+    start_time = time.strftime("%H:%M", time.localtime(time.time() + 60))
+    create_command = [
+        "schtasks.exe",
+        "/Create",
+        "/TN",
+        task_name,
+        "/TR",
+        task_action,
+        "/SC",
+        "ONCE",
+        "/ST",
+        start_time,
+        "/F",
+    ]
+    run_command = ["schtasks.exe", "/Run", "/TN", task_name]
+
+    _append_update_log(log_path, f"creating scheduled task {task_name}")
+    create_result = subprocess.run(
+        create_command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    if create_result.returncode != 0:
+        raise RuntimeError((create_result.stderr or create_result.stdout or "schtasks /Create failed").strip())
+
+    _append_update_log(log_path, f"running scheduled task {task_name}")
+    run_result = subprocess.run(
+        run_command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+    if run_result.returncode != 0:
+        subprocess.run(
+            ["schtasks.exe", "/Delete", "/TN", task_name, "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        raise RuntimeError((run_result.stderr or run_result.stdout or "schtasks /Run failed").strip())
+
+
+def _start_windows_updater_direct(script_path, log_path):
+    _append_update_log(log_path, "starting PowerShell directly")
+    process = subprocess.Popen(
+        [
+            _windows_powershell_executable(),
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            str(script_path),
+        ],
+        creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        close_fds=True,
+    )
+    time.sleep(0.8)
+    if process.poll() is not None:
+        log_tail = _read_update_log_tail(log_path)
+        details = f"PowerShell завершился сразу с кодом {process.returncode}."
+        if log_tail:
+            details += f"\n\nЛог:\n{log_tail}"
+        raise RuntimeError(details)
 
 
 def _build_macos_updater_script(download_url, target_path, parent_pid, log_path):
@@ -298,31 +425,28 @@ def _start_background_update(download_url, parent):
 
     if platform.system() == "Windows":
         script_path = temp_dir / "nfprogress-update.ps1"
-        _write_text_file(script_path, _build_windows_updater_script(download_url, target_path, parent_pid, log_path))
+        task_name = f"NFProgressUpdate-{uuid.uuid4().hex}"
+        _write_text_file(script_path, _build_windows_updater_script(download_url, target_path, parent_pid, log_path, task_name))
         try:
-            subprocess.Popen(
-                [
-                    "powershell.exe",
-                    "-NoProfile",
-                    "-ExecutionPolicy",
-                    "Bypass",
-                    "-File",
-                    str(script_path),
-                ],
-                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                stdin=subprocess.DEVNULL,
-                close_fds=True,
-            )
+            _start_windows_updater_with_task_scheduler(script_path, task_name, log_path)
         except Exception as error:
-            _debug(f"failed to start Windows updater: {error}")
-            QMessageBox.critical(
-                parent,
-                "Обновление приложения",
-                f"Не удалось запустить установщик обновления.\n\n{error}",
-            )
-            return False
+            _debug(f"failed to start Windows updater through Task Scheduler: {error}")
+            try:
+                _write_text_file(script_path, _build_windows_updater_script(download_url, target_path, parent_pid, log_path))
+                _start_windows_updater_direct(script_path, log_path)
+            except Exception as fallback_error:
+                _debug(f"failed to start Windows updater directly: {fallback_error}")
+                QMessageBox.critical(
+                    parent,
+                    "Обновление приложения",
+                    (
+                        "Не удалось запустить установщик обновления.\n\n"
+                        f"Планировщик заданий: {error}\n\n"
+                        f"Прямой запуск PowerShell: {fallback_error}\n\n"
+                        f"Лог: {log_path}"
+                    ),
+                )
+                return False
     elif platform.system() == "Darwin":
         script_path = temp_dir / "nfprogress-update.sh"
         _write_text_file(script_path, _build_macos_updater_script(download_url, target_path, parent_pid, log_path))
