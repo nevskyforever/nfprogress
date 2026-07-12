@@ -143,6 +143,7 @@ function Write-UpdateLog([string]$Message) {{
 }}
 
 try {{
+    Write-UpdateLog "updater started"
     Write-UpdateLog "waiting for application process $parentPid"
     Wait-Process -Id $parentPid -ErrorAction SilentlyContinue
     Start-Sleep -Milliseconds 700
@@ -154,6 +155,7 @@ try {{
 
     Write-UpdateLog "downloading $downloadUrl"
     Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
+    Write-UpdateLog "extracting $zipPath"
     Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
 
     $newExe = Get-ChildItem -Path $extractDir -Filter $targetName -Recurse -File | Select-Object -First 1
@@ -164,13 +166,19 @@ try {{
         throw "В архиве обновления не найден .exe файл."
     }}
 
+    $replacementRoot = $newExe.Directory.FullName
+    Write-UpdateLog "replacement root $replacementRoot"
+
     $backupPath = "$targetPath.old"
     Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
     if (Test-Path -LiteralPath $targetPath) {{
         Move-Item -LiteralPath $targetPath -Destination $backupPath -Force
     }}
     try {{
-        Copy-Item -LiteralPath $newExe.FullName -Destination $targetPath -Force
+        Copy-Item -Path (Join-Path $replacementRoot "*") -Destination $targetDir -Recurse -Force
+        if (-not (Test-Path -LiteralPath $targetPath)) {{
+            Copy-Item -LiteralPath $newExe.FullName -Destination $targetPath -Force
+        }}
     }} catch {{
         if (Test-Path -LiteralPath $backupPath) {{
             Move-Item -LiteralPath $backupPath -Destination $targetPath -Force
@@ -291,18 +299,30 @@ def _start_background_update(download_url, parent):
     if platform.system() == "Windows":
         script_path = temp_dir / "nfprogress-update.ps1"
         _write_text_file(script_path, _build_windows_updater_script(download_url, target_path, parent_pid, log_path))
-        subprocess.Popen(
-            [
-                "powershell.exe",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                str(script_path),
-            ],
-            creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
-            close_fds=True,
-        )
+        try:
+            subprocess.Popen(
+                [
+                    "powershell.exe",
+                    "-NoProfile",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(script_path),
+                ],
+                creationflags=subprocess.CREATE_NO_WINDOW | subprocess.DETACHED_PROCESS,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                close_fds=True,
+            )
+        except Exception as error:
+            _debug(f"failed to start Windows updater: {error}")
+            QMessageBox.critical(
+                parent,
+                "Обновление приложения",
+                f"Не удалось запустить установщик обновления.\n\n{error}",
+            )
+            return False
     elif platform.system() == "Darwin":
         script_path = temp_dir / "nfprogress-update.sh"
         _write_text_file(script_path, _build_macos_updater_script(download_url, target_path, parent_pid, log_path))
