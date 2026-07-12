@@ -18,6 +18,7 @@ from engine import load_data, save_data, today_for_test, unit_converter
 
 class GameMenuController:
     """Класс для управления игровым меню"""
+    INVENTORY_FILTER_ALL = 'Все'
 
     def __init__(self, ui, notifications = None):
         """
@@ -137,6 +138,7 @@ class GameMenuController:
         # Инвентарь
         self.ui.inventory_list.itemClicked.connect(self.on_inventory_item_selected)
         self.ui.button_for_selected_item.clicked.connect(self.on_use_item)
+        self.ui.inventory_filter_comboBox.currentTextChanged.connect(self.on_inventory_filter_changed)
 
         # Магазин предметов
         self.ui.item_shop_list.itemClicked.connect(self.on_shop_item_selected)
@@ -726,12 +728,17 @@ class GameMenuController:
             return
 
         self.register_custom_awards()
+        self.update_inventory_filter_combo()
+        selected_filter = self.get_selected_inventory_filter()
 
         # Инвентарь: {категория: {предмет: количество}}
         for category, items in self.gamer.items.items():
             for item_name, count in items.items():
                 if count > 0:
                     _, item_obj = game_data.find_registry_item(category, item_name)
+                    item_type = self.get_inventory_item_type(category, item_obj)
+                    if selected_filter != self.INVENTORY_FILTER_ALL and item_type != selected_filter:
+                        continue
                     display_name = getattr(item_obj, 'name', item_name)
                     display_text = f"{display_name} x{count} [{category}]"
                     item = QListWidgetItem(display_text)
@@ -742,10 +749,73 @@ class GameMenuController:
         for award in self.gamer.custom_awards:
             count = self.get_custom_award_count(award)
             if count > 0:
+                item_type = self.get_inventory_item_type('Награды', award)
+                if selected_filter != self.INVENTORY_FILTER_ALL and item_type != selected_filter:
+                    continue
                 display_text = f"{award.name} x{count} [Награды]"
                 item = QListWidgetItem(display_text)
                 item.setData(1, ('Кастомные награды', award.name))
                 self.ui.inventory_list.addItem(item)
+
+    def get_inventory_item_type(self, category, item_obj=None):
+        """Возвращает тип предмета для фильтрации инвентаря."""
+        return getattr(item_obj, 'item_type', None) or category
+
+    def get_inventory_item_types(self):
+        """Собирает типы предметов, которые реально есть в инвентаре."""
+        item_types = set()
+        if not self.gamer:
+            return item_types
+
+        for category, items in self.gamer.items.items():
+            if not isinstance(items, dict):
+                continue
+            for item_name, count in items.items():
+                if count <= 0:
+                    continue
+                _, item_obj = game_data.find_registry_item(category, item_name)
+                item_types.add(self.get_inventory_item_type(category, item_obj))
+
+        for award in getattr(self.gamer, 'custom_awards', []):
+            if self.get_custom_award_count(award) > 0:
+                item_types.add(self.get_inventory_item_type('Награды', award))
+
+        item_types.discard(None)
+        return item_types
+
+    def get_selected_inventory_filter(self):
+        selected_filter = self.ui.inventory_filter_comboBox.currentText()
+        return selected_filter or self.INVENTORY_FILTER_ALL
+
+    def update_inventory_filter_combo(self):
+        """Наполняет фильтр типами предметов из текущего инвентаря."""
+        current_filter = self.get_selected_inventory_filter()
+        if current_filter == self.INVENTORY_FILTER_ALL:
+            current_filter = engine.load_settings().get('inventory_filter', self.INVENTORY_FILTER_ALL)
+
+        available_filters = [self.INVENTORY_FILTER_ALL, *sorted(self.get_inventory_item_types())]
+        if current_filter not in available_filters:
+            current_filter = self.INVENTORY_FILTER_ALL
+
+        combo = self.ui.inventory_filter_comboBox
+        current_items = [combo.itemText(index) for index in range(combo.count())]
+        if current_items == available_filters and combo.currentText() == current_filter:
+            return
+
+        with QSignalBlocker(combo):
+            combo.clear()
+            combo.addItems(available_filters)
+            combo.setCurrentText(current_filter)
+
+    def on_inventory_filter_changed(self, selected_filter):
+        """Применяет фильтр инвентаря и сохраняет его для игрового режима."""
+        if engine.load_settings().get('game_mode', False):
+            settings = engine.load_settings()
+            settings['inventory_filter'] = selected_filter or self.INVENTORY_FILTER_ALL
+            engine.save_settings(settings)
+
+        self.clear_inventory_item_info()
+        self.update_inventory()
 
     def update_shops(self):
         """Обновление магазинов"""

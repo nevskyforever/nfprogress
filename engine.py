@@ -225,6 +225,7 @@ def load_settings():
             'inf_project': False,
             'global_streak': False,
             'show_written_today_in_all_projects': False,
+            'inventory_filter': 'Все',
         }
 
 def save_settings(data):

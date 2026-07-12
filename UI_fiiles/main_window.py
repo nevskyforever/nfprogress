@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowgsuEJf.ui'
+## Form generated from reading UI file 'main_windowEVpZyC.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -766,14 +766,6 @@ class Ui_main_window(object):
         self.inventory_scroll_area.setFont(font1)
         self.gridLayout_12 = QGridLayout(self.inventory_scroll_area)
         self.gridLayout_12.setObjectName(u"gridLayout_12")
-        self.button_for_selected_item = QPushButton(self.inventory_scroll_area)
-        self.button_for_selected_item.setObjectName(u"button_for_selected_item")
-        sizePolicy1.setHeightForWidth(self.button_for_selected_item.sizePolicy().hasHeightForWidth())
-        self.button_for_selected_item.setSizePolicy(sizePolicy1)
-        self.button_for_selected_item.setFont(font1)
-
-        self.gridLayout_12.addWidget(self.button_for_selected_item, 3, 2, 1, 2)
-
         self.label_13 = QLabel(self.inventory_scroll_area)
         self.label_13.setObjectName(u"label_13")
         sizePolicy1.setHeightForWidth(self.label_13.sizePolicy().hasHeightForWidth())
@@ -781,7 +773,56 @@ class Ui_main_window(object):
         self.label_13.setFont(font1)
         self.label_13.setAlignment(Qt.AlignmentFlag.AlignLeading|Qt.AlignmentFlag.AlignLeft|Qt.AlignmentFlag.AlignVCenter)
 
-        self.gridLayout_12.addWidget(self.label_13, 3, 0, 1, 1)
+        self.gridLayout_12.addWidget(self.label_13, 4, 0, 1, 1)
+
+        self.button_for_selected_item = QPushButton(self.inventory_scroll_area)
+        self.button_for_selected_item.setObjectName(u"button_for_selected_item")
+        sizePolicy1.setHeightForWidth(self.button_for_selected_item.sizePolicy().hasHeightForWidth())
+        self.button_for_selected_item.setSizePolicy(sizePolicy1)
+        self.button_for_selected_item.setFont(font1)
+
+        self.gridLayout_12.addWidget(self.button_for_selected_item, 4, 2, 1, 2)
+
+        self.about_selected_inventory_item = QScrollArea(self.inventory_scroll_area)
+        self.about_selected_inventory_item.setObjectName(u"about_selected_inventory_item")
+        self.about_selected_inventory_item.setFont(font1)
+        self.about_selected_inventory_item.setWidgetResizable(True)
+        self.scrollAreaWidgetContents_6 = QWidget()
+        self.scrollAreaWidgetContents_6.setObjectName(u"scrollAreaWidgetContents_6")
+        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 409, 114))
+        self.gridLayout_19 = QGridLayout(self.scrollAreaWidgetContents_6)
+        self.gridLayout_19.setObjectName(u"gridLayout_19")
+        self.level_selected_item = QLabel(self.scrollAreaWidgetContents_6)
+        self.level_selected_item.setObjectName(u"level_selected_item")
+        self.level_selected_item.setFont(font1)
+        self.level_selected_item.setWordWrap(True)
+
+        self.gridLayout_19.addWidget(self.level_selected_item, 3, 0, 1, 1)
+
+        self.name_selected_item = QLabel(self.scrollAreaWidgetContents_6)
+        self.name_selected_item.setObjectName(u"name_selected_item")
+        self.name_selected_item.setFont(font1)
+        self.name_selected_item.setWordWrap(True)
+
+        self.gridLayout_19.addWidget(self.name_selected_item, 1, 0, 1, 1)
+
+        self.description_selected_item = QLabel(self.scrollAreaWidgetContents_6)
+        self.description_selected_item.setObjectName(u"description_selected_item")
+        self.description_selected_item.setFont(font1)
+        self.description_selected_item.setWordWrap(True)
+
+        self.gridLayout_19.addWidget(self.description_selected_item, 2, 0, 1, 1)
+
+        self.effect_selected_item = QLabel(self.scrollAreaWidgetContents_6)
+        self.effect_selected_item.setObjectName(u"effect_selected_item")
+        self.effect_selected_item.setFont(font1)
+        self.effect_selected_item.setWordWrap(True)
+
+        self.gridLayout_19.addWidget(self.effect_selected_item, 4, 0, 1, 1)
+
+        self.about_selected_inventory_item.setWidget(self.scrollAreaWidgetContents_6)
+
+        self.gridLayout_12.addWidget(self.about_selected_inventory_item, 1, 0, 1, 4)
 
         self.value_for_use_selected_item = QSpinBox(self.inventory_scroll_area)
         self.value_for_use_selected_item.setObjectName(u"value_for_use_selected_item")
@@ -792,48 +833,13 @@ class Ui_main_window(object):
         self.value_for_use_selected_item.setSingleStep(1)
         self.value_for_use_selected_item.setValue(1)
 
-        self.gridLayout_12.addWidget(self.value_for_use_selected_item, 3, 1, 1, 1)
+        self.gridLayout_12.addWidget(self.value_for_use_selected_item, 4, 1, 1, 1)
 
-        self.about_selected_inventory_item = QScrollArea(self.inventory_scroll_area)
-        self.about_selected_inventory_item.setObjectName(u"about_selected_inventory_item")
-        self.about_selected_inventory_item.setFont(font1)
-        self.about_selected_inventory_item.setWidgetResizable(True)
-        self.scrollAreaWidgetContents_6 = QWidget()
-        self.scrollAreaWidgetContents_6.setObjectName(u"scrollAreaWidgetContents_6")
-        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 409, 150))
-        self.gridLayout_19 = QGridLayout(self.scrollAreaWidgetContents_6)
-        self.gridLayout_19.setObjectName(u"gridLayout_19")
-        self.name_selected_item = QLabel(self.scrollAreaWidgetContents_6)
-        self.name_selected_item.setObjectName(u"name_selected_item")
-        self.name_selected_item.setFont(font1)
-        self.name_selected_item.setWordWrap(True)
+        self.inventory_filter_comboBox = QComboBox(self.inventory_scroll_area)
+        self.inventory_filter_comboBox.setObjectName(u"inventory_filter_comboBox")
+        self.inventory_filter_comboBox.setFont(font1)
 
-        self.gridLayout_19.addWidget(self.name_selected_item, 0, 0, 1, 1)
-
-        self.level_selected_item = QLabel(self.scrollAreaWidgetContents_6)
-        self.level_selected_item.setObjectName(u"level_selected_item")
-        self.level_selected_item.setFont(font1)
-        self.level_selected_item.setWordWrap(True)
-
-        self.gridLayout_19.addWidget(self.level_selected_item, 2, 0, 1, 1)
-
-        self.effect_selected_item = QLabel(self.scrollAreaWidgetContents_6)
-        self.effect_selected_item.setObjectName(u"effect_selected_item")
-        self.effect_selected_item.setFont(font1)
-        self.effect_selected_item.setWordWrap(True)
-
-        self.gridLayout_19.addWidget(self.effect_selected_item, 3, 0, 1, 1)
-
-        self.description_selected_item = QLabel(self.scrollAreaWidgetContents_6)
-        self.description_selected_item.setObjectName(u"description_selected_item")
-        self.description_selected_item.setFont(font1)
-        self.description_selected_item.setWordWrap(True)
-
-        self.gridLayout_19.addWidget(self.description_selected_item, 1, 0, 1, 1)
-
-        self.about_selected_inventory_item.setWidget(self.scrollAreaWidgetContents_6)
-
-        self.gridLayout_12.addWidget(self.about_selected_inventory_item, 0, 0, 1, 4)
+        self.gridLayout_12.addWidget(self.inventory_filter_comboBox, 0, 0, 1, 1)
 
 
         self.horizontalLayout_5.addWidget(self.inventory_scroll_area)
@@ -1250,7 +1256,7 @@ class Ui_main_window(object):
         self.scrol_area.setWidgetResizable(True)
         self.scrollAreaWidgetContents_9 = QWidget()
         self.scrollAreaWidgetContents_9.setObjectName(u"scrollAreaWidgetContents_9")
-        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 357, 161))
+        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 100, 168))
         self.gridLayout_25 = QGridLayout(self.scrollAreaWidgetContents_9)
         self.gridLayout_25.setObjectName(u"gridLayout_25")
         self.label_42 = QLabel(self.scrollAreaWidgetContents_9)
@@ -1312,7 +1318,7 @@ class Ui_main_window(object):
         self.scrollArea_6.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 357, 161))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 92, 56))
         self.verticalLayout_4 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_4.setObjectName(u"verticalLayout_4")
         self.description_selected_parameter = QLabel(self.scrollAreaWidgetContents)
@@ -1446,10 +1452,10 @@ class Ui_main_window(object):
 
         self.retranslateUi(main_window)
 
-        self.tabWidget.setCurrentIndex(1)
+        self.tabWidget.setCurrentIndex(0)
         self.game_shop_tabs.setCurrentIndex(0)
         self.quests_tabs.setCurrentIndex(0)
-        self.parameters_tabs.setCurrentIndex(3)
+        self.parameters_tabs.setCurrentIndex(0)
 
 
         QMetaObject.connectSlotsByName(main_window)
@@ -1545,12 +1551,12 @@ class Ui_main_window(object):
         self.game_shop_tabs.setTabText(self.game_shop_tabs.indexOf(self.awards_shop_tab), QCoreApplication.translate("main_window", u"\u041d\u0430\u0433\u0440\u0430\u0434\u044b", None))
         self.shop_label.setText(QCoreApplication.translate("main_window", u"\u041c\u0430\u0433\u0430\u0437\u0438\u043d", None))
         self.inventory_scroll_area.setTitle(QCoreApplication.translate("main_window", u"\u041e \u0442\u043e\u0432\u0430\u0440\u0435", None))
-        self.button_for_selected_item.setText(QCoreApplication.translate("main_window", u"\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c", None))
         self.label_13.setText(QCoreApplication.translate("main_window", u"\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e:", None))
-        self.name_selected_item.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
+        self.button_for_selected_item.setText(QCoreApplication.translate("main_window", u"\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u044c", None))
         self.level_selected_item.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c", None))
-        self.effect_selected_item.setText(QCoreApplication.translate("main_window", u"\u042d\u0444\u0444\u0435\u043a\u0442\u044b", None))
+        self.name_selected_item.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
         self.description_selected_item.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", None))
+        self.effect_selected_item.setText(QCoreApplication.translate("main_window", u"\u042d\u0444\u0444\u0435\u043a\u0442\u044b", None))
         self.gamer_params_label.setText(QCoreApplication.translate("main_window", u"\u041f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u044b \u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0430", None))
         self.gamer_health.setText(QCoreApplication.translate("main_window", u"\u0417\u0434\u043e\u0440\u043e\u0432\u044c\u0435 100/100", None))
         self.gamer_exp.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u044b\u0442: 0/100", None))
