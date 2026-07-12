@@ -1,6 +1,7 @@
 import json
 import os
 import platform
+import shutil
 import shlex
 import ssl
 import subprocess
@@ -9,6 +10,7 @@ import tempfile
 import time
 import urllib.request
 import uuid
+import zipfile
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QSettings, QThread, Signal, Slot
@@ -23,6 +25,7 @@ UPDATE_MANIFEST_URL = os.environ.get("NFPROGRESS_UPDATE_URL", "https://nfproject
 SETTINGS_ORG = "NFProgress"
 SETTINGS_APP = "NFProgress"
 SKIPPED_VERSION_KEY = "updates/skipped_version"
+WINDOWS_UPDATER_ARG = "--nfprogress-updater"
 
 
 def _debug(message):
@@ -173,6 +176,154 @@ def _windows_creationflags(*names):
     return flags
 
 
+def _show_windows_message(title, message):
+    if platform.system() != "Windows":
+        return
+    try:
+        import ctypes
+        ctypes.windll.user32.MessageBoxW(None, str(message), str(title), 0x10)
+    except Exception:
+        pass
+
+
+def _wait_for_windows_process_exit(pid, log_path, timeout=180):
+    if pid <= 0:
+        return
+
+    try:
+        import ctypes
+        kernel32 = ctypes.windll.kernel32
+        handle = kernel32.OpenProcess(0x00100000, False, int(pid))
+        if handle:
+            try:
+                _append_update_log(log_path, f"waiting for parent process {pid}")
+                kernel32.WaitForSingleObject(handle, int(timeout * 1000))
+                return
+            finally:
+                kernel32.CloseHandle(handle)
+    except Exception as error:
+        _append_update_log(log_path, f"OpenProcess wait failed: {error}")
+
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        result = subprocess.run(
+            ["tasklist.exe", "/FI", f"PID eq {int(pid)}"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            creationflags=_windows_creationflags("CREATE_NO_WINDOW"),
+        )
+        if str(pid) not in (result.stdout or ""):
+            return
+        time.sleep(0.5)
+
+
+def _copy_extracted_update(replacement_root, new_exe, target_path, log_path):
+    target_dir = target_path.parent
+    backup_path = target_path.with_name(target_path.name + ".old")
+    if backup_path.exists():
+        backup_path.unlink()
+
+    if target_path.exists():
+        _append_update_log(log_path, f"moving old exe to {backup_path}")
+        target_path.replace(backup_path)
+
+    try:
+        _append_update_log(log_path, f"copying update from {replacement_root}")
+        for source in replacement_root.iterdir():
+            destination = target_dir / source.name
+            if source.is_dir():
+                if destination.exists():
+                    shutil.rmtree(destination)
+                shutil.copytree(source, destination)
+            else:
+                shutil.copy2(source, destination)
+
+        if not target_path.exists():
+            shutil.copy2(new_exe, target_path)
+    except Exception:
+        if backup_path.exists() and not target_path.exists():
+            backup_path.replace(target_path)
+        raise
+
+    if backup_path.exists():
+        backup_path.unlink()
+
+
+def _run_windows_updater(download_url, target_path, parent_pid, log_path):
+    target_path = Path(target_path)
+    log_path = Path(log_path)
+    target_dir = target_path.parent
+    work_dir = Path(tempfile.mkdtemp(prefix="nfprogress-update-"))
+    zip_path = work_dir / "update.zip"
+    extract_dir = work_dir / "extract"
+
+    try:
+        _append_update_log(log_path, "exe updater started")
+        _append_update_log(log_path, f"target={target_path}")
+        _wait_for_windows_process_exit(int(parent_pid), log_path)
+        time.sleep(0.7)
+
+        _append_update_log(log_path, f"downloading {download_url}")
+        request = urllib.request.Request(download_url, headers={"User-Agent": f"NFProgress/{en.version}"})
+        with urllib.request.urlopen(request, timeout=60, context=_ssl_context()) as response:
+            with open(zip_path, "wb") as output:
+                shutil.copyfileobj(response, output)
+
+        _append_update_log(log_path, f"extracting {zip_path}")
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(zip_path) as archive:
+            archive.extractall(extract_dir)
+
+        new_exe = next(extract_dir.rglob(target_path.name), None)
+        if new_exe is None:
+            new_exe = next(extract_dir.rglob("*.exe"), None)
+        if new_exe is None:
+            raise RuntimeError("В архиве обновления не найден .exe файл.")
+
+        _copy_extracted_update(new_exe.parent, new_exe, target_path, log_path)
+        _append_update_log(log_path, "update installed")
+
+        subprocess.Popen(
+            [str(target_path)],
+            cwd=str(target_dir),
+            creationflags=_windows_creationflags(
+                "DETACHED_PROCESS",
+                "CREATE_NEW_PROCESS_GROUP",
+                "CREATE_BREAKAWAY_FROM_JOB",
+            ),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            close_fds=True,
+        )
+        _append_update_log(log_path, "application restarted")
+        return 0
+    except Exception as error:
+        _append_update_log(log_path, f"failed: {error}")
+        _show_windows_message(
+            "NFProgress",
+            f"Не удалось установить обновление.\n\n{error}\n\nПодробности: {log_path}",
+        )
+        return 1
+    finally:
+        try:
+            shutil.rmtree(work_dir, ignore_errors=True)
+        except Exception:
+            pass
+
+
+def run_windows_updater_from_argv(argv=None):
+    argv = list(sys.argv if argv is None else argv)
+    if platform.system() != "Windows" or len(argv) < 6 or argv[1] != WINDOWS_UPDATER_ARG:
+        return None
+
+    _, _, download_url, target_path, parent_pid, log_path = argv[:6]
+    return _run_windows_updater(download_url, target_path, int(parent_pid), log_path)
+
+
 def _format_process_output(result):
     parts = [f"exit={result.returncode}"]
     stdout = (result.stdout or "").strip()
@@ -184,11 +335,11 @@ def _format_process_output(result):
     return "; ".join(parts)
 
 
-def _wait_for_windows_updater_start(log_path, timeout=3.0):
+def _wait_for_windows_updater_start(log_path, marker="updater started", timeout=3.0):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         log_tail = _read_update_log_tail(log_path)
-        if "updater started" in log_tail:
+        if marker in log_tail:
             return True
         time.sleep(0.2)
     return False
@@ -391,6 +542,43 @@ def _start_windows_updater_direct(script_path, log_path):
         raise RuntimeError(details)
 
 
+def _start_windows_exe_updater(download_url, target_path, parent_pid, log_path):
+    updater_path = Path(tempfile.gettempdir()) / f"nfprogress-updater-{uuid.uuid4().hex}.exe"
+    shutil.copy2(target_path, updater_path)
+    _append_update_log(log_path, f"copied updater exe to {updater_path}")
+
+    process = subprocess.Popen(
+        [
+            str(updater_path),
+            WINDOWS_UPDATER_ARG,
+            str(download_url),
+            str(target_path),
+            str(parent_pid),
+            str(log_path),
+        ],
+        cwd=str(target_path.parent),
+        creationflags=_windows_creationflags(
+            "DETACHED_PROCESS",
+            "CREATE_NEW_PROCESS_GROUP",
+            "CREATE_BREAKAWAY_FROM_JOB",
+        ),
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        stdin=subprocess.DEVNULL,
+        close_fds=True,
+    )
+
+    if not _wait_for_windows_updater_start(log_path, marker="exe updater started"):
+        log_tail = _read_update_log_tail(log_path)
+        return_code = process.poll()
+        details = "Updater-exe не записал стартовую строку в лог."
+        if return_code is not None:
+            details += f" Процесс завершился с кодом {return_code}."
+        if log_tail:
+            details += f"\n\nЛог:\n{log_tail}"
+        raise RuntimeError(details)
+
+
 def _build_macos_updater_script(download_url, target_path, parent_pid, log_path):
     target_dir = target_path.parent
     target_name = target_path.name
@@ -497,29 +685,16 @@ def _start_background_update(download_url, parent):
             pass
         except OSError:
             pass
-        script_path = temp_dir / "nfprogress-update.ps1"
-        task_name = f"NFProgressUpdate-{uuid.uuid4().hex}"
-        _write_text_file(script_path, _build_windows_updater_script(download_url, target_path, parent_pid, log_path, task_name))
         try:
-            _start_windows_updater_with_task_scheduler(script_path, task_name, log_path)
+            _start_windows_exe_updater(download_url, target_path, parent_pid, log_path)
         except Exception as error:
-            _debug(f"failed to start Windows updater through Task Scheduler: {error}")
-            try:
-                _write_text_file(script_path, _build_windows_updater_script(download_url, target_path, parent_pid, log_path))
-                _start_windows_updater_direct(script_path, log_path)
-            except Exception as fallback_error:
-                _debug(f"failed to start Windows updater directly: {fallback_error}")
-                QMessageBox.critical(
-                    parent,
-                    "Обновление приложения",
-                    (
-                        "Не удалось запустить установщик обновления.\n\n"
-                        f"Планировщик заданий: {error}\n\n"
-                        f"Прямой запуск PowerShell: {fallback_error}\n\n"
-                        f"Лог: {log_path}"
-                    ),
-                )
-                return False
+            _debug(f"failed to start Windows exe updater: {error}")
+            QMessageBox.critical(
+                parent,
+                "Обновление приложения",
+                f"Не удалось запустить установщик обновления.\n\n{error}\n\nЛог: {log_path}",
+            )
+            return False
     elif platform.system() == "Darwin":
         script_path = temp_dir / "nfprogress-update.sh"
         _write_text_file(script_path, _build_macos_updater_script(download_url, target_path, parent_pid, log_path))
