@@ -1265,6 +1265,10 @@ class MainWindow(QMainWindow, main_window_ui):
     def _refresh_project_streak_statuses(self, data, show_auto_freeze_toasts=True):
         """Актуализирует локальные стрики и показывает уведомления об автозаморозках."""
         projects = data.get('projects', {})
+        global_streaks = data.setdefault('global_streaks', [])
+        if not isinstance(global_streaks, list):
+            global_streaks = []
+            data['global_streaks'] = global_streaks
         notifications = data.get('notifications', {'new': [], 'read': []})
         if not isinstance(notifications, dict):
             notifications = {'new': [], 'read': []}
@@ -1298,6 +1302,11 @@ class MainWindow(QMainWindow, main_window_ui):
                 notifications['new'].append(en.Notification(message, tag='streak'))
                 if show_auto_freeze_toasts and self.notifications:
                     self.notifications.show_info(message, duration=10000, position='bottom-right')
+
+                for freeze_day in freeze_days:
+                    if en.streak_last_day(global_streaks) == freeze_day - datetime.timedelta(days=1):
+                        global_streaks.append(en.STREAK_FREEZE_MARKER)
+                        data['global_streak_status'] = 'Freeze'
 
             data['projects'][project_name] = project
 
@@ -2812,14 +2821,15 @@ class DeveloperMode(QDialog, Ui_developer_node):
         gamer = game.load_game()
         settings = en.load_settings()
         self.setupUi(self)
-        if settings.get('today_for_test_mode', False):
+        saved_test_datetime = settings.get('today_for_test_datetime')
+        if settings.get('today_for_test_mode', False) and isinstance(saved_test_datetime, datetime.datetime):
             self.test_date_cb.setChecked(True)
             self.test_date.setEnabled(True)
-            self.test_date.setDateTime(en.now_for_test())
+            self.test_date.setDateTime(saved_test_datetime)
         else:
             self.test_date_cb.setChecked(False)
             self.test_date.setEnabled(False)
-            self.test_date.setDateTime(en.now_for_test())
+            self.test_date.setDateTime(datetime.datetime.now())
 
         self.level.setText(f'{gamer.level}')
         self.health.setText(f'{gamer.health}')

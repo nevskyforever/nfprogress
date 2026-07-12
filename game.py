@@ -534,6 +534,7 @@ class Gamer:
         self.migrate()  # Просто вызываем migrate вместо ручной проверки
 
     def save(self):
+        self.normalize_inventory_item_names()
         self.normalize_coins()
         data_file = get_data_file_path()
         engine.atomic_pickle_save(self, data_file)
@@ -552,6 +553,16 @@ class Gamer:
                 f'\nПолучено {exps} опыта')
 
     def give_streak_bonus(self, status, streak_type, streak_len=1):
+        if streak_type == 'Global' and isinstance(status, str) and 'Lose' in status.split():
+            data = engine.load_data()
+            refresh_result = engine.refresh_project_streak_statuses(data)
+            if refresh_result.get('freeze_changed'):
+                self.items = load_game().items
+            refreshed_status = engine.global_streak_status(data)
+            if isinstance(refreshed_status, str) and 'Lose' not in refreshed_status.split():
+                status = refreshed_status
+                streak_len = engine.streak_length(data.get('global_streaks', []))
+
         st = status.split()
         cf_coins = self.get_cf_value('coins')
         cf_exp = self.get_cf_value('exp')
@@ -565,6 +576,7 @@ class Gamer:
                 damage = days * 5
                 self.damage(damage)
                 self.last_lose_global_streak_damage = today
+                self.last_lose_global_streak_damage_amount = damage
             else:
                 damage = days * 5  # для отображения
             bonus = self.set_coins(10 * cf_coins * self.calculate_inflation())
@@ -619,6 +631,7 @@ class Gamer:
                 damage = days * 5
                 self.damage(damage)
                 self.last_lose_global_streak_damage = today
+                self.last_lose_global_streak_damage_amount = damage
                 msg = (f'🥺 СТРИК ПОТЕРЯН\n'
                        f'Урон за потерю глобального стрика: {damage}❤️')
 
@@ -742,6 +755,7 @@ class Gamer:
 
     def set_items(self, items):
         self.items = items
+        self.normalize_inventory_item_names()
 
     def remove_coins(self, removed, process_bank_events=True, save=True):
         removed = self.round_money(removed)
@@ -912,6 +926,32 @@ class Gamer:
 
         return changed
 
+    def normalize_inventory_item_names(self):
+        """Сводит ключи инвентаря к ключам реестра, чтобы алиасы не считались разными предметами."""
+        if not isinstance(self.items, dict):
+            return False
+
+        changed = False
+        for category, category_items in list(self.items.items()):
+            if not isinstance(category_items, dict):
+                self.items[category] = {}
+                changed = True
+                continue
+
+            normalized_items = {}
+            for item_name, count in category_items.items():
+                registry_key, _ = game_data.find_registry_item(category, item_name)
+                normalized_name = registry_key or item_name
+                normalized_items[normalized_name] = normalized_items.get(normalized_name, 0) + count
+                if normalized_name != item_name:
+                    changed = True
+
+            if normalized_items != category_items:
+                self.items[category] = normalized_items
+                changed = True
+
+        return changed
+
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
         had_skill_award_marker = hasattr(self, 'skill_points_awarded_for_level')
@@ -1003,6 +1043,7 @@ class Gamer:
         if self.items == {}:
             self.items = {'Предметы': {},'Зелья': {},'Награды': {}}
         migrated_awards = self.migrate_legacy_award_names()
+        migrated_inventory = self.normalize_inventory_item_names()
         self.normalize_coins()
         old_health = getattr(self, 'health', 0)
         old_max_health = getattr(self, 'max_health', None)
@@ -1025,7 +1066,7 @@ class Gamer:
         else:
             self.bank_account.normalize()
 
-        if migrated_awards or skill_points_migrated or max_health_migrated:
+        if migrated_awards or migrated_inventory or skill_points_migrated or max_health_migrated:
             self.save()
 
     def calculate_inflation(self):

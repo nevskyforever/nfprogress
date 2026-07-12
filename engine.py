@@ -10,10 +10,10 @@ from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = False
+dev_mode = True
 
 # Версия приложения
-version = '4.3.4'
+version = '4.3.5'
 
 # Определяем систему
 
@@ -106,18 +106,19 @@ def now_for_test():
         if isinstance(selected_datetime, datetime):
             return selected_datetime
 
-        selected_date = settings.get('today_for_test_date')
-        if isinstance(selected_date, datetime):
-            return selected_date
-        if isinstance(selected_date, date_type):
-            return datetime.combine(selected_date, datetime.now().time())
-
     return datetime.combine(date.today(), datetime.now().time())
 
 
 def today_for_test():
     """Возвращает сегодняшнюю дату."""
     return now_for_test().date()
+
+
+def is_developer_test_date_enabled():
+    """Возвращает True, если дата вручную задана в режиме разработчика."""
+    if not dev_mode:
+        return False
+    return load_settings().get('today_for_test_mode', False)
 
 
 STREAK_FREEZE_MARKER = 'freeze'
@@ -185,6 +186,8 @@ def remove_streak_day(streaks, target_day):
 
 def repair_streak_gap_after_date_bug(streaks, target_day):
     """Заполняет разрыв, возникший из-за зависшей смены даты после 09.07.2026."""
+    if is_developer_test_date_enabled():
+        return False
     if not isinstance(streaks, list):
         return False
 
@@ -653,15 +656,10 @@ class Project:
 
             # Проверяем дни вплоть до вчерашнего
             while current_day < today:
-                day_goal_symbols = plan.get(current_day)
-                # Если цель на пропущенный день известна и у нас хватает символов:
-                if day_goal_symbols is not None and total >= day_goal_symbols:
-                    self.streaks.append(current_day)
-                else:
-                    # Если день не был продлён, автоматически тратим заморозку из инвентаря.
-                    if not apply_project_freeze(self, current_day):
-                        # Символов не хватает и нет заморозок — обрываем восстановление
-                        break
+                # Пропущенный день нельзя закрывать текущим накопительным total:
+                # иначе написанное позже ретроактивно продлевает стрик без заморозки.
+                if not apply_project_freeze(self, current_day):
+                    break
                 current_day += timedelta(days=1)
 
         # Случай 1: сегодня уже есть запись в streaks (уже продлили сегодня)
@@ -1263,6 +1261,56 @@ def global_streak_status(data, today=None):
     data['global_streak_status'] = status
     save_data(data)
     return status
+
+
+def refresh_project_streak_statuses(data):
+    """Актуализирует локальные стрики проектов без UI-уведомлений."""
+    projects = data.get('projects', {})
+    global_streaks = data.setdefault('global_streaks', [])
+    if not isinstance(global_streaks, list):
+        global_streaks = []
+        data['global_streaks'] = global_streaks
+    changed = False
+    freeze_changed = False
+
+    for project_name, project in projects.items():
+        if not isinstance(project, Project):
+            continue
+
+        old_streaks = list(project.streaks) if isinstance(project.streaks, list) else []
+        old_status = project.streak_status
+        old_freezes = getattr(project, 'freezes', 0)
+        old_max_streak = getattr(project, 'max_streak', 0)
+
+        project.get_streak_status()
+
+        if getattr(project, 'freezes', 0) > old_freezes:
+            freeze_changed = True
+            new_freeze_days = [
+                effective_day
+                for entry, effective_day in iter_streak_days(project.streaks)
+                if entry == STREAK_FREEZE_MARKER
+            ][-(project.freezes - old_freezes):]
+            for freeze_day in new_freeze_days:
+                if streak_last_day(global_streaks) == freeze_day - timedelta(days=1):
+                    global_streaks.append(STREAK_FREEZE_MARKER)
+                    data['global_streak_status'] = 'Freeze'
+                    changed = True
+        if (
+                project.streaks != old_streaks
+                or project.streak_status != old_status
+                or getattr(project, 'freezes', 0) != old_freezes
+                or getattr(project, 'max_streak', 0) != old_max_streak
+                or global_streaks != data.get('global_streaks', [])
+        ):
+            changed = True
+            data['projects'][project_name] = project
+
+    if changed:
+        save_data(data)
+
+    return {'changed': changed, 'freeze_changed': freeze_changed}
+
 
 def global_streak_status_msg(data, status=None):
     """Сообщение для глобального стрика по статусу."""

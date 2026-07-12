@@ -223,6 +223,8 @@ class GameMenuController:
         if not self.gamer:
             return
 
+        self.refresh_streaks_before_game_events()
+
         # Проверяем уровень
 
         level_up_msg = self.gamer.level_up()
@@ -296,11 +298,43 @@ class GameMenuController:
         if should_check_quests or level_up_msg:
             self.update_quests_lists()
 
+        if self.gamer.health <= 0 and engine.load_settings().get('global_streak', False):
+            data = engine.load_data()
+            refresh_result = engine.refresh_project_streak_statuses(data)
+            global_status = engine.global_streak_status(data)
+            if refresh_result.get('freeze_changed'):
+                self.gamer = game.load_game()
+                self.update_inventory()
+                self.update_shops()
+            if (
+                    isinstance(global_status, str)
+                    and 'Lose' not in global_status.split()
+                    and self.gamer.last_lose_global_streak_damage == engine.today_for_test()
+            ):
+                restored = getattr(self.gamer, 'last_lose_global_streak_damage_amount', 0) or 1
+                self.gamer.health = min(self.gamer.get_max_health(), max(1, self.gamer.health + restored))
+                self.gamer.last_lose_global_streak_damage = None
+                self.gamer.last_lose_global_streak_damage_amount = 0
+                self.gamer.save()
+
         # Проверяем критические состояния
         if self.gamer.health <= 20 and self.gamer.health > 0:
             self.show_health_warning()
         elif self.gamer.health <= 0:
             self.show_death_warning()
+
+    def refresh_streaks_before_game_events(self):
+        """Даёт автозаморозкам сработать до урона, банка и проверки смерти."""
+        if not engine.load_settings().get('global_streak', False):
+            return
+
+        data = engine.load_data()
+        refresh_result = engine.refresh_project_streak_statuses(data)
+        engine.global_streak_status(data)
+        if refresh_result.get('freeze_changed'):
+            self.gamer = game.load_game()
+            self.update_inventory()
+            self.update_shops()
 
     def process_bank_events(self, show_toasts=True):
         if not self.gamer:
