@@ -227,8 +227,8 @@ class GameMenuController:
 
         # Перезагружаем игрока для актуальных данных
         self.gamer = game.load_game()
-        recovery_msg = self.gamer.recover_health_by_time(save=True)
         self.gamer.update_cf()
+        recovery_msg = self.gamer.recover_health_by_time(save=True)
         self.register_custom_awards()
         self.process_bank_events(show_toasts=True)
         if level_up_msg and self.notifications:

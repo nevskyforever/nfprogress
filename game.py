@@ -196,6 +196,11 @@ def resource_path(relative_path):
     return os.path.join(os.path.abspath("."), relative_path)
 
 
+def get_effective_now():
+    """Возвращает текущее время с датой из режима разработчика, если она включена."""
+    return engine.now_for_test()
+
+
 class Gamer:
     # === 2. ИНИЦИАЛИЗАЦИЯ ===
     def __init__(self, level=1, exp=0, coins=0, health=100):
@@ -213,7 +218,7 @@ class Gamer:
         self.skills = self.get_default_skills()
         self.available_skill_points = 0
         self.skill_points_awarded_for_level = level
-        self.last_health_recovery_at = datetime.now()
+        self.last_health_recovery_at = get_effective_now()
         self.items = {}
         self.custom_awards = []
         self.custom_awards_inventory = {}
@@ -378,7 +383,7 @@ class Gamer:
         return inventory_buffs
 
     def remove_expired_buffs(self, now=None):
-        now = now or datetime.now()
+        now = now or get_effective_now()
         active_buffs = [buff for buff in self.buffs if not buff.is_expired(now)]
         active_debuffs = [buff for buff in self.debuffs if not buff.is_expired(now)]
         changed = len(active_buffs) != len(self.buffs) or len(active_debuffs) != len(self.debuffs)
@@ -756,9 +761,15 @@ class Gamer:
         self.apply_buffs_to_cf(save=False)
 
     def recover_health_by_time(self, now=None, save=True):
-        now = now or datetime.now()
+        now = now or get_effective_now()
         if not isinstance(getattr(self, 'last_health_recovery_at', None), datetime):
             self.last_health_recovery_at = now
+
+        if now < self.last_health_recovery_at:
+            self.last_health_recovery_at = now
+            if save:
+                self.save()
+            return None
 
         recovery_per_hour = self.get_cf_value('health_recovery', 0.0)
         if recovery_per_hour <= 0 or self.health <= 0:
@@ -797,7 +808,7 @@ class Gamer:
             self.level = new_level
             self.exp = self.exp - game_data.levels[self.level - 1]
             self.health = 100
-            self.last_health_recovery_at = datetime.now()
+            self.last_health_recovery_at = get_effective_now()
             coins_bonus = self.set_coins(coins_bonus, process_bank_events=False, save=False)
 
             awarded_skill_points = self.add_skill_points_for_levels(self.level)
@@ -839,7 +850,7 @@ class Gamer:
 
     def damage(self, damage):
         self.health -= damage
-        self.last_health_recovery_at = datetime.now()
+        self.last_health_recovery_at = get_effective_now()
         self.save()
         return (f'Вы потеряли {damage} ед. здоровья'
                 f'У вас осталось {self.health} ед. здоровья')
@@ -891,7 +902,7 @@ class Gamer:
             'skills': self.get_default_skills(),
             'available_skill_points': 0,
             'skill_points_awarded_for_level': 1,
-            'last_health_recovery_at': datetime.now(),
+            'last_health_recovery_at': get_effective_now(),
             'items': {'Предметы': {},'Зелья': {},'Награды': {}},
             'custom_awards': [],
             'custom_awards_inventory': {},
@@ -933,7 +944,7 @@ class Gamer:
             elif attr == 'quests' and not isinstance(getattr(self, attr), list):
                 setattr(self, attr, [])
             elif attr == 'last_health_recovery_at' and not isinstance(getattr(self, attr), datetime):
-                setattr(self, attr, datetime.now())
+                setattr(self, attr, get_effective_now())
 
         if not self.economy_rebalanced_v1:
             # Считаем, сколько сейчас стоит зелье для игрока

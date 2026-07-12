@@ -1075,7 +1075,7 @@ def health_potion_func(do, add=None):
         if gamer.health > 100:
             gamer.health = 100
 
-        gamer.last_health_recovery_at = datetime.now()
+        gamer.last_health_recovery_at = game.get_effective_now()
         gamer.save()
 
         healed_amount = gamer.health - old_health
