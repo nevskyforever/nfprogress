@@ -1381,23 +1381,27 @@ class MainWindow(QMainWindow, main_window_ui):
 
         list_p.clear()
 
+        settings = en.load_settings()
+        should_give_streak_bonus = settings.get('game_mode', False) and settings.get('global_streak', False)
+        data_changed = False
+
         for project in projects:
             widget = self.generate_project_widget(project)
 
             # Даем бонус за стрик проекта и глобальный, если он включен
-            if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
+            if should_give_streak_bonus:
                 if project.last_streak_bonus != en.today_for_test():
                     if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
                                                               en.streak_length(project.streaks)):
                         project.last_streak_bonus = en.today_for_test()
                         data['projects'][project.name] = project
-                        save_data(data)
+                        data_changed = True
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
                                                               len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
-                        save_data(data)
+                        data_changed = True
 
             # Принудительно обновляем layout, чтобы sizeHint был актуальным
             widget.layout().activate()
@@ -1423,7 +1427,8 @@ class MainWindow(QMainWindow, main_window_ui):
             self.select_project_by_name(current_project_name)
         # Показываем, сколько написано сегодня в символах
         self.written_today_in_all_projects()
-        en.save_data(data)
+        if data_changed:
+            en.save_data(data)
 
     def check_global_streak(self):
         """Проверяет глобальный стрик и показывает уведомление"""
