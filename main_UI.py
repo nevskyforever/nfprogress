@@ -761,7 +761,7 @@ class MainWindow(QMainWindow, main_window_ui):
         progress = max(0, min(100, int(round(project.progress))))
         center = size / 2
         ring_outer = 620
-        ring_width = 116
+        ring_width = 78
         ring_rect = QRectF(
             center - ring_outer / 2,
             125,
@@ -784,7 +784,7 @@ class MainWindow(QMainWindow, main_window_ui):
             painter.drawArc(ring_rect, 90 * 16, int(-progress * 360 * 16 / 100))
 
         percent_font = QFont()
-        percent_font.setPointSize(92)
+        percent_font.setPointSize(132)
         percent_font.setBold(True)
         painter.setFont(percent_font)
         painter.setPen(QColor("#32F465"))
