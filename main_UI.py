@@ -28,6 +28,36 @@ from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_sy
 from update_checker import UpdateChecker, run_windows_updater_from_argv
 
 
+def _read_word_sync_source(project):
+    file_path = project.synch['path']
+    if not os.path.exists(file_path):
+        return None, None, 'missing'
+
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == '.docx':
+        symbols = en.count_symbols_in_docx(file_path)
+    elif ext == '.doc':
+        return None, None, 'doc_unsupported'
+    else:
+        return None, None, 'unsupported_format'
+
+    file_mtime = os.path.getmtime(file_path)
+    note_date = datetime.datetime.fromtimestamp(file_mtime)
+    return symbols, note_date, None
+
+
+def _read_scrivener_sync_source(project):
+    proj_path = project.synch['path']
+    item_id = project.synch['item_id']
+    if not os.path.exists(proj_path):
+        return None, None, 'missing'
+
+    symbols = count_symbols_in_scrivener_item(proj_path, item_id)
+    proj_mtime = os.path.getmtime(proj_path)
+    note_date = datetime.datetime.fromtimestamp(proj_mtime)
+    return symbols, note_date, None
+
+
 class MainWindow(QMainWindow, main_window_ui):
     def __init__(self):
         super().__init__()
@@ -1499,28 +1529,24 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def _sync_word(self, project, background_synch=False):
         """Синхронизация с Word-файлом"""
-        file_path = project.synch['path']
-        if not os.path.exists(file_path):
-            if not background_synch:
-                self.notifications.show_error(
-                    "Файл не найден. Возможно, он был перемещён.\n"
-                    "Настройте синхронизацию заново."
-                )
-            project.synch = None
-            return
-
         try:
-            ext = os.path.splitext(file_path)[1].lower()
-            if ext == '.docx':
-                symbols = en.count_symbols_in_docx(file_path)
-            elif ext == '.doc':
+            symbols, note_date, read_error = _read_word_sync_source(project)
+            if read_error == 'missing':
+                if not background_synch:
+                    self.notifications.show_error(
+                        "Файл не найден. Возможно, он был перемещён.\n"
+                        "Настройте синхронизацию заново."
+                    )
+                project.synch = None
+                return
+            elif read_error == 'doc_unsupported':
                 if not background_synch:
                     self.notifications.show_error(
                         "Поддержка .doc временно недоступна.\n"
                         "Пожалуйста, сохраните файл как .docx."
                     )
                 return
-            else:
+            elif read_error == 'unsupported_format':
                 if not background_synch:
                     self.notifications.show_error("Неподдерживаемый формат файла.")
                 return
@@ -1548,10 +1574,6 @@ class MainWindow(QMainWindow, main_window_ui):
                 added_progress = 0
             else:
                 added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
-
-            # Получаем дату последнего изменения файла
-            file_mtime = os.path.getmtime(file_path)  # timestamp в секундах
-            note_date = datetime.datetime.fromtimestamp(file_mtime)  # datetime объект
 
             # Создаём заметку (added_symbols может быть отрицательным)
             note = en.Note(new_total_symbols, added_symbols, added_progress, date_create=note_date)
@@ -1646,20 +1668,17 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def _sync_scrivener(self, project, background_synch=False):
         """Синхронизация с проектом Scrivener"""
-        proj_path = project.synch['path']
-        item_id = project.synch['item_id']
-
-        if not os.path.exists(proj_path):
-            if not background_synch:
-                self.notifications.show_error(
-                    "Папка проекта Scrivener не найдена.\n"
-                    "Настройте синхронизацию заново."
-                )
-            project.synch = None
-            return
-
         try:
-            symbols = count_symbols_in_scrivener_item(proj_path, item_id)
+            symbols, note_date, read_error = _read_scrivener_sync_source(project)
+            if read_error == 'missing':
+                if not background_synch:
+                    self.notifications.show_error(
+                        "Папка проекта Scrivener не найдена.\n"
+                        "Настройте синхронизацию заново."
+                    )
+                project.synch = None
+                return
+
             if symbols == 0 and project.total_units == 0:
                 if not background_synch:
                     self.notifications.show_warning(
@@ -1690,12 +1709,6 @@ class MainWindow(QMainWindow, main_window_ui):
                 added_progress = 0
             else:
                 added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
-
-            # Для Scrivener берём дату последнего изменения самого проекта (папки .scriv)
-            # или конкретного файла .scrivx / content.xml — как удобнее.
-            # Самый простой вариант — mtime папки проекта:
-            proj_mtime = os.path.getmtime(proj_path)
-            note_date = datetime.datetime.fromtimestamp(proj_mtime)
 
             note = en.Note(
                 new_total_symbols,
