@@ -792,7 +792,7 @@ class MainWindow(QMainWindow, main_window_ui):
         painter.setPen(progress_color)
         painter.drawText(ring_rect, Qt.AlignCenter, f"{progress}%")
 
-        title_rect = QRectF(80, 790, size - 160, 210)
+        title_rect = QRectF(80, 760, size - 160, 190)
         title_font = QFont()
         title_font.setPointSize(70)
         title_font.setBold(True)
@@ -813,8 +813,38 @@ class MainWindow(QMainWindow, main_window_ui):
             metrics = QFontMetrics(title_font)
 
         painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, project.name)
+        self._draw_progress_share_brand(painter, size)
         painter.end()
         return image
+
+    def _draw_progress_share_brand(self, painter: QPainter, image_size: int):
+        icon_size = 46
+        spacing = 14
+        brand_text = "nfprogress"
+        icon = QImage(en.resource_path("Icon-256.png"))
+
+        brand_font = QFont()
+        brand_font.setPointSize(28)
+        brand_font.setBold(True)
+        painter.setFont(brand_font)
+        painter.setPen(QColor("#2568AC"))
+
+        metrics = QFontMetrics(brand_font)
+        text_width = metrics.horizontalAdvance(brand_text)
+        text_height = metrics.height()
+        group_width = icon_size + spacing + text_width if not icon.isNull() else text_width
+        group_x = (image_size - group_width) / 2
+        center_y = image_size - 54
+
+        if not icon.isNull():
+            icon_rect = QRectF(group_x, center_y - icon_size / 2, icon_size, icon_size)
+            painter.drawImage(icon_rect, icon)
+            text_x = group_x + icon_size + spacing
+        else:
+            text_x = group_x
+
+        text_rect = QRectF(text_x, center_y - text_height / 2, text_width, text_height)
+        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, brand_text)
 
     def _get_progress_share_color(self, progress: int) -> QColor:
         ratio = max(0.0, min(1.0, progress / 100.0))
