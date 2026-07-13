@@ -214,7 +214,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def create_project(self):
         """Создаёт новый проект."""
-        dialog = CreateProject()
+        data = en.load_data()
+        dialog = CreateProject(existing_names=data['projects'].keys())
         result = dialog.exec()
 
         if result == QDialog.Accepted:
@@ -310,45 +311,38 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.settings_menu.removeAction(self.developer_mode_action)
                 self.developer_mode_action = None
 
+        data = en.load_data()
+        projects = data['projects']
+        data_changed = False
+
         if settings.get('inf_project'):
             # 1. Если есть старый ключ, мигрируем данные
-            if 'inf_project' in en.load_data()['projects']:
-                data = en.load_data()
-                old_inf_project = data['projects']['inf_project']
+            if 'inf_project' in projects:
+                old_inf_project = projects['inf_project']
                 old_inf_project.name = 'Общий проект'  # Обновляем имя внутри объекта проекта
-                data['projects']['Общий проект'] = old_inf_project
-                del data['projects']['inf_project']
-                save_data(data)
-                self.refresh_projects()
-
+                projects['Общий проект'] = old_inf_project
+                del projects['inf_project']
+                data_changed = True
 
             # 2. Если старого ключа нет И нового еще не создано — создаем с нуля
-            elif 'Общий проект' not in en.load_data()['projects']:
-                data = en.load_data()
+            elif 'Общий проект' not in projects:
                 inf_project = en.Project(name='Общий проект', goal=float('inf'), progress=100)
-                data['projects']['Общий проект'] = inf_project
-                save_data(data)
-                self.refresh_projects()
+                projects['Общий проект'] = inf_project
+                data_changed = True
         else:
-            data = en.load_data()
-            if data['projects'].get('Общий проект', False):
-                del data['projects']['Общий проект']
-                save_data(data)
-                self.refresh_projects()
-            if data['projects'].get('inf_project', False):
-                del data['projects']['inf_project']
-                save_data(data)
-                self.refresh_projects()
+            if projects.get('Общий проект', False):
+                del projects['Общий проект']
+                data_changed = True
+            if projects.get('inf_project', False):
+                del projects['inf_project']
+                data_changed = True
 
+        if data_changed:
+            save_data(data)
 
-        if settings.get('global_streak', False):
-            self.global_streak_status.setVisible(True)
-            self.refresh_projects()
-            self.view_project()
-        else:
-            self.global_streak_status.setVisible(False)
-            self.refresh_projects()
-            self.view_project()
+        self.global_streak_status.setVisible(settings.get('global_streak', False))
+        self.refresh_projects()
+        self.view_project()
         if settings.get('show_written_today_in_all_projects'):
             self.written_today_in_all_projects_label.setVisible(True)
             self.written_today_in_all_projects()
@@ -383,7 +377,6 @@ class MainWindow(QMainWindow, main_window_ui):
                     en.save_data(data)
                 en.save_settings(settings)
         self.applying_settings()
-        self.refresh_projects()
 
     def view_project(self):
         """Отображает информацию о выбранном проекте"""
@@ -928,7 +921,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def edit_project(self, project):
         """Редактирует существующий проект."""
-        dialog = EditProject(project)
+        data = en.load_data()
+        dialog = EditProject(project, existing_names=data['projects'].keys())
         result = dialog.exec()
 
         if result == QDialog.Accepted:
@@ -1952,9 +1946,10 @@ class ConfirmDialog(QDialog, confirm_dialog_ui):
 
 
 class CreateProject(QDialog, create_project_ui):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, existing_names=None):
         super().__init__(parent)
         self.setupUi(self)
+        self.existing_names = set(existing_names or [])
 
         # Словари для преобразования
         self.text_to_unit = {
@@ -2115,9 +2110,6 @@ class CreateProject(QDialog, create_project_ui):
 
     def validate_all(self):
         """Валидация всех полей."""
-        data = en.load_data()
-        existing_names = list(data['projects'].keys())
-
         # Сбрасываем сообщения об ошибках (кроме имени, если оно есть)
         self.incorrect_data.setVisible(False)
         error_messages = []
@@ -2125,7 +2117,7 @@ class CreateProject(QDialog, create_project_ui):
         # Проверка имени
         current_name = self.le_name.text().strip()
         name_filled = bool(current_name)
-        name_incorrect = current_name in existing_names and current_name != ""
+        name_incorrect = current_name in self.existing_names and current_name != ""
         if name_incorrect:
             error_messages.append("Проект с таким именем уже существует")
 
@@ -2225,13 +2217,14 @@ class CreateProject(QDialog, create_project_ui):
 
 
 class EditProject(QDialog, create_project_ui):
-    def __init__(self, project, parent=None):
+    def __init__(self, project, parent=None, existing_names=None):
         super().__init__(parent)
         self.setupUi(self)
         self.setWindowTitle('Редактирование проекта')
 
         self.project = project
         self.original_name = project.name
+        self.existing_names = set(existing_names or [])
 
         # Словари для преобразования
         self.text_to_unit = {
@@ -2410,9 +2403,6 @@ class EditProject(QDialog, create_project_ui):
             self._updating = False
 
     def validate_all(self):
-        data = en.load_data()
-        existing_names = list(data['projects'].keys())
-
         self.incorrect_data.setVisible(False)
         error_messages = []
 
@@ -2421,7 +2411,7 @@ class EditProject(QDialog, create_project_ui):
         name_filled = bool(current_name)
         name_incorrect = False
         if name_filled and current_name != self.original_name:
-            name_incorrect = current_name in existing_names
+            name_incorrect = current_name in self.existing_names
         if name_incorrect:
             error_messages.append("Проект с таким именем уже существует")
 
