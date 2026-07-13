@@ -772,14 +772,16 @@ class MainWindow(QMainWindow, main_window_ui):
         painter = QPainter(image)
         painter.setRenderHint(QPainter.Antialiasing)
 
-        pen = QPen(QColor("#E6E6E6"))
+        progress_color = self._get_progress_share_color(progress)
+
+        pen = QPen(QColor("#E6EBEF"))
         pen.setWidth(ring_width)
         pen.setCapStyle(Qt.RoundCap)
         painter.setPen(pen)
         painter.drawArc(ring_rect, 0, 360 * 16)
 
         if progress > 0:
-            pen.setColor(QColor("#32F465"))
+            pen.setColor(progress_color)
             painter.setPen(pen)
             painter.drawArc(ring_rect, 90 * 16, int(-progress * 360 * 16 / 100))
 
@@ -787,7 +789,7 @@ class MainWindow(QMainWindow, main_window_ui):
         percent_font.setPointSize(132)
         percent_font.setBold(True)
         painter.setFont(percent_font)
-        painter.setPen(QColor("#32F465"))
+        painter.setPen(progress_color)
         painter.drawText(ring_rect, Qt.AlignCenter, f"{progress}%")
 
         title_rect = QRectF(80, 790, size - 160, 210)
@@ -813,6 +815,17 @@ class MainWindow(QMainWindow, main_window_ui):
         painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, project.name)
         painter.end()
         return image
+
+    def _get_progress_share_color(self, progress: int) -> QColor:
+        ratio = max(0.0, min(1.0, progress / 100.0))
+        start_color = QColor("#A9A9A9")
+        end_color = QColor("#2568AC")
+
+        r = start_color.red() + ratio * (end_color.red() - start_color.red())
+        g = start_color.green() + ratio * (end_color.green() - start_color.green())
+        b = start_color.blue() + ratio * (end_color.blue() - start_color.blue())
+
+        return QColor(int(r), int(g), int(b))
 
     def load_notes(self, project):
         """Загружает список заметок проекта с отображением добавленного и общего количества."""
