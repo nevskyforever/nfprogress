@@ -4,7 +4,7 @@ import os
 import sys
 import threading
 
-from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags
+from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot
 from PySide6.QtGui import QKeySequence
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
@@ -58,6 +58,47 @@ def _read_scrivener_sync_source(project):
     return symbols, note_date, None
 
 
+class SyncReadWorker(QObject):
+    finished = Signal(object, str, object, object, object, bool, object)
+    failed = Signal(object, str, str, bool, object)
+
+    def __init__(self, project, sync_type, background_synch=False, batch_id=None):
+        super().__init__()
+        self.project = project
+        self.sync_type = sync_type
+        self.background_synch = background_synch
+        self.batch_id = batch_id
+
+    @Slot()
+    def run(self):
+        try:
+            if self.sync_type == 'word':
+                symbols, note_date, read_error = _read_word_sync_source(self.project)
+            elif self.sync_type == 'scrivener':
+                symbols, note_date, read_error = _read_scrivener_sync_source(self.project)
+            else:
+                symbols, note_date, read_error = None, None, 'unsupported_sync_type'
+        except Exception as error:
+            self.failed.emit(
+                self.project,
+                self.sync_type,
+                str(error),
+                self.background_synch,
+                self.batch_id
+            )
+            return
+
+        self.finished.emit(
+            self.project,
+            self.sync_type,
+            symbols,
+            note_date,
+            read_error,
+            self.background_synch,
+            self.batch_id
+        )
+
+
 class MainWindow(QMainWindow, main_window_ui):
     def __init__(self):
         super().__init__()
@@ -81,6 +122,8 @@ class MainWindow(QMainWindow, main_window_ui):
         self._previous_tab = None
         # были ли уже подключены обработчики кнопок проекта (setup_project_buttons)
         self._project_buttons_connected = False
+        self._sync_threads = {}
+        self._background_sync_batches = {}
 
         # Применяем настройки
         self.applying_settings()
@@ -177,6 +220,9 @@ class MainWindow(QMainWindow, main_window_ui):
         for toast in list(self.notifications.toasts):
             toast.fade_in_anim.stop()
             toast.fade_out_anim.stop()
+
+        for project_name in list(self._sync_threads):
+            self._cleanup_sync_read_worker(project_name)
 
         super().closeEvent(event)
 
@@ -1486,7 +1532,7 @@ class MainWindow(QMainWindow, main_window_ui):
         if not user_agreement:
             self.user_agreement()
 
-    def sync_project(self, project, background_synch=False):
+    def sync_project(self, project, background_synch=False, batch_id=None):
         # Если синхронизация не настроена
         if project.synch is None:
             if background_synch:
@@ -1511,46 +1557,124 @@ class MainWindow(QMainWindow, main_window_ui):
 
             if sync_type == 'word':
                 if not background_synch:
-                    self._sync_word(project)
+                    return self._sync_word(project)
                 else:
-                    self._sync_word(project, True)
+                    return self._sync_word(project, True, batch_id=batch_id)
             elif sync_type == 'scrivener':
                 if not background_synch:
-                    self._sync_scrivener(project)
+                    return self._sync_scrivener(project)
                 else:
-                    self._sync_scrivener(project, True)
+                    return self._sync_scrivener(project, True, batch_id=batch_id)
             else:
                 self.notifications.show_error("Неизвестный тип синхронизации")
+                return False
         else:
             # Старый формат (строка) – считаем как word
             # Конвертируем на лету
             project.synch = {'type': 'word', 'path': project.synch}
-            self._sync_word(project)
+            return self._sync_word(project)
 
-    def _sync_word(self, project, background_synch=False):
+        return False
+
+    def _start_sync_read(self, project, sync_type, background_synch=False, batch_id=None):
+        project_name = project.name
+        if project_name in self._sync_threads:
+            if not background_synch:
+                self.notifications.show_info("Синхронизация уже выполняется.")
+            return False
+
+        thread = QThread(self)
+        worker = SyncReadWorker(project, sync_type, background_synch, batch_id)
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_sync_read_finished)
+        worker.failed.connect(self._on_sync_read_failed)
+
+        self._sync_threads[project_name] = (thread, worker)
+        thread.start()
+        return True
+
+    def _cleanup_sync_read_worker(self, project_name):
+        thread_worker = self._sync_threads.pop(project_name, None)
+        if thread_worker is None:
+            return
+
+        thread, worker = thread_worker
+        worker.deleteLater()
+        thread.quit()
+        thread.wait()
+        thread.deleteLater()
+
+    def _finish_background_sync_item(self, batch_id):
+        if batch_id is None:
+            return
+
+        batch = self._background_sync_batches.get(batch_id)
+        if batch is None:
+            return
+
+        batch['pending'] -= 1
+        if batch['pending'] > 0:
+            return
+
+        self._background_sync_batches.pop(batch_id, None)
+        if not batch['silent']:
+            self.notifications.show_success(f"Синхронизировано проектов: {batch['total']}")
+
+    @Slot(object, str, object, object, object, bool, object)
+    def _on_sync_read_finished(self, project, sync_type, symbols, note_date, read_error, background_synch, batch_id):
+        self._cleanup_sync_read_worker(project.name)
+
+        if sync_type == 'word':
+            self._handle_word_sync_read_result(project, symbols, note_date, read_error, background_synch)
+        elif sync_type == 'scrivener':
+            self._handle_scrivener_sync_read_result(project, symbols, note_date, read_error, background_synch)
+        elif not background_synch:
+            self.notifications.show_error("Неизвестный тип синхронизации")
+
+        self._finish_background_sync_item(batch_id)
+
+    @Slot(object, str, str, bool, object)
+    def _on_sync_read_failed(self, project, sync_type, error, background_synch, batch_id):
+        self._cleanup_sync_read_worker(project.name)
+
+        if not background_synch:
+            if sync_type == 'word':
+                self.notifications.show_error(f"Ошибка при чтении файла: {error}")
+            elif sync_type == 'scrivener':
+                self.notifications.show_error(f"Ошибка при синхронизации Scrivener: {error}")
+            else:
+                self.notifications.show_error(f"Ошибка синхронизации: {error}")
+
+        self._finish_background_sync_item(batch_id)
+
+    def _sync_word(self, project, background_synch=False, batch_id=None):
         """Синхронизация с Word-файлом"""
-        try:
-            symbols, note_date, read_error = _read_word_sync_source(project)
-            if read_error == 'missing':
-                if not background_synch:
-                    self.notifications.show_error(
-                        "Файл не найден. Возможно, он был перемещён.\n"
-                        "Настройте синхронизацию заново."
-                    )
-                project.synch = None
-                return
-            elif read_error == 'doc_unsupported':
-                if not background_synch:
-                    self.notifications.show_error(
-                        "Поддержка .doc временно недоступна.\n"
-                        "Пожалуйста, сохраните файл как .docx."
-                    )
-                return
-            elif read_error == 'unsupported_format':
-                if not background_synch:
-                    self.notifications.show_error("Неподдерживаемый формат файла.")
-                return
+        return self._start_sync_read(project, 'word', background_synch, batch_id)
 
+    def _handle_word_sync_read_result(self, project, symbols, note_date, read_error, background_synch=False):
+        if read_error == 'missing':
+            if not background_synch:
+                self.notifications.show_error(
+                    "Файл не найден. Возможно, он был перемещён.\n"
+                    "Настройте синхронизацию заново."
+                )
+            project.synch = None
+            return
+        elif read_error == 'doc_unsupported':
+            if not background_synch:
+                self.notifications.show_error(
+                    "Поддержка .doc временно недоступна.\n"
+                    "Пожалуйста, сохраните файл как .docx."
+                )
+            return
+        elif read_error == 'unsupported_format':
+            if not background_synch:
+                self.notifications.show_error("Неподдерживаемый формат файла.")
+            return
+
+        try:
             # Конвертируем количество символов в единицу проекта
             new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
             current_total_in_unit = project.total_units
@@ -1666,19 +1790,21 @@ class MainWindow(QMainWindow, main_window_ui):
             if not background_synch:
                 self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
 
-    def _sync_scrivener(self, project, background_synch=False):
+    def _sync_scrivener(self, project, background_synch=False, batch_id=None):
         """Синхронизация с проектом Scrivener"""
-        try:
-            symbols, note_date, read_error = _read_scrivener_sync_source(project)
-            if read_error == 'missing':
-                if not background_synch:
-                    self.notifications.show_error(
-                        "Папка проекта Scrivener не найдена.\n"
-                        "Настройте синхронизацию заново."
-                    )
-                project.synch = None
-                return
+        return self._start_sync_read(project, 'scrivener', background_synch, batch_id)
 
+    def _handle_scrivener_sync_read_result(self, project, symbols, note_date, read_error, background_synch=False):
+        if read_error == 'missing':
+            if not background_synch:
+                self.notifications.show_error(
+                    "Папка проекта Scrivener не найдена.\n"
+                    "Настройте синхронизацию заново."
+                )
+            project.synch = None
+            return
+
+        try:
             if symbols == 0 and project.total_units == 0:
                 if not background_synch:
                     self.notifications.show_warning(
@@ -1935,11 +2061,15 @@ class MainWindow(QMainWindow, main_window_ui):
             # Нет проектов для синхронизации — ничего не делаем
             return
 
+        batch_id = object()
+        self._background_sync_batches[batch_id] = {
+            'pending': len(projects_with_sync),
+            'total': len(projects_with_sync),
+            'silent': silent,
+        }
         for project in projects_with_sync:
-            self.sync_project(project, True)  # фоновая синхронизация
-
-        if not silent:
-            self.notifications.show_success(f'Синхронизировано проектов: {len(projects_with_sync)}')
+            if not self.sync_project(project, True, batch_id=batch_id):  # фоновая синхронизация
+                self._finish_background_sync_item(batch_id)
 
     def written_today_in_all_projects(self):
         projects = en.load_data()['projects']
