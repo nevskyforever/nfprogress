@@ -25,6 +25,7 @@ nuitka --standalone \
        --enable-plugin=pyside6 \
        --output-dir=build-arm \
        --include-data-dir="$TRANSLATIONS_TMP=PySide6/Qt/translations" \
+       --include-data-files=Icon-256.png=Icon-256.png \
        --lto=yes \
        --disable-ccache \
        --remove-output \
