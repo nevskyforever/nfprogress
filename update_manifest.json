@@ -3,7 +3,7 @@
   "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.3.5.zip",
   "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.4.zip",
   "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.4.zip",
-  "notes": "Добавлена возможность делиться прогрессом по проекту. В окне проекта теперь есть кнопка «Поделиться»,  которая генерирует картинку с круговой диаграммой и прогрессом по проекту, добавляя ее в буфер обмена. Вы можете сразу же поделиться ей в соцсетях.",
+  "notes": "Исправление багов.",
   "windows_version": "4.3.5",
   "macos_arm_version": "4.4",
   "macos_intel_version": "4.4"
