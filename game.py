@@ -403,14 +403,23 @@ class Gamer:
                 if item_buff.stackable:
                     merge_key = (item_buff.name, item_buff.target_cf, item_buff.buff_type)
                     if merge_key in merged_stackable_buffs:
-                        merged_stackable_buffs[merge_key].value += item_buff.value * count
+                        merged_stackable_buffs[merge_key]['total_value'] += item_buff.value * count
+                        merged_stackable_buffs[merge_key]['stacks'] += count
                     else:
-                        item_buff.value *= count
-                        merged_stackable_buffs[merge_key] = item_buff
+                        merged_stackable_buffs[merge_key] = {
+                            'buff': item_buff,
+                            'stacks': count,
+                            'total_value': item_buff.value * count,
+                        }
                 else:
                     inventory_buffs.append((item_buff, 1))
 
-        inventory_buffs.extend((buff, 1) for buff in merged_stackable_buffs.values())
+        for merged_buff in merged_stackable_buffs.values():
+            buff = merged_buff['buff']
+            stacks = merged_buff['stacks']
+            if stacks > 0:
+                buff.value = merged_buff['total_value'] / stacks
+            inventory_buffs.append((buff, stacks))
         return inventory_buffs
 
     def remove_expired_buffs(self, now=None):

@@ -737,11 +737,16 @@ class GameMenuController:
         )
         sign = "+" if buff.is_positive() else "-"
         stack_text = f"\nКоличество: {stacks}" if stacks > 1 else ""
+        total_text = f"\nИтого: {sign}{abs(buff.value * stacks):g}" if stacks > 1 else ""
         parameter_name = self.get_cf_display_name(buff.target_cf)
 
         labels[0].setText(buff.name)
         labels[1].setText(buff.description)
-        labels[2].setText(f"Параметр: {parameter_name}\nЗначение: {sign}{abs(buff.value):g}{stack_text}")
+        labels[2].setText(
+            f"Параметр: {parameter_name}\n"
+            f"Значение за награду: {sign}{abs(buff.value):g}"
+            f"{stack_text}{total_text}"
+        )
         labels[3].clear()
         if buff.end_time is None:
             labels[4].clear()
