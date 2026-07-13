@@ -4,8 +4,8 @@ import os
 import sys
 import threading
 
-from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot
-from PySide6.QtGui import QKeySequence
+from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF
+from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel
@@ -667,6 +667,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.pb_save_flash_note.clicked.disconnect()
             self.delete_note.clicked.disconnect()
             self.btn_synch_project.clicked.disconnect()
+            self.share_progress.clicked.disconnect()
 
         self._project_buttons_connected = True
 
@@ -679,6 +680,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.pb_save_flash_note.clicked.connect(lambda: self.refresh_global_streak_status())
         self.delete_note.clicked.connect(lambda: self.delete_selected_note(project))
         self.btn_synch_project.clicked.connect(lambda: self.sync_project(project))
+        self.share_progress.clicked.connect(lambda: self.share_project_progress(project))
         # Включение/отключение действия удаления синхронизации в меню
         self.del_synch_action.setEnabled(project.synch is not None)
 
@@ -740,6 +742,77 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Обновляем статус синхронизации
         self.update_sync_status_label(project)
+
+    def share_project_progress(self, project: en.Project):
+        """Копирует картинку прогресса проекта в буфер обмена."""
+        if project.goal == float('inf'):
+            self.notifications.show_warning("Для проекта без цели нельзя создать картинку прогресса")
+            return
+
+        image = self._create_progress_share_image(project)
+        QApplication.clipboard().setImage(image)
+        self.notifications.show_info("Картинка прогресса добавлена в буфер обмена")
+
+    def _create_progress_share_image(self, project: en.Project) -> QImage:
+        size = 1080
+        image = QImage(size, size, QImage.Format_ARGB32)
+        image.fill(QColor("#FFFFFF"))
+
+        progress = max(0, min(100, int(round(project.progress))))
+        center = size / 2
+        ring_outer = 620
+        ring_width = 116
+        ring_rect = QRectF(
+            center - ring_outer / 2,
+            125,
+            ring_outer,
+            ring_outer
+        )
+
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+
+        pen = QPen(QColor("#E6E6E6"))
+        pen.setWidth(ring_width)
+        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(pen)
+        painter.drawArc(ring_rect, 0, 360 * 16)
+
+        if progress > 0:
+            pen.setColor(QColor("#32F465"))
+            painter.setPen(pen)
+            painter.drawArc(ring_rect, 90 * 16, int(-progress * 360 * 16 / 100))
+
+        percent_font = QFont()
+        percent_font.setPointSize(92)
+        percent_font.setBold(True)
+        painter.setFont(percent_font)
+        painter.setPen(QColor("#32F465"))
+        painter.drawText(ring_rect, Qt.AlignCenter, f"{progress}%")
+
+        title_rect = QRectF(80, 790, size - 160, 210)
+        title_font = QFont()
+        title_font.setPointSize(70)
+        title_font.setBold(True)
+        painter.setFont(title_font)
+        painter.setPen(QColor("#000000"))
+
+        metrics = QFontMetrics(title_font)
+        while title_font.pointSize() > 34:
+            bounding = metrics.boundingRect(
+                title_rect.toRect(),
+                Qt.AlignCenter | Qt.TextWordWrap,
+                project.name
+            )
+            if bounding.height() <= title_rect.height() and bounding.width() <= title_rect.width():
+                break
+            title_font.setPointSize(title_font.pointSize() - 2)
+            painter.setFont(title_font)
+            metrics = QFontMetrics(title_font)
+
+        painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, project.name)
+        painter.end()
+        return image
 
     def load_notes(self, project):
         """Загружает список заметок проекта с отображением добавленного и общего количества."""

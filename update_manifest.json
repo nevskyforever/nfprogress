@@ -1,10 +1,10 @@
 {
-  "version": "4.3.4",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.3.3.zip",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.3.4.zip",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.3.4.zip",
-  "notes": "Приложение прошло масштабную оптимизацию, перейдя с пошагового выполнения действий на работу с несколькими действиями одновременно. Это увеличит скорость работы приложения.\u2028\u2028В игровой режим добавлено 10 новых квестов, возможность продавать предметы из инвентаря, квестовые награды теперь дают небольшой положительный эффект к параметру, который увеличивается от количества наград в инвентаре.",
-  "windows_version": "4.3.3",
-  "macos_arm_version": "4.3.4",
-  "macos_intel_version": "4.3.4"
+  "version": "4.4",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.3.5.zip",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.4.zip",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.4.zip",
+  "notes": "Приложение прошло масштабную оптимизацию, перейдя с пошагового выполнения действий на работу с несколькими действиями одновременно. Это увеличит скорость работы приложения.  В игровой режим добавлено 10 новых квестов, возможность продавать предметы из инвентаря, квестовые награды теперь дают небольшой положительный эффект к параметру, который увеличивается от количества наград в инвентаре.",
+  "windows_version": "4.3.5",
+  "macos_arm_version": "4.4",
+  "macos_intel_version": "4.4"
 }
