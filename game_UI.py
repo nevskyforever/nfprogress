@@ -19,6 +19,9 @@ from engine import load_data, save_data, today_for_test, unit_converter
 class GameMenuController:
     """Класс для управления игровым меню"""
     INVENTORY_FILTER_ALL = 'Все'
+    FREEZE_CATEGORY = 'Предметы'
+    FREEZE_ITEM_KEY = 'Заморозка'
+    FREEZE_MAX_COUNT = 2
 
     def __init__(self, ui, notifications = None):
         """
@@ -78,6 +81,7 @@ class GameMenuController:
         self.ui.value_for_buy_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_potion.setMaximum(999)
         self.ui.value_for_buy_selected_item_3.setMaximum(999)
+        self.ui.value_for_buy_selected_item.setMinimum(1)
 
         # Очищаем информационные поля
         self.clear_all_info()
@@ -860,9 +864,6 @@ class GameMenuController:
         if 'Предметы' in game_data.ITEM_REGISTRY:
             for item_name, item_obj in game_data.ITEM_REGISTRY['Предметы'].items():
                 if game.load_game().level >= item_obj.level:
-                    # Проверяем кол-во заморозок в инвентаре и скрываем их, если их больше 2
-                    if item_name == 'Заморозка' and self.get_inventory_item_count('Предметы', item_obj, item_name) >= 2:
-                        continue
                     display_text = f"{item_obj.name}"
                     item = QListWidgetItem(display_text)
                     item.setData(1, ('Предметы', item_name))
@@ -1084,6 +1085,7 @@ class GameMenuController:
             except:
                 effect_text = "Активируется при использовании"
         effect_label.setText(f"⚡ {effect_text}{self.describe_item_buff(item_obj)}")
+        self.update_shop_purchase_controls(category, item_name, item_obj, is_potion=is_potion)
 
     def clear_item_info(self):
         """Очистка информации о предметах в магазине"""
@@ -1091,6 +1093,9 @@ class GameMenuController:
         self.ui.description_selected_item_on_shop.clear()
         self.ui.peice_selected_item_on_shop.clear()
         self.ui.effect_selected_item_on_shop.clear()
+        self.ui.button_for_buy_selected_item.setEnabled(True)
+        self.ui.value_for_buy_selected_item.setMaximum(999)
+        self.ui.value_for_buy_selected_item.setValue(1)
 
     def clear_potion_info(self):
         """Очистка информации о зельях в магазине"""
@@ -1273,68 +1278,65 @@ class GameMenuController:
 
         count = spinbox.value()
 
-        # Если выбрана заморозка и пытаются купить больше одной
-        if item_name == 'Заморозка' and count > 1:
-            QMessageBox.warning(
-                self.ui.centralwidget,
-                "Ошибка",
-                f"Нельзя купить больше одной заморозки за раз"
-            )
-        else:
+        _, item_obj = game_data.find_registry_item(category, item_name)
+        if item_obj:
+            limit_message = self.validate_registry_purchase_limit(category, item_name, item_obj, count)
+            if limit_message:
+                QMessageBox.warning(self.ui.centralwidget, "Ошибка", limit_message)
+                self.update_shop_purchase_controls(category, item_name, item_obj, expected_category == "Зелья")
+                return
 
-            _, item_obj = game_data.find_registry_item(category, item_name)
-            if item_obj:
-                item_display_name = item_obj.name
-                total_price = item_obj.price * count
+            item_display_name = item_obj.name
+            total_price = item_obj.price * count
 
-                # Проверяем достаточно ли монет
-                if self.gamer.get_coins() < total_price:
-                    if not getattr(item_obj, 'credit_allowed', True):
-                        QMessageBox.warning(
-                            self.ui.centralwidget,
-                            "Ошибка",
-                            f"Недостаточно монет!\n"
-                            f"Нужно: {total_price}💰\n"
-                            f"У вас: {self.gamer.get_coins()}💰\n\n"
-                            f"Этот предмет нельзя купить в кредит."
-                        )
-                        return
-                    if not self.offer_purchase_credit(total_price, f"{count} x {item_display_name}"):
-                        return
-                    skip_confirmation = True
-                else:
-                    skip_confirmation = False
-
-                if not skip_confirmation:
-                    reply = QMessageBox.question(
+            # Проверяем достаточно ли монет
+            if self.gamer.get_coins() < total_price:
+                if not getattr(item_obj, 'credit_allowed', True):
+                    QMessageBox.warning(
                         self.ui.centralwidget,
-                        "Подтверждение покупки",
-                        f"Купить {count} x {item_display_name} за {total_price}💰?",
-                        QMessageBox.Yes | QMessageBox.No
+                        "Ошибка",
+                        f"Недостаточно монет!\n"
+                        f"Нужно: {total_price}💰\n"
+                        f"У вас: {self.gamer.get_coins()}💰\n\n"
+                        f"Этот предмет нельзя купить в кредит."
                     )
+                    return
+                if not self.offer_purchase_credit(total_price, f"{count} x {item_display_name}"):
+                    return
+                skip_confirmation = True
+            else:
+                skip_confirmation = False
 
-                    if reply == QMessageBox.No:
-                        return
+            if not skip_confirmation:
+                reply = QMessageBox.question(
+                    self.ui.centralwidget,
+                    "Подтверждение покупки",
+                    f"Купить {count} x {item_display_name} за {total_price}💰?",
+                    QMessageBox.Yes | QMessageBox.No
+                )
 
-                # Покупаем предметы
-                success_count = self.purchase_registry_item(item_obj, count, total_price)
+                if reply == QMessageBox.No:
+                    return
 
-                if success_count > 0:
-                    self.gamer = game.load_game()
-                    self.register_custom_awards()
-                    self.update_game_data()
-                    self.update_inventory()
+            # Покупаем предметы
+            success_count = self.purchase_registry_item(item_obj, count, total_price)
 
-                    QMessageBox.information(
-                        self.ui.centralwidget,
-                        "Успех",
-                        f"✅ Куплено {success_count} x {item_display_name}\n"
-                        f"Потрачено: {item_obj.price * success_count}💰"
-                    )
-                    self.clear_item_info()
-                    self.clear_award_info()
-                    self.clear_inventory_item_info()
-                    self.update_shops()
+            if success_count > 0:
+                self.gamer = game.load_game()
+                self.register_custom_awards()
+                self.update_game_data()
+                self.update_inventory()
+
+                QMessageBox.information(
+                    self.ui.centralwidget,
+                    "Успех",
+                    f"✅ Куплено {success_count} x {item_display_name}\n"
+                    f"Потрачено: {item_obj.price * success_count}💰"
+                )
+                self.clear_item_info()
+                self.clear_award_info()
+                self.clear_inventory_item_info()
+                self.update_shops()
 
     def buy_selected_custom_award(self):
         """Покупка кастомной награды с хранением в gamer.custom_awards."""
@@ -1451,6 +1453,12 @@ class GameMenuController:
     def purchase_registry_item(self, item_obj, count, total_price):
         self.gamer = game.load_game()
         self.register_custom_awards()
+        registry_key, _ = game_data.find_registry_item(item_obj.item_type, item_obj.name)
+        limit_message = self.validate_registry_purchase_limit(item_obj.item_type, registry_key, item_obj, count)
+        if limit_message:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", limit_message)
+            return 0
+
         if self.gamer.get_coins() < total_price:
             credit_text = ''
             if not getattr(item_obj, 'credit_allowed', True):
@@ -1475,6 +1483,69 @@ class GameMenuController:
         self.gamer.set_items(items)
         self.gamer.save()
         return count
+
+    def is_freeze_shop_item(self, category, item_name=None, item_obj=None):
+        if category != self.FREEZE_CATEGORY:
+            return False
+
+        registry_key = None
+        if item_name:
+            registry_key, _ = game_data.find_registry_item(category, item_name)
+        elif item_obj is not None:
+            registry_key, _ = game_data.find_registry_item(category, getattr(item_obj, 'name', None))
+        return registry_key == self.FREEZE_ITEM_KEY
+
+    def get_freeze_inventory_count(self):
+        self.gamer = game.load_game()
+        _, freeze_item = game_data.find_registry_item(self.FREEZE_CATEGORY, self.FREEZE_ITEM_KEY)
+        return self.get_inventory_item_count(self.FREEZE_CATEGORY, freeze_item, self.FREEZE_ITEM_KEY)
+
+    def get_freeze_purchase_remaining(self):
+        return max(0, self.FREEZE_MAX_COUNT - self.get_freeze_inventory_count())
+
+    def validate_registry_purchase_limit(self, category, item_name, item_obj, count):
+        if not self.is_freeze_shop_item(category, item_name, item_obj):
+            return None
+
+        current_count = self.get_freeze_inventory_count()
+        if current_count >= self.FREEZE_MAX_COUNT:
+            return 'В инвентаре уже 2 заморозки. Больше купить нельзя.'
+
+        if current_count + count > self.FREEZE_MAX_COUNT:
+            remaining = self.FREEZE_MAX_COUNT - current_count
+            return f'Можно иметь не больше 2 заморозок. Сейчас доступно к покупке: {remaining}.'
+
+        return None
+
+    def update_shop_purchase_controls(self, category, item_name, item_obj, is_potion=False):
+        if is_potion:
+            spinbox = self.ui.value_for_buy_selected_potion
+            button = self.ui.button_for_buy_selected_potion
+        else:
+            spinbox = self.ui.value_for_buy_selected_item
+            button = self.ui.button_for_buy_selected_item
+
+        button.setEnabled(True)
+        spinbox.setMaximum(999)
+        if spinbox.value() < 1:
+            spinbox.setValue(1)
+
+        if is_potion or not self.is_freeze_shop_item(category, item_name, item_obj):
+            return
+
+        remaining = self.get_freeze_purchase_remaining()
+        if remaining <= 0:
+            spinbox.setMaximum(1)
+            spinbox.setValue(1)
+            button.setEnabled(False)
+            self.ui.effect_selected_item_on_shop.setText(
+                f'{self.ui.effect_selected_item_on_shop.text()}\nВ инвентаре уже 2 заморозки.'
+            )
+            return
+
+        spinbox.setMaximum(remaining)
+        if spinbox.value() > remaining:
+            spinbox.setValue(remaining)
 
     def use_custom_award(self, item_name, count):
         """Использование кастомной награды без игрового эффекта."""
