@@ -142,6 +142,8 @@ class GameMenuController:
         # Инвентарь
         self.ui.inventory_list.itemClicked.connect(self.on_inventory_item_selected)
         self.ui.button_for_selected_item.clicked.connect(self.on_use_item)
+        if hasattr(self.ui, 'button_to_sell_selected_item'):
+            self.ui.button_to_sell_selected_item.clicked.connect(self.on_sell_item)
         self.ui.inventory_filter_comboBox.currentTextChanged.connect(self.on_inventory_filter_changed)
 
         # Магазин предметов
@@ -910,13 +912,15 @@ class GameMenuController:
                 return
 
             count = self.get_custom_award_count(award)
+            sale_info = self.format_sale_info(award)
             self.ui.name_selected_item.setText(f"🏆 {award.name}")
             self.ui.description_selected_item.setText(f"📝 {award.description}")
             self.ui.level_selected_item.setText("⭐ Уровень: 1")
             self.ui.effect_selected_item.setText(
-                f"⚡ Нет эффекта\n🔢 В наличии: {count}"
+                f"⚡ Нет эффекта\n🔢 В наличии: {count}{sale_info}"
             )
             self.ui.value_for_use_selected_item.setMaximum(count)
+            self.update_inventory_sell_button(award, count)
             return
 
         # Получаем объект предмета из реестра
@@ -938,12 +942,14 @@ class GameMenuController:
 
             # Добавляем информацию о количестве
             count = self.get_inventory_item_count(category, item_obj, registry_key, item_name)
+            sale_info = self.format_sale_info(item_obj)
             self.ui.effect_selected_item.setText(
-                f"⚡ {effect_text}{self.describe_item_buff(item_obj)}\n🔢 В наличии: {count}"
+                f"⚡ {effect_text}{self.describe_item_buff(item_obj)}\n🔢 В наличии: {count}{sale_info}"
             )
 
             # Устанавливаем максимум для spinbox
             self.ui.value_for_use_selected_item.setMaximum(count)
+            self.update_inventory_sell_button(item_obj, count)
 
     def on_use_item(self):
         """Использование выбранного предмета несколько раз"""
@@ -1033,6 +1039,56 @@ class GameMenuController:
             )
             self.clear_inventory_item_info()
             self.clear_item_info()
+
+    def on_sell_item(self):
+        """Продажа выбранного предмета из инвентаря."""
+        selected = self.ui.inventory_list.currentItem()
+        if not selected:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите предмет")
+            return
+
+        category, item_name = selected.data(1)
+        count = self.ui.value_for_use_selected_item.value()
+
+        if category == 'Кастомные награды':
+            self.sell_custom_award(item_name, count)
+            return
+
+        registry_key, item_obj = game_data.find_registry_item(category, item_name)
+        if not item_obj:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Предмет не найден")
+            return
+        if not self.is_item_sellable(item_obj):
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Этот предмет нельзя продать")
+            return
+
+        available = self.get_inventory_item_count(category, item_obj, registry_key, item_name)
+        if count > available:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", f"У вас только {available} шт.")
+            return
+
+        sell_price = self.get_item_sell_price(item_obj)
+        total_price = self.gamer.round_money(sell_price * count)
+        reply = QMessageBox.question(
+            self.ui.centralwidget,
+            "Подтверждение продажи",
+            f"Продать {count} x {item_obj.name} за {total_price}💰?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+
+        self.gamer = game.load_game()
+        self.ensure_inventory_item_name(category, item_obj, registry_key, item_name)
+        sold_count = self.decrease_inventory_item(category, item_obj, count, registry_key, item_name)
+        if sold_count <= 0:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Не удалось продать предмет")
+            return
+
+        total_price = self.gamer.round_money(sell_price * sold_count)
+        self.gamer.set_coins(total_price, process_bank_events=False, save=False)
+        self.gamer.save()
+        self.update_after_inventory_sale(item_obj.name, sold_count, total_price)
 
     # === ОБРАБОТЧИКИ МАГАЗИНА ===
 
@@ -1131,6 +1187,8 @@ class GameMenuController:
         self.ui.effect_selected_item.clear()
         self.ui.value_for_use_selected_item.setValue(1)
         self.ui.value_for_use_selected_item.setMaximum(999)
+        if hasattr(self.ui, 'button_to_sell_selected_item'):
+            self.ui.button_to_sell_selected_item.setEnabled(False)
 
     def on_buy_item(self):
         """Покупка предмета"""
@@ -1587,6 +1645,69 @@ class GameMenuController:
 
     # === ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ===
 
+    def is_item_sellable(self, item_obj):
+        return bool(getattr(item_obj, 'sellable', True))
+
+    def get_item_sell_price(self, item_obj):
+        sell_price = getattr(item_obj, 'sell_price', None)
+        if sell_price is not None:
+            return self.gamer.round_money(sell_price)
+        return self.gamer.round_money(getattr(item_obj, 'price', 0) * 0.75)
+
+    def format_sale_info(self, item_obj):
+        if not self.is_item_sellable(item_obj):
+            return "\n💸 Продажа: недоступна"
+        return f"\n💸 Продажа: {self.get_item_sell_price(item_obj)} за шт."
+
+    def update_inventory_sell_button(self, item_obj, count):
+        if hasattr(self.ui, 'button_to_sell_selected_item'):
+            self.ui.button_to_sell_selected_item.setEnabled(count > 0 and self.is_item_sellable(item_obj))
+
+    def update_after_inventory_sale(self, item_name, sold_count, total_price):
+        self.gamer = game.load_game()
+        self.register_custom_awards()
+        self.update_inventory()
+        self.update_game_data(force_quests=True)
+        self.clear_inventory_item_info()
+        self.clear_item_info()
+        QMessageBox.information(
+            self.ui.centralwidget,
+            "Продажа",
+            f"Продано {sold_count} x {item_name}\nПолучено: {total_price}💰"
+        )
+
+    def sell_custom_award(self, item_name, count):
+        award = self.get_custom_award(item_name)
+        if not award:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Награда не найдена")
+            return
+        if not self.is_item_sellable(award):
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Эту награду нельзя продать")
+            return
+
+        available = self.get_custom_award_count(award)
+        if count > available:
+            QMessageBox.warning(self.ui.centralwidget, "Ошибка", f"У вас только {available} шт.")
+            return
+
+        sell_price = self.get_item_sell_price(award)
+        total_price = self.gamer.round_money(sell_price * count)
+        reply = QMessageBox.question(
+            self.ui.centralwidget,
+            "Подтверждение продажи",
+            f"Продать {count} x {item_name} за {total_price}💰?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        if reply == QMessageBox.No:
+            return
+
+        self.set_custom_award_count(item_name, available - count)
+        if available - count <= 0 and not self.is_custom_award_in_shop(award):
+            self.cleanup_removed_custom_awards()
+        self.gamer.set_coins(total_price, process_bank_events=False, save=False)
+        self.gamer.save()
+        self.update_after_inventory_sale(item_name, count, total_price)
+
     def get_inventory_item_aliases(self, item_obj, *fallback_names):
         aliases = []
         for name in (getattr(item_obj, 'name', None), *fallback_names):
@@ -1664,6 +1785,9 @@ class GameMenuController:
                 changed = True
             if not hasattr(award, 'available_in_shop'):
                 award.available_in_shop = True
+                changed = True
+            if not hasattr(award, 'sellable'):
+                award.sellable = True
                 changed = True
             if award.count > 0:
                 self.gamer.custom_awards_inventory[award.name] = (

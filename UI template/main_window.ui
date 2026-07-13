@@ -1290,24 +1290,12 @@
               <string>О товаре</string>
              </property>
              <layout class="QGridLayout" name="gridLayout_12">
-              <item row="4" column="0">
-               <widget class="QLabel" name="label_13">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
+              <item row="0" column="0">
+               <widget class="QComboBox" name="inventory_filter_comboBox">
                 <property name="font">
                  <font>
                   <family>Arial</family>
                  </font>
-                </property>
-                <property name="text">
-                 <string>Количество:</string>
-                </property>
-                <property name="alignment">
-                 <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
                 </property>
                </widget>
               </item>
@@ -1329,7 +1317,52 @@
                 </property>
                </widget>
               </item>
-              <item row="1" column="0" colspan="4">
+              <item row="4" column="0">
+               <widget class="QLabel" name="label_13">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>Количество:</string>
+                </property>
+                <property name="alignment">
+                 <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
+                </property>
+               </widget>
+              </item>
+              <item row="4" column="1">
+               <widget class="QSpinBox" name="value_for_use_selected_item">
+                <property name="sizePolicy">
+                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
+                  <horstretch>0</horstretch>
+                  <verstretch>0</verstretch>
+                 </sizepolicy>
+                </property>
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
+                <property name="minimum">
+                 <number>1</number>
+                </property>
+                <property name="singleStep">
+                 <number>1</number>
+                </property>
+                <property name="value">
+                 <number>1</number>
+                </property>
+               </widget>
+              </item>
+              <item row="1" column="0" colspan="5">
                <widget class="QScrollArea" name="about_selected_inventory_item">
                 <property name="font">
                  <font>
@@ -1345,7 +1378,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>409</width>
-                   <height>114</height>
+                   <height>110</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_19">
@@ -1413,36 +1446,10 @@
                 </widget>
                </widget>
               </item>
-              <item row="4" column="1">
-               <widget class="QSpinBox" name="value_for_use_selected_item">
-                <property name="sizePolicy">
-                 <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
-                  <horstretch>0</horstretch>
-                  <verstretch>0</verstretch>
-                 </sizepolicy>
-                </property>
-                <property name="font">
-                 <font>
-                  <family>Arial</family>
-                 </font>
-                </property>
-                <property name="minimum">
-                 <number>1</number>
-                </property>
-                <property name="singleStep">
-                 <number>1</number>
-                </property>
-                <property name="value">
-                 <number>1</number>
-                </property>
-               </widget>
-              </item>
-              <item row="0" column="0">
-               <widget class="QComboBox" name="inventory_filter_comboBox">
-                <property name="font">
-                 <font>
-                  <family>Arial</family>
-                 </font>
+              <item row="4" column="4">
+               <widget class="QPushButton" name="button_to_sell_selected_item">
+                <property name="text">
+                 <string>Продать</string>
                 </property>
                </widget>
               </item>

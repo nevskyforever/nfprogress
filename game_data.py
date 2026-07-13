@@ -94,7 +94,8 @@ class Buff:
 class Item:
     """Основной класс"""
 
-    def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None, credit_allowed=True):
+    def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None,
+                 credit_allowed=True, sellable=True):
         self.name = name
         self.item_type = item_type
         self._price = price
@@ -102,6 +103,7 @@ class Item:
         self.description = description
         self.buff = buff
         self.credit_allowed = credit_allowed
+        self.sellable = sellable
 
     @property
     def price(self):
@@ -109,6 +111,10 @@ class Item:
         if callable(self._price):
             return self._price()
         return self._price
+
+    @property
+    def sell_price(self):
+        return round(self.price * 0.75, 1)
 
     def buy(self):
         gamer = game.load_game()
@@ -1227,7 +1233,7 @@ health_potion_50 = FuncItem('🧪  Большое зелье здоровья', 
                             description='🧪  Восстанавливает здоровье на 50 единиц')
 health_recovery = FuncItem('🧪  Зелье воскрешения', item_type='Зелья', level=3, func=health_potion_func, price=lambda: calculate_item_price(200), add=100,
                            description='🧪  Полностью восстанавливает здоровье')
-crown_of_the_first_era = Item(name='👑  Корона Первой Эпохи', item_type='Награды', price=0,
+crown_of_the_first_era = Item(name='👑  Корона Первой Эпохи', item_type='Награды', price=250000, sellable=False,
                               description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре',
                               buff=Buff(name='Опыт миллионера',
                                         description='+1 к коэффициенту опыта',
@@ -1235,7 +1241,7 @@ crown_of_the_first_era = Item(name='👑  Корона Первой Эпохи',
                                         target_cf='exp',
                                         value=1.0)
                               )
-millionaires_pen = Item(name='💎  Перо Миллионера', item_type='Награды', price=0,
+millionaires_pen = Item(name='💎  Перо Миллионера', item_type='Награды', price=250000, sellable=False,
                         description='Перо выдается игрокам, которые заработали больше миллиона монет до первой экономической реформы в игре',
                         buff=Buff(name='Удача миллионера',
                                   description='+1 к коэффициенту заработка',
