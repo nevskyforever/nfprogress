@@ -821,7 +821,7 @@ class MainWindow(QMainWindow, main_window_ui):
         icon_size = 46
         spacing = 14
         brand_text = "nfprogress"
-        icon = QImage(en.resource_path("Icon-256.png"))
+        icon = self._load_progress_share_icon()
 
         brand_font = QFont()
         brand_font.setPointSize(28)
@@ -845,6 +845,28 @@ class MainWindow(QMainWindow, main_window_ui):
 
         text_rect = QRectF(text_x, center_y - text_height / 2, text_width, text_height)
         painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, brand_text)
+
+    def _load_progress_share_icon(self) -> QImage:
+        icon_file = "Icon-256.png"
+        candidates = [
+            en.resource_path(icon_file),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), icon_file),
+            os.path.join(os.getcwd(), icon_file),
+            os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), icon_file),
+            os.path.join(os.path.dirname(os.path.abspath(sys.executable)), icon_file),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(sys.executable))),
+                "Resources",
+                icon_file
+            ),
+        ]
+
+        for path in candidates:
+            icon = QImage(path)
+            if not icon.isNull():
+                return icon
+
+        return QImage()
 
     def _get_progress_share_color(self, progress: int) -> QColor:
         ratio = max(0.0, min(1.0, progress / 100.0))
