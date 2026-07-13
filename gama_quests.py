@@ -85,6 +85,14 @@ def get_symbols_by_date(projects):
     return symbols_by_date
 
 
+def get_completed_projects():
+    return [project for project in get_projects() if getattr(project, 'status', None) == 'завершен']
+
+
+def count_positive_notes(project):
+    return sum(1 for note in getattr(project, 'notes', []) if note.get_added_symbols() > 0)
+
+
 def has_consecutive_dates(dates, days_count):
     if len(dates) < days_count:
         return False
@@ -265,6 +273,63 @@ def save_5000_coins_no_credit(gamer, quest):
 def collect_ten_awards(gamer, quest):
     awards = gamer.items.get('Награды', {})
     return sum(count for count in awards.values() if count > 0) >= 10
+
+
+def write_1000_symbols_today(gamer, quest):
+    return any(project.get_added_symbols_today_value() >= 1000 for project in get_projects())
+
+
+def keep_three_active_projects(gamer, quest):
+    active_statuses = {'активен', 'в работе'}
+    return sum(1 for project in get_projects() if getattr(project, 'status', None) in active_statuses) >= 3
+
+
+def finish_short_text_5000(gamer, quest):
+    return any(5000 <= project.get_total_symbols() <= 15000 for project in get_completed_projects())
+
+
+def write_5000_symbols_in_week(gamer, quest):
+    today = engine.today_for_test()
+    week_start = today - timedelta(days=6)
+    total = 0
+    for symbols_date, symbols in get_symbols_by_date(get_projects()).items():
+        if week_start <= symbols_date <= today:
+            total += symbols
+    return total >= 5000
+
+
+def write_1000_symbols_on_5_days(gamer, quest):
+    symbols_by_date = get_symbols_by_date(get_projects())
+    productive_days = [day for day, symbols in symbols_by_date.items() if symbols >= 1000]
+    return len(productive_days) >= 5
+
+
+def write_30_notes_in_one_text(gamer, quest):
+    return any(count_positive_notes(project) >= 30 for project in get_projects())
+
+
+def write_100000_symbols_total(gamer, quest):
+    return sum(project.get_total_symbols() for project in get_projects()) >= 100000
+
+
+def finish_five_texts(gamer, quest):
+    return len(get_completed_projects()) >= 5
+
+
+def keep_deposit_1000_coins(gamer, quest):
+    bank_account = getattr(gamer, 'bank_account', None)
+    deposit = getattr(bank_account, 'deposit', None) if bank_account else None
+    return bool(deposit and deposit.get_sum() >= 1000)
+
+
+def return_deposit_with_profit(gamer, quest):
+    bank_account = getattr(gamer, 'bank_account', None)
+    if not bank_account:
+        return False
+    for deposit_record in getattr(bank_account, 'deposit_history', []):
+        if deposit_record.get('status') == 'returned' and deposit_record.get('interest', 0) > 0:
+            return True
+    return False
 
 
 def get_global_streaks():
@@ -602,6 +667,122 @@ def get_quests():
             ],
             level=10,
             quest_func='collect_ten_awards',
+        ),
+        quest(
+            quest_id='write_1000_symbols_today',
+            name='Тысяча за день',
+            description='Напишите не меньше 1000 символов за один день в любом тексте.',
+            reward_coins=180,
+            reward_exp=1800,
+            reward_items=[],
+            level=2,
+            quest_func='write_1000_symbols_today',
+        ),
+        quest(
+            quest_id='keep_three_active_projects',
+            name='Три фронта',
+            description='Держите 3 активных текста одновременно.',
+            reward_coins=350,
+            reward_exp=3500,
+            reward_items=[
+                {'category': 'Награды', 'name': 'Знак трех фронтов', 'count': 1},
+            ],
+            level=3,
+            quest_func='keep_three_active_projects',
+        ),
+        quest(
+            quest_id='finish_short_text_5000',
+            name='Короткая победа',
+            description='Завершите текст объёмом от 5000 до 15000 символов.',
+            reward_coins=650,
+            reward_exp=6500,
+            reward_items=[
+                {'category': 'Награды', 'name': 'Знак короткой победы', 'count': 1},
+            ],
+            level=4,
+            quest_func='finish_short_text_5000',
+        ),
+        quest(
+            quest_id='write_5000_symbols_in_week',
+            name='Плотная неделя',
+            description='Напишите суммарно 5000 символов за последние 7 дней.',
+            reward_coins=900,
+            reward_exp=9000,
+            reward_items=[],
+            level=5,
+            quest_func='write_5000_symbols_in_week',
+        ),
+        quest(
+            quest_id='write_1000_symbols_on_5_days',
+            name='Пять сильных дней',
+            description='Напишите не меньше 1000 символов в каждый из 5 разных дней.',
+            reward_coins=1400,
+            reward_exp=14000,
+            reward_items=[
+                {'category': 'Награды', 'name': 'Знак пяти сильных дней', 'count': 1},
+            ],
+            level=6,
+            quest_func='write_1000_symbols_on_5_days',
+        ),
+        quest(
+            quest_id='write_30_notes_in_one_text',
+            name='Дневник рукописи',
+            description='Добавьте 30 записей с положительным приростом в один текст.',
+            reward_coins=1800,
+            reward_exp=18000,
+            reward_items=[
+                {'category': 'Награды', 'name': 'Знак дневника рукописи', 'count': 1},
+            ],
+            level=7,
+            quest_func='write_30_notes_in_one_text',
+        ),
+        quest(
+            quest_id='keep_deposit_1000_coins',
+            name='Серьёзный вклад',
+            description='Держите активный банковский вклад на сумму не меньше 1000 монет.',
+            reward_coins=2000,
+            reward_exp=20000,
+            reward_items=[
+                {'category': 'Награды', 'name': 'Знак серьезного вклада', 'count': 1},
+            ],
+            level=7,
+            quest_func='keep_deposit_1000_coins',
+        ),
+        quest(
+            quest_id='return_deposit_with_profit',
+            name='Проценты получены',
+            description='Закройте вклад в срок и получите проценты.',
+            reward_coins=2800,
+            reward_exp=28000,
+            reward_items=[
+                {'category': 'Награды', 'name': 'Знак умного вклада', 'count': 1},
+            ],
+            level=8,
+            quest_func='return_deposit_with_profit',
+        ),
+        quest(
+            quest_id='finish_five_texts',
+            name='Пять завершений',
+            description='Завершите 5 разных текстов.',
+            reward_coins=5200,
+            reward_exp=52000,
+            reward_items=[
+                {'category': 'Награды', 'name': 'Знак пяти завершений', 'count': 1},
+            ],
+            level=11,
+            quest_func='finish_five_texts',
+        ),
+        quest(
+            quest_id='write_100000_symbols_total',
+            name='Сто тысяч',
+            description='Накопите 100000 написанных символов суммарно по всем текстам.',
+            reward_coins=7000,
+            reward_exp=70000,
+            reward_items=[
+                {'category': 'Награды', 'name': 'Знак ста тысяч', 'count': 1},
+            ],
+            level=12,
+            quest_func='write_100000_symbols_total',
         ),
         quest(
             quest_id='global_streak_3_days',
