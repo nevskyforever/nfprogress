@@ -128,9 +128,7 @@ class Quest:
     def give_reward_buffs(self, gamer):
         for buff in self.reward_buffs:
             if buff:
-                active_buff = buff.activate()
-                target_list = gamer.buffs if active_buff.is_positive() else gamer.debuffs
-                target_list.append(active_buff)
+                gamer.add_buff(buff, save=False)
         gamer.apply_buffs_to_cf(save=False)
 
     def can_be_available(self, gamer):
@@ -375,6 +373,7 @@ class Gamer:
 
     def get_inventory_buffs(self):
         inventory_buffs = []
+        merged_stackable_buffs = {}
 
         if not isinstance(self.items, dict):
             return inventory_buffs
@@ -401,8 +400,17 @@ class Gamer:
                 item_buff.start_time = None
                 item_buff.end_time = None
                 item_buff.source = item.name
-                inventory_buffs.append((item_buff, count if item_buff.stackable else 1))
+                if item_buff.stackable:
+                    merge_key = (item_buff.name, item_buff.target_cf, item_buff.buff_type)
+                    if merge_key in merged_stackable_buffs:
+                        merged_stackable_buffs[merge_key].value += item_buff.value * count
+                    else:
+                        item_buff.value *= count
+                        merged_stackable_buffs[merge_key] = item_buff
+                else:
+                    inventory_buffs.append((item_buff, 1))
 
+        inventory_buffs.extend((buff, 1) for buff in merged_stackable_buffs.values())
         return inventory_buffs
 
     def remove_expired_buffs(self, now=None):
@@ -440,7 +448,7 @@ class Gamer:
 
         return result
 
-    def add_buff(self, buff):
+    def add_buff(self, buff, save=True):
         active_buff = buff.activate()
         self.remove_expired_buffs()
         target_list = self.buffs if active_buff.is_positive() else self.debuffs
@@ -451,8 +459,11 @@ class Gamer:
                 and existing_buff.target_cf == active_buff.target_cf
                 and existing_buff.buff_type == active_buff.buff_type
             ):
+                if active_buff.stackable:
+                    existing_buff.value += active_buff.value
+
                 if existing_buff.end_time is None:
-                    self.apply_buffs_to_cf(save=True)
+                    self.apply_buffs_to_cf(save=save)
                     return existing_buff
 
                 if active_buff.end_time is None:
@@ -461,11 +472,11 @@ class Gamer:
                     duration_delta = active_buff.end_time - active_buff.start_time
                     existing_buff.end_time = max(datetime.now(), existing_buff.end_time) + duration_delta
 
-                self.apply_buffs_to_cf(save=True)
+                self.apply_buffs_to_cf(save=save)
                 return existing_buff
 
         target_list.append(active_buff)
-        self.apply_buffs_to_cf(save=True)
+        self.apply_buffs_to_cf(save=save)
         return active_buff
 
     def remove_buff(self, buff_name, positive=True):

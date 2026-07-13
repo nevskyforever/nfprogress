@@ -7,53 +7,84 @@ import game_data
 from game import Quest
 
 
-def make_quest_buff(level, target_cf):
-    if level <= 2:
-        value = 0.25
-        duration_minutes = 60
-        tier = 'малый'
-    elif level <= 4:
-        value = 0.5
-        duration_minutes = 3 * 60
-        tier = 'обычный'
-    elif level <= 6:
-        value = 1.0
-        duration_minutes = 8 * 60
-        tier = 'усиленный'
-    elif level <= 8:
-        value = 1.5
-        duration_minutes = 24 * 60
-        tier = 'сильный'
-    elif level <= 10:
-        value = 2.0
-        duration_minutes = 48 * 60
-        tier = 'эпический'
-    else:
-        value = 3.0
-        duration_minutes = 72 * 60
-        tier = 'легендарный'
+QUEST_BUFF_META = {
+    'exp': {
+        'name': 'Квестовая специализация: опыт',
+        'parameter_name': 'опыта',
+        'description': 'Постоянный бонус к коэффициенту опыта за писательские и учебные квесты.',
+    },
+    'coins': {
+        'name': 'Квестовая специализация: монеты',
+        'parameter_name': 'монет',
+        'description': 'Постоянный бонус к коэффициенту монет за экономические и коллекционные квесты.',
+    },
+    'health_recovery': {
+        'name': 'Квестовая специализация: восстановление',
+        'parameter_name': 'восстановления',
+        'description': 'Постоянный бонус к восстановлению здоровья за квесты дисциплины и устойчивости.',
+    },
+}
 
-    parameter_name = 'опыта' if target_cf == 'exp' else 'монет'
+
+QUEST_BUFF_TARGETS = {
+    'save_100_coins': 'coins',
+    'open_bank_deposit': 'coins',
+    'keep_no_credit_with_500_coins': 'coins',
+    'save_5000_coins_no_credit': 'coins',
+    'collect_five_items': 'coins',
+    'collect_ten_awards': 'coins',
+    'keep_deposit_1000_coins': 'coins',
+    'return_deposit_with_profit': 'coins',
+
+    'keep_health_potion': 'health_recovery',
+    'restore_full_health': 'health_recovery',
+    'activate_positive_buff': 'health_recovery',
+    'own_freeze_item': 'health_recovery',
+    'no_freeze_7_days': 'health_recovery',
+    'finish_text_with_no_freezes': 'health_recovery',
+    'no_freeze_14_days': 'health_recovery',
+    'global_streak_3_days': 'health_recovery',
+    'global_streak_7_days': 'health_recovery',
+    'global_streak_14_days': 'health_recovery',
+    'global_streak_21_days': 'health_recovery',
+    'global_streak_30_days': 'health_recovery',
+    'global_streak_30_days_no_freezes': 'health_recovery',
+    'global_streak_60_days': 'health_recovery',
+    'global_streak_90_days': 'health_recovery',
+    'global_streak_180_days': 'health_recovery',
+    'global_streak_365_days': 'health_recovery',
+}
+
+
+def make_quest_buff(level, target_cf):
+    value = round(0.01 + min(max(level, 1), 12) * 0.005, 3)
+    meta = QUEST_BUFF_META[target_cf]
     return game_data.Buff(
-        name=f'Квестовый {tier} буст {parameter_name}',
-        description=f'+{value:g} к коэффициенту {parameter_name} за завершение квеста.',
+        name=meta['name'],
+        description=f"{meta['description']} +{value:g} к параметру за завершение квеста.",
         buff_type=game_data.Buff.POSITIVE,
         target_cf=target_cf,
         value=value,
-        duration_minutes=duration_minutes,
+        duration_minutes=None,
         source='Квест',
+        stackable=True,
     )
 
 
-def make_reward_buffs(level, target='both'):
-    targets = ('coins', 'exp') if target == 'both' else (target,)
+def make_reward_buffs(level, quest_id=None, target=None):
+    if target is None or target == 'both':
+        target = QUEST_BUFF_TARGETS.get(quest_id, 'exp')
+    targets = target if isinstance(target, (tuple, list)) else (target,)
     return [make_quest_buff(level, target_cf) for target_cf in targets]
 
 
 def quest(*args, buff_target='both', reward_buffs=None, **kwargs):
     level = kwargs.get('level', 1)
+    quest_id = kwargs.get('quest_id')
     if reward_buffs is None:
-        reward_buffs = make_reward_buffs(level, buff_target)
+        reward_items = kwargs.get('reward_items') or []
+        has_award_reward = any(item.get('category', 'Награды') == 'Награды' for item in reward_items)
+        reward_buffs = [] if has_award_reward else make_reward_buffs(level, quest_id=quest_id, target=buff_target)
     return Quest(*args, reward_buffs=reward_buffs, **kwargs)
 
 
