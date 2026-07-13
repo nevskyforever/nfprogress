@@ -261,10 +261,7 @@ class GameMenuController:
                 self.update_inventory()
                 for message in quest_messages:
                     if self.notifications:
-                        self.notifications.show_success(
-                            message,
-                            duration=self.get_quest_notification_duration(message)
-                        )
+                        self.notifications.show_success(message)
 
         # Обновляем отображение
         self.ui.gamer_label.setText(str(self.gamer.level))
@@ -350,9 +347,6 @@ class GameMenuController:
             for message in messages:
                 self.show_bank_message(message)
         return messages
-
-    def get_quest_notification_duration(self, message):
-        return max(20000, min(45000, 12000 + len(message) * 80))
 
     def show_bank_message(self, message):
         if not self.notifications or not message:

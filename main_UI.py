@@ -196,7 +196,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.game_controller.process_bank_events(show_toasts=True)
         self.game_controller.update_game_data()
         if show_notification:
-            self.notifications.show_info('Новый день. Проекты обновлены.', duration=10000, position='bottom-right')
+            self.notifications.show_info('Новый день. Проекты обновлены.', position='bottom-right')
 
     def on_enter_pressed(self):
         """Обработчик нажатия Enter в поле ввода"""
@@ -363,11 +363,13 @@ class MainWindow(QMainWindow, main_window_ui):
                 game_mode = dialog.enable_game_mode_checkBox.isChecked()
                 global_streak = dialog.enable_global_streak_checkBox.isChecked()
                 show_written_today_in_all_projects = dialog.written_today_in_all_projects_checkBox.isChecked()
+                notification_display_time = dialog.notification_display_time_spinBox.value()
                 settings = en.load_settings()
                 settings['inf_project'] = inf_project
                 settings['game_mode'] = game_mode
                 settings['global_streak'] = global_streak
                 settings['show_written_today_in_all_projects'] = show_written_today_in_all_projects
+                settings['notification_display_time'] = notification_display_time
                 if not global_streak:
                     data = en.load_data()
                     data['global_streaks'] = []
@@ -1301,7 +1303,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
                 notifications['new'].append(en.Notification(message, tag='streak'))
                 if show_auto_freeze_toasts and self.notifications:
-                    self.notifications.show_info(message, duration=10000, position='bottom-right')
+                    self.notifications.show_info(message, position='bottom-right')
 
                 for freeze_day in freeze_days:
                     if en.streak_last_day(global_streaks) == freeze_day - datetime.timedelta(days=1):
@@ -2583,8 +2585,22 @@ class NotificationManager:
         toast.show()
         toast.fade_in_anim.start()
 
+    def _duration_from_settings(self):
+        duration_seconds = en.load_settings().get('notification_display_time', 10)
+        try:
+            duration_seconds = int(duration_seconds)
+        except (TypeError, ValueError):
+            duration_seconds = 10
+        return max(1, duration_seconds) * 1000
+
+    def _resolve_duration(self, duration):
+        if duration is None:
+            return self._duration_from_settings()
+        return duration
+
     # В каждом методе показа передаём manager=self
-    def show_success(self, message, duration=10000, position="bottom-right"):
+    def show_success(self, message, duration=None, position="bottom-right"):
+        duration = self._resolve_duration(duration)
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
@@ -2600,7 +2616,8 @@ class NotificationManager:
         """)
         self._add_toast(toast)
 
-    def show_error(self, message, duration=10000, position="bottom-right"):
+    def show_error(self, message, duration=None, position="bottom-right"):
+        duration = self._resolve_duration(duration)
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
@@ -2616,7 +2633,8 @@ class NotificationManager:
         """)
         self._add_toast(toast)
 
-    def show_warning(self, message, duration=10000, position="bottom-right"):
+    def show_warning(self, message, duration=None, position="bottom-right"):
+        duration = self._resolve_duration(duration)
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         toast.setStyleSheet("""
             QFrame {
@@ -2632,7 +2650,8 @@ class NotificationManager:
         """)
         self._add_toast(toast)
 
-    def show_info(self, message, duration=10000, position="bottom-right"):
+    def show_info(self, message, duration=None, position="bottom-right"):
+        duration = self._resolve_duration(duration)
         toast = ToastNotification(self.parent, message, duration, position, manager=self)
         self._add_toast(toast)
 
@@ -2660,6 +2679,14 @@ class Settings(QDialog, settings_ui):
             self.written_today_in_all_projects_checkBox.setChecked(False)
         else:
             self.written_today_in_all_projects_checkBox.setChecked(True)
+        notification_display_time = settings.get('notification_display_time', 10)
+        try:
+            notification_display_time = int(notification_display_time)
+        except (TypeError, ValueError):
+            notification_display_time = 10
+        self.notification_display_time_spinBox.setRange(1, 3600)
+        self.notification_display_time_spinBox.setSuffix(' сек.')
+        self.notification_display_time_spinBox.setValue(max(1, notification_display_time))
 
 
 class UserAgreement(QDialog, user_agreement_ui):
