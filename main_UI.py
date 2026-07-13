@@ -124,6 +124,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self._project_buttons_connected = False
         self._sync_threads = {}
         self._background_sync_batches = {}
+        self.update_checker = None
 
         # Применяем настройки
         self.applying_settings()
@@ -223,6 +224,9 @@ class MainWindow(QMainWindow, main_window_ui):
 
         for project_name in list(self._sync_threads):
             self._cleanup_sync_read_worker(project_name)
+
+        if self.update_checker is not None:
+            self.update_checker.shutdown()
 
         super().closeEvent(event)
 
@@ -889,28 +893,27 @@ class MainWindow(QMainWindow, main_window_ui):
         # Загружаем данные
         data = en.load_data()
         data['projects'][project.name] = project
+        settings = en.load_settings()
 
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
-        if en.load_settings().get('game_mode', False) and added_symbols > 0:
+        if settings.get('game_mode', False) and added_symbols > 0:
             self.game_controller.add_symbols(added_symbols)
             # Даем бонус за стрик проекта и глобальный, если он включен
-            if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
+            if settings.get('global_streak', False):
                 if project.last_streak_bonus != en.today_for_test():
                     if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', en.streak_length(project.streaks)):
                         project.last_streak_bonus = en.today_for_test()
                         data['projects'][project.name] = project
-                        save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global', len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
-                        save_data(data)
 
         # Сохраняем изменения
         data['projects'][project.name] = project
         en.save_data(data)
 
-        if en.load_settings().get('global_streak', False):
+        if settings.get('global_streak', False):
             # Обновляем глобальный стрик
             self.refresh_global_streak_status()
 
@@ -1606,6 +1609,24 @@ class MainWindow(QMainWindow, main_window_ui):
         thread.wait()
         thread.deleteLater()
 
+    def _start_next_background_sync_item(self, batch_id):
+        if batch_id is None:
+            return
+
+        batch = self._background_sync_batches.get(batch_id)
+        if batch is None:
+            return
+
+        while batch['queue']:
+            project = batch['queue'].pop(0)
+            if self.sync_project(project, True, batch_id=batch_id):
+                return
+            batch['completed'] += 1
+
+        self._background_sync_batches.pop(batch_id, None)
+        if not batch['silent']:
+            self.notifications.show_success(f"Синхронизировано проектов: {batch['completed']}")
+
     def _finish_background_sync_item(self, batch_id):
         if batch_id is None:
             return
@@ -1614,13 +1635,8 @@ class MainWindow(QMainWindow, main_window_ui):
         if batch is None:
             return
 
-        batch['pending'] -= 1
-        if batch['pending'] > 0:
-            return
-
-        self._background_sync_batches.pop(batch_id, None)
-        if not batch['silent']:
-            self.notifications.show_success(f"Синхронизировано проектов: {batch['total']}")
+        batch['completed'] += 1
+        self._start_next_background_sync_item(batch_id)
 
     @Slot(object, str, object, object, object, bool, object)
     def _on_sync_read_finished(self, project, sync_type, symbols, note_date, read_error, background_synch, batch_id):
@@ -1675,120 +1691,118 @@ class MainWindow(QMainWindow, main_window_ui):
             return
 
         try:
-            # Конвертируем количество символов в единицу проекта
-            new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
-            current_total_in_unit = project.total_units
+            self._apply_sync_read_result(project, symbols, note_date, background_synch, "Синхронизация завершена")
+        except Exception as e:
+            if not background_synch:
+                self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
 
-            # Проверяем, изменилось ли количество
-            if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
-                if not background_synch:
-                    self.notifications.show_info(
-                        "Количество символов не изменилось."
-                    )
-                return
+    def _apply_sync_read_result(self, project, symbols, note_date, background_synch, success_title):
+        # Конвертируем количество символов в единицу проекта
+        new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
+        current_total_in_unit = project.total_units
 
-            # Вычисляем изменение
-            added_in_unit = new_total_in_unit - current_total_in_unit
-            added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
-            new_total_symbols = project.get_total_symbols() + added_symbols
+        # Проверяем, изменилось ли количество
+        if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
+            if not background_synch:
+                self.notifications.show_info(
+                    "Количество символов не изменилось."
+                )
+            return
 
-            # Вычисляем прогресс (для уведомления используем абсолютное значение)
-            goal_symbols = project.get_goal_symbols()
-            if goal_symbols == float('inf'):
-                added_progress = 0
-            else:
-                added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
+        # Вычисляем изменение
+        added_in_unit = new_total_in_unit - current_total_in_unit
+        added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
+        new_total_symbols = project.get_total_symbols() + added_symbols
 
-            # Создаём заметку (added_symbols может быть отрицательным)
-            note = en.Note(new_total_symbols, added_symbols, added_progress, date_create=note_date)
-            project.set_new_notes(note)
-            project.get_streak_status()
+        # Вычисляем прогресс (для уведомления используем абсолютное значение)
+        goal_symbols = project.get_goal_symbols()
+        if goal_symbols == float('inf'):
+            added_progress = 0
+        else:
+            added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
 
-            # Обновляем информацию о проекте
-            self.load_notes(project)
-            self.show_project_info(project)
+        # Создаём заметку (added_symbols может быть отрицательным)
+        note = en.Note(new_total_symbols, added_symbols, added_progress, date_create=note_date)
+        project.set_new_notes(note)
+        project.get_streak_status()
 
-            # Обновляем написанное сегодня во всех проектах
-            self.written_today_in_all_projects()
+        # Обновляем информацию о проекте
+        self.load_notes(project)
+        self.show_project_info(project)
 
-            # Обновляем дату последней синхронизации
-            project.last_synch = datetime.datetime.now()  # используем текущее время
+        # Обновляем написанное сегодня во всех проектах
+        self.written_today_in_all_projects()
 
-            # Обновляем статус в интерфейсе
-            self.update_sync_status_label(project)
+        # Обновляем дату последней синхронизации
+        project.last_synch = datetime.datetime.now()  # используем текущее время
 
-            # Загружаем данные
-            data = en.load_data()
-            data['projects'][project.name] = project
+        # Обновляем статус в интерфейсе
+        self.update_sync_status_label(project)
 
-            # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
-            if en.load_settings().get('game_mode', False) and added_symbols > 0:
-                self.game_controller.add_symbols(added_symbols)
-                # Даем бонус за стрик проекта и глобальный, если он включен
-                if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
-                    if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                                  en.streak_length(project.streaks)):
-                            project.last_streak_bonus = en.today_for_test()
-                            data['projects'][project.name] = project
-                            save_data(data)
+        data = en.load_data()
+        data['projects'][project.name] = project
+        settings = en.load_settings()
+
+        # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
+        if settings.get('game_mode', False) and added_symbols > 0:
+            self.game_controller.add_symbols(added_symbols)
+            # Даем бонус за стрик проекта и глобальный, если он включен
+            if settings.get('global_streak', False):
+                if project.last_streak_bonus != en.today_for_test():
+                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
+                                                              en.streak_length(project.streaks)):
+                        project.last_streak_bonus = en.today_for_test()
+                        data['projects'][project.name] = project
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
                                                               len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
-                        save_data(data)
 
-            # Сохраняем изменения
-            data['projects'][project.name] = project
-            en.save_data(data)
+        # Сохраняем изменения
+        data['projects'][project.name] = project
+        en.save_data(data)
 
-            # Обновляем глобальный стрик
-            if en.load_settings().get('global_streak', False):
-                self.refresh_global_streak_status()
+        # Обновляем глобальный стрик
+        if settings.get('global_streak', False):
+            self.refresh_global_streak_status()
 
-            # Обновляем виджет проекта в списке (для анимации)
-            current_item = self.list_projects.currentItem()
-            if current_item and current_item is not None:
-                widget = self.list_projects.itemWidget(current_item)
-                if widget and hasattr(widget, 'project') and widget.project.name == project.name:
-                    # Обновляем существующий виджет
-                    widget.update_display()
-                    self.written_today_in_all_projects()
-                else:
-                    # Если текущий виджет не соответствует проекту, ищем нужный
-                    self.refresh_projects()
-                    self.select_project_by_name(project.name)
+        # Обновляем виджет проекта в списке (для анимации)
+        current_item = self.list_projects.currentItem()
+        if current_item and current_item is not None:
+            widget = self.list_projects.itemWidget(current_item)
+            if widget and hasattr(widget, 'project') and widget.project.name == project.name:
+                # Обновляем существующий виджет
+                widget.update_display()
+                self.written_today_in_all_projects()
             else:
-                # Если ничего не выбрано, просто обновляем список
+                # Если текущий виджет не соответствует проекту, ищем нужный
                 self.refresh_projects()
                 self.select_project_by_name(project.name)
+        else:
+            # Если ничего не выбрано, просто обновляем список
+            self.refresh_projects()
+            self.select_project_by_name(project.name)
 
-            unit_name = self.unit_to_display.get(project.unit, project.unit)
+        # Определяем правильное склонение единицы измерения для количества added_in_unit
+        abs_added = abs(added_in_unit)
+        unit_display = self._get_unit_display(project.unit, abs_added)
 
-            # Определяем правильное склонение единицы измерения для количества added_in_unit
-            abs_added = abs(added_in_unit)
-            unit_display = self._get_unit_display(project.unit, abs_added)
-
-            # Формируем сообщение в зависимости от знака изменения
-            if added_in_unit > 0:
-                if not background_synch:
-                    self.notifications.show_success(
-                        f"Синхронизация завершена.\n"
-                        f"Добавлено {self._format_number(abs_added)} {unit_display}",
-                        position="bottom-right"
-                    )
-            else:
-                if not background_synch:
-                    self.notifications.show_warning(
-                        f"Синхронизация завершена.\n"
-                        f"Удалено {self._format_number(abs_added)} {unit_display}",
-                        position="bottom-right"
-                    )
-
-        except Exception as e:
+        # Формируем сообщение в зависимости от знака изменения
+        if added_in_unit > 0:
             if not background_synch:
-                self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
+                self.notifications.show_success(
+                    f"{success_title}.\n"
+                    f"Добавлено {self._format_number(abs_added)} {unit_display}",
+                    position="bottom-right"
+                )
+        else:
+            if not background_synch:
+                self.notifications.show_warning(
+                    f"{success_title}.\n"
+                    f"Удалено {self._format_number(abs_added)} {unit_display}",
+                    position="bottom-right"
+                )
 
     def _sync_scrivener(self, project, background_synch=False, batch_id=None):
         """Синхронизация с проектом Scrivener"""
@@ -1812,122 +1826,13 @@ class MainWindow(QMainWindow, main_window_ui):
                     )
                 return
 
-            # Конвертируем количество символов в единицу проекта
-            new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
-            current_total_in_unit = project.total_units
-
-            # Проверяем, изменилось ли количество
-            if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
-                if not background_synch:
-                    self.notifications.show_info(
-                        "Количество символов не изменилось."
-                    )
-                return
-
-            # Вычисляем изменение
-            added_in_unit = new_total_in_unit - current_total_in_unit
-            added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
-            new_total_symbols = project.get_total_symbols() + added_symbols
-
-            # Вычисляем прогресс (для уведомления используем абсолютное значение)
-            goal_symbols = project.get_goal_symbols()
-            if goal_symbols == float('inf'):
-                added_progress = 0
-            else:
-                added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
-
-            note = en.Note(
-                new_total_symbols,
-                added_symbols,
-                added_progress,
-                date_create=note_date
+            self._apply_sync_read_result(
+                project,
+                symbols,
+                note_date,
+                background_synch,
+                "Синхронизация Scrivener завершена"
             )
-
-            project.set_new_notes(note)
-            project.get_streak_status()
-
-            # Обновляем информацию о проекте
-            self.load_notes(project)
-            self.show_project_info(project)
-
-            # Обновляем написанное сегодня во всех проектах
-            self.written_today_in_all_projects()
-
-            # Обновляем дату последней синхронизации
-            project.last_synch = datetime.datetime.now()  # используем текущее время
-
-            # Обновляем статус в интерфейсе
-            self.update_sync_status_label(project)
-
-            # Загружаем данные
-            data = en.load_data()
-            data['projects'][project.name] = project
-
-            # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
-            if en.load_settings().get('game_mode', False) and added_symbols > 0:
-                self.game_controller.add_symbols(added_symbols)
-                # Даем бонус за стрик проекта и глобальный, если он включен
-                if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
-                    if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                                  en.streak_length(project.streaks)):
-                            project.last_streak_bonus = en.today_for_test()
-                            data['projects'][project.name] = project
-                            save_data(data)
-                # Даем бонус за глобальный стрик
-                if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
-                                                              len(data['global_streaks'])):
-                        data['last_global_streak_bonus'] = en.today_for_test()
-                        save_data(data)
-
-            # Сохраняем изменения
-            data['projects'][project.name] = project
-            en.save_data(data)
-
-            if en.load_settings().get('global_streak', False):
-                # Обновляем глобальный стрик
-                self.refresh_global_streak_status()
-
-            # Обновляем виджет проекта в списке (для анимации)
-            current_item = self.list_projects.currentItem()
-            if current_item and current_item is not None:
-                widget = self.list_projects.itemWidget(current_item)
-                if widget and hasattr(widget, 'project') and widget.project.name == project.name:
-                    # Обновляем существующий виджет
-                    widget.update_display()
-                    self.written_today_in_all_projects()
-                else:
-                    # Если текущий виджет не соответствует проекту, ищем нужный
-                    self.refresh_projects()
-                    self.select_project_by_name(project.name)
-            else:
-                # Если ничего не выбрано, просто обновляем список
-                self.refresh_projects()
-                self.select_project_by_name(project.name)
-
-            unit_name = self.unit_to_display.get(project.unit, project.unit)
-
-            # Определяем правильное склонение единицы измерения для количества added_in_unit
-            abs_added = abs(added_in_unit)
-            unit_display = self._get_unit_display(project.unit, abs_added)
-
-            # Формируем сообщение в зависимости от знака изменения
-            if added_in_unit > 0:
-                if not background_synch:
-                    self.notifications.show_success(
-                        f"Синхронизация Scrivener завершена.\n"
-                        f"Добавлено {self._format_number(abs_added)} {unit_display}",
-                        position="bottom-right"
-                    )
-            else:
-                if not background_synch:
-                    self.notifications.show_warning(
-                        f"Синхронизация Scrivener завершена.\n"
-                        f"Удалено {self._format_number(abs_added)} {unit_display}",
-                        position="bottom-right"
-                    )
-
         except Exception as e:
             if not background_synch:
                 self.notifications.show_error(f"Ошибка при синхронизации Scrivener: {str(e)}")
@@ -2063,13 +1968,12 @@ class MainWindow(QMainWindow, main_window_ui):
 
         batch_id = object()
         self._background_sync_batches[batch_id] = {
-            'pending': len(projects_with_sync),
+            'queue': list(projects_with_sync),
+            'completed': 0,
             'total': len(projects_with_sync),
             'silent': silent,
         }
-        for project in projects_with_sync:
-            if not self.sync_project(project, True, batch_id=batch_id):  # фоновая синхронизация
-                self._finish_background_sync_item(batch_id)
+        self._start_next_background_sync_item(batch_id)
 
     def written_today_in_all_projects(self):
         projects = en.load_data()['projects']
@@ -3128,10 +3032,10 @@ if __name__ == "__main__":
 
     window = MainWindow()
     window.show()
-    update_checker = UpdateChecker(window)
-    QTimer.singleShot(1500, lambda: update_checker.check_for_updates(window))
+    window.update_checker = UpdateChecker(window)
+    QTimer.singleShot(1500, lambda: window.update_checker.check_for_updates(window))
     update_timer = QTimer(window)
     update_timer.setInterval(60 * 60 * 1000)
-    update_timer.timeout.connect(lambda: update_checker.check_for_updates(window))
+    update_timer.timeout.connect(lambda: window.update_checker.check_for_updates(window))
     update_timer.start()
     sys.exit(app.exec())

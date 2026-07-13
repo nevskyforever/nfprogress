@@ -10,7 +10,7 @@ from collections import defaultdict
 from docx import Document
 
 # Режим разработчика
-dev_mode = True
+dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
 version = '4.3.5'

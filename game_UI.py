@@ -4,7 +4,7 @@
 import datetime
 
 from PySide6.QtCore import QDate, QSignalBlocker, QTimer, Qt
-from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog, QApplication
+from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
 
 import engine
 import game
@@ -1444,7 +1444,6 @@ class GameMenuController:
         self.clear_award_info()
         self.clear_inventory_item_info()
         self.update_inventory()
-        QApplication.processEvents()
 
         QMessageBox.information(
             self.ui.centralwidget,
