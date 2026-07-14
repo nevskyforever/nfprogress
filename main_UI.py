@@ -786,24 +786,19 @@ class MainWindow(QMainWindow, main_window_ui):
             painter.setPen(pen)
             painter.drawArc(ring_rect, 90 * 16, int(-progress * 360 * 16 / 100))
 
-        percent_font = QFont()
-        percent_font.setPointSize(self._scale_progress_share_font_size(156))
-        percent_font.setBold(True)
+        percent_font = self._make_progress_share_font(210, bold=True)
         painter.setFont(percent_font)
         painter.setPen(progress_color)
         painter.drawText(ring_rect, Qt.AlignCenter, f"{progress}%")
 
         title_area = QRectF(80, 805, size - 160, 157)
-        title_font = QFont()
-        title_font.setBold(True)
+        title_font = self._make_progress_share_font(1, bold=True)
         title_font = self._fit_progress_share_font(
             project.name,
             title_area,
             title_font,
-            max_point_size=self._scale_progress_share_font_size(
-                self._get_progress_share_title_max_size(project.name)
-            ),
-            min_point_size=self._scale_progress_share_font_size(20)
+            max_pixel_size=self._get_progress_share_title_max_size(project.name),
+            min_pixel_size=27
         )
         painter.setPen(QColor("#000000"))
         painter.setFont(title_font)
@@ -813,35 +808,36 @@ class MainWindow(QMainWindow, main_window_ui):
         painter.end()
         return image
 
-    def _scale_progress_share_font_size(self, point_size: int) -> int:
-        if en.SYSTEM == 'Windows':
-            return max(1, round(point_size * 0.84))
-        return point_size
+    def _make_progress_share_font(self, pixel_size: int, bold: bool = False) -> QFont:
+        font = QFont("Arial")
+        font.setPixelSize(pixel_size)
+        font.setBold(bold)
+        return font
 
     def _get_progress_share_title_max_size(self, title: str) -> int:
         length = len(title.strip())
         if length <= 1:
-            return 116
+            return 155
         if length <= 4:
-            return 104
+            return 139
         if length <= 14:
-            return 92
+            return 123
         if length <= 28:
-            return 78
-        return 64
+            return 104
+        return 85
 
     def _fit_progress_share_font(
             self,
             text: str,
             rect: QRectF,
             font: QFont,
-            max_point_size: int,
-            min_point_size: int
+            max_pixel_size: int,
+            min_pixel_size: int
     ) -> QFont:
         fitted_font = QFont(font)
 
-        for point_size in range(max_point_size, min_point_size - 1, -2):
-            fitted_font.setPointSize(point_size)
+        for pixel_size in range(max_pixel_size, min_pixel_size - 1, -2):
+            fitted_font.setPixelSize(pixel_size)
             metrics = QFontMetrics(fitted_font)
             bounding = metrics.boundingRect(
                 rect.toRect(),
@@ -851,7 +847,7 @@ class MainWindow(QMainWindow, main_window_ui):
             if bounding.width() <= rect.width() and bounding.height() <= rect.height():
                 return fitted_font
 
-        fitted_font.setPointSize(min_point_size)
+        fitted_font.setPixelSize(min_pixel_size)
         return fitted_font
 
     def _centered_progress_share_text_rect(self, text: str, area: QRectF, font: QFont) -> QRectF:
@@ -871,9 +867,7 @@ class MainWindow(QMainWindow, main_window_ui):
         brand_text = "nfprogress"
         icon = self._load_progress_share_icon()
 
-        brand_font = QFont()
-        brand_font.setPointSize(self._scale_progress_share_font_size(28))
-        brand_font.setBold(True)
+        brand_font = self._make_progress_share_font(37, bold=True)
         painter.setFont(brand_font)
         painter.setPen(QColor("#2568AC"))
 
