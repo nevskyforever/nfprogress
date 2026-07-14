@@ -26,6 +26,7 @@ nuitka --standalone \
        --macos-target-arch=x86_64 \
        --output-dir=build-intel \
        --include-data-dir="$TRANSLATIONS_TMP=PySide6/Qt/translations" \
+       --include-data-files=Icon.svg=Icon.svg \
        --lto=yes \
        --disable-ccache \
        --remove-output \

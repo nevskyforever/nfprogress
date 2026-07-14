@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowFCqmiM.ui'
+## Form generated from reading UI file 'main_windowtzFECd.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -156,29 +156,16 @@ class Ui_main_window(object):
         self.change_project_widget.setFont(font)
         self.gridLayout_29 = QGridLayout(self.change_project_widget)
         self.gridLayout_29.setObjectName(u"gridLayout_29")
-        self.btn_change_project = QPushButton(self.change_project_widget)
-        self.btn_change_project.setObjectName(u"btn_change_project")
-        self.btn_change_project.setEnabled(False)
-
-        self.gridLayout_29.addWidget(self.btn_change_project, 0, 1, 1, 1)
-
-        self.btn_delete_project = QPushButton(self.change_project_widget)
-        self.btn_delete_project.setObjectName(u"btn_delete_project")
-        self.btn_delete_project.setEnabled(False)
-
-        self.gridLayout_29.addWidget(self.btn_delete_project, 0, 2, 1, 1)
-
         self.btn_synch_project = QPushButton(self.change_project_widget)
         self.btn_synch_project.setObjectName(u"btn_synch_project")
 
         self.gridLayout_29.addWidget(self.btn_synch_project, 0, 0, 1, 1)
 
-        self.btn_archived_project = QPushButton(self.change_project_widget)
-        self.btn_archived_project.setObjectName(u"btn_archived_project")
-        self.btn_archived_project.setEnabled(False)
-        self.btn_archived_project.setFont(font)
+        self.btn_change_project = QPushButton(self.change_project_widget)
+        self.btn_change_project.setObjectName(u"btn_change_project")
+        self.btn_change_project.setEnabled(False)
 
-        self.gridLayout_29.addWidget(self.btn_archived_project, 0, 3, 1, 1)
+        self.gridLayout_29.addWidget(self.btn_change_project, 0, 1, 1, 1)
 
         self.btn_complete_project = QPushButton(self.change_project_widget)
         self.btn_complete_project.setObjectName(u"btn_complete_project")
@@ -192,6 +179,24 @@ class Ui_main_window(object):
         self.synch_status.setWordWrap(False)
 
         self.gridLayout_29.addWidget(self.synch_status, 1, 0, 1, 3)
+
+        self.btn_archived_project = QPushButton(self.change_project_widget)
+        self.btn_archived_project.setObjectName(u"btn_archived_project")
+        self.btn_archived_project.setEnabled(False)
+        self.btn_archived_project.setFont(font)
+
+        self.gridLayout_29.addWidget(self.btn_archived_project, 0, 3, 1, 1)
+
+        self.btn_delete_project = QPushButton(self.change_project_widget)
+        self.btn_delete_project.setObjectName(u"btn_delete_project")
+        self.btn_delete_project.setEnabled(False)
+
+        self.gridLayout_29.addWidget(self.btn_delete_project, 0, 2, 1, 1)
+
+        self.share_progress = QPushButton(self.change_project_widget)
+        self.share_progress.setObjectName(u"share_progress")
+
+        self.gridLayout_29.addWidget(self.share_progress, 0, 5, 1, 1)
 
 
         self.gridLayout_4.addWidget(self.change_project_widget, 2, 0, 1, 1)
@@ -265,7 +270,7 @@ class Ui_main_window(object):
         self.scrollArea_5.setWidgetResizable(True)
         self.scrollAreaWidgetContents_11 = QWidget()
         self.scrollAreaWidgetContents_11.setObjectName(u"scrollAreaWidgetContents_11")
-        self.scrollAreaWidgetContents_11.setGeometry(QRect(0, 0, 556, 328))
+        self.scrollAreaWidgetContents_11.setGeometry(QRect(0, 0, 674, 328))
         self.gridLayout_28 = QGridLayout(self.scrollAreaWidgetContents_11)
         self.gridLayout_28.setObjectName(u"gridLayout_28")
         self.label_max_streak = QLabel(self.scrollAreaWidgetContents_11)
@@ -600,7 +605,7 @@ class Ui_main_window(object):
         self.scrollArea_4.setWidgetResizable(True)
         self.scrollAreaWidgetContents_5 = QWidget()
         self.scrollAreaWidgetContents_5.setObjectName(u"scrollAreaWidgetContents_5")
-        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 93, 112))
+        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 98, 112))
         self.gridLayout_18 = QGridLayout(self.scrollAreaWidgetContents_5)
         self.gridLayout_18.setObjectName(u"gridLayout_18")
         self.name_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
@@ -678,7 +683,7 @@ class Ui_main_window(object):
         self.about_selected_goods_3.setWidgetResizable(True)
         self.scrollAreaWidgetContents_12 = QWidget()
         self.scrollAreaWidgetContents_12.setObjectName(u"scrollAreaWidgetContents_12")
-        self.scrollAreaWidgetContents_12.setGeometry(QRect(0, 0, 90, 110))
+        self.scrollAreaWidgetContents_12.setGeometry(QRect(0, 0, 98, 110))
         self.gridLayout_33 = QGridLayout(self.scrollAreaWidgetContents_12)
         self.gridLayout_33.setObjectName(u"gridLayout_33")
         self.peice_selected_custom_award_on_shop = QLabel(self.scrollAreaWidgetContents_12)
@@ -1323,7 +1328,7 @@ class Ui_main_window(object):
         self.scrollArea_6.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 92, 56))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 98, 56))
         self.verticalLayout_4 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_4.setObjectName(u"verticalLayout_4")
         self.description_selected_parameter = QLabel(self.scrollAreaWidgetContents)
@@ -1488,12 +1493,13 @@ class Ui_main_window(object):
 
         self.btn_create_project.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.name_selected_project.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043f\u0440\u043e\u0435\u043a\u0442", None))
-        self.btn_change_project.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c", None))
-        self.btn_delete_project.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))
         self.btn_synch_project.setText(QCoreApplication.translate("main_window", u"\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0438\u0440\u043e\u0432\u0430\u0442\u044c", None))
-        self.btn_archived_project.setText(QCoreApplication.translate("main_window", u"\u0412 \u0430\u0440\u0445\u0438\u0432", None))
+        self.btn_change_project.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c", None))
         self.btn_complete_project.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c", None))
         self.synch_status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435 \u0441\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0438\u0440\u043e\u0432\u0430\u043d", None))
+        self.btn_archived_project.setText(QCoreApplication.translate("main_window", u"\u0412 \u0430\u0440\u0445\u0438\u0432", None))
+        self.btn_delete_project.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))
+        self.share_progress.setText(QCoreApplication.translate("main_window", u"\u041f\u043e\u0434\u0435\u043b\u0438\u0442\u044c\u0441\u044f", None))
         self.label_2.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u043f\u0438\u0441\u0438 \u043f\u0440\u043e\u0435\u043a\u0442\u0430", None))
         self.label_9.setText(QCoreApplication.translate("main_window", u"\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u043f\u0438\u0441\u044c:", None))
         self.delete_note.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))

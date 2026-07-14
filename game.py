@@ -856,8 +856,6 @@ class Gamer:
         return f'Здоровье восстановлено на {restored:g}. Текущее здоровье: {self.health:g}/{max_health}.'
 
     def level_up(self):
-        data = engine.load_data()
-        notifications = data.get('notifications', {'new': [], 'read': []})
         msg = False
         while self.level < len(game_data.levels) - 1 and self.exp >= game_data.levels[self.level]:
             new_level = self.level + 1
@@ -877,9 +875,8 @@ class Gamer:
             if awarded_skill_points:
                 msg += f'\nПолучено {awarded_skill_points} балла умений.'
 
-        self.save()
-        data['notifications'] = notifications
-        engine.save_data(data)
+        if msg:
+            self.save()
         return msg
 
     def check_health(self):

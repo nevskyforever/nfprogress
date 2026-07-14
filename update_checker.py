@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 import uuid
 import zipfile
@@ -39,6 +40,13 @@ def _ssl_context():
     except ImportError:
         return ssl.create_default_context()
     return ssl.create_default_context(cafile=certifi.where())
+
+
+def _uncached_manifest_url(url):
+    parsed = urllib.parse.urlsplit(url)
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    query.append(("_", uuid.uuid4().hex))
+    return urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(query)))
 
 
 def _version_parts(version):
@@ -542,7 +550,7 @@ def _start_windows_updater_direct(script_path, log_path):
         raise RuntimeError(details)
 
 
-def _start_windows_exe_updater(download_url, target_path, parent_pid, log_path):
+def _start_windows_exe_updater(download_url, target_path, parent_pid, log_path, wait_for_start=True):
     updater_path = Path(tempfile.gettempdir()) / f"nfprogress-updater-{uuid.uuid4().hex}.exe"
     shutil.copy2(target_path, updater_path)
     _append_update_log(log_path, f"copied updater exe to {updater_path}")
@@ -567,6 +575,9 @@ def _start_windows_exe_updater(download_url, target_path, parent_pid, log_path):
         stdin=subprocess.DEVNULL,
         close_fds=True,
     )
+
+    if not wait_for_start:
+        return
 
     if not _wait_for_windows_updater_start(log_path, marker="exe updater started"):
         log_tail = _read_update_log_tail(log_path)
@@ -665,14 +676,22 @@ open "$TARGET_PATH"
 
 
 def _start_background_update(download_url, parent):
+    success, message, severity = _launch_background_update(download_url)
+    if success:
+        QApplication.quit()
+        return True
+
+    if severity == "critical":
+        QMessageBox.critical(parent, "Обновление приложения", message)
+    else:
+        QMessageBox.warning(parent, "Обновление приложения", message)
+    return False
+
+
+def _launch_background_update(download_url):
     target_path = _current_app_target()
     if target_path is None:
-        QMessageBox.warning(
-            parent,
-            "Обновление приложения",
-            "Автообновление доступно только в собранной версии приложения.",
-        )
-        return False
+        return False, "Автообновление доступно только в собранной версии приложения.", "warning"
 
     temp_dir = Path(tempfile.gettempdir())
     log_path = temp_dir / "nfprogress-update.log"
@@ -686,36 +705,50 @@ def _start_background_update(download_url, parent):
         except OSError:
             pass
         try:
-            _start_windows_exe_updater(download_url, target_path, parent_pid, log_path)
+            _start_windows_exe_updater(download_url, target_path, parent_pid, log_path, wait_for_start=False)
         except Exception as error:
             _debug(f"failed to start Windows exe updater: {error}")
-            QMessageBox.critical(
-                parent,
-                "Обновление приложения",
+            return (
+                False,
                 f"Не удалось запустить установщик обновления.\n\n{error}\n\nЛог: {log_path}",
+                "critical",
             )
-            return False
     elif platform.system() == "Darwin":
-        script_path = temp_dir / "nfprogress-update.sh"
-        _write_text_file(script_path, _build_macos_updater_script(download_url, target_path, parent_pid, log_path))
-        script_path.chmod(0o700)
-        subprocess.Popen(
-            ["/bin/sh", str(script_path)],
-            start_new_session=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            close_fds=True,
-        )
+        try:
+            script_path = temp_dir / "nfprogress-update.sh"
+            _write_text_file(script_path, _build_macos_updater_script(download_url, target_path, parent_pid, log_path))
+            script_path.chmod(0o700)
+            subprocess.Popen(
+                ["/bin/sh", str(script_path)],
+                start_new_session=True,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                close_fds=True,
+            )
+        except Exception as error:
+            _debug(f"failed to start macOS updater: {error}")
+            return (
+                False,
+                f"Не удалось запустить установщик обновления.\n\n{error}\n\nЛог: {log_path}",
+                "critical",
+            )
     else:
-        QMessageBox.warning(
-            parent,
-            "Обновление приложения",
-            "Автообновление для этой операционной системы пока не поддерживается.",
-        )
-        return False
+        return False, "Автообновление для этой операционной системы пока не поддерживается.", "warning"
 
-    QApplication.quit()
-    return True
+    return True, "", "success"
+
+
+class UpdateLaunchWorker(QObject):
+    finished = Signal(bool, str, str)
+
+    def __init__(self, download_url):
+        super().__init__()
+        self.download_url = download_url
+
+    @Slot()
+    def run(self):
+        success, message, severity = _launch_background_update(self.download_url)
+        self.finished.emit(success, message, severity)
 
 
 class UpdateCheckWorker(QObject):
@@ -729,10 +762,15 @@ class UpdateCheckWorker(QObject):
             return
 
         try:
-            _debug(f"requesting {UPDATE_MANIFEST_URL}")
+            request_url = _uncached_manifest_url(UPDATE_MANIFEST_URL)
+            _debug(f"requesting {request_url}")
             request = urllib.request.Request(
-                UPDATE_MANIFEST_URL,
-                headers={"User-Agent": f"NFProgress/{en.version}"},
+                request_url,
+                headers={
+                    "User-Agent": f"NFProgress/{en.version}",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                },
             )
             with urllib.request.urlopen(request, timeout=6, context=_ssl_context()) as response:
                 payload = response.read().decode("utf-8")
@@ -751,6 +789,9 @@ class UpdateChecker(QObject):
         self._thread = None
         self._worker = None
         self._dialog_parent = None
+        self._launch_thread = None
+        self._launch_worker = None
+        self._launch_parent = None
 
     def check_for_updates(self, parent=None):
         if self._thread is not None:
@@ -776,6 +817,10 @@ class UpdateChecker(QObject):
     def _on_worker_failed(self):
         self._cleanup_worker()
 
+    def shutdown(self):
+        self._cleanup_worker()
+        self._cleanup_launch_worker()
+
     def _cleanup_worker(self):
         if self._thread is None:
             return
@@ -785,6 +830,48 @@ class UpdateChecker(QObject):
         self._worker = None
         self._thread = None
         self._dialog_parent = None
+
+        worker.deleteLater()
+        thread.quit()
+        thread.wait()
+        thread.deleteLater()
+
+    def _start_update_install(self, download_url, parent):
+        if self._launch_thread is not None:
+            return
+
+        self._launch_parent = parent
+        self._launch_thread = QThread(self)
+        self._launch_worker = UpdateLaunchWorker(download_url)
+        self._launch_worker.moveToThread(self._launch_thread)
+
+        self._launch_thread.started.connect(self._launch_worker.run)
+        self._launch_worker.finished.connect(self._on_update_launch_finished)
+        self._launch_thread.start()
+
+    @Slot(bool, str, str)
+    def _on_update_launch_finished(self, success, message, severity):
+        parent = self._launch_parent
+        self._cleanup_launch_worker()
+
+        if success:
+            QApplication.quit()
+            return
+
+        if severity == "critical":
+            QMessageBox.critical(parent, "Обновление приложения", message)
+        else:
+            QMessageBox.warning(parent, "Обновление приложения", message)
+
+    def _cleanup_launch_worker(self):
+        if self._launch_thread is None:
+            return
+
+        thread = self._launch_thread
+        worker = self._launch_worker
+        self._launch_worker = None
+        self._launch_thread = None
+        self._launch_parent = None
 
         worker.deleteLater()
         thread.quit()
@@ -834,6 +921,6 @@ class UpdateChecker(QObject):
         clicked_button = dialog.clickedButton()
 
         if clicked_button == update_button:
-            _start_background_update(download_url, parent)
+            self._start_update_install(download_url, parent)
         elif clicked_button == skip_button:
             settings.setValue(SKIPPED_VERSION_KEY, latest_version)

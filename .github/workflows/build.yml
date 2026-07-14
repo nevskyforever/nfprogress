@@ -5,6 +5,11 @@ on:
     branches:
       - main  # Укажи свою основную ветку (например, master или main)
   workflow_dispatch:  # Сохраняем возможность ручного запуска
+    inputs:
+      telegram_message:
+        description: 'Текст поста в Telegram. Если пусто, будет использован "Обновление <версия>".'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -120,6 +125,38 @@ jobs:
             }
           }
 
+          function Invoke-NativeWithInput {
+            param(
+              [string]$InputText,
+              [string]$Command,
+              [Parameter(ValueFromRemainingArguments = $true)]
+              [string[]]$Arguments
+            )
+
+            $processInfo = [System.Diagnostics.ProcessStartInfo]::new()
+            $processInfo.FileName = $Command
+            $processInfo.UseShellExecute = $false
+            $processInfo.RedirectStandardInput = $true
+            foreach ($argument in $Arguments) {
+              [void]$processInfo.ArgumentList.Add($argument)
+            }
+
+            $process = [System.Diagnostics.Process]::Start($processInfo)
+            $process.StandardInput.NewLine = "`n"
+            $process.StandardInput.Write($InputText)
+            $process.StandardInput.Close()
+            $process.WaitForExit()
+            if ($process.ExitCode -ne 0) {
+              throw ("Command failed with exit code {0}: {1} {2}" -f $process.ExitCode, $Command, ($Arguments -join " "))
+            }
+          }
+
+          function ConvertTo-ShellSingleQuoted {
+            param([string]$Value)
+
+            return "'" + ($Value -replace "'", "'\''") + "'"
+          }
+
           if ([string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_HOST) -or
               [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_USER) -or
               [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_DIR) -or
@@ -185,9 +222,89 @@ jobs:
           $uploadSeconds = [math]::Round(((Get-Date) - $uploadStarted).TotalSeconds, 1)
           Write-Host "Windows ZIP upload completed in $uploadSeconds seconds."
 
+          $cleanupScript = @'
+          set -eu
+
+          upload_dir=$1
+          pattern=$2
+          keep=$3
+
+          case "$keep" in
+            ''|*[!0-9]*)
+              keep=3
+              ;;
+          esac
+
+          if [ "$keep" -lt 1 ]; then
+            keep=3
+          fi
+
+          cd "$upload_dir" || exit 0
+
+          find . -maxdepth 1 -type f -name "$pattern" |
+            sed 's#^\./##' |
+            sort -V |
+            awk -v keep="$keep" '
+              { files[NR] = $0 }
+              END {
+                limit = NR - keep
+                for (i = 1; i <= limit; i++) {
+                  print files[i]
+                }
+              }
+            ' |
+            while IFS= read -r old_file; do
+              if [ -n "$old_file" ]; then
+                rm -f -- "$old_file"
+                printf 'Removed old release: %s\n' "$old_file"
+              fi
+            done
+          '@
+          $cleanupScript = $cleanupScript -replace "`r`n", "`n"
+          $cleanupCommand = "sh -s -- $(ConvertTo-ShellSingleQuoted $env:SSH_UPLOAD_DIR) 'nfprogress-windows-*.zip' '3'"
+          Invoke-NativeWithInput $cleanupScript ssh @sshOptions $target $cleanupCommand
+
           Invoke-Native scp @scpOptions "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json" update_manifest.json
           Invoke-Native python scripts/update-release-manifest.py $env:APP_VERSION windows
           Invoke-Native python scripts/create-legacy-manifest.py
           Invoke-Native scp @scpOptions update_manifest.json "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json"
           Invoke-Native scp @scpOptions update_manifest_legacy.json "${target}:nfproject/public_html/update_manifest.json"
+          echo "WINDOWS_UPLOAD_COMPLETED=true" >> $env:GITHUB_ENV
           Write-Host "SSH upload completed."
+
+      - name: Notify Telegram channel
+        shell: pwsh
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_MESSAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.telegram_message || github.event.head_commit.message }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if ($env:WINDOWS_UPLOAD_COMPLETED -ne "true") {
+            Write-Host "Telegram notification skipped: Windows upload was not completed."
+            exit 0
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:TELEGRAM_BOT_TOKEN) -or
+              [string]::IsNullOrWhiteSpace($env:TELEGRAM_CHANNEL_ID)) {
+            Write-Host "Telegram notification skipped: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID secrets to enable it."
+            exit 0
+          }
+
+          $message = $env:TELEGRAM_MESSAGE
+          if ([string]::IsNullOrWhiteSpace($message)) {
+            $message = "Обновление $($env:APP_VERSION)"
+          }
+
+          $message = $message -replace "`r`n", "`n"
+          Invoke-RestMethod `
+            -Uri "https://api.telegram.org/bot$($env:TELEGRAM_BOT_TOKEN)/sendMessage" `
+            -Method Post `
+            -Body @{
+              chat_id = $env:TELEGRAM_CHANNEL_ID
+              text = $message
+              disable_web_page_preview = "true"
+            } | Out-Null
+
+          Write-Host "Telegram notification sent."

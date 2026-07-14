@@ -4,8 +4,8 @@ import os
 import sys
 import threading
 
-from PySide6.QtCore import QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags
-from PySide6.QtGui import QKeySequence
+from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF, QSize
+from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel
@@ -26,6 +26,77 @@ from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
 from update_checker import UpdateChecker, run_windows_updater_from_argv
+
+
+def _read_word_sync_source(project):
+    file_path = project.synch['path']
+    if not os.path.exists(file_path):
+        return None, None, 'missing'
+
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext == '.docx':
+        symbols = en.count_symbols_in_docx(file_path)
+    elif ext == '.doc':
+        return None, None, 'doc_unsupported'
+    else:
+        return None, None, 'unsupported_format'
+
+    file_mtime = os.path.getmtime(file_path)
+    note_date = datetime.datetime.fromtimestamp(file_mtime)
+    return symbols, note_date, None
+
+
+def _read_scrivener_sync_source(project):
+    proj_path = project.synch['path']
+    item_id = project.synch['item_id']
+    if not os.path.exists(proj_path):
+        return None, None, 'missing'
+
+    symbols = count_symbols_in_scrivener_item(proj_path, item_id)
+    proj_mtime = os.path.getmtime(proj_path)
+    note_date = datetime.datetime.fromtimestamp(proj_mtime)
+    return symbols, note_date, None
+
+
+class SyncReadWorker(QObject):
+    finished = Signal(object, str, object, object, object, bool, object)
+    failed = Signal(object, str, str, bool, object)
+
+    def __init__(self, project, sync_type, background_synch=False, batch_id=None):
+        super().__init__()
+        self.project = project
+        self.sync_type = sync_type
+        self.background_synch = background_synch
+        self.batch_id = batch_id
+
+    @Slot()
+    def run(self):
+        try:
+            if self.sync_type == 'word':
+                symbols, note_date, read_error = _read_word_sync_source(self.project)
+            elif self.sync_type == 'scrivener':
+                symbols, note_date, read_error = _read_scrivener_sync_source(self.project)
+            else:
+                symbols, note_date, read_error = None, None, 'unsupported_sync_type'
+        except Exception as error:
+            self.failed.emit(
+                self.project,
+                self.sync_type,
+                str(error),
+                self.background_synch,
+                self.batch_id
+            )
+            return
+
+        self.finished.emit(
+            self.project,
+            self.sync_type,
+            symbols,
+            note_date,
+            read_error,
+            self.background_synch,
+            self.batch_id
+        )
 
 
 class MainWindow(QMainWindow, main_window_ui):
@@ -51,6 +122,9 @@ class MainWindow(QMainWindow, main_window_ui):
         self._previous_tab = None
         # были ли уже подключены обработчики кнопок проекта (setup_project_buttons)
         self._project_buttons_connected = False
+        self._sync_threads = {}
+        self._background_sync_batches = {}
+        self.update_checker = None
 
         # Применяем настройки
         self.applying_settings()
@@ -148,6 +222,12 @@ class MainWindow(QMainWindow, main_window_ui):
             toast.fade_in_anim.stop()
             toast.fade_out_anim.stop()
 
+        for project_name in list(self._sync_threads):
+            self._cleanup_sync_read_worker(project_name)
+
+        if self.update_checker is not None:
+            self.update_checker.shutdown()
+
         super().closeEvent(event)
 
     def _setup_time_watcher(self):
@@ -214,7 +294,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def create_project(self):
         """Создаёт новый проект."""
-        dialog = CreateProject()
+        data = en.load_data()
+        dialog = CreateProject(existing_names=data['projects'].keys())
         result = dialog.exec()
 
         if result == QDialog.Accepted:
@@ -310,45 +391,38 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.settings_menu.removeAction(self.developer_mode_action)
                 self.developer_mode_action = None
 
+        data = en.load_data()
+        projects = data['projects']
+        data_changed = False
+
         if settings.get('inf_project'):
             # 1. Если есть старый ключ, мигрируем данные
-            if 'inf_project' in en.load_data()['projects']:
-                data = en.load_data()
-                old_inf_project = data['projects']['inf_project']
+            if 'inf_project' in projects:
+                old_inf_project = projects['inf_project']
                 old_inf_project.name = 'Общий проект'  # Обновляем имя внутри объекта проекта
-                data['projects']['Общий проект'] = old_inf_project
-                del data['projects']['inf_project']
-                save_data(data)
-                self.refresh_projects()
-
+                projects['Общий проект'] = old_inf_project
+                del projects['inf_project']
+                data_changed = True
 
             # 2. Если старого ключа нет И нового еще не создано — создаем с нуля
-            elif 'Общий проект' not in en.load_data()['projects']:
-                data = en.load_data()
+            elif 'Общий проект' not in projects:
                 inf_project = en.Project(name='Общий проект', goal=float('inf'), progress=100)
-                data['projects']['Общий проект'] = inf_project
-                save_data(data)
-                self.refresh_projects()
+                projects['Общий проект'] = inf_project
+                data_changed = True
         else:
-            data = en.load_data()
-            if data['projects'].get('Общий проект', False):
-                del data['projects']['Общий проект']
-                save_data(data)
-                self.refresh_projects()
-            if data['projects'].get('inf_project', False):
-                del data['projects']['inf_project']
-                save_data(data)
-                self.refresh_projects()
+            if projects.get('Общий проект', False):
+                del projects['Общий проект']
+                data_changed = True
+            if projects.get('inf_project', False):
+                del projects['inf_project']
+                data_changed = True
 
+        if data_changed:
+            save_data(data)
 
-        if settings.get('global_streak', False):
-            self.global_streak_status.setVisible(True)
-            self.refresh_projects()
-            self.view_project()
-        else:
-            self.global_streak_status.setVisible(False)
-            self.refresh_projects()
-            self.view_project()
+        self.global_streak_status.setVisible(settings.get('global_streak', False))
+        self.refresh_projects()
+        self.view_project()
         if settings.get('show_written_today_in_all_projects'):
             self.written_today_in_all_projects_label.setVisible(True)
             self.written_today_in_all_projects()
@@ -383,7 +457,6 @@ class MainWindow(QMainWindow, main_window_ui):
                     en.save_data(data)
                 en.save_settings(settings)
         self.applying_settings()
-        self.refresh_projects()
 
     def view_project(self):
         """Отображает информацию о выбранном проекте"""
@@ -594,6 +667,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.pb_save_flash_note.clicked.disconnect()
             self.delete_note.clicked.disconnect()
             self.btn_synch_project.clicked.disconnect()
+            self.share_progress.clicked.disconnect()
 
         self._project_buttons_connected = True
 
@@ -606,6 +680,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.pb_save_flash_note.clicked.connect(lambda: self.refresh_global_streak_status())
         self.delete_note.clicked.connect(lambda: self.delete_selected_note(project))
         self.btn_synch_project.clicked.connect(lambda: self.sync_project(project))
+        self.share_progress.clicked.connect(lambda: self.share_project_progress(project))
         # Включение/отключение действия удаления синхронизации в меню
         self.del_synch_action.setEnabled(project.synch is not None)
 
@@ -667,6 +742,200 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Обновляем статус синхронизации
         self.update_sync_status_label(project)
+
+    def share_project_progress(self, project: en.Project):
+        """Копирует картинку прогресса проекта в буфер обмена."""
+        if project.goal == float('inf'):
+            self.notifications.show_warning("Для проекта без цели нельзя создать картинку прогресса")
+            return
+
+        image = self._create_progress_share_image(project)
+        QApplication.clipboard().setImage(image)
+        self.notifications.show_info("Картинка прогресса добавлена в буфер обмена")
+
+    def _create_progress_share_image(self, project: en.Project) -> QImage:
+        size = 1080
+        image = QImage(size, size, QImage.Format_ARGB32)
+        image.fill(QColor("#FFFFFF"))
+
+        progress = max(0, min(100, int(round(project.progress))))
+        center = size / 2
+        ring_outer = 620
+        ring_width = 78
+        ring_rect = QRectF(
+            center - ring_outer / 2,
+            125,
+            ring_outer,
+            ring_outer
+        )
+
+        painter = QPainter(image)
+        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
+
+        progress_color = self._get_progress_share_color(progress)
+
+        pen = QPen(QColor("#E6EBEF"))
+        pen.setWidth(ring_width)
+        pen.setCapStyle(Qt.RoundCap)
+        painter.setPen(pen)
+        painter.drawArc(ring_rect, 0, 360 * 16)
+
+        if progress > 0:
+            pen.setColor(progress_color)
+            painter.setPen(pen)
+            painter.drawArc(ring_rect, 90 * 16, int(-progress * 360 * 16 / 100))
+
+        percent_font = self._make_progress_share_font(210, bold=True)
+        painter.setFont(percent_font)
+        painter.setPen(progress_color)
+        painter.drawText(ring_rect, Qt.AlignCenter, f"{progress}%")
+
+        title_area = QRectF(80, 805, size - 160, 157)
+        title_font = self._make_progress_share_font(1, bold=True)
+        title_font = self._fit_progress_share_font(
+            project.name,
+            title_area,
+            title_font,
+            max_pixel_size=self._get_progress_share_title_max_size(project.name),
+            min_pixel_size=27
+        )
+        painter.setPen(QColor("#000000"))
+        painter.setFont(title_font)
+        title_rect = self._centered_progress_share_text_rect(project.name, title_area, title_font)
+        painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, project.name)
+        self._draw_progress_share_brand(painter, size)
+        painter.end()
+        return image
+
+    def _make_progress_share_font(self, pixel_size: int, bold: bool = False) -> QFont:
+        font = QFont("Arial")
+        font.setPixelSize(pixel_size)
+        font.setBold(bold)
+        return font
+
+    def _get_progress_share_title_max_size(self, title: str) -> int:
+        length = len(title.strip())
+        if length <= 1:
+            return 155
+        if length <= 4:
+            return 139
+        if length <= 14:
+            return 123
+        if length <= 28:
+            return 104
+        return 85
+
+    def _fit_progress_share_font(
+            self,
+            text: str,
+            rect: QRectF,
+            font: QFont,
+            max_pixel_size: int,
+            min_pixel_size: int
+    ) -> QFont:
+        fitted_font = QFont(font)
+
+        for pixel_size in range(max_pixel_size, min_pixel_size - 1, -2):
+            fitted_font.setPixelSize(pixel_size)
+            metrics = QFontMetrics(fitted_font)
+            bounding = metrics.boundingRect(
+                rect.toRect(),
+                Qt.AlignCenter | Qt.TextWordWrap,
+                text
+            )
+            if bounding.width() <= rect.width() and bounding.height() <= rect.height():
+                return fitted_font
+
+        fitted_font.setPixelSize(min_pixel_size)
+        return fitted_font
+
+    def _centered_progress_share_text_rect(self, text: str, area: QRectF, font: QFont) -> QRectF:
+        metrics = QFontMetrics(font)
+        bounding = metrics.boundingRect(
+            area.toRect(),
+            Qt.AlignCenter | Qt.TextWordWrap,
+            text
+        )
+        text_height = min(bounding.height(), area.height())
+        y = area.y() + (area.height() - text_height) / 2
+        return QRectF(area.x(), y, area.width(), text_height)
+
+    def _draw_progress_share_brand(self, painter: QPainter, image_size: int):
+        icon_size = 46
+        spacing = 14
+        brand_text = "nfprogress"
+        icon = self._load_progress_share_icon()
+
+        brand_font = self._make_progress_share_font(37, bold=True)
+        painter.setFont(brand_font)
+        painter.setPen(QColor("#2568AC"))
+
+        metrics = QFontMetrics(brand_font)
+        text_width = metrics.horizontalAdvance(brand_text)
+        text_height = metrics.height()
+        group_width = icon_size + spacing + text_width if not icon.isNull() else text_width
+        group_x = (image_size - group_width) / 2
+        center_y = image_size - 54
+
+        if not icon.isNull():
+            icon_rect = QRectF(group_x, center_y - icon_size / 2, icon_size, icon_size)
+            painter.drawImage(icon_rect, icon)
+            text_x = group_x + icon_size + spacing
+        else:
+            text_x = group_x
+
+        text_rect = QRectF(text_x, center_y - text_height / 2, text_width, text_height)
+        painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, brand_text)
+
+    def _load_progress_share_icon(self) -> QImage:
+        for path in self._progress_share_icon_candidates("Icon.svg"):
+            icon = self._load_progress_share_icon_from_qicon(path)
+            if not icon.isNull():
+                return icon
+
+        for path in self._progress_share_icon_candidates("icon.ico"):
+            icon = self._load_progress_share_icon_from_qicon(path)
+            if not icon.isNull():
+                return icon
+
+        return QImage()
+
+    def _load_progress_share_icon_from_qicon(self, path: str) -> QImage:
+        icon = QIcon(path)
+        if icon.isNull():
+            return QImage()
+
+        pixmap = icon.pixmap(QSize(256, 256))
+        if pixmap.isNull():
+            return QImage()
+
+        return pixmap.toImage()
+
+    def _progress_share_icon_candidates(self, icon_file: str) -> list[str]:
+        return [
+            en.resource_path(icon_file),
+            os.path.join(os.path.dirname(os.path.abspath(__file__)), icon_file),
+            os.path.join(os.getcwd(), icon_file),
+            os.path.join(os.path.dirname(os.path.abspath(sys.argv[0])), icon_file),
+            os.path.join(os.path.dirname(os.path.abspath(sys.executable)), icon_file),
+            os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(sys.executable))),
+                "Resources",
+                icon_file
+            ),
+        ]
+
+    def _get_progress_share_color(self, progress: int) -> QColor:
+        ratio = max(0.0, min(1.0, progress / 100.0))
+        start_color = QColor("#A9A9A9")
+        end_color = QColor("#2568AC")
+
+        r = start_color.red() + ratio * (end_color.red() - start_color.red())
+        g = start_color.green() + ratio * (end_color.green() - start_color.green())
+        b = start_color.blue() + ratio * (end_color.blue() - start_color.blue())
+
+        return QColor(int(r), int(g), int(b))
 
     def load_notes(self, project):
         """Загружает список заметок проекта с отображением добавленного и общего количества."""
@@ -820,28 +1089,27 @@ class MainWindow(QMainWindow, main_window_ui):
         # Загружаем данные
         data = en.load_data()
         data['projects'][project.name] = project
+        settings = en.load_settings()
 
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
-        if en.load_settings().get('game_mode', False) and added_symbols > 0:
+        if settings.get('game_mode', False) and added_symbols > 0:
             self.game_controller.add_symbols(added_symbols)
             # Даем бонус за стрик проекта и глобальный, если он включен
-            if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
+            if settings.get('global_streak', False):
                 if project.last_streak_bonus != en.today_for_test():
                     if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', en.streak_length(project.streaks)):
                         project.last_streak_bonus = en.today_for_test()
                         data['projects'][project.name] = project
-                        save_data(data)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global', len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
-                        save_data(data)
 
         # Сохраняем изменения
         data['projects'][project.name] = project
         en.save_data(data)
 
-        if en.load_settings().get('global_streak', False):
+        if settings.get('global_streak', False):
             # Обновляем глобальный стрик
             self.refresh_global_streak_status()
 
@@ -928,7 +1196,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def edit_project(self, project):
         """Редактирует существующий проект."""
-        dialog = EditProject(project)
+        data = en.load_data()
+        dialog = EditProject(project, existing_names=data['projects'].keys())
         result = dialog.exec()
 
         if result == QDialog.Accepted:
@@ -1381,23 +1650,27 @@ class MainWindow(QMainWindow, main_window_ui):
 
         list_p.clear()
 
+        settings = en.load_settings()
+        should_give_streak_bonus = settings.get('game_mode', False) and settings.get('global_streak', False)
+        data_changed = False
+
         for project in projects:
             widget = self.generate_project_widget(project)
 
             # Даем бонус за стрик проекта и глобальный, если он включен
-            if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
+            if should_give_streak_bonus:
                 if project.last_streak_bonus != en.today_for_test():
                     if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
                                                               en.streak_length(project.streaks)):
                         project.last_streak_bonus = en.today_for_test()
                         data['projects'][project.name] = project
-                        save_data(data)
+                        data_changed = True
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
                                                               len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
-                        save_data(data)
+                        data_changed = True
 
             # Принудительно обновляем layout, чтобы sizeHint был актуальным
             widget.layout().activate()
@@ -1423,7 +1696,8 @@ class MainWindow(QMainWindow, main_window_ui):
             self.select_project_by_name(current_project_name)
         # Показываем, сколько написано сегодня в символах
         self.written_today_in_all_projects()
-        en.save_data(data)
+        if data_changed:
+            en.save_data(data)
 
     def check_global_streak(self):
         """Проверяет глобальный стрик и показывает уведомление"""
@@ -1457,7 +1731,7 @@ class MainWindow(QMainWindow, main_window_ui):
         if not user_agreement:
             self.user_agreement()
 
-    def sync_project(self, project, background_synch=False):
+    def sync_project(self, project, background_synch=False, batch_id=None):
         # Если синхронизация не настроена
         if project.synch is None:
             if background_synch:
@@ -1482,26 +1756,117 @@ class MainWindow(QMainWindow, main_window_ui):
 
             if sync_type == 'word':
                 if not background_synch:
-                    self._sync_word(project)
+                    return self._sync_word(project)
                 else:
-                    self._sync_word(project, True)
+                    return self._sync_word(project, True, batch_id=batch_id)
             elif sync_type == 'scrivener':
                 if not background_synch:
-                    self._sync_scrivener(project)
+                    return self._sync_scrivener(project)
                 else:
-                    self._sync_scrivener(project, True)
+                    return self._sync_scrivener(project, True, batch_id=batch_id)
             else:
                 self.notifications.show_error("Неизвестный тип синхронизации")
+                return False
         else:
             # Старый формат (строка) – считаем как word
             # Конвертируем на лету
             project.synch = {'type': 'word', 'path': project.synch}
-            self._sync_word(project)
+            return self._sync_word(project)
 
-    def _sync_word(self, project, background_synch=False):
+        return False
+
+    def _start_sync_read(self, project, sync_type, background_synch=False, batch_id=None):
+        project_name = project.name
+        if project_name in self._sync_threads:
+            if not background_synch:
+                self.notifications.show_info("Синхронизация уже выполняется.")
+            return False
+
+        thread = QThread(self)
+        worker = SyncReadWorker(project, sync_type, background_synch, batch_id)
+        worker.moveToThread(thread)
+
+        thread.started.connect(worker.run)
+        worker.finished.connect(self._on_sync_read_finished)
+        worker.failed.connect(self._on_sync_read_failed)
+
+        self._sync_threads[project_name] = (thread, worker)
+        thread.start()
+        return True
+
+    def _cleanup_sync_read_worker(self, project_name):
+        thread_worker = self._sync_threads.pop(project_name, None)
+        if thread_worker is None:
+            return
+
+        thread, worker = thread_worker
+        worker.deleteLater()
+        thread.quit()
+        thread.wait()
+        thread.deleteLater()
+
+    def _start_next_background_sync_item(self, batch_id):
+        if batch_id is None:
+            return
+
+        batch = self._background_sync_batches.get(batch_id)
+        if batch is None:
+            return
+
+        while batch['queue']:
+            project = batch['queue'].pop(0)
+            if self.sync_project(project, True, batch_id=batch_id):
+                return
+            batch['completed'] += 1
+
+        self._background_sync_batches.pop(batch_id, None)
+        if not batch['silent']:
+            self.notifications.show_success(f"Синхронизировано проектов: {batch['completed']}")
+
+    def _finish_background_sync_item(self, batch_id):
+        if batch_id is None:
+            return
+
+        batch = self._background_sync_batches.get(batch_id)
+        if batch is None:
+            return
+
+        batch['completed'] += 1
+        self._start_next_background_sync_item(batch_id)
+
+    @Slot(object, str, object, object, object, bool, object)
+    def _on_sync_read_finished(self, project, sync_type, symbols, note_date, read_error, background_synch, batch_id):
+        self._cleanup_sync_read_worker(project.name)
+
+        if sync_type == 'word':
+            self._handle_word_sync_read_result(project, symbols, note_date, read_error, background_synch)
+        elif sync_type == 'scrivener':
+            self._handle_scrivener_sync_read_result(project, symbols, note_date, read_error, background_synch)
+        elif not background_synch:
+            self.notifications.show_error("Неизвестный тип синхронизации")
+
+        self._finish_background_sync_item(batch_id)
+
+    @Slot(object, str, str, bool, object)
+    def _on_sync_read_failed(self, project, sync_type, error, background_synch, batch_id):
+        self._cleanup_sync_read_worker(project.name)
+
+        if not background_synch:
+            if sync_type == 'word':
+                self.notifications.show_error(f"Ошибка при чтении файла: {error}")
+            elif sync_type == 'scrivener':
+                self.notifications.show_error(f"Ошибка при синхронизации Scrivener: {error}")
+            else:
+                self.notifications.show_error(f"Ошибка синхронизации: {error}")
+
+        self._finish_background_sync_item(batch_id)
+
+    def _sync_word(self, project, background_synch=False, batch_id=None):
         """Синхронизация с Word-файлом"""
-        file_path = project.synch['path']
-        if not os.path.exists(file_path):
+        return self._start_sync_read(project, 'word', background_synch, batch_id)
+
+    def _handle_word_sync_read_result(self, project, symbols, note_date, read_error, background_synch=False):
+        if read_error == 'missing':
             if not background_synch:
                 self.notifications.show_error(
                     "Файл не найден. Возможно, он был перемещён.\n"
@@ -1509,148 +1874,138 @@ class MainWindow(QMainWindow, main_window_ui):
                 )
             project.synch = None
             return
+        elif read_error == 'doc_unsupported':
+            if not background_synch:
+                self.notifications.show_error(
+                    "Поддержка .doc временно недоступна.\n"
+                    "Пожалуйста, сохраните файл как .docx."
+                )
+            return
+        elif read_error == 'unsupported_format':
+            if not background_synch:
+                self.notifications.show_error("Неподдерживаемый формат файла.")
+            return
 
         try:
-            ext = os.path.splitext(file_path)[1].lower()
-            if ext == '.docx':
-                symbols = en.count_symbols_in_docx(file_path)
-            elif ext == '.doc':
-                if not background_synch:
-                    self.notifications.show_error(
-                        "Поддержка .doc временно недоступна.\n"
-                        "Пожалуйста, сохраните файл как .docx."
-                    )
-                return
-            else:
-                if not background_synch:
-                    self.notifications.show_error("Неподдерживаемый формат файла.")
-                return
+            self._apply_sync_read_result(project, symbols, note_date, background_synch, "Синхронизация завершена")
+        except Exception as e:
+            if not background_synch:
+                self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
 
-            # Конвертируем количество символов в единицу проекта
-            new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
-            current_total_in_unit = project.total_units
+    def _apply_sync_read_result(self, project, symbols, note_date, background_synch, success_title):
+        # Конвертируем количество символов в единицу проекта
+        new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
+        current_total_in_unit = project.total_units
 
-            # Проверяем, изменилось ли количество
-            if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
-                if not background_synch:
-                    self.notifications.show_info(
-                        "Количество символов не изменилось."
-                    )
-                return
+        # Проверяем, изменилось ли количество
+        if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
+            if not background_synch:
+                self.notifications.show_info(
+                    "Количество символов не изменилось."
+                )
+            return
 
-            # Вычисляем изменение
-            added_in_unit = new_total_in_unit - current_total_in_unit
-            added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
-            new_total_symbols = project.get_total_symbols() + added_symbols
+        # Вычисляем изменение
+        added_in_unit = new_total_in_unit - current_total_in_unit
+        added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
+        new_total_symbols = project.get_total_symbols() + added_symbols
 
-            # Вычисляем прогресс (для уведомления используем абсолютное значение)
-            goal_symbols = project.get_goal_symbols()
-            if goal_symbols == float('inf'):
-                added_progress = 0
-            else:
-                added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
+        # Вычисляем прогресс (для уведомления используем абсолютное значение)
+        goal_symbols = project.get_goal_symbols()
+        if goal_symbols == float('inf'):
+            added_progress = 0
+        else:
+            added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
 
-            # Получаем дату последнего изменения файла
-            file_mtime = os.path.getmtime(file_path)  # timestamp в секундах
-            note_date = datetime.datetime.fromtimestamp(file_mtime)  # datetime объект
+        # Создаём заметку (added_symbols может быть отрицательным)
+        note = en.Note(new_total_symbols, added_symbols, added_progress, date_create=note_date)
+        project.set_new_notes(note)
+        project.get_streak_status()
 
-            # Создаём заметку (added_symbols может быть отрицательным)
-            note = en.Note(new_total_symbols, added_symbols, added_progress, date_create=note_date)
-            project.set_new_notes(note)
-            project.get_streak_status()
+        # Обновляем информацию о проекте
+        self.load_notes(project)
+        self.show_project_info(project)
 
-            # Обновляем информацию о проекте
-            self.load_notes(project)
-            self.show_project_info(project)
+        # Обновляем написанное сегодня во всех проектах
+        self.written_today_in_all_projects()
 
-            # Обновляем написанное сегодня во всех проектах
-            self.written_today_in_all_projects()
+        # Обновляем дату последней синхронизации
+        project.last_synch = datetime.datetime.now()  # используем текущее время
 
-            # Обновляем дату последней синхронизации
-            project.last_synch = datetime.datetime.now()  # используем текущее время
+        # Обновляем статус в интерфейсе
+        self.update_sync_status_label(project)
 
-            # Обновляем статус в интерфейсе
-            self.update_sync_status_label(project)
+        data = en.load_data()
+        data['projects'][project.name] = project
+        settings = en.load_settings()
 
-            # Загружаем данные
-            data = en.load_data()
-            data['projects'][project.name] = project
-
-            # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
-            if en.load_settings().get('game_mode', False) and added_symbols > 0:
-                self.game_controller.add_symbols(added_symbols)
-                # Даем бонус за стрик проекта и глобальный, если он включен
-                if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
-                    if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                                  en.streak_length(project.streaks)):
-                            project.last_streak_bonus = en.today_for_test()
-                            data['projects'][project.name] = project
-                            save_data(data)
+        # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
+        if settings.get('game_mode', False) and added_symbols > 0:
+            self.game_controller.add_symbols(added_symbols)
+            # Даем бонус за стрик проекта и глобальный, если он включен
+            if settings.get('global_streak', False):
+                if project.last_streak_bonus != en.today_for_test():
+                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
+                                                              en.streak_length(project.streaks)):
+                        project.last_streak_bonus = en.today_for_test()
+                        data['projects'][project.name] = project
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
                                                               len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
-                        save_data(data)
 
-            # Сохраняем изменения
-            data['projects'][project.name] = project
-            en.save_data(data)
+        # Сохраняем изменения
+        data['projects'][project.name] = project
+        en.save_data(data)
 
-            # Обновляем глобальный стрик
-            if en.load_settings().get('global_streak', False):
-                self.refresh_global_streak_status()
+        # Обновляем глобальный стрик
+        if settings.get('global_streak', False):
+            self.refresh_global_streak_status()
 
-            # Обновляем виджет проекта в списке (для анимации)
-            current_item = self.list_projects.currentItem()
-            if current_item and current_item is not None:
-                widget = self.list_projects.itemWidget(current_item)
-                if widget and hasattr(widget, 'project') and widget.project.name == project.name:
-                    # Обновляем существующий виджет
-                    widget.update_display()
-                    self.written_today_in_all_projects()
-                else:
-                    # Если текущий виджет не соответствует проекту, ищем нужный
-                    self.refresh_projects()
-                    self.select_project_by_name(project.name)
+        # Обновляем виджет проекта в списке (для анимации)
+        current_item = self.list_projects.currentItem()
+        if current_item and current_item is not None:
+            widget = self.list_projects.itemWidget(current_item)
+            if widget and hasattr(widget, 'project') and widget.project.name == project.name:
+                # Обновляем существующий виджет
+                widget.update_display()
+                self.written_today_in_all_projects()
             else:
-                # Если ничего не выбрано, просто обновляем список
+                # Если текущий виджет не соответствует проекту, ищем нужный
                 self.refresh_projects()
                 self.select_project_by_name(project.name)
+        else:
+            # Если ничего не выбрано, просто обновляем список
+            self.refresh_projects()
+            self.select_project_by_name(project.name)
 
-            unit_name = self.unit_to_display.get(project.unit, project.unit)
+        # Определяем правильное склонение единицы измерения для количества added_in_unit
+        abs_added = abs(added_in_unit)
+        unit_display = self._get_unit_display(project.unit, abs_added)
 
-            # Определяем правильное склонение единицы измерения для количества added_in_unit
-            abs_added = abs(added_in_unit)
-            unit_display = self._get_unit_display(project.unit, abs_added)
-
-            # Формируем сообщение в зависимости от знака изменения
-            if added_in_unit > 0:
-                if not background_synch:
-                    self.notifications.show_success(
-                        f"Синхронизация завершена.\n"
-                        f"Добавлено {self._format_number(abs_added)} {unit_display}",
-                        position="bottom-right"
-                    )
-            else:
-                if not background_synch:
-                    self.notifications.show_warning(
-                        f"Синхронизация завершена.\n"
-                        f"Удалено {self._format_number(abs_added)} {unit_display}",
-                        position="bottom-right"
-                    )
-
-        except Exception as e:
+        # Формируем сообщение в зависимости от знака изменения
+        if added_in_unit > 0:
             if not background_synch:
-                self.notifications.show_error(f"Ошибка при чтении файла: {str(e)}")
+                self.notifications.show_success(
+                    f"{success_title}.\n"
+                    f"Добавлено {self._format_number(abs_added)} {unit_display}",
+                    position="bottom-right"
+                )
+        else:
+            if not background_synch:
+                self.notifications.show_warning(
+                    f"{success_title}.\n"
+                    f"Удалено {self._format_number(abs_added)} {unit_display}",
+                    position="bottom-right"
+                )
 
-    def _sync_scrivener(self, project, background_synch=False):
+    def _sync_scrivener(self, project, background_synch=False, batch_id=None):
         """Синхронизация с проектом Scrivener"""
-        proj_path = project.synch['path']
-        item_id = project.synch['item_id']
+        return self._start_sync_read(project, 'scrivener', background_synch, batch_id)
 
-        if not os.path.exists(proj_path):
+    def _handle_scrivener_sync_read_result(self, project, symbols, note_date, read_error, background_synch=False):
+        if read_error == 'missing':
             if not background_synch:
                 self.notifications.show_error(
                     "Папка проекта Scrivener не найдена.\n"
@@ -1660,7 +2015,6 @@ class MainWindow(QMainWindow, main_window_ui):
             return
 
         try:
-            symbols = count_symbols_in_scrivener_item(proj_path, item_id)
             if symbols == 0 and project.total_units == 0:
                 if not background_synch:
                     self.notifications.show_warning(
@@ -1668,128 +2022,13 @@ class MainWindow(QMainWindow, main_window_ui):
                     )
                 return
 
-            # Конвертируем количество символов в единицу проекта
-            new_total_in_unit = en.unit_converter('symbols', symbols, project.unit)
-            current_total_in_unit = project.total_units
-
-            # Проверяем, изменилось ли количество
-            if abs(new_total_in_unit - current_total_in_unit) < 0.01:  # допускаем погрешность округления
-                if not background_synch:
-                    self.notifications.show_info(
-                        "Количество символов не изменилось."
-                    )
-                return
-
-            # Вычисляем изменение
-            added_in_unit = new_total_in_unit - current_total_in_unit
-            added_symbols = en.unit_converter(project.unit, added_in_unit, 'symbols')
-            new_total_symbols = project.get_total_symbols() + added_symbols
-
-            # Вычисляем прогресс (для уведомления используем абсолютное значение)
-            goal_symbols = project.get_goal_symbols()
-            if goal_symbols == float('inf'):
-                added_progress = 0
-            else:
-                added_progress = (abs(added_symbols) / goal_symbols * 100) if goal_symbols > 0 else 0
-
-            # Для Scrivener берём дату последнего изменения самого проекта (папки .scriv)
-            # или конкретного файла .scrivx / content.xml — как удобнее.
-            # Самый простой вариант — mtime папки проекта:
-            proj_mtime = os.path.getmtime(proj_path)
-            note_date = datetime.datetime.fromtimestamp(proj_mtime)
-
-            note = en.Note(
-                new_total_symbols,
-                added_symbols,
-                added_progress,
-                date_create=note_date
+            self._apply_sync_read_result(
+                project,
+                symbols,
+                note_date,
+                background_synch,
+                "Синхронизация Scrivener завершена"
             )
-
-            project.set_new_notes(note)
-            project.get_streak_status()
-
-            # Обновляем информацию о проекте
-            self.load_notes(project)
-            self.show_project_info(project)
-
-            # Обновляем написанное сегодня во всех проектах
-            self.written_today_in_all_projects()
-
-            # Обновляем дату последней синхронизации
-            project.last_synch = datetime.datetime.now()  # используем текущее время
-
-            # Обновляем статус в интерфейсе
-            self.update_sync_status_label(project)
-
-            # Загружаем данные
-            data = en.load_data()
-            data['projects'][project.name] = project
-
-            # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
-            if en.load_settings().get('game_mode', False) and added_symbols > 0:
-                self.game_controller.add_symbols(added_symbols)
-                # Даем бонус за стрик проекта и глобальный, если он включен
-                if en.load_settings().get('game_mode', False) and en.load_settings().get('global_streak', False):
-                    if project.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                                  en.streak_length(project.streaks)):
-                            project.last_streak_bonus = en.today_for_test()
-                            data['projects'][project.name] = project
-                            save_data(data)
-                # Даем бонус за глобальный стрик
-                if data.get('last_global_streak_bonus', None) != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
-                                                              len(data['global_streaks'])):
-                        data['last_global_streak_bonus'] = en.today_for_test()
-                        save_data(data)
-
-            # Сохраняем изменения
-            data['projects'][project.name] = project
-            en.save_data(data)
-
-            if en.load_settings().get('global_streak', False):
-                # Обновляем глобальный стрик
-                self.refresh_global_streak_status()
-
-            # Обновляем виджет проекта в списке (для анимации)
-            current_item = self.list_projects.currentItem()
-            if current_item and current_item is not None:
-                widget = self.list_projects.itemWidget(current_item)
-                if widget and hasattr(widget, 'project') and widget.project.name == project.name:
-                    # Обновляем существующий виджет
-                    widget.update_display()
-                    self.written_today_in_all_projects()
-                else:
-                    # Если текущий виджет не соответствует проекту, ищем нужный
-                    self.refresh_projects()
-                    self.select_project_by_name(project.name)
-            else:
-                # Если ничего не выбрано, просто обновляем список
-                self.refresh_projects()
-                self.select_project_by_name(project.name)
-
-            unit_name = self.unit_to_display.get(project.unit, project.unit)
-
-            # Определяем правильное склонение единицы измерения для количества added_in_unit
-            abs_added = abs(added_in_unit)
-            unit_display = self._get_unit_display(project.unit, abs_added)
-
-            # Формируем сообщение в зависимости от знака изменения
-            if added_in_unit > 0:
-                if not background_synch:
-                    self.notifications.show_success(
-                        f"Синхронизация Scrivener завершена.\n"
-                        f"Добавлено {self._format_number(abs_added)} {unit_display}",
-                        position="bottom-right"
-                    )
-            else:
-                if not background_synch:
-                    self.notifications.show_warning(
-                        f"Синхронизация Scrivener завершена.\n"
-                        f"Удалено {self._format_number(abs_added)} {unit_display}",
-                        position="bottom-right"
-                    )
-
         except Exception as e:
             if not background_synch:
                 self.notifications.show_error(f"Ошибка при синхронизации Scrivener: {str(e)}")
@@ -1923,11 +2162,14 @@ class MainWindow(QMainWindow, main_window_ui):
             # Нет проектов для синхронизации — ничего не делаем
             return
 
-        for project in projects_with_sync:
-            self.sync_project(project, True)  # фоновая синхронизация
-
-        if not silent:
-            self.notifications.show_success(f'Синхронизировано проектов: {len(projects_with_sync)}')
+        batch_id = object()
+        self._background_sync_batches[batch_id] = {
+            'queue': list(projects_with_sync),
+            'completed': 0,
+            'total': len(projects_with_sync),
+            'silent': silent,
+        }
+        self._start_next_background_sync_item(batch_id)
 
     def written_today_in_all_projects(self):
         projects = en.load_data()['projects']
@@ -1947,9 +2189,10 @@ class ConfirmDialog(QDialog, confirm_dialog_ui):
 
 
 class CreateProject(QDialog, create_project_ui):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, existing_names=None):
         super().__init__(parent)
         self.setupUi(self)
+        self.existing_names = set(existing_names or [])
 
         # Словари для преобразования
         self.text_to_unit = {
@@ -2110,9 +2353,6 @@ class CreateProject(QDialog, create_project_ui):
 
     def validate_all(self):
         """Валидация всех полей."""
-        data = en.load_data()
-        existing_names = list(data['projects'].keys())
-
         # Сбрасываем сообщения об ошибках (кроме имени, если оно есть)
         self.incorrect_data.setVisible(False)
         error_messages = []
@@ -2120,7 +2360,7 @@ class CreateProject(QDialog, create_project_ui):
         # Проверка имени
         current_name = self.le_name.text().strip()
         name_filled = bool(current_name)
-        name_incorrect = current_name in existing_names and current_name != ""
+        name_incorrect = current_name in self.existing_names and current_name != ""
         if name_incorrect:
             error_messages.append("Проект с таким именем уже существует")
 
@@ -2220,13 +2460,14 @@ class CreateProject(QDialog, create_project_ui):
 
 
 class EditProject(QDialog, create_project_ui):
-    def __init__(self, project, parent=None):
+    def __init__(self, project, parent=None, existing_names=None):
         super().__init__(parent)
         self.setupUi(self)
         self.setWindowTitle('Редактирование проекта')
 
         self.project = project
         self.original_name = project.name
+        self.existing_names = set(existing_names or [])
 
         # Словари для преобразования
         self.text_to_unit = {
@@ -2405,9 +2646,6 @@ class EditProject(QDialog, create_project_ui):
             self._updating = False
 
     def validate_all(self):
-        data = en.load_data()
-        existing_names = list(data['projects'].keys())
-
         self.incorrect_data.setVisible(False)
         error_messages = []
 
@@ -2416,7 +2654,7 @@ class EditProject(QDialog, create_project_ui):
         name_filled = bool(current_name)
         name_incorrect = False
         if name_filled and current_name != self.original_name:
-            name_incorrect = current_name in existing_names
+            name_incorrect = current_name in self.existing_names
         if name_incorrect:
             error_messages.append("Проект с таким именем уже существует")
 
@@ -2990,10 +3228,10 @@ if __name__ == "__main__":
 
     window = MainWindow()
     window.show()
-    update_checker = UpdateChecker(window)
-    QTimer.singleShot(1500, lambda: update_checker.check_for_updates(window))
+    window.update_checker = UpdateChecker(window)
+    QTimer.singleShot(1500, lambda: window.update_checker.check_for_updates(window))
     update_timer = QTimer(window)
     update_timer.setInterval(60 * 60 * 1000)
-    update_timer.timeout.connect(lambda: update_checker.check_for_updates(window))
+    update_timer.timeout.connect(lambda: window.update_checker.check_for_updates(window))
     update_timer.start()
     sys.exit(app.exec())

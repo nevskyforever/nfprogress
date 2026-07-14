@@ -122,25 +122,14 @@ class CircularProgressBar(QWidget):
         self.update()
 
     def _get_color_for_progress(self, progress):
-        """Возвращает цвет на основе прогресса с плавной интерполяцией в цветовом пространстве"""
+        """Возвращает цвет на основе прогресса с плавной RGB-интерполяцией."""
         ratio = max(0.0, min(1.0, progress / 100.0))
 
-        # Вариант 2: Интерполяция в HSV (более плавная и естественная)
-        start_hsv = self._start_color.toHsv()
-        end_hsv = self._end_color.toHsv()
+        r = self._start_color.red() + ratio * (self._end_color.red() - self._start_color.red())
+        g = self._start_color.green() + ratio * (self._end_color.green() - self._start_color.green())
+        b = self._start_color.blue() + ratio * (self._end_color.blue() - self._start_color.blue())
 
-        h = start_hsv.hue() + ratio * (end_hsv.hue() - start_hsv.hue())
-        s = start_hsv.saturation() + ratio * (end_hsv.saturation() - start_hsv.saturation())
-        v = start_hsv.value() + ratio * (end_hsv.value() - start_hsv.value())
-
-        # Нормализуем значения
-        h = h % 360  # оттенок по кругу
-        s = max(0, min(255, s))
-        v = max(0, min(255, v))
-
-        color = QColor()
-        color.setHsv(int(h), int(s), int(v))
-        return color
+        return QColor(int(r), int(g), int(b))
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -273,9 +262,9 @@ class ProjectWidget(QWidget, Ui_Form):
         self.circular_progress.setFixedSize(90, 90)
 
         # Устанавливаем цвета градиента
-        self.circular_progress.setStartColor("#A9A9A9")  # светло-серый для 0%
-        self.circular_progress.setEndColor("#4CAF50")  # зелёный для 100%
-        self.circular_progress.setBackgroundColor("#E0E0E0")
+        self.circular_progress.setStartColor("#A9A9A9")  # мягкий серый для 0%
+        self.circular_progress.setEndColor("#2568AC")  # синий акцент из иконки приложения
+        self.circular_progress.setBackgroundColor("#E6EBEF")
 
         # Убираем Expanding политику, так как размер фиксированный
         self.circular_progress.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)

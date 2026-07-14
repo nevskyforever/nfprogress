@@ -4,7 +4,7 @@
 import datetime
 
 from PySide6.QtCore import QDate, QSignalBlocker, QTimer, Qt
-from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog, QApplication
+from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
 
 import engine
 import game
@@ -235,8 +235,6 @@ class GameMenuController:
 
         level_up_msg = self.gamer.level_up()
 
-        # Перезагружаем игрока для актуальных данных
-        self.gamer = game.load_game()
         self.gamer.update_cf()
         recovery_msg = self.gamer.recover_health_by_time(save=True)
         self.register_custom_awards()
@@ -859,12 +857,13 @@ class GameMenuController:
     def update_shops(self):
         """Обновление магазинов"""
         self.register_custom_awards()
+        gamer_level = self.gamer.level
 
         # Магазин предметов
         self.ui.item_shop_list.clear()
         if 'Предметы' in game_data.ITEM_REGISTRY:
             for item_name, item_obj in game_data.ITEM_REGISTRY['Предметы'].items():
-                if game.load_game().level >= item_obj.level:
+                if gamer_level >= item_obj.level:
                     display_text = f"{item_obj.name}"
                     item = QListWidgetItem(display_text)
                     item.setData(1, ('Предметы', item_name))
@@ -876,7 +875,7 @@ class GameMenuController:
         self.ui.potion_shop_list.clear()
         if 'Зелья' in game_data.ITEM_REGISTRY:
             for potion_name, potion_obj in game_data.ITEM_REGISTRY['Зелья'].items():
-                if game.load_game().level >= potion_obj.level:
+                if gamer_level >= potion_obj.level:
                     display_text = f"{potion_obj.name}"
                     item = QListWidgetItem(display_text)
                     item.setData(1, ('Зелья', potion_name))
@@ -1445,7 +1444,6 @@ class GameMenuController:
         self.clear_award_info()
         self.clear_inventory_item_info()
         self.update_inventory()
-        QApplication.processEvents()
 
         QMessageBox.information(
             self.ui.centralwidget,
