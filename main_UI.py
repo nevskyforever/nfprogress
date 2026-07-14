@@ -786,36 +786,52 @@ class MainWindow(QMainWindow, main_window_ui):
             painter.drawArc(ring_rect, 90 * 16, int(-progress * 360 * 16 / 100))
 
         percent_font = QFont()
-        percent_font.setPointSize(132)
+        percent_font.setPointSize(156)
         percent_font.setBold(True)
         painter.setFont(percent_font)
         painter.setPen(progress_color)
         painter.drawText(ring_rect, Qt.AlignCenter, f"{progress}%")
 
-        title_rect = QRectF(80, 760, size - 160, 190)
+        title_rect = QRectF(80, 805, size - 160, 165)
         title_font = QFont()
-        title_font.setPointSize(70)
         title_font.setBold(True)
-        painter.setFont(title_font)
+        title_font = self._fit_progress_share_font(
+            project.name,
+            title_rect,
+            title_font,
+            max_point_size=58,
+            min_point_size=20
+        )
         painter.setPen(QColor("#000000"))
-
-        metrics = QFontMetrics(title_font)
-        while title_font.pointSize() > 34:
-            bounding = metrics.boundingRect(
-                title_rect.toRect(),
-                Qt.AlignCenter | Qt.TextWordWrap,
-                project.name
-            )
-            if bounding.height() <= title_rect.height() and bounding.width() <= title_rect.width():
-                break
-            title_font.setPointSize(title_font.pointSize() - 2)
-            painter.setFont(title_font)
-            metrics = QFontMetrics(title_font)
-
+        painter.setFont(title_font)
         painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, project.name)
         self._draw_progress_share_brand(painter, size)
         painter.end()
         return image
+
+    def _fit_progress_share_font(
+            self,
+            text: str,
+            rect: QRectF,
+            font: QFont,
+            max_point_size: int,
+            min_point_size: int
+    ) -> QFont:
+        fitted_font = QFont(font)
+
+        for point_size in range(max_point_size, min_point_size - 1, -2):
+            fitted_font.setPointSize(point_size)
+            metrics = QFontMetrics(fitted_font)
+            bounding = metrics.boundingRect(
+                rect.toRect(),
+                Qt.AlignCenter | Qt.TextWordWrap,
+                text
+            )
+            if bounding.width() <= rect.width() and bounding.height() <= rect.height():
+                return fitted_font
+
+        fitted_font.setPointSize(min_point_size)
+        return fitted_font
 
     def _draw_progress_share_brand(self, painter: QPainter, image_size: int):
         icon_size = 46
