@@ -895,16 +895,28 @@ class MainWindow(QMainWindow, main_window_ui):
         painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, brand_text)
 
     def _load_progress_share_icon(self) -> QImage:
-        for path in self._progress_share_icon_candidates("icon.ico"):
-            icon = QIcon(path)
-            if icon.isNull():
-                continue
+        for path in self._progress_share_icon_candidates("Icon.svg"):
+            icon = self._load_progress_share_icon_from_qicon(path)
+            if not icon.isNull():
+                return icon
 
-            pixmap = icon.pixmap(QSize(256, 256))
-            if not pixmap.isNull():
-                return pixmap.toImage()
+        for path in self._progress_share_icon_candidates("icon.ico"):
+            icon = self._load_progress_share_icon_from_qicon(path)
+            if not icon.isNull():
+                return icon
 
         return QImage()
+
+    def _load_progress_share_icon_from_qicon(self, path: str) -> QImage:
+        icon = QIcon(path)
+        if icon.isNull():
+            return QImage()
+
+        pixmap = icon.pixmap(QSize(256, 256))
+        if pixmap.isNull():
+            return QImage()
+
+        return pixmap.toImage()
 
     def _progress_share_icon_candidates(self, icon_file: str) -> list[str]:
         return [
