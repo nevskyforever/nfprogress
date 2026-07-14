@@ -22,7 +22,7 @@ SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 def get_app_data_dir():
     """
     Возвращает путь к директории для хранения данных приложения
-    в зависимости от операционной системы
+    в зависимости от операционной системы.
     """
     if SYSTEM == 'Windows':
         # Windows: C:\Users\<USER>\Documents\MyAppData
