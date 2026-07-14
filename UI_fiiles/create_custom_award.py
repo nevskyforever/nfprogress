@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'create_custom_itempeIVDa.ui'
+## Form generated from reading UI file 'create_custom_itemFsxnLF.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -15,9 +15,9 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QAbstractButton, QApplication, QDialog, QDialogButtonBox,
-    QGridLayout, QLabel, QLineEdit, QSizePolicy,
-    QSpacerItem, QWidget)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QDialog,
+    QDialogButtonBox, QGridLayout, QLabel, QLineEdit,
+    QSizePolicy, QSpacerItem, QWidget)
 
 class Ui_create_castom_item(object):
     def setupUi(self, create_castom_item):
@@ -84,6 +84,11 @@ class Ui_create_castom_item(object):
 
         self.gridLayout.addWidget(self.item_name_label, 1, 1, 1, 1)
 
+        self.inflation_checkBox = QCheckBox(create_castom_item)
+        self.inflation_checkBox.setObjectName(u"inflation_checkBox")
+
+        self.gridLayout.addWidget(self.inflation_checkBox, 2, 2, 1, 1)
+
 
         self.retranslateUi(create_castom_item)
         self.buttonBox.accepted.connect(create_castom_item.accept)
@@ -102,5 +107,6 @@ class Ui_create_castom_item(object):
         self.award_price_le.setPlaceholderText(QCoreApplication.translate("create_castom_item", u"\u0442\u043e\u043b\u044c\u043a\u043e \u0446\u0438\u0444\u0440\u044b (1.0)", None))
         self.item_price_label.setText(QCoreApplication.translate("create_castom_item", u"\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c:", None))
         self.item_name_label.setText(QCoreApplication.translate("create_castom_item", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435:", None))
+        self.inflation_checkBox.setText(QCoreApplication.translate("create_castom_item", u"\u0412\u043b\u0438\u044f\u0435\u043d\u0438\u0435 \u0438\u043d\u0444\u043b\u044f\u0446\u0438\u0438", None))
     # retranslateUi
 

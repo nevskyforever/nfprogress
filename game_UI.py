@@ -2548,12 +2548,14 @@ class CreateCustomAward(QDialog, Ui_create_castom_item):
         self.setupUi(self)
         self.gamer = gamer
         self.awards = gamer.custom_awards
+        self._base_price_before_inflation = None
 
         try:
             self.buttonBox.accepted.disconnect()
         except (TypeError, RuntimeError):
             pass
         self.buttonBox.accepted.connect(self.on_accept)
+        self.inflation_checkBox.toggled.connect(self.on_inflation_toggled)
 
     def on_accept(self):
         try:
@@ -2567,6 +2569,38 @@ class CreateCustomAward(QDialog, Ui_create_castom_item):
     def get_name(self):
         name = self.award_name_le.text().strip()
         return name or "Новая награда"
+
+    def on_inflation_toggled(self, checked):
+        current_price = self._get_price_from_field()
+        if current_price is None:
+            return
+
+        with QSignalBlocker(self.award_price_le):
+            if checked:
+                self._base_price_before_inflation = current_price
+                self.award_price_le.setText(
+                    self._format_price(current_price * self.gamer.calculate_inflation())
+                )
+            elif self._base_price_before_inflation is not None:
+                self.award_price_le.setText(self._format_price(self._base_price_before_inflation))
+                self._base_price_before_inflation = None
+
+    def _get_price_from_field(self):
+        price_text = self.award_price_le.text().strip().replace(',', '.')
+        if not price_text:
+            return 1
+
+        try:
+            price = float(price_text)
+        except ValueError:
+            return None
+
+        if price <= 0:
+            return None
+        return round(price, 1)
+
+    def _format_price(self, price):
+        return str(round(price, 1))
 
     def get_price(self):
         price_text = self.award_price_le.text().strip().replace(',', '.')
