@@ -13,7 +13,7 @@ from docx import Document
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
-version = '4.5.2'
+version = '4.5.3'
 
 # Определяем систему
 
