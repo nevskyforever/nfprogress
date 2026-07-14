@@ -5,6 +5,11 @@ on:
     branches:
       - main  # Укажи свою основную ветку (например, master или main)
   workflow_dispatch:  # Сохраняем возможность ручного запуска
+    inputs:
+      telegram_message:
+        description: 'Текст поста в Telegram. Если пусто, будет использован "Обновление <версия>".'
+        required: false
+        type: string
 
 jobs:
   build:
@@ -264,4 +269,42 @@ jobs:
           Invoke-Native python scripts/create-legacy-manifest.py
           Invoke-Native scp @scpOptions update_manifest.json "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json"
           Invoke-Native scp @scpOptions update_manifest_legacy.json "${target}:nfproject/public_html/update_manifest.json"
+          echo "WINDOWS_UPLOAD_COMPLETED=true" >> $env:GITHUB_ENV
           Write-Host "SSH upload completed."
+
+      - name: Notify Telegram channel
+        shell: pwsh
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHANNEL_ID: ${{ secrets.TELEGRAM_CHANNEL_ID }}
+          TELEGRAM_MESSAGE: ${{ github.event_name == 'workflow_dispatch' && inputs.telegram_message || github.event.head_commit.message }}
+        run: |
+          $ErrorActionPreference = "Stop"
+
+          if ($env:WINDOWS_UPLOAD_COMPLETED -ne "true") {
+            Write-Host "Telegram notification skipped: Windows upload was not completed."
+            exit 0
+          }
+
+          if ([string]::IsNullOrWhiteSpace($env:TELEGRAM_BOT_TOKEN) -or
+              [string]::IsNullOrWhiteSpace($env:TELEGRAM_CHANNEL_ID)) {
+            Write-Host "Telegram notification skipped: set TELEGRAM_BOT_TOKEN and TELEGRAM_CHANNEL_ID secrets to enable it."
+            exit 0
+          }
+
+          $message = $env:TELEGRAM_MESSAGE
+          if ([string]::IsNullOrWhiteSpace($message)) {
+            $message = "Обновление $($env:APP_VERSION)"
+          }
+
+          $message = $message -replace "`r`n", "`n"
+          Invoke-RestMethod `
+            -Uri "https://api.telegram.org/bot$($env:TELEGRAM_BOT_TOKEN)/sendMessage" `
+            -Method Post `
+            -Body @{
+              chat_id = $env:TELEGRAM_CHANNEL_ID
+              text = $message
+              disable_web_page_preview = "true"
+            } | Out-Null
+
+          Write-Host "Telegram notification sent."
