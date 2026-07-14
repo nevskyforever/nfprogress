@@ -70,6 +70,13 @@
         </widget>
        </item>
        <item>
+        <widget class="QCheckBox" name="withdrawal_of_interest_from_a_deposit">
+         <property name="text">
+          <string>Снятие процентов</string>
+         </property>
+        </widget>
+       </item>
+       <item>
         <widget class="QLabel" name="product_interest_rates">
          <property name="text">
           <string>Проценты</string>

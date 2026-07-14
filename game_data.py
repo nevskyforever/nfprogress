@@ -292,11 +292,18 @@ class Credit:
 
 
 class Deposit:
-    def __init__(self, deposit_sum, days_until_return, interest_rate_on_deposit=1):
+    def __init__(
+            self,
+            deposit_sum,
+            days_until_return,
+            interest_rate_on_deposit=1,
+            allow_interest_withdrawal=True,
+    ):
         self.give_date = engine.today_for_test()
         self.deposit_sum = deposit_sum
         self.days_until_return = days_until_return
         self.interest_rate_on_deposit = interest_rate_on_deposit
+        self.allow_interest_withdrawal = allow_interest_withdrawal
         self.interest = 0
         self.withdrawn_interest = 0
         self.interest_withdrawals = []
@@ -305,6 +312,8 @@ class Deposit:
         self.last_interest_notice_date = None
 
     def normalize(self):
+        if not hasattr(self, 'allow_interest_withdrawal'):
+            self.allow_interest_withdrawal = True
         if not hasattr(self, 'withdrawn_interest'):
             self.withdrawn_interest = 0
         if not hasattr(self, 'interest_withdrawals'):
@@ -391,9 +400,24 @@ class Deposit:
 
     def get_available_interest(self):
         self.normalize()
+        if not self.allow_interest_withdrawal:
+            return 0
         today = engine.today_for_test()
         passed_days = max(0, min((today - self.give_date).days, self.days_until_return))
         return self._remaining_interest_after_withdrawals(passed_days)
+
+    def can_withdraw_interest(self):
+        self.normalize()
+        if not self.allow_interest_withdrawal:
+            return False, 'По этому вкладу снятие процентов не предусмотрено'
+        today = engine.today_for_test()
+        if today <= self.give_date:
+            return False, 'Проценты будут доступны со следующего дня'
+        if self.last_interest_withdraw_date == today:
+            return False, 'Проценты сегодня уже сняты'
+        if self.get_available_interest() <= 0:
+            return False, 'Пока нет доступных процентов'
+        return True, ''
 
 
 class BankAccount:
@@ -659,7 +683,12 @@ class BankAccount:
     def _preview_deposit_interest(self, amount, rate, days):
         return round(amount * ((1 + rate / 100) ** days - 1), 1)
 
-    def preview_product(self, gamer, product_type, amount, days):
+    def get_deposit_rate_for_withdrawal_option(self, rate, allow_interest_withdrawal=True):
+        if allow_interest_withdrawal:
+            return rate
+        return round(rate * 1.15, 3)
+
+    def preview_product(self, gamer, product_type, amount, days, allow_interest_withdrawal=True):
         self.normalize()
         amount = max(0, float(amount))
         days = max(1, int(days))
@@ -669,7 +698,10 @@ class BankAccount:
             limit = self.get_credit_limit(gamer)
             interest = self._preview_credit_interest(amount, rate, days)
         else:
-            rate = self.get_deposit_rate(gamer)
+            rate = self.get_deposit_rate_for_withdrawal_option(
+                self.get_deposit_rate(gamer),
+                allow_interest_withdrawal=allow_interest_withdrawal,
+            )
             limit = None
             interest = self._preview_deposit_interest(amount, rate, days)
         return {'rate': rate, 'interest': interest, 'total': round(amount + interest, 1), 'limit': limit}
@@ -699,7 +731,7 @@ class BankAccount:
         gamer.save()
         return True, message
 
-    def open_deposit(self, gamer, amount, days):
+    def open_deposit(self, gamer, amount, days, allow_interest_withdrawal=True):
         self.normalize()
         self._attach_to_gamer(gamer)
         amount = gamer.round_money(amount)
@@ -707,9 +739,15 @@ class BankAccount:
             return False, 'У вас уже есть активный вклад'
         if gamer.get_coins() < amount:
             return False, f'Недостаточно монет. Нужно: {amount}'
-        preview = self.preview_product(gamer, 'deposit', amount, days)
+        preview = self.preview_product(
+            gamer,
+            'deposit',
+            amount,
+            days,
+            allow_interest_withdrawal=allow_interest_withdrawal,
+        )
         gamer.remove_coins(amount, process_bank_events=False, save=False)
-        self.deposit = Deposit(amount, days, preview['rate'])
+        self.deposit = Deposit(amount, days, preview['rate'], allow_interest_withdrawal=allow_interest_withdrawal)
         message = f'Вклад открыт. Списано {amount} монет'
         self._add_notification(f'{message}. Ожидаемый доход: {preview["interest"]} монет.')
         gamer.save()
@@ -846,12 +884,11 @@ class BankAccount:
         self._attach_to_gamer(gamer)
         if not self.deposit:
             return 'Нет активного вклада'
+        can_withdraw, reason = self.deposit.can_withdraw_interest()
+        if not can_withdraw:
+            return reason
         today = engine.today_for_test()
-        if self.deposit.last_interest_withdraw_date == today:
-            return 'Проценты сегодня уже сняты'
         interest = self.deposit.get_available_interest()
-        if interest <= 0:
-            return 'Пока нет доступных процентов'
         gamer.set_coins(interest, process_bank_events=False, save=False)
         self.deposit.withdrawn_interest += interest
         self.deposit.interest_withdrawals.append({'date': today, 'amount': interest})
@@ -1070,6 +1107,9 @@ class BankAccount:
 
     def _notify_available_deposit_interest(self):
         if not self.deposit:
+            return None
+        self.deposit.normalize()
+        if not self.deposit.allow_interest_withdrawal:
             return None
         today = engine.today_for_test()
         if today <= self.deposit.give_date:

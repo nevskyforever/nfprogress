@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'new_bank_productmkjYDA.ui'
+## Form generated from reading UI file 'new_bank_productVsrtvq.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -15,10 +15,10 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QAbstractButton, QApplication, QDateEdit, QDialog,
-    QDialogButtonBox, QGridLayout, QLabel, QLineEdit,
-    QScrollArea, QSizePolicy, QSpacerItem, QVBoxLayout,
-    QWidget)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QDateEdit,
+    QDialog, QDialogButtonBox, QGridLayout, QLabel,
+    QLineEdit, QScrollArea, QSizePolicy, QSpacerItem,
+    QVBoxLayout, QWidget)
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
@@ -63,6 +63,11 @@ class Ui_Dialog(object):
 
         self.verticalLayout.addWidget(self.return_date_dateedit)
 
+        self.withdrawal_of_interest_from_a_deposit = QCheckBox(self.scrollAreaWidgetContents)
+        self.withdrawal_of_interest_from_a_deposit.setObjectName(u"withdrawal_of_interest_from_a_deposit")
+
+        self.verticalLayout.addWidget(self.withdrawal_of_interest_from_a_deposit)
+
         self.product_interest_rates = QLabel(self.scrollAreaWidgetContents)
         self.product_interest_rates.setObjectName(u"product_interest_rates")
         self.product_interest_rates.setWordWrap(True)
@@ -103,6 +108,7 @@ class Ui_Dialog(object):
         self.product_description.setText(QCoreApplication.translate("Dialog", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u0430", None))
         self.lineEdit.setPlaceholderText(QCoreApplication.translate("Dialog", u"\u0421\u0443\u043c\u043c\u0430 (100.0)", None))
         self.return_date_label.setText(QCoreApplication.translate("Dialog", u"\u0414\u0430\u0442\u0430 \u0432\u043e\u0437\u0432\u0440\u0430\u0442\u0430:", None))
+        self.withdrawal_of_interest_from_a_deposit.setText(QCoreApplication.translate("Dialog", u"\u0421\u043d\u044f\u0442\u0438\u0435 \u043f\u0440\u043e\u0446\u0435\u043d\u0442\u043e\u0432", None))
         self.product_interest_rates.setText(QCoreApplication.translate("Dialog", u"\u041f\u0440\u043e\u0446\u0435\u043d\u0442\u044b", None))
         self.total_amount_to_be_refunded.setText(QCoreApplication.translate("Dialog", u"\u0418\u0442\u043e\u0433\u043e\u0432\u0430\u044f \u0441\u0443\u043c\u043c\u0430 \u043a \u0432\u043e\u0432\u0437\u0440\u0430\u0442\u0443", None))
     # retranslateUi

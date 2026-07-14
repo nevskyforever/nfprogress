@@ -2207,12 +2207,22 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
             if self.min_amount:
                 description += f'\nМинимальная сумма: {self.min_amount} монет'
             self.product_description.setText(description)
+            self.withdrawal_of_interest_from_a_deposit.setVisible(False)
         else:
+            base_rate = self.account.get_deposit_rate(self.gamer)
+            higher_rate = self.account.get_deposit_rate_for_withdrawal_option(
+                base_rate,
+                allow_interest_withdrawal=False,
+            )
             self.setWindowTitle('Новый вклад')
             self.product_description.setText(
                 f'Кредитный рейтинг: {self.account.calculate_credit_score(self.gamer)}\n'
-                f'Доступно на счете: {self.gamer.get_coins()} монет'
+                f'Доступно на счете: {self.gamer.get_coins()} монет\n'
+                f'Со снятием процентов: {base_rate}%/д.\n'
+                f'Без снятия процентов: {higher_rate}%/д.'
             )
+            self.withdrawal_of_interest_from_a_deposit.setVisible(True)
+            self.withdrawal_of_interest_from_a_deposit.setChecked(False)
 
         try:
             self.buttonBox.accepted.disconnect()
@@ -2221,6 +2231,7 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
         self.buttonBox.accepted.connect(self.on_accept)
         self.lineEdit.textChanged.connect(self.update_preview)
         self.return_date_dateedit.dateChanged.connect(self.update_preview)
+        self.withdrawal_of_interest_from_a_deposit.stateChanged.connect(self.update_preview)
         self.update_preview()
 
     def _parse_amount(self):
@@ -2254,7 +2265,13 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
     def update_preview(self):
         try:
             amount, days = self.validate_product()
-            preview = self.account.preview_product(self.gamer, self.product_type, amount, days)
+            preview = self.account.preview_product(
+                self.gamer,
+                self.product_type,
+                amount,
+                days,
+                allow_interest_withdrawal=self.get_interest_withdrawal_enabled(),
+            )
             self.product_interest_rates.setText(
                 f'Ставка: {preview["rate"]}% в день\n'
                 f'Проценты за {days} д.: {preview["interest"]} монет'
@@ -2282,6 +2299,12 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
 
     def get_amount(self):
         return self._parse_amount()
+
+    def get_interest_withdrawal_enabled(self):
+        return (
+            self.product_type == 'deposit'
+            and self.withdrawal_of_interest_from_a_deposit.isChecked()
+        )
 
 
 class Bank(QDialog, Ui_Bamk):
@@ -2405,9 +2428,18 @@ class Bank(QDialog, Ui_Bamk):
         if self.account.deposit:
             deposit = self.account.deposit
             deposit.normalize()
+            can_withdraw_interest, withdrawal_status = deposit.can_withdraw_interest()
+            interest_withdrawal_mode = (
+                'Снятие процентов: доступно'
+                if deposit.allow_interest_withdrawal
+                else 'Снятие процентов: не предусмотрено'
+            )
+            if deposit.allow_interest_withdrawal and withdrawal_status:
+                interest_withdrawal_mode = f'Снятие процентов: {withdrawal_status}'
             self.deposit_status.setText(
                 f'{deposit.get_status()}\n'
                 f'Вклад: {deposit.get_sum()} монет\n'
+                f'{interest_withdrawal_mode}\n'
                 f'Доступные проценты: {deposit.get_available_interest()}'
             )
             self.return_deposit_date.setVisible(True)
@@ -2415,11 +2447,7 @@ class Bank(QDialog, Ui_Bamk):
             self.deposit_total_sum.setVisible(True)
             self.deposit_total_sum.setText(f'К снятию: {deposit.get_total_sum()}')
             self.return_deposit_btn.setEnabled(True)
-            self.withdraw_interest_from_a_deposit.setEnabled(
-                today > deposit.give_date
-                and deposit.last_interest_withdraw_date != today
-                and deposit.get_available_interest() > 0
-            )
+            self.withdraw_interest_from_a_deposit.setEnabled(can_withdraw_interest)
             self.make_deposit_btn.setText('Пополнить вклад')
             self.active_deposit_topup_amount.setEnabled(self.gamer.get_coins() > 0)
             self.update_deposit_topup_button()
@@ -2484,7 +2512,12 @@ class Bank(QDialog, Ui_Bamk):
             return
         dialog = NewBankProduct(self.gamer, 'deposit')
         if dialog.exec_() == QDialog.Accepted:
-            ok, message = self.account.open_deposit(self.gamer, dialog.get_amount(), dialog.get_days())
+            ok, message = self.account.open_deposit(
+                self.gamer,
+                dialog.get_amount(),
+                dialog.get_days(),
+                allow_interest_withdrawal=dialog.get_interest_withdrawal_enabled(),
+            )
             self._reload_after_action(message)
 
     def top_up_deposit(self):
