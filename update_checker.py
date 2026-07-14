@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import urllib.parse
 import urllib.request
 import uuid
 import zipfile
@@ -39,6 +40,13 @@ def _ssl_context():
     except ImportError:
         return ssl.create_default_context()
     return ssl.create_default_context(cafile=certifi.where())
+
+
+def _uncached_manifest_url(url):
+    parsed = urllib.parse.urlsplit(url)
+    query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
+    query.append(("_", uuid.uuid4().hex))
+    return urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(query)))
 
 
 def _version_parts(version):
@@ -754,10 +762,15 @@ class UpdateCheckWorker(QObject):
             return
 
         try:
-            _debug(f"requesting {UPDATE_MANIFEST_URL}")
+            request_url = _uncached_manifest_url(UPDATE_MANIFEST_URL)
+            _debug(f"requesting {request_url}")
             request = urllib.request.Request(
-                UPDATE_MANIFEST_URL,
-                headers={"User-Agent": f"NFProgress/{en.version}"},
+                request_url,
+                headers={
+                    "User-Agent": f"NFProgress/{en.version}",
+                    "Cache-Control": "no-cache",
+                    "Pragma": "no-cache",
+                },
             )
             with urllib.request.urlopen(request, timeout=6, context=_ssl_context()) as response:
                 payload = response.read().decode("utf-8")

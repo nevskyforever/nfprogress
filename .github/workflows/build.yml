@@ -120,6 +120,32 @@ jobs:
             }
           }
 
+          function Invoke-NativeWithInput {
+            param(
+              [string]$InputText,
+              [string]$Command,
+              [Parameter(ValueFromRemainingArguments = $true)]
+              [string[]]$Arguments
+            )
+
+            $processInfo = [System.Diagnostics.ProcessStartInfo]::new()
+            $processInfo.FileName = $Command
+            $processInfo.UseShellExecute = $false
+            $processInfo.RedirectStandardInput = $true
+            foreach ($argument in $Arguments) {
+              [void]$processInfo.ArgumentList.Add($argument)
+            }
+
+            $process = [System.Diagnostics.Process]::Start($processInfo)
+            $process.StandardInput.NewLine = "`n"
+            $process.StandardInput.Write($InputText)
+            $process.StandardInput.Close()
+            $process.WaitForExit()
+            if ($process.ExitCode -ne 0) {
+              throw ("Command failed with exit code {0}: {1} {2}" -f $process.ExitCode, $Command, ($Arguments -join " "))
+            }
+          }
+
           function ConvertTo-ShellSingleQuoted {
             param([string]$Value)
 
@@ -229,11 +255,9 @@ jobs:
               fi
             done
           '@
+          $cleanupScript = $cleanupScript -replace "`r`n", "`n"
           $cleanupCommand = "sh -s -- $(ConvertTo-ShellSingleQuoted $env:SSH_UPLOAD_DIR) 'nfprogress-windows-*.zip' '3'"
-          $cleanupScript | & ssh @sshOptions $target $cleanupCommand
-          if ($LASTEXITCODE -ne 0) {
-            throw ("Command failed with exit code {0}: ssh cleanup old Windows releases" -f $LASTEXITCODE)
-          }
+          Invoke-NativeWithInput $cleanupScript ssh @sshOptions $target $cleanupCommand
 
           Invoke-Native scp @scpOptions "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json" update_manifest.json
           Invoke-Native python scripts/update-release-manifest.py $env:APP_VERSION windows
