@@ -792,22 +792,35 @@ class MainWindow(QMainWindow, main_window_ui):
         painter.setPen(progress_color)
         painter.drawText(ring_rect, Qt.AlignCenter, f"{progress}%")
 
-        title_rect = QRectF(80, 805, size - 160, 165)
+        title_area = QRectF(80, 805, size - 160, 157)
         title_font = QFont()
         title_font.setBold(True)
         title_font = self._fit_progress_share_font(
             project.name,
-            title_rect,
+            title_area,
             title_font,
-            max_point_size=58,
+            max_point_size=self._get_progress_share_title_max_size(project.name),
             min_point_size=20
         )
         painter.setPen(QColor("#000000"))
         painter.setFont(title_font)
+        title_rect = self._centered_progress_share_text_rect(project.name, title_area, title_font)
         painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, project.name)
         self._draw_progress_share_brand(painter, size)
         painter.end()
         return image
+
+    def _get_progress_share_title_max_size(self, title: str) -> int:
+        length = len(title.strip())
+        if length <= 1:
+            return 116
+        if length <= 4:
+            return 104
+        if length <= 14:
+            return 92
+        if length <= 28:
+            return 78
+        return 64
 
     def _fit_progress_share_font(
             self,
@@ -832,6 +845,17 @@ class MainWindow(QMainWindow, main_window_ui):
 
         fitted_font.setPointSize(min_point_size)
         return fitted_font
+
+    def _centered_progress_share_text_rect(self, text: str, area: QRectF, font: QFont) -> QRectF:
+        metrics = QFontMetrics(font)
+        bounding = metrics.boundingRect(
+            area.toRect(),
+            Qt.AlignCenter | Qt.TextWordWrap,
+            text
+        )
+        text_height = min(bounding.height(), area.height())
+        y = area.y() + (area.height() - text_height) / 2
+        return QRectF(area.x(), y, area.width(), text_height)
 
     def _draw_progress_share_brand(self, painter: QPainter, image_size: int):
         icon_size = 46

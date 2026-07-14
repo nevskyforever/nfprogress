@@ -3,7 +3,7 @@
   "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.3.5.zip",
   "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.4.zip",
   "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.4.zip",
-  "notes": "Исправление багов.",
+  "notes": "Улучшена картинка для шеринга прогресса - теперь текст динамически меняет размер в зависимости от размера названия проекта, между элементами есть равное расстояние и проценты прогресса стали больше и заметнее.",
   "windows_version": "4.3.5",
   "macos_arm_version": "4.4",
   "macos_intel_version": "4.4"
