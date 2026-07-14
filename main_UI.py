@@ -4,8 +4,8 @@ import os
 import sys
 import threading
 
-from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF
-from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics
+from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF, QSize
+from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel
@@ -771,6 +771,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         painter = QPainter(image)
         painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.SmoothPixmapTransform)
 
         progress_color = self._get_progress_share_color(progress)
 
@@ -786,7 +787,7 @@ class MainWindow(QMainWindow, main_window_ui):
             painter.drawArc(ring_rect, 90 * 16, int(-progress * 360 * 16 / 100))
 
         percent_font = QFont()
-        percent_font.setPointSize(156)
+        percent_font.setPointSize(self._scale_progress_share_font_size(156))
         percent_font.setBold(True)
         painter.setFont(percent_font)
         painter.setPen(progress_color)
@@ -799,8 +800,10 @@ class MainWindow(QMainWindow, main_window_ui):
             project.name,
             title_area,
             title_font,
-            max_point_size=self._get_progress_share_title_max_size(project.name),
-            min_point_size=20
+            max_point_size=self._scale_progress_share_font_size(
+                self._get_progress_share_title_max_size(project.name)
+            ),
+            min_point_size=self._scale_progress_share_font_size(20)
         )
         painter.setPen(QColor("#000000"))
         painter.setFont(title_font)
@@ -809,6 +812,11 @@ class MainWindow(QMainWindow, main_window_ui):
         self._draw_progress_share_brand(painter, size)
         painter.end()
         return image
+
+    def _scale_progress_share_font_size(self, point_size: int) -> int:
+        if en.SYSTEM == 'Windows':
+            return max(1, round(point_size * 0.84))
+        return point_size
 
     def _get_progress_share_title_max_size(self, title: str) -> int:
         length = len(title.strip())
@@ -864,7 +872,7 @@ class MainWindow(QMainWindow, main_window_ui):
         icon = self._load_progress_share_icon()
 
         brand_font = QFont()
-        brand_font.setPointSize(28)
+        brand_font.setPointSize(self._scale_progress_share_font_size(28))
         brand_font.setBold(True)
         painter.setFont(brand_font)
         painter.setPen(QColor("#2568AC"))
@@ -887,8 +895,31 @@ class MainWindow(QMainWindow, main_window_ui):
         painter.drawText(text_rect, Qt.AlignVCenter | Qt.AlignLeft, brand_text)
 
     def _load_progress_share_icon(self) -> QImage:
-        icon_file = "Icon-256.png"
-        candidates = [
+        for path in self._progress_share_icon_candidates("Icon.svg"):
+            icon = self._load_progress_share_icon_from_qicon(path)
+            if not icon.isNull():
+                return icon
+
+        for path in self._progress_share_icon_candidates("icon.ico"):
+            icon = self._load_progress_share_icon_from_qicon(path)
+            if not icon.isNull():
+                return icon
+
+        return QImage()
+
+    def _load_progress_share_icon_from_qicon(self, path: str) -> QImage:
+        icon = QIcon(path)
+        if icon.isNull():
+            return QImage()
+
+        pixmap = icon.pixmap(QSize(256, 256))
+        if pixmap.isNull():
+            return QImage()
+
+        return pixmap.toImage()
+
+    def _progress_share_icon_candidates(self, icon_file: str) -> list[str]:
+        return [
             en.resource_path(icon_file),
             os.path.join(os.path.dirname(os.path.abspath(__file__)), icon_file),
             os.path.join(os.getcwd(), icon_file),
@@ -900,13 +931,6 @@ class MainWindow(QMainWindow, main_window_ui):
                 icon_file
             ),
         ]
-
-        for path in candidates:
-            icon = QImage(path)
-            if not icon.isNull():
-                return icon
-
-        return QImage()
 
     def _get_progress_share_color(self, progress: int) -> QColor:
         ratio = max(0.0, min(1.0, progress / 100.0))

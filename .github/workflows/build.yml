@@ -120,6 +120,12 @@ jobs:
             }
           }
 
+          function ConvertTo-ShellSingleQuoted {
+            param([string]$Value)
+
+            return "'" + ($Value -replace "'", "'\''") + "'"
+          }
+
           if ([string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_HOST) -or
               [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_USER) -or
               [string]::IsNullOrWhiteSpace($env:SSH_UPLOAD_DIR) -or
@@ -184,6 +190,50 @@ jobs:
           Invoke-Native scp @scpOptions $artifact "${target}:$($env:SSH_UPLOAD_DIR)/$remoteFile"
           $uploadSeconds = [math]::Round(((Get-Date) - $uploadStarted).TotalSeconds, 1)
           Write-Host "Windows ZIP upload completed in $uploadSeconds seconds."
+
+          $cleanupScript = @'
+          set -eu
+
+          upload_dir=$1
+          pattern=$2
+          keep=$3
+
+          case "$keep" in
+            ''|*[!0-9]*)
+              keep=3
+              ;;
+          esac
+
+          if [ "$keep" -lt 1 ]; then
+            keep=3
+          fi
+
+          cd "$upload_dir" || exit 0
+
+          find . -maxdepth 1 -type f -name "$pattern" |
+            sed 's#^\./##' |
+            sort -V |
+            awk -v keep="$keep" '
+              { files[NR] = $0 }
+              END {
+                limit = NR - keep
+                for (i = 1; i <= limit; i++) {
+                  print files[i]
+                }
+              }
+            ' |
+            while IFS= read -r old_file; do
+              if [ -n "$old_file" ]; then
+                rm -f -- "$old_file"
+                printf 'Removed old release: %s\n' "$old_file"
+              fi
+            done
+          '@
+          $cleanupCommand = "sh -s -- $(ConvertTo-ShellSingleQuoted $env:SSH_UPLOAD_DIR) 'nfprogress-windows-*.zip' '3'"
+          $cleanupScript | & ssh @sshOptions $target $cleanupCommand
+          if ($LASTEXITCODE -ne 0) {
+            throw ("Command failed with exit code {0}: ssh cleanup old Windows releases" -f $LASTEXITCODE)
+          }
 
           Invoke-Native scp @scpOptions "${target}:$($env:SSH_UPLOAD_DIR)/update_manifest.json" update_manifest.json
           Invoke-Native python scripts/update-release-manifest.py $env:APP_VERSION windows
