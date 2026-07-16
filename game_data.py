@@ -1238,21 +1238,38 @@ def calculate_item_price(price):
     return round(price * level_multiplier, 1)
 
 def calculate_freeze_price():
-    """Считает стоимость заморозки в зависимости от кол-ва использований"""
-    projects = engine.load_data()['projects']
-    len_global_streak = len(engine.load_data()['global_streaks'])
-    global_streak_cf = (len_global_streak / 100) + 1
-    used_freezes = 0
-    total_price = 250
+    """Считает стоимость заморозки от ценности спасаемого стрика."""
+    gamer = game.load_game()
+    data = engine.load_data()
+    projects = data.get('projects') or {}
+    if isinstance(projects, dict):
+        projects = projects.values()
 
-    for project in projects.values():
-        if project.status == 'активен':
-            used_freezes += project.freezes
-    if not used_freezes:
-        used_freezes = 1
-    total_price *= used_freezes
-    total_price *= global_streak_cf
-    return calculate_item_price(total_price)
+    level = max(getattr(gamer, 'level', 1), 1)
+    coins_cf = max(0.1, gamer.get_cf_value('coins', 1.0))
+    inflation = gamer.calculate_inflation()
+    active_projects = [
+        project for project in projects
+        if getattr(project, 'status', None) == 'активен'
+    ]
+
+    streak_lengths = [
+        engine.streak_length(getattr(project, 'streaks', []))
+        for project in active_projects
+    ]
+    global_streak_len = engine.streak_length(data.get('global_streaks', []))
+    if global_streak_len > 0:
+        streak_lengths.append(global_streak_len)
+
+    protected_streak_len = max(streak_lengths, default=1)
+    daily_streak_bonus = 10 * coins_cf * protected_streak_len * inflation
+    level_floor = 250 * (1 + (level - 1) * 0.05)
+
+    used_freezes = max(0, sum(getattr(project, 'freezes', 0) for project in active_projects))
+    usage_multiplier = 1 + used_freezes * 0.1
+    total_price = max(level_floor, daily_streak_bonus * 0.35) * usage_multiplier
+
+    return gamer.round_money(total_price)
 
 # Инициализация объектов
 
