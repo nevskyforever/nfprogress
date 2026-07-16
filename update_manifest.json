@@ -3,7 +3,7 @@
   "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.5.2.zip",
   "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.5.3.zip",
   "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.5.3.zip",
-  "notes": "В игровом банке были улучшены вклады. Теперь можно выбирать - будет доступно снятие процентов или нет. Вклады без снятия процентов до конца срока более прибыльные.",
+  "notes": "В игровом режиме улучшен расчет цены заморозки",
   "windows_version": "4.5.2",
   "macos_arm_version": "4.5.3",
   "macos_intel_version": "4.5.3"
