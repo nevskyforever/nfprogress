@@ -1551,7 +1551,6 @@ class GameMenuController:
         return registry_key == self.FREEZE_ITEM_KEY
 
     def get_freeze_inventory_count(self):
-        self.gamer = game.load_game()
         _, freeze_item = game_data.find_registry_item(self.FREEZE_CATEGORY, self.FREEZE_ITEM_KEY)
         return self.get_inventory_item_count(self.FREEZE_CATEGORY, freeze_item, self.FREEZE_ITEM_KEY)
 
@@ -2042,16 +2041,23 @@ class GameMenuController:
         return
 
     def freeze_project(self, item_obj=None, fallback_names=()):
-        dialog = FreezeProject()
+        _, freeze_item = game_data.find_registry_item(self.FREEZE_CATEGORY, self.FREEZE_ITEM_KEY)
+        if self.get_inventory_item_count(self.FREEZE_CATEGORY, freeze_item, self.FREEZE_ITEM_KEY, *fallback_names) <= 0:
+            self.notifications.show_error('В инвентаре нет заморозки.')
+            self.update_inventory()
+            return False
+
+        dialog = FreezeProject(self.gamer)
         result = dialog.exec_()
         if result == QDialog.Accepted:
             msg = dialog.freeze()
-            self.gamer = game.load_game()
-            self.notifications.show_success(msg)
+            if msg.startswith('Проект '):
+                self.notifications.show_success(msg)
+            else:
+                self.notifications.show_error(msg)
             self.update_inventory()
             self.refresh_all()
-            self.notifications.show_success(result)
-            return True
+            return msg.startswith('Проект ')
         dialog.close()
 
     def bank(self):
@@ -2100,8 +2106,9 @@ class GameMenuController:
             self.notifications.show_success('Награда создана')
 
 class FreezeProject(QDialog, Ui_freeze_projrct):
-    def __init__(self):
+    def __init__(self, gamer=None):
         super().__init__()
+        self.gamer = gamer
         self.setupUi(self)
         self.load_projects()
 
@@ -2158,7 +2165,7 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
         if project_name in data['projects']:
             project = data['projects'][project_name]
 
-            if not engine.apply_project_freeze_group(project, today):
+            if not engine.apply_project_freeze_group(project, today, gamer=self.gamer):
                 return 'Не удалось применить заморозку: проверьте инвентарь и статус проекта.'
 
             if engine.streak_last_day(data['global_streaks']) == today - datetime.timedelta(days=1):

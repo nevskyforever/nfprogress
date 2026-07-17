@@ -1327,7 +1327,7 @@ def get_project_freeze_sources(project, freeze_day=None):
     return freeze_sources
 
 
-def apply_project_freeze_group(project, freeze_day=None):
+def apply_project_freeze_group(project, freeze_day=None, gamer=None, save_gamer=True):
     """Замораживает выбранный проект: родителя целиком или все активные этапы одним расходом."""
     if freeze_day is None:
         freeze_day = today_for_test()
@@ -1336,16 +1336,49 @@ def apply_project_freeze_group(project, freeze_day=None):
         return False
 
     if project.has_stages() and project.deadline == 'Нет':
-        previous_batch = begin_project_freeze_batch(project)
-        try:
-            changed = False
-            for source in freeze_sources:
-                changed = apply_project_freeze(source, freeze_day) or changed
-            return changed
-        finally:
-            end_project_freeze_batch(previous_batch)
+        if not load_settings().get('game_mode', False):
+            return False
 
-    return apply_project_freeze(project, freeze_day)
+        if gamer is None:
+            import game
+            gamer = game.load_game()
+        items = getattr(gamer, 'items', {})
+        category_items = items.get('Предметы', {})
+        if not isinstance(category_items, dict):
+            return False
+
+        freeze_names = ('Заморозка', '❄️Заморозка')
+        freeze_name = next((name for name in freeze_names if category_items.get(name, 0) > 0), None)
+        if freeze_name is None:
+            return False
+
+        applied_sources = []
+        for source in freeze_sources:
+            if streak_last_day(source.streaks) != freeze_day - timedelta(days=1):
+                continue
+            if streak_is_freeze_for_day(source.streaks, freeze_day):
+                continue
+
+            source.streaks.append(STREAK_FREEZE_MARKER)
+            if freeze_day == today_for_test():
+                source.streak_status = 'Freeze'
+
+            current_streak_len = streak_length(source.streaks)
+            if current_streak_len > source.max_streak:
+                source.max_streak = current_streak_len
+
+            applied_sources.append(source)
+
+        if not applied_sources:
+            return False
+
+        category_items[freeze_name] -= 1
+        project.freezes += 1
+        if save_gamer:
+            gamer.save()
+        return True
+
+    return apply_project_freeze(project, freeze_day, gamer=gamer, save_gamer=save_gamer)
 
 
 def export_data_to_file(file_path):
