@@ -420,9 +420,14 @@ class Project:
 
     @deadline.setter
     def deadline(self, deadline):
-        if deadline == '':
+        if deadline in ('', 'Нет', None):
             self._deadline = 'Нет'
             self.deadline_set_date = None
+            if self.has_stages():
+                self.streaks = []
+                self.streak_status = 'No'
+                self.last_streak_bonus = None
+                self.last_streak_lost_date = None
         else:
             self._deadline = deadline
             self.deadline_set_date = today_for_test()

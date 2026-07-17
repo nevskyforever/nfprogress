@@ -1475,8 +1475,18 @@ class MainWindow(QMainWindow, main_window_ui):
                 confirm_goal_dialog = ConfirmDialog()
 
                 # 2. НАСТРАИВАЕМ текст (ДО вызова exec)
-                confirm_goal_dialog.message.setText(
-                    'Если вы удалите дедлайн, стрик проекта будет потерян!')
+                if not self._is_stage(project) and project.has_stages():
+                    confirm_goal_dialog.message.setText(
+                        'Если вы удалите дедлайн проекта, стрик проекта будет потерян.\n'
+                        'Этапы снова будут вести собственные стрики по своим дедлайнам и текущей активности.\n'
+                        'Ранее перенесенный в проект стрик не вернется этапам как история.\n'
+                        'Продолжить?'
+                    )
+                else:
+                    confirm_goal_dialog.message.setText(
+                        'Если вы удалите дедлайн, стрик проекта будет потерян!\n'
+                        'Продолжить?'
+                    )
 
                 # 3. Показываем диалог и ждем решения пользователя
                 result_personal_goal = confirm_goal_dialog.exec()
@@ -1485,6 +1495,22 @@ class MainWindow(QMainWindow, main_window_ui):
                 if result_personal_goal == QDialog.Accepted:
                     project.streaks.clear()
                 else:
+                    return
+
+            if (
+                    not self._is_stage(project)
+                    and project.has_stages()
+                    and old_deadline == 'Нет'
+                    and new_deadline != 'Нет'
+                    and any(en.streak_length(stage.streaks) > 0 for stage in project.stages)
+            ):
+                confirm_goal_dialog = ConfirmDialog()
+                confirm_goal_dialog.message.setText(
+                    'При добавлении дедлайна проекта самый длинный стрик этапа будет перенесен в проект.\n'
+                    'Стрики этапов будут очищены и начнутся заново. Дедлайны этапов сохранятся.\n'
+                    'Продолжить?'
+                )
+                if confirm_goal_dialog.exec() != QDialog.Accepted:
                     return
 
 
@@ -1526,8 +1552,6 @@ class MainWindow(QMainWindow, main_window_ui):
                         stage.parent_project_name = project.name
                         stage.unit = project.unit
                         project.stages.append(stage)
-                    if project.deadline != 'Нет':
-                        project.transfer_longest_stage_streak()
 
             # Обновляем статус проекта (если цель достигнута)
             if project.total_units >= project.goal and project.status != 'завершен':
