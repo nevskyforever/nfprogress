@@ -407,14 +407,15 @@ class StageRowWidget(QWidget):
         self.global_streak_mode = global_streak_mode
 
         layout = QHBoxLayout(self)
-        layout.setContentsMargins(24, 3, 8, 3)
+        layout.setContentsMargins(24, 5, 8, 5)
         layout.setSpacing(8)
+        layout.setAlignment(Qt.AlignVCenter)
 
         self.circular_progress = CircularProgressBar(self)
         self.circular_progress.setTextVisible(False)
         self.circular_progress.setRingWidth(4)
-        self.circular_progress.setFixedSize(28, 28)
-        self.circular_progress.setMinimumSize(28, 28)
+        self.circular_progress.setFixedSize(34, 34)
+        self.circular_progress.setMinimumSize(34, 34)
         self.circular_progress.setStartColor("#A9A9A9")
         self.circular_progress.setEndColor("#2568AC")
         self.circular_progress.setBackgroundColor("#E6EBEF")
@@ -423,13 +424,28 @@ class StageRowWidget(QWidget):
         self.name = QLabel(stage.name, self)
         self.name.setWordWrap(False)
         self.name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
-        self.summary = QLabel(self)
-        self.summary.setWordWrap(False)
-        self.summary.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        self.name.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        self.total = QLabel(self)
+        self.total.setWordWrap(False)
+        self.total.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.deadline = QLabel(self)
+        self.deadline.setWordWrap(False)
+        self.deadline.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self.streak = QLabel(self)
+        self.streak.setWordWrap(False)
+        self.streak.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+
+        text_layout = QVBoxLayout()
+        text_layout.setContentsMargins(0, 0, 0, 0)
+        text_layout.setSpacing(1)
+        text_layout.addWidget(self.name)
+        text_layout.addWidget(self.total)
+        text_layout.addWidget(self.deadline)
+        text_layout.addWidget(self.streak)
 
         layout.addWidget(self.circular_progress)
-        layout.addWidget(self.name)
-        layout.addWidget(self.summary)
+        layout.addLayout(text_layout)
         self.update_display()
 
     def stop_animations(self):
@@ -440,12 +456,17 @@ class StageRowWidget(QWidget):
         self.circular_progress.setValue(100 if self.project.goal == float('inf') else int(self.project.progress), animated=True)
         total = self._format_number(self.project.total_units)
         goal = '∞' if self.project.goal == float('inf') else self._format_number(self.project.goal)
-        parts = [f"{total}/{goal}"]
+        self.total.setText(f"{total}/{goal}")
         if self.project.deadline != 'Нет':
-            parts.append(self.project.deadline_str)
+            self.deadline.setText(f"Дедлайн: {self.project.deadline_str}")
+            self.deadline.setVisible(True)
+        else:
+            self.deadline.setVisible(False)
         if self.global_streak_mode and self.parent_project.deadline == 'Нет' and self.project.deadline != 'Нет':
-            parts.append(f"стрик {get_streak_length(self.project.streaks)}")
-        self.summary.setText(' · '.join(parts))
+            self.streak.setText(f"Стрик: {get_streak_length(self.project.streaks)} д.")
+            self.streak.setVisible(True)
+        else:
+            self.streak.setVisible(False)
 
     def _format_number(self, num):
         if isinstance(num, float):
