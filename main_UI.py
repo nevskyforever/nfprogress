@@ -532,6 +532,9 @@ class MainWindow(QMainWindow, main_window_ui):
                     for p in data['projects'].values():
                         p.streaks = []
                         p.streak_status = 'No'
+                        for stage in getattr(p, 'stages', []):
+                            stage.streaks = []
+                            stage.streak_status = 'No'
                     en.save_data(data)
                 en.save_settings(settings)
         self.applying_settings()
@@ -663,11 +666,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.deadline.setText("Не установлен")
 
         # Информация о стриках
-        show_streak = (
-                en.load_settings().get('global_streak', False)
-                and not self._is_stage(project)
-                and (project.deadline != 'Нет' or getattr(project, 'has_stages', lambda: False)())
-        )
+        show_streak = en.load_settings().get('global_streak', False) and self._project_can_show_streak(project)
         if show_streak:
             self.label_streaks.setVisible(True)
             self.label_streak_status.setVisible(True)
@@ -861,6 +860,31 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Обновляем статус синхронизации
         self.update_sync_status_label(project)
+
+    def _project_can_show_streak(self, project):
+        if self._is_stage(project):
+            parent_project = self._get_parent_project(project)
+            return (
+                    parent_project is not None
+                    and parent_project.deadline == 'Нет'
+                    and project.deadline != 'Нет'
+            )
+        return project.deadline != 'Нет'
+
+    def _get_streak_bonus_project(self, data, project):
+        if not self._is_stage(project):
+            project.get_streak_status()
+            return project
+
+        parent_project, _ = self._find_stage_parent(data, project)
+        if parent_project is not None and parent_project.deadline != 'Нет':
+            parent_project.get_streak_status()
+            data['projects'][parent_project.name] = parent_project
+            return parent_project
+
+        project.get_streak_status()
+        self._store_project_entity(data, project)
+        return project
 
     def share_project_progress(self, project: en.Project):
         """Копирует картинку прогресса проекта в буфер обмена."""
@@ -1223,20 +1247,10 @@ class MainWindow(QMainWindow, main_window_ui):
         # Обновляем проект (total_units обновится в единице проекта через set_new_notes)
         project.set_new_notes(note)
 
-        # Обновляем стрики
-        project.get_streak_status()
-
         # Загружаем данные
         data = en.load_data()
         self._store_project_entity(data, project)
-        bonus_project = project
-        if self._is_stage(project):
-            bonus_project, _ = self._find_stage_parent(data, project)
-            if bonus_project is not None:
-                bonus_project.get_streak_status()
-                data['projects'][bonus_project.name] = bonus_project
-            else:
-                bonus_project = project
+        bonus_project = self._get_streak_bonus_project(data, project)
         settings = en.load_settings()
 
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
@@ -1512,6 +1526,8 @@ class MainWindow(QMainWindow, main_window_ui):
                         stage.parent_project_name = project.name
                         stage.unit = project.unit
                         project.stages.append(stage)
+                    if project.deadline != 'Нет':
+                        project.transfer_longest_stage_streak()
 
             # Обновляем статус проекта (если цель достигнута)
             if project.total_units >= project.goal and project.status != 'завершен':
@@ -1864,33 +1880,36 @@ class MainWindow(QMainWindow, main_window_ui):
             if not isinstance(project, en.Project):
                 continue
 
-            freezes_before = getattr(project, 'freezes', 0)
-            project.get_streak_status()
-            freezes_after = getattr(project, 'freezes', 0)
+            streak_sources = project.stages if project.has_stages() and project.deadline == 'Нет' else [project]
+            for streak_source in streak_sources:
+                freezes_before = getattr(streak_source, 'freezes', 0)
+                streak_source.get_streak_status()
+                freezes_after = getattr(streak_source, 'freezes', 0)
 
-            if freezes_after > freezes_before:
-                changed = True
-                used_freezes = freezes_after - freezes_before
-                freeze_days = [
-                    effective_day
-                    for entry, effective_day in en.iter_streak_days(project.streaks)
-                    if entry == en.STREAK_FREEZE_MARKER
-                ][-used_freezes:]
-                days_text = ', '.join(day.strftime('%d.%m.%Y') for day in freeze_days)
+                if freezes_after > freezes_before:
+                    changed = True
+                    used_freezes = freezes_after - freezes_before
+                    freeze_days = [
+                        effective_day
+                        for entry, effective_day in en.iter_streak_days(streak_source.streaks)
+                        if entry == en.STREAK_FREEZE_MARKER
+                    ][-used_freezes:]
+                    days_text = ', '.join(day.strftime('%d.%m.%Y') for day in freeze_days)
 
-                if used_freezes == 1:
-                    message = f'Стрик проекта "{project.name}" автоматически заморожен за {days_text}.'
-                else:
-                    message = f'Стрик проекта "{project.name}" автоматически заморожен за дни: {days_text}.'
+                    source_label = 'этапа' if self._is_stage(streak_source) else 'проекта'
+                    if used_freezes == 1:
+                        message = f'Стрик {source_label} "{streak_source.name}" автоматически заморожен за {days_text}.'
+                    else:
+                        message = f'Стрик {source_label} "{streak_source.name}" автоматически заморожен за дни: {days_text}.'
 
-                notifications['new'].append(en.Notification(message, tag='streak'))
-                if show_auto_freeze_toasts and self.notifications:
-                    self.notifications.show_info(message, position='bottom-right')
+                    notifications['new'].append(en.Notification(message, tag='streak'))
+                    if show_auto_freeze_toasts and self.notifications:
+                        self.notifications.show_info(message, position='bottom-right')
 
-                for freeze_day in freeze_days:
-                    if en.streak_last_day(global_streaks) == freeze_day - datetime.timedelta(days=1):
-                        global_streaks.append(en.STREAK_FREEZE_MARKER)
-                        data['global_streak_status'] = 'Freeze'
+                    for freeze_day in freeze_days:
+                        if en.streak_last_day(global_streaks) == freeze_day - datetime.timedelta(days=1):
+                            global_streaks.append(en.STREAK_FREEZE_MARKER)
+                            data['global_streak_status'] = 'Freeze'
 
             data['projects'][project_name] = project
 
@@ -1979,12 +1998,14 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Даем бонус за стрик проекта и глобальный, если он включен
             if should_give_streak_bonus:
-                if project.last_streak_bonus != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                              en.streak_length(project.streaks)):
-                        project.last_streak_bonus = en.today_for_test()
-                        data['projects'][project.name] = project
-                        data_changed = True
+                streak_sources = project.stages if project.has_stages() and project.deadline == 'Нет' else [project]
+                for streak_source in streak_sources:
+                    if streak_source.last_streak_bonus != en.today_for_test():
+                        if self.game_controller.give_streak_bonus(streak_source.get_streak_status(), 'Local',
+                                                                  en.streak_length(streak_source.streaks)):
+                            streak_source.last_streak_bonus = en.today_for_test()
+                            data['projects'][project.name] = project
+                            data_changed = True
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
@@ -2007,7 +2028,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             if getattr(project, 'has_stages', lambda: False)() and project.name in self._expanded_stage_projects:
                 for stage in project.stages:
-                    stage_widget = StageRowWidget(stage, project)
+                    stage_widget = StageRowWidget(stage, project, settings.get('global_streak', False))
                     stage_widget.layout().activate()
                     stage_item = QListWidgetItem()
                     stage_item.setSizeHint(stage_widget.sizeHint())
@@ -2280,7 +2301,6 @@ class MainWindow(QMainWindow, main_window_ui):
         # Создаём заметку (added_symbols может быть отрицательным)
         note = en.Note(new_total_symbols, added_symbols, added_progress, date_create=note_date)
         project.set_new_notes(note)
-        project.get_streak_status()
 
         # Обновляем информацию о проекте
         self.load_notes(project)
@@ -2297,14 +2317,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         data = en.load_data()
         self._store_project_entity(data, project)
-        bonus_project = project
-        if self._is_stage(project):
-            bonus_project, _ = self._find_stage_parent(data, project)
-            if bonus_project is not None:
-                bonus_project.get_streak_status()
-                data['projects'][bonus_project.name] = bonus_project
-            else:
-                bonus_project = project
+        bonus_project = self._get_streak_bonus_project(data, project)
         settings = en.load_settings()
 
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)

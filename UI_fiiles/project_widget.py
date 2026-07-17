@@ -400,10 +400,11 @@ class ProjectWidget(QWidget, Ui_Form):
 class StageRowWidget(QWidget):
     """Компактная строка этапа в списке проектов."""
 
-    def __init__(self, stage, parent_project):
+    def __init__(self, stage, parent_project, global_streak_mode=False):
         super().__init__()
         self.project = stage
         self.parent_project = parent_project
+        self.global_streak_mode = global_streak_mode
 
         layout = QHBoxLayout(self)
         layout.setContentsMargins(24, 3, 8, 3)
@@ -422,9 +423,13 @@ class StageRowWidget(QWidget):
         self.name = QLabel(stage.name, self)
         self.name.setWordWrap(False)
         self.name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.summary = QLabel(self)
+        self.summary.setWordWrap(False)
+        self.summary.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
         layout.addWidget(self.circular_progress)
         layout.addWidget(self.name)
+        layout.addWidget(self.summary)
         self.update_display()
 
     def stop_animations(self):
@@ -433,3 +438,18 @@ class StageRowWidget(QWidget):
     def update_display(self):
         self.name.setText(self.project.name)
         self.circular_progress.setValue(100 if self.project.goal == float('inf') else int(self.project.progress), animated=True)
+        total = self._format_number(self.project.total_units)
+        goal = '∞' if self.project.goal == float('inf') else self._format_number(self.project.goal)
+        parts = [f"{total}/{goal}"]
+        if self.project.deadline != 'Нет':
+            parts.append(self.project.deadline_str)
+        if self.global_streak_mode and self.parent_project.deadline == 'Нет' and self.project.deadline != 'Нет':
+            parts.append(f"стрик {get_streak_length(self.project.streaks)}")
+        self.summary.setText(' · '.join(parts))
+
+    def _format_number(self, num):
+        if isinstance(num, float):
+            if num.is_integer() or abs(num - round(num)) < 0.0001:
+                return str(int(round(num)))
+            return f"{num:.2f}".rstrip('0').rstrip('.')
+        return str(num)

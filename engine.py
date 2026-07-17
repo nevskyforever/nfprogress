@@ -371,6 +371,8 @@ class Project:
                 stage = converted_stage
             stage.parent_project_name = self.name
             stage.migrate()
+        if self.has_stages() and self.deadline != 'Нет':
+            self.transfer_longest_stage_streak()
 
     @property
     def name(self):
@@ -424,6 +426,8 @@ class Project:
         else:
             self._deadline = deadline
             self.deadline_set_date = today_for_test()
+            if self.has_stages():
+                self.transfer_longest_stage_streak()
 
     @property
     def deadline_str(self):
@@ -648,7 +652,7 @@ class Project:
         planned = self.get_today_goal_value()
 
         # Проверяем, есть ли дедлайн
-        if self.deadline == 'Нет' and not self.has_stages():
+        if self.deadline == 'Нет':
             return 'No'
 
         # Если стрик сегодня уже продлен - не проверяем
@@ -933,6 +937,33 @@ class Project:
                 merged.append(entry)
         return merged
 
+    def transfer_longest_stage_streak(self):
+        """Переносит самый длинный стрик этапа в родительский проект."""
+        if not self.has_stages():
+            return
+
+        stage_with_longest_streak = max(
+            self.stages,
+            key=lambda stage: streak_length(getattr(stage, 'streaks', [])),
+            default=None
+        )
+        if stage_with_longest_streak is None:
+            return
+
+        longest_streak = list(getattr(stage_with_longest_streak, 'streaks', []))
+        if streak_length(longest_streak) > streak_length(self.streaks):
+            self.streaks = longest_streak
+            self.streak_status = getattr(stage_with_longest_streak, 'streak_status', 'Active')
+        self.max_streak = max(
+            self.max_streak,
+            max([getattr(stage, 'max_streak', 0) for stage in self.stages] + [streak_length(self.streaks)])
+        )
+
+        for stage in self.stages:
+            stage.streaks = []
+            stage.streak_status = 'No'
+            stage.last_streak_bonus = None
+
     def get_statistic(self):
         """
         Считает и возвращает статистику по проекту в виде словаря.
@@ -1074,22 +1105,10 @@ class Stage(Project):
         self.is_stage = True
         self.enable_stages = False
         self.stages = []
-        self.streaks = []
-        self.max_streak = 0
-        self.streak_status = 'No'
-        self.last_streak_bonus = None
-        self.last_streak_lost_date = None
         if not hasattr(self, 'stage_id') or not self.stage_id:
             self.stage_id = uuid.uuid4().hex
         if not hasattr(self, 'parent_project_name'):
             self.parent_project_name = None
-
-    def get_streak_status(self):
-        self.streak_status = 'No'
-        return 'No'
-
-    def get_streak_status_msg(self, msg_type=None):
-        return 'Стрика нет'
 
 class Note:
 
@@ -1334,7 +1353,7 @@ def global_streak_status(data, today=None):
 
     # Определяем, есть ли сегодня проекты, выполнившие план и есть ли активные
     has_active_today = False
-    for project in projects.values():
+    for project in _iter_streak_sources(projects):
         if isinstance(project, Project):
             # ВАЖНО: обязательно вызываем метод для актуализации статуса на текущий день
             actual_status = project.get_streak_status()
@@ -1478,6 +1497,16 @@ def global_streak_status(data, today=None):
     return status
 
 
+def _iter_streak_sources(projects):
+    for project in projects.values():
+        if not isinstance(project, Project):
+            continue
+        if project.has_stages() and project.deadline == 'Нет':
+            yield from project.stages
+        else:
+            yield project
+
+
 def refresh_project_streak_statuses(data):
     """Актуализирует локальные стрики проектов без UI-уведомлений."""
     projects = data.get('projects', {})
@@ -1491,33 +1520,38 @@ def refresh_project_streak_statuses(data):
     for project_name, project in projects.items():
         if not isinstance(project, Project):
             continue
+        streak_sources = list(project.stages) if project.has_stages() and project.deadline == 'Нет' else [project]
+        source_changed = False
 
-        old_streaks = list(project.streaks) if isinstance(project.streaks, list) else []
-        old_status = project.streak_status
-        old_freezes = getattr(project, 'freezes', 0)
-        old_max_streak = getattr(project, 'max_streak', 0)
+        for streak_source in streak_sources:
+            old_streaks = list(streak_source.streaks) if isinstance(streak_source.streaks, list) else []
+            old_status = streak_source.streak_status
+            old_freezes = getattr(streak_source, 'freezes', 0)
+            old_max_streak = getattr(streak_source, 'max_streak', 0)
 
-        project.get_streak_status()
+            streak_source.get_streak_status()
 
-        if getattr(project, 'freezes', 0) > old_freezes:
-            freeze_changed = True
-            new_freeze_days = [
-                effective_day
-                for entry, effective_day in iter_streak_days(project.streaks)
-                if entry == STREAK_FREEZE_MARKER
-            ][-(project.freezes - old_freezes):]
-            for freeze_day in new_freeze_days:
-                if streak_last_day(global_streaks) == freeze_day - timedelta(days=1):
-                    global_streaks.append(STREAK_FREEZE_MARKER)
-                    data['global_streak_status'] = 'Freeze'
-                    changed = True
-        if (
-                project.streaks != old_streaks
-                or project.streak_status != old_status
-                or getattr(project, 'freezes', 0) != old_freezes
-                or getattr(project, 'max_streak', 0) != old_max_streak
-                or global_streaks != data.get('global_streaks', [])
-        ):
+            if getattr(streak_source, 'freezes', 0) > old_freezes:
+                freeze_changed = True
+                new_freeze_days = [
+                    effective_day
+                    for entry, effective_day in iter_streak_days(streak_source.streaks)
+                    if entry == STREAK_FREEZE_MARKER
+                ][-(streak_source.freezes - old_freezes):]
+                for freeze_day in new_freeze_days:
+                    if streak_last_day(global_streaks) == freeze_day - timedelta(days=1):
+                        global_streaks.append(STREAK_FREEZE_MARKER)
+                        data['global_streak_status'] = 'Freeze'
+                        changed = True
+            if (
+                    streak_source.streaks != old_streaks
+                    or streak_source.streak_status != old_status
+                    or getattr(streak_source, 'freezes', 0) != old_freezes
+                    or getattr(streak_source, 'max_streak', 0) != old_max_streak
+                    or global_streaks != data.get('global_streaks', [])
+            ):
+                source_changed = True
+        if source_changed:
             changed = True
             data['projects'][project_name] = project
 
