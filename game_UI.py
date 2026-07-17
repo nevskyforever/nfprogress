@@ -2118,21 +2118,19 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
         self.list_projects.clear()
 
         for project in projects:
-            # Проверяем, есть ли у проекта стрики
-            if not project.streaks:
+            freeze_sources = engine.get_project_freeze_sources(project, today)
+            if not freeze_sources:
                 continue
 
-            # Получаем статус стрика
-            streak_status = project.get_streak_status()
-
-            # Проект можно заморозить если последний стрик был вчера
-            # и статус 'Active' (активный, но не продленный)
-            if streak_status in ['Active', 'Freeze']:
+            if project.has_stages() and project.deadline == 'Нет':
+                max_streak_len = max(engine.streak_length(source.streaks) for source in freeze_sources)
+                display_text = f"{project.name} (этапы: {len(freeze_sources)}, стрик: {max_streak_len} дн.)"
+            else:
                 display_text = f"{project.name} (стрик: {engine.streak_length(project.streaks)} дн.)"
-                item = QListWidgetItem(display_text)
-                # Сохраняем объект проекта или его имя для последующего использования
-                item.setData(1, project.name)
-                self.list_projects.addItem(item)
+
+            item = QListWidgetItem(display_text)
+            item.setData(1, project.name)
+            self.list_projects.addItem(item)
 
         # Если нет проектов для заморозки, показываем информационное сообщение
         if self.list_projects.count() == 0:
@@ -2160,7 +2158,7 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
         if project_name in data['projects']:
             project = data['projects'][project_name]
 
-            if not engine.apply_project_freeze(project, today):
+            if not engine.apply_project_freeze_group(project, today):
                 return 'Не удалось применить заморозку: проверьте инвентарь и статус проекта.'
 
             if engine.streak_last_day(data['global_streaks']) == today - datetime.timedelta(days=1):

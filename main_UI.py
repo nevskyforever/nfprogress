@@ -1905,35 +1905,44 @@ class MainWindow(QMainWindow, main_window_ui):
                 continue
 
             streak_sources = project.stages if project.has_stages() and project.deadline == 'Нет' else [project]
-            for streak_source in streak_sources:
-                freezes_before = getattr(streak_source, 'freezes', 0)
-                streak_source.get_streak_status()
-                freezes_after = getattr(streak_source, 'freezes', 0)
+            project_freezes_before = getattr(project, 'freezes', 0)
+            previous_batch = en.begin_project_freeze_batch(project) if project.has_stages() and project.deadline == 'Нет' else None
+            try:
+                for streak_source in streak_sources:
+                    old_streaks = list(streak_source.streaks) if isinstance(streak_source.streaks, list) else []
+                    old_freeze_count = sum(1 for entry in old_streaks if entry == en.STREAK_FREEZE_MARKER)
+                    streak_source.get_streak_status()
 
-                if freezes_after > freezes_before:
-                    changed = True
-                    used_freezes = freezes_after - freezes_before
                     freeze_days = [
                         effective_day
                         for entry, effective_day in en.iter_streak_days(streak_source.streaks)
                         if entry == en.STREAK_FREEZE_MARKER
-                    ][-used_freezes:]
-                    days_text = ', '.join(day.strftime('%d.%m.%Y') for day in freeze_days)
+                    ]
+                    new_freeze_days = freeze_days[old_freeze_count:]
+                    if new_freeze_days:
+                        changed = True
+                        days_text = ', '.join(day.strftime('%d.%m.%Y') for day in new_freeze_days)
 
-                    source_label = 'этапа' if self._is_stage(streak_source) else 'проекта'
-                    if used_freezes == 1:
-                        message = f'Стрик {source_label} "{streak_source.name}" автоматически заморожен за {days_text}.'
-                    else:
-                        message = f'Стрик {source_label} "{streak_source.name}" автоматически заморожен за дни: {days_text}.'
+                        source_label = 'этапа' if self._is_stage(streak_source) else 'проекта'
+                        if len(new_freeze_days) == 1:
+                            message = f'Стрик {source_label} "{streak_source.name}" автоматически заморожен за {days_text}.'
+                        else:
+                            message = f'Стрик {source_label} "{streak_source.name}" автоматически заморожен за дни: {days_text}.'
 
-                    notifications['new'].append(en.Notification(message, tag='streak'))
-                    if show_auto_freeze_toasts and self.notifications:
-                        self.notifications.show_info(message, position='bottom-right')
+                        notifications['new'].append(en.Notification(message, tag='streak'))
+                        if show_auto_freeze_toasts and self.notifications:
+                            self.notifications.show_info(message, position='bottom-right')
 
-                    for freeze_day in freeze_days:
-                        if en.streak_last_day(global_streaks) == freeze_day - datetime.timedelta(days=1):
-                            global_streaks.append(en.STREAK_FREEZE_MARKER)
-                            data['global_streak_status'] = 'Freeze'
+                        for freeze_day in new_freeze_days:
+                            if en.streak_last_day(global_streaks) == freeze_day - datetime.timedelta(days=1):
+                                global_streaks.append(en.STREAK_FREEZE_MARKER)
+                                data['global_streak_status'] = 'Freeze'
+            finally:
+                if previous_batch is not None or project.has_stages() and project.deadline == 'Нет':
+                    en.end_project_freeze_batch(previous_batch)
+
+            if getattr(project, 'freezes', 0) != project_freezes_before:
+                changed = True
 
             data['projects'][project_name] = project
 

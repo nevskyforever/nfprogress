@@ -125,6 +125,7 @@ def is_developer_test_date_enabled():
 STREAK_FREEZE_MARKER = 'freeze'
 STREAK_DATE_BUG_START = date(2026, 7, 9)
 STREAK_DATE_BUG_LAST_SAFE_DAY = STREAK_DATE_BUG_START - timedelta(days=1)
+_project_freeze_batch = None
 
 
 def is_streak_date(value):
@@ -164,6 +165,22 @@ def streak_length(streaks):
 def streak_is_freeze_for_day(streaks, target_day):
     return any(entry == STREAK_FREEZE_MARKER and effective_day == target_day
                for entry, effective_day in iter_streak_days(streaks))
+
+
+def begin_project_freeze_batch(parent_project):
+    """Группирует автозаморозки этапов одного проекта в один расход предмета."""
+    global _project_freeze_batch
+    previous_batch = _project_freeze_batch
+    _project_freeze_batch = {
+        'parent': parent_project,
+        'spent_days': set(),
+    }
+    return previous_batch
+
+
+def end_project_freeze_batch(previous_batch=None):
+    global _project_freeze_batch
+    _project_freeze_batch = previous_batch
 
 
 def remove_streak_day(streaks, target_day):
@@ -1241,34 +1258,94 @@ def apply_project_freeze(project, freeze_day=None, gamer=None, save_gamer=True):
     if not load_settings().get('game_mode', False):
         return False
 
-    if gamer is None:
+    batch = _project_freeze_batch if isinstance(project, Stage) else None
+    parent_project = batch.get('parent') if batch else None
+    batch_days = batch.get('spent_days') if batch else None
+    batch_day_already_spent = batch_days is not None and freeze_day in batch_days
+
+    if gamer is None and not batch_day_already_spent:
         import game
         gamer = game.load_game()
 
-    items = getattr(gamer, 'items', {})
-    category_items = items.get('Предметы', {})
-    if not isinstance(category_items, dict):
-        return False
+    if not batch_day_already_spent:
+        items = getattr(gamer, 'items', {})
+        category_items = items.get('Предметы', {})
+        if not isinstance(category_items, dict):
+            return False
 
-    freeze_names = ('Заморозка', '❄️Заморозка')
-    freeze_name = next((name for name in freeze_names if category_items.get(name, 0) > 0), None)
-    if freeze_name is None:
-        return False
+        freeze_names = ('Заморозка', '❄️Заморозка')
+        freeze_name = next((name for name in freeze_names if category_items.get(name, 0) > 0), None)
+        if freeze_name is None:
+            return False
 
-    category_items[freeze_name] -= 1
+        category_items[freeze_name] -= 1
+        if batch_days is not None:
+            batch_days.add(freeze_day)
+        if isinstance(parent_project, Project):
+            parent_project.freezes += 1
+
     project.streaks.append(STREAK_FREEZE_MARKER)
     if freeze_day == today_for_test():
         project.streak_status = 'Freeze'
-    project.freezes += 1
+    if batch is None:
+        project.freezes += 1
 
     current_streak_len = streak_length(project.streaks)
     if current_streak_len > project.max_streak:
         project.max_streak = current_streak_len
 
-    if save_gamer:
+    if save_gamer and not batch_day_already_spent:
         gamer.save()
 
     return True
+
+
+def get_project_freeze_sources(project, freeze_day=None):
+    """Возвращает стрики, которые можно заморозить в выбранном проекте."""
+    if freeze_day is None:
+        freeze_day = today_for_test()
+    if not isinstance(project, Project) or project.status == 'завершен':
+        return []
+
+    if project.has_stages() and project.deadline == 'Нет':
+        sources = list(project.stages)
+    else:
+        sources = [project]
+
+    freeze_sources = []
+    for source in sources:
+        if not isinstance(source, Project):
+            continue
+        if source.deadline == 'Нет' or not isinstance(getattr(source, 'streaks', None), list):
+            continue
+        if streak_last_day(source.streaks) != freeze_day - timedelta(days=1):
+            continue
+        status = source.get_streak_status()
+        if status == 'Active':
+            freeze_sources.append(source)
+
+    return freeze_sources
+
+
+def apply_project_freeze_group(project, freeze_day=None):
+    """Замораживает выбранный проект: родителя целиком или все активные этапы одним расходом."""
+    if freeze_day is None:
+        freeze_day = today_for_test()
+    freeze_sources = get_project_freeze_sources(project, freeze_day)
+    if not freeze_sources:
+        return False
+
+    if project.has_stages() and project.deadline == 'Нет':
+        previous_batch = begin_project_freeze_batch(project)
+        try:
+            changed = False
+            for source in freeze_sources:
+                changed = apply_project_freeze(source, freeze_day) or changed
+            return changed
+        finally:
+            end_project_freeze_batch(previous_batch)
+
+    return apply_project_freeze(project, freeze_day)
 
 
 def export_data_to_file(file_path):
@@ -1527,35 +1604,46 @@ def refresh_project_streak_statuses(data):
             continue
         streak_sources = list(project.stages) if project.has_stages() and project.deadline == 'Нет' else [project]
         source_changed = False
+        old_project_freezes = getattr(project, 'freezes', 0)
+        previous_batch = begin_project_freeze_batch(project) if project.has_stages() and project.deadline == 'Нет' else None
 
-        for streak_source in streak_sources:
-            old_streaks = list(streak_source.streaks) if isinstance(streak_source.streaks, list) else []
-            old_status = streak_source.streak_status
-            old_freezes = getattr(streak_source, 'freezes', 0)
-            old_max_streak = getattr(streak_source, 'max_streak', 0)
+        try:
+            for streak_source in streak_sources:
+                old_streaks = list(streak_source.streaks) if isinstance(streak_source.streaks, list) else []
+                old_status = streak_source.streak_status
+                old_freezes = getattr(streak_source, 'freezes', 0)
+                old_max_streak = getattr(streak_source, 'max_streak', 0)
+                old_freeze_count = sum(1 for entry in old_streaks if entry == STREAK_FREEZE_MARKER)
 
-            streak_source.get_streak_status()
+                streak_source.get_streak_status()
 
-            if getattr(streak_source, 'freezes', 0) > old_freezes:
-                freeze_changed = True
-                new_freeze_days = [
+                freeze_days = [
                     effective_day
                     for entry, effective_day in iter_streak_days(streak_source.streaks)
                     if entry == STREAK_FREEZE_MARKER
-                ][-(streak_source.freezes - old_freezes):]
-                for freeze_day in new_freeze_days:
-                    if streak_last_day(global_streaks) == freeze_day - timedelta(days=1):
-                        global_streaks.append(STREAK_FREEZE_MARKER)
-                        data['global_streak_status'] = 'Freeze'
-                        changed = True
-            if (
-                    streak_source.streaks != old_streaks
-                    or streak_source.streak_status != old_status
-                    or getattr(streak_source, 'freezes', 0) != old_freezes
-                    or getattr(streak_source, 'max_streak', 0) != old_max_streak
-                    or global_streaks != data.get('global_streaks', [])
-            ):
-                source_changed = True
+                ]
+                new_freeze_days = freeze_days[old_freeze_count:]
+                if new_freeze_days:
+                    freeze_changed = True
+                    for freeze_day in new_freeze_days:
+                        if streak_last_day(global_streaks) == freeze_day - timedelta(days=1):
+                            global_streaks.append(STREAK_FREEZE_MARKER)
+                            data['global_streak_status'] = 'Freeze'
+                            changed = True
+                if (
+                        streak_source.streaks != old_streaks
+                        or streak_source.streak_status != old_status
+                        or getattr(streak_source, 'freezes', 0) != old_freezes
+                        or getattr(streak_source, 'max_streak', 0) != old_max_streak
+                        or global_streaks != data.get('global_streaks', [])
+                ):
+                    source_changed = True
+        finally:
+            if previous_batch is not None or project.has_stages() and project.deadline == 'Нет':
+                end_project_freeze_batch(previous_batch)
+
+        if getattr(project, 'freezes', 0) != old_project_freezes:
+            source_changed = True
         if source_changed:
             changed = True
             data['projects'][project_name] = project
