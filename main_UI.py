@@ -1387,6 +1387,7 @@ class MainWindow(QMainWindow, main_window_ui):
             old_total = project.total_units
             old_deadline = project.deadline
             old_personal_goal = project.personal_goal_for_the_day
+            parent_with_stages = not self._is_stage(project) and project.has_stages()
 
             # Получаем новые значения из диалога
             new_name = dialog.get_name()
@@ -1399,6 +1400,9 @@ class MainWindow(QMainWindow, main_window_ui):
             new_deadline = dialog.get_deadline()
             new_personal_goal = dialog.get_personal_goal_for_the_day()
             stages_enabled = dialog.is_stages_enabled()
+            if parent_with_stages:
+                new_goal = old_goal
+                new_total = old_total
             if [old_name != new_name, old_goal != new_goal, old_total != new_total, old_deadline != new_deadline]:
                 edit_date = en.today_for_test()
 
@@ -1534,8 +1538,9 @@ class MainWindow(QMainWindow, main_window_ui):
                     stage.total_units = en.unit_converter(project.unit, stage.total_units, new_unit)
                     stage.unit = new_unit
             project.name = new_name
-            project.goal = new_goal
-            project.total_units = new_total
+            if not parent_with_stages:
+                project.goal = new_goal
+                project.total_units = new_total
             project.unit = new_unit
             project.deadline = new_deadline
             project.personal_goal_for_the_day = new_personal_goal
@@ -3060,6 +3065,14 @@ class EditProject(QDialog, create_project_ui):
             self.add_Stage.setVisible(self.enable_Stages.isChecked())
             self.add_Stage.clicked.connect(self.add_stage)
             self._update_add_stage_button_text()
+
+        if not isinstance(project, en.Stage) and project.has_stages():
+            self.le_goal.setReadOnly(True)
+            self.le_total_symbols.setReadOnly(True)
+            self.le_goal.setToolTip("Цель родительского проекта складывается из целей этапов")
+            self.le_total_symbols.setToolTip("Текущее количество родительского проекта складывается из этапов")
+            self.le_goal.setStyleSheet("color: gray;")
+            self.le_total_symbols.setStyleSheet("color: gray;")
 
         # Дедлайн
         if project.deadline != 'Нет':

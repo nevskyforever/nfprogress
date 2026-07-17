@@ -7,6 +7,22 @@ from PySide6.scripts.pyside_tool import project
 from engine import streak_length as get_streak_length
 
 
+def _streak_status_emoji(status):
+    if status == 'Start':
+        return '🔥'
+    if status == 'Go':
+        return '🚀'
+    if status == 'Active':
+        return '👀'
+    if status == 'Freeze':
+        return '❄️'
+    if status == 'Complete':
+        return '🎉'
+    if isinstance(status, str) and status.startswith('Lose '):
+        return '🥺'
+    return '🔥'
+
+
 # =============================================================================
 # Кастомный виджет кругового прогресс-бара
 # =============================================================================
@@ -463,7 +479,8 @@ class StageRowWidget(QWidget):
         else:
             self.deadline.setVisible(False)
         if self.global_streak_mode and self.parent_project.deadline == 'Нет' and self.project.deadline != 'Нет':
-            self.streak.setText(f"Стрик: {get_streak_length(self.project.streaks)} д.")
+            status = self.project.get_streak_status()
+            self.streak.setText(f"{_streak_status_emoji(status)} {get_streak_length(self.project.streaks)} д.")
             self.streak.setVisible(True)
         else:
             self.streak.setVisible(False)
