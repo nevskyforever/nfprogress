@@ -286,17 +286,29 @@ class ProjectWidget(QWidget, Ui_Form):
         # Убираем Expanding политику, так как размер фиксированный
         self.circular_progress.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
+        has_stages = getattr(project, 'has_stages', lambda: False)()
+        progress_row = 2 if has_stages else 1
+
         # 4. Заменяем старый прогресс-бар в сетке
-        self.gridLayout.addWidget(self.circular_progress, 1, 0, 1, 1)
+        self.gridLayout.addWidget(self.circular_progress, progress_row, 0, 1, 1)
+
+        if has_stages:
+            self.gridLayout.addWidget(self.name, 1, 0, 1, 1)
+            self.gridLayout.addWidget(self.symbols, 3, 0, 1, 1)
+            self.gridLayout.addWidget(self.deadline, 4, 0, 1, 1)
+            self.gridLayout.addWidget(self.streak, 5, 0, 1, 1)
+            self.gridLayout.addWidget(self.streak_status, 6, 0, 1, 1)
 
         # 5. Центрируем в ячейке
         self.gridLayout.setAlignment(self.circular_progress, Qt.AlignCenter)
         for row in (0, 2, 3, 4, 5):
             self.gridLayout.setRowStretch(row, 1)
-        self.gridLayout.setRowStretch(1, 0)
+        if has_stages:
+            self.gridLayout.setRowStretch(6, 1)
+        self.gridLayout.setRowStretch(progress_row, 0)
         # Гарантируем минимальную высоту строки с прогресс-баром,
         # чтобы лейблы не перекрывали его на Windows (разные DPI/шрифты)
-        self.gridLayout.setRowMinimumHeight(1, 95)
+        self.gridLayout.setRowMinimumHeight(progress_row, 95)
 
         # Увеличиваем вертикальный промежуток между строками, чтобы текст не касался круга
         self.gridLayout.setVerticalSpacing(15)
@@ -323,13 +335,13 @@ class ProjectWidget(QWidget, Ui_Form):
         self.circular_progress.raise_()
 
         self.stage_toggle = None
-        if getattr(project, 'has_stages', lambda: False)():
+        if has_stages:
             self.stage_toggle = QPushButton('▾' if expanded else '▸', self.widget)
             self.stage_toggle.setFixedSize(22, 22)
             self.stage_toggle.setFocusPolicy(Qt.NoFocus)
             self.stage_toggle.setToolTip('Показать этапы' if not expanded else 'Скрыть этапы')
             self.stage_toggle.clicked.connect(self._toggle_stages)
-            self.gridLayout.addWidget(self.stage_toggle, 0, 0, 1, 1, Qt.AlignLeft | Qt.AlignVCenter)
+            self.gridLayout.addWidget(self.stage_toggle, 0, 0, 1, 1, Qt.AlignCenter)
 
         # Словарь для отображения единиц измерения
         self.unit_display = {

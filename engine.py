@@ -445,6 +445,9 @@ class Project:
                 self.streak_status = 'No'
                 self.last_streak_bonus = None
                 self.last_streak_lost_date = None
+                for stage in self.stages:
+                    if getattr(stage, 'deadline', 'Нет') != 'Нет':
+                        stage.get_streak_status()
         else:
             self._deadline = deadline
             self.deadline_set_date = today_for_test()
@@ -891,9 +894,9 @@ class Project:
             total_symbols=self._total_symbols,
             progress=self._progress,
             notes=list(self.notes),
-            streaks=[],
-            max_streak=0,
-            streak_status='No',
+            streaks=list(self.streaks),
+            max_streak=self.max_streak,
+            streak_status=self.streak_status,
             deadline=self._deadline,
             status=self.status,
             unit=self.unit,
@@ -913,6 +916,12 @@ class Project:
         self.notes = []
         self.synch = None
         self.last_synch = None
+        self._deadline = 'Нет'
+        self.deadline_set_date = None
+        self.streaks = []
+        self.streak_status = 'No'
+        self.last_streak_bonus = None
+        self.last_streak_lost_date = None
 
     def convert_to_single(self):
         """Преобразует проект с этапами в обычный проект с общей хронологией записей."""
