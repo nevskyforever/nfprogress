@@ -2692,7 +2692,8 @@ class CreateProject(QDialog, create_project_ui):
         self.incorrect_data.setVisible(False)
         self.add_Stage.setVisible(False)
         if self.stage_mode:
-            self.setWindowTitle("Создание этапа")
+            self.setWindowTitle("Создание Этапа")
+            self.le_name.setText("Новый этап")
             self.enable_Stages.setVisible(False)
             self.add_Stage.setVisible(False)
             self.cb_unit.setVisible(False)
@@ -2921,7 +2922,8 @@ class CreateProject(QDialog, create_project_ui):
         name_filled = bool(current_name)
         name_incorrect = current_name in self.existing_names and current_name != ""
         if name_incorrect:
-            error_messages.append("Проект с таким именем уже существует")
+            entity_label = "Этап" if self.stage_mode else "Проект"
+            error_messages.append(f"{entity_label} с таким именем уже существует")
 
         # Проверка дедлайна
         deadline_incorrect = False
@@ -3028,7 +3030,7 @@ class EditProject(QDialog, create_project_ui):
     def __init__(self, project, parent=None, existing_names=None):
         super().__init__(parent)
         self.setupUi(self)
-        self.setWindowTitle('Редактирование проекта')
+        self.setWindowTitle('Редактирование Этапа' if isinstance(project, en.Stage) else 'Редактирование проекта')
 
         self.project = project
         self.original_name = project.name
@@ -3307,7 +3309,8 @@ class EditProject(QDialog, create_project_ui):
         if name_filled and current_name != self.original_name:
             name_incorrect = current_name in self.existing_names
         if name_incorrect:
-            error_messages.append("Проект с таким именем уже существует")
+            entity_label = "Этап" if isinstance(self.project, en.Stage) else "Проект"
+            error_messages.append(f"{entity_label} с таким именем уже существует")
 
         # Дедлайн
         deadline_incorrect = False
