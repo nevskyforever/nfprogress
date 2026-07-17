@@ -4,6 +4,7 @@ import pickle
 import platform
 import sys
 import tempfile
+import uuid
 from datetime import datetime, timedelta, date, date as date_type
 from pathlib import Path
 from collections import defaultdict
@@ -289,6 +290,9 @@ class Project:
         self.deadline_set_date = today_for_test()
         self.personal_goal_for_the_day = personal_goal_for_the_day
         self.project_plan = {}
+        self.enable_stages = False
+        self.stages = []
+        self.is_stage = False
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -314,12 +318,15 @@ class Project:
             'freezes': 0,
             'deadline_set_date': today_for_test(),
             'project_plan': {},
+            'enable_stages': False,
+            'stages': [],
+            'is_stage': False,
         }
 
         for attr, default_value in defaults.items():
             if not hasattr(self, attr):
                 setattr(self, attr, default_value)
-            elif attr in ('notes', 'streaks') and not isinstance(getattr(self, attr), list):
+            elif attr in ('notes', 'streaks', 'stages') and not isinstance(getattr(self, attr), list):
                 setattr(self, attr, [])
 
         # --- Вычисляем динамические данные ПОСЛЕ того, как базовые атрибуты созданы ---
@@ -336,6 +343,34 @@ class Project:
         # deadline_set_date должен храниться как date, иначе старт плана "прыгает".
         if self.deadline_set_date is None or not isinstance(self.deadline_set_date, date):
             self.deadline_set_date = today_for_test()
+
+        if not isinstance(getattr(self, 'stages', []), list):
+            self.stages = []
+
+        for index, stage in enumerate(self.stages):
+            if not isinstance(stage, Stage):
+                converted_stage = Stage(
+                    name=getattr(stage, 'name', f'Этап {index + 1}'),
+                    goal=getattr(stage, 'goal', 0),
+                    create_date=getattr(stage, 'create_date', self.create_date),
+                    total_symbols=getattr(stage, 'total_units', 0),
+                    progress=getattr(stage, 'progress', 0),
+                    notes=getattr(stage, 'notes', []),
+                    streaks=getattr(stage, 'streaks', []),
+                    max_streak=getattr(stage, 'max_streak', 0),
+                    streak_status=getattr(stage, 'streak_status', 'No'),
+                    deadline=getattr(stage, 'deadline', 'Нет'),
+                    status=getattr(stage, 'status', self.status),
+                    unit=getattr(stage, 'unit', self.unit),
+                    personal_goal_for_the_day=getattr(stage, 'personal_goal_for_the_day', 0),
+                    parent_project_name=self.name,
+                )
+                converted_stage.synch = getattr(stage, 'synch', None)
+                converted_stage.last_synch = getattr(stage, 'last_synch', None)
+                self.stages[index] = converted_stage
+                stage = converted_stage
+            stage.parent_project_name = self.name
+            stage.migrate()
 
     @property
     def name(self):
@@ -358,6 +393,14 @@ class Project:
 
     @property
     def goal(self):
+        if self.has_stages():
+            goal_symbols = 0
+            for stage in self.stages:
+                stage_goal = stage.get_goal_symbols()
+                if stage_goal == float('inf'):
+                    return float('inf')
+                goal_symbols += stage_goal
+            return unit_converter('symbols', goal_symbols, self.unit)
         return self._goal
 
     @goal.setter
@@ -398,20 +441,37 @@ class Project:
 
     @property
     def total_units(self):
+        if self.has_stages():
+            total_symbols = sum(stage.get_total_symbols() for stage in self.stages)
+            return unit_converter('symbols', total_symbols, self.unit)
         return self._total_symbols
 
     @total_units.setter
     def total_units(self, total_symbols):
         self._total_symbols = total_symbols
 
+    def has_stages(self):
+        """Возвращает True, если проект работает как контейнер этапов."""
+        return bool(getattr(self, 'enable_stages', False) and getattr(self, 'stages', []))
+
     def get_goal_symbols(self):
         """Возвращает цель в символах."""
+        if self.has_stages():
+            total = 0
+            for stage in self.stages:
+                stage_goal = stage.get_goal_symbols()
+                if stage_goal == float('inf'):
+                    return float('inf')
+                total += stage_goal
+            return total
         if self._goal == float('inf'):
             return float('inf')
         return unit_converter(self.unit, self._goal, 'symbols')
 
     def get_total_symbols(self):
         """Возвращает текущее количество в символах."""
+        if self.has_stages():
+            return sum(stage.get_total_symbols() for stage in self.stages)
         return unit_converter(self.unit, self._total_symbols, 'symbols')
 
     @property
@@ -427,6 +487,8 @@ class Project:
 
     def get_added_symbols_today_value(self):
         """Возвращает количество добавленных сегодня символов."""
+        if self.has_stages():
+            return sum(stage.get_added_symbols_today_value() for stage in self.stages)
         today = today_for_test()
         today_added = [i.get_added_symbols() for i in self.notes if i.get_date_create() == today]
         return sum(today_added) if today_added else 0
@@ -442,6 +504,15 @@ class Project:
         Генерирует план от текущей даты до дедлайна по принципу "лесенки".
         """
         today = today_for_test()
+
+        if self.has_stages():
+            stage_daily_goals = [
+                stage.get_today_goal_value()
+                for stage in self.stages
+                if stage.deadline != 'Нет' or getattr(stage, 'personal_goal_for_the_day', 0)
+            ]
+            if stage_daily_goals:
+                return sum(stage_daily_goals)
 
         if getattr(self, 'project_plan', None) is None:
             self.project_plan = {}
@@ -577,7 +648,7 @@ class Project:
         planned = self.get_today_goal_value()
 
         # Проверяем, есть ли дедлайн
-        if self.deadline == 'Нет':
+        if self.deadline == 'Нет' and not self.has_stages():
             return 'No'
 
         # Если стрик сегодня уже продлен - не проверяем
@@ -764,6 +835,104 @@ class Project:
         # new_note.new_total хранится в символах, конвертируем в единицу проекта
         self._total_symbols = unit_converter('symbols', new_note.new_total, self.unit)
 
+    def get_notes_with_stage_names(self):
+        """Возвращает записи проекта: для этапного проекта вместе с названием этапа."""
+        if not self.has_stages():
+            return [(None, note) for note in self.notes]
+
+        notes = []
+        for stage in self.stages:
+            for note in stage.notes:
+                notes.append((stage.name, note))
+        return sorted(notes, key=lambda item: item[1].date_create)
+
+    def get_latest_note(self):
+        """Возвращает последнюю запись проекта с учетом этапов."""
+        notes = self.get_notes_with_stage_names()
+        if not notes:
+            return None, None
+        return max(notes, key=lambda item: item[1].date_create)
+
+    def convert_to_stages(self):
+        """Преобразует обычный проект в проект с одним первым этапом."""
+        if self.has_stages():
+            return
+
+        stage = Stage(
+            name='Этап 1',
+            goal=self._goal,
+            create_date=self.create_date,
+            total_symbols=self._total_symbols,
+            progress=self._progress,
+            notes=list(self.notes),
+            streaks=[],
+            max_streak=0,
+            streak_status='No',
+            deadline=self._deadline,
+            status=self.status,
+            unit=self.unit,
+            personal_goal_for_the_day=self.personal_goal_for_the_day,
+            parent_project_name=self.name,
+        )
+        stage.synch = self.synch
+        stage.last_synch = self.last_synch
+        stage.last_streak_bonus = None
+        stage.last_streak_lost_date = None
+        stage.freezes = 0
+        stage.deadline_set_date = self.deadline_set_date
+        stage.project_plan = dict(self.project_plan) if isinstance(self.project_plan, dict) else {}
+
+        self.enable_stages = True
+        self.stages = [stage]
+        self.notes = []
+        self.synch = None
+        self.last_synch = None
+
+    def convert_to_single(self):
+        """Преобразует проект с этапами в обычный проект с общей хронологией записей."""
+        if not self.has_stages():
+            self.enable_stages = False
+            self.stages = []
+            return
+
+        goal_symbols = self.get_goal_symbols()
+        self._goal = (
+            float('inf')
+            if goal_symbols == float('inf')
+            else unit_converter('symbols', goal_symbols, self.unit)
+        )
+
+        merged = []
+        running_total_symbols = 0
+        for _, note in self.get_notes_with_stage_names():
+            added_symbols = note.get_added_symbols()
+            running_total_symbols += added_symbols
+            if goal_symbols == float('inf') or goal_symbols <= 0:
+                added_progress = 0
+            else:
+                added_progress = added_symbols / goal_symbols * 100
+            merged.append(Note(running_total_symbols, added_symbols, added_progress, note.date_create))
+
+        self.notes = merged
+        self._total_symbols = unit_converter('symbols', running_total_symbols, self.unit)
+        self.synch = next((stage.synch for stage in self.stages if stage.synch is not None), None)
+        stage_last_synchs = [stage.last_synch for stage in self.stages if stage.last_synch is not None]
+        self.last_synch = max(stage_last_synchs) if stage_last_synchs else None
+        self.enable_stages = False
+        self.stages = []
+
+    def _merged_stage_streaks(self):
+        seen = set()
+        merged = []
+        for stage in getattr(self, 'stages', []):
+            for entry in getattr(stage, 'streaks', []):
+                key = (entry, len(merged)) if entry == STREAK_FREEZE_MARKER else entry
+                if key in seen:
+                    continue
+                seen.add(key)
+                merged.append(entry)
+        return merged
+
     def get_statistic(self):
         """
         Считает и возвращает статистику по проекту в виде словаря.
@@ -775,18 +944,19 @@ class Project:
         # --- Вспомогательные структуры ---
         # Группируем символы по дате
         symbols_by_date = defaultdict(float)
-        for note in self.notes:
+        notes_for_stats = [note for _, note in self.get_notes_with_stage_names()]
+        for note in notes_for_stats:
             symbols_by_date[note.get_date_create()] += note.get_added_symbols()
 
         active_days = sorted(symbols_by_date.keys())
-        total_notes = len(self.notes)
+        total_notes = len(notes_for_stats)
         num_active_days = len(active_days)
 
         # --- 1. Кол-во записей ---
         stat_notes_count = total_notes
 
         # --- 2. Всего написано в единице проекта ---
-        stat_total_in_unit = self._total_symbols  # уже хранится в единице проекта
+        stat_total_in_unit = self.total_units
 
         # --- 3. Среднее символов в день (только по активным дням) ---
         if num_active_days > 0:
@@ -797,7 +967,7 @@ class Project:
 
         # --- 4. Среднее кол-во символов в записи ---
         if total_notes > 0:
-            total_added = sum(note.get_added_symbols() for note in self.notes)
+            total_added = sum(note.get_added_symbols() for note in notes_for_stats)
             stat_avg_symbols_per_note = round(total_added / total_notes)
         else:
             stat_avg_symbols_per_note = 0
@@ -873,9 +1043,53 @@ class Project:
             'Процент активных дней': f'{stat_active_days_percent}%',
         }
 class Stage(Project):
-    def __init__(self):
-        super().__init__()
-        self.status = 'в работе'
+    def __init__(self, name='Этап 1', goal=None,
+                 create_date=None, total_symbols=0, progress=0,
+                 notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
+                 status='активен', unit='symbols', personal_goal_for_the_day=0,
+                 parent_project_name=None, stage_id=None):
+        super().__init__(
+            name=name,
+            goal=goal,
+            create_date=create_date,
+            total_symbols=total_symbols,
+            progress=progress,
+            notes=notes,
+            streaks=streaks,
+            max_streak=max_streak,
+            streak_status=streak_status,
+            deadline=deadline,
+            status=status,
+            unit=unit,
+            personal_goal_for_the_day=personal_goal_for_the_day,
+        )
+        self.is_stage = True
+        self.enable_stages = False
+        self.stages = []
+        self.parent_project_name = parent_project_name
+        self.stage_id = stage_id or uuid.uuid4().hex
+
+    def migrate(self):
+        super().migrate()
+        self.is_stage = True
+        self.enable_stages = False
+        self.stages = []
+        self.streaks = []
+        self.max_streak = 0
+        self.streak_status = 'No'
+        self.last_streak_bonus = None
+        self.last_streak_lost_date = None
+        if not hasattr(self, 'stage_id') or not self.stage_id:
+            self.stage_id = uuid.uuid4().hex
+        if not hasattr(self, 'parent_project_name'):
+            self.parent_project_name = None
+
+    def get_streak_status(self):
+        self.streak_status = 'No'
+        return 'No'
+
+    def get_streak_status_msg(self, msg_type=None):
+        return 'Стрика нет'
 
 class Note:
 
@@ -990,7 +1204,7 @@ def apply_project_freeze(project, freeze_day=None, gamer=None, save_gamer=True):
 
     if not isinstance(project, Project):
         return False
-    if project.deadline == 'Нет' or project.status == 'завершен':
+    if (project.deadline == 'Нет' and not project.has_stages()) or project.status == 'завершен':
         return False
     if project.goal == float('inf') or project.get_today_goal_value() == 0:
         return False

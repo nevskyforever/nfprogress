@@ -8,7 +8,7 @@ from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTimer, Qt
 from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon
 from PySide6.QtWidgets import QApplication
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
-    QTreeWidgetItem, QDialogButtonBox, QLabel
+    QTreeWidgetItem, QDialogButtonBox, QLabel, QMessageBox
 
 import engine as en
 import game
@@ -17,7 +17,7 @@ from UI_fiiles.create_project import Ui_create_project as create_project_ui
 from UI_fiiles.developer_mode import Ui_developer_node
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.notification import ToastNotification
-from UI_fiiles.project_widget import ProjectWidget
+from UI_fiiles.project_widget import ProjectWidget, StageRowWidget
 from UI_fiiles.settings import Ui_Dialog as settings_ui
 from UI_fiiles.synch_window import Ui_sych_window
 from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
@@ -124,7 +124,11 @@ class MainWindow(QMainWindow, main_window_ui):
         self._project_buttons_connected = False
         self._sync_threads = {}
         self._background_sync_batches = {}
+        self._expanded_stage_projects = set()
         self.update_checker = None
+        self.create_stage_action = self.project_menu.addAction('Создать этап')
+        self.create_stage_action.triggered.connect(self.create_stage)
+        self.create_stage_action.setEnabled(False)
 
         # Применяем настройки
         self.applying_settings()
@@ -324,6 +328,18 @@ class MainWindow(QMainWindow, main_window_ui):
                 unit=unit,
                 personal_goal_for_the_day=personal_goal_for_the_day
             )
+            if dialog.is_stages_enabled():
+                pending_stages = dialog.get_pending_stages()
+                if pending_stages:
+                    new_project.enable_stages = True
+                    new_project.stages = pending_stages
+                    new_project.notes = []
+                    new_project.synch = None
+                    for stage in new_project.stages:
+                        stage.parent_project_name = new_project.name
+                        stage.unit = new_project.unit
+                else:
+                    new_project.convert_to_stages()
 
             # Если это бесконечный проект (inf_project), устанавливаем goal = inf
             if en.load_settings().get('inf_project', False) and name == 'Общий проект':
@@ -346,6 +362,68 @@ class MainWindow(QMainWindow, main_window_ui):
                 2000,
                 "bottom-left"
             )
+
+    def create_stage(self):
+        """Создаёт новый этап внутри выбранного проекта с этапами."""
+        current_project = self.get_current_project()
+        if current_project is None:
+            self.notifications.show_warning("Сначала выберите проект с этапами")
+            return
+
+        data = en.load_data()
+        if self._is_stage(current_project):
+            parent, _ = self._find_stage_parent(data, current_project)
+        else:
+            parent = data['projects'].get(current_project.name)
+
+        if parent is None or not getattr(parent, 'has_stages', lambda: False)():
+            self.notifications.show_warning("Этап можно создать только в проекте с этапами")
+            return
+
+        dialog = CreateProject(
+            parent=self,
+            existing_names=[stage.name for stage in parent.stages],
+            stage_mode=True,
+            fixed_unit=parent.unit,
+        )
+        result = dialog.exec()
+
+        if result != QDialog.Accepted:
+            return
+
+        name = dialog.get_name()
+        goal = dialog.get_goal()
+        total = dialog.get_total()
+        unit = parent.unit
+        deadline = dialog.get_deadline()
+        personal_goal_for_the_day = dialog.get_personal_goal_for_the_day()
+
+        if name in [stage.name for stage in parent.stages]:
+            self.notifications.show_error(f'Этап "{name}" уже существует!')
+            return
+        if unit != 'author_list':
+            goal = math.ceil(goal)
+            total = math.ceil(total)
+
+        stage = en.Stage(
+            name=name,
+            goal=goal,
+            deadline=deadline,
+            total_symbols=total,
+            unit=unit,
+            personal_goal_for_the_day=personal_goal_for_the_day,
+            parent_project_name=parent.name,
+        )
+        stage.get_today_goal_value()
+        parent.stages.append(stage)
+        data['projects'][parent.name] = parent
+        en.save_data(data)
+
+        self._expanded_stage_projects.add(parent.name)
+        self.refresh_projects()
+        self.select_stage_by_id(parent.name, stage.stage_id)
+        self.view_project()
+        self.notifications.show_success(f'Этап "{name}" создан!', position="bottom-left")
 
     def applying_settings(self):
         settings = en.load_settings()
@@ -469,6 +547,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.note_widget.setVisible(False)
             self.change_project_widget.setVisible(False)
             self.name_selected_project.setText("Выберите проект")
+            self.create_stage_action.setEnabled(False)
             return
 
         # Получаем виджет, связанный с выбранным элементом
@@ -543,11 +622,14 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             self.need.setText(self._format_number(need))
 
-        # Дедлайн
-        if project.deadline != 'Нет':
+        # Дедлайн и цель на сегодня
+        has_stage_daily_goal = (
+                getattr(project, 'has_stages', lambda: False)()
+                and project.get_today_goal_value() > 0
+        )
+        if project.deadline != 'Нет' or has_stage_daily_goal:
             self.label_deadline.setVisible(True)
             self.deadline.setVisible(True)
-            self.deadline.setText(project.deadline_str)
             self.label_today_goal.setVisible(True)
             self.today_goal.setVisible(True)
 
@@ -563,21 +645,30 @@ class MainWindow(QMainWindow, main_window_ui):
                 else:
                     self.today_goal.setText(self._format_number_for_unit(project.get_today_goal_in_unit(), project.unit))
 
-            # Расчёт оставшихся дней
-            days_left = (project.deadline - en.today_for_test()).days
-            if days_left > 0:
-                self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
-            elif days_left == 0:
-                self.deadline.setText(f"{project.deadline_str} (сегодня!)")
+            if project.deadline != 'Нет':
+                self.deadline.setText(project.deadline_str)
+                # Расчёт оставшихся дней
+                days_left = (project.deadline - en.today_for_test()).days
+                if days_left > 0:
+                    self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
+                elif days_left == 0:
+                    self.deadline.setText(f"{project.deadline_str} (сегодня!)")
+                else:
+                    self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
             else:
-                self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
+                self.deadline.setText("Не установлен")
         else:
             self.label_today_goal.setVisible(False)
             self.today_goal.setVisible(False)
             self.deadline.setText("Не установлен")
 
         # Информация о стриках
-        if en.load_settings().get('global_streak', False) and project.deadline != 'Нет':
+        show_streak = (
+                en.load_settings().get('global_streak', False)
+                and not self._is_stage(project)
+                and (project.deadline != 'Нет' or getattr(project, 'has_stages', lambda: False)())
+        )
+        if show_streak:
             self.label_streaks.setVisible(True)
             self.label_streak_status.setVisible(True)
             self.label_max_streak.setVisible(True)
@@ -597,10 +688,11 @@ class MainWindow(QMainWindow, main_window_ui):
             self.streak_status.setVisible(False)
 
         # Последняя запись (если есть)
-        if project.notes:
-            last_note = project.notes[-1]
+        stage_name, last_note = project.get_latest_note()
+        if last_note:
             added_disp = en.unit_converter('symbols', last_note.added_symbols, project.unit)
-            self.l.setText(f"{last_note.get_date_create_str()} (+{self._format_number(added_disp)})")
+            stage_prefix = f"{stage_name}: " if stage_name else ""
+            self.l.setText(f"{stage_prefix}{last_note.get_date_create_str()} (+{self._format_number(added_disp)})")
         else:
             self.l.setText("Нет записей")
 
@@ -654,6 +746,21 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.name_selected_project.setText(project_name)
                 break
 
+    def select_stage_by_id(self, parent_name, stage_id):
+        self._expanded_stage_projects.add(parent_name)
+        for i in range(self.list_projects.count()):
+            item = self.list_projects.item(i)
+            widget = self.list_projects.itemWidget(item)
+            if (
+                    widget and hasattr(widget, 'project') and
+                    getattr(widget.project, 'stage_id', None) == stage_id
+            ):
+                self.list_projects.setCurrentItem(item)
+                self.show_project_info(widget.project)
+                self.setup_project_buttons(widget.project)
+                self.name_selected_project.setText(widget.project.name)
+                break
+
     def setup_project_buttons(self, project):
         """Настраивает кнопки управления проектом"""
         # Отключаем старые соединения только если они действительно были
@@ -682,7 +789,13 @@ class MainWindow(QMainWindow, main_window_ui):
         self.btn_synch_project.clicked.connect(lambda: self.sync_project(project))
         self.share_progress.clicked.connect(lambda: self.share_project_progress(project))
         # Включение/отключение действия удаления синхронизации в меню
-        self.del_synch_action.setEnabled(project.synch is not None)
+        has_stage_sync = (
+                getattr(project, 'has_stages', lambda: False)() and
+                any(stage.synch is not None for stage in project.stages)
+        )
+        self.del_synch_action.setEnabled(project.synch is not None or has_stage_sync)
+        parent_for_stage_action = self._get_parent_project(project) if self._is_stage(project) else project
+        self.create_stage_action.setEnabled(getattr(parent_for_stage_action, 'has_stages', lambda: False)())
 
         # Устанавливаем состояние кнопок в зависимости от статуса проекта
         self.change_project_widget.setEnabled(True)
@@ -711,12 +824,18 @@ class MainWindow(QMainWindow, main_window_ui):
             else:
                 self.btn_archived_project.setText('В архив')
 
-            self.btn_archived_project.setEnabled(True)
+            self.btn_archived_project.setEnabled(not self._is_stage(project))
+            self.archive_project_action.setEnabled(not self._is_stage(project))
             self.btn_delete_project.setEnabled(True)
 
             # Логика для ручного добавления записей:
             # Если синхронизация включена (project.synch не None), отключаем ручное добавление
-            if project.synch is not None:
+            if getattr(project, 'has_stages', lambda: False)():
+                self.pb_save_flash_note.setEnabled(False)
+                self.new_symbols.setEnabled(False)
+                self.delete_note.setEnabled(False)
+                self.new_symbols.setPlaceholderText("Выберите этап")
+            elif project.synch is not None:
                 self.pb_save_flash_note.setEnabled(False)
                 self.new_symbols.setEnabled(False)
                 self.delete_note.setEnabled(True)  # удаление записей всё ещё разрешено
@@ -951,7 +1070,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Проверяем и восстанавливаем прогресс для записей, где он отсутствует
         data_changed = False
-        for note in project.notes:
+        notes_with_stage_names = project.get_notes_with_stage_names()
+        for _, note in notes_with_stage_names:
             # Если added_progress равно 0 или None, но added_symbols > 0, вычисляем прогресс
             if (note.get_added_progress() == 0 or note.get_added_progress() is None) and note.get_added_symbols() != 0:
                 goal_symbols = project.get_goal_symbols()
@@ -968,18 +1088,26 @@ class MainWindow(QMainWindow, main_window_ui):
                     )
 
                     # Заменяем заметку в списке
-                    index = project.notes.index(note)
-                    project.notes[index] = fixed_note
+                    if project.has_stages():
+                        for stage in project.stages:
+                            if note in stage.notes:
+                                index = stage.notes.index(note)
+                                stage.notes[index] = fixed_note
+                                break
+                    else:
+                        index = project.notes.index(note)
+                        project.notes[index] = fixed_note
                     data_changed = True
 
         # Если были изменения, сохраняем данные
         if data_changed:
             data = en.load_data()
-            data['projects'][project.name] = project
+            self._store_project_entity(data, project)
             en.save_data(data)
 
         # Отображаем заметки
-        for note in reversed(project.notes[-10:]):  # Показываем последние 10 записей
+        notes_to_show = notes_with_stage_names if project.has_stages() else notes_with_stage_names[-10:]
+        for stage_name, note in reversed(notes_to_show):
             # Добавленное количество в единицах проекта
             added_disp = en.unit_converter('symbols', note.get_added_symbols(), project.unit)
             added_disp_str = self._format_number(added_disp)
@@ -1013,7 +1141,8 @@ class MainWindow(QMainWindow, main_window_ui):
                 unit_display = unit_code
 
             # Формируем строку: дата ±добавлено → общее (единица) [процент]
-            item_text = f"{note.get_date_create_str()} {sign}{added_disp_str} → {total_disp_str} {unit_display} ({progress_str}%)"
+            stage_prefix = f"{stage_name}: " if stage_name else ""
+            item_text = f"{stage_prefix}{note.get_date_create_str()} {sign}{added_disp_str} → {total_disp_str} {unit_display} ({progress_str}%)"
 
             item = QListWidgetItem(item_text)
             self.note_list.addItem(item)
@@ -1088,7 +1217,15 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Загружаем данные
         data = en.load_data()
-        data['projects'][project.name] = project
+        self._store_project_entity(data, project)
+        bonus_project = project
+        if self._is_stage(project):
+            bonus_project, _ = self._find_stage_parent(data, project)
+            if bonus_project is not None:
+                bonus_project.get_streak_status()
+                data['projects'][bonus_project.name] = bonus_project
+            else:
+                bonus_project = project
         settings = en.load_settings()
 
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
@@ -1096,17 +1233,17 @@ class MainWindow(QMainWindow, main_window_ui):
             self.game_controller.add_symbols(added_symbols)
             # Даем бонус за стрик проекта и глобальный, если он включен
             if settings.get('global_streak', False):
-                if project.last_streak_bonus != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local', en.streak_length(project.streaks)):
-                        project.last_streak_bonus = en.today_for_test()
-                        data['projects'][project.name] = project
+                if bonus_project.last_streak_bonus != en.today_for_test():
+                    if self.game_controller.give_streak_bonus(bonus_project.get_streak_status(), 'Local', en.streak_length(bonus_project.streaks)):
+                        bonus_project.last_streak_bonus = en.today_for_test()
+                        self._store_project_entity(data, bonus_project)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global', len(data['global_streaks'])):
                         data['last_global_streak_bonus'] = en.today_for_test()
 
         # Сохраняем изменения
-        data['projects'][project.name] = project
+        self._store_project_entity(data, project)
         en.save_data(data)
 
         if settings.get('global_streak', False):
@@ -1121,11 +1258,18 @@ class MainWindow(QMainWindow, main_window_ui):
         self.new_symbols.clear()
 
         # Обновляем текущий виджет в списке
-        current_item = self.list_projects.currentItem()
-        if current_item:
-            widget = self.list_projects.itemWidget(current_item)
-            if widget:
-                widget.update_display()
+        if self._is_stage(project):
+            parent_project = self._get_parent_project(project)
+            if parent_project is not None:
+                self._expanded_stage_projects.add(parent_project.name)
+                self._update_project_list_widgets_for_stage(parent_project, project.stage_id)
+                self.select_stage_by_id(parent_project.name, project.stage_id)
+        else:
+            current_item = self.list_projects.currentItem()
+            if current_item:
+                widget = self.list_projects.itemWidget(current_item)
+                if widget:
+                    widget.update_display()
 
         # Обновляем панель информации и список заметок
         self.show_project_info(project)
@@ -1183,12 +1327,18 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Сохраняем изменения
             data = en.load_data()
-            data['projects'][project.name] = project
+            self._store_project_entity(data, project)
             en.save_data(data)
 
             # Обновляем отображение
+            parent_for_stage = self._get_parent_project(project) if self._is_stage(project) else None
+            if parent_for_stage is not None:
+                self._expanded_stage_projects.add(parent_for_stage.name)
             self.refresh_projects()
-            self.select_project_by_name(project.name)
+            if parent_for_stage is not None:
+                self.select_stage_by_id(parent_for_stage.name, project.stage_id)
+            else:
+                self.select_project_by_name(project.name)
             self.show_project_info(project)
             self.load_notes(project)
 
@@ -1197,7 +1347,12 @@ class MainWindow(QMainWindow, main_window_ui):
     def edit_project(self, project):
         """Редактирует существующий проект."""
         data = en.load_data()
-        dialog = EditProject(project, existing_names=data['projects'].keys())
+        if self._is_stage(project):
+            parent, _ = self._find_stage_parent(data, project)
+            existing_names = [stage.name for stage in parent.stages] if parent else []
+        else:
+            existing_names = data['projects'].keys()
+        dialog = EditProject(project, existing_names=existing_names)
         result = dialog.exec()
 
         if result == QDialog.Accepted:
@@ -1218,6 +1373,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 new_total = math.ceil(new_total)
             new_deadline = dialog.get_deadline()
             new_personal_goal = dialog.get_personal_goal_for_the_day()
+            stages_enabled = dialog.is_stages_enabled()
             if [old_name != new_name, old_goal != new_goal, old_total != new_total, old_deadline != new_deadline]:
                 edit_date = en.today_for_test()
 
@@ -1316,11 +1472,16 @@ class MainWindow(QMainWindow, main_window_ui):
                 if confirm_dialog.exec() != QDialog.Accepted:
                     return  # Отменяем сохранение, если пользователь не согласен
 
-            # Если имя изменилось, удаляем старую запись
-            if old_name != new_name and old_name in data['projects']:
+            # Если имя изменилось у верхнеуровневого проекта, удаляем старую запись
+            if not self._is_stage(project) and old_name != new_name and old_name in data['projects']:
                 del data['projects'][old_name]
 
             # Обновляем поля проекта
+            if unit_changed and not self._is_stage(project) and project.has_stages():
+                for stage in project.stages:
+                    stage.goal = en.unit_converter(project.unit, stage.goal, new_unit)
+                    stage.total_units = en.unit_converter(project.unit, stage.total_units, new_unit)
+                    stage.unit = new_unit
             project.name = new_name
             project.goal = new_goal
             project.total_units = new_total
@@ -1328,6 +1489,18 @@ class MainWindow(QMainWindow, main_window_ui):
             project.deadline = new_deadline
             project.personal_goal_for_the_day = new_personal_goal
             project.edit_date = edit_date
+            if not self._is_stage(project):
+                if stages_enabled and not project.has_stages():
+                    project.convert_to_stages()
+                elif not stages_enabled and project.has_stages():
+                    project.convert_to_single()
+                if project.has_stages():
+                    for stage in project.stages:
+                        stage.parent_project_name = project.name
+                    for stage in dialog.get_pending_stages():
+                        stage.parent_project_name = project.name
+                        stage.unit = project.unit
+                        project.stages.append(stage)
 
             # Обновляем статус проекта (если цель достигнута)
             if project.total_units >= project.goal and project.status != 'завершен':
@@ -1337,19 +1510,26 @@ class MainWindow(QMainWindow, main_window_ui):
             # Обновляем цель на день
             project.get_today_goal_value()
             # Сохраняем под новым именем (или старым, если не изменилось)
-            data['projects'][project.name] = project
+            self._store_project_entity(data, project)
             en.save_data(data)
 
             # Обновляем интерфейс
+            parent_for_stage = self._get_parent_project(project) if self._is_stage(project) else None
+            if parent_for_stage is not None:
+                self._expanded_stage_projects.add(parent_for_stage.name)
             self.refresh_projects()
             self.refresh_global_streak_status()
-            self.select_project_by_name(project.name)
+            if self._is_stage(project) and parent_for_stage is not None:
+                self.select_stage_by_id(parent_for_stage.name, project.stage_id)
+            else:
+                self.select_project_by_name(project.name)
             self.name_selected_project.setText(project.name)
             self.view_project()
 
             unit_name = self._get_unit_name(project.unit)
+            entity_label = "Этап" if self._is_stage(project) else "Проект"
             self.notifications.show_success(
-                f'Проект "{project.name}" обновлён',
+                f'{entity_label} "{project.name}" обновлён',
                 position="bottom-left"
             )
 
@@ -1397,20 +1577,22 @@ class MainWindow(QMainWindow, main_window_ui):
     def complete_project(self, project):
         """Завершает проект"""
         dialog = ConfirmDialog()
+        entity_label = 'этап' if self._is_stage(project) else 'проект'
         dialog.message.setText(
-            'Вы хотите завершить проект?\nЭто действие нельзя отменить\nЗавершенный проект можно только просматривать и удалить')
+            f'Вы хотите завершить {entity_label}?\nЭто действие нельзя отменить\n'
+            f'Завершенный {entity_label} можно только просматривать и удалить')
         result = dialog.exec()
 
         if result == QDialog.Accepted:
             project.status = "завершен"
             project.complete_date = en.today_for_test()
-            if en.load_settings()['game_mode']:
+            if en.load_settings()['game_mode'] and not self._is_stage(project):
                 self.game_controller.give_complete_bonus(project.status, project.total_units, project.unit)
                 if en.load_settings()['global_streak'] and project.deadline != 'Нет' and en.streak_length(project.streaks):
                     self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local', streak_len=en.streak_length(project.streaks))
 
             data = en.load_data()
-            data['projects'][project.name] = project
+            self._store_project_entity(data, project)
             en.save_data(data)
 
             self.refresh_projects()
@@ -1421,6 +1603,10 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def archive_project(self, project):
         """Отправляет проект в архив или активирует его"""
+        if self._is_stage(project):
+            self.notifications.show_warning("Этапы нельзя отправить в архив")
+            return
+
         dialog = ConfirmDialog()
 
         if project.status == 'активен':
@@ -1444,7 +1630,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 # При активации дедлайн остается пустым, пользователь может установить его позже
 
             data = en.load_data()
-            data['projects'][project.name] = project
+            self._store_project_entity(data, project)
             en.save_data(data)
 
             self.refresh_projects()
@@ -1456,12 +1642,23 @@ class MainWindow(QMainWindow, main_window_ui):
     def delete_project(self, project):
         """Удаляет проект"""
         dialog = ConfirmDialog()
-        dialog.message.setText('Вы хотите удалить проект?\nЭто действие нельзя отменить!')
+        entity_label = 'этап' if self._is_stage(project) else 'проект'
+        dialog.message.setText(f'Вы хотите удалить {entity_label}?\nЭто действие нельзя отменить!')
         result = dialog.exec()
 
         if result == QDialog.Accepted:
             data = en.load_data()
-            if project.name in data['projects']:
+            if self._is_stage(project):
+                parent, index = self._find_stage_parent(data, project)
+                if parent is not None:
+                    deleted_name = parent.stages[index].name
+                    del parent.stages[index]
+                    if not parent.stages:
+                        parent.enable_stages = False
+                    data['projects'][parent.name] = parent
+                    en.save_data(data)
+                    self.notifications.show_success(f'{deleted_name} удален.', position="bottom-left")
+            elif project.name in data['projects']:
                 del data['projects'][project.name]
                 en.save_data(data)
                 self.notifications.show_success(f'{project.name} удален.', position="bottom-left")
@@ -1471,8 +1668,113 @@ class MainWindow(QMainWindow, main_window_ui):
             self.note_widget.setVisible(False)
             self.change_project_widget.setVisible(False)
 
+    def _is_stage(self, project):
+        return isinstance(project, en.Stage) or getattr(project, 'is_stage', False)
+
+    def _find_stage_parent(self, data, stage):
+        stage_id = getattr(stage, 'stage_id', None)
+        parent_name = getattr(stage, 'parent_project_name', None)
+        projects = data.get('projects', {})
+
+        candidates = []
+        if parent_name and parent_name in projects:
+            candidates.append(projects[parent_name])
+        candidates.extend(project for name, project in projects.items() if name != parent_name)
+
+        for parent in candidates:
+            if not getattr(parent, 'has_stages', lambda: False)():
+                continue
+            for index, current_stage in enumerate(parent.stages):
+                if stage_id and getattr(current_stage, 'stage_id', None) == stage_id:
+                    return parent, index
+                if not stage_id and current_stage.name == stage.name:
+                    return parent, index
+        return None, None
+
+    def _store_project_entity(self, data, project):
+        if self._is_stage(project):
+            parent, index = self._find_stage_parent(data, project)
+            if parent is None:
+                return False
+            project.parent_project_name = parent.name
+            parent.stages[index] = project
+            data['projects'][parent.name] = parent
+            return True
+
+        data['projects'][project.name] = project
+        if getattr(project, 'has_stages', lambda: False)():
+            for stage in project.stages:
+                stage.parent_project_name = project.name
+        return True
+
+    def _get_parent_project(self, project):
+        if not self._is_stage(project):
+            return project
+        data = en.load_data()
+        parent, _ = self._find_stage_parent(data, project)
+        return parent
+
+    def _toggle_project_stages(self, project_name):
+        scroll_bar = self.list_projects.verticalScrollBar()
+        scroll_value = scroll_bar.value()
+        expanding = project_name not in self._expanded_stage_projects
+        if project_name in self._expanded_stage_projects:
+            self._expanded_stage_projects.remove(project_name)
+        else:
+            self._expanded_stage_projects.add(project_name)
+        self.refresh_projects(preserve_scroll=True, scroll_value=scroll_value)
+        self.select_project_by_name(project_name)
+        if expanding:
+            QTimer.singleShot(0, lambda name=project_name: self._scroll_to_first_stage(name))
+
+    def _scroll_to_first_stage(self, parent_project_name):
+        for i in range(self.list_projects.count()):
+            item = self.list_projects.item(i)
+            widget = self.list_projects.itemWidget(item)
+            if (
+                    widget is not None
+                    and self._is_stage(getattr(widget, 'project', None))
+                    and getattr(widget.project, 'parent_project_name', None) == parent_project_name
+            ):
+                self.list_projects.scrollToItem(item)
+                return
+
+    def _update_project_list_widgets_for_stage(self, parent_project, stage_id):
+        """Обновляет виджеты родителя и этапа без пересоздания списка, чтобы сохранить анимацию."""
+        for i in range(self.list_projects.count()):
+            item = self.list_projects.item(i)
+            widget = self.list_projects.itemWidget(item)
+            if widget is None or not hasattr(widget, 'project'):
+                continue
+
+            if not self._is_stage(widget.project) and widget.project.name == parent_project.name:
+                widget.project = parent_project
+                widget.update_display()
+                item.setSizeHint(widget.sizeHint())
+            elif self._is_stage(widget.project) and getattr(widget.project, 'stage_id', None) == stage_id:
+                stage = next(
+                    (current_stage for current_stage in parent_project.stages
+                     if getattr(current_stage, 'stage_id', None) == stage_id),
+                    None
+                )
+                if stage is not None:
+                    widget.project = stage
+                    widget.parent_project = parent_project
+                    widget.update_display()
+                    item.setSizeHint(widget.sizeHint())
+
+    def _sync_project_key(self, project):
+        if self._is_stage(project):
+            return f"{getattr(project, 'parent_project_name', '')}:{getattr(project, 'stage_id', project.name)}"
+        return project.name
+
     def generate_project_widget(self, project):
-        return ProjectWidget(project, en.load_settings()['global_streak'])
+        return ProjectWidget(
+            project,
+            en.load_settings()['global_streak'],
+            expanded=project.name in self._expanded_stage_projects,
+            toggle_callback=self._toggle_project_stages,
+        )
 
     def on_filter_changed(self):
         """Обработчик изменения фильтра проектов"""
@@ -1586,7 +1888,7 @@ class MainWindow(QMainWindow, main_window_ui):
             en.save_data(data)
         return changed
 
-    def refresh_projects(self):
+    def refresh_projects(self, preserve_scroll=False, scroll_value=None):
         data = en.load_data()
         auto_freeze_changed = self._refresh_project_streak_statuses(data)
         if auto_freeze_changed:
@@ -1625,14 +1927,21 @@ class MainWindow(QMainWindow, main_window_ui):
             projects = sorted(projects, key=lambda p: p.progress, reverse=True)
 
         list_p = self.list_projects
+        if scroll_value is None:
+            scroll_value = list_p.verticalScrollBar().value()
 
         # Сохраняем текущий выбранный проект (если есть)
         current_project_name = None
+        current_stage_id = None
         current_item = self.list_projects.currentItem()
         if current_item:
             widget = self.list_projects.itemWidget(current_item)
             if widget and hasattr(widget, 'project'):
-                current_project_name = widget.project.name
+                if self._is_stage(widget.project):
+                    current_stage_id = getattr(widget.project, 'stage_id', None)
+                    current_project_name = getattr(widget.project, 'parent_project_name', None)
+                else:
+                    current_project_name = widget.project.name
 
         # Сбрасываем текущее выделение перед clear(): нативная (macOS) анимация
         # смены выделенного элемента продолжает тикать на уже уничтоженном
@@ -1685,6 +1994,17 @@ class MainWindow(QMainWindow, main_window_ui):
             if current_project_name and project.name == current_project_name:
                 list_p.setCurrentItem(item)
 
+            if getattr(project, 'has_stages', lambda: False)() and project.name in self._expanded_stage_projects:
+                for stage in project.stages:
+                    stage_widget = StageRowWidget(stage, project)
+                    stage_widget.layout().activate()
+                    stage_item = QListWidgetItem()
+                    stage_item.setSizeHint(stage_widget.sizeHint())
+                    list_p.addItem(stage_item)
+                    list_p.setItemWidget(stage_item, stage_widget)
+                    if current_stage_id and getattr(stage, 'stage_id', None) == current_stage_id:
+                        list_p.setCurrentItem(stage_item)
+
         # Если после фильтрации текущий проект не найден, скрываем панели информации
         if current_project_name and not list_p.currentItem():
             self.project_info.setVisible(False)
@@ -1693,11 +2013,16 @@ class MainWindow(QMainWindow, main_window_ui):
             self.name_selected_project.setText("Выберите проект")
 
         if current_project_name:
-            self.select_project_by_name(current_project_name)
+            if current_stage_id:
+                self.select_stage_by_id(current_project_name, current_stage_id)
+            else:
+                self.select_project_by_name(current_project_name)
         # Показываем, сколько написано сегодня в символах
         self.written_today_in_all_projects()
         if data_changed:
             en.save_data(data)
+        if preserve_scroll:
+            QTimer.singleShot(0, lambda value=scroll_value: list_p.verticalScrollBar().setValue(value))
 
     def check_global_streak(self):
         """Проверяет глобальный стрик и показывает уведомление"""
@@ -1732,6 +2057,27 @@ class MainWindow(QMainWindow, main_window_ui):
             self.user_agreement()
 
     def sync_project(self, project, background_synch=False, batch_id=None):
+        if getattr(project, 'has_stages', lambda: False)():
+            stages_with_sync = [
+                stage for stage in project.stages
+                if stage.synch is not None and stage.status == 'активен'
+            ]
+            if not stages_with_sync:
+                if not background_synch:
+                    self.notifications.show_info("Сначала настройте синхронизацию у этапа.")
+                return False
+
+            if batch_id is None:
+                batch_id = object()
+                self._background_sync_batches[batch_id] = {
+                    'queue': list(stages_with_sync),
+                    'completed': 0,
+                    'total': len(stages_with_sync),
+                    'silent': background_synch,
+                }
+            self._start_next_background_sync_item(batch_id)
+            return True
+
         # Если синхронизация не настроена
         if project.synch is None:
             if background_synch:
@@ -1744,7 +2090,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     return
                 # Сохраняем изменения
                 data = en.load_data()
-                data['projects'][project.name] = project
+                self._store_project_entity(data, project)
                 en.save_data(data)
                 # После настройки запускаем синхронизацию
                 self.sync_project(project)
@@ -1776,7 +2122,7 @@ class MainWindow(QMainWindow, main_window_ui):
         return False
 
     def _start_sync_read(self, project, sync_type, background_synch=False, batch_id=None):
-        project_name = project.name
+        project_name = self._sync_project_key(project)
         if project_name in self._sync_threads:
             if not background_synch:
                 self.notifications.show_info("Синхронизация уже выполняется.")
@@ -1836,7 +2182,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
     @Slot(object, str, object, object, object, bool, object)
     def _on_sync_read_finished(self, project, sync_type, symbols, note_date, read_error, background_synch, batch_id):
-        self._cleanup_sync_read_worker(project.name)
+        self._cleanup_sync_read_worker(self._sync_project_key(project))
 
         if sync_type == 'word':
             self._handle_word_sync_read_result(project, symbols, note_date, read_error, background_synch)
@@ -1849,7 +2195,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
     @Slot(object, str, str, bool, object)
     def _on_sync_read_failed(self, project, sync_type, error, background_synch, batch_id):
-        self._cleanup_sync_read_worker(project.name)
+        self._cleanup_sync_read_worker(self._sync_project_key(project))
 
         if not background_synch:
             if sync_type == 'word':
@@ -1873,6 +2219,9 @@ class MainWindow(QMainWindow, main_window_ui):
                     "Настройте синхронизацию заново."
                 )
             project.synch = None
+            data = en.load_data()
+            self._store_project_entity(data, project)
+            en.save_data(data)
             return
         elif read_error == 'doc_unsupported':
             if not background_synch:
@@ -1936,7 +2285,15 @@ class MainWindow(QMainWindow, main_window_ui):
         self.update_sync_status_label(project)
 
         data = en.load_data()
-        data['projects'][project.name] = project
+        self._store_project_entity(data, project)
+        bonus_project = project
+        if self._is_stage(project):
+            bonus_project, _ = self._find_stage_parent(data, project)
+            if bonus_project is not None:
+                bonus_project.get_streak_status()
+                data['projects'][bonus_project.name] = bonus_project
+            else:
+                bonus_project = project
         settings = en.load_settings()
 
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
@@ -1944,11 +2301,11 @@ class MainWindow(QMainWindow, main_window_ui):
             self.game_controller.add_symbols(added_symbols)
             # Даем бонус за стрик проекта и глобальный, если он включен
             if settings.get('global_streak', False):
-                if project.last_streak_bonus != en.today_for_test():
-                    if self.game_controller.give_streak_bonus(project.get_streak_status(), 'Local',
-                                                              en.streak_length(project.streaks)):
-                        project.last_streak_bonus = en.today_for_test()
-                        data['projects'][project.name] = project
+                if bonus_project.last_streak_bonus != en.today_for_test():
+                    if self.game_controller.give_streak_bonus(bonus_project.get_streak_status(), 'Local',
+                                                              en.streak_length(bonus_project.streaks)):
+                        bonus_project.last_streak_bonus = en.today_for_test()
+                        self._store_project_entity(data, bonus_project)
                 # Даем бонус за глобальный стрик
                 if data.get('last_global_streak_bonus', None) != en.today_for_test():
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
@@ -1956,7 +2313,7 @@ class MainWindow(QMainWindow, main_window_ui):
                         data['last_global_streak_bonus'] = en.today_for_test()
 
         # Сохраняем изменения
-        data['projects'][project.name] = project
+        self._store_project_entity(data, project)
         en.save_data(data)
 
         # Обновляем глобальный стрик
@@ -1964,21 +2321,28 @@ class MainWindow(QMainWindow, main_window_ui):
             self.refresh_global_streak_status()
 
         # Обновляем виджет проекта в списке (для анимации)
-        current_item = self.list_projects.currentItem()
-        if current_item and current_item is not None:
-            widget = self.list_projects.itemWidget(current_item)
-            if widget and hasattr(widget, 'project') and widget.project.name == project.name:
-                # Обновляем существующий виджет
-                widget.update_display()
-                self.written_today_in_all_projects()
+        if self._is_stage(project):
+            parent_project = self._get_parent_project(project)
+            if parent_project is not None:
+                self._expanded_stage_projects.add(parent_project.name)
+                self._update_project_list_widgets_for_stage(parent_project, project.stage_id)
+                self.select_stage_by_id(parent_project.name, project.stage_id)
+        else:
+            current_item = self.list_projects.currentItem()
+            if current_item and current_item is not None:
+                widget = self.list_projects.itemWidget(current_item)
+                if widget and hasattr(widget, 'project') and widget.project.name == project.name:
+                    # Обновляем существующий виджет
+                    widget.update_display()
+                    self.written_today_in_all_projects()
+                else:
+                    # Если текущий виджет не соответствует проекту, ищем нужный
+                    self.refresh_projects()
+                    self.select_project_by_name(project.name)
             else:
-                # Если текущий виджет не соответствует проекту, ищем нужный
+                # Если ничего не выбрано, просто обновляем список
                 self.refresh_projects()
                 self.select_project_by_name(project.name)
-        else:
-            # Если ничего не выбрано, просто обновляем список
-            self.refresh_projects()
-            self.select_project_by_name(project.name)
 
         # Определяем правильное склонение единицы измерения для количества added_in_unit
         abs_added = abs(added_in_unit)
@@ -2012,6 +2376,9 @@ class MainWindow(QMainWindow, main_window_ui):
                     "Настройте синхронизацию заново."
                 )
             project.synch = None
+            data = en.load_data()
+            self._store_project_entity(data, project)
+            en.save_data(data)
             return
 
         try:
@@ -2070,22 +2437,38 @@ class MainWindow(QMainWindow, main_window_ui):
         if project is None:
             self.notifications.show_warning("Нет выбранного проекта")
             return
-        if project.synch is None:
+        has_stage_sync = (
+                getattr(project, 'has_stages', lambda: False)() and
+                any(stage.synch is not None for stage in project.stages)
+        )
+        if project.synch is None and not has_stage_sync:
             self.notifications.show_info("У этого проекта нет привязанной синхронизации")
             return
 
         dialog = ConfirmDialog()
-        dialog.message.setText(
-            "Вы действительно хотите удалить настройки синхронизации?"
-        )
+        if has_stage_sync:
+            dialog.message.setText("Вы действительно хотите удалить настройки синхронизации у всех этапов?")
+        else:
+            dialog.message.setText("Вы действительно хотите удалить настройки синхронизации?")
         if dialog.exec() == QDialog.Accepted:
-            project.synch = None
+            if has_stage_sync:
+                for stage in project.stages:
+                    stage.synch = None
+                    stage.last_synch = None
+            else:
+                project.synch = None
+                project.last_synch = None
             data = en.load_data()
-            data['projects'][project.name] = project
+            self._store_project_entity(data, project)
             en.save_data(data)
             self.notifications.show_success("Синхронизация отключена")
             self.refresh_projects()
-            self.select_project_by_name(project.name)
+            if self._is_stage(project):
+                parent = self._get_parent_project(project)
+                if parent is not None:
+                    self.select_stage_by_id(parent.name, project.stage_id)
+            else:
+                self.select_project_by_name(project.name)
 
     def on_change_project_menu_triggered(self):
         """Обработчик меню 'Изменить проект'."""
@@ -2103,13 +2486,24 @@ class MainWindow(QMainWindow, main_window_ui):
             return
 
         dialog = ConfirmDialog()
+        entity_label = "этап" if self._is_stage(project) else "проект"
         dialog.message.setText(
-            "Вы действительно хотите удалить проект?\n"
+            f"Вы действительно хотите удалить {entity_label}?\n"
             "Это действие нельзя отменить!"
         )
         if dialog.exec() == QDialog.Accepted:
             data = en.load_data()
-            if project.name in data['projects']:
+            if self._is_stage(project):
+                parent, index = self._find_stage_parent(data, project)
+                if parent is not None:
+                    deleted_name = parent.stages[index].name
+                    del parent.stages[index]
+                    if not parent.stages:
+                        parent.enable_stages = False
+                    data['projects'][parent.name] = parent
+                    en.save_data(data)
+                    self.notifications.show_success(f'{deleted_name} удален.', position="bottom-left")
+            elif project.name in data['projects']:
                 del data['projects'][project.name]
                 en.save_data(data)
                 self.notifications.show_success(f'{project.name} удален.', position="bottom-left")
@@ -2125,6 +2519,9 @@ class MainWindow(QMainWindow, main_window_ui):
         if project is None:
             self.notifications.show_warning("Сначала выберите проект!")
             return
+        if self._is_stage(project):
+            self.notifications.show_warning("Этапы нельзя отправить в архив")
+            return
         self.archive_project(project)
 
     def on_complete_project_menu_triggered(self):
@@ -2135,7 +2532,7 @@ class MainWindow(QMainWindow, main_window_ui):
             return
 
         # Дополнительная проверка: можно завершить только если цель достигнута
-        if project.total_symbols < project.goal and project.goal != float('inf'):
+        if project.total_units < project.goal and project.goal != float('inf'):
             self.notifications.show_warning(
                 "Нельзя завершить проект, пока не достигнута цель!"
             )
@@ -2145,6 +2542,17 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def update_sync_status_label(self, project):
         """Обновляет текст метки с информацией о последней синхронизации."""
+        if getattr(project, 'has_stages', lambda: False)():
+            sync_dates = [stage.last_synch for stage in project.stages if stage.last_synch is not None]
+            if sync_dates:
+                dt_str = max(sync_dates).strftime('%d.%m.%Y %H:%M')
+                self.synch_status.setText(f"Последняя синхр. этапов: {dt_str}")
+            elif any(stage.synch is not None for stage in project.stages):
+                self.synch_status.setText("Этапы подключены, еще не синхронизированы")
+            else:
+                self.synch_status.setText("Синхронизация этапов не настроена")
+            return
+
         if project.last_synch:
             # Форматируем дату и время
             dt_str = project.last_synch.strftime('%d.%m.%Y %H:%M')
@@ -2156,7 +2564,15 @@ class MainWindow(QMainWindow, main_window_ui):
         data = en.load_data()
         projects = list(data['projects'].values())
         # Оставляем только проекты с настроенной синхронизацией
-        projects_with_sync = [p for p in projects if p.synch is not None and p.status == 'активен']
+        projects_with_sync = []
+        for project in projects:
+            if getattr(project, 'has_stages', lambda: False)():
+                projects_with_sync.extend(
+                    stage for stage in project.stages
+                    if stage.synch is not None and stage.status == 'активен'
+                )
+            elif project.synch is not None and project.status == 'активен':
+                projects_with_sync.append(project)
 
         if not projects_with_sync:
             # Нет проектов для синхронизации — ничего не делаем
@@ -2189,10 +2605,12 @@ class ConfirmDialog(QDialog, confirm_dialog_ui):
 
 
 class CreateProject(QDialog, create_project_ui):
-    def __init__(self, parent=None, existing_names=None):
+    def __init__(self, parent=None, existing_names=None, stage_mode=False, fixed_unit=None):
         super().__init__(parent)
         self.setupUi(self)
         self.existing_names = set(existing_names or [])
+        self.stage_mode = stage_mode
+        self.pending_stages = []
 
         # Словари для преобразования
         self.text_to_unit = {
@@ -2204,10 +2622,21 @@ class CreateProject(QDialog, create_project_ui):
         self.unit_to_text = {v: k for k, v in self.text_to_unit.items()}
 
         # Текущая единица
-        self.current_unit = self.text_to_unit[self.cb_unit.currentText()]
+        self.current_unit = fixed_unit or self.text_to_unit[self.cb_unit.currentText()]
+        if fixed_unit:
+            self.cb_unit.setCurrentText(self.unit_to_text[self.current_unit])
 
         # Скрываем предупреждения
         self.incorrect_data.setVisible(False)
+        self.add_Stage.setVisible(False)
+        if self.stage_mode:
+            self.setWindowTitle("Создание этапа")
+            self.enable_Stages.setVisible(False)
+            self.add_Stage.setVisible(False)
+            self.cb_unit.setVisible(False)
+            self.label_7.setVisible(False)
+        else:
+            self.add_Stage.clicked.connect(self.add_stage)
 
         # Подключаем сигналы
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
@@ -2219,7 +2648,9 @@ class CreateProject(QDialog, create_project_ui):
         self.le_total_symbols.textChanged.connect(self.validate_all)
         self.le_total_symbols.textChanged.connect(self.on_total_symbols_changed)
         self.le_personal_goal_for_the_day.textChanged.connect(self.on_personal_goal_changed)
-        self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
+        if not self.stage_mode:
+            self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
+        self.enable_Stages.toggled.connect(self.on_stages_toggled)
 
         # Флаг для предотвращения циклических обновлений
         self._updating = False
@@ -2251,6 +2682,62 @@ class CreateProject(QDialog, create_project_ui):
             self.on_deadline_changed()
         self.validate_all()
 
+    def on_stages_toggled(self, checked):
+        self.add_Stage.setVisible(checked and not self.stage_mode)
+        self._update_add_stage_button_text()
+        if checked:
+            QMessageBox.information(
+                self,
+                "Этапы проекта",
+                "Проект будет создан как проект с этапами. Текущие записи и прогресс будут помещены в первый этап, "
+                "а общий прогресс проекта будет считаться по сумме целей и прогресса этапов."
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Этапы проекта",
+                "Если отключить этапы при редактировании, все записи этапов будут перенесены в проект "
+                "в хронологическом порядке, а прогресс будет пересчитан как для одного проекта."
+            )
+
+    def _update_add_stage_button_text(self):
+        if not hasattr(self, 'add_Stage'):
+            return
+        count = len(getattr(self, 'pending_stages', []))
+        if count:
+            self.add_Stage.setText(f"Добавить Этап ({count})")
+        else:
+            self.add_Stage.setText("Добавить Этап")
+
+    def add_stage(self):
+        stage_names = [stage.name for stage in self.pending_stages]
+        dialog = CreateProject(
+            parent=self,
+            existing_names=stage_names,
+            stage_mode=True,
+            fixed_unit=self.current_unit,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        goal = dialog.get_goal()
+        total = dialog.get_total()
+        if self.current_unit != 'author_list':
+            goal = math.ceil(goal)
+            total = math.ceil(total)
+
+        stage = en.Stage(
+            name=dialog.get_name(),
+            goal=goal,
+            deadline=dialog.get_deadline(),
+            total_symbols=total,
+            unit=self.current_unit,
+            personal_goal_for_the_day=dialog.get_personal_goal_for_the_day(),
+        )
+        stage.get_today_goal_value()
+        self.pending_stages.append(stage)
+        self._update_add_stage_button_text()
+
     def on_unit_changed(self, new_unit_text):
         """Конвертирует значения полей при смене единицы."""
         new_unit = self.text_to_unit[new_unit_text]
@@ -2279,9 +2766,19 @@ class CreateProject(QDialog, create_project_ui):
         self.le_total_symbols.setText(
             f"{new_total:.2f}".rstrip('0').rstrip('.') if '.' in f"{new_total:.2f}" else f"{new_total:.0f}")
 
+        old_unit = self.current_unit
         self.current_unit = new_unit
+        self._convert_pending_stages_unit(old_unit, new_unit)
         self.on_deadline_changed()
         self.validate_all()
+
+    def _convert_pending_stages_unit(self, old_unit, new_unit):
+        if old_unit == new_unit:
+            return
+        for stage in self.pending_stages:
+            stage.goal = en.unit_converter(old_unit, stage.goal, new_unit)
+            stage.total_units = en.unit_converter(old_unit, stage.total_units, new_unit)
+            stage.unit = new_unit
 
     def on_total_symbols_changed(self):
         """При изменении текущего кол-ва: если дневная цель задана — пересчитывает дедлайн,
@@ -2458,6 +2955,12 @@ class CreateProject(QDialog, create_project_ui):
         except (ValueError, AttributeError):
             return 0
 
+    def is_stages_enabled(self):
+        return self.enable_Stages.isChecked()
+
+    def get_pending_stages(self):
+        return list(self.pending_stages)
+
 
 class EditProject(QDialog, create_project_ui):
     def __init__(self, project, parent=None, existing_names=None):
@@ -2468,6 +2971,7 @@ class EditProject(QDialog, create_project_ui):
         self.project = project
         self.original_name = project.name
         self.existing_names = set(existing_names or [])
+        self.pending_stages = []
 
         # Словари для преобразования
         self.text_to_unit = {
@@ -2489,6 +2993,16 @@ class EditProject(QDialog, create_project_ui):
         self.le_name.setText(project.name)
         self.le_goal.setText(self._format_number(project.goal))
         self.le_total_symbols.setText(self._format_number(project.total_units))
+        self.enable_Stages.setChecked(getattr(project, 'has_stages', lambda: False)())
+        if isinstance(project, en.Stage):
+            self.enable_Stages.setVisible(False)
+            self.add_Stage.setVisible(False)
+            self.cb_unit.setVisible(False)
+            self.label_7.setVisible(False)
+        else:
+            self.add_Stage.setVisible(self.enable_Stages.isChecked())
+            self.add_Stage.clicked.connect(self.add_stage)
+            self._update_add_stage_button_text()
 
         # Дедлайн
         if project.deadline != 'Нет':
@@ -2514,6 +3028,7 @@ class EditProject(QDialog, create_project_ui):
         self.le_total_symbols.textChanged.connect(self.on_total_symbols_changed)
         self.le_personal_goal_for_the_day.textChanged.connect(self.on_personal_goal_changed)
         self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
+        self.enable_Stages.toggled.connect(self.on_stages_toggled)
 
         # Устанавливаем минимальную дату - сегодня
         self.de_deadline.setMinimumDate(en.today_for_test())
@@ -2551,6 +3066,62 @@ class EditProject(QDialog, create_project_ui):
             self.on_deadline_changed()
         self.validate_all()
 
+    def on_stages_toggled(self, checked):
+        self.add_Stage.setVisible(checked and not isinstance(self.project, en.Stage))
+        self._update_add_stage_button_text()
+        if checked:
+            QMessageBox.information(
+                self,
+                "Этапы проекта",
+                "Проект будет преобразован в проект с этапами. Все текущие записи автоматически перейдут "
+                "в первый этап."
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Этапы проекта",
+                "Все записи этапов будут перенесены в проект в хронологическом порядке. Цели и прогресс этапов "
+                "сложатся и будут пересчитаны как записи одного проекта."
+            )
+
+    def _update_add_stage_button_text(self):
+        count = len(getattr(self, 'pending_stages', []))
+        if count:
+            self.add_Stage.setText(f"Добавить Этап ({count})")
+        else:
+            self.add_Stage.setText("Добавить Этап")
+
+    def add_stage(self):
+        existing_stage_names = [stage.name for stage in getattr(self.project, 'stages', [])]
+        existing_stage_names.extend(stage.name for stage in self.pending_stages)
+        dialog = CreateProject(
+            parent=self,
+            existing_names=existing_stage_names,
+            stage_mode=True,
+            fixed_unit=self.current_unit,
+        )
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        goal = dialog.get_goal()
+        total = dialog.get_total()
+        if self.current_unit != 'author_list':
+            goal = math.ceil(goal)
+            total = math.ceil(total)
+
+        stage = en.Stage(
+            name=dialog.get_name(),
+            goal=goal,
+            deadline=dialog.get_deadline(),
+            total_symbols=total,
+            unit=self.current_unit,
+            personal_goal_for_the_day=dialog.get_personal_goal_for_the_day(),
+            parent_project_name=self.project.name,
+        )
+        stage.get_today_goal_value()
+        self.pending_stages.append(stage)
+        self._update_add_stage_button_text()
+
     def on_unit_changed(self, new_unit_text):
         new_unit = self.text_to_unit[new_unit_text]
 
@@ -2573,9 +3144,19 @@ class EditProject(QDialog, create_project_ui):
         self.le_goal.setText(self._format_number(new_goal))
         self.le_total_symbols.setText(self._format_number(new_total))
 
+        old_unit = self.current_unit
         self.current_unit = new_unit
+        self._convert_pending_stages_unit(old_unit, new_unit)
         self.on_deadline_changed()
         self.validate_all()
+
+    def _convert_pending_stages_unit(self, old_unit, new_unit):
+        if old_unit == new_unit:
+            return
+        for stage in self.pending_stages:
+            stage.goal = en.unit_converter(old_unit, stage.goal, new_unit)
+            stage.total_units = en.unit_converter(old_unit, stage.total_units, new_unit)
+            stage.unit = new_unit
 
     def on_total_symbols_changed(self):
         """При изменении текущего кол-ва: если дневная цель задана — пересчитывает дедлайн,
@@ -2749,6 +3330,12 @@ class EditProject(QDialog, create_project_ui):
             return val
         except (ValueError, AttributeError):
             return 0
+
+    def is_stages_enabled(self):
+        return self.enable_Stages.isChecked()
+
+    def get_pending_stages(self):
+        return list(self.pending_stages)
 
 
 class NotificationManager:

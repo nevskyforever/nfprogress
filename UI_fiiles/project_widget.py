@@ -2,7 +2,7 @@ from PySide6.QtCore import (QCoreApplication, QMetaObject, QSize, Qt, QRectF, QE
 from PySide6.QtGui import (QColor, QFont, QPainter,
                            QPen)
 from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
-                               QSizePolicy, QVBoxLayout, QWidget)
+                               QSizePolicy, QVBoxLayout, QWidget, QPushButton, QHBoxLayout)
 from PySide6.scripts.pyside_tool import project
 from engine import streak_length as get_streak_length
 
@@ -85,6 +85,7 @@ class CircularProgressBar(QWidget):
         self._animation.stop()
         self._value = value
         self._target_value = value
+        self._initializing = False
         self.update()
 
     def value(self):
@@ -241,7 +242,7 @@ class Ui_Form(object):
 # Финальный класс виджета проекта (используется в main_UI.py)
 # =============================================================================
 class ProjectWidget(QWidget, Ui_Form):
-    def __init__(self, project, global_streak_mode):
+    def __init__(self, project, global_streak_mode, expanded=False, toggle_callback=None):
         super().__init__()
         self.setupUi(self)
         # Загружаем настройки
@@ -299,9 +300,20 @@ class ProjectWidget(QWidget, Ui_Form):
             label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         self.project = project
+        self.expanded = expanded
+        self.toggle_callback = toggle_callback
         # raise_() вместо lower(): прогресс-бар поверх Z-стека,
         # иначе на Windows лейблы рисуются поверх кольца
         self.circular_progress.raise_()
+
+        self.stage_toggle = None
+        if getattr(project, 'has_stages', lambda: False)():
+            self.stage_toggle = QPushButton('▾' if expanded else '▸', self.widget)
+            self.stage_toggle.setFixedSize(22, 22)
+            self.stage_toggle.setFocusPolicy(Qt.NoFocus)
+            self.stage_toggle.setToolTip('Показать этапы' if not expanded else 'Скрыть этапы')
+            self.stage_toggle.clicked.connect(self._toggle_stages)
+            self.gridLayout.addWidget(self.stage_toggle, 0, 0, 1, 1, Qt.AlignLeft | Qt.AlignVCenter)
 
         # Словарь для отображения единиц измерения
         self.unit_display = {
@@ -312,6 +324,10 @@ class ProjectWidget(QWidget, Ui_Form):
         }
 
         self.update_display()
+
+    def _toggle_stages(self):
+        if self.toggle_callback is not None:
+            self.toggle_callback(self.project.name)
 
     def stop_animations(self):
         """Останавливает все анимации виджета перед его удалением.
@@ -379,3 +395,41 @@ class ProjectWidget(QWidget, Ui_Form):
             # Оставляем 1-2 знака после запятой, убираем лишние нули
             return f"{num:.2f}".rstrip('0').rstrip('.') if '.' in f"{num:.2f}" else str(int(num))
         return str(num)
+
+
+class StageRowWidget(QWidget):
+    """Компактная строка этапа в списке проектов."""
+
+    def __init__(self, stage, parent_project):
+        super().__init__()
+        self.project = stage
+        self.parent_project = parent_project
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(24, 3, 8, 3)
+        layout.setSpacing(8)
+
+        self.circular_progress = CircularProgressBar(self)
+        self.circular_progress.setTextVisible(False)
+        self.circular_progress.setRingWidth(4)
+        self.circular_progress.setFixedSize(28, 28)
+        self.circular_progress.setMinimumSize(28, 28)
+        self.circular_progress.setStartColor("#A9A9A9")
+        self.circular_progress.setEndColor("#2568AC")
+        self.circular_progress.setBackgroundColor("#E6EBEF")
+        self.circular_progress.setValueImmediate(0)
+
+        self.name = QLabel(stage.name, self)
+        self.name.setWordWrap(False)
+        self.name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+
+        layout.addWidget(self.circular_progress)
+        layout.addWidget(self.name)
+        self.update_display()
+
+    def stop_animations(self):
+        self.circular_progress.stopAnimation()
+
+    def update_display(self):
+        self.name.setText(self.project.name)
+        self.circular_progress.setValue(100 if self.project.goal == float('inf') else int(self.project.progress), animated=True)
