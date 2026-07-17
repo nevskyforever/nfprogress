@@ -911,21 +911,32 @@ class MainWindow(QMainWindow, main_window_ui):
         painter.drawText(ring_rect, Qt.AlignCenter, f"{progress}%")
 
         title_area = QRectF(80, 805, size - 160, 157)
+        title_text = self._get_progress_share_title(project)
         title_font = self._make_progress_share_font(1, bold=True)
         title_font = self._fit_progress_share_font(
-            project.name,
+            title_text,
             title_area,
             title_font,
-            max_pixel_size=self._get_progress_share_title_max_size(project.name),
+            max_pixel_size=self._get_progress_share_title_max_size(title_text),
             min_pixel_size=27
         )
         painter.setPen(QColor("#000000"))
         painter.setFont(title_font)
-        title_rect = self._centered_progress_share_text_rect(project.name, title_area, title_font)
-        painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, project.name)
+        title_rect = self._centered_progress_share_text_rect(title_text, title_area, title_font)
+        painter.drawText(title_rect, Qt.AlignCenter | Qt.TextWordWrap, title_text)
         self._draw_progress_share_brand(painter, size)
         painter.end()
         return image
+
+    def _get_progress_share_title(self, project: en.Project) -> str:
+        if self._is_stage(project):
+            parent_name = getattr(project, 'parent_project_name', None)
+            if not parent_name:
+                parent_project = self._get_parent_project(project)
+                parent_name = parent_project.name if parent_project is not None else None
+            if parent_name:
+                return f"{parent_name}: {project.name}"
+        return project.name
 
     def _make_progress_share_font(self, pixel_size: int, bold: bool = False) -> QFont:
         font = QFont("Arial")
