@@ -14,7 +14,7 @@ from docx import Document
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
-version = '4.6'
+version = '4.6.1'
 
 # Определяем систему
 
@@ -930,6 +930,13 @@ class Project:
             self.stages = []
             return
 
+        stage_with_longest_streak = self.get_stage_with_longest_streak()
+        has_longest_stage_streak = (
+                stage_with_longest_streak is not None
+                and streak_length(getattr(stage_with_longest_streak, 'streaks', [])) > 0
+        )
+        self.transfer_longest_stage_streak(stage_with_longest_streak)
+
         goal_symbols = self.get_goal_symbols()
         self._goal = (
             float('inf')
@@ -953,8 +960,13 @@ class Project:
         self.synch = next((stage.synch for stage in self.stages if stage.synch is not None), None)
         stage_last_synchs = [stage.last_synch for stage in self.stages if stage.last_synch is not None]
         self.last_synch = max(stage_last_synchs) if stage_last_synchs else None
+        if has_longest_stage_streak:
+            self._deadline = getattr(stage_with_longest_streak, 'deadline', 'Нет')
+            self.deadline_set_date = getattr(stage_with_longest_streak, 'deadline_set_date', None)
+        self.project_plan = {}
         self.enable_stages = False
         self.stages = []
+        self.get_today_goal_value()
 
     def _merged_stage_streaks(self):
         seen = set()
@@ -968,16 +980,23 @@ class Project:
                 merged.append(entry)
         return merged
 
-    def transfer_longest_stage_streak(self):
-        """Переносит самый длинный стрик этапа в родительский проект."""
+    def get_stage_with_longest_streak(self):
         if not self.has_stages():
-            return
+            return None
 
-        stage_with_longest_streak = max(
+        return max(
             self.stages,
             key=lambda stage: streak_length(getattr(stage, 'streaks', [])),
             default=None
         )
+
+    def transfer_longest_stage_streak(self, stage_with_longest_streak=None):
+        """Переносит самый длинный стрик этапа в родительский проект."""
+        if not self.has_stages():
+            return
+
+        if stage_with_longest_streak is None:
+            stage_with_longest_streak = self.get_stage_with_longest_streak()
         if stage_with_longest_streak is None:
             return
 

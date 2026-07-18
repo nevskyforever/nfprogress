@@ -814,8 +814,9 @@ class MainWindow(QMainWindow, main_window_ui):
             self.change_project_action.setEnabled(True)
             self.archive_project_action.setEnabled(True)
             # Кнопка завершения активна, если цель достигнута
-            self.btn_complete_project.setEnabled(project.goal <= project.total_units)
-            self.complete_project_action.setEnabled(project.goal <= project.total_units)
+            can_complete = not self._is_stage(project) and project.goal <= project.total_units
+            self.btn_complete_project.setEnabled(can_complete)
+            self.complete_project_action.setEnabled(can_complete)
 
             # Меняем текст кнопки в зависимости от статуса
             if project.status == 'в архиве':
@@ -1632,8 +1633,12 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def complete_project(self, project):
         """Завершает проект"""
+        if self._is_stage(project):
+            self.notifications.show_warning('Этапы нельзя завершать отдельно. Завершить можно только родительский проект.')
+            return
+
         dialog = ConfirmDialog()
-        entity_label = 'этап' if self._is_stage(project) else 'проект'
+        entity_label = 'проект'
         dialog.message.setText(
             f'Вы хотите завершить {entity_label}?\nЭто действие нельзя отменить\n'
             f'Завершенный {entity_label} можно только просматривать и удалить')
@@ -2591,6 +2596,9 @@ class MainWindow(QMainWindow, main_window_ui):
         project = self.get_current_project()
         if project is None:
             self.notifications.show_warning("Сначала выберите проект!")
+            return
+        if self._is_stage(project):
+            self.notifications.show_warning('Этапы нельзя завершать отдельно. Завершить можно только родительский проект.')
             return
 
         # Дополнительная проверка: можно завершить только если цель достигнута
