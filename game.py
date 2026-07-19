@@ -401,29 +401,28 @@ class Gamer:
                 if not item:
                     continue
 
-                buff = getattr(item, 'buff', None)
-                if not buff:
-                    continue
-                if buff.duration_minutes is not None:
-                    continue
+                buffs = item.get_buffs() if hasattr(item, 'get_buffs') else [getattr(item, 'buff', None)]
+                for buff in buffs:
+                    if not buff or buff.duration_minutes is not None:
+                        continue
 
-                item_buff = buff.activate(start_time=None)
-                item_buff.start_time = None
-                item_buff.end_time = None
-                item_buff.source = item.name
-                if item_buff.stackable:
-                    merge_key = (item_buff.name, item_buff.target_cf, item_buff.buff_type)
-                    if merge_key in merged_stackable_buffs:
-                        merged_stackable_buffs[merge_key]['total_value'] += item_buff.value * count
-                        merged_stackable_buffs[merge_key]['stacks'] += count
+                    item_buff = buff.activate(start_time=None)
+                    item_buff.start_time = None
+                    item_buff.end_time = None
+                    item_buff.source = item.name
+                    if item_buff.stackable:
+                        merge_key = (item_buff.name, item_buff.target_cf, item_buff.buff_type)
+                        if merge_key in merged_stackable_buffs:
+                            merged_stackable_buffs[merge_key]['total_value'] += item_buff.value * count
+                            merged_stackable_buffs[merge_key]['stacks'] += count
+                        else:
+                            merged_stackable_buffs[merge_key] = {
+                                'buff': item_buff,
+                                'stacks': count,
+                                'total_value': item_buff.value * count,
+                            }
                     else:
-                        merged_stackable_buffs[merge_key] = {
-                            'buff': item_buff,
-                            'stacks': count,
-                            'total_value': item_buff.value * count,
-                        }
-                else:
-                    inventory_buffs.append((item_buff, count))
+                        inventory_buffs.append((item_buff, count))
 
         for merged_buff in merged_stackable_buffs.values():
             buff = merged_buff['buff']

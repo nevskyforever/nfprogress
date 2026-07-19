@@ -95,15 +95,17 @@ class Item:
     """Основной класс"""
 
     def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None,
-                 credit_allowed=True, sellable=True):
+                 credit_allowed=True, sellable=True, maximum_quantity_in_stock=None, buffs=None):
         self.name = name
         self.item_type = item_type
         self._price = price
         self.level = level
         self.description = description
         self.buff = buff
+        self.buffs = list(buffs) if buffs is not None else ([buff] if buff else [])
         self.credit_allowed = credit_allowed
         self.sellable = sellable
+        self.maximum_quantity_in_stock = maximum_quantity_in_stock
 
     @property
     def price(self):
@@ -125,6 +127,12 @@ class Item:
         if coins < self.price:
             return 'Недостаточно монет!'
 
+        category_items = items.get(self.item_type, {})
+        current_count = category_items.get(self.name, 0) if isinstance(category_items, dict) else 0
+        limit_message = self.get_purchase_limit_message(current_count, 1)
+        if limit_message:
+            return limit_message
+
         # 1. Списываем деньги
         gamer.remove_coins(self.price)
 
@@ -144,6 +152,24 @@ class Item:
         gamer.set_items(items)
         gamer.save()
         return f'Вы купили: {self.name}'
+
+    def get_purchase_limit_message(self, current_count, purchase_count):
+        """Возвращает причину отказа, если покупка превысит лимит инвентаря."""
+        maximum = getattr(self, 'maximum_quantity_in_stock', None)
+        if maximum is None:
+            return None
+
+        if current_count >= maximum:
+            return f'В инвентаре уже максимум: {maximum} шт. предмета «{self.name}».'
+
+        if current_count + purchase_count > maximum:
+            remaining = maximum - current_count
+            return f'Можно иметь не больше {maximum} шт. предмета «{self.name}». Сейчас доступно к покупке: {remaining}.'
+
+        return None
+
+    def get_buffs(self):
+        return getattr(self, 'buffs', [self.buff] if getattr(self, 'buff', None) else [])
 
     def about(self):
         return f'{self.name}: {self.description} (Цена: {self.price})'
@@ -1276,10 +1302,37 @@ def calculate_freeze_price():
 freeze = FuncItem('❄️Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком'
                               '️\n⚠️ Важно: чем больше заморозок вы используете, тем дороже они становятся.'
-                              '\nМожно иметь не более 2 заморозок в инвентаре и купить до 2 за раз.')
+                              '\nМожно иметь не более 2 заморозок в инвентаре и купить до 2 за раз.',
+                  maximum_quantity_in_stock=2)
 lottery_ticket = FuncItem("🎟️ Лотерейный билет", price=lambda: calculate_item_price(10), item_type='Предметы', level=3, func=lottery_ticket_func,
                           credit_allowed=False,
                           description=f'Лотерейный билет "5 из 30". Угадайте числа и сорвите джекпот!')
+hemingway_typewriter = Item(
+    name='Печатная машинка Хемингуэя',
+    item_type='Предметы',
+    price=50000,
+    description='Постоянно увеличивает коэффициент опыта на 0,5.',
+    buff=Buff('Почерк Хемингуэя', 'Постоянный бонус к коэффициенту опыта.', Buff.POSITIVE, 'exp', 0.5),
+    maximum_quantity_in_stock=1,
+)
+rowling_laptop = Item(
+    name='Ноутбук Роалинг',
+    item_type='Предметы',
+    price=100000,
+    description='Постоянно увеличивает коэффициент опыта на 1.',
+    buff=Buff('Вдохновение Роалинг', 'Постоянный бонус к коэффициенту опыта.', Buff.POSITIVE, 'exp', 1.0),
+    maximum_quantity_in_stock=1,
+)
+literary_slave = Item(
+    name='Литературный раб',
+    item_type='Предметы',
+    price=200000,
+    description='Постоянно увеличивает коэффициенты опыта и монет на 0,25 за экземпляр.',
+    buffs=[
+        Buff('Литературная поддержка', 'Постоянный бонус к коэффициенту опыта.', Buff.POSITIVE, 'exp', 0.25),
+        Buff('Литературная поддержка дохода', 'Постоянный бонус к коэффициенту монет.', Buff.POSITIVE, 'coins', 0.25),
+    ],
+)
 health_potion_5 = FuncItem('🧪  Микро зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(10), add=5,
                            description='🧪  Восстанавливает здоровье на 5 единиц')
 health_potion_10 = FuncItem('🧪  Малое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(20), add=10,
@@ -1464,7 +1517,10 @@ ITEM_REGISTRY = {'Зелья':
                       'Часовое зелье просвещения': super_exp_potion_1hrs,
                       'Суточное зелье просвещения': super_exp_potion_24hrs,},
                  'Предметы': {'Заморозка': freeze,
-                              'Лотерейный билет': lottery_ticket,},
+                              'Лотерейный билет': lottery_ticket,
+                              'Печатная машинка Хемингуэя': hemingway_typewriter,
+                              'Ноутбук Роалинг': rowling_laptop,
+                              'Литературный раб': literary_slave,},
                  'Награды': {'👑 Корона Первой Эпохи': crown_of_the_first_era,
                              '💎 Перо Миллионера': millionaires_pen,
                              'Знак заботы о здоровье': health_care_badge,

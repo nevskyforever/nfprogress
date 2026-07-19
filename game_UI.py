@@ -758,14 +758,18 @@ class GameMenuController:
             labels[4].setText(f"Осталось: {self.format_buff_remaining_time(buff)}")
 
     def describe_item_buff(self, item_obj):
-        buff = getattr(item_obj, 'buff', None)
-        if not buff:
+        buffs = item_obj.get_buffs() if hasattr(item_obj, 'get_buffs') else [getattr(item_obj, 'buff', None)]
+        buffs = [buff for buff in buffs if buff]
+        if not buffs:
             return ""
 
-        sign = "+" if buff.is_positive() else "-"
-        duration = "бессрочно" if buff.duration_minutes is None else f"{buff.duration_minutes} мин."
-        parameter_name = self.get_cf_display_name(buff.target_cf)
-        return f"\nЭффект: {buff.name} ({parameter_name} {sign}{abs(buff.value):g}, {duration})"
+        descriptions = []
+        for buff in buffs:
+            sign = "+" if buff.is_positive() else "-"
+            duration = "бессрочно" if buff.duration_minutes is None else f"{buff.duration_minutes} мин."
+            parameter_name = self.get_cf_display_name(buff.target_cf)
+            descriptions.append(f"{buff.name} ({parameter_name} {sign}{abs(buff.value):g}, {duration})")
+        return "\nЭффект: " + "; ".join(descriptions)
 
     def update_inventory(self):
         """Обновление списка инвентаря"""
@@ -1568,18 +1572,8 @@ class GameMenuController:
         return max(0, self.FREEZE_MAX_COUNT - self.get_freeze_inventory_count())
 
     def validate_registry_purchase_limit(self, category, item_name, item_obj, count):
-        if not self.is_freeze_shop_item(category, item_name, item_obj):
-            return None
-
-        current_count = self.get_freeze_inventory_count()
-        if current_count >= self.FREEZE_MAX_COUNT:
-            return 'В инвентаре уже 2 заморозки. Больше купить нельзя.'
-
-        if current_count + count > self.FREEZE_MAX_COUNT:
-            remaining = self.FREEZE_MAX_COUNT - current_count
-            return f'Можно иметь не больше 2 заморозок. Сейчас доступно к покупке: {remaining}.'
-
-        return None
+        current_count = self.get_inventory_item_count(category, item_obj, item_name)
+        return item_obj.get_purchase_limit_message(current_count, count)
 
     def update_shop_purchase_controls(self, category, item_name, item_obj, is_potion=False):
         if is_potion:
@@ -1594,17 +1588,21 @@ class GameMenuController:
         if spinbox.value() < 1:
             spinbox.setValue(1)
 
-        if is_potion or not self.is_freeze_shop_item(category, item_name, item_obj):
+        maximum = getattr(item_obj, 'maximum_quantity_in_stock', None)
+        if maximum is None:
             return
 
-        remaining = self.get_freeze_purchase_remaining()
+        current_count = self.get_inventory_item_count(category, item_obj, item_name)
+        remaining = max(0, maximum - current_count)
         if remaining <= 0:
             spinbox.setMaximum(1)
             spinbox.setValue(1)
             button.setEnabled(False)
-            self.ui.effect_selected_item_on_shop.setText(
-                f'{self.ui.effect_selected_item_on_shop.text()}\nВ инвентаре уже 2 заморозки.'
+            effect_label = (
+                self.ui.effect_selected_potion_on_shop if is_potion
+                else self.ui.effect_selected_item_on_shop
             )
+            effect_label.setText(f'{effect_label.text()}\nВ инвентаре уже максимум: {maximum} шт.')
             return
 
         spinbox.setMaximum(remaining)
