@@ -101,6 +101,11 @@
           <layout class="QGridLayout" name="gridLayout_26">
            <item row="2" column="1">
             <widget class="QComboBox" name="sort_project_box">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
              <property name="sizeAdjustPolicy">
               <enum>QComboBox::SizeAdjustPolicy::AdjustToContents</enum>
              </property>
@@ -123,6 +128,11 @@
            </item>
            <item row="1" column="1">
             <widget class="QLabel" name="label_5">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
              <property name="text">
               <string>Сортировка по свойству:</string>
              </property>
@@ -130,6 +140,11 @@
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="label_4">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
              <property name="text">
               <string>Фильтр по статусу:</string>
              </property>
@@ -137,6 +152,11 @@
            </item>
            <item row="2" column="0">
             <widget class="QComboBox" name="filter_project_box">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
              <item>
               <property name="text">
                <string>Активен</string>
@@ -173,11 +193,28 @@
              </property>
             </widget>
            </item>
+           <item row="3" column="1">
+            <widget class="QLineEdit" name="search_project">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
+             <property name="placeholderText">
+              <string>Поиск...</string>
+             </property>
+            </widget>
+           </item>
           </layout>
          </widget>
         </item>
         <item row="1" column="2" rowspan="5">
          <widget class="QWidget" name="project_detail_widget" native="true">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <layout class="QGridLayout" name="gridLayout_4">
            <item row="0" column="0">
             <widget class="QLabel" name="name_selected_project">
@@ -212,6 +249,11 @@
              <layout class="QGridLayout" name="gridLayout_29">
               <item row="0" column="0">
                <widget class="QPushButton" name="btn_synch_project">
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Синхронизировать</string>
                 </property>
@@ -221,6 +263,11 @@
                <widget class="QPushButton" name="btn_change_project">
                 <property name="enabled">
                  <bool>false</bool>
+                </property>
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
                 </property>
                 <property name="text">
                  <string>Изменить</string>
@@ -245,6 +292,11 @@
               </item>
               <item row="1" column="0" colspan="3">
                <widget class="QLabel" name="synch_status">
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Не синхронизирован</string>
                 </property>
@@ -274,6 +326,11 @@
                 <property name="enabled">
                  <bool>false</bool>
                 </property>
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Удалить</string>
                 </property>
@@ -281,6 +338,11 @@
               </item>
               <item row="0" column="5">
                <widget class="QPushButton" name="share_progress">
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Поделиться</string>
                 </property>
@@ -291,9 +353,19 @@
            </item>
            <item row="6" column="0">
             <widget class="QWidget" name="note_widget" native="true">
+             <property name="font">
+              <font>
+               <family>Arial</family>
+              </font>
+             </property>
              <layout class="QVBoxLayout" name="verticalLayout_2">
               <item>
                <widget class="QLabel" name="label_2">
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Записи проекта</string>
                 </property>
@@ -339,6 +411,11 @@
                 <layout class="QGridLayout" name="gridLayout">
                  <item row="0" column="0">
                   <widget class="QLabel" name="label_9">
+                   <property name="font">
+                    <font>
+                     <family>Arial</family>
+                    </font>
+                   </property>
                    <property name="text">
                     <string>Новая запись:</string>
                    </property>
@@ -346,6 +423,11 @@
                  </item>
                  <item row="0" column="3">
                   <widget class="QPushButton" name="delete_note">
+                   <property name="font">
+                    <font>
+                     <family>Arial</family>
+                    </font>
+                   </property>
                    <property name="text">
                     <string>Удалить</string>
                    </property>
@@ -356,13 +438,24 @@
                    <property name="enabled">
                     <bool>false</bool>
                    </property>
+                   <property name="font">
+                    <font>
+                     <family>Arial</family>
+                    </font>
+                   </property>
                    <property name="text">
                     <string>Сохранить</string>
                    </property>
                   </widget>
                  </item>
                  <item row="0" column="1">
-                  <widget class="QLineEdit" name="new_symbols"/>
+                  <widget class="QLineEdit" name="new_symbols">
+                   <property name="font">
+                    <font>
+                     <family>Arial</family>
+                    </font>
+                   </property>
+                  </widget>
                  </item>
                 </layout>
                </widget>
@@ -393,6 +486,11 @@
              <layout class="QGridLayout" name="gridLayout_2">
               <item row="0" column="0">
                <widget class="QScrollArea" name="scrollArea_5">
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
                 <property name="widgetResizable">
                  <bool>true</bool>
                 </property>
@@ -401,13 +499,18 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>674</width>
-                   <height>328</height>
+                   <width>662</width>
+                   <height>315</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_28">
                   <item row="26" column="0">
                    <widget class="QLabel" name="label_max_streak">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Максимальный стрик: </string>
                     </property>
@@ -415,6 +518,11 @@
                   </item>
                   <item row="8" column="1">
                    <widget class="QLabel" name="streaks">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -422,6 +530,11 @@
                   </item>
                   <item row="26" column="1">
                    <widget class="QLabel" name="max_streak">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -429,6 +542,11 @@
                   </item>
                   <item row="23" column="0">
                    <widget class="QLabel" name="unit_label">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Отслеживаются:</string>
                     </property>
@@ -436,6 +554,11 @@
                   </item>
                   <item row="2" column="1">
                    <widget class="QLabel" name="today_goal">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -443,6 +566,11 @@
                   </item>
                   <item row="3" column="0">
                    <widget class="QLabel" name="label_total">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Написано в проекте:</string>
                     </property>
@@ -450,6 +578,11 @@
                   </item>
                   <item row="5" column="1">
                    <widget class="QLabel" name="deadline">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -457,6 +590,11 @@
                   </item>
                   <item row="0" column="0">
                    <widget class="QLabel" name="label_status">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Статус:</string>
                     </property>
@@ -464,6 +602,11 @@
                   </item>
                   <item row="22" column="1">
                    <widget class="QLabel" name="need">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -471,6 +614,11 @@
                   </item>
                   <item row="7" column="0">
                    <widget class="QLabel" name="label_streak_status">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Cтатус стрика:</string>
                     </property>
@@ -478,6 +626,11 @@
                   </item>
                   <item row="3" column="1">
                    <widget class="QLabel" name="total">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -485,6 +638,11 @@
                   </item>
                   <item row="7" column="1">
                    <widget class="QLabel" name="streak_status">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -495,6 +653,11 @@
                   </item>
                   <item row="21" column="1">
                    <widget class="QLabel" name="added_today">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -502,6 +665,11 @@
                   </item>
                   <item row="23" column="1">
                    <widget class="QLabel" name="unit">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -509,6 +677,11 @@
                   </item>
                   <item row="22" column="0">
                    <widget class="QLabel" name="label_need">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Осталось написать: </string>
                     </property>
@@ -516,6 +689,11 @@
                   </item>
                   <item row="1" column="1">
                    <widget class="QLabel" name="progress">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -523,6 +701,11 @@
                   </item>
                   <item row="0" column="1">
                    <widget class="QLabel" name="status">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -530,6 +713,11 @@
                   </item>
                   <item row="2" column="0">
                    <widget class="QLabel" name="label_today_goal">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Цель на сегодня:&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
                     </property>
@@ -540,6 +728,11 @@
                   </item>
                   <item row="8" column="0">
                    <widget class="QLabel" name="label_streaks">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Текущий стрик: </string>
                     </property>
@@ -547,6 +740,11 @@
                   </item>
                   <item row="5" column="0">
                    <widget class="QLabel" name="label_deadline">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Дедлайн:</string>
                     </property>
@@ -554,6 +752,11 @@
                   </item>
                   <item row="27" column="0">
                    <widget class="QLabel" name="last_note">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Последняя запись: </string>
                     </property>
@@ -561,6 +764,11 @@
                   </item>
                   <item row="21" column="0">
                    <widget class="QLabel" name="label_today_added">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Написано сегодня:</string>
                     </property>
@@ -568,6 +776,11 @@
                   </item>
                   <item row="27" column="1">
                    <widget class="QLabel" name="l">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -578,6 +791,11 @@
                   </item>
                   <item row="1" column="0">
                    <widget class="QLabel" name="label_progress">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Прогресс:</string>
                     </property>
@@ -585,6 +803,11 @@
                   </item>
                   <item row="4" column="0">
                    <widget class="QLabel" name="label_goal">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Цель проекта:</string>
                     </property>
@@ -592,6 +815,11 @@
                   </item>
                   <item row="4" column="1">
                    <widget class="QLabel" name="goal">
+                    <property name="font">
+                     <font>
+                      <family>Arial</family>
+                     </font>
+                    </property>
                     <property name="text">
                      <string>Нет информации</string>
                     </property>
@@ -609,6 +837,11 @@
         </item>
         <item row="5" column="1">
          <spacer name="horizontalSpacer_3">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <property name="orientation">
            <enum>Qt::Orientation::Horizontal</enum>
           </property>
@@ -622,6 +855,11 @@
         </item>
         <item row="1" column="3">
          <spacer name="horizontalSpacer_4">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <property name="orientation">
            <enum>Qt::Orientation::Horizontal</enum>
           </property>
@@ -635,6 +873,11 @@
         </item>
         <item row="3" column="0">
          <widget class="QLabel" name="global_streak_status">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <property name="text">
            <string>Глобальный стрик</string>
           </property>
@@ -645,6 +888,11 @@
         </item>
         <item row="2" column="0">
          <widget class="QLabel" name="written_today_in_all_projects_label">
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
           <property name="text">
            <string>Написано сегодня</string>
           </property>
@@ -801,7 +1049,7 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
+                    <width>405</width>
                     <height>131</height>
                    </rect>
                   </property>
@@ -1384,8 +1632,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>98</width>
-                   <height>108</height>
+                   <width>409</width>
+                   <height>110</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_19">
@@ -1764,8 +2012,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
-                    <height>85</height>
+                    <width>357</width>
+                    <height>131</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_14">
@@ -2126,8 +2374,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
-                    <height>146</height>
+                    <width>357</width>
+                    <height>159</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_23">

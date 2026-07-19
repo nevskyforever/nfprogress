@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowtzFECd.ui'
+## Form generated from reading UI file 'main_windowJpLwPD.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -102,17 +102,20 @@ class Ui_main_window(object):
         self.sort_project_box.addItem("")
         self.sort_project_box.addItem("")
         self.sort_project_box.setObjectName(u"sort_project_box")
+        self.sort_project_box.setFont(font1)
         self.sort_project_box.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
 
         self.gridLayout_26.addWidget(self.sort_project_box, 2, 1, 1, 1)
 
         self.label_5 = QLabel(self.btns_create_filter)
         self.label_5.setObjectName(u"label_5")
+        self.label_5.setFont(font1)
 
         self.gridLayout_26.addWidget(self.label_5, 1, 1, 1, 1)
 
         self.label_4 = QLabel(self.btns_create_filter)
         self.label_4.setObjectName(u"label_4")
+        self.label_4.setFont(font1)
 
         self.gridLayout_26.addWidget(self.label_4, 1, 0, 1, 1)
 
@@ -121,6 +124,7 @@ class Ui_main_window(object):
         self.filter_project_box.addItem("")
         self.filter_project_box.addItem("")
         self.filter_project_box.setObjectName(u"filter_project_box")
+        self.filter_project_box.setFont(font1)
 
         self.gridLayout_26.addWidget(self.filter_project_box, 2, 0, 1, 1)
 
@@ -132,11 +136,18 @@ class Ui_main_window(object):
 
         self.gridLayout_26.addWidget(self.btn_create_project, 3, 0, 1, 1)
 
+        self.search_project = QLineEdit(self.btns_create_filter)
+        self.search_project.setObjectName(u"search_project")
+        self.search_project.setFont(font1)
+
+        self.gridLayout_26.addWidget(self.search_project, 3, 1, 1, 1)
+
 
         self.gridLayout_3.addWidget(self.btns_create_filter, 1, 0, 1, 1)
 
         self.project_detail_widget = QWidget(self.projects_tab)
         self.project_detail_widget.setObjectName(u"project_detail_widget")
+        self.project_detail_widget.setFont(font1)
         self.gridLayout_4 = QGridLayout(self.project_detail_widget)
         self.gridLayout_4.setObjectName(u"gridLayout_4")
         self.name_selected_project = QLabel(self.project_detail_widget)
@@ -158,12 +169,14 @@ class Ui_main_window(object):
         self.gridLayout_29.setObjectName(u"gridLayout_29")
         self.btn_synch_project = QPushButton(self.change_project_widget)
         self.btn_synch_project.setObjectName(u"btn_synch_project")
+        self.btn_synch_project.setFont(font1)
 
         self.gridLayout_29.addWidget(self.btn_synch_project, 0, 0, 1, 1)
 
         self.btn_change_project = QPushButton(self.change_project_widget)
         self.btn_change_project.setObjectName(u"btn_change_project")
         self.btn_change_project.setEnabled(False)
+        self.btn_change_project.setFont(font1)
 
         self.gridLayout_29.addWidget(self.btn_change_project, 0, 1, 1, 1)
 
@@ -176,6 +189,7 @@ class Ui_main_window(object):
 
         self.synch_status = QLabel(self.change_project_widget)
         self.synch_status.setObjectName(u"synch_status")
+        self.synch_status.setFont(font1)
         self.synch_status.setWordWrap(False)
 
         self.gridLayout_29.addWidget(self.synch_status, 1, 0, 1, 3)
@@ -190,11 +204,13 @@ class Ui_main_window(object):
         self.btn_delete_project = QPushButton(self.change_project_widget)
         self.btn_delete_project.setObjectName(u"btn_delete_project")
         self.btn_delete_project.setEnabled(False)
+        self.btn_delete_project.setFont(font1)
 
         self.gridLayout_29.addWidget(self.btn_delete_project, 0, 2, 1, 1)
 
         self.share_progress = QPushButton(self.change_project_widget)
         self.share_progress.setObjectName(u"share_progress")
+        self.share_progress.setFont(font1)
 
         self.gridLayout_29.addWidget(self.share_progress, 0, 5, 1, 1)
 
@@ -203,10 +219,12 @@ class Ui_main_window(object):
 
         self.note_widget = QWidget(self.project_detail_widget)
         self.note_widget.setObjectName(u"note_widget")
+        self.note_widget.setFont(font1)
         self.verticalLayout_2 = QVBoxLayout(self.note_widget)
         self.verticalLayout_2.setObjectName(u"verticalLayout_2")
         self.label_2 = QLabel(self.note_widget)
         self.label_2.setObjectName(u"label_2")
+        self.label_2.setFont(font1)
         self.label_2.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.verticalLayout_2.addWidget(self.label_2)
@@ -232,22 +250,26 @@ class Ui_main_window(object):
         self.gridLayout.setObjectName(u"gridLayout")
         self.label_9 = QLabel(self.flash_note)
         self.label_9.setObjectName(u"label_9")
+        self.label_9.setFont(font1)
 
         self.gridLayout.addWidget(self.label_9, 0, 0, 1, 1)
 
         self.delete_note = QPushButton(self.flash_note)
         self.delete_note.setObjectName(u"delete_note")
+        self.delete_note.setFont(font1)
 
         self.gridLayout.addWidget(self.delete_note, 0, 3, 1, 1)
 
         self.pb_save_flash_note = QPushButton(self.flash_note)
         self.pb_save_flash_note.setObjectName(u"pb_save_flash_note")
         self.pb_save_flash_note.setEnabled(False)
+        self.pb_save_flash_note.setFont(font1)
 
         self.gridLayout.addWidget(self.pb_save_flash_note, 0, 2, 1, 1)
 
         self.new_symbols = QLineEdit(self.flash_note)
         self.new_symbols.setObjectName(u"new_symbols")
+        self.new_symbols.setFont(font1)
 
         self.gridLayout.addWidget(self.new_symbols, 0, 1, 1, 1)
 
@@ -267,142 +289,169 @@ class Ui_main_window(object):
         self.gridLayout_2.setObjectName(u"gridLayout_2")
         self.scrollArea_5 = QScrollArea(self.project_info)
         self.scrollArea_5.setObjectName(u"scrollArea_5")
+        self.scrollArea_5.setFont(font1)
         self.scrollArea_5.setWidgetResizable(True)
         self.scrollAreaWidgetContents_11 = QWidget()
         self.scrollAreaWidgetContents_11.setObjectName(u"scrollAreaWidgetContents_11")
-        self.scrollAreaWidgetContents_11.setGeometry(QRect(0, 0, 674, 328))
+        self.scrollAreaWidgetContents_11.setGeometry(QRect(0, 0, 662, 315))
         self.gridLayout_28 = QGridLayout(self.scrollAreaWidgetContents_11)
         self.gridLayout_28.setObjectName(u"gridLayout_28")
         self.label_max_streak = QLabel(self.scrollAreaWidgetContents_11)
         self.label_max_streak.setObjectName(u"label_max_streak")
+        self.label_max_streak.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_max_streak, 26, 0, 1, 1)
 
         self.streaks = QLabel(self.scrollAreaWidgetContents_11)
         self.streaks.setObjectName(u"streaks")
+        self.streaks.setFont(font1)
 
         self.gridLayout_28.addWidget(self.streaks, 8, 1, 1, 1)
 
         self.max_streak = QLabel(self.scrollAreaWidgetContents_11)
         self.max_streak.setObjectName(u"max_streak")
+        self.max_streak.setFont(font1)
 
         self.gridLayout_28.addWidget(self.max_streak, 26, 1, 1, 1)
 
         self.unit_label = QLabel(self.scrollAreaWidgetContents_11)
         self.unit_label.setObjectName(u"unit_label")
+        self.unit_label.setFont(font1)
 
         self.gridLayout_28.addWidget(self.unit_label, 23, 0, 1, 1)
 
         self.today_goal = QLabel(self.scrollAreaWidgetContents_11)
         self.today_goal.setObjectName(u"today_goal")
+        self.today_goal.setFont(font1)
 
         self.gridLayout_28.addWidget(self.today_goal, 2, 1, 1, 1)
 
         self.label_total = QLabel(self.scrollAreaWidgetContents_11)
         self.label_total.setObjectName(u"label_total")
+        self.label_total.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_total, 3, 0, 1, 1)
 
         self.deadline = QLabel(self.scrollAreaWidgetContents_11)
         self.deadline.setObjectName(u"deadline")
+        self.deadline.setFont(font1)
 
         self.gridLayout_28.addWidget(self.deadline, 5, 1, 1, 1)
 
         self.label_status = QLabel(self.scrollAreaWidgetContents_11)
         self.label_status.setObjectName(u"label_status")
+        self.label_status.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_status, 0, 0, 1, 1)
 
         self.need = QLabel(self.scrollAreaWidgetContents_11)
         self.need.setObjectName(u"need")
+        self.need.setFont(font1)
 
         self.gridLayout_28.addWidget(self.need, 22, 1, 1, 1)
 
         self.label_streak_status = QLabel(self.scrollAreaWidgetContents_11)
         self.label_streak_status.setObjectName(u"label_streak_status")
+        self.label_streak_status.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_streak_status, 7, 0, 1, 1)
 
         self.total = QLabel(self.scrollAreaWidgetContents_11)
         self.total.setObjectName(u"total")
+        self.total.setFont(font1)
 
         self.gridLayout_28.addWidget(self.total, 3, 1, 1, 1)
 
         self.streak_status = QLabel(self.scrollAreaWidgetContents_11)
         self.streak_status.setObjectName(u"streak_status")
+        self.streak_status.setFont(font1)
         self.streak_status.setWordWrap(True)
 
         self.gridLayout_28.addWidget(self.streak_status, 7, 1, 1, 1)
 
         self.added_today = QLabel(self.scrollAreaWidgetContents_11)
         self.added_today.setObjectName(u"added_today")
+        self.added_today.setFont(font1)
 
         self.gridLayout_28.addWidget(self.added_today, 21, 1, 1, 1)
 
         self.unit = QLabel(self.scrollAreaWidgetContents_11)
         self.unit.setObjectName(u"unit")
+        self.unit.setFont(font1)
 
         self.gridLayout_28.addWidget(self.unit, 23, 1, 1, 1)
 
         self.label_need = QLabel(self.scrollAreaWidgetContents_11)
         self.label_need.setObjectName(u"label_need")
+        self.label_need.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_need, 22, 0, 1, 1)
 
         self.progress = QLabel(self.scrollAreaWidgetContents_11)
         self.progress.setObjectName(u"progress")
+        self.progress.setFont(font1)
 
         self.gridLayout_28.addWidget(self.progress, 1, 1, 1, 1)
 
         self.status = QLabel(self.scrollAreaWidgetContents_11)
         self.status.setObjectName(u"status")
+        self.status.setFont(font1)
 
         self.gridLayout_28.addWidget(self.status, 0, 1, 1, 1)
 
         self.label_today_goal = QLabel(self.scrollAreaWidgetContents_11)
         self.label_today_goal.setObjectName(u"label_today_goal")
+        self.label_today_goal.setFont(font1)
         self.label_today_goal.setWordWrap(True)
 
         self.gridLayout_28.addWidget(self.label_today_goal, 2, 0, 1, 1)
 
         self.label_streaks = QLabel(self.scrollAreaWidgetContents_11)
         self.label_streaks.setObjectName(u"label_streaks")
+        self.label_streaks.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_streaks, 8, 0, 1, 1)
 
         self.label_deadline = QLabel(self.scrollAreaWidgetContents_11)
         self.label_deadline.setObjectName(u"label_deadline")
+        self.label_deadline.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_deadline, 5, 0, 1, 1)
 
         self.last_note = QLabel(self.scrollAreaWidgetContents_11)
         self.last_note.setObjectName(u"last_note")
+        self.last_note.setFont(font1)
 
         self.gridLayout_28.addWidget(self.last_note, 27, 0, 1, 1)
 
         self.label_today_added = QLabel(self.scrollAreaWidgetContents_11)
         self.label_today_added.setObjectName(u"label_today_added")
+        self.label_today_added.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_today_added, 21, 0, 1, 1)
 
         self.l = QLabel(self.scrollAreaWidgetContents_11)
         self.l.setObjectName(u"l")
+        self.l.setFont(font1)
         self.l.setWordWrap(True)
 
         self.gridLayout_28.addWidget(self.l, 27, 1, 1, 1)
 
         self.label_progress = QLabel(self.scrollAreaWidgetContents_11)
         self.label_progress.setObjectName(u"label_progress")
+        self.label_progress.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_progress, 1, 0, 1, 1)
 
         self.label_goal = QLabel(self.scrollAreaWidgetContents_11)
         self.label_goal.setObjectName(u"label_goal")
+        self.label_goal.setFont(font1)
 
         self.gridLayout_28.addWidget(self.label_goal, 4, 0, 1, 1)
 
         self.goal = QLabel(self.scrollAreaWidgetContents_11)
         self.goal.setObjectName(u"goal")
+        self.goal.setFont(font1)
 
         self.gridLayout_28.addWidget(self.goal, 4, 1, 1, 1)
 
@@ -426,12 +475,14 @@ class Ui_main_window(object):
 
         self.global_streak_status = QLabel(self.projects_tab)
         self.global_streak_status.setObjectName(u"global_streak_status")
+        self.global_streak_status.setFont(font1)
         self.global_streak_status.setWordWrap(True)
 
         self.gridLayout_3.addWidget(self.global_streak_status, 3, 0, 1, 1)
 
         self.written_today_in_all_projects_label = QLabel(self.projects_tab)
         self.written_today_in_all_projects_label.setObjectName(u"written_today_in_all_projects_label")
+        self.written_today_in_all_projects_label.setFont(font1)
 
         self.gridLayout_3.addWidget(self.written_today_in_all_projects_label, 2, 0, 1, 1)
 
@@ -1492,6 +1543,7 @@ class Ui_main_window(object):
         self.filter_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0435\u043d", None))
 
         self.btn_create_project.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
+        self.search_project.setPlaceholderText(QCoreApplication.translate("main_window", u"\u041f\u043e\u0438\u0441\u043a...", None))
         self.name_selected_project.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.btn_synch_project.setText(QCoreApplication.translate("main_window", u"\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0438\u0440\u043e\u0432\u0430\u0442\u044c", None))
         self.btn_change_project.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c", None))

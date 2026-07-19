@@ -147,6 +147,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Подключаем обработчик изменения фильтра
         self.filter_project_box.currentTextChanged.connect(self.on_filter_changed)
         self.sort_project_box.currentTextChanged.connect(self.on_sort_changed)
+        self.search_project.textChanged.connect(self.search_projects)
 
         # Подключаем обработчик переключения вкладок
         self.tabWidget.currentChanged.connect(self.on_tab_changed)
@@ -158,6 +159,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.change_project_widget.setVisible(False)
         self.btn_create_project.clicked.connect(self.create_project)
         self.list_projects.itemClicked.connect(self.view_project)
+        self.list_projects.itemClicked.connect(self.clear_project_search)
         self.list_projects.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.list_projects.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.list_projects.model().rowsMoved.connect(self._save_reordered_stages)
@@ -1854,6 +1856,14 @@ class MainWindow(QMainWindow, main_window_ui):
         save_settings(settings)
         self.refresh_projects()
 
+    def search_projects(self, _search_text):
+        """Обновляет список проектов при изменении поискового запроса."""
+        self.refresh_projects()
+
+    def clear_project_search(self, _item):
+        """Очищает поисковый запрос после выбора проекта из списка."""
+        self.search_project.clear()
+
     def on_tab_changed(self, index):
         """Обработчик переключения вкладок"""
         current_tab = self.tabWidget.tabText(index)
@@ -1980,14 +1990,18 @@ class MainWindow(QMainWindow, main_window_ui):
         # Получаем выбранный фильтр
         current_sort = self.sort_project_box.currentText()
         current_filter = self.filter_project_box.currentText()
+        search_text = self.search_project.text().strip().casefold()
 
-        # Фильтруем проекты по статусу
-        if current_filter == "Активен":
+        # Поиск выполняется среди всех проектов независимо от фильтра по статусу.
+        if search_text:
+            projects = [p for p in projects if search_text in p.name.casefold()]
+        elif current_filter == "Активен":
             projects = [p for p in projects if p.status == "активен"]
         elif current_filter == "В архиве":
             projects = [p for p in projects if p.status == "в архиве"]
         elif current_filter == "Завершен":
             projects = [p for p in projects if p.status == "завершен"]
+
         # Сортируем проекты
         if current_sort == 'Название':
             projects = sorted(projects, key=lambda p: p.name)
