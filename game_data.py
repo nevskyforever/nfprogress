@@ -1327,6 +1327,7 @@ lottery_ticket = FuncItem("🎟️ Лотерейный билет", price=lambd
 hemingway_typewriter = Item(
     name='📠  Печатная машинка Хемингуэя',
     item_type='Предметы',
+    level=5,
     price=50000,
     description='Постоянно увеличивает коэффициент опыта на 0,5.',
     buff=Buff('Почерк Хемингуэя', 'Постоянный бонус к коэффициенту опыта.', Buff.POSITIVE, 'exp', 0.5),
@@ -1335,6 +1336,7 @@ hemingway_typewriter = Item(
 rowling_laptop = Item(
     name='💻  Ноутбук Роалинг',
     item_type='Предметы',
+    level=10,
     price=100000,
     description='Постоянно увеличивает коэффициент опыта на 1.',
     buff=Buff('Вдохновение Роалинг', 'Постоянный бонус к коэффициенту опыта.', Buff.POSITIVE, 'exp', 1.0),
@@ -1344,6 +1346,7 @@ literary_slave = Item(
     name='📃  Литературный раб',
     item_type='Предметы',
     price=200000,
+    level=20,
     description='Постоянно увеличивает коэффициенты опыта и монет на 0,25 за экземпляр.',
     buffs=[
         Buff('Литературная поддержка', 'Постоянный бонус к коэффициенту опыта.', Buff.POSITIVE, 'exp', 0.25),
