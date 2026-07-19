@@ -4,7 +4,7 @@
 import datetime
 
 from PySide6.QtCore import QDate, QSignalBlocker, QTimer, Qt
-from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QLabel, QDialog
+from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QDialog
 
 import engine
 import game
@@ -22,6 +22,47 @@ class GameMenuController:
     FREEZE_CATEGORY = 'Предметы'
     FREEZE_ITEM_KEY = 'Заморозка'
     FREEZE_MAX_COUNT = 2
+
+    SHOP_TABS = (
+        {
+            'category': 'Предметы',
+            'list': 'item_shop_list',
+            'name_label': 'name_selected_item_on_shop',
+            'description_label': 'description_selected_item_on_shop',
+            'price_label': 'peice_selected_item_on_shop',
+            'effect_label': 'effect_selected_item_on_shop',
+            'spinbox': 'value_for_buy_selected_item',
+            'buy_button': 'button_for_buy_selected_item',
+            'prefix': '📦',
+            'empty_text': 'Выберите товар',
+            'source': 'registry',
+        },
+        {
+            'category': 'Зелья',
+            'list': 'potion_shop_list',
+            'name_label': 'name_selected_potion_on_shop',
+            'description_label': 'description_selected_potion_on_shop',
+            'price_label': 'price_selected_potion_on_shop',
+            'effect_label': 'effect_selected_potion_on_shop',
+            'spinbox': 'value_for_buy_selected_potion',
+            'buy_button': 'button_for_buy_selected_potion',
+            'prefix': '🧪',
+            'empty_text': 'Выберите товар',
+            'source': 'registry',
+        },
+        {
+            'category': 'Награды',
+            'list': 'item_shop_list_2',
+            'name_label': 'name_selected_custom_award_on_shop',
+            'price_label': 'peice_selected_custom_award_on_shop',
+            'spinbox': 'value_for_buy_selected_item_3',
+            'buy_button': 'button_for_buy_selected_item_3',
+            'prefix': '🏆',
+            'empty_text': 'Выберите награду',
+            'source': 'custom_awards',
+            'availability_check': 'is_custom_award_in_shop',
+        },
+    )
 
     def __init__(self, ui, notifications = None):
         """
@@ -129,13 +170,7 @@ class GameMenuController:
         self.ui.level_selected_item.clear()
         self.ui.effect_selected_item.clear()
 
-        # Магазин предметов
-        for widget in self.ui.scrollAreaWidgetContents_7.findChildren(QLabel):
-            widget.clear()
-
-        # Магазин зелий
-        for widget in self.ui.scrollAreaWidgetContents_5.findChildren(QLabel):
-            widget.clear()
+        self.clear_shop_info()
 
     def connect_signals(self):
         """Подключение сигналов к слотам"""
@@ -146,31 +181,16 @@ class GameMenuController:
             self.ui.button_to_sell_selected_item.clicked.connect(self.on_sell_item)
         self.ui.inventory_filter_comboBox.currentTextChanged.connect(self.on_inventory_filter_changed)
 
-        # Магазин предметов
-        self.ui.item_shop_list.itemClicked.connect(self.on_shop_item_selected)
-        self.ui.button_for_buy_selected_item.clicked.connect(self.on_buy_item)
+        for shop_config in self.SHOP_TABS:
+            self.connect_shop_tab(shop_config)
 
-        # Магазин зелий
-        self.ui.potion_shop_list.itemClicked.connect(self.on_potion_selected)
-        self.ui.button_for_buy_selected_potion.clicked.connect(self.on_buy_potion)
-
-        # Магазин наград
-        self.ui.item_shop_list_2.itemClicked.connect(self.on_award_selected)
-        self.ui.button_for_buy_selected_item_3.clicked.connect(self.on_buy_award)
+        # Дополнительные действия для кастомных наград
         edit_award_button = self.get_edit_custom_award_button()
         if edit_award_button:
             edit_award_button.clicked.connect(self.edit_selected_custom_award)
         delete_award_button = self.get_delete_custom_award_button()
         if delete_award_button:
             delete_award_button.clicked.connect(self.delete_selected_custom_award)
-
-        # Очистка информации при смене выбора в магазинах
-        self.ui.item_shop_list.itemClicked.connect(lambda: self.clear_potion_info())
-        self.ui.item_shop_list.itemClicked.connect(lambda: self.clear_award_info())
-        self.ui.potion_shop_list.itemClicked.connect(lambda: self.clear_item_info())
-        self.ui.potion_shop_list.itemClicked.connect(lambda: self.clear_award_info())
-        self.ui.item_shop_list_2.itemClicked.connect(lambda: self.clear_item_info())
-        self.ui.item_shop_list_2.itemClicked.connect(lambda: self.clear_potion_info())
 
         # Банк
 
@@ -871,41 +891,31 @@ class GameMenuController:
     def update_shops(self):
         """Обновление магазинов"""
         self.register_custom_awards()
-        gamer_level = self.gamer.level
+        for shop_config in self.SHOP_TABS:
+            self.update_shop_tab(shop_config)
 
-        # Магазин предметов
-        self.ui.item_shop_list.clear()
-        if 'Предметы' in game_data.ITEM_REGISTRY:
-            for item_name, item_obj in game_data.ITEM_REGISTRY['Предметы'].items():
-                if gamer_level >= item_obj.level:
-                    display_text = f"{item_obj.name}"
-                    item = QListWidgetItem(display_text)
-                    item.setData(1, ('Предметы', item_name))
-                    self.ui.item_shop_list.addItem(item)
-                else:
-                    continue
+    def update_shop_tab(self, shop_config):
+        """Заполняет одну вкладку магазина по её конфигурации."""
+        shop_list = getattr(self.ui, shop_config['list'])
+        shop_list.clear()
 
-        # Магазин зелий
-        self.ui.potion_shop_list.clear()
-        if 'Зелья' in game_data.ITEM_REGISTRY:
-            for potion_name, potion_obj in game_data.ITEM_REGISTRY['Зелья'].items():
-                if gamer_level >= potion_obj.level:
-                    display_text = f"{potion_obj.name}"
-                    item = QListWidgetItem(display_text)
-                    item.setData(1, ('Зелья', potion_name))
-                    self.ui.potion_shop_list.addItem(item)
-                else:
-                    continue
-
-        # Магазин кастомных наград
-        self.ui.item_shop_list_2.clear()
-        for award in self.gamer.custom_awards:
-            if not self.is_custom_award_in_shop(award):
+        for item_key, item_obj in self.get_shop_tab_items(shop_config):
+            if self.gamer.level < getattr(item_obj, 'level', 1):
                 continue
-            display_text = f"{award.name}"
-            item = QListWidgetItem(display_text)
-            item.setData(1, ('Награды', award.name))
-            self.ui.item_shop_list_2.addItem(item)
+
+            availability_check = shop_config.get('availability_check')
+            if availability_check and not getattr(self, availability_check)(item_obj):
+                continue
+
+            item = QListWidgetItem(item_obj.name)
+            item.setData(1, (shop_config['category'], item_key))
+            shop_list.addItem(item)
+
+    def get_shop_tab_items(self, shop_config):
+        """Возвращает товары для вкладки независимо от их источника."""
+        if shop_config['source'] == 'custom_awards':
+            return ((award.name, award) for award in self.gamer.custom_awards)
+        return game_data.ITEM_REGISTRY.get(shop_config['category'], {}).items()
 
     # === ОБРАБОТЧИКИ ИНВЕНТАРЯ ===
 
@@ -1099,92 +1109,103 @@ class GameMenuController:
 
     # === ОБРАБОТЧИКИ МАГАЗИНА ===
 
-    def on_shop_item_selected(self, item):
-        """Выбор предмета в магазине"""
-        self.clear_potion_info()  # Очищаем информацию о зельях
-        category, item_name = item.data(1)
-        self.show_item_info(category, item_name, is_potion=False)
+    def connect_shop_tab(self, shop_config):
+        """Подключает список и кнопку покупки любой вкладки магазина."""
+        shop_list = getattr(self.ui, shop_config['list'])
+        buy_button = getattr(self.ui, shop_config['buy_button'])
+        shop_list.itemClicked.connect(
+            lambda item, config=shop_config: self.on_shop_item_selected(item, config)
+        )
+        buy_button.clicked.connect(
+            lambda checked=False, config=shop_config: self.on_buy_shop_item(config)
+        )
 
-    def on_potion_selected(self, item):
-        """Выбор зелья в магазине"""
-        self.clear_item_info()  # Очищаем информацию о предметах
+    def on_shop_item_selected(self, item, shop_config):
+        """Общий обработчик выбора товара на любой вкладке магазина."""
+        self.clear_shop_info(except_config=shop_config)
         category, item_name = item.data(1)
-        self.show_item_info(category, item_name, is_potion=True)
+        self.show_shop_item_info(category, item_name, shop_config)
 
-    def on_award_selected(self, item):
-        """Выбор кастомной награды в магазине"""
-        category, item_name = item.data(1)
-        self.show_award_info(category, item_name)
+    def on_buy_shop_item(self, shop_config):
+        """Общий обработчик покупки для вкладок магазина."""
+        if shop_config['source'] == 'custom_awards':
+            self.buy_selected_custom_award()
+            return
 
-    def show_item_info(self, category, item_name, is_potion=False):
-        """Отображение информации о предмете в магазине"""
+        self.buy_selected_item(
+            getattr(self.ui, shop_config['list']),
+            getattr(self.ui, shop_config['spinbox']),
+            shop_config['category'],
+        )
+
+    def show_shop_item_info(self, category, item_name, shop_config):
+        """Отображает товар в полях, указанных в конфигурации вкладки."""
         _, item_obj = game_data.find_registry_item(category, item_name)
         if not item_obj:
             return
 
-        # Определяем, какой ScrollArea использовать
-        if is_potion:
-            scroll_area = self.ui.scrollAreaWidgetContents_5
-            # Для зелий используем соответствующие виджеты
-            name_label = self.ui.name_selected_potion_on_shop
-            desc_label = self.ui.description_selected_potion_on_shop
-            price_label = self.ui.price_selected_potion_on_shop
-            effect_label = self.ui.effect_selected_potion_on_shop
-            prefix = "🧪"
-        else:
-            scroll_area = self.ui.scrollAreaWidgetContents_7
-            # Для предметов используем соответствующие виджеты
-            name_label = self.ui.name_selected_item_on_shop
-            desc_label = self.ui.description_selected_item_on_shop
-            price_label = self.ui.peice_selected_item_on_shop
-            effect_label = self.ui.effect_selected_item_on_shop
-            prefix = "📦"
+        getattr(self.ui, shop_config['name_label']).setText(
+            f"{shop_config['prefix']} {item_obj.name}"
+        )
+        if description_label := shop_config.get('description_label'):
+            getattr(self.ui, description_label).setText(f"📝 {item_obj.description}")
+        getattr(self.ui, shop_config['price_label']).setText(f"💰 Цена: {item_obj.price}")
 
-        # Заполняем информацию
-        name_label.setText(f"{prefix} {item_obj.name}")
-        desc_label.setText(f"📝 {item_obj.description}")
-        price_label.setText(f"💰 Цена: {item_obj.price}")
+        if effect_label := shop_config.get('effect_label'):
+            effect_text = self.get_shop_item_effect(item_obj)
+            getattr(self.ui, effect_label).setText(
+                f"⚡ {effect_text}{self.describe_item_buff(item_obj)}"
+            )
 
-        # Получаем эффект
+        if shop_config['source'] == 'registry':
+            self.update_shop_purchase_controls(
+                category, item_name, item_obj, shop_config=shop_config
+            )
+
+    @staticmethod
+    def get_shop_item_effect(item_obj):
         effect_text = "Нет эффекта"
         if hasattr(item_obj, '_func') and item_obj._func:
             try:
                 effect_text = item_obj._func("?") or "Активируется при использовании"
-            except:
+            except Exception:
                 effect_text = "Активируется при использовании"
-        effect_label.setText(f"⚡ {effect_text}{self.describe_item_buff(item_obj)}")
-        self.update_shop_purchase_controls(category, item_name, item_obj, is_potion=is_potion)
+        return effect_text
+
+    def clear_shop_info(self, except_config=None):
+        """Очищает поля всех или указанных вкладок магазина."""
+        for shop_config in self.SHOP_TABS:
+            if shop_config is except_config:
+                continue
+            self.clear_shop_tab_info(shop_config)
+
+    def clear_shop_tab_info(self, shop_config):
+        getattr(self.ui, shop_config['name_label']).setText(shop_config['empty_text'])
+        for label_key in ('description_label', 'price_label', 'effect_label'):
+            if label_name := shop_config.get(label_key):
+                getattr(self.ui, label_name).clear()
+
+        if spinbox_name := shop_config.get('spinbox'):
+            spinbox = getattr(self.ui, spinbox_name)
+            spinbox.setMaximum(999)
+            spinbox.setValue(1)
+        if buy_button_name := shop_config.get('buy_button'):
+            getattr(self.ui, buy_button_name).setEnabled(True)
+
+    def get_shop_config(self, category):
+        return next(config for config in self.SHOP_TABS if config['category'] == category)
 
     def clear_item_info(self):
         """Очистка информации о предметах в магазине"""
-        self.ui.name_selected_item_on_shop.setText('Выберите товар')
-        self.ui.description_selected_item_on_shop.clear()
-        self.ui.peice_selected_item_on_shop.clear()
-        self.ui.effect_selected_item_on_shop.clear()
-        self.ui.button_for_buy_selected_item.setEnabled(True)
-        self.ui.value_for_buy_selected_item.setMaximum(999)
-        self.ui.value_for_buy_selected_item.setValue(1)
+        self.clear_shop_tab_info(self.get_shop_config('Предметы'))
 
     def clear_potion_info(self):
         """Очистка информации о зельях в магазине"""
-        self.ui.name_selected_potion_on_shop.setText('Выберите товар')
-        self.ui.description_selected_potion_on_shop.clear()
-        self.ui.price_selected_potion_on_shop.clear()
-        self.ui.effect_selected_potion_on_shop.clear()
-
-    def show_award_info(self, category, item_name):
-        """Отображение информации о кастомной награде в магазине."""
-        if category not in game_data.ITEM_REGISTRY or item_name not in game_data.ITEM_REGISTRY[category]:
-            return
-
-        award = game_data.ITEM_REGISTRY[category][item_name]
-        self.ui.name_selected_custom_award_on_shop.setText(f"🏆 {award.name}")
-        self.ui.peice_selected_custom_award_on_shop.setText(f"💰 Цена: {award.price}")
+        self.clear_shop_tab_info(self.get_shop_config('Зелья'))
 
     def clear_award_info(self):
         """Очистка информации о награде в магазине."""
-        self.ui.name_selected_custom_award_on_shop.setText('Выберите награду')
-        self.ui.peice_selected_custom_award_on_shop.clear()
+        self.clear_shop_tab_info(self.get_shop_config('Награды'))
 
     def clear_inventory_item_info(self):
         """Очистка информации о предмете"""
@@ -1199,23 +1220,15 @@ class GameMenuController:
 
     def on_buy_item(self):
         """Покупка предмета"""
-        self.buy_selected_item(
-            self.ui.item_shop_list,
-            self.ui.value_for_buy_selected_item,
-            "Предметы"
-        )
+        self.on_buy_shop_item(self.get_shop_config("Предметы"))
 
     def on_buy_potion(self):
         """Покупка зелья"""
-        self.buy_selected_item(
-            self.ui.potion_shop_list,
-            self.ui.value_for_buy_selected_potion,
-            "Зелья"
-        )
+        self.on_buy_shop_item(self.get_shop_config("Зелья"))
 
     def on_buy_award(self):
         """Покупка кастомной награды."""
-        self.buy_selected_custom_award()
+        self.on_buy_shop_item(self.get_shop_config("Награды"))
 
     def edit_selected_custom_award(self):
         """Редактирование выбранной кастомной награды."""
@@ -1280,7 +1293,11 @@ class GameMenuController:
         self.update_shops()
         self.update_inventory()
         self.select_custom_award_in_shop(new_name)
-        self.show_award_info('Награды', new_name)
+        self.show_shop_item_info(
+            'Награды',
+            new_name,
+            self.get_shop_config('Награды'),
+        )
         self.notifications.show_success('Награда изменена')
 
     def delete_selected_custom_award(self):
@@ -1403,8 +1420,7 @@ class GameMenuController:
                     f"✅ Куплено {success_count} x {item_display_name}\n"
                     f"Потрачено: {item_obj.price * success_count}💰"
                 )
-                self.clear_item_info()
-                self.clear_award_info()
+                self.clear_shop_info()
                 self.clear_inventory_item_info()
                 self.update_shops()
 
@@ -1575,13 +1591,14 @@ class GameMenuController:
         current_count = self.get_inventory_item_count(category, item_obj, item_name)
         return item_obj.get_purchase_limit_message(current_count, count)
 
-    def update_shop_purchase_controls(self, category, item_name, item_obj, is_potion=False):
-        if is_potion:
-            spinbox = self.ui.value_for_buy_selected_potion
-            button = self.ui.button_for_buy_selected_potion
-        else:
-            spinbox = self.ui.value_for_buy_selected_item
-            button = self.ui.button_for_buy_selected_item
+    def update_shop_purchase_controls(
+        self, category, item_name, item_obj, is_potion=False, shop_config=None
+    ):
+        if shop_config is None:
+            shop_config = self.get_shop_config('Зелья' if is_potion else 'Предметы')
+
+        spinbox = getattr(self.ui, shop_config['spinbox'])
+        button = getattr(self.ui, shop_config['buy_button'])
 
         button.setEnabled(True)
         spinbox.setMaximum(999)
@@ -1598,10 +1615,7 @@ class GameMenuController:
             spinbox.setMaximum(1)
             spinbox.setValue(1)
             button.setEnabled(False)
-            effect_label = (
-                self.ui.effect_selected_potion_on_shop if is_potion
-                else self.ui.effect_selected_item_on_shop
-            )
+            effect_label = getattr(self.ui, shop_config['effect_label'])
             effect_label.setText(f'{effect_label.text()}\nВ инвентаре уже максимум: {maximum} шт.')
             return
 
