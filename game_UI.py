@@ -434,14 +434,20 @@ class GameMenuController:
 
     def get_quest_list_snapshot(self, list_widget):
         return [
-            (list_widget.item(row).data(1), list_widget.item(row).text())
+            (
+                list_widget.item(row).data(Qt.ItemDataRole.UserRole),
+                list_widget.item(row).text(),
+            )
             for row in range(list_widget.count())
         ]
 
     def update_quests_list(self, status, quests=None):
         list_widget = self.get_quest_list_widget(status)
         current_item = list_widget.currentItem()
-        current_quest_id = current_item.data(1) if current_item else None
+        current_quest_id = (
+            current_item.data(Qt.ItemDataRole.UserRole)
+            if current_item else None
+        )
         scroll_bar = list_widget.verticalScrollBar()
         scroll_value = scroll_bar.value()
 
@@ -454,7 +460,7 @@ class GameMenuController:
         list_widget.clear()
         for quest in quests:
             item = QListWidgetItem(quest.name)
-            item.setData(1, quest.quest_id)
+            item.setData(Qt.ItemDataRole.UserRole, quest.quest_id)
             list_widget.addItem(item)
         list_widget.blockSignals(False)
 
@@ -463,7 +469,7 @@ class GameMenuController:
         if current_quest_id:
             for row in range(list_widget.count()):
                 item = list_widget.item(row)
-                if item.data(1) == current_quest_id:
+                if item.data(Qt.ItemDataRole.UserRole) == current_quest_id:
                     list_widget.setCurrentRow(row)
                     self.on_quest_selected(item, status)
                     return
@@ -490,7 +496,7 @@ class GameMenuController:
             self.clear_quest_info(status)
             return
 
-        quest = self.gamer.get_quest(item.data(1))
+        quest = self.gamer.get_quest(item.data(Qt.ItemDataRole.UserRole))
         if not quest:
             self.clear_quest_info(status)
             return
@@ -510,7 +516,9 @@ class GameMenuController:
             QMessageBox.warning(self.ui.centralwidget, 'Ошибка', 'Выберите квест')
             return
 
-        ok, message = self.gamer.start_quest(selected.data(1))
+        ok, message = self.gamer.start_quest(
+            selected.data(Qt.ItemDataRole.UserRole)
+        )
         self.gamer = game.load_game()
         self.update_game_data()
         self.update_quests_lists()
@@ -527,7 +535,9 @@ class GameMenuController:
             QMessageBox.warning(self.ui.centralwidget, 'Ошибка', 'Выберите активный квест')
             return
 
-        ok, message = self.gamer.abandon_quest(selected.data(1))
+        ok, message = self.gamer.abandon_quest(
+            selected.data(Qt.ItemDataRole.UserRole)
+        )
         self.gamer = game.load_game()
         self.update_game_data()
         self.update_quests_lists()
@@ -610,7 +620,7 @@ class GameMenuController:
         for parameter in self.gamer.get_cf_parameters():
             value = self.format_gamer_parameter_value(parameter['value'])
             item = QListWidgetItem(f"{parameter['name']} - х{value}")
-            item.setData(1, parameter['key'])
+            item.setData(Qt.ItemDataRole.UserRole, parameter['key'])
             self.ui.gamer_parameters_list.addItem(item)
 
         if self.ui.gamer_parameters_list.count() > 0:
@@ -622,7 +632,10 @@ class GameMenuController:
     def update_gamer_parameters_list(self):
         """Обновляет список параметров персонажа, сохраняя текущий выбор."""
         current_item = self.ui.gamer_parameters_list.currentItem()
-        current_key = current_item.data(1) if current_item else None
+        current_key = (
+            current_item.data(Qt.ItemDataRole.UserRole)
+            if current_item else None
+        )
 
         self.load_gamer_parameters_list()
 
@@ -631,7 +644,7 @@ class GameMenuController:
 
         for row in range(self.ui.gamer_parameters_list.count()):
             item = self.ui.gamer_parameters_list.item(row)
-            if item.data(1) == current_key:
+            if item.data(Qt.ItemDataRole.UserRole) == current_key:
                 self.ui.gamer_parameters_list.setCurrentRow(row)
                 self.on_gamer_parameter_selected(item)
                 return
@@ -642,7 +655,7 @@ class GameMenuController:
             self.ui.description_selected_parameter.clear()
             return
 
-        parameter_key = item.data(1)
+        parameter_key = item.data(Qt.ItemDataRole.UserRole)
         for parameter in self.gamer.get_cf_parameters():
             if parameter['key'] == parameter_key:
                 self.ui.description_selected_parameter.setText(parameter['description'])

@@ -9,17 +9,17 @@ from game import Quest
 
 QUEST_BUFF_META = {
     'exp': {
-        'name': 'Квестовая специализация: опыт',
+        'name': '⭐️ Квестовая специализация: опыт',
         'parameter_name': 'опыта',
         'description': 'Постоянный бонус к коэффициенту опыта за писательские и учебные квесты.',
     },
     'coins': {
-        'name': 'Квестовая специализация: монеты',
+        'name': '⭐️ Квестовая специализация: монеты',
         'parameter_name': 'монет',
         'description': 'Постоянный бонус к коэффициенту монет за экономические и коллекционные квесты.',
     },
     'health_recovery': {
-        'name': 'Квестовая специализация: восстановление',
+        'name': '⭐️ Квестовая специализация: восстановление',
         'parameter_name': 'восстановления',
         'description': 'Постоянный бонус к восстановлению здоровья за квесты дисциплины и устойчивости.',
     },
@@ -81,8 +81,14 @@ def make_reward_buffs(level, quest_id=None, target=None):
 def quest(*args, buff_target='both', reward_buffs=None, **kwargs):
     level = kwargs.get('level', 1)
     quest_id = kwargs.get('quest_id')
+    reward_items = kwargs.get('reward_items') or []
+    for reward_item in reward_items:
+        if reward_item.get('category', 'Награды') != 'Награды':
+            continue
+        registry_key, _ = game_data.find_registry_item('Награды', reward_item.get('name'))
+        if registry_key:
+            reward_item['name'] = registry_key
     if reward_buffs is None:
-        reward_items = kwargs.get('reward_items') or []
         has_award_reward = any(item.get('category', 'Награды') == 'Награды' for item in reward_items)
         reward_buffs = [] if has_award_reward else make_reward_buffs(level, quest_id=quest_id, target=buff_target)
     return Quest(*args, reward_buffs=reward_buffs, **kwargs)

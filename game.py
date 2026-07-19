@@ -122,6 +122,8 @@ class Quest:
             count = int(reward_item.get('count', 1))
             if not name or count <= 0:
                 continue
+            registry_key, _ = game_data.find_registry_item(category, name)
+            name = registry_key or name
             gamer.items.setdefault(category, {})
             gamer.items[category][name] = gamer.items[category].get(name, 0) + count
 
@@ -995,6 +997,26 @@ class Gamer:
 
         return changed
 
+    def normalize_buff_names(self):
+        """Добавляет эмодзи новым названиям уже сохранённых активных бафов."""
+        legacy_names = {
+            'Квестовая специализация: опыт': '⭐️ Квестовая специализация: опыт',
+            'Квестовая специализация: монеты': '⭐️ Квестовая специализация: монеты',
+            'Квестовая специализация: восстановление': '⭐️ Квестовая специализация: восстановление',
+            'Опыт миллионера': '👑 Опыт миллионера',
+            'Удача миллионера': '💎 Удача миллионера',
+            'Бустер опыта': '🧪⚡️ Бустер опыта',
+            'Супер бустер опыта': '🧪⚡️ Супер бустер опыта',
+            'Минибустер прибыли': '🧪⚡️ Минибустер прибыли',
+        }
+        changed = False
+        for buff in [*self.buffs, *self.debuffs]:
+            normalized_name = legacy_names.get(buff.name)
+            if normalized_name:
+                buff.name = normalized_name
+                changed = True
+        return changed
+
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
         had_skill_award_marker = hasattr(self, 'skill_points_awarded_for_level')
@@ -1087,6 +1109,7 @@ class Gamer:
             self.items = {'Предметы': {},'Зелья': {},'Награды': {}}
         migrated_awards = self.migrate_legacy_award_names()
         migrated_inventory = self.normalize_inventory_item_names()
+        migrated_buff_names = self.normalize_buff_names()
         self.normalize_coins()
         old_health = getattr(self, 'health', 0)
         old_max_health = getattr(self, 'max_health', None)
@@ -1109,7 +1132,8 @@ class Gamer:
         else:
             self.bank_account.normalize()
 
-        if migrated_awards or migrated_inventory or skill_points_migrated or max_health_migrated:
+        if (migrated_awards or migrated_inventory or migrated_buff_names
+                or skill_points_migrated or max_health_migrated):
             self.save()
 
     def calculate_inflation(self):

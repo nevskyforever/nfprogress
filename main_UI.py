@@ -803,6 +803,12 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Устанавливаем состояние кнопок в зависимости от статуса проекта
         self.change_project_widget.setEnabled(True)
+        self.flash_note.setEnabled(True)
+        self.synch_action.setEnabled(True)
+        self.change_project_action.setEnabled(True)
+        self.delete_project_action.setEnabled(True)
+        self.archive_project_action.setEnabled(True)
+        self.complete_project_action.setEnabled(True)
 
         if project.status == 'завершен' and not en.dev_mode:
             # Проект завершён — отключаем изменение, повторное завершение, архивацию и работу с заметками
@@ -813,6 +819,9 @@ class MainWindow(QMainWindow, main_window_ui):
             self.pb_save_flash_note.setEnabled(False)
             self.delete_note.setEnabled(False)
             self.new_symbols.setEnabled(False)  # отключаем поле ввода
+            self.change_project_action.setEnabled(False)
+            self.complete_project_action.setEnabled(False)
+            self.archive_project_action.setEnabled(False)
         else:
             # Проект активен или в архиве — настраиваем кнопки по логике
             self.btn_change_project.setEnabled(True)
@@ -832,6 +841,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.btn_archived_project.setEnabled(not self._is_stage(project))
             self.archive_project_action.setEnabled(not self._is_stage(project))
             self.btn_delete_project.setEnabled(True)
+            self.delete_project_action.setEnabled(True)
 
             # Логика для ручного добавления записей:
             # Если синхронизация включена (project.synch не None), отключаем ручное добавление
@@ -860,6 +870,22 @@ class MainWindow(QMainWindow, main_window_ui):
             self.btn_delete_project.setEnabled(False)
             self.archive_project_action.setEnabled(False)
             self.btn_archived_project.setEnabled(False)
+
+        if project.name == 'Общий проект':
+            # Ограничение для общего проекта должно работать и в режиме
+            # разработки. Его настройки и жизненный цикл не редактируются напрямую.
+            self.change_project_widget.setEnabled(True)
+            self.change_project_action.setEnabled(False)
+            self.complete_project_action.setEnabled(False)
+            self.delete_project_action.setEnabled(False)
+            self.archive_project_action.setEnabled(False)
+            self.create_stage_action.setEnabled(False)
+            self.btn_synch_project.setEnabled(True)
+            self.btn_change_project.setEnabled(False)
+            self.btn_complete_project.setEnabled(False)
+            self.btn_archived_project.setEnabled(False)
+            self.btn_delete_project.setEnabled(False)
+            self.share_progress.setEnabled(False)
 
         # Загружаем список заметок
         self.load_notes(project)
