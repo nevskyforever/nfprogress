@@ -301,7 +301,7 @@ class GameMenuController:
 
         if self.gamer.health <= 0 and engine.load_settings().get('global_streak', False):
             data = engine.load_data()
-            refresh_result = engine.refresh_project_streak_statuses(data)
+            refresh_result = self.refresh_project_streak_statuses(data)
             global_status = engine.global_streak_status(data)
             if refresh_result.get('freeze_changed'):
                 self.gamer = game.load_game()
@@ -324,13 +324,23 @@ class GameMenuController:
         elif self.gamer.health <= 0:
             self.show_death_warning()
 
+    def refresh_project_streak_statuses(self, data, show_auto_freeze_toasts=True):
+        """Актуализирует стрики через главное окно, если доступны UI-уведомления."""
+        if hasattr(self.ui, '_refresh_project_streak_statuses'):
+            auto_freeze_changed = self.ui._refresh_project_streak_statuses(
+                data,
+                show_auto_freeze_toasts=show_auto_freeze_toasts,
+            )
+            return {'changed': auto_freeze_changed, 'freeze_changed': auto_freeze_changed}
+        return engine.refresh_project_streak_statuses(data)
+
     def refresh_streaks_before_game_events(self):
         """Даёт автозаморозкам сработать до урона, банка и проверки смерти."""
         if not engine.load_settings().get('global_streak', False):
             return
 
         data = engine.load_data()
-        refresh_result = engine.refresh_project_streak_statuses(data)
+        refresh_result = self.refresh_project_streak_statuses(data)
         engine.global_streak_status(data)
         if refresh_result.get('freeze_changed'):
             self.gamer = game.load_game()
