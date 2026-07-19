@@ -814,7 +814,7 @@ class GameMenuController:
                     display_text = f"{display_name} x{count} [{category}]"
                     item = QListWidgetItem(display_text)
                     # Сохраняем данные предмета (категория, имя)
-                    item.setData(1, (category, item_name))
+                    item.setData(Qt.ItemDataRole.UserRole, (category, item_name))
                     self.ui.inventory_list.addItem(item)
 
         for award in self.gamer.custom_awards:
@@ -825,7 +825,7 @@ class GameMenuController:
                     continue
                 display_text = f"{award.name} x{count} [Награды]"
                 item = QListWidgetItem(display_text)
-                item.setData(1, ('Кастомные награды', award.name))
+                item.setData(Qt.ItemDataRole.UserRole, ('Кастомные награды', award.name))
                 self.ui.inventory_list.addItem(item)
 
     def get_inventory_item_type(self, category, item_obj=None):
@@ -908,7 +908,7 @@ class GameMenuController:
                 continue
 
             item = QListWidgetItem(item_obj.name)
-            item.setData(1, (shop_config['category'], item_key))
+            item.setData(Qt.ItemDataRole.UserRole, (shop_config['category'], item_key))
             shop_list.addItem(item)
 
     def get_shop_tab_items(self, shop_config):
@@ -921,7 +921,7 @@ class GameMenuController:
 
     def on_inventory_item_selected(self, item):
         """Выбор предмета в инвентаре"""
-        category, item_name = item.data(1)
+        category, item_name = item.data(Qt.ItemDataRole.UserRole)
 
         if category == 'Кастомные награды':
             award = self.get_custom_award(item_name)
@@ -975,7 +975,7 @@ class GameMenuController:
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите предмет")
             return
 
-        category, item_name = selected.data(1)
+        category, item_name = selected.data(Qt.ItemDataRole.UserRole)
         count = self.ui.value_for_use_selected_item.value()
 
         if category == 'Кастомные награды':
@@ -1064,7 +1064,7 @@ class GameMenuController:
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите предмет")
             return
 
-        category, item_name = selected.data(1)
+        category, item_name = selected.data(Qt.ItemDataRole.UserRole)
         count = self.ui.value_for_use_selected_item.value()
 
         if category == 'Кастомные награды':
@@ -1123,7 +1123,7 @@ class GameMenuController:
     def on_shop_item_selected(self, item, shop_config):
         """Общий обработчик выбора товара на любой вкладке магазина."""
         self.clear_shop_info(except_config=shop_config)
-        category, item_name = item.data(1)
+        category, item_name = item.data(Qt.ItemDataRole.UserRole)
         self.show_shop_item_info(category, item_name, shop_config)
 
     def on_buy_shop_item(self, shop_config):
@@ -1237,7 +1237,7 @@ class GameMenuController:
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите награду")
             return
 
-        category, item_name = selected.data(1)
+        category, item_name = selected.data(Qt.ItemDataRole.UserRole)
         if category != "Награды":
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Этот товар не является наградой")
             return
@@ -1307,7 +1307,7 @@ class GameMenuController:
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите награду")
             return
 
-        category, item_name = selected.data(1)
+        category, item_name = selected.data(Qt.ItemDataRole.UserRole)
         if category != "Награды":
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Этот товар не является наградой")
             return
@@ -1352,7 +1352,7 @@ class GameMenuController:
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите товар")
             return
 
-        category, item_name = selected.data(1)
+        category, item_name = selected.data(Qt.ItemDataRole.UserRole)
 
         # Проверяем категорию
         if category != expected_category:
@@ -1431,7 +1431,7 @@ class GameMenuController:
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Выберите награду")
             return
 
-        category, item_name = selected.data(1)
+        category, item_name = selected.data(Qt.ItemDataRole.UserRole)
         if category != "Награды":
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Этот товар не является наградой")
             return
@@ -1842,7 +1842,7 @@ class GameMenuController:
         """Выбирает награду в списке магазина после изменения."""
         for row in range(self.ui.item_shop_list_2.count()):
             item = self.ui.item_shop_list_2.item(row)
-            item_data = item.data(1)
+            item_data = item.data(Qt.ItemDataRole.UserRole)
             if item_data == ('Награды', name):
                 self.ui.item_shop_list_2.setCurrentItem(item)
                 return
