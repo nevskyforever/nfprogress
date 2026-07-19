@@ -110,7 +110,7 @@ class Quest:
         if self.reward_coins:
             gamer.set_coins(self.reward_coins, save=False)
         if self.reward_exp:
-            gamer.exp += self.reward_exp
+            gamer.add_exp(self.reward_exp)
         self.give_reward_items(gamer)
         self.give_reward_buffs(gamer)
         return f'Квест "{self.name}" завершен.\n{self.format_reward()}'
@@ -237,6 +237,7 @@ class Gamer:
         meta = CF_META.get(key, {})
         if base_value is None:
             base_value = value
+        value = self.round_cf(value)
         return {
             'value': float(value),
             'base_value': float(base_value),
@@ -356,6 +357,15 @@ class Gamer:
     def set_cf_value(self, key, value):
         self.cf[key] = self._make_cf_parameter(key, value)
 
+    @staticmethod
+    def round_cf(value):
+        """Округляет коэфициент вниз до двух знаков после запятой."""
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            value = 0.0
+        return math.floor((value + 1e-9) * 100) / 100
+
     def reset_cf_to_base(self):
         self.normalize_cf()
         for parameter in self.cf.values():
@@ -366,7 +376,8 @@ class Gamer:
             return
 
         parameter = self.cf[buff.target_cf]
-        parameter['value'] = max(0, parameter.get('value', 1.0) + buff.signed_value() * stacks)
+        value = parameter.get('value', 1.0) + buff.signed_value() * stacks
+        parameter['value'] = max(0, self.round_cf(value))
 
     def get_timed_buffs(self):
         return list(self.buffs) + list(self.debuffs)
@@ -412,7 +423,7 @@ class Gamer:
                             'total_value': item_buff.value * count,
                         }
                 else:
-                    inventory_buffs.append((item_buff, 1))
+                    inventory_buffs.append((item_buff, count))
 
         for merged_buff in merged_stackable_buffs.values():
             buff = merged_buff['buff']
@@ -440,6 +451,9 @@ class Gamer:
 
         for buff, stacks in self.get_inventory_buffs():
             self._apply_buff_to_cf(buff, stacks)
+
+        for parameter in self.cf.values():
+            parameter['value'] = self.round_cf(parameter.get('value', 0))
 
         if save or changed:
             self.save()
@@ -545,6 +559,20 @@ class Gamer:
             value = 0
         return round(math.ceil((value - 1e-9) * 10) / 10, 1)
 
+    @staticmethod
+    def round_exp(value):
+        """Округляет начисление опыта вверх до одного знака."""
+        try:
+            value = float(value)
+        except (TypeError, ValueError):
+            value = 0.0
+        return round(math.ceil((value - 1e-9) * 10) / 10, 1)
+
+    def add_exp(self, value):
+        accrued = self.round_exp(value)
+        self.exp += accrued
+        return accrued
+
     def normalize_coins(self):
         self.coins = self.round_money(getattr(self, 'coins', 0))
         return self.coins
@@ -562,8 +590,7 @@ class Gamer:
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols):
         exp_cf = self.get_cf_value('exp', 1.0)
-        exps = symbols * 4 * exp_cf
-        self.exp += exps
+        exps = self.add_exp(symbols * 4 * exp_cf)
         self.save()
         coins_cf = self.get_cf_value('coins', 1.0)
         coins = symbols / 100 * coins_cf
@@ -622,22 +649,22 @@ class Gamer:
         elif 'Go' in st:
             if streak_type == 'Local':
                 coin_bonus = self.set_coins(10 * cf_coins * streak_len * self.calculate_inflation())
-                exp_bonus = round((100 * streak_len * cf_exp))
+                exp_bonus = self.round_exp(100 * streak_len * cf_exp)
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление стрика в проекте.'
             else:
                 coin_bonus = self.set_coins(10 * cf_coins * streak_len * self.calculate_inflation())
-                exp_bonus = round((1000 * streak_len * cf_exp))
+                exp_bonus = self.round_exp(1000 * streak_len * cf_exp)
                 msg = f'Получен бонус {coin_bonus} монет и {exp_bonus} оп. за продление глобального стрика.'
-            self.exp += exp_bonus
+            self.add_exp(exp_bonus)
 
         # Завершение стрика (только локальный)
         elif 'Complete' in st:
             coin_bonus = self.set_coins(25 * cf_coins * streak_len * self.calculate_inflation())
-            exp_bonus = round((5000 * streak_len * cf_exp))
+            exp_bonus = self.round_exp(5000 * streak_len * cf_exp)
             msg = (f'СТРИК В ПРОЕКТЕ ЗАВЕРШЕН!'
                    f'\nВы были в цели {streak_len} д. подряд!'
                    f'\nВы получили награду: {coin_bonus} монет и {exp_bonus} опыта!')
-            self.exp += exp_bonus
+            self.add_exp(exp_bonus)
 
         # Чистая потеря (только глобальный)
         elif 'Lose' in st and streak_type == 'Global':
@@ -664,9 +691,9 @@ class Gamer:
         cf_exp = self.get_cf_value('exp')
 
         coin_bonus = self.set_coins(100 * cf_total * cf_coins)
-        exp_bonus = round(10000 * cf_total * cf_exp)
+        exp_bonus = self.round_exp(10000 * cf_total * cf_exp)
 
-        self.exp += exp_bonus
+        self.add_exp(exp_bonus)
         msg = f'Вы получили награду {coin_bonus} монет и {exp_bonus} оп.'
 
         self.save()

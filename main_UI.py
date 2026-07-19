@@ -6,7 +6,7 @@ import threading
 
 from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF, QSize
 from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon
-from PySide6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication, QAbstractItemView
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel, QMessageBox
 
@@ -158,6 +158,9 @@ class MainWindow(QMainWindow, main_window_ui):
         self.change_project_widget.setVisible(False)
         self.btn_create_project.clicked.connect(self.create_project)
         self.list_projects.itemClicked.connect(self.view_project)
+        self.list_projects.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
+        self.list_projects.setDefaultDropAction(Qt.DropAction.MoveAction)
+        self.list_projects.model().rowsMoved.connect(self._save_reordered_stages)
 
         # Подключаем обработку Enter для поля ввода
         self.new_symbols.returnPressed.connect(self.on_enter_pressed)
@@ -2062,6 +2065,7 @@ class MainWindow(QMainWindow, main_window_ui):
             size = widget.sizeHint()
 
             item = QListWidgetItem()
+            item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
             item.setSizeHint(size)
             list_p.addItem(item)
             list_p.setItemWidget(item, widget)
@@ -2074,6 +2078,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     stage_widget = StageRowWidget(stage, project, settings.get('global_streak', False))
                     stage_widget.layout().activate()
                     stage_item = QListWidgetItem()
+                    stage_item.setFlags(stage_item.flags() | Qt.ItemFlag.ItemIsDragEnabled)
                     stage_item.setSizeHint(stage_widget.sizeHint())
                     list_p.addItem(stage_item)
                     list_p.setItemWidget(stage_item, stage_widget)
@@ -2098,6 +2103,42 @@ class MainWindow(QMainWindow, main_window_ui):
             en.save_data(data)
         if preserve_scroll:
             QTimer.singleShot(0, lambda value=scroll_value: list_p.verticalScrollBar().setValue(value))
+
+    def _save_reordered_stages(self, *args):
+        """Сохраняет новый порядок этапов, если они остались внутри своего проекта."""
+        data = en.load_data()
+        rows = []
+        for index in range(self.list_projects.count()):
+            widget = self.list_projects.itemWidget(self.list_projects.item(index))
+            rows.append(getattr(widget, 'project', None))
+
+        changed = False
+        for index, entity in enumerate(rows):
+            if entity is None or self._is_stage(entity) or not entity.has_stages():
+                continue
+            project = data.get('projects', {}).get(entity.name)
+            if project is None or project.name not in self._expanded_stage_projects:
+                continue
+            expected_ids = {stage.stage_id for stage in project.stages}
+            reordered = []
+            for candidate in rows[index + 1:index + 1 + len(project.stages)]:
+                if not self._is_stage(candidate) or candidate.parent_project_name != project.name:
+                    QTimer.singleShot(0, self.refresh_projects)
+                    return
+                reordered.append(candidate)
+            if {stage.stage_id for stage in reordered} != expected_ids:
+                QTimer.singleShot(0, self.refresh_projects)
+                return
+            new_ids = [stage.stage_id for stage in reordered]
+            if new_ids != [stage.stage_id for stage in project.stages]:
+                by_id = {stage.stage_id: stage for stage in project.stages}
+                project.stages = [by_id[stage_id] for stage_id in new_ids]
+                data['projects'][project.name] = project
+                changed = True
+
+        if changed:
+            en.save_data(data)
+        QTimer.singleShot(0, self.refresh_projects)
 
     def check_global_streak(self):
         """Проверяет глобальный стрик и показывает уведомление"""
@@ -2971,15 +3012,6 @@ class CreateProject(QDialog, create_project_ui):
         else:
             error_messages.append("Введите текущее значение")
 
-        # Проверка что цель >= текущее значение (если оба валидны)
-        goal_ge_total = True
-        if goal_valid and total_valid:
-            goal_val = float(goal_text)
-            total_val = float(total_text)
-            if goal_val < total_val:
-                goal_ge_total = False
-                error_messages.append("Цель должна быть больше или равна текущему значению")
-
         # Если есть ошибки, показываем первую в incorrect_data
         if error_messages:
             self.incorrect_data.setVisible(True)
@@ -2991,7 +3023,7 @@ class CreateProject(QDialog, create_project_ui):
         buttons_enabled = (
                 name_filled and not name_incorrect and
                 not deadline_incorrect and
-                goal_valid and total_valid and goal_ge_total
+                goal_valid and total_valid
         )
         self.buttons.setEnabled(buttons_enabled)
 
@@ -3358,15 +3390,6 @@ class EditProject(QDialog, create_project_ui):
         else:
             error_messages.append("Введите текущее значение")
 
-        # Цель >= текущее
-        goal_ge_total = True
-        if goal_valid and total_valid:
-            goal_val = float(goal_text)
-            total_val = float(total_text)
-            if goal_val < total_val:
-                goal_ge_total = False
-                error_messages.append("Цель должна быть больше или равна текущему значению")
-
         if error_messages:
             self.incorrect_data.setVisible(True)
             self.incorrect_data.setText("\n".join(error_messages[:1]))
@@ -3376,7 +3399,7 @@ class EditProject(QDialog, create_project_ui):
         buttons_enabled = (
                 name_filled and not name_incorrect and
                 not deadline_incorrect and
-                goal_valid and total_valid and goal_ge_total
+                goal_valid and total_valid
         )
         self.buttons.setEnabled(buttons_enabled)
 
