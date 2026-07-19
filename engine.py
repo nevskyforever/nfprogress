@@ -125,6 +125,7 @@ def is_developer_test_date_enabled():
 STREAK_FREEZE_MARKER = 'freeze'
 STREAK_DATE_BUG_START = date(2026, 7, 9)
 STREAK_DATE_BUG_LAST_SAFE_DAY = STREAK_DATE_BUG_START - timedelta(days=1)
+STREAK_DATE_BUG_REPAIR_LAST_DAY = date(2026, 7, 10)
 _project_freeze_batch = None
 
 
@@ -211,6 +212,8 @@ def repair_streak_gap_after_date_bug(streaks, target_day):
 
     last_day = streak_last_day(streaks)
     if not last_day or last_day < STREAK_DATE_BUG_LAST_SAFE_DAY:
+        return False
+    if target_day > STREAK_DATE_BUG_REPAIR_LAST_DAY:
         return False
     if last_day >= target_day:
         return False
