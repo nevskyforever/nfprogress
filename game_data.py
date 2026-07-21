@@ -206,7 +206,18 @@ class FuncItem(Item):
         items = gamer.get_items()
 
         # Проверяем, есть ли предмет в наличии
-        if items[self.item_type][self.name] > 0:
+        category_items = items.get(self.item_type, {})
+        registry_key, _ = find_registry_item(self.item_type, self.name)
+        inventory_names = {self.name}
+        if registry_key:
+            inventory_names.add(registry_key)
+
+        available = sum(
+            category_items.get(item_name, 0)
+            for item_name in inventory_names
+        ) if isinstance(category_items, dict) else 0
+
+        if available > 0:
             messages = []
 
             # Выполняем функцию предмета

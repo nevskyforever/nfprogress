@@ -14,7 +14,7 @@ from docx import Document
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
-version = '4.7.1'
+version = '4.7.2'
 
 # Определяем систему
 
