@@ -5,7 +5,7 @@ import platform
 import sys
 import tempfile
 import uuid
-from datetime import datetime, timedelta, date, date as date_type
+from datetime import datetime, timedelta, date, date as date_type, time
 from pathlib import Path
 from collections import defaultdict
 from docx import Document
@@ -111,8 +111,34 @@ def now_for_test():
 
 
 def today_for_test():
-    """Возвращает сегодняшнюю дату."""
-    return now_for_test().date()
+    """Возвращает дату текущих суток с учетом выбранного времени их начала."""
+    current_datetime = now_for_test()
+    start_day_time = get_start_day_time()
+    current_time = current_datetime.time().replace(tzinfo=None)
+
+    if current_time < start_day_time:
+        return current_datetime.date() - timedelta(days=1)
+    return current_datetime.date()
+
+
+def get_start_day_time(settings=None):
+    """Возвращает время начала суток из настроек.
+
+    Значение хранится в формате ``HH:MM:SS``. Старые или поврежденные
+    настройки безопасно используют полночь.
+    """
+    if settings is None:
+        settings = load_settings()
+
+    saved_time = settings.get('start_day_time', '00:00:00')
+    if isinstance(saved_time, time):
+        return saved_time.replace(tzinfo=None)
+    if isinstance(saved_time, str):
+        try:
+            return time.fromisoformat(saved_time)
+        except ValueError:
+            pass
+    return time.min
 
 
 def is_developer_test_date_enabled():
@@ -153,6 +179,12 @@ def streak_last_day(streaks):
     for _, effective_day in iter_streak_days(streaks):
         last_day = effective_day
     return last_day
+
+
+def streak_has_day_after(streaks, target_day):
+    """Проверяет, есть ли в стрике день позднее даты пересчёта."""
+    last_day = streak_last_day(streaks)
+    return last_day is not None and last_day > target_day
 
 
 def streak_contains_day(streaks, target_day):
@@ -250,6 +282,7 @@ def load_settings():
             'global_streak': False,
             'show_written_today_in_all_projects': False,
             'notification_display_time': 10,
+            'start_day_time': '00:00:00',
             'inventory_filter': 'Все',
         }
 
@@ -732,6 +765,12 @@ class Project:
         # Убедимся, что streaks — список
         if not isinstance(self.streaks, list):
             self.streaks = []
+
+        # После изменения времени начала суток эффективная дата временно может
+        # стать меньше даты уже сохранённого стрика. Это не пропуск дня, и
+        # автоматическая проверка не должна сбрасывать стрик.
+        if streak_has_day_after(self.streaks, today):
+            return self.streak_status
 
         day_completed = total >= planned
 
@@ -1513,6 +1552,14 @@ def global_streak_status(data, today=None):
     last_lost_date = data.get('last_global_streak_lost_date')
     last_lost_len = data.get('last_global_streak_lose_len', 0)
     projects = data.get('projects', {})
+
+    # Не пересчитываем стрик назад при изменении времени начала суток после
+    # полуночи. Иначе сохранённая за текущую календарную дату запись выглядит
+    # как дата из будущего и ошибочно трактуется как разрыв.
+    if (streak_has_day_after(streaks, today) or
+            any(streak_has_day_after(source.streaks, today)
+                for source in _iter_streak_sources(projects))):
+        return prev_status
 
     if (not streaks and
             isinstance(prev_status, str) and

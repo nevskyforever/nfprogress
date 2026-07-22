@@ -4,7 +4,7 @@ import os
 import sys
 import threading
 
-from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF, QSize
+from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTime, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF, QSize
 from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon
 from PySide6.QtWidgets import QApplication, QAbstractItemView
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
@@ -522,12 +522,14 @@ class MainWindow(QMainWindow, main_window_ui):
                 global_streak = dialog.enable_global_streak_checkBox.isChecked()
                 show_written_today_in_all_projects = dialog.written_today_in_all_projects_checkBox.isChecked()
                 notification_display_time = dialog.notification_display_time_spinBox.value()
+                start_day_time = dialog.start_day_time.time().toString('HH:mm:ss')
                 settings = en.load_settings()
                 settings['inf_project'] = inf_project
                 settings['game_mode'] = game_mode
                 settings['global_streak'] = global_streak
                 settings['show_written_today_in_all_projects'] = show_written_today_in_all_projects
                 settings['notification_display_time'] = notification_display_time
+                settings['start_day_time'] = start_day_time
                 if not global_streak:
                     data = en.load_data()
                     data['global_streaks'] = []
@@ -3702,6 +3704,11 @@ class Settings(QDialog, settings_ui):
         self.notification_display_time_spinBox.setRange(1, 3600)
         self.notification_display_time_spinBox.setSuffix(' сек.')
         self.notification_display_time_spinBox.setValue(max(1, notification_display_time))
+        start_day_time = en.get_start_day_time(settings)
+        self.start_day_time.setDisplayFormat('HH:mm')
+        self.start_day_time.setTime(
+            QTime(start_day_time.hour, start_day_time.minute, start_day_time.second)
+        )
 
 
 class UserAgreement(QDialog, user_agreement_ui):
