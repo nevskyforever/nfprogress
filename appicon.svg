@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256" role="img" aria-label="nfprogress icon">
+  <defs>
+    <clipPath id="rounded-square">
+      <rect width="256" height="256" rx="44" ry="44"/>
+    </clipPath>
+
+    <linearGradient id="sky" x1="128" y1="0" x2="128" y2="256" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#58C3E5"/>
+      <stop offset="0.48" stop-color="#3B8FC0"/>
+      <stop offset="1" stop-color="#102C78"/>
+    </linearGradient>
+
+    <radialGradient id="sunGlow" cx="128" cy="119" r="68" gradientUnits="userSpaceOnUse">
+      <stop offset="0.62" stop-color="#FFE05A"/>
+      <stop offset="0.76" stop-color="#F2BF32" stop-opacity="0.82"/>
+      <stop offset="1" stop-color="#F2BF32" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="sun" x1="128" y1="58" x2="128" y2="169" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFE766"/>
+      <stop offset="1" stop-color="#F2A52D"/>
+    </linearGradient>
+
+    <linearGradient id="leftMountain" x1="106" y1="106" x2="56" y2="219" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#75C8E3"/>
+      <stop offset="0.48" stop-color="#2E78B8"/>
+      <stop offset="1" stop-color="#12317E"/>
+    </linearGradient>
+
+    <linearGradient id="rightMountain" x1="145" y1="98" x2="172" y2="247" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2E7CBD"/>
+      <stop offset="0.54" stop-color="#1F5EA5"/>
+      <stop offset="1" stop-color="#0D236A"/>
+    </linearGradient>
+
+    <linearGradient id="ridge" x1="126" y1="96" x2="126" y2="234" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#9EE4F2"/>
+      <stop offset="1" stop-color="#255DA3"/>
+    </linearGradient>
+  </defs>
+
+  <g clip-path="url(#rounded-square)">
+    <rect width="256" height="256" fill="url(#sky)"/>
+    <circle cx="128" cy="119" r="68" fill="url(#sunGlow)"/>
+    <circle cx="128" cy="119" r="60" fill="url(#sun)"/>
+
+    <path d="M0 203 L126 97 L126 256 L0 256 Z" fill="url(#leftMountain)"/>
+    <path d="M126 97 L256 224 L256 256 L126 256 Z" fill="url(#rightMountain)"/>
+    <path d="M126 97 L104 131 L126 256 Z" fill="url(#ridge)" opacity="0.78"/>
+    <path d="M126 97 L126 256" fill="none" stroke="#0B2A74" stroke-opacity="0.36" stroke-width="2"/>
+  </g>
+
+  <rect x="0.5" y="0.5" width="255" height="255" rx="43.5" ry="43.5" fill="none" stroke="#FFFFFF" stroke-opacity="0.2"/>
+</svg>
