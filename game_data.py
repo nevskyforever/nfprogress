@@ -4,8 +4,15 @@ import unicodedata
 
 import engine
 import game
+
+# Базовая награда за каждые 100 написанных символов.
+base_coin_bonus = 10
+base_exp_bonus = 400
+
 about_mode = ('Игровой режим позволяет улучшить мотивацию, сделав из писательства игру.\n'
-              '1. При написании текста за каждые 100 символов вы получаете 1 монету, а так же бонус за достигнутый уровень на данный момент\n'
+              f'1. При написании текста за каждые 100 символов вы получаете '
+              f'базовую награду: {base_coin_bonus} монет и {base_exp_bonus} опыта, а также бонус '
+              'за достигнутый уровень на данный момент\n'
               '2. Монеты можно тратить на предметы, которые улучшают ваш игровой опыт.\n'
               '3. В зависимости от вашего уровня вы можете получить бонус в виде монет и опыта на каждые 100 символов\n'
               'Бонус считается исходя из коэффициентов вашего уровня, их можно посмотреть в отдельном меню.')
@@ -624,7 +631,9 @@ class BankAccount:
 
     def estimate_daily_income_details(self, gamer):
         coins_cf = max(0.1, gamer.get_cf_value('coins', 1.0))
-        symbol_income = gamer.round_money(self._estimate_daily_writing_symbols() / 100 * coins_cf)
+        symbol_income = gamer.round_money(
+            self._estimate_daily_writing_symbols() / 100 * base_coin_bonus * coins_cf
+        )
         streak_income = self._estimate_streak_income(gamer)
         level_income = min(12, max(0, gamer.level - 1) * 0.75)
         total = gamer.round_money(symbol_income + streak_income + level_income)

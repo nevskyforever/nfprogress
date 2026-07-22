@@ -531,8 +531,12 @@ class Gamer:
     def get_cf_description(self, key):
         parameter = self.cf.get(key, self._make_cf_parameter(key, 1.0))
         template = parameter.get('description', '')
-        coins_per_100 = round(self.get_cf_value('coins', 1.0), 1)
-        exp_per_100 = round(100 * 4 * self.get_cf_value('exp', 1.0))
+        coins_per_100 = round(
+            game_data.base_coin_bonus * self.get_cf_value('coins', 1.0), 1
+        )
+        exp_per_100 = round(
+            game_data.base_exp_bonus * self.get_cf_value('exp', 1.0)
+        )
         health_recovery_per_hour = self.get_cf_value('health_recovery', 0.0)
         return template.format(
             coins_per_100=coins_per_100,
@@ -592,10 +596,10 @@ class Gamer:
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols):
         exp_cf = self.get_cf_value('exp', 1.0)
-        exps = self.add_exp(symbols * 4 * exp_cf)
+        exps = self.add_exp(symbols / 100 * game_data.base_exp_bonus * exp_cf)
         self.save()
         coins_cf = self.get_cf_value('coins', 1.0)
-        coins = symbols / 100 * coins_cf
+        coins = symbols / 100 * game_data.base_coin_bonus * coins_cf
         coins = self.set_coins(coins)
         self.save()
         return (f'Получено {coins} монет'
