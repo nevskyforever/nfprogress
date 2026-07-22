@@ -2040,7 +2040,8 @@ class GameMenuController:
             return True
         return
 
-    def give_complete_bonus(self, project_status, project_total, project_unit='symbols', project_name=None):
+    def give_complete_bonus(self, project_status, project_total, project_unit='symbols', project_name=None,
+                            bonus_multiplier=1.0):
         """
         Начисление бонуса за завершение проекта (вызывается из основного окна)
 
@@ -2049,6 +2050,7 @@ class GameMenuController:
             project_total: Общее количество в единицах проекта
             project_unit: Единица измерения проекта ('symbols', 'A4', 'author_list', 'ficbook_pages')
             project_name: Имя завершённого проекта
+            bonus_multiplier: Коэффициент награды за завершение
         """
         if not self.gamer:
             return "Игровой режим не активен"
@@ -2061,7 +2063,12 @@ class GameMenuController:
             symbols_value = project_total
 
         # Передаем в game.py уже конвертированное значение в символах
-        result = self.gamer.give_complete_bonus(project_status, symbols_value, project_name)
+        result = self.gamer.give_complete_bonus(
+            project_status,
+            symbols_value,
+            project_name,
+            bonus_multiplier,
+        )
 
         if result:
             # Проверяем, не повысился ли уровень

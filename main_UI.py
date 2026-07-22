@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog
 
 import engine as en
 import game
+import game_data
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.create_project import Ui_create_project as create_project_ui
 from UI_fiiles.developer_mode import Ui_developer_node
@@ -840,7 +841,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.change_project_action.setEnabled(True)
             self.archive_project_action.setEnabled(True)
             # Кнопка завершения активна, если цель достигнута
-            can_complete = not self._is_stage(project) and project.goal <= project.total_units
+            can_complete = project.goal <= project.total_units
             self.btn_complete_project.setEnabled(can_complete)
             self.complete_project_action.setEnabled(can_complete)
 
@@ -1675,30 +1676,43 @@ class MainWindow(QMainWindow, main_window_ui):
         return units.get(unit_code, unit_code)
 
     def complete_project(self, project):
-        """Завершает проект"""
-        if self._is_stage(project):
-            self.notifications.show_warning('Этапы нельзя завершать отдельно. Завершить можно только родительский проект.')
-            return
-
+        """Завершает проект или отдельный этап."""
         dialog = ConfirmDialog()
-        entity_label = 'проект'
+        entity_label = 'этап' if self._is_stage(project) else 'проект'
         dialog.message.setText(
             f'Вы хотите завершить {entity_label}?\nЭто действие нельзя отменить\n'
             f'Завершенный {entity_label} можно только просматривать и удалить')
         result = dialog.exec()
 
         if result == QDialog.Accepted:
-            project.status = "завершен"
-            project.complete_date = en.today_for_test()
-            if en.load_settings()['game_mode'] and not self._is_stage(project):
-                if en.load_settings()['global_streak'] and project.deadline != 'Нет' and en.streak_length(project.streaks):
-                    self.game_controller.give_streak_bonus(
-                        streak_status='Complete',
-                        streak_type='Local',
-                        streak_len=en.streak_length(project.streaks),
-                        project_name=project.name,
+            completion_date = en.today_for_test()
+            is_stage = self._is_stage(project)
+            entities_to_complete = en.get_completion_entities(project)
+
+            for entity in entities_to_complete:
+                entity.status = "завершен"
+                entity.complete_date = completion_date
+
+            settings = en.load_settings()
+            if settings['game_mode']:
+                for entity in entities_to_complete:
+                    entity_is_stage = self._is_stage(entity)
+                    bonus_key = self._completion_bonus_key(entity, project if entity_is_stage and not is_stage else None)
+                    streak_len = en.streak_length(entity.streaks)
+                    if settings['global_streak'] and entity.deadline != 'Нет' and streak_len:
+                        self.game_controller.give_streak_bonus(
+                            streak_status='Complete',
+                            streak_type='Local',
+                            streak_len=streak_len,
+                            project_name=bonus_key,
+                        )
+                    self.game_controller.give_complete_bonus(
+                        entity.status,
+                        entity.total_units,
+                        entity.unit,
+                        bonus_key,
+                        game_data.STAGE_COMPLETION_BONUS_MULTIPLIER if entity_is_stage else 1.0,
                     )
-                self.game_controller.give_complete_bonus(project.status, project.total_units, project.unit, project.name)
 
             data = en.load_data()
             self._store_project_entity(data, project)
@@ -1709,6 +1723,17 @@ class MainWindow(QMainWindow, main_window_ui):
             self.note_widget.setVisible(False)
             self.change_project_widget.setVisible(False)
             self.notifications.show_success(f'{project.name} завершен!')
+
+    def _completion_bonus_key(self, project, parent_project=None):
+        """Возвращает стабильный уникальный ключ награды проекта или этапа."""
+        if not self._is_stage(project):
+            return project.name
+        parent_name = (
+            getattr(parent_project, 'name', None)
+            or getattr(project, 'parent_project_name', '')
+        )
+        stage_id = getattr(project, 'stage_id', project.name)
+        return f'stage:{parent_name}:{stage_id}'
 
     def archive_project(self, project):
         """Отправляет проект в архив или активирует его"""
@@ -2695,15 +2720,11 @@ class MainWindow(QMainWindow, main_window_ui):
         self.archive_project(project)
 
     def on_complete_project_menu_triggered(self):
-        """Обработчик меню 'Завершить проект'"""
+        """Обработчик меню завершения проекта или этапа."""
         project = self.get_current_project()
         if project is None:
             self.notifications.show_warning("Сначала выберите проект!")
             return
-        if self._is_stage(project):
-            self.notifications.show_warning('Этапы нельзя завершать отдельно. Завершить можно только родительский проект.')
-            return
-
         # Дополнительная проверка: можно завершить только если цель достигнута
         if project.total_units < project.goal and project.goal != float('inf'):
             self.notifications.show_warning(

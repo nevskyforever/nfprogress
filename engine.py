@@ -14,7 +14,7 @@ from docx import Document
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
-version = '4.7.1'
+version = '4.7.2'
 
 # Определяем систему
 
@@ -1162,6 +1162,15 @@ class Stage(Project):
             self.stage_id = uuid.uuid4().hex
         if not hasattr(self, 'parent_project_name'):
             self.parent_project_name = None
+
+
+def get_completion_entities(project):
+    """Возвращает сущности, которые нужно завершить вместе с выбранной."""
+    if isinstance(project, Stage) or getattr(project, 'is_stage', False):
+        return [project]
+    if getattr(project, 'has_stages', lambda: False)():
+        return [stage for stage in project.stages if stage.status != 'завершен'] + [project]
+    return [project]
 
 class Note:
 

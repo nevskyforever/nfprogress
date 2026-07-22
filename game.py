@@ -695,7 +695,7 @@ class Gamer:
         self.save()
         return msg
 
-    def give_complete_bonus(self, project_status, project_total, project_name=None):
+    def give_complete_bonus(self, project_status, project_total, project_name=None, bonus_multiplier=1.0):
         if project_name and not self.mark_complete_bonus_received(project_name):
             return None
 
@@ -703,8 +703,8 @@ class Gamer:
         cf_coins = self.get_cf_value('coins')
         cf_exp = self.get_cf_value('exp')
 
-        coin_bonus = self.set_coins(100 * cf_total * cf_coins)
-        exp_bonus = self.round_exp(10000 * cf_total * cf_exp)
+        coin_bonus = self.set_coins(100 * cf_total * cf_coins * bonus_multiplier)
+        exp_bonus = self.round_exp(10000 * cf_total * cf_exp * bonus_multiplier)
 
         self.add_exp(exp_bonus)
         msg = f'Вы получили награду {coin_bonus} монет и {exp_bonus} оп.'
