@@ -5,7 +5,10 @@
     "url": "https://nfproject.ru/app/nfprogress-windows-4.8.zip",
     "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
     "size": 123456789,
-    "entry_point": "nfprogress/nfprogress.exe"
+    "entry_point": "nfprogress/nfprogress.exe",
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.8.exe",
+    "installer_sha256": "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789",
+    "installer_size": 123456789
   },
   "macos_arm": {
     "version": "4.8",

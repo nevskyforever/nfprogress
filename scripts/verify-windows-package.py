@@ -14,7 +14,7 @@ def sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def inspect_pe(path: Path) -> str:
+def inspect_pe(path: Path, *, allow_large_overlay: bool = False) -> str:
     if not path.is_file():
         raise SystemExit(f"Missing PE file: {path}")
     data = path.read_bytes()
@@ -51,7 +51,7 @@ def inspect_pe(path: Path) -> str:
 
     known_end = max(image_end, certificate_end)
     overlay_size = max(0, len(data) - known_end)
-    if overlay_size > 1024 * 1024:
+    if overlay_size > 1024 * 1024 and not allow_large_overlay:
         raise SystemExit(
             f"Unexpected PE overlay in {path}: {overlay_size} bytes. "
             "This may indicate an embedded onefile payload."
@@ -68,12 +68,15 @@ def main() -> int:
     parser.add_argument("package_dir", type=Path)
     parser.add_argument("archive", type=Path)
     parser.add_argument("checksums", type=Path)
+    parser.add_argument("--installer", type=Path)
     args = parser.parse_args()
 
     main_exe = args.package_dir / "nfprogress.exe"
     updater_exe = args.package_dir / "nfprogress-updater.exe"
     runtime_updater = args.package_dir / "updater-runtime" / "nfprogress-updater.exe"
     pe_results = [inspect_pe(executable) for executable in (main_exe, updater_exe, runtime_updater)]
+    if args.installer is not None:
+        pe_results.append(inspect_pe(args.installer, allow_large_overlay=True))
 
     with zipfile.ZipFile(args.archive) as archive:
         files = [PurePosixPath(info.filename) for info in archive.infolist() if not info.is_dir()]
@@ -95,6 +98,8 @@ def main() -> int:
         f"{sha256(main_exe)}  nfprogress.exe",
         f"{sha256(updater_exe)}  nfprogress-updater.exe",
     ]
+    if args.installer is not None:
+        lines.append(f"{sha256(args.installer)}  {args.installer.name}")
     args.checksums.write_text("\n".join(lines) + "\n", encoding="utf-8")
     pe_report = args.checksums.with_name("pe-inspection-windows.txt")
     pe_report.write_text("\n".join(pe_results) + "\n", encoding="utf-8")

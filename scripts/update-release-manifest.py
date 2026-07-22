@@ -34,8 +34,11 @@ def _migrate_legacy_sections(manifest: dict) -> None:
 
 
 def main() -> int:
-    if len(sys.argv) not in (3, 4):
-        print("Usage: update-release-manifest.py VERSION PLATFORM [ARTIFACT]", file=sys.stderr)
+    if len(sys.argv) not in (3, 4, 5):
+        print(
+            "Usage: update-release-manifest.py VERSION PLATFORM [ARTIFACT] [INSTALLER]",
+            file=sys.stderr,
+        )
         print(f"Platforms: {', '.join(PLATFORMS)}", file=sys.stderr)
         return 2
 
@@ -47,12 +50,19 @@ def main() -> int:
 
     filename_template, entry_point = PLATFORMS[platform]
     filename = filename_template.format(version=version)
-    artifact = Path(sys.argv[3]) if len(sys.argv) == 4 else None
+    artifact = Path(sys.argv[3]) if len(sys.argv) >= 4 else None
+    installer = Path(sys.argv[4]) if len(sys.argv) == 5 else None
     if platform == "windows" and artifact is None:
         print("Windows manifest requires the ZIP artifact path for SHA-256 and size.", file=sys.stderr)
         return 2
     if artifact is not None and not artifact.is_file():
         print(f"Artifact not found: {artifact}", file=sys.stderr)
+        return 2
+    if installer is not None and platform != "windows":
+        print("Installer metadata is supported only for Windows.", file=sys.stderr)
+        return 2
+    if installer is not None and not installer.is_file():
+        print(f"Installer not found: {installer}", file=sys.stderr)
         return 2
 
     manifest_path = Path("update_manifest.json")
@@ -67,6 +77,12 @@ def main() -> int:
         section["size"] = artifact.stat().st_size
     if entry_point:
         section["entry_point"] = entry_point
+    if installer is not None:
+        section["installer_url"] = (
+            f"https://nfproject.ru/app/nfprogress-setup-{version}.exe"
+        )
+        section["installer_sha256"] = _sha256(installer)
+        section["installer_size"] = installer.stat().st_size
     manifest[platform] = section
 
     for key in list(manifest):
