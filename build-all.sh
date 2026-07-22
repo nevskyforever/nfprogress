@@ -4,6 +4,28 @@ set +e
 VERSION=$(python3 -c "import engine; print(engine.version)")
 MANIFEST_STATUS=0
 
+RELEASE_NOTES=$(git log -1 --format=%B | awk '
+  /^[[:space:]]*Обновление[[:space:]]+[0-9]+\.[0-9]+\.[0-9]+[[:space:]]*$/ {
+    found = 1
+    next
+  }
+  found && !started && /^[[:space:]]*$/ {
+    next
+  }
+  found {
+    started = 1
+    print
+  }
+')
+
+if [ -n "$RELEASE_NOTES" ]; then
+  export RELEASE_NOTES
+  echo "Описание обновления извлечено из последнего коммита."
+else
+  unset RELEASE_NOTES
+  echo "Описание обновления в последнем коммите не найдено."
+fi
+
 echo "Запуск параллельной сборки ARM и Intel..."
 
 NFPROGRESS_DEFER_MANIFEST=1 ./build-mac-arm.sh &
