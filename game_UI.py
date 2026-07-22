@@ -2018,7 +2018,7 @@ class GameMenuController:
             return result
         return
 
-    def give_streak_bonus(self, streak_status, streak_type=None, streak_len=1):
+    def give_streak_bonus(self, streak_status, streak_type=None, streak_len=1, project_name=None):
         """
         Добавление написанных символов (вызывается из основного окна)
 
@@ -2026,11 +2026,12 @@ class GameMenuController:
             streak_status: Статус стрика
             streak_type: Вид стрика
             streak_len: Длина стрика в днях
+            project_name: Имя проекта для локального стрика
         """
         if not self.gamer:
             return "Игровой режим не активен"
 
-        result = self.gamer.give_streak_bonus(streak_status, streak_type, streak_len)
+        result = self.gamer.give_streak_bonus(streak_status, streak_type, streak_len, project_name)
         if result:
             self.gamer.save()
             self.gamer = game.load_game()  # Перезагружаем для актуальности
@@ -2039,7 +2040,7 @@ class GameMenuController:
             return True
         return
 
-    def give_complete_bonus(self, project_status, project_total, project_unit='symbols'):
+    def give_complete_bonus(self, project_status, project_total, project_unit='symbols', project_name=None):
         """
         Начисление бонуса за завершение проекта (вызывается из основного окна)
 
@@ -2047,6 +2048,7 @@ class GameMenuController:
             project_status: Статус проекта
             project_total: Общее количество в единицах проекта
             project_unit: Единица измерения проекта ('symbols', 'A4', 'author_list', 'ficbook_pages')
+            project_name: Имя завершённого проекта
         """
         if not self.gamer:
             return "Игровой режим не активен"
@@ -2059,7 +2061,7 @@ class GameMenuController:
             symbols_value = project_total
 
         # Передаем в game.py уже конвертированное значение в символах
-        result = self.gamer.give_complete_bonus(project_status, symbols_value)
+        result = self.gamer.give_complete_bonus(project_status, symbols_value, project_name)
 
         if result:
             # Проверяем, не повысился ли уровень
@@ -2074,6 +2076,31 @@ class GameMenuController:
             self.notifications.show_success(result)
             return True
         return
+
+    def register_historical_complete_bonuses(self, projects):
+        """Помечает старые завершённые проекты без начисления награды."""
+        if not self.gamer:
+            return
+
+        today = engine.today_for_test()
+        changed = False
+        for project in projects:
+            if getattr(project, 'status', None) != 'завершен':
+                continue
+
+            _, last_note = project.get_latest_note()
+            last_note_date = last_note.get_date_create() if last_note else None
+            complete_date = getattr(project, 'complete_date', None)
+            completed_before_today = (
+                complete_date is not None and complete_date < today
+            ) or (
+                complete_date is None and last_note_date is not None and last_note_date < today
+            )
+            if completed_before_today and (last_note_date is None or last_note_date < today):
+                changed = self.gamer.mark_complete_bonus_received(project.name) or changed
+
+        if changed:
+            self.gamer.save()
 
     def freeze_project(self, item_obj=None, fallback_names=()):
         _, freeze_item = game_data.find_registry_item(self.FREEZE_CATEGORY, self.FREEZE_ITEM_KEY)

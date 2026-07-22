@@ -229,6 +229,7 @@ class Gamer:
         self.bank_account = game_data.BankAccount()
         self.last_lose_global_streak_damage = None
         self.last_bonus_dates = {}
+        self.complete_bonus_projects = []
         self.buffs = []
         self.debuffs = []
 
@@ -600,7 +601,15 @@ class Gamer:
         return (f'Получено {coins} монет'
                 f'\nПолучено {exps} опыта')
 
-    def give_streak_bonus(self, status, streak_type, streak_len=1):
+    def give_streak_bonus(self, status, streak_type, streak_len=1, project_name=None):
+        if (
+                streak_type == 'Local'
+                and isinstance(status, str)
+                and 'Complete' in status.split()
+                and project_name in self.complete_bonus_projects
+        ):
+            return None
+
         if streak_type == 'Global' and isinstance(status, str) and 'Lose' in status.split():
             data = engine.load_data()
             refresh_result = engine.refresh_project_streak_statuses(data)
@@ -686,7 +695,10 @@ class Gamer:
         self.save()
         return msg
 
-    def give_complete_bonus(self, project_status, project_total):
+    def give_complete_bonus(self, project_status, project_total, project_name=None):
+        if project_name and not self.mark_complete_bonus_received(project_name):
+            return None
+
         cf_total = round(project_total / 1000 + 0.5)  # обычное деление, не целочисленное
         cf_coins = self.get_cf_value('coins')
         cf_exp = self.get_cf_value('exp')
@@ -699,6 +711,13 @@ class Gamer:
 
         self.save()
         return msg
+
+    def mark_complete_bonus_received(self, project_name):
+        """Отмечает проект, за завершение которого уже была выдана награда."""
+        if not project_name or project_name in self.complete_bonus_projects:
+            return False
+        self.complete_bonus_projects.append(project_name)
+        return True
 
     def sync_quests(self):
         """Добавляет новые квесты из каталога, сохраняя прогресс существующих."""
@@ -1021,6 +1040,7 @@ class Gamer:
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
         had_skill_award_marker = hasattr(self, 'skill_points_awarded_for_level')
         had_max_health_marker = hasattr(self, 'max_health')
+        complete_bonus_projects_migrated = not hasattr(self, 'complete_bonus_projects')
         defaults = {
             'level': 1,
             'exp': 0,
@@ -1043,6 +1063,7 @@ class Gamer:
             'bank_account': None,
             'last_lose_global_streak_damage': None,
             'last_bonus_dates': {},
+            'complete_bonus_projects': [],
             'inflation': 1,
             'buffs': [],
             'debuffs': [],
@@ -1076,6 +1097,15 @@ class Gamer:
                 setattr(self, attr, [])
             elif attr == 'quests' and not isinstance(getattr(self, attr), list):
                 setattr(self, attr, [])
+            elif attr == 'complete_bonus_projects':
+                projects = getattr(self, attr)
+                normalized_projects = (
+                    [name for name in projects if isinstance(name, str)]
+                    if isinstance(projects, list) else []
+                )
+                if projects != normalized_projects:
+                    setattr(self, attr, normalized_projects)
+                    complete_bonus_projects_migrated = True
             elif attr == 'last_health_recovery_at' and not isinstance(getattr(self, attr), datetime):
                 setattr(self, attr, get_effective_now())
 
@@ -1133,7 +1163,7 @@ class Gamer:
             self.bank_account.normalize()
 
         if (migrated_awards or migrated_inventory or migrated_buff_names
-                or skill_points_migrated or max_health_migrated):
+                or skill_points_migrated or max_health_migrated or complete_bonus_projects_migrated):
             self.save()
 
     def calculate_inflation(self):

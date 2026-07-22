@@ -647,7 +647,19 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.label_today_goal.setVisible(False)
             else:
                 # Всегда показываем цель, если есть дедлайн (независимо от personal_goal)
-                if project.get_total_symbols() >= project.get_today_goal_value():
+                if project.has_stages():
+                    stage_daily_goals = [
+                        stage for stage in project.stages
+                        if stage.deadline != 'Нет' or getattr(stage, 'personal_goal_for_the_day', 0)
+                    ]
+                    today_goal_completed = bool(stage_daily_goals) and all(
+                        stage.get_total_symbols() >= stage.get_today_goal_value()
+                        for stage in stage_daily_goals
+                    )
+                else:
+                    today_goal_completed = project.get_total_symbols() >= project.get_today_goal_value()
+
+                if today_goal_completed:
                     self.today_goal.setText(
                         f'Цель на сегодня выполнена! ({self._format_number_for_unit(project.get_today_goal_in_unit(), project.unit)})')
                 else:
@@ -1679,9 +1691,14 @@ class MainWindow(QMainWindow, main_window_ui):
             project.status = "завершен"
             project.complete_date = en.today_for_test()
             if en.load_settings()['game_mode'] and not self._is_stage(project):
-                self.game_controller.give_complete_bonus(project.status, project.total_units, project.unit)
                 if en.load_settings()['global_streak'] and project.deadline != 'Нет' and en.streak_length(project.streaks):
-                    self.game_controller.give_streak_bonus(streak_status='Complete', streak_type='Local', streak_len=en.streak_length(project.streaks))
+                    self.game_controller.give_streak_bonus(
+                        streak_status='Complete',
+                        streak_type='Local',
+                        streak_len=en.streak_length(project.streaks),
+                        project_name=project.name,
+                    )
+                self.game_controller.give_complete_bonus(project.status, project.total_units, project.unit, project.name)
 
             data = en.load_data()
             self._store_project_entity(data, project)
@@ -2006,6 +2023,7 @@ class MainWindow(QMainWindow, main_window_ui):
         if auto_freeze_changed:
             self._refresh_game_inventory()
         projects = list(data['projects'].values())
+        self.game_controller.register_historical_complete_bonuses(projects)
 
         # Обнововляем глобальный стрик
         if en.load_settings()['global_streak']:
@@ -2087,8 +2105,12 @@ class MainWindow(QMainWindow, main_window_ui):
                 streak_sources = project.stages if project.has_stages() and project.deadline == 'Нет' else [project]
                 for streak_source in streak_sources:
                     if streak_source.last_streak_bonus != en.today_for_test():
-                        if self.game_controller.give_streak_bonus(streak_source.get_streak_status(), 'Local',
-                                                                  en.streak_length(streak_source.streaks)):
+                        if self.game_controller.give_streak_bonus(
+                                streak_source.get_streak_status(),
+                                'Local',
+                                en.streak_length(streak_source.streaks),
+                                project_name=project.name,
+                        ):
                             streak_source.last_streak_bonus = en.today_for_test()
                             data['projects'][project.name] = project
                             data_changed = True
