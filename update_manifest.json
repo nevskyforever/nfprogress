@@ -1,10 +1,19 @@
 {
-  "version": "4.7.2",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.7.2.zip",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.7.2.zip",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.7.2.zip",
-  "notes": "Исправлен баг с использованием предметов",
-  "windows_version": "4.7.1",
-  "macos_arm_version": "4.7.2",
-  "macos_intel_version": "4.7.2"
+  "version": "4.8",
+  "windows": {
+    "version": "4.8",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.8.zip",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "size": 1,
+    "entry_point": "nfprogress/nfprogress.exe"
+  },
+  "macos_arm": {
+    "version": "4.8",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.zip"
+  },
+  "macos_intel": {
+    "version": "4.8",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.zip"
+  },
+  "notes": "Исправлены ошибки и улучшена стабильность."
 }

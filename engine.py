@@ -2,6 +2,7 @@ import math
 import os
 import pickle
 import platform
+import shutil
 import sys
 import tempfile
 import uuid
@@ -20,14 +21,52 @@ version = '4.8'
 
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 
+
+def _copy_missing_user_data(source_dir, destination_dir):
+    """Копирует старые пользовательские данные без удаления и перезаписи."""
+    source_dir = Path(source_dir)
+    destination_dir = Path(destination_dir)
+    if not source_dir.is_dir() or source_dir.resolve() == destination_dir.resolve():
+        return []
+
+    copied = []
+    for source in source_dir.rglob('*'):
+        if not source.is_file() or source.is_symlink():
+            continue
+        relative_path = source.relative_to(source_dir)
+        destination = destination_dir / relative_path
+        if destination.exists():
+            continue
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_name(destination.name + '.migration.tmp')
+        try:
+            shutil.copy2(source, temporary)
+            if temporary.stat().st_size != source.stat().st_size:
+                raise OSError(f'Размер скопированного файла не совпадает: {source}')
+            temporary.replace(destination)
+        except Exception:
+            temporary.unlink(missing_ok=True)
+            raise
+        copied.append(destination)
+    return copied
+
+
+def _migrate_windows_user_data(destination_dir):
+    user_profile = Path(os.environ.get('USERPROFILE') or Path.home())
+    legacy_directories = [user_profile / 'Documents' / 'nfprogress']
+    copied = []
+    for legacy_dir in legacy_directories:
+        copied.extend(_copy_missing_user_data(legacy_dir, destination_dir))
+    return copied
+
 def get_app_data_dir():
     """
     Возвращает путь к директории для хранения данных приложения
     в зависимости от операционной системы
     """
     if SYSTEM == 'Windows':
-        # Windows: C:\Users\<USER>\Documents\MyAppData
-        base_dir = Path(os.environ.get('USERPROFILE', '')) / 'Documents'
+        app_data = os.environ.get('APPDATA')
+        base_dir = Path(app_data) if app_data else Path.home() / 'AppData' / 'Roaming'
     elif SYSTEM == 'Darwin':  # macOS
         # macOS: /Users/<USER>/Documents/MyAppData
         base_dir = Path.home() / 'Documents'
@@ -48,6 +87,16 @@ def get_app_data_dir():
         # Если нет прав на запись в Documents, используем домашнюю папку
         app_data_dir = Path.home() / '.nfprogress'
         app_data_dir.mkdir(parents=True, exist_ok=True)
+
+    if SYSTEM == 'Windows':
+        try:
+            _migrate_windows_user_data(app_data_dir)
+        except OSError as error:
+            try:
+                with (app_data_dir / 'migration.log').open('a', encoding='utf-8') as log_file:
+                    log_file.write(f'{datetime.now().isoformat()} migration failed: {error}\n')
+            except OSError as log_error:
+                print(f'Не удалось записать журнал миграции: {log_error}', file=sys.stderr)
 
     return app_data_dir
 
@@ -93,7 +142,7 @@ def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         # PyInstaller создает временную папку и хранит путь в _MEIPASS
         return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
+    return str(Path(__file__).resolve().parent / relative_path)
 
 
 def now_for_test():

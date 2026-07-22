@@ -4,9 +4,9 @@ from pathlib import Path
 
 
 PLATFORM_KEYS = {
-    "windows": ("windows_version", "windows_url", "nfprogress-windows-{version}.zip"),
-    "macos_arm": ("macos_arm_version", "macos_arm_url", "nfprogress-mac-arm-{version}.zip"),
-    "macos_intel": ("macos_intel_version", "macos_intel_url", "nfprogress-mac-intel-{version}.zip"),
+    "windows": ("windows_version", "windows_url"),
+    "macos_arm": ("macos_arm_version", "macos_arm_url"),
+    "macos_intel": ("macos_intel_version", "macos_intel_url"),
 }
 
 
@@ -27,22 +27,24 @@ def main() -> int:
     manifest_path = Path("update_manifest.json")
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    versions = [
-        str(manifest.get(version_key, "")).strip()
-        for version_key, _, _ in PLATFORM_KEYS.values()
-    ]
-    versions = [version for version in versions if version]
+    platform_versions = {
+        platform: str((manifest.get(platform) or {}).get("version") or manifest.get(version_key, "")).strip()
+        for platform, (version_key, _) in PLATFORM_KEYS.items()
+    }
+    versions = [version for version in platform_versions.values() if version]
     if not versions:
         raise SystemExit("No platform versions found in update_manifest.json")
 
-    legacy_version = min(versions, key=_version_sort_key)
+    legacy_version = max(versions, key=_version_sort_key)
     legacy_manifest = {
         "version": legacy_version,
-        "windows_url": f"https://nfproject.ru/app/nfprogress-windows-{legacy_version}.zip",
-        "macos_arm_url": f"https://nfproject.ru/app/nfprogress-mac-arm-{legacy_version}.zip",
-        "macos_intel_url": f"https://nfproject.ru/app/nfprogress-mac-intel-{legacy_version}.zip",
         "notes": str(manifest.get("notes", "")).strip(),
     }
+    for platform, (version_key, url_key) in PLATFORM_KEYS.items():
+        section = manifest.get(platform)
+        if isinstance(section, dict) and section.get("url"):
+            legacy_manifest[version_key] = platform_versions[platform]
+            legacy_manifest[url_key] = section["url"]
 
     Path("update_manifest_legacy.json").write_text(
         json.dumps(legacy_manifest, ensure_ascii=False, indent=2) + "\n",

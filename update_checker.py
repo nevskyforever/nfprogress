@@ -1,35 +1,63 @@
+import hashlib
 import json
+import logging
 import os
 import platform
-import shutil
 import shlex
+import shutil
 import ssl
 import subprocess
 import sys
 import tempfile
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
-import uuid
-import zipfile
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QSettings, QThread, Signal, Slot
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox, QProgressDialog
 
 import engine as en
 
 
-# Замените на адрес JSON-файла на вашем хостинге Spaceweb.
 UPDATE_MANIFEST_URL = os.environ.get("NFPROGRESS_UPDATE_URL", "https://nfproject.ru/app/update_manifest.json")
-
 SETTINGS_ORG = "NFProgress"
 SETTINGS_APP = "NFProgress"
 SKIPPED_VERSION_KEY = "updates/skipped_version"
-WINDOWS_UPDATER_ARG = "--nfprogress-updater"
+UPDATE_ARCHIVE_NAME = "nfprogress-update.zip"
+UPDATER_EXECUTABLE = "nfprogress-updater.exe"
+UPDATER_RUNTIME_DIR = "updater-runtime"
+MAX_DOWNLOAD_SIZE = 1024 * 1024 * 1024
 
 
-def _debug(message):
+def _update_data_dir() -> Path:
+    if platform.system() == "Windows":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        base_dir = Path(local_app_data) if local_app_data else Path.home() / "AppData" / "Local"
+        return base_dir / "nfprogress"
+    return Path(tempfile.gettempdir()) / "nfprogress"
+
+
+def _update_log_path() -> Path:
+    return _update_data_dir() / "logs" / "update.log"
+
+
+def _logger() -> logging.Logger:
+    logger = logging.getLogger("nfprogress.update_checker")
+    if logger.handlers:
+        return logger
+    log_path = _update_log_path()
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    handler = logging.FileHandler(log_path, encoding="utf-8")
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    return logger
+
+
+def _debug(message: str) -> None:
+    _logger().info(message)
     if os.environ.get("NFPROGRESS_UPDATE_DEBUG"):
         print(f"[update_checker] {message}")
 
@@ -42,10 +70,10 @@ def _ssl_context():
     return ssl.create_default_context(cafile=certifi.where())
 
 
-def _uncached_manifest_url(url):
+def _uncached_manifest_url(url: str) -> str:
     parsed = urllib.parse.urlsplit(url)
     query = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
-    query.append(("_", uuid.uuid4().hex))
+    query.append(("_", str(int(time.time()))))
     return urllib.parse.urlunsplit(parsed._replace(query=urllib.parse.urlencode(query)))
 
 
@@ -71,41 +99,81 @@ def _is_newer_version(latest_version, current_version):
     return latest > current
 
 
-def _platform_release_info(manifest):
+def _format_download_url(url, version):
+    if not url:
+        return None
+    return str(url).replace("{version}", str(version))
+
+
+def _platform_release_info(manifest: dict) -> dict:
     system = platform.system()
+    common_version = str(manifest.get("version") or "").strip()
     if system == "Windows":
-        return (
-            str(manifest.get("windows_version") or manifest.get("version") or "").strip(),
-            _format_download_url(manifest.get("windows_url"), manifest, "windows_version"),
-        )
+        windows = manifest.get("windows")
+        if isinstance(windows, dict):
+            version = str(windows.get("version") or common_version).strip()
+            return {
+                "version": version,
+                "url": _format_download_url(windows.get("url"), version),
+                "sha256": str(windows.get("sha256") or "").strip().lower(),
+                "size": windows.get("size"),
+                "entry_point": str(windows.get("entry_point") or "").strip(),
+                "secure_manifest": True,
+            }
+
+        version = str(manifest.get("windows_version") or common_version).strip()
+        return {
+            "version": version,
+            "url": _format_download_url(manifest.get("windows_url"), version),
+            "sha256": "",
+            "size": None,
+            "entry_point": "",
+            "secure_manifest": False,
+        }
+
     if system == "Darwin":
         machine = platform.machine().lower()
         if machine in ("arm64", "aarch64"):
-            return (
-                str(manifest.get("macos_arm_version") or manifest.get("macos_version") or manifest.get("version") or "").strip(),
-                _format_download_url(
-                manifest.get("macos_arm_url") or manifest.get("macos_url"),
-                manifest,
-                    "macos_arm_version",
-                ),
-            )
-        return (
-            str(manifest.get("macos_intel_version") or manifest.get("macos_version") or manifest.get("version") or "").strip(),
-            _format_download_url(
-                manifest.get("macos_intel_url") or manifest.get("macos_url"),
-                manifest,
-                "macos_intel_version",
-            ),
-        )
-    return "", None
+            key = "macos_arm"
+            legacy_version_key = "macos_arm_version"
+            legacy_url_key = "macos_arm_url"
+        else:
+            key = "macos_intel"
+            legacy_version_key = "macos_intel_version"
+            legacy_url_key = "macos_intel_url"
+        section = manifest.get(key)
+        if isinstance(section, dict):
+            version = str(section.get("version") or common_version).strip()
+            url = section.get("url")
+        else:
+            version = str(manifest.get(legacy_version_key) or common_version).strip()
+            url = manifest.get(legacy_url_key)
+        return {"version": version, "url": _format_download_url(url, version)}
+    return {"version": "", "url": None}
 
 
-def _format_download_url(url, manifest, version_key):
-    if not url:
-        return None
-
-    version = str(manifest.get(version_key) or manifest.get("version") or "").strip()
-    return str(url).replace("{version}", version)
+def _validate_windows_release(release: dict) -> None:
+    missing = []
+    for key in ("version", "url", "sha256", "size", "entry_point"):
+        if release.get(key) in (None, ""):
+            missing.append(key)
+    if missing:
+        raise ValueError(f"В манифесте отсутствуют обязательные поля Windows: {', '.join(missing)}.")
+    sha256 = str(release["sha256"]).lower()
+    if len(sha256) != 64 or any(char not in "0123456789abcdef" for char in sha256):
+        raise ValueError("Поле windows.sha256 должно содержать полный SHA-256.")
+    try:
+        size = int(release["size"])
+    except (TypeError, ValueError) as error:
+        raise ValueError("Поле windows.size должно быть целым числом.") from error
+    if size <= 0 or size > MAX_DOWNLOAD_SIZE:
+        raise ValueError(f"Размер Windows-архива вне допустимого диапазона: {size} байт.")
+    if str(release["entry_point"]).replace("\\", "/") != "nfprogress/nfprogress.exe":
+        raise ValueError("Поле windows.entry_point должно быть равно nfprogress/nfprogress.exe.")
+    parsed_url = urllib.parse.urlsplit(str(release["url"]))
+    if parsed_url.scheme.lower() != "https" or not parsed_url.netloc:
+        raise ValueError("Поле windows.url должно содержать абсолютный HTTPS-адрес.")
+    release["size"] = size
 
 
 def _is_packaged_app():
@@ -121,9 +189,6 @@ def _current_app_target():
     if platform.system() == "Windows":
         if not _is_packaged_app():
             return None
-
-        # Nuitka onefile keeps the original executable path in sys.argv[0].
-        # sys.executable can point at the temporary unpacked child process.
         for raw_candidate in (sys.argv[0], sys.executable):
             try:
                 candidate = Path(raw_candidate).resolve()
@@ -135,459 +200,144 @@ def _current_app_target():
 
     if platform.system() == "Darwin":
         executable = Path(sys.executable).resolve()
-        candidates = [Path(sys.argv[0]).resolve(), executable]
-        for candidate in candidates:
+        for candidate in (Path(sys.argv[0]).resolve(), executable):
             for parent in (candidate, *candidate.parents):
                 if parent.suffix == ".app" and parent.is_dir():
                     return parent
-        return None
-
     return None
 
 
-def _powershell_literal(value):
-    return "'" + str(value).replace("'", "''") + "'"
+def _windows_programs_dir() -> Path:
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    base_dir = Path(local_app_data) if local_app_data else Path.home() / "AppData" / "Local"
+    return base_dir / "Programs" / "nfprogress"
+
+
+def _resource_roots(current_executable: Path) -> list[Path]:
+    roots = [current_executable.parent, Path(__file__).resolve().parent]
+    unique = []
+    for root in roots:
+        if root not in unique:
+            unique.append(root)
+    return unique
+
+
+def _find_updater_runtime(current_executable: Path) -> Path:
+    for root in _resource_roots(current_executable):
+        runtime = root / UPDATER_RUNTIME_DIR
+        if (runtime / UPDATER_EXECUTABLE).is_file():
+            return runtime
+    raise FileNotFoundError(f"Не найден постоянный {UPDATER_RUNTIME_DIR}/{UPDATER_EXECUTABLE}.")
+
+
+def _is_standalone_install(current_executable: Path) -> bool:
+    try:
+        _find_updater_runtime(current_executable)
+    except FileNotFoundError:
+        return False
+    try:
+        return current_executable.parent.resolve() == _windows_programs_dir().resolve()
+    except OSError:
+        return False
+
+
+def _prepare_permanent_updater(current_executable: Path) -> Path:
+    source_dir = _find_updater_runtime(current_executable)
+    updater_dir = _update_data_dir() / "updater"
+    staging_dir = _update_data_dir() / "updater.new"
+    if staging_dir.exists():
+        shutil.rmtree(staging_dir)
+    staging_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_dir, staging_dir)
+    if updater_dir.exists():
+        shutil.rmtree(updater_dir)
+    staging_dir.replace(updater_dir)
+    updater_path = updater_dir / UPDATER_EXECUTABLE
+    if not updater_path.is_file():
+        raise FileNotFoundError(f"Не удалось подготовить {updater_path}.")
+    return updater_path
+
+
+def _download_update_archive(release: dict, progress_callback=None) -> Path:
+    _validate_windows_release(release)
+    archive_path = _update_data_dir() / "updates" / UPDATE_ARCHIVE_NAME
+    archive_path.parent.mkdir(parents=True, exist_ok=True)
+    archive_path.unlink(missing_ok=True)
+    expected_size = int(release["size"])
+    digest = hashlib.sha256()
+    downloaded = 0
+    request = urllib.request.Request(
+        release["url"],
+        headers={"User-Agent": f"NFProgress/{en.version}"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=30, context=_ssl_context()) as response:
+            status = response.getcode()
+            if status is not None and not 200 <= status < 300:
+                raise RuntimeError(f"Сервер вернул HTTP {status}.")
+            content_length = response.headers.get("Content-Length")
+            if content_length:
+                announced_size = int(content_length)
+                if announced_size > MAX_DOWNLOAD_SIZE or announced_size > expected_size:
+                    raise RuntimeError("Сервер объявил размер файла больше разрешённого манифестом.")
+
+            with archive_path.open("wb") as output:
+                while chunk := response.read(1024 * 1024):
+                    downloaded += len(chunk)
+                    if downloaded > expected_size or downloaded > MAX_DOWNLOAD_SIZE:
+                        raise RuntimeError("Загрузка превышает допустимый размер.")
+                    output.write(chunk)
+                    digest.update(chunk)
+                    if progress_callback:
+                        progress_callback(downloaded, expected_size)
+                output.flush()
+                os.fsync(output.fileno())
+
+        if downloaded != expected_size:
+            raise RuntimeError(
+                f"Размер скачанного файла не совпадает: ожидалось {expected_size}, получено {downloaded}."
+            )
+        actual_sha256 = digest.hexdigest()
+        if actual_sha256 != release["sha256"]:
+            raise RuntimeError(
+                f"SHA-256 скачанного архива не совпадает: ожидался {release['sha256']}, "
+                f"получен {actual_sha256}."
+            )
+        _debug(f"Архив обновления проверен: {archive_path}, {downloaded} байт")
+        return archive_path
+    except Exception:
+        archive_path.unlink(missing_ok=True)
+        _logger().exception("Ошибка загрузки обновления")
+        raise
+
+
+def _launch_windows_updater(release: dict, archive_path: Path) -> tuple[bool, str]:
+    current_executable = _current_app_target()
+    if current_executable is None:
+        raise RuntimeError("Автообновление доступно только в собранной версии приложения.")
+    updater_path = _prepare_permanent_updater(current_executable)
+    migrating = not _is_standalone_install(current_executable)
+    app_dir = _windows_programs_dir() if migrating else current_executable.parent
+    app_dir.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        str(updater_path),
+        "--app-dir", str(app_dir),
+        "--archive", str(archive_path),
+        "--sha256", str(release["sha256"]),
+        "--pid", str(os.getpid()),
+        "--current-version", str(en.version),
+        "--new-version", str(release["version"]),
+    ]
+    if migrating:
+        command.extend(["--legacy-executable", str(current_executable)])
+        command.append("--create-shortcut")
+    subprocess.Popen(command, cwd=str(updater_path.parent))
+    _debug(f"Запущен постоянный updater: {updater_path}; app_dir={app_dir}")
+    return migrating, str(app_dir)
 
 
 def _shell_literal(value):
     return shlex.quote(str(value))
-
-
-def _write_text_file(path, text):
-    path.write_text(text, encoding="utf-8", newline="\n")
-
-
-def _append_update_log(log_path, message):
-    timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-    with open(log_path, "a", encoding="utf-8") as log_file:
-        log_file.write(f"{timestamp} launcher {message}\n")
-
-
-def _read_update_log_tail(log_path, limit=3000):
-    try:
-        text = Path(log_path).read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return ""
-    return text[-limit:].strip()
-
-
-def _windows_creationflags(*names):
-    fallback_values = {
-        "CREATE_NO_WINDOW": 0x08000000,
-        "DETACHED_PROCESS": 0x00000008,
-        "CREATE_NEW_PROCESS_GROUP": 0x00000200,
-        "CREATE_BREAKAWAY_FROM_JOB": 0x01000000,
-    }
-    flags = 0
-    for name in names:
-        flags |= getattr(subprocess, name, fallback_values[name])
-    return flags
-
-
-def _show_windows_message(title, message):
-    if platform.system() != "Windows":
-        return
-    try:
-        import ctypes
-        ctypes.windll.user32.MessageBoxW(None, str(message), str(title), 0x10)
-    except Exception:
-        pass
-
-
-def _wait_for_windows_process_exit(pid, log_path, timeout=180):
-    if pid <= 0:
-        return
-
-    try:
-        import ctypes
-        kernel32 = ctypes.windll.kernel32
-        handle = kernel32.OpenProcess(0x00100000, False, int(pid))
-        if handle:
-            try:
-                _append_update_log(log_path, f"waiting for parent process {pid}")
-                kernel32.WaitForSingleObject(handle, int(timeout * 1000))
-                return
-            finally:
-                kernel32.CloseHandle(handle)
-    except Exception as error:
-        _append_update_log(log_path, f"OpenProcess wait failed: {error}")
-
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        result = subprocess.run(
-            ["tasklist.exe", "/FI", f"PID eq {int(pid)}"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            creationflags=_windows_creationflags("CREATE_NO_WINDOW"),
-        )
-        if str(pid) not in (result.stdout or ""):
-            return
-        time.sleep(0.5)
-
-
-def _copy_extracted_update(replacement_root, new_exe, target_path, log_path):
-    target_dir = target_path.parent
-    backup_path = target_path.with_name(target_path.name + ".old")
-    if backup_path.exists():
-        backup_path.unlink()
-
-    if target_path.exists():
-        _append_update_log(log_path, f"moving old exe to {backup_path}")
-        target_path.replace(backup_path)
-
-    try:
-        _append_update_log(log_path, f"copying update from {replacement_root}")
-        for source in replacement_root.iterdir():
-            destination = target_dir / source.name
-            if source.is_dir():
-                if destination.exists():
-                    shutil.rmtree(destination)
-                shutil.copytree(source, destination)
-            else:
-                shutil.copy2(source, destination)
-
-        if not target_path.exists():
-            shutil.copy2(new_exe, target_path)
-    except Exception:
-        if backup_path.exists() and not target_path.exists():
-            backup_path.replace(target_path)
-        raise
-
-    if backup_path.exists():
-        backup_path.unlink()
-
-
-def _run_windows_updater(download_url, target_path, parent_pid, log_path):
-    target_path = Path(target_path)
-    log_path = Path(log_path)
-    target_dir = target_path.parent
-    work_dir = Path(tempfile.mkdtemp(prefix="nfprogress-update-"))
-    zip_path = work_dir / "update.zip"
-    extract_dir = work_dir / "extract"
-
-    try:
-        _append_update_log(log_path, "exe updater started")
-        _append_update_log(log_path, f"target={target_path}")
-        _wait_for_windows_process_exit(int(parent_pid), log_path)
-        time.sleep(0.7)
-
-        _append_update_log(log_path, f"downloading {download_url}")
-        request = urllib.request.Request(download_url, headers={"User-Agent": f"NFProgress/{en.version}"})
-        with urllib.request.urlopen(request, timeout=60, context=_ssl_context()) as response:
-            with open(zip_path, "wb") as output:
-                shutil.copyfileobj(response, output)
-
-        _append_update_log(log_path, f"extracting {zip_path}")
-        extract_dir.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(zip_path) as archive:
-            archive.extractall(extract_dir)
-
-        new_exe = next(extract_dir.rglob(target_path.name), None)
-        if new_exe is None:
-            new_exe = next(extract_dir.rglob("*.exe"), None)
-        if new_exe is None:
-            raise RuntimeError("В архиве обновления не найден .exe файл.")
-
-        _copy_extracted_update(new_exe.parent, new_exe, target_path, log_path)
-        _append_update_log(log_path, "update installed")
-
-        subprocess.Popen(
-            [str(target_path)],
-            cwd=str(target_dir),
-            creationflags=_windows_creationflags(
-                "DETACHED_PROCESS",
-                "CREATE_NEW_PROCESS_GROUP",
-                "CREATE_BREAKAWAY_FROM_JOB",
-            ),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            close_fds=True,
-        )
-        _append_update_log(log_path, "application restarted")
-        return 0
-    except Exception as error:
-        _append_update_log(log_path, f"failed: {error}")
-        _show_windows_message(
-            "NFProgress",
-            f"Не удалось установить обновление.\n\n{error}\n\nПодробности: {log_path}",
-        )
-        return 1
-    finally:
-        try:
-            shutil.rmtree(work_dir, ignore_errors=True)
-        except Exception:
-            pass
-
-
-def run_windows_updater_from_argv(argv=None):
-    argv = list(sys.argv if argv is None else argv)
-    if platform.system() != "Windows" or len(argv) < 6 or argv[1] != WINDOWS_UPDATER_ARG:
-        return None
-
-    _, _, download_url, target_path, parent_pid, log_path = argv[:6]
-    return _run_windows_updater(download_url, target_path, int(parent_pid), log_path)
-
-
-def _format_process_output(result):
-    parts = [f"exit={result.returncode}"]
-    stdout = (result.stdout or "").strip()
-    stderr = (result.stderr or "").strip()
-    if stdout:
-        parts.append(f"stdout={stdout}")
-    if stderr:
-        parts.append(f"stderr={stderr}")
-    return "; ".join(parts)
-
-
-def _wait_for_windows_updater_start(log_path, marker="updater started", timeout=3.0):
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        log_tail = _read_update_log_tail(log_path)
-        if marker in log_tail:
-            return True
-        time.sleep(0.2)
-    return False
-
-
-def _build_windows_updater_script(download_url, target_path, parent_pid, log_path, task_name=None):
-    target_dir = target_path.parent
-    target_name = target_path.name
-    task_name_literal = _powershell_literal(task_name or "")
-    return f"""$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-$downloadUrl = {_powershell_literal(download_url)}
-$targetPath = {_powershell_literal(target_path)}
-$targetDir = {_powershell_literal(target_dir)}
-$targetName = {_powershell_literal(target_name)}
-$parentPid = {int(parent_pid)}
-$logPath = {_powershell_literal(log_path)}
-$taskName = {task_name_literal}
-
-function Write-UpdateLog([string]$Message) {{
-    Add-Content -Path $logPath -Value ("{{0}} {{1}}" -f (Get-Date -Format o), $Message)
-}}
-
-try {{
-    Write-UpdateLog "updater started"
-    Write-UpdateLog "waiting for application process $parentPid"
-    Wait-Process -Id $parentPid -ErrorAction SilentlyContinue
-    Start-Sleep -Milliseconds 700
-
-    $workDir = Join-Path ([System.IO.Path]::GetTempPath()) ("nfprogress-update-" + [guid]::NewGuid().ToString("N"))
-    New-Item -ItemType Directory -Path $workDir -Force | Out-Null
-    $zipPath = Join-Path $workDir "update.zip"
-    $extractDir = Join-Path $workDir "extract"
-
-    Write-UpdateLog "downloading $downloadUrl"
-    Invoke-WebRequest -Uri $downloadUrl -OutFile $zipPath -UseBasicParsing
-    Write-UpdateLog "extracting $zipPath"
-    Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
-
-    $newExe = Get-ChildItem -Path $extractDir -Filter $targetName -Recurse -File | Select-Object -First 1
-    if (-not $newExe) {{
-        $newExe = Get-ChildItem -Path $extractDir -Filter "*.exe" -Recurse -File | Select-Object -First 1
-    }}
-    if (-not $newExe) {{
-        throw "В архиве обновления не найден .exe файл."
-    }}
-
-    $replacementRoot = $newExe.Directory.FullName
-    Write-UpdateLog "replacement root $replacementRoot"
-
-    $backupPath = "$targetPath.old"
-    Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
-    if (Test-Path -LiteralPath $targetPath) {{
-        Move-Item -LiteralPath $targetPath -Destination $backupPath -Force
-    }}
-    try {{
-        Copy-Item -Path (Join-Path $replacementRoot "*") -Destination $targetDir -Recurse -Force
-        if (-not (Test-Path -LiteralPath $targetPath)) {{
-            Copy-Item -LiteralPath $newExe.FullName -Destination $targetPath -Force
-        }}
-    }} catch {{
-        if (Test-Path -LiteralPath $backupPath) {{
-            Move-Item -LiteralPath $backupPath -Destination $targetPath -Force
-        }}
-        throw
-    }}
-
-    Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
-    Write-UpdateLog "updated $targetPath"
-    Start-Process -FilePath $targetPath -WorkingDirectory $targetDir
-}} catch {{
-    Write-UpdateLog ("failed: " + $_.Exception.Message)
-    Add-Type -AssemblyName PresentationFramework -ErrorAction SilentlyContinue
-    [System.Windows.MessageBox]::Show("Не удалось установить обновление.`n`n$($_.Exception.Message)`n`nПодробности: $logPath", "NFProgress") | Out-Null
-}} finally {{
-    if ($taskName) {{
-        schtasks.exe /Delete /TN $taskName /F | Out-Null
-    }}
-}}
-"""
-
-
-def _windows_powershell_executable():
-    system_root = os.environ.get("SystemRoot")
-    if system_root:
-        powershell = Path(system_root) / "System32" / "WindowsPowerShell" / "v1.0" / "powershell.exe"
-        if powershell.exists():
-            return str(powershell)
-    return "powershell.exe"
-
-
-def _start_windows_updater_with_task_scheduler(script_path, task_name, log_path):
-    powershell = _windows_powershell_executable()
-    task_action = f'"{powershell}" -NoProfile -ExecutionPolicy Bypass -File "{script_path}"'
-    start_time = time.strftime("%H:%M", time.localtime(time.time() + 60))
-    create_command = [
-        "schtasks.exe",
-        "/Create",
-        "/TN",
-        task_name,
-        "/TR",
-        task_action,
-        "/SC",
-        "ONCE",
-        "/ST",
-        start_time,
-        "/F",
-    ]
-    run_command = ["schtasks.exe", "/Run", "/TN", task_name]
-
-    _append_update_log(log_path, f"creating scheduled task {task_name}")
-    create_result = subprocess.run(
-        create_command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        creationflags=_windows_creationflags("CREATE_NO_WINDOW"),
-    )
-    if create_result.returncode != 0:
-        details = _format_process_output(create_result)
-        _append_update_log(log_path, f"scheduled task create failed: {details}")
-        raise RuntimeError(details)
-    _append_update_log(log_path, f"scheduled task create ok: {_format_process_output(create_result)}")
-
-    _append_update_log(log_path, f"running scheduled task {task_name}")
-    run_result = subprocess.run(
-        run_command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        creationflags=_windows_creationflags("CREATE_NO_WINDOW"),
-    )
-    if run_result.returncode != 0:
-        details = _format_process_output(run_result)
-        _append_update_log(log_path, f"scheduled task run failed: {details}")
-        subprocess.run(
-            ["schtasks.exe", "/Delete", "/TN", task_name, "/F"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=_windows_creationflags("CREATE_NO_WINDOW"),
-        )
-        raise RuntimeError(details)
-    _append_update_log(log_path, f"scheduled task run ok: {_format_process_output(run_result)}")
-    if not _wait_for_windows_updater_start(log_path):
-        details = _read_update_log_tail(log_path)
-        raise RuntimeError(f"scheduled task started but updater did not write startup marker. Log:\n{details}")
-
-
-def _start_windows_updater_direct(script_path, log_path):
-    command = [
-        _windows_powershell_executable(),
-        "-NoProfile",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-File",
-        str(script_path),
-    ]
-    flags = _windows_creationflags(
-        "CREATE_NO_WINDOW",
-        "DETACHED_PROCESS",
-        "CREATE_NEW_PROCESS_GROUP",
-        "CREATE_BREAKAWAY_FROM_JOB",
-    )
-    _append_update_log(log_path, "starting PowerShell directly with breakaway")
-    try:
-        process = subprocess.Popen(
-            command,
-            creationflags=flags,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            close_fds=True,
-        )
-    except OSError as error:
-        _append_update_log(log_path, f"PowerShell breakaway start failed: {error}")
-        process = subprocess.Popen(
-            command,
-            creationflags=_windows_creationflags(
-                "CREATE_NO_WINDOW",
-                "DETACHED_PROCESS",
-                "CREATE_NEW_PROCESS_GROUP",
-            ),
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            close_fds=True,
-        )
-    if not _wait_for_windows_updater_start(log_path):
-        log_tail = _read_update_log_tail(log_path)
-        return_code = process.poll()
-        details = "PowerShell не записал стартовую строку в лог."
-        if return_code is not None:
-            details += f" Процесс завершился с кодом {return_code}."
-        if log_tail:
-            details += f"\n\nЛог:\n{log_tail}"
-        raise RuntimeError(details)
-
-
-def _start_windows_exe_updater(download_url, target_path, parent_pid, log_path, wait_for_start=True):
-    updater_path = Path(tempfile.gettempdir()) / f"nfprogress-updater-{uuid.uuid4().hex}.exe"
-    shutil.copy2(target_path, updater_path)
-    _append_update_log(log_path, f"copied updater exe to {updater_path}")
-
-    process = subprocess.Popen(
-        [
-            str(updater_path),
-            WINDOWS_UPDATER_ARG,
-            str(download_url),
-            str(target_path),
-            str(parent_pid),
-            str(log_path),
-        ],
-        cwd=str(target_path.parent),
-        creationflags=_windows_creationflags(
-            "DETACHED_PROCESS",
-            "CREATE_NEW_PROCESS_GROUP",
-            "CREATE_BREAKAWAY_FROM_JOB",
-        ),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        stdin=subprocess.DEVNULL,
-        close_fds=True,
-    )
-
-    if not wait_for_start:
-        return
-
-    if not _wait_for_windows_updater_start(log_path, marker="exe updater started"):
-        log_tail = _read_update_log_tail(log_path)
-        return_code = process.poll()
-        details = "Updater-exe не записал стартовую строку в лог."
-        if return_code is not None:
-            details += f" Процесс завершился с кодом {return_code}."
-        if log_tail:
-            details += f"\n\nЛог:\n{log_tail}"
-        raise RuntimeError(details)
 
 
 def _build_macos_updater_script(download_url, target_path, parent_pid, log_path):
@@ -675,111 +425,84 @@ open "$TARGET_PATH"
 """
 
 
-def _start_background_update(download_url, parent):
-    success, message, severity = _launch_background_update(download_url)
-    if success:
-        QApplication.quit()
-        return True
-
-    if severity == "critical":
-        QMessageBox.critical(parent, "Обновление приложения", message)
-    else:
-        QMessageBox.warning(parent, "Обновление приложения", message)
-    return False
-
-
-def _launch_background_update(download_url):
+def _launch_macos_update(download_url):
     target_path = _current_app_target()
     if target_path is None:
-        return False, "Автообновление доступно только в собранной версии приложения.", "warning"
-
-    temp_dir = Path(tempfile.gettempdir())
-    log_path = temp_dir / "nfprogress-update.log"
-    parent_pid = os.getpid()
-
-    if platform.system() == "Windows":
-        try:
-            log_path.unlink()
-        except FileNotFoundError:
-            pass
-        except OSError:
-            pass
-        try:
-            _start_windows_exe_updater(download_url, target_path, parent_pid, log_path, wait_for_start=False)
-        except Exception as error:
-            _debug(f"failed to start Windows exe updater: {error}")
-            return (
-                False,
-                f"Не удалось запустить установщик обновления.\n\n{error}\n\nЛог: {log_path}",
-                "critical",
-            )
-    elif platform.system() == "Darwin":
-        try:
-            script_path = temp_dir / "nfprogress-update.sh"
-            _write_text_file(script_path, _build_macos_updater_script(download_url, target_path, parent_pid, log_path))
-            script_path.chmod(0o700)
-            subprocess.Popen(
-                ["/bin/sh", str(script_path)],
-                start_new_session=True,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                close_fds=True,
-            )
-        except Exception as error:
-            _debug(f"failed to start macOS updater: {error}")
-            return (
-                False,
-                f"Не удалось запустить установщик обновления.\n\n{error}\n\nЛог: {log_path}",
-                "critical",
-            )
-    else:
-        return False, "Автообновление для этой операционной системы пока не поддерживается.", "warning"
-
-    return True, "", "success"
+        raise RuntimeError("Автообновление доступно только в собранной версии приложения.")
+    update_dir = _update_data_dir()
+    update_dir.mkdir(parents=True, exist_ok=True)
+    script_path = update_dir / "nfprogress-update.sh"
+    log_path = _update_log_path()
+    script_path.write_text(
+        _build_macos_updater_script(download_url, target_path, os.getpid(), log_path),
+        encoding="utf-8",
+        newline="\n",
+    )
+    script_path.chmod(0o700)
+    subprocess.Popen(
+        ["/bin/sh", str(script_path)],
+        start_new_session=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+        close_fds=True,
+    )
 
 
-class UpdateLaunchWorker(QObject):
-    finished = Signal(bool, str, str)
+class UpdateDownloadWorker(QObject):
+    finished = Signal(str)
+    failed = Signal(str)
+    progress = Signal(int, int)
 
-    def __init__(self, download_url):
+    def __init__(self, release):
         super().__init__()
-        self.download_url = download_url
+        self.release = release
 
     @Slot()
     def run(self):
-        success, message, severity = _launch_background_update(self.download_url)
-        self.finished.emit(success, message, severity)
+        try:
+            archive_path = _download_update_archive(self.release, self.progress.emit)
+        except urllib.error.HTTPError as error:
+            self.failed.emit(f"Сервер вернул HTTP {error.code} при загрузке обновления.")
+        except urllib.error.URLError as error:
+            self.failed.emit(f"Не удалось подключиться к серверу обновлений: {error.reason}")
+        except Exception as error:
+            self.failed.emit(str(error))
+        else:
+            self.finished.emit(str(archive_path))
 
 
 class UpdateCheckWorker(QObject):
     finished = Signal(dict)
     failed = Signal()
 
+    @Slot()
     def run(self):
         if not UPDATE_MANIFEST_URL:
-            _debug("manifest URL is empty")
             self.failed.emit()
             return
-
         try:
-            request_url = _uncached_manifest_url(UPDATE_MANIFEST_URL)
-            _debug(f"requesting {request_url}")
             request = urllib.request.Request(
-                request_url,
+                _uncached_manifest_url(UPDATE_MANIFEST_URL),
                 headers={
                     "User-Agent": f"NFProgress/{en.version}",
                     "Cache-Control": "no-cache",
                     "Pragma": "no-cache",
                 },
             )
-            with urllib.request.urlopen(request, timeout=6, context=_ssl_context()) as response:
-                payload = response.read().decode("utf-8")
-            manifest = json.loads(payload)
-        except Exception as error:
-            _debug(f"manifest request failed: {error}")
+            with urllib.request.urlopen(request, timeout=10, context=_ssl_context()) as response:
+                status = response.getcode()
+                if status is not None and not 200 <= status < 300:
+                    raise RuntimeError(f"HTTP {status}")
+                payload = response.read(1024 * 1024 + 1)
+            if len(payload) > 1024 * 1024:
+                raise ValueError("Манифест слишком большой.")
+            manifest = json.loads(payload.decode("utf-8"))
+            if not isinstance(manifest, dict):
+                raise ValueError("Корень манифеста должен быть объектом.")
+        except Exception:
+            _logger().exception("Не удалось получить манифест обновления")
             self.failed.emit()
             return
-
         self.finished.emit(manifest)
 
 
@@ -789,19 +512,18 @@ class UpdateChecker(QObject):
         self._thread = None
         self._worker = None
         self._dialog_parent = None
-        self._launch_thread = None
-        self._launch_worker = None
-        self._launch_parent = None
+        self._download_thread = None
+        self._download_worker = None
+        self._download_release = None
+        self._progress_dialog = None
 
     def check_for_updates(self, parent=None):
         if self._thread is not None:
             return
-
         self._dialog_parent = parent
         self._thread = QThread(self)
         self._worker = UpdateCheckWorker()
         self._worker.moveToThread(self._thread)
-
         self._thread.started.connect(self._worker.run)
         self._worker.finished.connect(self._on_worker_finished)
         self._worker.failed.connect(self._on_worker_failed)
@@ -810,117 +532,160 @@ class UpdateChecker(QObject):
     @Slot(dict)
     def _on_worker_finished(self, manifest):
         parent = self._dialog_parent
-        self._cleanup_worker()
+        self._cleanup_check_worker()
         self._handle_manifest(manifest, parent)
 
     @Slot()
     def _on_worker_failed(self):
-        self._cleanup_worker()
+        self._cleanup_check_worker()
 
-    def shutdown(self):
-        self._cleanup_worker()
-        self._cleanup_launch_worker()
-
-    def _cleanup_worker(self):
+    def _cleanup_check_worker(self):
         if self._thread is None:
             return
-
-        thread = self._thread
-        worker = self._worker
-        self._worker = None
-        self._thread = None
-        self._dialog_parent = None
-
+        thread, worker = self._thread, self._worker
+        self._thread = self._worker = self._dialog_parent = None
         worker.deleteLater()
         thread.quit()
         thread.wait()
         thread.deleteLater()
 
-    def _start_update_install(self, download_url, parent):
-        if self._launch_thread is not None:
-            return
-
-        self._launch_parent = parent
-        self._launch_thread = QThread(self)
-        self._launch_worker = UpdateLaunchWorker(download_url)
-        self._launch_worker.moveToThread(self._launch_thread)
-
-        self._launch_thread.started.connect(self._launch_worker.run)
-        self._launch_worker.finished.connect(self._on_update_launch_finished)
-        self._launch_thread.start()
-
-    @Slot(bool, str, str)
-    def _on_update_launch_finished(self, success, message, severity):
-        parent = self._launch_parent
-        self._cleanup_launch_worker()
-
-        if success:
-            QApplication.quit()
-            return
-
-        if severity == "critical":
-            QMessageBox.critical(parent, "Обновление приложения", message)
-        else:
-            QMessageBox.warning(parent, "Обновление приложения", message)
-
-    def _cleanup_launch_worker(self):
-        if self._launch_thread is None:
-            return
-
-        thread = self._launch_thread
-        worker = self._launch_worker
-        self._launch_worker = None
-        self._launch_thread = None
-        self._launch_parent = None
-
-        worker.deleteLater()
-        thread.quit()
-        thread.wait()
-        thread.deleteLater()
+    def shutdown(self):
+        self._cleanup_check_worker()
+        self._cleanup_download_worker()
 
     def _handle_manifest(self, manifest, parent):
-        latest_version, download_url = _platform_release_info(manifest)
-        if not latest_version:
-            _debug("manifest has no version for this platform")
+        release = _platform_release_info(manifest)
+        latest_version = release.get("version")
+        current_target = _current_app_target()
+        migration_needed = (
+            platform.system() == "Windows"
+            and current_target is not None
+            and not _is_standalone_install(current_target)
+        )
+        if not latest_version or (
+            not _is_newer_version(latest_version, en.version) and not migration_needed
+        ):
             return
-
-        if not _is_newer_version(latest_version, en.version):
-            _debug(f"no update: current={en.version}, latest={latest_version}")
-            return
-
-        if not download_url:
-            _debug("manifest has no download URL for this platform")
+        if not release.get("url"):
+            _debug("В манифесте отсутствует URL обновления для текущей платформы")
             return
 
         settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
-        skipped_version = settings.value(SKIPPED_VERSION_KEY, "")
-        if skipped_version == latest_version:
-            _debug(f"version {latest_version} was skipped")
+        if settings.value(SKIPPED_VERSION_KEY, "") == latest_version and not migration_needed:
             return
 
-        _debug(f"showing update dialog for {latest_version}: {download_url}")
-        self._show_update_dialog(parent, manifest, latest_version, download_url, settings)
+        if platform.system() == "Windows":
+            try:
+                _validate_windows_release(release)
+            except ValueError as error:
+                QMessageBox.warning(
+                    parent,
+                    "Обновление приложения",
+                    f"Автоматическое обновление отменено.\n\n{error}\n\n"
+                    "Архив без корректного SHA-256 устанавливаться не будет.",
+                )
+                return
+        self._show_update_dialog(parent, manifest, release, settings)
 
-    def _show_update_dialog(self, parent, manifest, latest_version, download_url, settings):
+    def _show_update_dialog(self, parent, manifest, release, settings):
+        latest_version = release["version"]
         notes = str(manifest.get("notes", "")).strip()
         message = f"Доступна новая версия {latest_version}."
         if notes:
             message += f"\n\n{notes}"
-        message += "\n\nПосле нажатия «Обновить» приложение закроется, скачает обновление в фоне и запустится снова."
+        if platform.system() == "Windows" and (_current_app_target() is not None):
+            if not _is_standalone_install(_current_app_target()):
+                message += (
+                    "\n\nФормат установки изменился. Новая версия будет установлена в "
+                    f"{_windows_programs_dir()}. Старый EXE автоматически удаляться не будет."
+                )
+        message += "\n\nАрхив будет скачан и проверен перед закрытием приложения."
 
         dialog = QMessageBox(parent)
         dialog.setWindowTitle("Обновление приложения")
         dialog.setIcon(QMessageBox.Information)
         dialog.setText(message)
-
         update_button = dialog.addButton("Обновить", QMessageBox.AcceptRole)
         skip_button = dialog.addButton("Пропустить эту версию", QMessageBox.RejectRole)
         dialog.addButton("Позже", QMessageBox.DestructiveRole)
-
         dialog.exec()
-        clicked_button = dialog.clickedButton()
-
-        if clicked_button == update_button:
-            self._start_update_install(download_url, parent)
-        elif clicked_button == skip_button:
+        if dialog.clickedButton() == update_button:
+            if platform.system() == "Windows":
+                self._start_windows_download(release, parent)
+            else:
+                try:
+                    _launch_macos_update(release["url"])
+                except Exception as error:
+                    QMessageBox.critical(parent, "Обновление приложения", str(error))
+                else:
+                    QApplication.quit()
+        elif dialog.clickedButton() == skip_button:
             settings.setValue(SKIPPED_VERSION_KEY, latest_version)
+
+    def _start_windows_download(self, release, parent):
+        if self._download_thread is not None:
+            return
+        self._dialog_parent = parent
+        self._download_release = release
+        self._progress_dialog = QProgressDialog("Скачивание и проверка обновления…", "", 0, 100, parent)
+        self._progress_dialog.setWindowTitle("Обновление NFProgress")
+        self._progress_dialog.setCancelButton(None)
+        self._progress_dialog.setMinimumDuration(0)
+        self._progress_dialog.setValue(0)
+        self._download_thread = QThread(self)
+        self._download_worker = UpdateDownloadWorker(release)
+        self._download_worker.moveToThread(self._download_thread)
+        self._download_thread.started.connect(self._download_worker.run)
+        self._download_worker.progress.connect(self._on_download_progress)
+        self._download_worker.finished.connect(self._on_download_finished)
+        self._download_worker.failed.connect(self._on_download_failed)
+        self._download_thread.start()
+
+    @Slot(int, int)
+    def _on_download_progress(self, downloaded, total):
+        if self._progress_dialog is not None and total > 0:
+            self._progress_dialog.setValue(min(100, int(downloaded * 100 / total)))
+
+    @Slot(str)
+    def _on_download_finished(self, archive_path):
+        parent = self._dialog_parent
+        release = self._download_release
+        self._cleanup_download_worker()
+        try:
+            migrating, app_dir = _launch_windows_updater(release, Path(archive_path))
+        except Exception as error:
+            _logger().exception("Не удалось запустить updater")
+            QMessageBox.critical(
+                parent,
+                "Обновление приложения",
+                f"Не удалось запустить updater.\n\n{error}\n\nЛог: {_update_log_path()}",
+            )
+            return
+        if migrating:
+            _debug(f"Запущена миграция standalone в {app_dir}")
+        QApplication.quit()
+
+    @Slot(str)
+    def _on_download_failed(self, message):
+        parent = self._dialog_parent
+        self._cleanup_download_worker()
+        QMessageBox.critical(
+            parent,
+            "Обновление приложения",
+            f"Обновление не скачано и не будет установлено.\n\n{message}\n\nЛог: {_update_log_path()}",
+        )
+
+    def _cleanup_download_worker(self):
+        if self._download_thread is None:
+            return
+        thread, worker = self._download_thread, self._download_worker
+        dialog = self._progress_dialog
+        self._download_thread = self._download_worker = None
+        self._download_release = self._progress_dialog = self._dialog_parent = None
+        if dialog is not None:
+            dialog.close()
+            dialog.deleteLater()
+        worker.deleteLater()
+        thread.quit()
+        thread.wait()
+        thread.deleteLater()

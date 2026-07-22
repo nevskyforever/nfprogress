@@ -3,6 +3,8 @@ import pickle
 import sys
 import math
 from datetime import datetime, timedelta
+from pathlib import Path
+
 import engine
 import game_data
 
@@ -195,7 +197,7 @@ def resource_path(relative_path):
     if hasattr(sys, '_MEIPASS'):
         # PyInstaller создает временную папку и хранит путь в _MEIPASS
         return os.path.join(sys._MEIPASS, relative_path)
-    return os.path.join(os.path.abspath("."), relative_path)
+    return str(Path(__file__).resolve().parent / relative_path)
 
 
 def get_effective_now():

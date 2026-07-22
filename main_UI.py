@@ -26,7 +26,7 @@ from UI_fiiles.project_stats import Ui_project_stats as project_stats_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
-from update_checker import UpdateChecker, run_windows_updater_from_argv
+from update_checker import UpdateChecker
 
 
 def _read_word_sync_source(project):
@@ -4001,9 +4001,9 @@ def _suppress_invalid_object_stderr_spam():
 
 
 if __name__ == "__main__":
-    updater_exit_code = run_windows_updater_from_argv()
-    if updater_exit_code is not None:
-        sys.exit(updater_exit_code)
+    if "--smoke-test" in sys.argv:
+        print(f"NFProgress {en.version}: smoke test passed")
+        sys.exit(0)
 
     _suppress_invalid_object_stderr_spam()
     app = QApplication(sys.argv)

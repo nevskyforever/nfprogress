@@ -1,7 +1,19 @@
 {
-  "version": "3.11",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-{version}.exe",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-{version}.zip",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-{version}.zip",
+  "version": "4.8",
+  "windows": {
+    "version": "4.8",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.8.zip",
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    "size": 123456789,
+    "entry_point": "nfprogress/nfprogress.exe"
+  },
+  "macos_arm": {
+    "version": "4.8",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.zip"
+  },
+  "macos_intel": {
+    "version": "4.8",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.zip"
+  },
   "notes": "Исправлены ошибки и улучшена стабильность."
 }
