@@ -25,13 +25,11 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Cache pip packages
+      - name: Restore pip cache
         uses: actions/cache@v4
         with:
           path: ~\AppData\Local\pip\Cache
-          key: pip-${{ runner.os }}-${{ hashFiles('.github/workflows/build.yml') }}
-          restore-keys: |
-            pip-${{ runner.os }}-
+          key: pip-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
@@ -39,7 +37,7 @@ jobs:
           python -m pip install nuitka zstandard
           python -m pip install PySide6 python-docx striprtf
 
-      - name: Cache Nuitka downloads
+      - name: Restore Nuitka cache
         uses: actions/cache@v4
         with:
           path: ~\AppData\Local\Nuitka\Nuitka\Cache
@@ -208,19 +206,15 @@ jobs:
             Out-File build\logs\authenticode-status.txt -Encoding utf8
           Get-AuthenticodeSignature dist\nfprogress\nfprogress-updater.exe | Format-List Status, StatusMessage, Path |
             Out-File build\logs\authenticode-status.txt -Encoding utf8 -Append
-
-      - name: Upload build diagnostics
-        uses: actions/upload-artifact@v4
-        with:
-          name: nfprogress-windows-${{ env.APP_VERSION }}
-          path: |
-            dist/nfprogress-windows-${{ env.APP_VERSION }}.zip
-            dist/checksums-windows.txt
-            dist/pe-inspection-windows.txt
-            update_manifest.json
-            update_manifest_legacy.json
-            build/logs/
-          if-no-files-found: error
+          $diagnosticsDir = "build\release-diagnostics"
+          New-Item -ItemType Directory -Path $diagnosticsDir -Force | Out-Null
+          Copy-Item build\logs "$diagnosticsDir\logs" -Recurse -Force
+          Copy-Item dist\checksums-windows.txt $diagnosticsDir -Force
+          Copy-Item dist\pe-inspection-windows.txt $diagnosticsDir -Force
+          Copy-Item update_manifest.json $diagnosticsDir -Force
+          Copy-Item update_manifest_legacy.json $diagnosticsDir -Force
+          $diagnosticsPath = "dist\nfprogress-windows-$($env:APP_VERSION)-diagnostics.zip"
+          Compress-Archive -Path $diagnosticsDir -DestinationPath $diagnosticsPath -CompressionLevel Optimal
 
       - name: Upload release to hosting over SSH
         shell: pwsh
@@ -269,6 +263,9 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Unable to upload legacy manifest." }
           & scp @scpOptions dist\checksums-windows.txt "${target}:$($env:SSH_UPLOAD_DIR)/"
           if ($LASTEXITCODE -ne 0) { throw "Unable to upload checksums." }
+          $diagnostics = "dist\nfprogress-windows-$($env:APP_VERSION)-diagnostics.zip"
+          & scp @scpOptions $diagnostics "${target}:$($env:SSH_UPLOAD_DIR)/"
+          if ($LASTEXITCODE -ne 0) { throw "Unable to upload build diagnostics." }
           "WINDOWS_UPLOAD_COMPLETED=true" >> $env:GITHUB_ENV
 
       - name: Notify Telegram channel
