@@ -154,12 +154,32 @@ jobs:
       - name: Run executable smoke tests
         shell: pwsh
         run: |
-          & dist\nfprogress\nfprogress.exe --smoke-test
-          if ($LASTEXITCODE -ne 0) { throw "nfprogress.exe smoke test failed: $LASTEXITCODE" }
-          & dist\nfprogress\nfprogress-updater.exe --help
-          if ($LASTEXITCODE -ne 0) { throw "root nfprogress-updater.exe smoke test failed: $LASTEXITCODE" }
-          & dist\nfprogress\updater-runtime\nfprogress-updater.exe --help
-          if ($LASTEXITCODE -ne 0) { throw "nfprogress-updater.exe smoke test failed: $LASTEXITCODE" }
+          $mainProcess = Start-Process `
+            -FilePath dist\nfprogress\nfprogress.exe `
+            -ArgumentList "--smoke-test" `
+            -Wait `
+            -PassThru
+          if ($mainProcess.ExitCode -ne 0) {
+            throw "nfprogress.exe smoke test failed: $($mainProcess.ExitCode)"
+          }
+
+          $rootUpdaterProcess = Start-Process `
+            -FilePath dist\nfprogress\nfprogress-updater.exe `
+            -ArgumentList "--help" `
+            -Wait `
+            -PassThru
+          if ($rootUpdaterProcess.ExitCode -ne 0) {
+            throw "root nfprogress-updater.exe smoke test failed: $($rootUpdaterProcess.ExitCode)"
+          }
+
+          $runtimeUpdaterProcess = Start-Process `
+            -FilePath dist\nfprogress\updater-runtime\nfprogress-updater.exe `
+            -ArgumentList "--help" `
+            -Wait `
+            -PassThru
+          if ($runtimeUpdaterProcess.ExitCode -ne 0) {
+            throw "nfprogress-updater.exe smoke test failed: $($runtimeUpdaterProcess.ExitCode)"
+          }
 
       - name: Refresh current cross-platform manifest
         shell: pwsh
