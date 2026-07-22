@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -71,7 +72,11 @@ def main() -> int:
     version_key, url_key, filename_template = PLATFORM_KEYS[platform]
     manifest[version_key] = version
     manifest[url_key] = f"https://nfproject.ru/app/{filename_template.format(version=version)}"
-    manifest.setdefault("notes", "Исправлены ошибки и улучшена стабильность.")
+    release_notes = os.environ.get("RELEASE_NOTES", "").strip()
+    if release_notes:
+        manifest["notes"] = release_notes
+    else:
+        manifest.setdefault("notes", "Исправлены ошибки и улучшена стабильность.")
     _sync_legacy_version(manifest)
 
     manifest_path.write_text(
