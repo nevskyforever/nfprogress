@@ -537,7 +537,7 @@ class Project:
         """
         today = today_for_test()
 
-        if self.has_stages():
+        if self.has_stages() and self.deadline == 'Нет':
             stage_daily_goals = [
                 stage.get_today_goal_value()
                 for stage in self.stages
@@ -558,12 +558,22 @@ class Project:
 
         # === 2. БЫСТРЫЙ ВОЗВРАТ ИЗ КЭША (Защита от "убегания" цели) ===
         # Создаем "слепок" параметров, от которых зависит план
+        stages_signature = tuple(
+            (
+                getattr(stage, 'stage_id', None),
+                stage.get_goal_symbols(),
+                getattr(stage, 'deadline', 'Нет'),
+                getattr(stage, 'personal_goal_for_the_day', 0),
+            )
+            for stage in self.stages
+        ) if self.has_stages() else ()
         current_signature = str((
             getattr(self, 'deadline', 'Нет'),
             getattr(self, 'personal_goal_for_the_day', 0),
-            getattr(self, '_goal', 0),
+            self.get_goal_symbols(),
             getattr(self, 'unit', 'symbols'),
-            getattr(self, 'deadline_set_date', None)
+            getattr(self, 'deadline_set_date', None),
+            stages_signature,
         ))
 
         # Если день есть в плане И настройки не менялись с момента последнего расчета — отдаем кэш
@@ -659,7 +669,7 @@ class Project:
 
     def get_today_display_goal_value(self):
         """Возвращает накопительную цель для отображения родительского проекта."""
-        if self.has_stages():
+        if self.has_stages() and self.deadline == 'Нет':
             has_stage_daily_goal = any(
                 stage.deadline != 'Нет' or getattr(stage, 'personal_goal_for_the_day', 0)
                 for stage in self.stages

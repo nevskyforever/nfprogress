@@ -648,11 +648,18 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.label_today_goal.setVisible(False)
             else:
                 # Всегда показываем цель, если есть дедлайн (независимо от personal_goal)
-                if project.has_stages():
-                    today_goal_completed = all(
-                        stage.get_total_symbols() >= stage.get_today_goal_value()
+                if project.has_stages() and project.deadline == 'Нет':
+                    has_stage_daily_goals = any(
+                        stage.deadline != 'Нет' or getattr(stage, 'personal_goal_for_the_day', 0)
                         for stage in project.stages
                     )
+                    if has_stage_daily_goals:
+                        today_goal_completed = all(
+                            stage.get_total_symbols() >= stage.get_today_goal_value()
+                            for stage in project.stages
+                        )
+                    else:
+                        today_goal_completed = project.get_total_symbols() >= project.get_today_goal_value()
                 else:
                     today_goal_completed = project.get_total_symbols() >= project.get_today_goal_value()
 
