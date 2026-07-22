@@ -187,6 +187,15 @@ def streak_has_day_after(streaks, target_day):
     return last_day is not None and last_day > target_day
 
 
+def streak_bonus_is_due(last_bonus_day, today=None):
+    """Возвращает True, если бонус за текущие сутки ещё не выдавался."""
+    if today is None:
+        today = today_for_test()
+    if isinstance(last_bonus_day, datetime):
+        last_bonus_day = last_bonus_day.date()
+    return not isinstance(last_bonus_day, date) or last_bonus_day < today
+
+
 def streak_contains_day(streaks, target_day):
     return any(effective_day == target_day for _, effective_day in iter_streak_days(streaks))
 

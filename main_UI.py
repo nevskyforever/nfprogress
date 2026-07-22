@@ -1308,14 +1308,15 @@ class MainWindow(QMainWindow, main_window_ui):
             self.game_controller.add_symbols(added_symbols)
             # Даем бонус за стрик проекта и глобальный, если он включен
             if settings.get('global_streak', False):
-                if bonus_project.last_streak_bonus != en.today_for_test():
+                bonus_day = en.today_for_test()
+                if en.streak_bonus_is_due(bonus_project.last_streak_bonus, bonus_day):
                     if self.game_controller.give_streak_bonus(bonus_project.get_streak_status(), 'Local', en.streak_length(bonus_project.streaks)):
-                        bonus_project.last_streak_bonus = en.today_for_test()
+                        bonus_project.last_streak_bonus = bonus_day
                         self._store_project_entity(data, bonus_project)
                 # Даем бонус за глобальный стрик
-                if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                if en.streak_bonus_is_due(data.get('last_global_streak_bonus'), bonus_day):
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global', len(data['global_streaks'])):
-                        data['last_global_streak_bonus'] = en.today_for_test()
+                        data['last_global_streak_bonus'] = bonus_day
 
         # Сохраняем изменения
         self._store_project_entity(data, project)
@@ -2133,22 +2134,23 @@ class MainWindow(QMainWindow, main_window_ui):
             # Даем бонус за стрик проекта и глобальный, если он включен
             if should_give_streak_bonus:
                 streak_sources = project.stages if project.has_stages() and project.deadline == 'Нет' else [project]
+                bonus_day = en.today_for_test()
                 for streak_source in streak_sources:
-                    if streak_source.last_streak_bonus != en.today_for_test():
+                    if en.streak_bonus_is_due(streak_source.last_streak_bonus, bonus_day):
                         if self.game_controller.give_streak_bonus(
                                 streak_source.get_streak_status(),
                                 'Local',
                                 en.streak_length(streak_source.streaks),
                                 project_name=project.name,
                         ):
-                            streak_source.last_streak_bonus = en.today_for_test()
+                            streak_source.last_streak_bonus = bonus_day
                             data['projects'][project.name] = project
                             data_changed = True
                 # Даем бонус за глобальный стрик
-                if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                if en.streak_bonus_is_due(data.get('last_global_streak_bonus'), bonus_day):
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
                                                               len(data['global_streaks'])):
-                        data['last_global_streak_bonus'] = en.today_for_test()
+                        data['last_global_streak_bonus'] = bonus_day
                         data_changed = True
 
             # Принудительно обновляем layout, чтобы sizeHint был актуальным
@@ -2501,16 +2503,17 @@ class MainWindow(QMainWindow, main_window_ui):
             self.game_controller.add_symbols(added_symbols)
             # Даем бонус за стрик проекта и глобальный, если он включен
             if settings.get('global_streak', False):
-                if bonus_project.last_streak_bonus != en.today_for_test():
+                bonus_day = en.today_for_test()
+                if en.streak_bonus_is_due(bonus_project.last_streak_bonus, bonus_day):
                     if self.game_controller.give_streak_bonus(bonus_project.get_streak_status(), 'Local',
                                                               en.streak_length(bonus_project.streaks)):
-                        bonus_project.last_streak_bonus = en.today_for_test()
+                        bonus_project.last_streak_bonus = bonus_day
                         self._store_project_entity(data, bonus_project)
                 # Даем бонус за глобальный стрик
-                if data.get('last_global_streak_bonus', None) != en.today_for_test():
+                if en.streak_bonus_is_due(data.get('last_global_streak_bonus'), bonus_day):
                     if self.game_controller.give_streak_bonus(self._get_global_streak_status_after_auto_freeze(data), 'Global',
                                                               len(data['global_streaks'])):
-                        data['last_global_streak_bonus'] = en.today_for_test()
+                        data['last_global_streak_bonus'] = bonus_day
 
         # Сохраняем изменения
         self._store_project_entity(data, project)
