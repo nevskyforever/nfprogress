@@ -634,7 +634,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Дедлайн и цель на сегодня
         has_stage_daily_goal = (
                 getattr(project, 'has_stages', lambda: False)()
-                and project.get_today_goal_value() > 0
+                and project.get_today_display_goal_value() > 0
         )
         if project.deadline != 'Нет' or has_stage_daily_goal:
             self.label_deadline.setVisible(True)
@@ -649,22 +649,18 @@ class MainWindow(QMainWindow, main_window_ui):
             else:
                 # Всегда показываем цель, если есть дедлайн (независимо от personal_goal)
                 if project.has_stages():
-                    stage_daily_goals = [
-                        stage for stage in project.stages
-                        if stage.deadline != 'Нет' or getattr(stage, 'personal_goal_for_the_day', 0)
-                    ]
-                    today_goal_completed = bool(stage_daily_goals) and all(
+                    today_goal_completed = all(
                         stage.get_total_symbols() >= stage.get_today_goal_value()
-                        for stage in stage_daily_goals
+                        for stage in project.stages
                     )
                 else:
                     today_goal_completed = project.get_total_symbols() >= project.get_today_goal_value()
 
                 if today_goal_completed:
                     self.today_goal.setText(
-                        f'Цель на сегодня выполнена! ({self._format_number_for_unit(project.get_today_goal_in_unit(), project.unit)})')
+                        f'Цель на сегодня выполнена! ({self._format_number_for_unit(project.get_today_display_goal_in_unit(), project.unit)})')
                 else:
-                    self.today_goal.setText(self._format_number_for_unit(project.get_today_goal_in_unit(), project.unit))
+                    self.today_goal.setText(self._format_number_for_unit(project.get_today_display_goal_in_unit(), project.unit))
 
             if project.deadline != 'Нет':
                 self.deadline.setText(project.deadline_str)

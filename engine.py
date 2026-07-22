@@ -657,6 +657,24 @@ class Project:
             return float('inf')
         return unit_converter('symbols', goal_sym, self.unit)
 
+    def get_today_display_goal_value(self):
+        """Возвращает накопительную цель для отображения родительского проекта."""
+        if self.has_stages():
+            has_stage_daily_goal = any(
+                stage.deadline != 'Нет' or getattr(stage, 'personal_goal_for_the_day', 0)
+                for stage in self.stages
+            )
+            if has_stage_daily_goal:
+                return sum(stage.get_today_goal_value() for stage in self.stages)
+        return self.get_today_goal_value()
+
+    def get_today_display_goal_in_unit(self):
+        """Возвращает накопительную цель для отображения в единице проекта."""
+        goal_sym = self.get_today_display_goal_value()
+        if goal_sym == float('inf'):
+            return float('inf')
+        return unit_converter('symbols', goal_sym, self.unit)
+
     def get_need_write_value(self):
         """Возвращает остаток написать в символах."""
         goal_sym = self.get_goal_symbols()
