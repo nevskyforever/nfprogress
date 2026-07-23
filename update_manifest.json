@@ -1,22 +1,28 @@
 {
-  "version": "4.8.1",
+  "version": "4.8.2",
+  "notes": "Приложение полностью перешло на open source лицензию GPLv3 - код приложения стал полностью открытым.",
   "windows": {
     "version": "4.8.1",
     "url": "https://nfproject.ru/app/nfprogress-windows-4.8.1.zip",
-    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-    "size": 1,
+    "sha256": "ada897c53e49268112a60a103041d89db3dba819dc5dde662dbf0c68b94d17fc",
+    "size": 48389678,
     "entry_point": "nfprogress/nfprogress.exe",
     "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.8.1.exe",
-    "installer_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-    "installer_size": 1
+    "installer_sha256": "f38a3854265c7a4e68e6c9a31f5562db3e25b87e5448524887aa31e272676cd4",
+    "installer_size": 33511119
   },
   "macos_arm": {
-    "version": "4.8",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.zip"
+    "version": "4.8.2",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.2.zip"
   },
   "macos_intel": {
-    "version": "4.8",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.zip"
+    "version": "4.8.2",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.2.zip"
   },
-  "notes": "Исправлены ошибки и улучшена стабильность."
+  "windows_version": "4.8.1",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.8.1.zip",
+  "macos_arm_version": "4.8.2",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.2.zip",
+  "macos_intel_version": "4.8.2",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.2.zip"
 }

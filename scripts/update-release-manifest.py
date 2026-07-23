@@ -33,6 +33,18 @@ def _migrate_legacy_sections(manifest: dict) -> None:
             manifest[platform] = {"version": version, "url": url}
 
 
+def _sync_legacy_fields(manifest: dict) -> None:
+    for platform in PLATFORMS:
+        section = manifest.get(platform)
+        if not isinstance(section, dict):
+            continue
+        version = str(section.get("version") or "").strip()
+        url = section.get("url")
+        if version and url:
+            manifest[f"{platform}_version"] = version
+            manifest[f"{platform}_url"] = url
+
+
 def main() -> int:
     if len(sys.argv) not in (3, 4, 5):
         print(
@@ -85,12 +97,10 @@ def main() -> int:
         section["installer_size"] = installer.stat().st_size
     manifest[platform] = section
 
-    for key in list(manifest):
-        if key.endswith("_url") or key.endswith("_version"):
-            del manifest[key]
     versions = [str(value.get("version", "")) for value in manifest.values() if isinstance(value, dict)]
     versions = [item for item in versions if item]
     manifest["version"] = max(versions, key=_version_sort_key) if versions else version
+    _sync_legacy_fields(manifest)
     release_notes = os.environ.get("RELEASE_NOTES", "").strip()
     if release_notes:
         manifest["notes"] = release_notes

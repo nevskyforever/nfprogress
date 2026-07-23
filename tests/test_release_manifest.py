@@ -61,6 +61,12 @@ def test_windows_manifest_contains_installer_metadata(tmp_path):
     assert windows["installer_sha256"] == hashlib.sha256(installer.read_bytes()).hexdigest()
     assert windows["installer_size"] == installer.stat().st_size
     assert manifest["macos_arm"]["version"] == "9.0"
+    assert manifest["windows_version"] == "9.1"
+    assert manifest["windows_url"] == windows["url"]
+    assert manifest["macos_arm_version"] == "9.0"
+    assert manifest["macos_arm_url"] == manifest["macos_arm"]["url"]
+    assert manifest["macos_intel_version"] == "9.0"
+    assert manifest["macos_intel_url"] == manifest["macos_intel"]["url"]
 
 
 def test_macos_manifest_update_preserves_windows_installer_metadata(tmp_path):
@@ -94,3 +100,7 @@ def test_macos_manifest_update_preserves_windows_installer_metadata(tmp_path):
         "version": "9.2",
         "url": "https://nfproject.ru/app/nfprogress-mac-arm-9.2.zip",
     }
+    assert manifest["windows_version"] == "9.1"
+    assert manifest["windows_url"] == windows["url"]
+    assert manifest["macos_arm_version"] == "9.2"
+    assert manifest["macos_arm_url"] == manifest["macos_arm"]["url"]
