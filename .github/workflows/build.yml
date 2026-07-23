@@ -1,4 +1,4 @@
-name: Build Windows standalone
+name: Build and publish release
 
 on:
   push:
@@ -11,10 +11,20 @@ on:
         required: false
         type: string
 
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
     runs-on: windows-latest
     if: contains(github.event.head_commit.message, 'Обновление') || github.event_name == 'workflow_dispatch'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      release_notes: ${{ steps.release_notes.outputs.release_notes }}
 
     steps:
       - name: Checkout repository
@@ -52,12 +62,15 @@ jobs:
           key: nuitka-cache-${{ runner.os }}
 
       - name: Get version from engine.py
+        id: version
         shell: pwsh
         run: |
           $version = python -c "import engine; print(engine.version)"
           "APP_VERSION=$version" >> $env:GITHUB_ENV
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Extract release notes
+        id: release_notes
         shell: pwsh
         env:
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
@@ -81,6 +94,9 @@ jobs:
           "RELEASE_NOTES<<EOF" >> $env:GITHUB_ENV
           $releaseNotes >> $env:GITHUB_ENV
           "EOF" >> $env:GITHUB_ENV
+          "release_notes<<EOF" >> $env:GITHUB_OUTPUT
+          $releaseNotes >> $env:GITHUB_OUTPUT
+          "EOF" >> $env:GITHUB_OUTPUT
 
       - name: Prepare Qt translations
         shell: pwsh
@@ -295,6 +311,16 @@ jobs:
           $diagnosticsPath = "dist\nfprogress-windows-$($env:APP_VERSION)-diagnostics.zip"
           Compress-Archive -Path $diagnosticsDir -DestinationPath $diagnosticsPath -CompressionLevel Optimal
 
+      - name: Store Windows release files
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: |
+            dist/nfprogress-windows-${{ env.APP_VERSION }}.zip
+            dist/nfprogress-setup-${{ env.APP_VERSION }}.exe
+          if-no-files-found: error
+          retention-days: 7
+
       - name: Upload release to hosting over SSH
         shell: pwsh
         env:
@@ -373,3 +399,82 @@ jobs:
             -Method Post `
             -Body @{ chat_id = $env:TELEGRAM_CHANNEL_ID; text = $message; disable_web_page_preview = "true" } |
             Out-Null
+
+  publish_release:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      APP_VERSION: ${{ needs.build.outputs.version }}
+      RELEASE_NOTES: ${{ needs.build.outputs.release_notes }}
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Download release files
+        uses: actions/download-artifact@v4
+        with:
+          name: release-windows
+          path: release-assets
+
+      - name: Download macOS release files from hosting
+        shell: bash
+        run: |
+          base_url="https://nfproject.ru/app"
+          arm_file="nfprogress-mac-arm-${APP_VERSION}.zip"
+          intel_file="nfprogress-mac-intel-${APP_VERSION}.zip"
+
+          curl --fail --location --retry 3 \
+            --output "release-assets/${arm_file}" \
+            "${base_url}/${arm_file}"
+          curl --fail --location --retry 3 \
+            --output "release-assets/${intel_file}" \
+            "${base_url}/${intel_file}"
+
+          unzip -t "release-assets/${arm_file}"
+          unzip -t "release-assets/${intel_file}"
+
+      - name: Publish release
+        shell: bash
+        run: |
+          tag="v${APP_VERSION}"
+          notes_file="$RUNNER_TEMP/release-notes.txt"
+          printf '%s\n' "$RELEASE_NOTES" > "$notes_file"
+
+          assets=(
+            "release-assets/nfprogress-windows-${APP_VERSION}.zip"
+            "release-assets/nfprogress-setup-${APP_VERSION}.exe"
+            "release-assets/nfprogress-mac-arm-${APP_VERSION}.zip"
+            "release-assets/nfprogress-mac-intel-${APP_VERSION}.zip"
+          )
+
+          for asset in "${assets[@]}"; do
+            if [[ ! -f "$asset" ]]; then
+              echo "Release file is missing: $asset" >&2
+              exit 1
+            fi
+          done
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            tag_type=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.type')
+            tag_commit=$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha')
+            if [[ "$tag_type" == "tag" ]]; then
+              tag_commit=$(gh api "repos/${GITHUB_REPOSITORY}/git/tags/${tag_commit}" --jq '.object.sha')
+            fi
+            if [[ "$tag_commit" != "$GITHUB_SHA" ]]; then
+              echo "Release ${tag} already points to ${tag_commit}; update the application version before publishing ${GITHUB_SHA}." >&2
+              exit 1
+            fi
+            gh release edit "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "NFProgress ${APP_VERSION}" \
+              --notes-file "$notes_file"
+            gh release upload "$tag" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$tag" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "NFProgress ${APP_VERSION}" \
+              --notes-file "$notes_file"
+          fi
