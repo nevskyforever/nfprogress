@@ -171,7 +171,7 @@ jobs:
           Add-Content dist\nfprogress\SOURCE_CODE.txt `
             "`nРевизия сборки: $env:GITHUB_SHA"
           Add-Content dist\nfprogress\SOURCE_CODE.txt `
-            "Архив исходного кода: https://github.com/nevskyforever/nfprogress_python/archive/$env:GITHUB_SHA.zip"
+            "Архив исходного кода: https://github.com/nevskyforever/nfprogress/archive/$env:GITHUB_SHA.zip"
 
           if (-not (Test-Path dist\nfprogress\nfprogress.exe)) { throw "nfprogress.exe is missing." }
           if (-not (Test-Path dist\nfprogress\nfprogress-updater.exe)) { throw "nfprogress-updater.exe is missing." }

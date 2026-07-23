@@ -62,7 +62,7 @@ cp ../LICENSE "$APP_RESOURCES/LICENSE.txt"
 cp ../SOURCE_CODE.txt "$APP_RESOURCES/SOURCE_CODE.txt"
 {
   printf '\nРевизия сборки: %s\n' "$SOURCE_REVISION"
-  printf 'Архив исходного кода: https://github.com/nevskyforever/nfprogress_python/archive/%s.zip\n' "$SOURCE_REVISION"
+  printf 'Архив исходного кода: https://github.com/nevskyforever/nfprogress/archive/%s.zip\n' "$SOURCE_REVISION"
 } >> "$APP_RESOURCES/SOURCE_CODE.txt"
 
 # Создание DMG установщика
