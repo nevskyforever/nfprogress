@@ -55,6 +55,16 @@ else
   exit 1
 fi
 
+# Добавляем лицензию и точную ссылку на исходники внутрь приложения.
+APP_RESOURCES="nfprogress.app/Contents/Resources"
+SOURCE_REVISION=$(git -C .. rev-parse HEAD)
+cp ../LICENSE "$APP_RESOURCES/LICENSE.txt"
+cp ../SOURCE_CODE.txt "$APP_RESOURCES/SOURCE_CODE.txt"
+{
+  printf '\nРевизия сборки: %s\n' "$SOURCE_REVISION"
+  printf 'Архив исходного кода: https://github.com/nevskyforever/nfprogress_python/archive/%s.zip\n' "$SOURCE_REVISION"
+} >> "$APP_RESOURCES/SOURCE_CODE.txt"
+
 # Создание DMG установщика
 echo "Создание DMG установщика для Intel..."
 
@@ -65,6 +75,8 @@ mkdir -p "$DMG_TEMP"
 
 # Копируем приложение во временную папку
 cp -R nfprogress.app "$DMG_TEMP/"
+cp "$APP_RESOURCES/LICENSE.txt" "$DMG_TEMP/LICENSE.txt"
+cp "$APP_RESOURCES/SOURCE_CODE.txt" "$DMG_TEMP/SOURCE_CODE.txt"
 
 # Создаем символическую ссылку на Applications
 ln -s /Applications "$DMG_TEMP/Applications"

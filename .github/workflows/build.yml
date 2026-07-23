@@ -150,12 +150,20 @@ jobs:
           New-Item -ItemType Directory -Path dist\nfprogress\updater-runtime -Force | Out-Null
           Copy-Item "$($updaterExe.Directory.FullName)\*" dist\nfprogress\updater-runtime -Recurse -Force
           Copy-Item $updaterExe.FullName dist\nfprogress\nfprogress-updater.exe -Force
+          Copy-Item LICENSE dist\nfprogress\LICENSE.txt -Force
+          Copy-Item SOURCE_CODE.txt dist\nfprogress\SOURCE_CODE.txt -Force
+          Add-Content dist\nfprogress\SOURCE_CODE.txt `
+            "`nРевизия сборки: $env:GITHUB_SHA"
+          Add-Content dist\nfprogress\SOURCE_CODE.txt `
+            "Архив исходного кода: https://github.com/nevskyforever/nfprogress_python/archive/$env:GITHUB_SHA.zip"
 
           if (-not (Test-Path dist\nfprogress\nfprogress.exe)) { throw "nfprogress.exe is missing." }
           if (-not (Test-Path dist\nfprogress\nfprogress-updater.exe)) { throw "nfprogress-updater.exe is missing." }
           if (-not (Test-Path dist\nfprogress\updater-runtime\nfprogress-updater.exe)) {
             throw "Independent updater runtime is missing."
           }
+          if (-not (Test-Path dist\nfprogress\LICENSE.txt)) { throw "GPLv3 license is missing." }
+          if (-not (Test-Path dist\nfprogress\SOURCE_CODE.txt)) { throw "Source code notice is missing." }
 
       - name: Run executable smoke tests
         shell: pwsh

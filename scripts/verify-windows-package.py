@@ -74,6 +74,14 @@ def main() -> int:
     main_exe = args.package_dir / "nfprogress.exe"
     updater_exe = args.package_dir / "nfprogress-updater.exe"
     runtime_updater = args.package_dir / "updater-runtime" / "nfprogress-updater.exe"
+    legal_files = (
+        args.package_dir / "LICENSE.txt",
+        args.package_dir / "SOURCE_CODE.txt",
+    )
+    missing_legal_files = [str(path) for path in legal_files if not path.is_file()]
+    if missing_legal_files:
+        raise SystemExit(f"Package is missing legal files: {missing_legal_files}")
+
     pe_results = [inspect_pe(executable) for executable in (main_exe, updater_exe, runtime_updater)]
     if args.installer is not None:
         pe_results.append(inspect_pe(args.installer, allow_large_overlay=True))
@@ -88,6 +96,8 @@ def main() -> int:
             "nfprogress/nfprogress.exe",
             "nfprogress/nfprogress-updater.exe",
             "nfprogress/updater-runtime/nfprogress-updater.exe",
+            "nfprogress/LICENSE.txt",
+            "nfprogress/SOURCE_CODE.txt",
         }
         missing = required - names
         if missing:
