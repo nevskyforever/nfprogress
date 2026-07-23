@@ -18,7 +18,7 @@ def _show_error(message: str) -> None:
     try:
         import ctypes
 
-        ctypes.windll.user32.MessageBoxW(None, message, "Обновление NFProgress", 0x10)
+        ctypes.windll.user32.MessageBoxW(None, message, "Обновление nfprogress", 0x10)
     except (AttributeError, OSError) as error:
         print(f"Не удалось показать системное сообщение: {error}", file=sys.stderr)
 
@@ -39,7 +39,7 @@ def _desktop_directory() -> Path:
 def _create_desktop_shortcut(executable: Path) -> Path:
     desktop = _desktop_directory()
     desktop.mkdir(parents=True, exist_ok=True)
-    shortcut = desktop / "NFProgress.url"
+    shortcut = desktop / "nfprogress.url"
     shortcut.write_text(
         "[InternetShortcut]\n"
         f"URL={executable.resolve().as_uri()}\n"
@@ -52,7 +52,7 @@ def _create_desktop_shortcut(executable: Path) -> Path:
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Безопасное обновление NFProgress")
+    parser = argparse.ArgumentParser(description="Безопасное обновление nfprogress")
     parser.add_argument("--app-dir", required=True, type=Path)
     parser.add_argument("--archive", required=True, type=Path)
     parser.add_argument("--sha256", required=True)
@@ -68,18 +68,18 @@ def main(argv=None) -> int:
     args = build_parser().parse_args(argv)
     logger = configure_logging(_default_log_path())
     logger.info(
-        "Запуск обновления NFProgress %s -> %s; app_dir=%s",
+        "Запуск обновления nfprogress %s -> %s; app_dir=%s",
         args.current_version,
         args.new_version,
         args.app_dir,
     )
-    print(f"NFProgress обновляется: {args.current_version} → {args.new_version}", flush=True)
+    print(f"nfprogress обновляется: {args.current_version} → {args.new_version}", flush=True)
     print("Не закрывайте это окно до завершения обновления.", flush=True)
     try:
         install_update(args.app_dir, args.archive, args.sha256, args.pid, logger)
     except (OSError, UpdateError, ValueError) as error:
         logger.exception("Обновление завершилось ошибкой")
-        message = f"Не удалось обновить NFProgress.\n\n{error}\n\nПодробности: {_default_log_path()}"
+        message = f"Не удалось обновить nfprogress.\n\n{error}\n\nПодробности: {_default_log_path()}"
         print(message, file=sys.stderr, flush=True)
         _show_error(message)
         return 1
@@ -102,11 +102,11 @@ def main(argv=None) -> int:
             try:
                 import ctypes
 
-                ctypes.windll.user32.MessageBoxW(None, message, "Обновление NFProgress", 0x40)
+                ctypes.windll.user32.MessageBoxW(None, message, "Обновление nfprogress", 0x40)
             except (AttributeError, OSError) as error:
                 logger.warning("Не удалось показать сообщение о миграции: %s", error)
     else:
-        print("Обновление установлено. NFProgress запущен.", flush=True)
+        print("Обновление установлено. nfprogress запущен.", flush=True)
     return 0
 
 

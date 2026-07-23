@@ -4002,7 +4002,7 @@ def _suppress_invalid_object_stderr_spam():
 
 if __name__ == "__main__":
     if "--smoke-test" in sys.argv:
-        print(f"NFProgress {en.version}: smoke test passed")
+        print(f"nfprogress {en.version}: smoke test passed")
         sys.exit(0)
 
     _suppress_invalid_object_stderr_spam()

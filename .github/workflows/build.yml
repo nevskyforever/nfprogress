@@ -122,7 +122,7 @@ jobs:
             --company-name="nfproject" `
             --product-name="nfprogress updater" `
             --file-version="${{ env.APP_VERSION }}" `
-            --file-description="Безопасное обновление NFProgress" `
+            --file-description="Безопасное обновление nfprogress" `
             --report=build\logs\updater-nuitka-report.xml `
             updater_main.py
 
@@ -466,7 +466,7 @@ jobs:
             fi
             gh release edit "$tag" \
               --repo "$GITHUB_REPOSITORY" \
-              --title "NFProgress ${APP_VERSION}" \
+              --title "nfprogress ${APP_VERSION}" \
               --notes-file "$notes_file"
             gh release upload "$tag" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
@@ -475,6 +475,6 @@ jobs:
             gh release create "$tag" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --target "$GITHUB_SHA" \
-              --title "NFProgress ${APP_VERSION}" \
+              --title "nfprogress ${APP_VERSION}" \
               --notes-file "$notes_file"
           fi

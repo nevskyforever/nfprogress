@@ -4,12 +4,12 @@
 
 [Setup]
 AppId={{B52596D7-1B18-4A27-86AD-F749AA881E5F}
-AppName=NFProgress
+AppName=nfprogress
 AppVersion={#AppVersion}
-AppVerName=NFProgress {#AppVersion}
+AppVerName=nfprogress {#AppVersion}
 AppPublisher=nfproject
 DefaultDirName={localappdata}\Programs\nfprogress
-DefaultGroupName=NFProgress
+DefaultGroupName=nfprogress
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=dist
@@ -36,11 +36,11 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 Source: "dist\nfprogress\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\NFProgress"; Filename: "{app}\nfprogress.exe"; WorkingDir: "{app}"
-Name: "{autodesktop}\NFProgress"; Filename: "{app}\nfprogress.exe"; WorkingDir: "{app}"; Tasks: desktopicon
+Name: "{group}\nfprogress"; Filename: "{app}\nfprogress.exe"; WorkingDir: "{app}"
+Name: "{autodesktop}\nfprogress"; Filename: "{app}\nfprogress.exe"; WorkingDir: "{app}"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\nfprogress.exe"; Description: "Запустить NFProgress"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\nfprogress.exe"; Description: "Запустить nfprogress"; WorkingDir: "{app}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\nfprogress\updater"

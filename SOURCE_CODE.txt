@@ -1,6 +1,6 @@
-NFProgress — получение исходного кода
+nfprogress — получение исходного кода
 
-NFProgress распространяется на условиях GNU General Public License version 3.
+nfprogress распространяется на условиях GNU General Public License version 3.
 
 Репозиторий исходного кода:
 https://github.com/nevskyforever/nfprogress_python

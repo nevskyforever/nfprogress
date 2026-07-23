@@ -22,8 +22,10 @@ import engine as en
 
 
 UPDATE_MANIFEST_URL = os.environ.get("NFPROGRESS_UPDATE_URL", "https://nfproject.ru/app/update_manifest.json")
-SETTINGS_ORG = "NFProgress"
-SETTINGS_APP = "NFProgress"
+SETTINGS_ORG = "nfprogress"
+SETTINGS_APP = "nfprogress"
+LEGACY_SETTINGS_ORG = "NF" + "Progress"
+LEGACY_SETTINGS_APP = "NF" + "Progress"
 SKIPPED_VERSION_KEY = "updates/skipped_version"
 UPDATE_ARCHIVE_NAME = "nfprogress-update.zip"
 UPDATER_EXECUTABLE = "nfprogress-updater.exe"
@@ -268,7 +270,7 @@ def _download_update_archive(release: dict, progress_callback=None) -> Path:
     downloaded = 0
     request = urllib.request.Request(
         release["url"],
-        headers={"User-Agent": f"NFProgress/{en.version}"},
+        headers={"User-Agent": f"nfprogress/{en.version}"},
     )
     try:
         with urllib.request.urlopen(request, timeout=30, context=_ssl_context()) as response:
@@ -362,7 +364,7 @@ fail() {{
     if [ -n "${{MOUNT_POINT:-}}" ]; then
         hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
     fi
-    osascript -e 'display alert "NFProgress" message "Не удалось установить обновление. Подробности: '"$LOG_PATH"'"' >/dev/null 2>&1 || true
+    osascript -e 'display alert "nfprogress" message "Не удалось установить обновление. Подробности: '"$LOG_PATH"'"' >/dev/null 2>&1 || true
     exit 1
 }}
 
@@ -484,7 +486,7 @@ class UpdateCheckWorker(QObject):
             request = urllib.request.Request(
                 _uncached_manifest_url(UPDATE_MANIFEST_URL),
                 headers={
-                    "User-Agent": f"NFProgress/{en.version}",
+                    "User-Agent": f"nfprogress/{en.version}",
                     "Cache-Control": "no-cache",
                     "Pragma": "no-cache",
                 },
@@ -571,6 +573,15 @@ class UpdateChecker(QObject):
             return
 
         settings = QSettings(SETTINGS_ORG, SETTINGS_APP)
+        legacy_settings = QSettings(LEGACY_SETTINGS_ORG, LEGACY_SETTINGS_APP)
+        if (
+            not settings.contains(SKIPPED_VERSION_KEY)
+            and legacy_settings.contains(SKIPPED_VERSION_KEY)
+        ):
+            settings.setValue(
+                SKIPPED_VERSION_KEY,
+                legacy_settings.value(SKIPPED_VERSION_KEY),
+            )
         if settings.value(SKIPPED_VERSION_KEY, "") == latest_version and not migration_needed:
             return
 
@@ -628,7 +639,7 @@ class UpdateChecker(QObject):
         self._dialog_parent = parent
         self._download_release = release
         self._progress_dialog = QProgressDialog("Скачивание и проверка обновления…", "", 0, 100, parent)
-        self._progress_dialog.setWindowTitle("Обновление NFProgress")
+        self._progress_dialog.setWindowTitle("Обновление nfprogress")
         self._progress_dialog.setCancelButton(None)
         self._progress_dialog.setMinimumDuration(0)
         self._progress_dialog.setValue(0)
