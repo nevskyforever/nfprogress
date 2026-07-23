@@ -30,6 +30,25 @@ Download the latest build from
 Project downloads are also published through
 [nfproject.ru](https://nfproject.ru/).
 
+## Uninstallation
+
+### Windows
+
+Open **Settings > Apps > Installed apps**, find **nfprogress**, and select
+**Uninstall**. The application is installed in
+`%LOCALAPPDATA%\Programs\nfprogress`.
+
+Uninstalling the application does not remove user data. It is stored in
+`%APPDATA%\nfprogress`. Data created by older versions may also remain in
+`%USERPROFILE%\Documents\nfprogress`. Delete these directories manually only
+if you no longer need your projects, settings, and progress history.
+
+### macOS
+
+Move `nfprogress.app` from the Applications folder to the Trash. User data in
+`~/Documents/nfprogress` is not removed automatically; delete that directory
+manually only if you no longer need it.
+
 ## Running from source
 
 Python 3.11 is used for the official Windows build.
@@ -75,15 +94,17 @@ Free code signing provided by
 
 ### Project roles
 
-- Committer, reviewer and approver: nevskyforever
+- Committer: nevskyforever
+- Reviewer: nevskyforever
+- Approver: nevskyforever
 
 ### Privacy policy
 
-nfprogress does not transfer information to other networked systems unless
-specifically requested by the user while using a network-dependent feature.
+This program will not transfer any information to other networked systems
+unless specifically requested by the user or the person installing or
+operating it.
 
 ## License
 
 nfprogress is free and open-source software licensed under the
 [GNU General Public License version 3](LICENSE).
-
