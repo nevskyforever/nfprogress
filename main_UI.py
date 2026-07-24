@@ -8,7 +8,7 @@ from PySide6.QtCore import QObject, QTranslator, QLibraryInfo, QDate, QTime, QTi
 from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon
 from PySide6.QtWidgets import QApplication, QAbstractItemView
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
-    QTreeWidgetItem, QDialogButtonBox, QLabel, QMessageBox
+    QTreeWidgetItem, QDialogButtonBox, QLabel, QMessageBox, QInputDialog
 
 import engine as en
 import game
@@ -382,6 +382,10 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             parent = data['projects'].get(current_project.name)
 
+        if self._is_shared_project(parent):
+            self._create_shared_project_stage(parent, data)
+            return
+
         if parent is None or not getattr(parent, 'has_stages', lambda: False)():
             self.notifications.show_warning("Этап можно создать только в проекте с этапами")
             return
@@ -430,6 +434,57 @@ class MainWindow(QMainWindow, main_window_ui):
         self.select_stage_by_id(parent.name, stage.stage_id)
         self.view_project()
         self.notifications.show_success(f'Этап "{name}" создан!', position="bottom-left")
+
+    def _create_shared_project_stage(self, project, data):
+        """Добавляет источник синхронизации в Общий проект."""
+        has_legacy_source = not project.has_stages() and (project.synch is not None or project.notes)
+        is_adding_second_source = has_legacy_source or (
+            project.has_stages() and len(project.stages) == 1
+        )
+        if is_adding_second_source:
+            QMessageBox.information(
+                self,
+                "Источники синхронизации",
+                "Этапы Общего проекта используются как отдельные источники синхронизации. "
+                "Так можно подключить ещё один источник.",
+            )
+
+        default_name = f"Источник {len(project.stages) + (2 if has_legacy_source else 1)}"
+        name, accepted = QInputDialog.getText(
+            self,
+            "Добавить этап",
+            "Название источника синхронизации:",
+            text=default_name,
+        )
+        name = name.strip()
+        if not accepted or not name:
+            return
+
+        if has_legacy_source:
+            # Сохраняем уже подключённый источник и его историю в первом этапе.
+            project.convert_to_stages()
+            project.stages[0].name = "Источник 1"
+
+        if any(stage.name == name for stage in project.stages):
+            self.notifications.show_error(f'Этап "{name}" уже существует!')
+            return
+
+        stage = en.Stage(
+            name=name,
+            goal=float('inf'),
+            unit=project.unit,
+            parent_project_name=project.name,
+        )
+        project.enable_stages = True
+        project.stages.append(stage)
+        data['projects'][project.name] = project
+        en.save_data(data)
+
+        self._expanded_stage_projects.add(project.name)
+        self.refresh_projects()
+        self.select_stage_by_id(project.name, stage.stage_id)
+        self.view_project()
+        self.notifications.show_success(f'Источник синхронизации "{name}" добавлен!', position="bottom-left")
 
     def applying_settings(self):
         settings = en.load_settings()
@@ -801,7 +856,10 @@ class MainWindow(QMainWindow, main_window_ui):
         self._project_buttons_connected = True
 
         # Подключаем новые
-        self.btn_change_project.clicked.connect(lambda: self.edit_project(project))
+        if self._is_shared_project(project):
+            self.btn_change_project.clicked.connect(lambda: self.create_stage())
+        else:
+            self.btn_change_project.clicked.connect(lambda: self.edit_project(project))
         self.btn_complete_project.clicked.connect(lambda: self.complete_project(project))
         self.btn_archived_project.clicked.connect(lambda: self.archive_project(project))
         self.btn_delete_project.clicked.connect(lambda: self.delete_project(project))
@@ -821,6 +879,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Устанавливаем состояние кнопок в зависимости от статуса проекта
         self.change_project_widget.setEnabled(True)
+        self.btn_change_project.setVisible(True)
+        self.btn_change_project.setText('Изменить проект')
         self.flash_note.setEnabled(True)
         self.synch_action.setEnabled(True)
         self.change_project_action.setEnabled(True)
@@ -889,7 +949,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.archive_project_action.setEnabled(False)
             self.btn_archived_project.setEnabled(False)
 
-        if project.name == 'Общий проект':
+        if self._is_shared_project(project):
             # Ограничение для общего проекта должно работать и в режиме
             # разработки. Его настройки и жизненный цикл не редактируются напрямую.
             self.change_project_widget.setEnabled(True)
@@ -897,13 +957,31 @@ class MainWindow(QMainWindow, main_window_ui):
             self.complete_project_action.setEnabled(False)
             self.delete_project_action.setEnabled(False)
             self.archive_project_action.setEnabled(False)
-            self.create_stage_action.setEnabled(False)
+            self.create_stage_action.setEnabled(True)
             self.btn_synch_project.setEnabled(True)
-            self.btn_change_project.setEnabled(False)
+            self.btn_change_project.setEnabled(True)
+            self.btn_change_project.setText('Добавить этап')
             self.btn_complete_project.setEnabled(False)
             self.btn_archived_project.setEnabled(False)
             self.btn_delete_project.setEnabled(False)
             self.share_progress.setEnabled(False)
+
+        if self._is_shared_project_stage(project):
+            # Этап Общего проекта — это только отдельный источник синхронизации.
+            self.change_project_action.setEnabled(False)
+            self.complete_project_action.setEnabled(False)
+            self.delete_project_action.setEnabled(False)
+            self.archive_project_action.setEnabled(False)
+            self.btn_change_project.setVisible(False)
+            self.btn_complete_project.setEnabled(False)
+            self.btn_archived_project.setEnabled(False)
+            self.btn_delete_project.setEnabled(False)
+            self.pb_save_flash_note.setEnabled(False)
+            self.delete_note.setEnabled(False)
+            self.new_symbols.setEnabled(False)
+            self.new_symbols.setPlaceholderText("Подключите синхронизацию")
+            self.share_progress.setEnabled(False)
+            self.create_stage_action.setEnabled(True)
 
         # Загружаем список заметок
         self.load_notes(project)
@@ -1810,6 +1888,15 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def _is_stage(self, project):
         return isinstance(project, en.Stage) or getattr(project, 'is_stage', False)
+
+    def _is_shared_project(self, project):
+        return project is not None and not self._is_stage(project) and project.name == 'Общий проект'
+
+    def _is_shared_project_stage(self, project):
+        if not self._is_stage(project):
+            return False
+        parent = self._get_parent_project(project)
+        return self._is_shared_project(parent)
 
     def _find_stage_parent(self, data, stage):
         stage_id = getattr(stage, 'stage_id', None)
