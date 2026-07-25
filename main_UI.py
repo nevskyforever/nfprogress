@@ -569,7 +569,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.written_today_in_all_projects_label.setVisible(False)
 
     def edit_settings(self):
-        dialog = Settings()
+        dialog = Settings(self)
         result = dialog.exec()
         if result == QDialog.Accepted:
                 inf_project = dialog.enable_inf_projects_checkBox.isChecked()
@@ -3799,6 +3799,13 @@ class Settings(QDialog, settings_ui):
         self.start_day_time.setTime(
             QTime(start_day_time.hour, start_day_time.minute, start_day_time.second)
         )
+        self.check_uodates.clicked.connect(self.check_for_updates)
+
+    def check_for_updates(self):
+        main_window = self.parent()
+        update_checker = getattr(main_window, 'update_checker', None)
+        if update_checker is not None:
+            update_checker.check_for_updates(self, show_up_to_date=True)
 
 
 class UserAgreement(QDialog, user_agreement_ui):

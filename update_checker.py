@@ -518,11 +518,13 @@ class UpdateChecker(QObject):
         self._download_worker = None
         self._download_release = None
         self._progress_dialog = None
+        self._show_up_to_date = False
 
-    def check_for_updates(self, parent=None):
+    def check_for_updates(self, parent=None, show_up_to_date=False):
         if self._thread is not None:
             return
         self._dialog_parent = parent
+        self._show_up_to_date = show_up_to_date
         self._thread = QThread(self)
         self._worker = UpdateCheckWorker()
         self._worker.moveToThread(self._thread)
@@ -534,8 +536,9 @@ class UpdateChecker(QObject):
     @Slot(dict)
     def _on_worker_finished(self, manifest):
         parent = self._dialog_parent
+        show_up_to_date = self._show_up_to_date
         self._cleanup_check_worker()
-        self._handle_manifest(manifest, parent)
+        self._handle_manifest(manifest, parent, show_up_to_date)
 
     @Slot()
     def _on_worker_failed(self):
@@ -555,7 +558,7 @@ class UpdateChecker(QObject):
         self._cleanup_check_worker()
         self._cleanup_download_worker()
 
-    def _handle_manifest(self, manifest, parent):
+    def _handle_manifest(self, manifest, parent, show_up_to_date=False):
         release = _platform_release_info(manifest)
         latest_version = release.get("version")
         current_target = _current_app_target()
@@ -567,6 +570,12 @@ class UpdateChecker(QObject):
         if not latest_version or (
             not _is_newer_version(latest_version, en.version) and not migration_needed
         ):
+            if show_up_to_date:
+                QMessageBox.information(
+                    parent,
+                    "Обновление приложения",
+                    "Установлена актуальная версия приложения.",
+                )
             return
         if not release.get("url"):
             _debug("В манифесте отсутствует URL обновления для текущей платформы")
