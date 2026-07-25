@@ -15,7 +15,7 @@ from docx import Document
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
-version = '4.8.6'
+version = '4.8.7'
 
 # Определяем систему
 
@@ -840,15 +840,15 @@ class Project:
         if self.deadline == 'Нет':
             return 'No'
 
+        # Завершенный проект или этап всегда завершает локальный стрик.
+        if self.status == 'завершен':
+            return 'Complete'
+
         # Если стрик сегодня уже продлен - не проверяем
         # Добавлена проверка на наличие элементов в self.streaks перед обращением к [-1]
         last_streak_day = streak_last_day(self.streaks)
         if self.streak_status == 'Go' and last_streak_day == today:
             return 'Go'
-
-        # Если стрик уже завершен - дальше не проверяем
-        if self.status == 'завершен':
-            return 'Complete'
 
         # Заморозка
         if self.streak_status == 'Freeze' and streak_is_freeze_for_day(self.streaks, today):

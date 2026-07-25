@@ -449,7 +449,7 @@ class StageRowWidget(QWidget):
         self.circular_progress.setBackgroundColor("#E6EBEF")
         self.circular_progress.setValueImmediate(0)
 
-        self.name = QLabel(stage.name, self)
+        self.name = QLabel(self._get_display_name(), self)
         self.name.setWordWrap(False)
         self.name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
         self.name.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
@@ -480,7 +480,7 @@ class StageRowWidget(QWidget):
         self.circular_progress.stopAnimation()
 
     def update_display(self):
-        self.name.setText(self.project.name)
+        self.name.setText(self._get_display_name())
         self.circular_progress.setValue(100 if self.project.goal == float('inf') else int(self.project.progress), animated=True)
         total = self._format_number(self.project.total_units)
         goal = '∞' if self.project.goal == float('inf') else self._format_number(self.project.goal)
@@ -496,6 +496,11 @@ class StageRowWidget(QWidget):
             self.streak.setVisible(True)
         else:
             self.streak.setVisible(False)
+
+    def _get_display_name(self):
+        if self.project.status == 'завершен':
+            return f'✅ {self.project.name}'
+        return self.project.name
 
     def _format_number(self, num):
         if isinstance(num, float):

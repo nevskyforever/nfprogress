@@ -540,3 +540,20 @@ def test_remaining_goal_is_zero_when_project_or_stage_exceeds_goal():
     assert project.get_need_write_value() == 0
     assert project.get_need_write_in_unit() == 0
     assert stage.get_need_write_value() == 0
+
+
+def test_completed_project_and_stage_have_complete_streak_status(monkeypatch):
+    today = datetime.date(2026, 7, 25)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = engine.Project(
+        name='Book', goal=1000, total_symbols=1000, deadline=today, status='завершен'
+    )
+    stage = engine.Stage(
+        name='Draft', goal=500, total_symbols=500, deadline=today, status='завершен'
+    )
+    for entity in (project, stage):
+        entity.streaks = [today - datetime.timedelta(days=1), today]
+        entity.streak_status = 'Go'
+
+        assert entity.get_streak_status() == 'Complete'
+        assert entity.get_streak_status_msg('min') == '🎉 СТРИК ЗАВЕРШЕН'
