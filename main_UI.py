@@ -733,9 +733,15 @@ class MainWindow(QMainWindow, main_window_ui):
                 if days_left > 0:
                     self.deadline.setText(f"{project.deadline_str} (осталось {days_left} дн.)")
                 elif days_left == 0:
-                    self.deadline.setText(f"{project.deadline_str} (сегодня!)")
+                    if project.was_goal_completed_by_deadline():
+                        self.deadline.setText(f"{project.deadline_str} (цель выполнена!)")
+                    else:
+                        self.deadline.setText(f"{project.deadline_str} (сегодня!)")
                 else:
-                    self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
+                    if project.was_goal_completed_by_deadline():
+                        self.deadline.setText(f"{project.deadline_str} (цель выполнена!)")
+                    else:
+                        self.deadline.setText(f"{project.deadline_str} (просрочено на {abs(days_left)} дн.)")
             else:
                 self.deadline.setText("Не установлен")
         else:

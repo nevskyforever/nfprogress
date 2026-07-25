@@ -500,3 +500,43 @@ def test_convert_project_with_stages_to_single_transfers_longest_stage_streak_an
     assert project.max_streak == 2
     assert project.deadline == second_deadline
     assert round(project.get_today_goal_value(), 2) == 136.36
+
+
+def test_active_project_and_stage_report_goal_completed_by_deadline():
+    deadline = datetime.date(2026, 7, 10)
+    project = engine.Project(name='Book', goal=1000, total_symbols=1500, deadline=deadline, status='активен')
+    project.notes = [
+        engine.Note(1000, 1000, 100, datetime.datetime(2026, 7, 10, 12, 0)),
+        engine.Note(1500, 500, 50, datetime.datetime(2026, 7, 11, 12, 0)),
+    ]
+    stage = engine.Stage(name='Draft', goal=500, total_symbols=500, deadline=deadline, status='активен')
+    stage.notes = [engine.Note(500, 500, 100, datetime.datetime(2026, 7, 9, 12, 0))]
+
+    assert project.was_goal_completed_by_deadline()
+    assert stage.was_goal_completed_by_deadline()
+
+
+def test_goal_completed_only_after_deadline_is_not_reported_as_on_time():
+    deadline = datetime.date(2026, 7, 10)
+    project = engine.Project(name='Book', goal=1000, total_symbols=1000, deadline=deadline)
+    project.notes = [engine.Note(1000, 1000, 100, datetime.datetime(2026, 7, 11, 12, 0))]
+
+    assert not project.was_goal_completed_by_deadline()
+
+
+def test_note_before_start_of_day_counts_towards_previous_deadline(monkeypatch):
+    deadline = datetime.date(2026, 7, 25)
+    monkeypatch.setattr(engine, 'get_start_day_time', lambda: datetime.time(4, 0))
+    project = engine.Project(name='Book', goal=1000, deadline=deadline)
+    project.notes = [engine.Note(1000, 1000, 100, datetime.datetime(2026, 7, 26, 1, 20))]
+
+    assert project.was_goal_completed_by_deadline()
+
+
+def test_remaining_goal_is_zero_when_project_or_stage_exceeds_goal():
+    project = engine.Project(name='Book', goal=1000, total_symbols=1100)
+    stage = engine.Stage(name='Draft', goal=500, total_symbols=600)
+
+    assert project.get_need_write_value() == 0
+    assert project.get_need_write_in_unit() == 0
+    assert stage.get_need_write_value() == 0

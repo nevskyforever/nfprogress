@@ -15,7 +15,7 @@ from docx import Document
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
-version = '4.8.5'
+version = '4.8.6'
 
 # Определяем систему
 
@@ -597,6 +597,44 @@ class Project:
             return sum(stage.get_total_symbols() for stage in self.stages)
         return unit_converter(self.unit, self._total_symbols, 'symbols')
 
+    def was_goal_completed_by_deadline(self):
+        """Возвращает, была ли цель достигнута не позднее даты дедлайна."""
+        if not isinstance(self.deadline, date):
+            return False
+
+        goal_symbols = self.get_goal_symbols()
+        if goal_symbols == float('inf'):
+            return False
+
+        if self.has_stages():
+            total_by_deadline = sum(
+                stage._get_total_symbols_by_date(self.deadline)
+                for stage in self.stages
+            )
+        else:
+            total_by_deadline = self._get_total_symbols_by_date(self.deadline)
+        return total_by_deadline >= goal_symbols
+
+    def _get_total_symbols_by_date(self, target_date):
+        """Возвращает последнее зафиксированное количество символов на указанную дату."""
+        notes = [
+            note for note in self.notes
+            if self._get_note_progress_date(note) <= target_date
+        ]
+        if not notes:
+            return 0
+        latest_note = max(notes, key=lambda note: note.date_create)
+        return latest_note.get_new_total()
+
+    @staticmethod
+    def _get_note_progress_date(note):
+        """Возвращает дату записи с учётом настроенного начала писательских суток."""
+        note_datetime = note.date_create
+        note_date = note_datetime.date()
+        if note_datetime.time().replace(tzinfo=None) < get_start_day_time():
+            return note_date - timedelta(days=1)
+        return note_date
+
     @property
     def progress(self):
         """Прогресс проекта в процентах"""
@@ -782,7 +820,7 @@ class Project:
         total_sym = self.get_total_symbols()
         if goal_sym == float('inf'):
             return float('inf')
-        return goal_sym - total_sym
+        return max(0, goal_sym - total_sym)
 
     def get_need_write_in_unit(self):
         """Возвращает остаток написать в единице проекта."""
