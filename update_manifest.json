@@ -1,28 +1,28 @@
 {
-  "version": "4.8.6",
-  "notes": "Исправление багов",
+  "version": "4.8.7",
+  "notes": "Исправление багов\n\nУ проектов с этапами завершенный этап помечается эмодзи ✅",
   "windows": {
-    "version": "4.8.5",
-    "url": "https://nfproject.ru/app/nfprogress-windows-4.8.5.zip",
-    "sha256": "a3c530aaae6e3978311b2b378c26f45dfe6b8e90ae30677a5230f2b25ba0e2ce",
-    "size": 48421548,
+    "version": "4.8.6",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.8.6.zip",
+    "sha256": "921b9f166c2912cba981fe6d892ec37f77c04ceee4a18e43f610a47453fb36f6",
+    "size": 48424513,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.8.5.exe",
-    "installer_sha256": "9e3aba0ce8639bf7c15c56018690f2aa407c6faecc5fc292b95e5931fb70f75c",
-    "installer_size": 33526932
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.8.6.exe",
+    "installer_sha256": "655b8dfb91a044b30d3154cdc9a562b3a96831c6df0f8718b4e18b5186910a35",
+    "installer_size": 33527261
   },
   "macos_arm": {
-    "version": "4.8.6",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.6.zip"
+    "version": "4.8.7",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.7.zip"
   },
   "macos_intel": {
-    "version": "4.8.6",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.6.zip"
+    "version": "4.8.7",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.7.zip"
   },
-  "windows_version": "4.8.5",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.8.5.zip",
-  "macos_arm_version": "4.8.6",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.6.zip",
-  "macos_intel_version": "4.8.6",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.6.zip"
+  "windows_version": "4.8.6",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.8.6.zip",
+  "macos_arm_version": "4.8.7",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.7.zip",
+  "macos_intel_version": "4.8.7",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.7.zip"
 }

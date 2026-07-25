@@ -18,9 +18,11 @@ def _streak_status_emoji(status):
         return '❄️'
     if status == 'Complete':
         return '🎉'
+    if status == 'No':
+        return '🙃'
     if isinstance(status, str) and status.startswith('Lose '):
         return '🥺'
-    return '🔥'
+    return '🙃'
 
 
 # =============================================================================
