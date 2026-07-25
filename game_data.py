@@ -1340,7 +1340,7 @@ def calculate_freeze_price():
 
 # Инициализация объектов
 
-freeze = FuncItem('❄️Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
+freeze = FuncItem('❄️ Заморозка', price=calculate_freeze_price, item_type='Предметы', level=3,
                   description='Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком'
                               '️\n⚠️ Важно: чем больше заморозок вы используете, тем дороже они становятся.'
                               '\nМожно иметь не более 2 заморозок в инвентаре и купить до 2 за раз.',
@@ -1352,7 +1352,7 @@ hemingway_typewriter = Item(
     name='📠  Печатная машинка Хемингуэя',
     item_type='Предметы',
     level=5,
-    price=lambda: calculate_item_price(15000),
+    price=lambda: calculate_item_price(5000),
     description='Постоянно увеличивает коэффициент опыта на 0,5.',
     buff=Buff('Почерк Хемингуэя', 'Постоянный бонус к коэффициенту опыта.', Buff.POSITIVE, 'exp', 0.5),
     maximum_quantity_in_stock=1,
@@ -1361,7 +1361,7 @@ rowling_laptop = Item(
     name='💻  Ноутбук Роалинг',
     item_type='Предметы',
     level=10,
-    price= lambda: calculate_item_price(75000),
+    price= lambda: calculate_item_price(25000),
     description='Постоянно увеличивает коэффициент опыта на 1.',
     buff=Buff('Вдохновение Роалинг', 'Постоянный бонус к коэффициенту опыта.', Buff.POSITIVE, 'exp', 1.0),
     maximum_quantity_in_stock=1,
