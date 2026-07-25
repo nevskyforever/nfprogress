@@ -880,7 +880,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Устанавливаем состояние кнопок в зависимости от статуса проекта
         self.change_project_widget.setEnabled(True)
         self.btn_change_project.setVisible(True)
-        self.btn_change_project.setText('Изменить проект')
+        self.btn_change_project.setText('Изменить')
         self.flash_note.setEnabled(True)
         self.synch_action.setEnabled(True)
         self.change_project_action.setEnabled(True)
