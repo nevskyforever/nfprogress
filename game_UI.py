@@ -2,6 +2,7 @@
 Модуль для связи игрового интерфейса (main_window.py) с игровой логикой (game.py, game_data.py)
 """
 import datetime
+import re
 
 from PySide6.QtCore import QDate, QSignalBlocker, QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QDialog
@@ -15,6 +16,50 @@ from UI_fiiles.new_bank_product import Ui_Dialog as Ui_NewBankProduct
 from UI_fiiles.create_custom_award import Ui_create_castom_item
 from engine import load_data, save_data, today_for_test, unit_converter
 from localization import LocalizedMessageBox as QMessageBox, tr
+
+
+def localized_game_name(name, language=None):
+    """Переводит отображаемое имя, сохраняя добавленный логикой эмодзи-префикс."""
+    source_name = str(name)
+    emoji = game_data.get_leading_item_emoji(source_name)
+    if emoji:
+        plain_name = source_name.lstrip()[len(emoji):].strip()
+        translated_plain_name = tr(plain_name, language)
+        if translated_plain_name != plain_name:
+            return f"{emoji} {translated_plain_name}"
+    return tr(source_name, language)
+
+
+def localized_game_description(description, language=None):
+    """Переводит динамическое описание бафа по смысловым компонентам."""
+    source_description = str(description)
+    match = re.match(
+        r"^(?P<description>.+?) (?P<value>[+-]\d+(?:[.,]\d+)?) "
+        r"к параметру(?P<quest> за завершение квеста)?\.$",
+        source_description,
+    )
+    if match is None:
+        return tr(source_description, language)
+
+    result = (
+        f"{tr(match.group('description'), language)} "
+        f"{match.group('value')} {tr('к параметру', language)}"
+    )
+    if match.group('quest'):
+        result += f" {tr('за завершение квеста', language)}"
+    return result + "."
+
+
+def localized_item_result(result, item_obj, language=None):
+    """Переводит результат применения, включая динамическое имя бафа."""
+    translated_result = tr(result, language)
+    buffs = item_obj.get_buffs() if hasattr(item_obj, 'get_buffs') else ()
+    for buff in sorted(buffs, key=lambda value: len(value.name), reverse=True):
+        translated_result = translated_result.replace(
+            buff.name,
+            localized_game_name(buff.name, language),
+        )
+    return translated_result
 
 
 class GameMenuController:
@@ -620,7 +665,7 @@ class GameMenuController:
 
         for parameter in self.gamer.get_cf_parameters():
             value = self.format_gamer_parameter_value(parameter['value'])
-            item = QListWidgetItem(tr(f"{parameter['name']} - х{value}"))
+            item = QListWidgetItem(f"{tr(parameter['name'])} - x{value}")
             item.setData(Qt.ItemDataRole.UserRole, parameter['key'])
             self.ui.gamer_parameters_list.addItem(item)
 
@@ -676,10 +721,10 @@ class GameMenuController:
 
         parts = []
         if days:
-            parts.append(f"{days} д.")
+            parts.append(tr(f"{days} д."))
         if hours:
-            parts.append(f"{hours} ч.")
-        parts.append(f"{minutes} мин.")
+            parts.append(tr(f"{hours} ч."))
+        parts.append(tr(f"{minutes} мин."))
         return " ".join(parts)
 
     def format_buff_datetime(self, value):
@@ -698,7 +743,7 @@ class GameMenuController:
 
     def get_buff_display_text(self, buff, stacks=1):
         stack_text = f" x{stacks}" if stacks > 1 else ""
-        name = f"{buff.name}{stack_text}"
+        name = f"{localized_game_name(buff.name)}{stack_text}"
         if buff.end_time is None:
             return name
         return f"{name} - {self.format_buff_remaining_time(buff)}"
@@ -712,7 +757,7 @@ class GameMenuController:
             return
 
         for buff, stacks in self.gamer.get_all_buffs(positive=positive):
-            item = QListWidgetItem(tr(self.get_buff_display_text(buff, stacks)))
+            item = QListWidgetItem(self.get_buff_display_text(buff, stacks))
             item.setData(Qt.ItemDataRole.UserRole, buff)
             item.setData(Qt.ItemDataRole.UserRole + 1, stacks)
             list_widget.addItem(item)
@@ -774,22 +819,29 @@ class GameMenuController:
             [self.ui.label_45, self.ui.label_44, self.ui.label_43, self.ui.label_46, self.ui.label_42]
         )
         sign = "+" if buff.is_positive() else "-"
-        stack_text = f"\nКоличество: {stacks}" if stacks > 1 else ""
-        total_text = f"\nИтого: {sign}{abs(buff.value * stacks):g}" if stacks > 1 else ""
-        parameter_name = self.get_cf_display_name(buff.target_cf)
+        parameter_name = tr(self.get_cf_display_name(buff.target_cf))
 
-        labels[0].setText(tr(buff.name))
-        labels[1].setText(tr(buff.description))
-        labels[2].setText(
-            tr(f"Параметр: {parameter_name}\n"
-            f"Значение за награду: {sign}{abs(buff.value):g}"
-            f"{stack_text}{total_text}")
-        )
+        labels[0].setText(localized_game_name(buff.name))
+        labels[1].setText(localized_game_description(buff.description))
+        buff_details = [
+            f"{tr('Параметр')}: {parameter_name}",
+            f"{tr('Значение за награду')}: {sign}{abs(buff.value):g}",
+        ]
+        if stacks > 1:
+            buff_details.extend(
+                (
+                    f"{tr('Количество')}: {stacks}",
+                    f"{tr('Итого')}: {sign}{abs(buff.value * stacks):g}",
+                )
+            )
+        labels[2].setText("\n".join(buff_details))
         labels[3].clear()
         if buff.end_time is None:
             labels[4].clear()
         else:
-            labels[4].setText(tr(f"Осталось: {self.format_buff_remaining_time(buff)}"))
+            labels[4].setText(
+                f"{tr('Осталось')}: {self.format_buff_remaining_time(buff)}"
+            )
 
     def describe_item_buff(self, item_obj):
         buffs = item_obj.get_buffs() if hasattr(item_obj, 'get_buffs') else [getattr(item_obj, 'buff', None)]
@@ -800,10 +852,17 @@ class GameMenuController:
         descriptions = []
         for buff in buffs:
             sign = "+" if buff.is_positive() else "-"
-            duration = "бессрочно" if buff.duration_minutes is None else f"{buff.duration_minutes} мин."
-            parameter_name = self.get_cf_display_name(buff.target_cf)
-            descriptions.append(f"{buff.name} ({parameter_name} {sign}{abs(buff.value):g}, {duration})")
-        return "\nЭффект: " + "; ".join(descriptions)
+            duration = (
+                tr("бессрочно")
+                if buff.duration_minutes is None
+                else tr(f"{buff.duration_minutes} мин.")
+            )
+            parameter_name = tr(self.get_cf_display_name(buff.target_cf))
+            descriptions.append(
+                f"{localized_game_name(buff.name)} "
+                f"({parameter_name} {sign}{abs(buff.value):g}, {duration})"
+            )
+        return f"\n{tr('Эффект')}: " + "; ".join(descriptions)
 
     def update_inventory(self):
         """Обновление списка инвентаря"""
@@ -824,9 +883,11 @@ class GameMenuController:
                     item_type = self.get_inventory_item_type(category, item_obj)
                     if selected_filter != self.INVENTORY_FILTER_ALL and item_type != selected_filter:
                         continue
-                    display_name = getattr(item_obj, 'name', item_name)
-                    display_text = f"{display_name} x{count} [{category}]"
-                    item = QListWidgetItem(tr(display_text))
+                    display_name = localized_game_name(
+                        getattr(item_obj, 'name', item_name)
+                    )
+                    display_text = f"{display_name} x{count} [{tr(category)}]"
+                    item = QListWidgetItem(display_text)
                     # Сохраняем данные предмета (категория, имя)
                     item.setData(Qt.ItemDataRole.UserRole, (category, item_name))
                     self.ui.inventory_list.addItem(item)
@@ -837,8 +898,8 @@ class GameMenuController:
                 item_type = self.get_inventory_item_type('Награды', award)
                 if selected_filter != self.INVENTORY_FILTER_ALL and item_type != selected_filter:
                     continue
-                display_text = f"{award.name} x{count} [Награды]"
-                item = QListWidgetItem(tr(display_text))
+                display_text = f"{award.name} x{count} [{tr('Награды')}]"
+                item = QListWidgetItem(display_text)
                 item.setData(Qt.ItemDataRole.UserRole, ('Кастомные награды', award.name))
                 self.ui.inventory_list.addItem(item)
 
@@ -925,7 +986,12 @@ class GameMenuController:
             if availability_check and not getattr(self, availability_check)(item_obj):
                 continue
 
-            item = QListWidgetItem(tr(item_obj.name))
+            display_name = (
+                item_obj.name
+                if shop_config['source'] == 'custom_awards'
+                else localized_game_name(item_obj.name)
+            )
+            item = QListWidgetItem(display_name)
             item.setData(Qt.ItemDataRole.UserRole, (shop_config['category'], item_key))
             shop_list.addItem(item)
 
@@ -963,8 +1029,12 @@ class GameMenuController:
         if item_obj:
 
             # Отображаем информацию
-            self.ui.name_selected_item.setText(tr(f"📦 {item_obj.name}"))
-            self.ui.description_selected_item.setText(tr(f"📝 {item_obj.description}"))
+            self.ui.name_selected_item.setText(
+                f"📦 {localized_game_name(item_obj.name)}"
+            )
+            self.ui.description_selected_item.setText(
+                f"📝 {localized_game_description(item_obj.description)}"
+            )
             self.ui.level_selected_item.setText(tr(f"⭐ Уровень: {item_obj.level}"))
 
             # Получаем эффект, если есть функция
@@ -979,7 +1049,8 @@ class GameMenuController:
             count = self.get_inventory_item_count(category, item_obj, registry_key, item_name)
             sale_info = self.format_sale_info(item_obj)
             self.ui.effect_selected_item.setText(
-                tr(f"⚡ {effect_text}{self.describe_item_buff(item_obj)}\n🔢 В наличии: {count}{sale_info}")
+                f"⚡ {tr(effect_text)}{self.describe_item_buff(item_obj)}\n"
+                f"🔢 {tr('В наличии')}: {count}{sale_info}"
             )
 
             # Устанавливаем максимум для spinbox
@@ -1025,7 +1096,8 @@ class GameMenuController:
             QMessageBox.information(
                 self.ui.centralwidget,
                 "Информация",
-                f"{item_obj.name} нельзя использовать"
+                f"{localized_game_name(item_obj.name)} "
+                f"{tr('нельзя использовать')}"
             )
             return
 
@@ -1039,7 +1111,9 @@ class GameMenuController:
             try:
                 # Вызываем функцию предмета (она сама изменяет состояние игрока и сохраняет)
                 result = item_obj.use()
-                result_messages.append(f"✓ {result}")
+                result_messages.append(
+                    f"✓ {localized_item_result(result, item_obj)}"
+                )
                 success_count += 1
             except Exception as e:
                 result_messages.append(f"✗ Ошибка: {str(e)}")
@@ -1107,7 +1181,8 @@ class GameMenuController:
         reply = QMessageBox.question(
             self.ui.centralwidget,
             "Подтверждение продажи",
-            f"Продать {count} x {item_obj.name} за {total_price}💰?",
+            f"{tr('Продать')} {count} x {localized_game_name(item_obj.name)} "
+            f"{tr('за')} {total_price}💰?",
             QMessageBox.Yes | QMessageBox.No
         )
         if reply == QMessageBox.No:
@@ -1123,7 +1198,11 @@ class GameMenuController:
         total_price = self.gamer.round_money(sell_price * sold_count)
         self.gamer.set_coins(total_price, process_bank_events=False, save=False)
         self.gamer.save()
-        self.update_after_inventory_sale(item_obj.name, sold_count, total_price)
+        self.update_after_inventory_sale(
+            localized_game_name(item_obj.name),
+            sold_count,
+            total_price,
+        )
 
     # === ОБРАБОТЧИКИ МАГАЗИНА ===
 
@@ -1163,16 +1242,18 @@ class GameMenuController:
             return
 
         getattr(self.ui, shop_config['name_label']).setText(
-            tr(f"{shop_config['prefix']} {item_obj.name}")
+            f"{shop_config['prefix']} {localized_game_name(item_obj.name)}"
         )
         if description_label := shop_config.get('description_label'):
-            getattr(self.ui, description_label).setText(tr(f"📝 {item_obj.description}"))
+            getattr(self.ui, description_label).setText(
+                f"📝 {localized_game_description(item_obj.description)}"
+            )
         getattr(self.ui, shop_config['price_label']).setText(tr(f"💰 Цена: {item_obj.price}"))
 
         if effect_label := shop_config.get('effect_label'):
             effect_text = self.get_shop_item_effect(item_obj)
             getattr(self.ui, effect_label).setText(
-                tr(f"⚡ {effect_text}{self.describe_item_buff(item_obj)}")
+                f"⚡ {tr(effect_text)}{self.describe_item_buff(item_obj)}"
             )
 
         if shop_config['source'] == 'registry':
@@ -1391,7 +1472,7 @@ class GameMenuController:
                 self.update_shop_purchase_controls(category, item_name, item_obj, expected_category == "Зелья")
                 return
 
-            item_display_name = item_obj.name
+            item_display_name = localized_game_name(item_obj.name)
             total_price = item_obj.price * count
 
             # Проверяем достаточно ли монет
@@ -1687,8 +1768,8 @@ class GameMenuController:
 
     def format_sale_info(self, item_obj):
         if not self.is_item_sellable(item_obj):
-            return "\n💸 Продажа: недоступна"
-        return f"\n💸 Продажа: {self.get_item_sell_price(item_obj)} за шт."
+            return tr("\n💸 Продажа: недоступна")
+        return tr(f"\n💸 Продажа: {self.get_item_sell_price(item_obj)} за шт.")
 
     def update_inventory_sell_button(self, item_obj, count):
         if hasattr(self.ui, 'button_to_sell_selected_item'):

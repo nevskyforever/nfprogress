@@ -28,6 +28,7 @@ from game_UI import GameMenuController
 from localization import (
     LocalizedMessageBox as QMessageBox,
     SUPPORTED_LANGUAGES,
+    localized_unit_name,
     set_language,
     system_language,
     tr,
@@ -1340,17 +1341,7 @@ class MainWindow(QMainWindow, main_window_ui):
             # Прогресс в процентах
             progress_str = f"{note.get_added_progress():.2f}" if note.get_added_progress() else "0"
 
-            # Определяем правильное склонение единицы измерения
-            if unit_code == 'symbols':
-                unit_display = self._pluralize_unit(total_disp, 'символ', 'символа', 'символов')
-            elif unit_code == 'A4':
-                unit_display = self._pluralize_unit(total_disp, 'лист', 'листа', 'листов')
-            elif unit_code == 'author_list':
-                unit_display = self._pluralize_unit(total_disp, 'авторский лист', 'авторских листа', 'авторских листов')
-            elif unit_code == 'ficbook_pages':
-                unit_display = self._pluralize_unit(total_disp, 'страница', 'страницы', 'страниц')
-            else:
-                unit_display = unit_code
+            unit_display = localized_unit_name(unit_code, total_disp)
 
             # Формируем строку: дата ±добавлено → общее (единица) [процент]
             stage_prefix = f"{stage_name}: " if stage_name else ""
@@ -2741,16 +2732,7 @@ class MainWindow(QMainWindow, main_window_ui):
         """
         Возвращает правильное склонение единицы измерения для указанного числа.
         """
-        if unit_code == 'symbols':
-            return self._pluralize_unit(number, 'символ', 'символа', 'символов')
-        elif unit_code == 'A4':
-            return self._pluralize_unit(number, 'лист', 'листа', 'листов')
-        elif unit_code == 'author_list':
-            return self._pluralize_unit(number, 'авторский лист', 'авторских листа', 'авторских листов')
-        elif unit_code == 'ficbook_pages':
-            return self._pluralize_unit(number, 'страница', 'страницы', 'страниц')
-        else:
-            return unit_code  # на всякий случай
+        return localized_unit_name(unit_code, number)
 
     def get_current_project(self):
         """Возвращает объект Project для текущего выбранного элемента в списке или None."""

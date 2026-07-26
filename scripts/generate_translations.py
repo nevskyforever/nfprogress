@@ -1,0 +1,253 @@
+#!/usr/bin/env python3
+"""Generate the bundled translation catalog from Python sources and .ui forms."""
+
+from __future__ import annotations
+
+import ast
+import json
+import re
+import ssl
+import sys
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PYTHON_SOURCES = (
+    "engine.py",
+    "gama_quests.py",
+    "game.py",
+    "game_UI.py",
+    "game_data.py",
+    "main_UI.py",
+    "scrivener_parser.py",
+    "update_checker.py",
+    "updater_core.py",
+    "updater_main.py",
+    "UI_fiiles/project_widget.py",
+)
+TARGET_LANGUAGES = ("en", "es", "de", "fr", "pt")
+CATALOG_LANGUAGE = {"pt": "pt_BR"}
+CYRILLIC = re.compile(r"[А-Яа-яЁё]")
+SEPARATOR = "\n[[[NFPROGRESS_7A9C]]]\n"
+TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
+
+try:
+    import certifi
+except ImportError:
+    SSL_CONTEXT = ssl.create_default_context()
+else:
+    SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
+
+
+def joined_string_template(node: ast.JoinedStr) -> str:
+    parts = []
+    expression_index = 0
+    for value in node.values:
+        if isinstance(value, ast.Constant):
+            parts.append(str(value.value))
+        else:
+            parts.append("{" + str(expression_index) + "}")
+            expression_index += 1
+    return "".join(parts)
+
+
+def extract_python_strings(path: Path) -> set[str]:
+    strings = set()
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    joined_constants = {
+        id(value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.JoinedStr)
+        for value in node.values
+        if isinstance(value, ast.Constant)
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.JoinedStr):
+            value = joined_string_template(node)
+        elif (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str)
+            and id(node) not in joined_constants
+        ):
+            value = node.value
+        else:
+            continue
+        if CYRILLIC.search(value) and len(value) <= 3000:
+            strings.add(value)
+    return strings
+
+
+def extract_ui_strings(path: Path) -> tuple[set[str], str]:
+    strings = set()
+    agreement = ""
+    root = ET.parse(path).getroot()
+    for string_node in root.findall(".//string"):
+        value = "".join(string_node.itertext())
+        if CYRILLIC.search(value):
+            strings.add(value)
+        parent = None
+        for property_node in root.findall(".//property[@name='html']"):
+            if string_node in list(property_node):
+                parent = property_node
+                break
+        if path.name == "user_agreement.ui" and parent is not None:
+            agreement = value
+    return strings, agreement
+
+
+def source_strings() -> tuple[list[str], str]:
+    strings = set()
+    agreement = ""
+    for relative_path in PYTHON_SOURCES:
+        strings.update(extract_python_strings(PROJECT_ROOT / relative_path))
+    for ui_path in sorted((PROJECT_ROOT / "UI template").glob("*.ui")):
+        ui_strings, ui_agreement = extract_ui_strings(ui_path)
+        strings.update(ui_strings)
+        agreement = ui_agreement or agreement
+    return sorted(strings), agreement
+
+
+def make_batches(strings: list[str], maximum_characters: int = 2500):
+    batch = []
+    batch_size = 0
+    for source in strings:
+        extra_size = len(source) + (len(SEPARATOR) if batch else 0)
+        if batch and (len(batch) >= 15 or batch_size + extra_size > maximum_characters):
+            yield batch
+            batch = []
+            batch_size = 0
+        batch.append(source)
+        batch_size += extra_size
+    if batch:
+        yield batch
+
+
+def translate_batch(language: str, batch: list[str]) -> list[str]:
+    request_data = urllib.parse.urlencode(
+        {
+            "client": "gtx",
+            "sl": "ru",
+            "tl": language,
+            "dt": "t",
+            "q": SEPARATOR.join(batch),
+        }
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        TRANSLATE_URL,
+        data=request_data,
+        headers={"User-Agent": "nfprogress-translation-generator/1.0"},
+    )
+    for attempt in range(8):
+        try:
+            with urllib.request.urlopen(
+                request, timeout=45, context=SSL_CONTEXT
+            ) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            break
+        except urllib.error.HTTPError as error:
+            if attempt == 7 or error.code not in {429, 500, 502, 503, 504}:
+                raise
+            time.sleep(min(30, 2 ** attempt))
+    translated_text = "".join(part[0] for part in data[0] if part[0])
+    translated = translated_text.split(SEPARATOR)
+    if len(translated) != len(batch):
+        if len(batch) == 1:
+            raise RuntimeError("Translation service changed the batch separator")
+        translated = []
+        for source in batch:
+            translated.extend(translate_batch(language, [source]))
+    return translated
+
+
+def translate_html(language: str, source: str) -> str:
+    parts = re.split(r"(<[^>]+>)", source)
+    text_indexes = []
+    text_values = []
+    whitespace = []
+    for index in range(0, len(parts), 2):
+        text = parts[index]
+        if not CYRILLIC.search(text):
+            continue
+        match = re.match(r"^(\s*)(.*?)(\s*)$", text, re.DOTALL)
+        leading, core, trailing = match.groups()
+        text_indexes.append(index)
+        text_values.append(core)
+        whitespace.append((leading, trailing))
+
+    translated_values = []
+    for batch in make_batches(text_values):
+        translated_values.extend(translate_batch(language, batch))
+    for index, translated, (leading, trailing) in zip(
+        text_indexes, translated_values, whitespace
+    ):
+        parts[index] = leading + translated + trailing
+    return "".join(parts)
+
+
+def translate_language(language: str, strings: list[str]) -> dict[str, str]:
+    html_strings = [
+        source
+        for source in strings
+        if "<html" in source.lower() or "<!doctype html" in source.lower()
+    ]
+    plain_strings = [source for source in strings if source not in html_strings]
+    batches = list(make_batches(plain_strings))
+    results = {}
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {
+            executor.submit(translate_batch, language, batch): batch
+            for batch in batches
+        }
+        for completed, future in enumerate(as_completed(futures), start=1):
+            batch = futures[future]
+            translated = future.result()
+            results.update(zip(batch, translated))
+            print(
+                f"{language}: {completed}/{len(batches)} batches",
+                file=sys.stderr,
+                flush=True,
+            )
+    for completed, source in enumerate(html_strings, start=1):
+        results[source] = translate_html(language, source)
+        print(
+            f"{language}: HTML {completed}/{len(html_strings)}",
+            file=sys.stderr,
+            flush=True,
+        )
+    return results
+
+
+def write_catalog(catalog: dict[str, dict[str, str]], agreement: str) -> None:
+    payload = (
+        '"""Generated localization catalog. Do not edit by hand."""\n\n'
+        f"AGREEMENT_SOURCE = {agreement!r}\n"
+        f"TRANSLATIONS = {catalog!r}\n"
+    )
+    (PROJECT_ROOT / "translations_catalog.py").write_text(
+        payload, encoding="utf-8"
+    )
+
+
+def main() -> int:
+    strings, agreement = source_strings()
+    print(f"Extracted {len(strings)} Russian strings", file=sys.stderr)
+    catalog = {"ru": {source: source for source in strings}}
+    for language in TARGET_LANGUAGES:
+        output_language = CATALOG_LANGUAGE.get(language, language)
+        catalog[output_language] = translate_language(language, strings)
+
+    english_agreement = catalog["en"].get(agreement, agreement)
+    for language in ("es", "de", "fr", "pt_BR"):
+        catalog[language][agreement] = english_agreement
+    write_catalog(catalog, agreement)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
