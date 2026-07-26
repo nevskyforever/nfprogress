@@ -1,5 +1,6 @@
 import game
 import game_UI
+from datetime import date, timedelta
 
 
 class FakeInventoryItem:
@@ -109,6 +110,7 @@ def test_freeze_project_does_not_show_dialog_result_as_notification(monkeypatch)
 
     monkeypatch.setattr(game_UI, 'FreezeProject', FakeFreezeProject)
     monkeypatch.setattr(game_UI.game, 'load_game', lambda: game.Gamer(level=3))
+    monkeypatch.setattr(game_UI, 'load_data', lambda: {'projects': {}, 'global_streaks': []})
 
     assert controller.freeze_project() is True
     assert notifications.successes == ['Проект "Book" заморожен!']
@@ -134,3 +136,36 @@ def test_freeze_project_does_not_open_dialog_without_inventory(monkeypatch):
     assert controller.freeze_project() is False
     assert notifications.successes == []
     assert notifications.errors == ['В инвентаре нет заморозки.']
+
+
+def test_freeze_project_offers_global_freeze_without_active_project_streaks(monkeypatch):
+    today = date(2026, 7, 26)
+    gamer = game.Gamer(level=3)
+    gamer.items = {'Предметы': {'Заморозка': 1}, 'Зелья': {}, 'Награды': {}}
+    notifications = FakeNotifications()
+    controller = make_controller(gamer, ('Предметы', 'Заморозка'), 1)
+    controller.notifications = notifications
+    controller.refresh_all = lambda: None
+
+    data = {
+        'projects': {},
+        'global_streaks': [today - timedelta(days=1)],
+        'global_streak_status': 'Active',
+    }
+
+    class FakeFreezeProject:
+        def __init__(self, gamer=None):
+            raise AssertionError('project selection dialog should not open')
+
+    monkeypatch.setattr(game_UI, 'FreezeProject', FakeFreezeProject)
+    monkeypatch.setattr(game_UI, 'load_data', lambda: data)
+    monkeypatch.setattr(game_UI, 'save_data', lambda saved_data: None)
+    monkeypatch.setattr(game_UI, 'today_for_test', lambda: today)
+    monkeypatch.setattr(game_UI.QMessageBox, 'question', lambda *args, **kwargs: game_UI.QMessageBox.Yes)
+    monkeypatch.setattr(game.Gamer, 'save', lambda self: None)
+
+    assert controller.freeze_project() is True
+    assert gamer.items['Предметы']['Заморозка'] == 0
+    assert data['global_streaks'] == [today - timedelta(days=1), game_UI.engine.STREAK_FREEZE_MARKER]
+    assert data['global_streak_status'] == 'Freeze'
+    assert notifications.successes == ['Глобальный стрик заморожен!']

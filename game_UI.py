@@ -2202,6 +2202,28 @@ class GameMenuController:
             self.update_inventory()
             return False
 
+        data = load_data()
+        today = today_for_test()
+        if self._can_freeze_global_streak(data, today):
+            answer = QMessageBox.question(
+                getattr(getattr(self, 'ui', None), 'centralwidget', None),
+                'Заморозка глобального стрика',
+                'Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?',
+            )
+            if answer != QMessageBox.Yes:
+                return False
+
+            message = self._freeze_global_streak(data, today, fallback_names)
+            if message:
+                self.notifications.show_success(message)
+                self.update_inventory()
+                self.refresh_all()
+                return True
+
+            self.notifications.show_error('Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.')
+            self.update_inventory()
+            return False
+
         dialog = FreezeProject(self.gamer)
         result = dialog.exec_()
         if result == QDialog.Accepted:
@@ -2214,6 +2236,44 @@ class GameMenuController:
             self.refresh_all()
             return msg.startswith('Проект ')
         dialog.close()
+
+    @staticmethod
+    def _can_freeze_global_streak(data, today):
+        """Проверяет, можно ли заморозить глобальный стрик вместо стрика проекта."""
+        global_streaks = data.get('global_streaks', [])
+        if not isinstance(global_streaks, list):
+            return False
+        if engine.streak_last_day(global_streaks) != today - datetime.timedelta(days=1):
+            return False
+
+        projects = data.get('projects', {})
+        return not any(
+            engine.get_project_freeze_sources(project, today)
+            for project in projects.values()
+            if isinstance(project, engine.Project)
+        )
+
+    def _freeze_global_streak(self, data, today, fallback_names=()):
+        """Расходует заморозку и добавляет её к глобальному стрику."""
+        if not self._can_freeze_global_streak(data, today):
+            return None
+
+        items = getattr(self.gamer, 'items', {})
+        category_items = items.get(self.FREEZE_CATEGORY, {})
+        if not isinstance(category_items, dict):
+            return None
+
+        freeze_names = (self.FREEZE_ITEM_KEY, '❄️Заморозка', *fallback_names)
+        freeze_name = next((name for name in freeze_names if category_items.get(name, 0) > 0), None)
+        if freeze_name is None:
+            return None
+
+        category_items[freeze_name] -= 1
+        self.gamer.save()
+        data['global_streaks'].append(engine.STREAK_FREEZE_MARKER)
+        data['global_streak_status'] = 'Freeze'
+        save_data(data)
+        return 'Глобальный стрик заморожен!'
 
     def bank(self):
         dialog = Bank(self.gamer, self.notifications)

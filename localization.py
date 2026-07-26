@@ -129,6 +129,10 @@ dispute through negotiation.</p>
 
 TRANSLATION_OVERRIDES = {
     "en": {
+        "Заморозка глобального стрика": "Global streak freeze",
+        "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "There are no active projects with an active streak. Freeze the global streak for today?",
+        "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Could not apply the freeze: check the inventory and global streak status.",
+        "Глобальный стрик заморожен!": "Global streak frozen!",
         "Бесконечный проект": "Infinite project",
         "Параметр": "Parameter",
         "Значение за награду": "Value per reward",
@@ -142,6 +146,10 @@ TRANSLATION_OVERRIDES = {
         "за завершение квеста": "for completing a quest",
     },
     "es": {
+        "Заморозка глобального стрика": "Congelación de racha global",
+        "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "No hay proyectos activos con una racha activa. ¿Congelar la racha global de hoy?",
+        "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "No se pudo aplicar la congelación: comprueba el inventario y el estado de la racha global.",
+        "Глобальный стрик заморожен!": "¡Racha global congelada!",
         "Бесконечный проект": "Proyecto infinito",
         "Параметр": "Parámetro",
         "Значение за награду": "Valor por recompensa",
@@ -155,6 +163,10 @@ TRANSLATION_OVERRIDES = {
         "за завершение квеста": "por completar una misión",
     },
     "de": {
+        "Заморозка глобального стрика": "Globale Serie einfrieren",
+        "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "Es gibt keine aktiven Projekte mit einer aktiven Serie. Die globale Serie für heute einfrieren?",
+        "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Die Einfrierung konnte nicht angewendet werden: Bitte Inventar und Status der globalen Serie prüfen.",
+        "Глобальный стрик заморожен!": "Globale Serie eingefroren!",
         "Бесконечный проект": "Unbegrenztes Projekt",
         "Параметр": "Parameter",
         "Значение за награду": "Wert pro Belohnung",
@@ -168,6 +180,10 @@ TRANSLATION_OVERRIDES = {
         "за завершение квеста": "für den Abschluss einer Quest",
     },
     "fr": {
+        "Заморозка глобального стрика": "Gel de la série globale",
+        "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "Il n’y a aucun projet actif avec une série active. Geler la série globale pour aujourd’hui ?",
+        "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Impossible d’appliquer le gel : vérifiez l’inventaire et l’état de la série globale.",
+        "Глобальный стрик заморожен!": "Série globale gelée !",
         "Бесконечный проект": "Projet illimité",
         "Параметр": "Paramètre",
         "Значение за награду": "Valeur par récompense",
@@ -181,6 +197,10 @@ TRANSLATION_OVERRIDES = {
         "за завершение квеста": "pour avoir terminé une quête",
     },
     "pt_BR": {
+        "Заморозка глобального стрика": "Congelamento da sequência global",
+        "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "Não há projetos ativos com uma sequência ativa. Congelar a sequência global de hoje?",
+        "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Não foi possível aplicar o congelamento: verifique o inventário e o status da sequência global.",
+        "Глобальный стрик заморожен!": "Sequência global congelada!",
         "Бесконечный проект": "Projeto infinito",
         "Параметр": "Parâmetro",
         "Значение за награду": "Valor por recompensa",
