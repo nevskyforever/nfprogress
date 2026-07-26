@@ -26,6 +26,13 @@ def _streak_status_emoji(status):
     return '🙃'
 
 
+def _stage_completion_counts(project):
+    """Возвращает количество завершённых этапов и их общее число."""
+    stages = getattr(project, 'stages', [])
+    completed_count = sum(stage.status == 'завершен' for stage in stages)
+    return completed_count, len(stages)
+
+
 # =============================================================================
 # Кастомный виджет кругового прогресс-бара
 # =============================================================================
@@ -371,7 +378,11 @@ class ProjectWidget(QWidget, Ui_Form):
 
     def update_display(self):
         """Обновляет отображение виджета проекта."""
-        self.name.setText(tr(self.project.name))
+        display_name = tr(self.project.name)
+        if self.project.has_stages():
+            completed_count, total_count = _stage_completion_counts(self.project)
+            display_name = f'{display_name} [{completed_count}/{total_count}]'
+        self.name.setText(display_name)
 
         # Прогресс (всегда в процентах)
         if self.project.goal != float('inf'):
