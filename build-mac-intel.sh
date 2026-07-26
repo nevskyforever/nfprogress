@@ -7,13 +7,20 @@ if [ -d "build-intel" ]; then
   rm -rf build-intel
 fi
 
-# Оставляем только .qm-файлы для ru/en: QTranslator подгружает qt_ru.qm
-# вместе со всеми его подкаталогами (qtbase_ru.qm и т.д.) из той же папки,
-# поэтому нельзя брать один произвольный файл - нужны все *_ru.qm/*_en.qm.
+# Добавляем стандартные переводы Qt для всех языков приложения.
 PYSIDE_TRANSLATIONS=/Library/Frameworks/Python.framework/Versions/3.13/lib/python3.13/site-packages/PySide6/Qt/translations
 TRANSLATIONS_TMP=$(mktemp -d)/translations
 mkdir -p "$TRANSLATIONS_TMP"
-cp "$PYSIDE_TRANSLATIONS"/*_ru.qm "$PYSIDE_TRANSLATIONS"/*_en.qm "$TRANSLATIONS_TMP"/
+QT_TRANSLATION_LANGUAGES=(ru en es de fr pt_BR)
+for QT_LANGUAGE in "${QT_TRANSLATION_LANGUAGES[@]}"; do
+  QTBASE_TRANSLATION="$PYSIDE_TRANSLATIONS/qtbase_${QT_LANGUAGE}.qm"
+  if [ ! -f "$QTBASE_TRANSLATION" ]; then
+    echo "❌ Не найден обязательный перевод Qt: $QTBASE_TRANSLATION"
+    rm -rf "$(dirname "$TRANSLATIONS_TMP")"
+    exit 1
+  fi
+  cp "$PYSIDE_TRANSLATIONS"/*_"$QT_LANGUAGE".qm "$TRANSLATIONS_TMP"/
+done
 
 nuitka --standalone \
        --macos-create-app-bundle \
@@ -42,6 +49,12 @@ if [ $NUITKA_STATUS -ne 0 ]; then
   echo "Ошибка сборки Nuitka!"
   exit 1
 fi
+for QT_LANGUAGE in "${QT_TRANSLATION_LANGUAGES[@]}"; do
+  if ! find build-intel -type f -name "qtbase_${QT_LANGUAGE}.qm" -print -quit | grep -q .; then
+    echo "❌ Перевод qtbase_${QT_LANGUAGE}.qm не попал в Intel-сборку!"
+    exit 1
+  fi
+done
 
 # Переходим в папку сборки
 cd build-intel

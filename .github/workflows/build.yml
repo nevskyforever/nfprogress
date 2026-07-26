@@ -103,9 +103,15 @@ jobs:
         run: |
           $source = "${{ env.pythonLocation }}\Lib\site-packages\PySide6\translations"
           $destination = "$env:RUNNER_TEMP\translations"
+          $languages = @("ru", "en", "es", "de", "fr", "pt_BR")
           New-Item -ItemType Directory -Path $destination -Force | Out-Null
-          Copy-Item "$source\*_ru.qm" $destination
-          Copy-Item "$source\*_en.qm" $destination
+          foreach ($language in $languages) {
+            $qtbaseTranslation = Join-Path $source "qtbase_$language.qm"
+            if (-not (Test-Path $qtbaseTranslation)) {
+              throw "Required Qt translation is missing: $qtbaseTranslation"
+            }
+            Copy-Item "$source\*_$language.qm" $destination
+          }
 
       - name: Build standalone updater
         shell: pwsh

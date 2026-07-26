@@ -6,6 +6,9 @@ import zipfile
 from pathlib import Path, PurePosixPath
 
 
+QT_TRANSLATION_LANGUAGES = ("ru", "en", "es", "de", "fr", "pt_BR")
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as source:
@@ -82,6 +85,17 @@ def main() -> int:
     if missing_legal_files:
         raise SystemExit(f"Package is missing legal files: {missing_legal_files}")
 
+    translation_dir = args.package_dir / "PySide6" / "translations"
+    missing_translations = [
+        str(translation_dir / f"qtbase_{language}.qm")
+        for language in QT_TRANSLATION_LANGUAGES
+        if not (translation_dir / f"qtbase_{language}.qm").is_file()
+    ]
+    if missing_translations:
+        raise SystemExit(
+            f"Package is missing Qt translations: {missing_translations}"
+        )
+
     pe_results = [inspect_pe(executable) for executable in (main_exe, updater_exe, runtime_updater)]
     if args.installer is not None:
         pe_results.append(inspect_pe(args.installer, allow_large_overlay=True))
@@ -99,6 +113,10 @@ def main() -> int:
             "nfprogress/LICENSE.txt",
             "nfprogress/SOURCE_CODE.txt",
         }
+        required.update(
+            f"nfprogress/PySide6/translations/qtbase_{language}.qm"
+            for language in QT_TRANSLATION_LANGUAGES
+        )
         missing = required - names
         if missing:
             raise SystemExit(f"Archive is missing: {sorted(missing)}")
