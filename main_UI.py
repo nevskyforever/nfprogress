@@ -1843,9 +1843,6 @@ class MainWindow(QMainWindow, main_window_ui):
             en.save_data(data)
 
             self.refresh_projects()
-            self.project_info.setVisible(False)
-            self.note_widget.setVisible(False)
-            self.change_project_widget.setVisible(False)
             self.notifications.show_success(f'{project.name} завершен!')
 
     def _completion_bonus_key(self, project, parent_project=None):
