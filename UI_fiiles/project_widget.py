@@ -268,7 +268,8 @@ class Ui_Form(object):
 # Финальный класс виджета проекта (используется в main_UI.py)
 # =============================================================================
 class ProjectWidget(QWidget, Ui_Form):
-    def __init__(self, project, global_streak_mode, expanded=False, toggle_callback=None):
+    def __init__(self, project, global_streak_mode, expanded=False, toggle_callback=None,
+                 display_name=None):
         super().__init__()
         self.setupUi(self)
         # Загружаем настройки
@@ -338,6 +339,7 @@ class ProjectWidget(QWidget, Ui_Form):
             label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
         self.project = project
+        self.display_name = display_name
         self.expanded = expanded
         self.toggle_callback = toggle_callback
         # raise_() вместо lower(): прогресс-бар поверх Z-стека,
@@ -378,8 +380,8 @@ class ProjectWidget(QWidget, Ui_Form):
 
     def update_display(self):
         """Обновляет отображение виджета проекта."""
-        display_name = tr(self.project.name)
-        if self.project.has_stages():
+        display_name = self.display_name or tr(self.project.name)
+        if self.display_name is None and self.project.has_stages():
             completed_count, total_count = _stage_completion_counts(self.project)
             display_name = f'{display_name} [{completed_count}/{total_count}]'
         self.name.setText(display_name)

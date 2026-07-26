@@ -177,6 +177,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.btn_create_project.clicked.connect(self.create_project)
         self.list_projects.itemClicked.connect(self.view_project)
         self.list_projects.itemClicked.connect(self.clear_project_search)
+        self.list_projects.itemDoubleClicked.connect(self.open_search_result)
         self.list_projects.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.list_projects.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.list_projects.model().rowsMoved.connect(self._save_reordered_stages)
@@ -2035,12 +2036,13 @@ class MainWindow(QMainWindow, main_window_ui):
             return f"{getattr(project, 'parent_project_name', '')}:{getattr(project, 'stage_id', project.name)}"
         return project.name
 
-    def generate_project_widget(self, project):
+    def generate_project_widget(self, project, display_name=None):
         return ProjectWidget(
             project,
             en.load_settings()['global_streak'],
             expanded=project.name in self._expanded_stage_projects,
             toggle_callback=self._toggle_project_stages,
+            display_name=display_name,
         )
 
     def on_filter_changed(self):
@@ -2063,7 +2065,32 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def clear_project_search(self, _item):
         """Очищает поисковый запрос после выбора проекта из списка."""
+        project = self.get_current_project()
+        # Результат-этап остаётся в поиске: по двойному клику он открывает
+        # обычный список проектов с раскрытым родительским проектом.
+        if project is None or not self._is_stage(project):
+            self.search_project.clear()
+
+    def open_search_result(self, _item):
+        """Открывает найденный этап в обычном списке проектов."""
+        project = self.get_current_project()
+        if project is None or not self._is_stage(project) or not self.search_project.text().strip():
+            return
+
+        parent = self._get_parent_project(project)
+        if parent is None:
+            return
+
+        self._expanded_stage_projects.add(parent.name)
+        stage_id = project.stage_id
         self.search_project.clear()
+        # Очистка поля синхронно пересоздаёт список и сначала восстанавливает
+        # выделение родительского проекта. Выбираем этап в следующем цикле
+        # обработки событий, когда пересоздание списка уже завершено.
+        QTimer.singleShot(
+            0,
+            lambda: self.select_stage_by_id(parent.name, stage_id),
+        )
 
     def on_tab_changed(self, index):
         """Обработчик переключения вкладок"""
@@ -2203,8 +2230,22 @@ class MainWindow(QMainWindow, main_window_ui):
         search_text = self.search_project.text().strip().casefold()
 
         # Поиск выполняется среди всех проектов независимо от фильтра по статусу.
+        # В результаты также попадают активные и завершённые этапы.
         if search_text:
-            projects = [p for p in projects if search_text in p.name.casefold()]
+            project_entries = [
+                (project, None)
+                for project in projects
+                if search_text in project.name.casefold()
+            ]
+            for parent_project in projects:
+                for stage in getattr(parent_project, 'stages', []):
+                    if (
+                            stage.status in ('активен', 'завершен') and
+                            search_text in stage.name.casefold()
+                    ):
+                        project_entries.append(
+                            (stage, f'{parent_project.name}: {stage.name}')
+                        )
         elif current_filter == "Активен":
             projects = [p for p in projects if p.status == "активен"]
         elif current_filter == "В архиве":
@@ -2212,9 +2253,12 @@ class MainWindow(QMainWindow, main_window_ui):
         elif current_filter == "Завершен":
             projects = [p for p in projects if p.status == "завершен"]
 
+        if not search_text:
+            project_entries = [(project, None) for project in projects]
+
         # Сортируем проекты
         if current_sort == 'Название':
-            projects = sorted(projects, key=lambda p: p.name)
+            project_entries = sorted(project_entries, key=lambda entry: entry[0].name)
         elif current_sort == 'Дедлайн':
             # Исправленная сортировка по дедлайну
             def get_deadline_key(project):
@@ -2222,9 +2266,9 @@ class MainWindow(QMainWindow, main_window_ui):
                     return datetime.date.max  # проекты без дедлайна в конец
                 return project.deadline
 
-            projects = sorted(projects, key=get_deadline_key)
+            project_entries = sorted(project_entries, key=lambda entry: get_deadline_key(entry[0]))
         elif current_sort == 'Прогресс':
-            projects = sorted(projects, key=lambda p: p.progress, reverse=True)
+            project_entries = sorted(project_entries, key=lambda entry: entry[0].progress, reverse=True)
 
         list_p = self.list_projects
         if scroll_value is None:
@@ -2263,11 +2307,12 @@ class MainWindow(QMainWindow, main_window_ui):
         should_give_streak_bonus = settings.get('game_mode', False) and settings.get('global_streak', False)
         data_changed = False
 
-        for project in projects:
-            widget = self.generate_project_widget(project)
+        for project, display_name in project_entries:
+            is_stage_search_result = display_name is not None
+            widget = self.generate_project_widget(project, display_name=display_name)
 
             # Даем бонус за стрик проекта и глобальный, если он включен
-            if should_give_streak_bonus:
+            if should_give_streak_bonus and not is_stage_search_result:
                 streak_sources = project.stages if project.has_stages() and project.deadline == 'Нет' else [project]
                 bonus_day = en.today_for_test()
                 for streak_source in streak_sources:
@@ -2305,7 +2350,11 @@ class MainWindow(QMainWindow, main_window_ui):
             if current_project_name and project.name == current_project_name:
                 list_p.setCurrentItem(item)
 
-            if getattr(project, 'has_stages', lambda: False)() and project.name in self._expanded_stage_projects:
+            if (
+                    not is_stage_search_result and
+                    getattr(project, 'has_stages', lambda: False)() and
+                    project.name in self._expanded_stage_projects
+            ):
                 for stage in project.stages:
                     stage_widget = StageRowWidget(stage, project, settings.get('global_streak', False))
                     stage_widget.layout().activate()
