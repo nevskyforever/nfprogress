@@ -75,6 +75,7 @@ class GameMenuController:
             'list': 'item_shop_list',
             'name_label': 'name_selected_item_on_shop',
             'description_label': 'description_selected_item_on_shop',
+            'level_label': 'level_selected_item_on_shop',
             'price_label': 'peice_selected_item_on_shop',
             'effect_label': 'effect_selected_item_on_shop',
             'spinbox': 'value_for_buy_selected_item',
@@ -1244,6 +1245,10 @@ class GameMenuController:
         getattr(self.ui, shop_config['name_label']).setText(
             f"{shop_config['prefix']} {localized_game_name(item_obj.name)}"
         )
+        if level_label := shop_config.get('level_label'):
+            getattr(self.ui, level_label).setText(
+                tr(f"⭐ Уровень: {item_obj.level}")
+            )
         if description_label := shop_config.get('description_label'):
             getattr(self.ui, description_label).setText(
                 f"📝 {localized_game_description(item_obj.description)}"
@@ -1280,7 +1285,12 @@ class GameMenuController:
 
     def clear_shop_tab_info(self, shop_config):
         getattr(self.ui, shop_config['name_label']).setText(tr(shop_config['empty_text']))
-        for label_key in ('description_label', 'price_label', 'effect_label'):
+        for label_key in (
+            'description_label',
+            'level_label',
+            'price_label',
+            'effect_label',
+        ):
             if label_name := shop_config.get(label_key):
                 getattr(self.ui, label_name).clear()
 
