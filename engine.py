@@ -1941,7 +1941,10 @@ def refresh_project_streak_statuses(data):
             changed = True
             data['projects'][project_name] = project
 
-    if apply_global_streak_freeze(data, gamer=None):
+    # Как и проектные стрики, глобальный стрик автозамораживается только
+    # при обработке уже пропущенного дня, а не в день, когда он ещё активен.
+    missed_day = today_for_test() - timedelta(days=1)
+    if apply_global_streak_freeze(data, missed_day, gamer=None):
         changed = True
         freeze_changed = True
 
