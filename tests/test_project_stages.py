@@ -52,6 +52,26 @@ def stage_with_unextended_today(name, today):
     return stage
 
 
+def test_auto_freeze_preserves_global_streak_without_active_project_streaks(monkeypatch):
+    today = datetime.date(2026, 7, 26)
+    gamer = DummyGamer(freeze_count=1)
+    enable_freeze_mode(monkeypatch, today, gamer)
+
+    data = {
+        'projects': {},
+        'global_streaks': [today - datetime.timedelta(days=1)],
+        'global_streak_status': 'Active',
+    }
+
+    result = engine.refresh_project_streak_statuses(data)
+
+    assert result == {'changed': True, 'freeze_changed': True}
+    assert data['global_streaks'] == [today - datetime.timedelta(days=1), engine.STREAK_FREEZE_MARKER]
+    assert data['global_streak_status'] == 'Freeze'
+    assert gamer.items['Предметы']['Заморозка'] == 0
+    assert gamer.saved is True
+
+
 def test_convert_project_to_stages_moves_notes_to_first_stage():
     deadline = datetime.date(2026, 7, 30)
     project = engine.Project(name='Book', goal=1000, total_symbols=300, deadline=deadline)

@@ -161,6 +161,7 @@ def test_freeze_project_offers_global_freeze_without_active_project_streaks(monk
     monkeypatch.setattr(game_UI, 'load_data', lambda: data)
     monkeypatch.setattr(game_UI, 'save_data', lambda saved_data: None)
     monkeypatch.setattr(game_UI, 'today_for_test', lambda: today)
+    monkeypatch.setattr(game_UI.engine, 'load_settings', lambda: {'game_mode': True, 'global_streak': True})
     monkeypatch.setattr(game_UI.QMessageBox, 'question', lambda *args, **kwargs: game_UI.QMessageBox.Yes)
     monkeypatch.setattr(game.Gamer, 'save', lambda self: None)
 

@@ -1530,6 +1530,55 @@ def get_project_freeze_sources(project, freeze_day=None):
     return freeze_sources
 
 
+def can_freeze_global_streak(data, freeze_day=None):
+    """Проверяет, можно ли заморозить глобальный стрик без заморозки проекта."""
+    if freeze_day is None:
+        freeze_day = today_for_test()
+    if not load_settings().get('game_mode', False):
+        return False
+
+    global_streaks = data.get('global_streaks', [])
+    if not isinstance(global_streaks, list):
+        return False
+    if streak_last_day(global_streaks) != freeze_day - timedelta(days=1):
+        return False
+
+    projects = data.get('projects', {})
+    return not any(
+        get_project_freeze_sources(project, freeze_day)
+        for project in projects.values()
+        if isinstance(project, Project)
+    )
+
+
+def apply_global_streak_freeze(data, freeze_day=None, gamer=None, save_gamer=True):
+    """Замораживает глобальный стрик и списывает один предмет из инвентаря."""
+    if freeze_day is None:
+        freeze_day = today_for_test()
+    if not can_freeze_global_streak(data, freeze_day):
+        return False
+
+    if gamer is None:
+        import game
+        gamer = game.load_game()
+    items = getattr(gamer, 'items', {})
+    category_items = items.get('Предметы', {})
+    if not isinstance(category_items, dict):
+        return False
+
+    freeze_names = ('Заморозка', '❄️Заморозка')
+    freeze_name = next((name for name in freeze_names if category_items.get(name, 0) > 0), None)
+    if freeze_name is None:
+        return False
+
+    category_items[freeze_name] -= 1
+    if save_gamer:
+        gamer.save()
+    data['global_streaks'].append(STREAK_FREEZE_MARKER)
+    data['global_streak_status'] = 'Freeze'
+    return True
+
+
 def apply_project_freeze_group(project, freeze_day=None, gamer=None, save_gamer=True):
     """Замораживает выбранный проект: родителя целиком или все активные этапы одним расходом."""
     if freeze_day is None:
@@ -1891,6 +1940,10 @@ def refresh_project_streak_statuses(data):
         if source_changed:
             changed = True
             data['projects'][project_name] = project
+
+    if apply_global_streak_freeze(data, gamer=None):
+        changed = True
+        freeze_changed = True
 
     if changed:
         save_data(data)

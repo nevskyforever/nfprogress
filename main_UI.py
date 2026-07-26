@@ -2168,6 +2168,13 @@ class MainWindow(QMainWindow, main_window_ui):
 
             data['projects'][project_name] = project
 
+        if en.apply_global_streak_freeze(data):
+            changed = True
+            message = 'Глобальный стрик автоматически заморожен.'
+            notifications['new'].append(en.Notification(message, tag='streak'))
+            if show_auto_freeze_toasts and self.notifications:
+                self.notifications.show_info(message, position='bottom-right')
+
         if changed:
             data['notifications'] = notifications
             en.save_data(data)
