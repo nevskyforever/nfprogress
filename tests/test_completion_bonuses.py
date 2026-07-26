@@ -36,6 +36,24 @@ def test_project_completion_bonus_remains_full(monkeypatch):
     assert gamer.exp == 20000
 
 
+def test_completed_stage_streak_bonus_is_not_reissued(monkeypatch):
+    disable_persistence(monkeypatch)
+    gamer = game.Gamer(level=1)
+    stage_bonus_key = 'stage:Book:stage-id'
+    gamer.mark_complete_bonus_received(stage_bonus_key)
+
+    result = gamer.give_streak_bonus(
+        'Complete',
+        'Local',
+        streak_len=3,
+        project_name=stage_bonus_key,
+    )
+
+    assert result is None
+    assert gamer.coins == 0
+    assert gamer.exp == 0
+
+
 def test_completing_parent_includes_only_unfinished_stages():
     completed_stage = engine.Stage(name='Draft', goal=100, status='завершен')
     active_stage = engine.Stage(name='Edit', goal=100)

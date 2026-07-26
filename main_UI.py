@@ -2273,7 +2273,10 @@ class MainWindow(QMainWindow, main_window_ui):
                                 streak_source.get_streak_status(),
                                 'Local',
                                 en.streak_length(streak_source.streaks),
-                                project_name=project.name,
+                                project_name=self._completion_bonus_key(
+                                    streak_source,
+                                    project if self._is_stage(streak_source) else None,
+                                ),
                         ):
                             streak_source.last_streak_bonus = bonus_day
                             data['projects'][project.name] = project
