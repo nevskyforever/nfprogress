@@ -16,9 +16,10 @@ import urllib.request
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QSettings, QThread, Signal, Slot
-from PySide6.QtWidgets import QApplication, QMessageBox, QProgressDialog
+from PySide6.QtWidgets import QApplication, QProgressDialog
 
 import engine as en
+from localization import LocalizedMessageBox as QMessageBox, tr
 
 
 UPDATE_MANIFEST_URL = os.environ.get("NFPROGRESS_UPDATE_URL", "https://nfproject.ru/app/update_manifest.json")
@@ -622,12 +623,12 @@ class UpdateChecker(QObject):
         message += "\n\nАрхив будет скачан и проверен перед закрытием приложения."
 
         dialog = QMessageBox(parent)
-        dialog.setWindowTitle("Обновление приложения")
+        dialog.setWindowTitle(tr("Обновление приложения"))
         dialog.setIcon(QMessageBox.Information)
-        dialog.setText(message)
-        update_button = dialog.addButton("Обновить", QMessageBox.AcceptRole)
-        skip_button = dialog.addButton("Пропустить эту версию", QMessageBox.RejectRole)
-        dialog.addButton("Позже", QMessageBox.DestructiveRole)
+        dialog.setText(tr(message))
+        update_button = dialog.addButton(tr("Обновить"), QMessageBox.AcceptRole)
+        skip_button = dialog.addButton(tr("Пропустить эту версию"), QMessageBox.RejectRole)
+        dialog.addButton(tr("Позже"), QMessageBox.DestructiveRole)
         dialog.exec()
         if dialog.clickedButton() == update_button:
             if platform.system() == "Windows":
@@ -647,8 +648,10 @@ class UpdateChecker(QObject):
             return
         self._dialog_parent = parent
         self._download_release = release
-        self._progress_dialog = QProgressDialog("Скачивание и проверка обновления…", "", 0, 100, parent)
-        self._progress_dialog.setWindowTitle("Обновление nfprogress")
+        self._progress_dialog = QProgressDialog(
+            tr("Скачивание и проверка обновления…"), "", 0, 100, parent
+        )
+        self._progress_dialog.setWindowTitle(tr("Обновление nfprogress"))
         self._progress_dialog.setCancelButton(None)
         self._progress_dialog.setMinimumDuration(0)
         self._progress_dialog.setValue(0)

@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
                                QSizePolicy, QVBoxLayout, QWidget, QPushButton, QHBoxLayout)
 from PySide6.scripts.pyside_tool import project
 from engine import streak_length as get_streak_length
+from localization import tr
 
 
 def _streak_status_emoji(status):
@@ -341,7 +342,7 @@ class ProjectWidget(QWidget, Ui_Form):
             self.stage_toggle = QPushButton('▾' if expanded else '▸', self.widget)
             self.stage_toggle.setFixedSize(22, 22)
             self.stage_toggle.setFocusPolicy(Qt.NoFocus)
-            self.stage_toggle.setToolTip('Показать этапы' if not expanded else 'Скрыть этапы')
+            self.stage_toggle.setToolTip(tr('Показать этапы' if not expanded else 'Скрыть этапы'))
             self.stage_toggle.clicked.connect(self._toggle_stages)
             self.gridLayout.addWidget(self.stage_toggle, 0, 0, 1, 1, Qt.AlignCenter)
 
@@ -370,7 +371,7 @@ class ProjectWidget(QWidget, Ui_Form):
 
     def update_display(self):
         """Обновляет отображение виджета проекта."""
-        self.name.setText(self.project.name)
+        self.name.setText(tr(self.project.name))
 
         # Прогресс (всегда в процентах)
         if self.project.goal != float('inf'):
@@ -389,7 +390,7 @@ class ProjectWidget(QWidget, Ui_Form):
         unit_short = self.unit_display.get(self.project.unit, '')
 
         # Формируем строку с единицей измерения: "10/20 стр." или "5/10 л." и т.д.
-        self.symbols.setText(f'{total_str}/{goal_str} {unit_short}')
+        self.symbols.setText(tr(f'{total_str}/{goal_str} {unit_short}'))
 
         # Сначала скрываем все элементы стриков
         self.streak.setVisible(False)
@@ -397,18 +398,18 @@ class ProjectWidget(QWidget, Ui_Form):
 
         # Дедлайн
         if self.project.deadline_str != 'Нет':
-            self.deadline.setText(f'Дедлайн: {self.project.deadline_str}')
+            self.deadline.setText(tr(f'Дедлайн: {self.project.deadline_str}'))
             self.deadline.setVisible(True)
 
             # Показываем стрики только если они включены в настройках
             if self.global_streak_mode:
                 streak_status = self.project.get_streak_status()
                 streak_length = get_streak_length(self.project.streaks)
-                self.streak.setText(f'Стрик: {streak_length} д.')
+                self.streak.setText(tr(f'Стрик: {streak_length} д.'))
                 self.streak.setVisible(True)
 
                 status_msg = self.project.get_streak_status_msg('min')
-                self.streak_status.setText(status_msg)
+                self.streak_status.setText(tr(status_msg))
                 self.streak_status.setVisible(True)
         else:
             self.deadline.setVisible(False)
@@ -482,19 +483,19 @@ class StageRowWidget(QWidget):
         self.circular_progress.stopAnimation()
 
     def update_display(self):
-        self.name.setText(self._get_display_name())
+        self.name.setText(tr(self._get_display_name()))
         self.circular_progress.setValue(100 if self.project.goal == float('inf') else int(self.project.progress), animated=True)
         total = self._format_number(self.project.total_units)
         goal = '∞' if self.project.goal == float('inf') else self._format_number(self.project.goal)
-        self.total.setText(f"{total}/{goal}")
+        self.total.setText(tr(f"{total}/{goal}"))
         if self.project.deadline != 'Нет':
-            self.deadline.setText(f"Дедлайн: {self.project.deadline_str}")
+            self.deadline.setText(tr(f"Дедлайн: {self.project.deadline_str}"))
             self.deadline.setVisible(True)
         else:
             self.deadline.setVisible(False)
         if self.global_streak_mode and self.parent_project.deadline == 'Нет' and self.project.deadline != 'Нет':
             status = self.project.get_streak_status()
-            self.streak.setText(f"{_streak_status_emoji(status)} {get_streak_length(self.project.streaks)} д.")
+            self.streak.setText(tr(f"{_streak_status_emoji(status)} {get_streak_length(self.project.streaks)} д."))
             self.streak.setVisible(True)
         else:
             self.streak.setVisible(False)

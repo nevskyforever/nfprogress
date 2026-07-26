@@ -4,7 +4,7 @@
 import datetime
 
 from PySide6.QtCore import QDate, QSignalBlocker, QTimer, Qt
-from PySide6.QtWidgets import QListWidgetItem, QMessageBox, QDialog
+from PySide6.QtWidgets import QListWidgetItem, QDialog
 
 import engine
 import game
@@ -14,6 +14,7 @@ from UI_fiiles.bank import Ui_Bamk
 from UI_fiiles.new_bank_product import Ui_Dialog as Ui_NewBankProduct
 from UI_fiiles.create_custom_award import Ui_create_castom_item
 from engine import load_data, save_data, today_for_test, unit_converter
+from localization import LocalizedMessageBox as QMessageBox, tr
 
 
 class GameMenuController:
@@ -98,10 +99,10 @@ class GameMenuController:
         self.ui.bank_btn.setEnabled(True)
 
         # Просим выбрать элементы в мазазинах и инвентаре
-        self.ui.name_selected_item_on_shop.setText('Выберите товар')
-        self.ui.name_selected_potion_on_shop.setText('Выберите товар')
-        self.ui.name_selected_custom_award_on_shop.setText('Выберите награду')
-        self.ui.name_selected_item.setText('Выберите предмет')
+        self.ui.name_selected_item_on_shop.setText(tr('Выберите товар'))
+        self.ui.name_selected_potion_on_shop.setText(tr('Выберите товар'))
+        self.ui.name_selected_custom_award_on_shop.setText(tr('Выберите награду'))
+        self.ui.name_selected_item.setText(tr('Выберите предмет'))
 
     def load_gamer(self):
         """Загрузка или создание игрока"""
@@ -282,8 +283,8 @@ class GameMenuController:
                         self.notifications.show_success(message)
 
         # Обновляем отображение
-        self.ui.gamer_label.setText(str(self.gamer.level))
-        self.ui.gamer_coins.setText(str(self.gamer.get_coins()))
+        self.ui.gamer_label.setText(tr(str(self.gamer.level)))
+        self.ui.gamer_coins.setText(tr(str(self.gamer.get_coins())))
 
         # Опыт - получаем необходимое для следующего уровня
         current_level = self.gamer.level
@@ -292,7 +293,7 @@ class GameMenuController:
             current_exp = self.gamer.exp
 
             # Форматируем текст
-            self.ui.gamer_exp.setText(f"Опыт: {int(current_exp)}/{next_level_exp}")
+            self.ui.gamer_exp.setText(tr(f"Опыт: {int(current_exp)}/{next_level_exp}"))
 
             # Вычисляем прогресс в процентах
             if next_level_exp > 0:
@@ -303,14 +304,14 @@ class GameMenuController:
                 self.ui.exp_progressbar.setValue(0)
         else:
             # Максимальный уровень
-            self.ui.gamer_exp.setText(f"Опыт: {int(self.gamer.exp)}/MAX")
+            self.ui.gamer_exp.setText(tr(f"Опыт: {int(self.gamer.exp)}/MAX"))
             self.ui.exp_progressbar.setValue(100)
 
         # Здоровье
         max_health = self.gamer.get_max_health()
         health = max(0, min(max_health, self.gamer.health))
         health_text = f"{health:g}" if isinstance(health, float) else str(health)
-        self.ui.gamer_health.setText(f"Здоровье: {health_text}/{max_health}")
+        self.ui.gamer_health.setText(tr(f"Здоровье: {health_text}/{max_health}"))
         self.ui.gamer_health_progressbar.setValue(int(health))
         self.ui.gamer_health_progressbar.setMaximum(max_health)
         self.update_gamer_parameters_list()
@@ -424,7 +425,7 @@ class GameMenuController:
 
     def clear_quest_info(self, status):
         labels = self.get_quest_labels(status)
-        labels['name'].setText('Выберите квест')
+        labels['name'].setText(tr('Выберите квест'))
         labels['description'].clear()
         labels['reward'].clear()
         if 'start' in labels:
@@ -459,7 +460,7 @@ class GameMenuController:
         list_widget.blockSignals(True)
         list_widget.clear()
         for quest in quests:
-            item = QListWidgetItem(quest.name)
+            item = QListWidgetItem(tr(quest.name))
             item.setData(Qt.ItemDataRole.UserRole, quest.quest_id)
             list_widget.addItem(item)
         list_widget.blockSignals(False)
@@ -502,13 +503,13 @@ class GameMenuController:
             return
 
         labels = self.get_quest_labels(status)
-        labels['name'].setText(quest.name)
-        labels['description'].setText(f'{quest.description}\n\nУровень: {quest.level}')
-        labels['reward'].setText(quest.format_reward())
+        labels['name'].setText(tr(quest.name))
+        labels['description'].setText(tr(f'{quest.description}\n\nУровень: {quest.level}'))
+        labels['reward'].setText(tr(quest.format_reward()))
         if 'start' in labels:
-            labels['start'].setText(f'Дата начала: {self.format_quest_date(quest.start_date)}')
+            labels['start'].setText(tr(f'Дата начала: {self.format_quest_date(quest.start_date)}'))
         if 'end' in labels:
-            labels['end'].setText(f'Дата завершения: {self.format_quest_date(quest.end_date)}')
+            labels['end'].setText(tr(f'Дата завершения: {self.format_quest_date(quest.end_date)}'))
 
     def on_start_selected_quest(self):
         selected = self.ui.available_quests_list.currentItem()
@@ -565,7 +566,7 @@ class GameMenuController:
 
         self.gamer.normalize_skills()
         available_points = self.gamer.available_skill_points
-        self.ui.available_skill_points.setText(f'Доступные баллы умений: {available_points}')
+        self.ui.available_skill_points.setText(tr(f'Доступные баллы умений: {available_points}'))
 
         for skill_key, spinbox in self.get_skill_widgets().items():
             skill_value = self.gamer.skills.get(skill_key, 0)
@@ -575,13 +576,13 @@ class GameMenuController:
                 spinbox.setValue(skill_value)
 
         self.ui.skill_description_productivity.setText(
-            f'Влияет на количество получаемого опыта. +{game.SKILL_CF_STEP:g} к коэффициенту опыта за балл.'
+            tr(f'Влияет на количество получаемого опыта. +{game.SKILL_CF_STEP:g} к коэффициенту опыта за балл.')
         )
         self.ui.skill_description_profitability.setText(
-            f'Влияет на количество получаемых монет. +{game.SKILL_CF_STEP:g} к коэффициенту монет за балл.'
+            tr(f'Влияет на количество получаемых монет. +{game.SKILL_CF_STEP:g} к коэффициенту монет за балл.')
         )
         self.ui.endurance_skill_description.setText(
-            f'Влияет на восстановление здоровья. +{game.SKILL_CF_STEP:g} здоровья в час за балл.'
+            tr(f'Влияет на восстановление здоровья. +{game.SKILL_CF_STEP:g} здоровья в час за балл.')
         )
 
     def on_skill_points_changed(self, skill_key, new_value):
@@ -619,7 +620,7 @@ class GameMenuController:
 
         for parameter in self.gamer.get_cf_parameters():
             value = self.format_gamer_parameter_value(parameter['value'])
-            item = QListWidgetItem(f"{parameter['name']} - х{value}")
+            item = QListWidgetItem(tr(f"{parameter['name']} - х{value}"))
             item.setData(Qt.ItemDataRole.UserRole, parameter['key'])
             self.ui.gamer_parameters_list.addItem(item)
 
@@ -658,7 +659,7 @@ class GameMenuController:
         parameter_key = item.data(Qt.ItemDataRole.UserRole)
         for parameter in self.gamer.get_cf_parameters():
             if parameter['key'] == parameter_key:
-                self.ui.description_selected_parameter.setText(parameter['description'])
+                self.ui.description_selected_parameter.setText(tr(parameter['description']))
                 return
 
         self.ui.description_selected_parameter.clear()
@@ -711,7 +712,7 @@ class GameMenuController:
             return
 
         for buff, stacks in self.gamer.get_all_buffs(positive=positive):
-            item = QListWidgetItem(self.get_buff_display_text(buff, stacks))
+            item = QListWidgetItem(tr(self.get_buff_display_text(buff, stacks)))
             item.setData(Qt.ItemDataRole.UserRole, buff)
             item.setData(Qt.ItemDataRole.UserRole + 1, stacks)
             list_widget.addItem(item)
@@ -777,18 +778,18 @@ class GameMenuController:
         total_text = f"\nИтого: {sign}{abs(buff.value * stacks):g}" if stacks > 1 else ""
         parameter_name = self.get_cf_display_name(buff.target_cf)
 
-        labels[0].setText(buff.name)
-        labels[1].setText(buff.description)
+        labels[0].setText(tr(buff.name))
+        labels[1].setText(tr(buff.description))
         labels[2].setText(
-            f"Параметр: {parameter_name}\n"
+            tr(f"Параметр: {parameter_name}\n"
             f"Значение за награду: {sign}{abs(buff.value):g}"
-            f"{stack_text}{total_text}"
+            f"{stack_text}{total_text}")
         )
         labels[3].clear()
         if buff.end_time is None:
             labels[4].clear()
         else:
-            labels[4].setText(f"Осталось: {self.format_buff_remaining_time(buff)}")
+            labels[4].setText(tr(f"Осталось: {self.format_buff_remaining_time(buff)}"))
 
     def describe_item_buff(self, item_obj):
         buffs = item_obj.get_buffs() if hasattr(item_obj, 'get_buffs') else [getattr(item_obj, 'buff', None)]
@@ -825,7 +826,7 @@ class GameMenuController:
                         continue
                     display_name = getattr(item_obj, 'name', item_name)
                     display_text = f"{display_name} x{count} [{category}]"
-                    item = QListWidgetItem(display_text)
+                    item = QListWidgetItem(tr(display_text))
                     # Сохраняем данные предмета (категория, имя)
                     item.setData(Qt.ItemDataRole.UserRole, (category, item_name))
                     self.ui.inventory_list.addItem(item)
@@ -837,7 +838,7 @@ class GameMenuController:
                 if selected_filter != self.INVENTORY_FILTER_ALL and item_type != selected_filter:
                     continue
                 display_text = f"{award.name} x{count} [Награды]"
-                item = QListWidgetItem(display_text)
+                item = QListWidgetItem(tr(display_text))
                 item.setData(Qt.ItemDataRole.UserRole, ('Кастомные награды', award.name))
                 self.ui.inventory_list.addItem(item)
 
@@ -868,7 +869,7 @@ class GameMenuController:
         return item_types
 
     def get_selected_inventory_filter(self):
-        selected_filter = self.ui.inventory_filter_comboBox.currentText()
+        selected_filter = self.ui.inventory_filter_comboBox.currentData()
         return selected_filter or self.INVENTORY_FILTER_ALL
 
     def update_inventory_filter_combo(self):
@@ -882,20 +883,24 @@ class GameMenuController:
             current_filter = self.INVENTORY_FILTER_ALL
 
         combo = self.ui.inventory_filter_comboBox
-        current_items = [combo.itemText(index) for index in range(combo.count())]
-        if current_items == available_filters and combo.currentText() == current_filter:
+        current_items = [combo.itemData(index) for index in range(combo.count())]
+        if current_items == available_filters and combo.currentData() == current_filter:
             return
 
         with QSignalBlocker(combo):
             combo.clear()
-            combo.addItems(available_filters)
-            combo.setCurrentText(current_filter)
+            for value in available_filters:
+                combo.addItem(tr(value), value)
+            combo.setCurrentIndex(max(0, combo.findData(current_filter)))
 
     def on_inventory_filter_changed(self, selected_filter):
         """Применяет фильтр инвентаря и сохраняет его для игрового режима."""
         if engine.load_settings().get('game_mode', False):
             settings = engine.load_settings()
-            settings['inventory_filter'] = selected_filter or self.INVENTORY_FILTER_ALL
+            settings['inventory_filter'] = (
+                self.ui.inventory_filter_comboBox.currentData()
+                or self.INVENTORY_FILTER_ALL
+            )
             engine.save_settings(settings)
 
         self.clear_inventory_item_info()
@@ -920,7 +925,7 @@ class GameMenuController:
             if availability_check and not getattr(self, availability_check)(item_obj):
                 continue
 
-            item = QListWidgetItem(item_obj.name)
+            item = QListWidgetItem(tr(item_obj.name))
             item.setData(Qt.ItemDataRole.UserRole, (shop_config['category'], item_key))
             shop_list.addItem(item)
 
@@ -943,11 +948,11 @@ class GameMenuController:
 
             count = self.get_custom_award_count(award)
             sale_info = self.format_sale_info(award)
-            self.ui.name_selected_item.setText(f"🏆 {award.name}")
-            self.ui.description_selected_item.setText(f"📝 {award.description}")
-            self.ui.level_selected_item.setText("⭐ Уровень: 1")
+            self.ui.name_selected_item.setText(tr(f"🏆 {award.name}"))
+            self.ui.description_selected_item.setText(tr(f"📝 {award.description}"))
+            self.ui.level_selected_item.setText(tr("⭐ Уровень: 1"))
             self.ui.effect_selected_item.setText(
-                f"⚡ Нет эффекта\n🔢 В наличии: {count}{sale_info}"
+                tr(f"⚡ Нет эффекта\n🔢 В наличии: {count}{sale_info}")
             )
             self.ui.value_for_use_selected_item.setMaximum(count)
             self.update_inventory_sell_button(award, count)
@@ -958,9 +963,9 @@ class GameMenuController:
         if item_obj:
 
             # Отображаем информацию
-            self.ui.name_selected_item.setText(f"📦 {item_obj.name}")
-            self.ui.description_selected_item.setText(f"📝 {item_obj.description}")
-            self.ui.level_selected_item.setText(f"⭐ Уровень: {item_obj.level}")
+            self.ui.name_selected_item.setText(tr(f"📦 {item_obj.name}"))
+            self.ui.description_selected_item.setText(tr(f"📝 {item_obj.description}"))
+            self.ui.level_selected_item.setText(tr(f"⭐ Уровень: {item_obj.level}"))
 
             # Получаем эффект, если есть функция
             effect_text = "Нет эффекта"
@@ -974,7 +979,7 @@ class GameMenuController:
             count = self.get_inventory_item_count(category, item_obj, registry_key, item_name)
             sale_info = self.format_sale_info(item_obj)
             self.ui.effect_selected_item.setText(
-                f"⚡ {effect_text}{self.describe_item_buff(item_obj)}\n🔢 В наличии: {count}{sale_info}"
+                tr(f"⚡ {effect_text}{self.describe_item_buff(item_obj)}\n🔢 В наличии: {count}{sale_info}")
             )
 
             # Устанавливаем максимум для spinbox
@@ -1158,16 +1163,16 @@ class GameMenuController:
             return
 
         getattr(self.ui, shop_config['name_label']).setText(
-            f"{shop_config['prefix']} {item_obj.name}"
+            tr(f"{shop_config['prefix']} {item_obj.name}")
         )
         if description_label := shop_config.get('description_label'):
-            getattr(self.ui, description_label).setText(f"📝 {item_obj.description}")
-        getattr(self.ui, shop_config['price_label']).setText(f"💰 Цена: {item_obj.price}")
+            getattr(self.ui, description_label).setText(tr(f"📝 {item_obj.description}"))
+        getattr(self.ui, shop_config['price_label']).setText(tr(f"💰 Цена: {item_obj.price}"))
 
         if effect_label := shop_config.get('effect_label'):
             effect_text = self.get_shop_item_effect(item_obj)
             getattr(self.ui, effect_label).setText(
-                f"⚡ {effect_text}{self.describe_item_buff(item_obj)}"
+                tr(f"⚡ {effect_text}{self.describe_item_buff(item_obj)}")
             )
 
         if shop_config['source'] == 'registry':
@@ -1193,7 +1198,7 @@ class GameMenuController:
             self.clear_shop_tab_info(shop_config)
 
     def clear_shop_tab_info(self, shop_config):
-        getattr(self.ui, shop_config['name_label']).setText(shop_config['empty_text'])
+        getattr(self.ui, shop_config['name_label']).setText(tr(shop_config['empty_text']))
         for label_key in ('description_label', 'price_label', 'effect_label'):
             if label_name := shop_config.get(label_key):
                 getattr(self.ui, label_name).clear()
@@ -1222,7 +1227,7 @@ class GameMenuController:
 
     def clear_inventory_item_info(self):
         """Очистка информации о предмете"""
-        self.ui.name_selected_item.setText("Выберите предмет")
+        self.ui.name_selected_item.setText(tr("Выберите предмет"))
         self.ui.level_selected_item.clear()
         self.ui.description_selected_item.clear()
         self.ui.effect_selected_item.clear()
@@ -1629,7 +1634,7 @@ class GameMenuController:
             spinbox.setValue(1)
             button.setEnabled(False)
             effect_label = getattr(self.ui, shop_config['effect_label'])
-            effect_label.setText(f'{effect_label.text()}\nВ инвентаре уже максимум: {maximum} шт.')
+            effect_label.setText(tr(f'{effect_label.text()}\nВ инвентаре уже максимум: {maximum} шт.'))
             return
 
         spinbox.setMaximum(remaining)
@@ -2204,13 +2209,13 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
             else:
                 display_text = f"{project.name} (стрик: {engine.streak_length(project.streaks)} дн.)"
 
-            item = QListWidgetItem(display_text)
+            item = QListWidgetItem(tr(display_text))
             item.setData(1, project.name)
             self.list_projects.addItem(item)
 
         # Если нет проектов для заморозки, показываем информационное сообщение
         if self.list_projects.count() == 0:
-            item = QListWidgetItem("❌ Нет проектов для заморозки")
+            item = QListWidgetItem(tr("❌ Нет проектов для заморозки"))
             item.setFlags(item.flags() & ~Qt.ItemIsSelectable)  # делаем невыбираемым
             self.list_projects.addItem(item)
             # Делаем кнопку подтверждения неактивной
@@ -2268,11 +2273,11 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
             default_days = min(default_days, self.max_credit_days)
         self.return_date_dateedit.setDate(QDate(today.year, today.month, today.day).addDays(default_days))
         default_amount = initial_amount if initial_amount is not None else min_amount
-        self.lineEdit.setText(str(round(default_amount, 1) if default_amount else 100))
+        self.lineEdit.setText(tr(str(round(default_amount, 1) if default_amount else 100)))
 
         if product_type == 'credit':
             limit = self.account.get_credit_limit(self.gamer)
-            self.setWindowTitle('Новый кредит')
+            self.setWindowTitle(tr('Новый кредит'))
             description = (
                 f'Кредитный рейтинг: {self.account.calculate_credit_score(self.gamer)}\n'
                 f'Лимит кредита: {limit} монет\n'
@@ -2280,7 +2285,7 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
             )
             if self.min_amount:
                 description += f'\nМинимальная сумма: {self.min_amount} монет'
-            self.product_description.setText(description)
+            self.product_description.setText(tr(description))
             self.withdrawal_of_interest_from_a_deposit.setVisible(False)
         else:
             base_rate = self.account.get_deposit_rate(self.gamer)
@@ -2288,12 +2293,12 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
                 base_rate,
                 allow_interest_withdrawal=False,
             )
-            self.setWindowTitle('Новый вклад')
+            self.setWindowTitle(tr('Новый вклад'))
             self.product_description.setText(
-                f'Кредитный рейтинг: {self.account.calculate_credit_score(self.gamer)}\n'
+                tr(f'Кредитный рейтинг: {self.account.calculate_credit_score(self.gamer)}\n'
                 f'Доступно на счете: {self.gamer.get_coins()} монет\n'
                 f'Со снятием процентов: {base_rate}%/д.\n'
-                f'Без снятия процентов: {higher_rate}%/д.'
+                f'Без снятия процентов: {higher_rate}%/д.')
             )
             self.withdrawal_of_interest_from_a_deposit.setVisible(True)
             self.withdrawal_of_interest_from_a_deposit.setChecked(False)
@@ -2347,20 +2352,20 @@ class NewBankProduct(QDialog, Ui_NewBankProduct):
                 allow_interest_withdrawal=self.get_interest_withdrawal_enabled(),
             )
             self.product_interest_rates.setText(
-                f'Ставка: {preview["rate"]}% в день\n'
-                f'Проценты за {days} д.: {preview["interest"]} монет'
+                tr(f'Ставка: {preview["rate"]}% в день\n'
+                f'Проценты за {days} д.: {preview["interest"]} монет')
             )
             if self.product_type == 'credit':
                 self.total_amount_to_be_refunded.setText(
-                    f'К возврату: {preview["total"]} монет\n'
-                    f'Ежедневный платеж: {round(preview["total"] / days, 1)} монет'
+                    tr(f'К возврату: {preview["total"]} монет\n'
+                    f'Ежедневный платеж: {round(preview["total"] / days, 1)} монет')
                 )
             else:
-                self.total_amount_to_be_refunded.setText(f'К снятию в конце срока: {preview["total"]} монет')
+                self.total_amount_to_be_refunded.setText(tr(f'К снятию в конце срока: {preview["total"]} монет'))
             self.buttonBox.button(self.buttonBox.StandardButton.Ok).setEnabled(True)
         except ValueError as error:
-            self.product_interest_rates.setText(str(error))
-            self.total_amount_to_be_refunded.setText('')
+            self.product_interest_rates.setText(tr(str(error)))
+            self.total_amount_to_be_refunded.setText(tr(''))
             self.buttonBox.button(self.buttonBox.StandardButton.Ok).setEnabled(False)
 
     def on_accept(self):
@@ -2430,13 +2435,13 @@ class Bank(QDialog, Ui_Bamk):
         income = self.account.estimate_daily_income_details(self.gamer)
 
         self.credit_score.setText(
-            f'Кредитный рейтинг: {score}\n'
-            f'Лимит: {credit_limit}'
+            tr(f'Кредитный рейтинг: {score}\n'
+            f'Лимит: {credit_limit}')
         )
-        self.label_2.setText(f'Кредит: {credit_rate}%/д.\nВклад: {deposit_rate}%/д.')
+        self.label_2.setText(tr(f'Кредит: {credit_rate}%/д.\nВклад: {deposit_rate}%/д.'))
         self.label.setText(
-            f'Оценочный доход: {income["total"]} м./д.\n'
-            f'Письмо: {income["symbols"]}, стрики: {income["streaks"]}, надёжность: {income["reliability"]}'
+            tr(f'Оценочный доход: {income["total"]} м./д.\n'
+            f'Письмо: {income["symbols"]}, стрики: {income["streaks"]}, надёжность: {income["reliability"]}')
         )
 
         today = engine.today_for_test()
@@ -2466,21 +2471,21 @@ class Bank(QDialog, Ui_Bamk):
         self.credit_total_sum.setVisible(False)
 
         if self.gamer.level < 3:
-            self.credit_status.setText('Кредиты доступны с 3 уровня')
+            self.credit_status.setText(tr('Кредиты доступны с 3 уровня'))
         elif self.account.credit:
             credit = self.account.credit
             credit.normalize()
             self.credit_status.setText(
-                f'{credit.get_status()}\n'
+                tr(f'{credit.get_status()}\n'
                 f'Осталось: {credit.get_remaining_sum()} монет\n'
-                f'Платеж: {credit.get_daily_payment()} монет'
+                f'Платеж: {credit.get_daily_payment()} монет')
             )
             self.return_credit_date.setVisible(True)
-            self.return_credit_date.setText(f'До {credit.get_return_date().strftime("%d.%m.%Y")}')
+            self.return_credit_date.setText(tr(f'До {credit.get_return_date().strftime("%d.%m.%Y")}'))
             self.credit_total_sum.setVisible(True)
             self.credit_total_sum.setText(
-                f'Всего по графику: {credit.get_total_sum()}\n'
-                f'К погашению: {credit.get_full_repayment_sum()}'
+                tr(f'Всего по графику: {credit.get_total_sum()}\n'
+                f'К погашению: {credit.get_full_repayment_sum()}')
             )
             self.return_credit_btn.setEnabled(credit.get_full_repayment_sum() <= self.gamer.get_coins())
             self.make_a_loan_payment.setEnabled(
@@ -2491,10 +2496,10 @@ class Bank(QDialog, Ui_Bamk):
             self.loan_partial_repayment_amount.setEnabled(self.gamer.get_coins() > 0)
             self.update_partial_repayment_button()
         else:
-            self.credit_status.setText('В банке нет кредита')
+            self.credit_status.setText(tr('В банке нет кредита'))
             self.take_credit_btn.setEnabled(self.gamer.level >= 3)
 
-        self.make_deposit_btn.setText('Внести вклад')
+        self.make_deposit_btn.setText(tr('Внести вклад'))
         self.make_deposit_btn.setEnabled(not self.account.deposit and self.gamer.get_coins() > 0)
         self.return_deposit_date.setVisible(False)
         self.deposit_total_sum.setVisible(False)
@@ -2511,22 +2516,22 @@ class Bank(QDialog, Ui_Bamk):
             if deposit.allow_interest_withdrawal and withdrawal_status:
                 interest_withdrawal_mode = f'Снятие процентов: {withdrawal_status}'
             self.deposit_status.setText(
-                f'{deposit.get_status()}\n'
+                tr(f'{deposit.get_status()}\n'
                 f'Вклад: {deposit.get_sum()} монет\n'
                 f'{interest_withdrawal_mode}\n'
-                f'Доступные проценты: {deposit.get_available_interest()}'
+                f'Доступные проценты: {deposit.get_available_interest()}')
             )
             self.return_deposit_date.setVisible(True)
-            self.return_deposit_date.setText(f'До {deposit.get_return_date().strftime("%d.%m.%Y")}')
+            self.return_deposit_date.setText(tr(f'До {deposit.get_return_date().strftime("%d.%m.%Y")}'))
             self.deposit_total_sum.setVisible(True)
-            self.deposit_total_sum.setText(f'К снятию: {deposit.get_total_sum()}')
+            self.deposit_total_sum.setText(tr(f'К снятию: {deposit.get_total_sum()}'))
             self.return_deposit_btn.setEnabled(True)
             self.withdraw_interest_from_a_deposit.setEnabled(can_withdraw_interest)
-            self.make_deposit_btn.setText('Пополнить вклад')
+            self.make_deposit_btn.setText(tr('Пополнить вклад'))
             self.active_deposit_topup_amount.setEnabled(self.gamer.get_coins() > 0)
             self.update_deposit_topup_button()
         else:
-            self.deposit_status.setText('В банке нет вклада')
+            self.deposit_status.setText(tr('В банке нет вклада'))
 
     def get_partial_repayment_amount(self):
         text = self.loan_partial_repayment_amount.text().strip().replace(',', '.')
@@ -2684,10 +2689,10 @@ class CreateCustomAward(QDialog, Ui_create_castom_item):
             if checked:
                 self._base_price_before_inflation = current_price
                 self.award_price_le.setText(
-                    self._format_price(current_price * self.gamer.calculate_inflation())
+                    tr(self._format_price(current_price * self.gamer.calculate_inflation()))
                 )
             elif self._base_price_before_inflation is not None:
-                self.award_price_le.setText(self._format_price(self._base_price_before_inflation))
+                self.award_price_le.setText(tr(self._format_price(self._base_price_before_inflation)))
                 self._base_price_before_inflation = None
 
     def _get_price_from_field(self):
@@ -2726,6 +2731,6 @@ class EditCustomAward(CreateCustomAward):
     def __init__(self, gamer: game.Gamer, award: game_data.Item):
         super().__init__(gamer)
         self.award = award
-        self.setWindowTitle('Редактирование награды')
-        self.award_name_le.setText(award.name)
-        self.award_price_le.setText(str(award.price))
+        self.setWindowTitle(tr('Редактирование награды'))
+        self.award_name_le.setText(tr(award.name))
+        self.award_price_le.setText(tr(str(award.price)))
