@@ -1378,6 +1378,21 @@ literary_slave = Item(
         Buff('Литературная поддержка дохода', 'Постоянный бонус к коэффициенту монет.', Buff.POSITIVE, 'coins', 0.25),
     ],
 )
+recovery_amulet = Item(
+    name='❤️  Амулет восстановления',
+    item_type='Предметы',
+    level=10,
+    price=lambda: calculate_item_price(10000),
+    description='Постоянно увеличивает коэффициент восстановления здоровья на 1.',
+    buff=Buff(
+        name='Исцеление амулетом',
+        description='Постоянный бонус к коэффициенту восстановления здоровья.',
+        buff_type=Buff.POSITIVE,
+        target_cf='health_recovery',
+        value=1.0,
+    ),
+    maximum_quantity_in_stock=1,
+)
 health_potion_5 = FuncItem('🧪  Микро зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(10), add=5,
                            description='🧪  Восстанавливает здоровье на 5 единиц')
 health_potion_10 = FuncItem('🧪  Малое зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(20), add=10,
@@ -1589,7 +1604,8 @@ ITEM_REGISTRY = {'Зелья':
                               'Лотерейный билет': lottery_ticket,
                               'Печатная машинка Хемингуэя': hemingway_typewriter,
                               'Ноутбук Роалинг': rowling_laptop,
-                              'Литературный раб': literary_slave,},
+                              'Литературный раб': literary_slave,
+                              'Амулет восстановления': recovery_amulet,},
                  'Награды': {'👑 Корона Первой Эпохи': crown_of_the_first_era,
                              '💎 Перо Миллионера': millionaires_pen,
                              'Знак заботы о здоровье': health_care_badge,

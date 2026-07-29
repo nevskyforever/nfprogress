@@ -155,6 +155,10 @@ TRANSLATION_OVERRIDES = {
         "Применено зелье суперприбыли": "Super Profit Potion applied",
         "Увеличивает коэффициент монет на 10 на один час": "Increases coin ratio by 10 for one hour",
         "Увеличивает коэффициент монет на 10 на один день": "Increases coin ratio by 10 for one day",
+        "Амулет восстановления": "Recovery Amulet",
+        "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Permanently increases the health recovery ratio by 1.",
+        "Исцеление амулетом": "Amulet Healing",
+        "Постоянный бонус к коэффициенту восстановления здоровья.": "Permanent bonus to the health recovery ratio.",
     },
     "es": {
         "Стрики": "Rachas",
@@ -183,6 +187,10 @@ TRANSLATION_OVERRIDES = {
         "Применено зелье суперприбыли": "Poción de superganancias aplicada",
         "Увеличивает коэффициент монет на 10 на один час": "Aumenta la proporción de monedas en 10 durante una hora",
         "Увеличивает коэффициент монет на 10 на один день": "Aumenta la proporción de monedas en 10 durante un día",
+        "Амулет восстановления": "Amuleto de recuperación",
+        "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Aumenta permanentemente en 1 la proporción de recuperación de salud.",
+        "Исцеление амулетом": "Curación del amuleto",
+        "Постоянный бонус к коэффициенту восстановления здоровья.": "Bono permanente a la proporción de recuperación de salud.",
     },
     "de": {
         "Стрики": "Serien",
@@ -211,6 +219,10 @@ TRANSLATION_OVERRIDES = {
         "Применено зелье суперприбыли": "Supergewinntrank angewendet",
         "Увеличивает коэффициент монет на 10 на один час": "Erhöht das Münzverhältnis eine Stunde lang um 10",
         "Увеличивает коэффициент монет на 10 на один день": "Erhöht das Münzverhältnis einen Tag lang um 10",
+        "Амулет восстановления": "Amulett der Erholung",
+        "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Erhöht den Gesundheitsregenerationsfaktor dauerhaft um 1.",
+        "Исцеление амулетом": "Amulettheilung",
+        "Постоянный бонус к коэффициенту восстановления здоровья.": "Dauerhafter Bonus auf den Gesundheitsregenerationsfaktor.",
     },
     "fr": {
         "Стрики": "Séries",
@@ -239,6 +251,10 @@ TRANSLATION_OVERRIDES = {
         "Применено зелье суперприбыли": "Potion de super profit appliquée",
         "Увеличивает коэффициент монет на 10 на один час": "Augmente le ratio de pièces de 10 pendant une heure",
         "Увеличивает коэффициент монет на 10 на один день": "Augmente le ratio de pièces de 10 pendant un jour",
+        "Амулет восстановления": "Amulette de récupération",
+        "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Augmente définitivement le ratio de récupération de santé de 1.",
+        "Исцеление амулетом": "Soin de l’amulette",
+        "Постоянный бонус к коэффициенту восстановления здоровья.": "Bonus permanent au ratio de récupération de santé.",
     },
     "pt_BR": {
         "Стрики": "Sequências",
@@ -267,6 +283,10 @@ TRANSLATION_OVERRIDES = {
         "Применено зелье суперприбыли": "Poção de superlucro aplicada",
         "Увеличивает коэффициент монет на 10 на один час": "Aumenta a proporção de moedas em 10 por uma hora",
         "Увеличивает коэффициент монет на 10 на один день": "Aumenta a proporção de moedas em 10 por um dia",
+        "Амулет восстановления": "Amuleto de recuperação",
+        "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Aumenta permanentemente em 1 a proporção de recuperação de saúde.",
+        "Исцеление амулетом": "Cura do amuleto",
+        "Постоянный бонус к коэффициенту восстановления здоровья.": "Bônus permanente para a proporção de recuperação de saúde.",
     },
 }
 
