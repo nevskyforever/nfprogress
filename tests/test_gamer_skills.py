@@ -37,8 +37,20 @@ def test_skill_points_update_character_coefficients(monkeypatch):
     assert gamer.increase_skill('endurance', save=False)[0]
 
     assert gamer.get_cf_value('exp') == game.game_data.cf_exp[3] + game.SKILL_CF_STEP
-    assert gamer.get_cf_value('coins') == game.game_data.cf_coins[3] + game.SKILL_CF_STEP
+    assert gamer.get_cf_value('coins') == gamer.round_cf(
+        game.game_data.cf_coins[3] + game.SKILL_CF_STEP
+    )
     assert gamer.get_cf_value('health_recovery') == game.SKILL_CF_STEP
+
+
+def test_coefficients_are_rounded_to_nearest_five_hundredths():
+    assert game.Gamer.round_cf(1.20) == 1.20
+    assert game.Gamer.round_cf(1.22) == 1.20
+    assert game.Gamer.round_cf(1.23) == 1.25
+    assert game.Gamer.round_cf(1.25) == 1.25
+    assert game.Gamer.round_cf(1.27) == 1.25
+    assert game.Gamer.round_cf(1.28) == 1.30
+    assert game.Gamer.round_cf(1.375) == 1.40
 
 
 def test_health_recovery_uses_recovery_coefficient(monkeypatch):

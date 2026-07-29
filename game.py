@@ -364,12 +364,12 @@ class Gamer:
 
     @staticmethod
     def round_cf(value):
-        """Округляет коэфициент вниз до двух знаков после запятой."""
+        """Округляет коэффициент до ближайшего значения с шагом 0,05."""
         try:
             value = float(value)
         except (TypeError, ValueError):
             value = 0.0
-        return math.floor((value + 1e-9) * 100) / 100
+        return math.floor((value + 1e-9) * 20 + 0.5) / 20
 
     def reset_cf_to_base(self):
         self.normalize_cf()
