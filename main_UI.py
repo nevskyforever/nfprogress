@@ -2037,6 +2037,8 @@ class MainWindow(QMainWindow, main_window_ui):
         """
         available_width = max(1, self.list_projects.viewport().width())
         widget.setFixedWidth(available_width)
+        if hasattr(widget, 'prepare_for_width'):
+            widget.prepare_for_width(available_width)
         widget.layout().activate()
         if hasattr(widget, 'widget'):
             widget.widget.layout().activate()

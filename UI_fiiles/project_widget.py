@@ -1,5 +1,5 @@
-from PySide6.QtCore import (QCoreApplication, QMetaObject, QSize, Qt, QRectF, QEasingCurve, QVariantAnimation)
-from PySide6.QtGui import (QColor, QFont, QPainter,
+from PySide6.QtCore import (QCoreApplication, QMetaObject, QSize, Qt, QRect, QRectF, QEasingCurve, QVariantAnimation)
+from PySide6.QtGui import (QColor, QFont, QFontMetrics, QPainter,
                            QPen)
 from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
                                QSizePolicy, QVBoxLayout, QWidget, QPushButton, QHBoxLayout)
@@ -495,6 +495,7 @@ class StageRowWidget(QWidget):
 
         layout.addWidget(self.circular_progress)
         layout.addLayout(text_layout, 1)
+        self.text_layout = text_layout
         self.update_display()
 
     def stop_animations(self):
@@ -517,6 +518,53 @@ class StageRowWidget(QWidget):
             self.streak.setVisible(True)
         else:
             self.streak.setVisible(False)
+
+        self.updateGeometry()
+
+    def hasHeightForWidth(self):
+        """Сообщает QListWidget, что высота строки зависит от её ширины."""
+        return True
+
+    def prepare_for_width(self, width):
+        """Фиксирует высоту названия для доступной ширины строки."""
+        text_width = self._text_width(width)
+        name_height = self._name_height(text_width)
+        self.name.setFixedHeight(name_height)
+        self.updateGeometry()
+
+    def heightForWidth(self, width):
+        """Возвращает высоту строки с учётом переноса названия этапа."""
+        margins = self.layout().contentsMargins()
+        text_width = self._text_width(width)
+        visible_labels = [
+            label for label in (self.name, self.total, self.deadline, self.streak)
+            if not label.isHidden()
+        ]
+        text_height = sum(
+            self._name_height(text_width)
+            if label is self.name else label.sizeHint().height()
+            for label in visible_labels
+        )
+        text_height += self.text_layout.spacing() * max(0, len(visible_labels) - 1)
+
+        return max(self.circular_progress.height(), text_height) + margins.top() + margins.bottom()
+
+    def _text_width(self, width):
+        margins = self.layout().contentsMargins()
+        return max(
+            1,
+            width - margins.left() - margins.right()
+            - self.layout().spacing() - self.circular_progress.width(),
+        )
+
+    def _name_height(self, text_width):
+        """Измеряет весь перенесённый текст независимо от состояния layout."""
+        bounds = QFontMetrics(self.name.font()).boundingRect(
+            QRect(0, 0, text_width, 100_000),
+            Qt.TextWordWrap | Qt.AlignLeft,
+            self.name.text(),
+        )
+        return max(self.name.fontMetrics().height(), bounds.height())
 
     def _get_display_name(self):
         if self.project.status == 'завершен':
