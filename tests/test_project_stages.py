@@ -276,6 +276,45 @@ def test_migration_removes_legacy_streak_flag_and_keeps_status():
     assert disabled.streak_status == 'Off'
 
 
+def test_migration_enables_auto_freeze_for_existing_projects():
+    project = engine.Project(name='Book', goal=1000)
+    del project.auto_freeze
+
+    project.migrate()
+
+    assert project.auto_freeze is True
+
+
+def test_disabled_auto_freeze_loses_streak_without_spending_item(monkeypatch):
+    today = datetime.date(2026, 7, 18)
+    gamer = DummyGamer(freeze_count=1)
+    enable_freeze_mode(monkeypatch, today, gamer)
+    project = stage_with_missed_yesterday('Draft', today)
+    project.auto_freeze = False
+
+    status = project.get_streak_status()
+
+    assert status == 'Lose 1'
+    assert project.streaks == []
+    assert gamer.items['Предметы']['Заморозка'] == 1
+    assert gamer.saved is False
+
+
+def test_disabled_auto_freeze_does_not_block_manual_freeze(monkeypatch):
+    today = datetime.date(2026, 7, 18)
+    gamer = DummyGamer(freeze_count=1)
+    enable_freeze_mode(monkeypatch, today, gamer)
+    project = stage_with_unextended_today('Draft', today)
+    project.auto_freeze = False
+
+    assert engine.apply_project_freeze_group(project, today) is True
+    assert project.streaks == [
+        today - datetime.timedelta(days=1),
+        engine.STREAK_FREEZE_MARKER,
+    ]
+    assert gamer.items['Предметы']['Заморозка'] == 0
+
+
 def test_parent_deadline_transfers_longest_stage_streak():
     project = engine.Project(name='Book', unit='symbols')
     first_deadline = datetime.date(2026, 7, 10)

@@ -350,8 +350,10 @@ class MainWindow(QMainWindow, main_window_ui):
                 deadline=deadline,
                 total_symbols=total,
                 unit=unit,
-                personal_goal_for_the_day=personal_goal_for_the_day
+                personal_goal_for_the_day=personal_goal_for_the_day,
+                auto_freeze=dialog.is_auto_freeze_enabled(),
             )
+            new_project.set_streak_state(dialog.is_streak_enabled())
             if dialog.is_stages_enabled():
                 pending_stages = dialog.get_pending_stages()
                 if pending_stages:
@@ -441,7 +443,9 @@ class MainWindow(QMainWindow, main_window_ui):
             unit=unit,
             personal_goal_for_the_day=personal_goal_for_the_day,
             parent_project_name=parent.name,
+            auto_freeze=dialog.is_auto_freeze_enabled(),
         )
+        stage.set_streak_state(dialog.is_streak_enabled())
         stage.get_today_goal_value()
         parent.stages.append(stage)
         data['projects'][parent.name] = parent
@@ -1714,6 +1718,8 @@ class MainWindow(QMainWindow, main_window_ui):
             project.unit = new_unit
             project.deadline = new_deadline
             project.personal_goal_for_the_day = new_personal_goal
+            project.auto_freeze = dialog.is_auto_freeze_enabled()
+            project.set_streak_state(dialog.is_streak_enabled())
             project.edit_date = edit_date
             if not self._is_stage(project):
                 if stages_enabled and not project.has_stages():
@@ -3019,6 +3025,7 @@ class CreateProject(QDialog, create_project_ui):
         self.existing_names = set(existing_names or [])
         self.stage_mode = stage_mode
         self.pending_stages = []
+        self._configure_streak_controls()
 
         # Словари для преобразования
         self.text_to_unit = {
@@ -3078,6 +3085,25 @@ class CreateProject(QDialog, create_project_ui):
         # Вызываем валидацию для проверки всех полей
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self.validate_all)
+
+    def _configure_streak_controls(self):
+        settings = en.load_settings()
+        streaks_available = settings.get('global_streak', False)
+        self.streak_checkBox.setVisible(streaks_available)
+        self.auto_freeze_checkBox.setVisible(
+            streaks_available
+            and settings.get('game_mode', False)
+            and self.streak_checkBox.isChecked()
+        )
+        self.streak_checkBox.toggled.connect(self._update_auto_freeze_visibility)
+
+    def _update_auto_freeze_visibility(self, checked):
+        settings = en.load_settings()
+        self.auto_freeze_checkBox.setVisible(
+            checked
+            and settings.get('global_streak', False)
+            and settings.get('game_mode', False)
+        )
 
     def on_checkbox_toggled(self, checked):
         """Обработчик чекбокса 'Нет дедлайна'."""
@@ -3144,7 +3170,9 @@ class CreateProject(QDialog, create_project_ui):
             total_symbols=total,
             unit=self.current_unit,
             personal_goal_for_the_day=dialog.get_personal_goal_for_the_day(),
+            auto_freeze=dialog.is_auto_freeze_enabled(),
         )
+        stage.set_streak_state(dialog.is_streak_enabled())
         stage.get_today_goal_value()
         self.pending_stages.append(stage)
         self._update_add_stage_button_text()
@@ -3364,6 +3392,12 @@ class CreateProject(QDialog, create_project_ui):
     def get_pending_stages(self):
         return list(self.pending_stages)
 
+    def is_streak_enabled(self):
+        return self.streak_checkBox.isChecked()
+
+    def is_auto_freeze_enabled(self):
+        return self.auto_freeze_checkBox.isChecked()
+
 
 class EditProject(QDialog, create_project_ui):
     def __init__(self, project, parent=None, existing_names=None):
@@ -3399,6 +3433,9 @@ class EditProject(QDialog, create_project_ui):
         self.le_goal.setText(tr(self._format_number(project.goal)))
         self.le_total_symbols.setText(tr(self._format_number(project.total_units)))
         self.enable_Stages.setChecked(getattr(project, 'has_stages', lambda: False)())
+        self.streak_checkBox.setChecked(project.streak_status != 'Off')
+        self.auto_freeze_checkBox.setChecked(getattr(project, 'auto_freeze', True))
+        self._configure_streak_controls()
         if isinstance(project, en.Stage):
             self.enable_Stages.setVisible(False)
             self.add_Stage.setVisible(False)
@@ -3530,7 +3567,9 @@ class EditProject(QDialog, create_project_ui):
             unit=self.current_unit,
             personal_goal_for_the_day=dialog.get_personal_goal_for_the_day(),
             parent_project_name=self.project.name,
+            auto_freeze=dialog.is_auto_freeze_enabled(),
         )
+        stage.set_streak_state(dialog.is_streak_enabled())
         stage.get_today_goal_value()
         self.pending_stages.append(stage)
         self._update_add_stage_button_text()
@@ -3741,6 +3780,31 @@ class EditProject(QDialog, create_project_ui):
 
     def get_pending_stages(self):
         return list(self.pending_stages)
+
+    def _configure_streak_controls(self):
+        settings = en.load_settings()
+        streaks_available = settings.get('global_streak', False)
+        self.streak_checkBox.setVisible(streaks_available)
+        self.auto_freeze_checkBox.setVisible(
+            streaks_available
+            and settings.get('game_mode', False)
+            and self.streak_checkBox.isChecked()
+        )
+        self.streak_checkBox.toggled.connect(self._update_auto_freeze_visibility)
+
+    def _update_auto_freeze_visibility(self, checked):
+        settings = en.load_settings()
+        self.auto_freeze_checkBox.setVisible(
+            checked
+            and settings.get('global_streak', False)
+            and settings.get('game_mode', False)
+        )
+
+    def is_streak_enabled(self):
+        return self.streak_checkBox.isChecked()
+
+    def is_auto_freeze_enabled(self):
+        return self.auto_freeze_checkBox.isChecked()
 
 
 class NotificationManager:

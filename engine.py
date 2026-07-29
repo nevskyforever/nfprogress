@@ -377,7 +377,8 @@ class Project:
     def __init__(self, name='Без имени', goal=None,
                  create_date=None, total_symbols=0, progress=0,
                  notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
-                 status='активен', unit='symbols', personal_goal_for_the_day=0):
+                 status='активен', unit='symbols', personal_goal_for_the_day=0,
+                 auto_freeze=True):
 
         self._name = name
         self._goal = goal  # хранится в выбранной единице
@@ -398,6 +399,7 @@ class Project:
         self.last_streak_bonus = None
         self.last_streak_lost_date = None
         self.freezes = 0
+        self.auto_freeze = bool(auto_freeze)
         self.deadline_set_date = today_for_test()
         self.personal_goal_for_the_day = personal_goal_for_the_day
         self.project_plan = {}
@@ -431,6 +433,7 @@ class Project:
             'last_streak_bonus': None,
             'last_streak_lost_date': None,
             'freezes': 0,
+            'auto_freeze': True,
             'deadline_set_date': today_for_test(),
             'project_plan': {},
             'enable_stages': False,
@@ -478,6 +481,7 @@ class Project:
                     status=getattr(stage, 'status', self.status),
                     unit=getattr(stage, 'unit', self.unit),
                     personal_goal_for_the_day=getattr(stage, 'personal_goal_for_the_day', 0),
+                    auto_freeze=getattr(stage, 'auto_freeze', True),
                     parent_project_name=self.name,
                 )
                 converted_stage.synch = getattr(stage, 'synch', None)
@@ -928,7 +932,7 @@ class Project:
             while current_day < today:
                 # Пропущенный день нельзя закрывать текущим накопительным total:
                 # иначе написанное позже ретроактивно продлевает стрик без заморозки.
-                if not apply_project_freeze(self, current_day):
+                if not apply_project_freeze(self, current_day, require_auto_freeze=True):
                     break
                 current_day += timedelta(days=1)
 
@@ -1072,6 +1076,7 @@ class Project:
             status=self.status,
             unit=self.unit,
             personal_goal_for_the_day=self.personal_goal_for_the_day,
+            auto_freeze=self.auto_freeze,
             parent_project_name=self.name,
         )
         stage.synch = self.synch
@@ -1134,6 +1139,7 @@ class Project:
         if has_longest_stage_streak:
             self._deadline = getattr(stage_with_longest_streak, 'deadline', 'Нет')
             self.deadline_set_date = getattr(stage_with_longest_streak, 'deadline_set_date', None)
+            self.auto_freeze = getattr(stage_with_longest_streak, 'auto_freeze', True)
         self.project_plan = {}
         stages_have_enabled_streaks = any(
             getattr(stage, 'streak_status', 'No') != 'Off'
@@ -1307,7 +1313,7 @@ class Stage(Project):
                  create_date=None, total_symbols=0, progress=0,
                  notes=None, streaks=None, max_streak=None, streak_status='No', deadline='Нет',
                  status='активен', unit='symbols', personal_goal_for_the_day=0,
-                 parent_project_name=None, stage_id=None):
+                 parent_project_name=None, stage_id=None, auto_freeze=True):
         super().__init__(
             name=name,
             goal=goal,
@@ -1322,6 +1328,7 @@ class Stage(Project):
             status=status,
             unit=unit,
             personal_goal_for_the_day=personal_goal_for_the_day,
+            auto_freeze=auto_freeze,
         )
         self.is_stage = True
         self.enable_stages = False
@@ -1454,12 +1461,15 @@ def save_data(data):
     atomic_pickle_save(data, data_file)
 
 
-def apply_project_freeze(project, freeze_day=None, gamer=None, save_gamer=True):
+def apply_project_freeze(
+        project, freeze_day=None, gamer=None, save_gamer=True, require_auto_freeze=False):
     """Применяет заморозку к проекту и списывает её из инвентаря игрока."""
     if freeze_day is None:
         freeze_day = today_for_test()
 
     if not isinstance(project, Project):
+        return False
+    if require_auto_freeze and not getattr(project, 'auto_freeze', True):
         return False
     if project.streak_status == 'Off' or project.status == 'завершен':
         return False

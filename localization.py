@@ -130,6 +130,7 @@ dispute through negotiation.</p>
 TRANSLATION_OVERRIDES = {
     "en": {
         "Стрики": "Streaks",
+        "Автозаморозка стрика": "Automatic streak freeze",
         "Стрики выключены": "Streaks disabled",
         "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "If you disable project streaks, the current project streak will end.\nEnabled stage streaks will continue based on their daily goals.\nContinue?",
         "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "If you disable streaks, the current streak will end!\nContinue?",
@@ -162,6 +163,7 @@ TRANSLATION_OVERRIDES = {
     },
     "es": {
         "Стрики": "Rachas",
+        "Автозаморозка стрика": "Congelación automática de racha",
         "Стрики выключены": "Rachas desactivadas",
         "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "Si desactivas las rachas del proyecto, la racha actual del proyecto finalizará.\nLas rachas activadas de las etapas seguirán funcionando según sus objetivos diarios.\n¿Continuar?",
         "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "Si desactivas las rachas, la racha actual finalizará.\n¿Continuar?",
@@ -194,6 +196,7 @@ TRANSLATION_OVERRIDES = {
     },
     "de": {
         "Стрики": "Serien",
+        "Автозаморозка стрика": "Serie automatisch einfrieren",
         "Стрики выключены": "Serien deaktiviert",
         "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "Wenn Sie die Projektserien deaktivieren, wird die aktuelle Projektserie beendet.\nAktivierte Etappenserien laufen anhand ihrer Tagesziele weiter.\nFortfahren?",
         "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "Wenn Sie Serien deaktivieren, wird die aktuelle Serie beendet!\nFortfahren?",
@@ -226,6 +229,7 @@ TRANSLATION_OVERRIDES = {
     },
     "fr": {
         "Стрики": "Séries",
+        "Автозаморозка стрика": "Gel automatique de la série",
         "Стрики выключены": "Séries désactivées",
         "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "Si vous désactivez les séries du projet, la série actuelle du projet prendra fin.\nLes séries activées des étapes continueront selon leurs objectifs quotidiens.\nContinuer ?",
         "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "Si vous désactivez les séries, la série actuelle prendra fin !\nContinuer ?",
@@ -258,6 +262,7 @@ TRANSLATION_OVERRIDES = {
     },
     "pt_BR": {
         "Стрики": "Sequências",
+        "Автозаморозка стрика": "Congelamento automático da sequência",
         "Стрики выключены": "Sequências desativadas",
         "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "Se você desativar as sequências do projeto, a sequência atual do projeto será encerrada.\nAs sequências ativadas das etapas continuarão conforme suas metas diárias.\nContinuar?",
         "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "Se você desativar as sequências, a sequência atual será encerrada!\nContinuar?",

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'create_projectGOaiot.ui'
+## Form generated from reading UI file 'create_project.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -24,14 +24,14 @@ class Ui_create_project(object):
     def setupUi(self, create_project):
         if not create_project.objectName():
             create_project.setObjectName(u"create_project")
-        create_project.resize(360, 400)
+        create_project.resize(360, 430)
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         sizePolicy.setHorizontalStretch(3)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(create_project.sizePolicy().hasHeightForWidth())
         create_project.setSizePolicy(sizePolicy)
-        create_project.setMinimumSize(QSize(360, 400))
-        create_project.setMaximumSize(QSize(350, 320))
+        create_project.setMinimumSize(QSize(360, 430))
+        create_project.setMaximumSize(QSize(360, 430))
         font = QFont()
         font.setFamilies([u"Arial"])
         create_project.setFont(font)
@@ -180,6 +180,12 @@ class Ui_create_project(object):
 
         self.gridLayout.addWidget(self.streak_checkBox, 3, 0, 1, 1)
 
+        self.auto_freeze_checkBox = QCheckBox(self.widget)
+        self.auto_freeze_checkBox.setObjectName(u"auto_freeze_checkBox")
+        self.auto_freeze_checkBox.setChecked(True)
+
+        self.gridLayout.addWidget(self.auto_freeze_checkBox, 3, 1, 1, 2)
+
 
         self.verticalLayout.addWidget(self.widget)
 
@@ -223,5 +229,6 @@ class Ui_create_project(object):
 
         self.label_5.setText(QCoreApplication.translate("create_project", u"\u0435\u0434\u0438\u043d\u0438\u0446 (\u0447\u0438\u0441\u043b\u043e)", None))
         self.streak_checkBox.setText(QCoreApplication.translate("create_project", u"\u0421\u0442\u0440\u0438\u043a\u0438", None))
+        self.auto_freeze_checkBox.setText(QCoreApplication.translate("create_project", u"\u0410\u0432\u0442\u043e\u0437\u0430\u043c\u043e\u0440\u043e\u0437\u043a\u0430 \u0441\u0442\u0440\u0438\u043a\u0430", None))
     # retranslateUi
 
