@@ -1513,7 +1513,7 @@ super_exp_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье п�
                                      value=10.0,
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60))
-super_exp_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье просвещения',
+super_exp_potion_24hrs = FuncItem(name='⚡️  Суточное зелье просвещения',
                            item_type='Зелья',
                            level=8,
                            price=lambda: calculate_item_price(25000),
@@ -1525,7 +1525,7 @@ super_exp_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье 
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60*24))
 
-coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье доходности',
+coin_potion_1hrs = FuncItem(name='⚡️  Часовое зелье доходности',
                            item_type='Зелья',
                            level=2,
                            price=lambda: calculate_item_price(100),
@@ -1544,13 +1544,13 @@ coin_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье до�
                            buff=Buff(name='Супербустер прибыли',
                                      description='Применен зелье прибыли',
                                      target_cf='coins',
-                                     value=10,
+                                     value=0.5,
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60*24))
 super_coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье супердоходности',
                            item_type='Зелья',
                            level=15,
-                           price=lambda: calculate_item_price(10000),
+                           price=lambda: calculate_item_price(2000),
                            description='Увеличивает коэффициент монет на 10 на один час',
                            buff=Buff(name='Супербустер прибыли',
                                      description='Применено зелье суперприбыли',
@@ -1561,7 +1561,7 @@ super_coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье с
 super_coin_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье супердоходности',
                            item_type='Зелья',
                            level=15,
-                           price=lambda: calculate_item_price(50000),
+                           price=lambda: calculate_item_price(10000),
                            description='Увеличивает коэффициент монет на 10 на один день',
                            buff=Buff(name='Супербустер прибыли',
                                      description='Применено зелье суперприбыли',
