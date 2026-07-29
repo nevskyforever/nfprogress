@@ -1,28 +1,28 @@
 {
-  "version": "4.9.2",
-  "notes": "Интерфейс\n\nУлучшен поиск - теперь поиск идет и по этапам проектов.\n\nВ проектах с этапами отображается счетчик активных/завершенных этапов\n\nИсправлен баг с отображением проекта/этапа после завершения.",
+  "version": "4.9.3",
+  "notes": "Расширено управление стриками\n\nТеперь можно включать и выключать стрики в отдельных проектах или этапах, если где-то вы не хотите их использовать. Управление доступно, если стрики включены в настройках.\n\nИгровой режим\n\nДобавлено 3 новых предмета\n\nЗелье супердоходности (1/24 ч.) - добавляет +10 к доходности, доступно с 15 уровня.\n\nАмулет восстановления - добавляет +1 здоровья в час, доступен с 10 уровня.\n\nКвесты адаптированы к проектам с этапами.",
   "windows": {
-    "version": "4.9.1",
-    "url": "https://nfproject.ru/app/nfprogress-windows-4.9.1.zip",
-    "sha256": "8a9c0c344150d18be4581b2b30545b5e04efde9320f39a10e9d524c7b813c5cf",
-    "size": 49492359,
+    "version": "4.9.2",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.9.2.zip",
+    "sha256": "1f4d907536db2660118017a28befdeb6cf04f6d72175c4055ec5386c067979ca",
+    "size": 49502262,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.9.1.exe",
-    "installer_sha256": "f41f57d67924ca197ce4b07cc5a0148b07cf6765ec5485f4550923c04dd3a577",
-    "installer_size": 33978748
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.9.2.exe",
+    "installer_sha256": "e1e9e87aac0327a323bb7d14ac77bc842314d474969589362e1b8dd404a87686",
+    "installer_size": 33985140
   },
   "macos_arm": {
-    "version": "4.9.2",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.2.zip"
+    "version": "4.9.3",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.3.zip"
   },
   "macos_intel": {
-    "version": "4.9.2",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.2.zip"
+    "version": "4.9.3",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.3.zip"
   },
-  "windows_version": "4.9.1",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.9.1.zip",
-  "macos_arm_version": "4.9.2",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.2.zip",
-  "macos_intel_version": "4.9.2",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.2.zip"
+  "windows_version": "4.9.2",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.9.2.zip",
+  "macos_arm_version": "4.9.3",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.3.zip",
+  "macos_intel_version": "4.9.3",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.3.zip"
 }
