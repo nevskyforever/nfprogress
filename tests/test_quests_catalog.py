@@ -45,6 +45,41 @@ def test_week_symbol_quest_counts_last_seven_days(monkeypatch):
     assert gama_quests.write_5000_symbols_in_week(game.Gamer(), None) is True
 
 
+def test_text_quests_treat_stage_as_independent_writing_unit(monkeypatch):
+    today = engine.today_for_test()
+    stage = engine.Stage(
+        name='Part 1',
+        create_date=today - timedelta(days=13),
+        total_symbols=10000,
+        status='завершен',
+    )
+    stage.complete_date = today
+    stage.notes = [
+        engine.Note(
+            (index + 1) * 1000,
+            1000,
+            0,
+            datetime.combine(today - timedelta(days=index), datetime.min.time()),
+        )
+        for index in range(7)
+    ]
+    project = engine.Project(name='Book')
+    project.enable_stages = True
+    project.stages = [stage]
+
+    monkeypatch.setattr(
+        gama_quests.engine,
+        'load_data',
+        lambda: {'projects': {'Book': project}},
+    )
+
+    assert gama_quests.get_writing_units() == [stage]
+    assert gama_quests.finish_text_in_14_days(game.Gamer(), None) is True
+    assert gama_quests.write_10000_symbols_in_text(game.Gamer(), None) is True
+    assert gama_quests.write_notes_7_days_any_text(game.Gamer(), None) is True
+    assert gama_quests.write_5000_symbols_in_week(game.Gamer(), None) is True
+
+
 def test_bank_quests_check_active_and_returned_deposits():
     gamer = game.Gamer(level=8)
     gamer.bank_account = game_data.BankAccount()

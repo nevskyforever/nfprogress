@@ -102,6 +102,17 @@ def get_projects():
     return list(projects)
 
 
+def get_writing_units():
+    """Возвращает одиночные проекты и этапы как независимые рабочие единицы."""
+    units = []
+    for project in get_projects():
+        if getattr(project, 'has_stages', lambda: False)():
+            units.extend(getattr(project, 'stages', []))
+        else:
+            units.append(project)
+    return units
+
+
 def get_note_dates(project, only_positive=True):
     dates = set()
     for note in getattr(project, 'notes', []):
@@ -123,7 +134,7 @@ def get_symbols_by_date(projects):
 
 
 def get_completed_projects():
-    return [project for project in get_projects() if getattr(project, 'status', None) == 'завершен']
+    return [unit for unit in get_writing_units() if getattr(unit, 'status', None) == 'завершен']
 
 
 def count_positive_notes(project):
@@ -204,15 +215,15 @@ def collect_five_items(gamer, quest):
 
 
 def write_notes_7_days_any_text(gamer, quest):
-    return any(has_consecutive_dates(get_note_dates(project), 7) for project in get_projects())
+    return any(has_consecutive_dates(get_note_dates(unit), 7) for unit in get_writing_units())
 
 
 def finish_text_in_14_days(gamer, quest):
-    for project in get_projects():
-        if getattr(project, 'status', None) != 'завершен':
+    for unit in get_writing_units():
+        if getattr(unit, 'status', None) != 'завершен':
             continue
-        create_date = getattr(project, 'create_date', None)
-        complete_date = getattr(project, 'complete_date', None)
+        create_date = getattr(unit, 'create_date', None)
+        complete_date = getattr(unit, 'complete_date', None)
         if create_date and complete_date and 0 <= (complete_date - create_date).days <= 13:
             return True
     return False
@@ -225,28 +236,28 @@ def no_freeze_7_days(gamer, quest):
     if engine.today_for_test() < start_date + timedelta(days=7):
         return False
 
-    for project in get_projects():
-        for entry, effective_day in engine.iter_streak_days(getattr(project, 'streaks', [])):
+    for unit in get_writing_units():
+        for entry, effective_day in engine.iter_streak_days(getattr(unit, 'streaks', [])):
             if entry == engine.STREAK_FREEZE_MARKER and effective_day >= start_date:
                 return False
     return True
 
 
 def write_10000_symbols_in_text(gamer, quest):
-    return any(project.get_total_symbols() >= 10000 for project in get_projects())
+    return any(unit.get_total_symbols() >= 10000 for unit in get_writing_units())
 
 
 def finish_text_with_no_freezes(gamer, quest):
-    for project in get_projects():
-        if getattr(project, 'status', None) != 'завершен':
+    for unit in get_writing_units():
+        if getattr(unit, 'status', None) != 'завершен':
             continue
-        if getattr(project, 'freezes', 0) == 0 and project.get_total_symbols() > 0:
+        if getattr(unit, 'freezes', 0) == 0 and unit.get_total_symbols() > 0:
             return True
     return False
 
 
 def write_notes_14_days_any_text(gamer, quest):
-    return any(has_consecutive_dates(get_note_dates(project), 14) for project in get_projects())
+    return any(has_consecutive_dates(get_note_dates(unit), 14) for unit in get_writing_units())
 
 
 def no_freeze_14_days(gamer, quest):
@@ -256,47 +267,47 @@ def no_freeze_14_days(gamer, quest):
     if engine.today_for_test() < start_date + timedelta(days=14):
         return False
 
-    for project in get_projects():
-        for entry, effective_day in engine.iter_streak_days(getattr(project, 'streaks', [])):
+    for unit in get_writing_units():
+        for entry, effective_day in engine.iter_streak_days(getattr(unit, 'streaks', [])):
             if entry == engine.STREAK_FREEZE_MARKER and effective_day >= start_date:
                 return False
     return True
 
 
 def write_30000_symbols_total(gamer, quest):
-    return sum(project.get_total_symbols() for project in get_projects()) >= 30000
+    return sum(unit.get_total_symbols() for unit in get_writing_units()) >= 30000
 
 
 def write_2000_symbols_on_3_days(gamer, quest):
-    symbols_by_date = get_symbols_by_date(get_projects())
+    symbols_by_date = get_symbols_by_date(get_writing_units())
     productive_days = [day for day, symbols in symbols_by_date.items() if symbols >= 2000]
     return len(productive_days) >= 3
 
 
 def finish_three_texts(gamer, quest):
-    completed_count = sum(1 for project in get_projects() if getattr(project, 'status', None) == 'завершен')
+    completed_count = len(get_completed_projects())
     return completed_count >= 3
 
 
 def finish_long_text_50000(gamer, quest):
     return any(
-        getattr(project, 'status', None) == 'завершен' and project.get_total_symbols() >= 50000
-        for project in get_projects()
+        getattr(unit, 'status', None) == 'завершен' and unit.get_total_symbols() >= 50000
+        for unit in get_writing_units()
     )
 
 
 def complete_text_with_21_day_streak(gamer, quest):
     return any(
-        getattr(project, 'status', None) == 'завершен'
-        and engine.streak_length(getattr(project, 'streaks', [])) >= 21
-        for project in get_projects()
+        getattr(unit, 'status', None) == 'завершен'
+        and engine.streak_length(getattr(unit, 'streaks', [])) >= 21
+        for unit in get_writing_units()
     )
 
 
 def two_texts_with_7_day_streaks(gamer, quest):
     streaked_projects = [
-        project for project in get_projects()
-        if engine.streak_length(getattr(project, 'streaks', [])) >= 7
+        unit for unit in get_writing_units()
+        if engine.streak_length(getattr(unit, 'streaks', [])) >= 7
     ]
     return len(streaked_projects) >= 2
 
@@ -313,12 +324,12 @@ def collect_ten_awards(gamer, quest):
 
 
 def write_1000_symbols_today(gamer, quest):
-    return any(project.get_added_symbols_today_value() >= 1000 for project in get_projects())
+    return any(unit.get_added_symbols_today_value() >= 1000 for unit in get_writing_units())
 
 
 def keep_three_active_projects(gamer, quest):
     active_statuses = {'активен', 'в работе'}
-    return sum(1 for project in get_projects() if getattr(project, 'status', None) in active_statuses) >= 3
+    return sum(1 for unit in get_writing_units() if getattr(unit, 'status', None) in active_statuses) >= 3
 
 
 def finish_short_text_5000(gamer, quest):
@@ -329,24 +340,24 @@ def write_5000_symbols_in_week(gamer, quest):
     today = engine.today_for_test()
     week_start = today - timedelta(days=6)
     total = 0
-    for symbols_date, symbols in get_symbols_by_date(get_projects()).items():
+    for symbols_date, symbols in get_symbols_by_date(get_writing_units()).items():
         if week_start <= symbols_date <= today:
             total += symbols
     return total >= 5000
 
 
 def write_1000_symbols_on_5_days(gamer, quest):
-    symbols_by_date = get_symbols_by_date(get_projects())
+    symbols_by_date = get_symbols_by_date(get_writing_units())
     productive_days = [day for day, symbols in symbols_by_date.items() if symbols >= 1000]
     return len(productive_days) >= 5
 
 
 def write_30_notes_in_one_text(gamer, quest):
-    return any(count_positive_notes(project) >= 30 for project in get_projects())
+    return any(count_positive_notes(unit) >= 30 for unit in get_writing_units())
 
 
 def write_100000_symbols_total(gamer, quest):
-    return sum(project.get_total_symbols() for project in get_projects()) >= 100000
+    return sum(unit.get_total_symbols() for unit in get_writing_units()) >= 100000
 
 
 def finish_five_texts(gamer, quest):
@@ -534,7 +545,7 @@ def get_quests():
         quest(
             quest_id='write_notes_7_days_any_text',
             name='Неделя записей',
-            description='Добавляйте записи не меньше 7 дней подряд в любой текст.',
+            description='Добавляйте записи не меньше 7 дней подряд в один текст или этап.',
             reward_coins=500,
             reward_exp=5000,
             reward_items=[
@@ -546,7 +557,7 @@ def get_quests():
         quest(
             quest_id='finish_text_in_14_days',
             name='Спринт за две недели',
-            description='Завершите любой текст не позже чем через 14 дней после его создания.',
+            description='Завершите текст или этап не позже чем через 14 дней после его создания.',
             reward_coins=700,
             reward_exp=7000,
             reward_items=[
@@ -558,7 +569,7 @@ def get_quests():
         quest(
             quest_id='no_freeze_7_days',
             name='Неделя без заморозки',
-            description='После старта квеста продержитесь 7 дней без использования заморозки в проектах.',
+            description='После старта квеста продержитесь 7 дней без использования заморозки в текстах или этапах.',
             reward_coins=450,
             reward_exp=4500,
             reward_items=[
@@ -570,7 +581,7 @@ def get_quests():
         quest(
             quest_id='write_10000_symbols_in_text',
             name='Десять тысяч',
-            description='Напишите 10000 символов в любом тексте.',
+            description='Напишите 10000 символов в одном тексте или этапе.',
             reward_coins=800,
             reward_exp=8000,
             reward_items=[],
@@ -580,7 +591,7 @@ def get_quests():
         quest(
             quest_id='finish_text_with_no_freezes',
             name='Чистый финиш',
-            description='Завершите любой текст, не использовав в нем ни одной заморозки.',
+            description='Завершите текст или этап, не использовав в нём ни одной заморозки.',
             reward_coins=900,
             reward_exp=9000,
             reward_items=[
@@ -592,7 +603,7 @@ def get_quests():
         quest(
             quest_id='write_notes_14_days_any_text',
             name='Две недели без провала',
-            description='Добавляйте записи 14 дней подряд в любой текст.',
+            description='Добавляйте записи 14 дней подряд в один текст или этап.',
             reward_coins=1200,
             reward_exp=12000,
             reward_items=[
@@ -604,7 +615,7 @@ def get_quests():
         quest(
             quest_id='no_freeze_14_days',
             name='Без льда',
-            description='После старта квеста продержитесь 14 дней без использования заморозки в проектах.',
+            description='После старта квеста продержитесь 14 дней без использования заморозки в текстах или этапах.',
             reward_coins=1100,
             reward_exp=11000,
             reward_items=[
@@ -616,7 +627,7 @@ def get_quests():
         quest(
             quest_id='write_30000_symbols_total',
             name='Большой объём',
-            description='Накопите 30000 написанных символов суммарно по всем текстам.',
+            description='Накопите 30000 написанных символов суммарно по всем текстам и этапам.',
             reward_coins=1500,
             reward_exp=15000,
             reward_items=[],
@@ -638,7 +649,7 @@ def get_quests():
         quest(
             quest_id='finish_three_texts',
             name='Три финала',
-            description='Завершите 3 разных текста.',
+            description='Завершите 3 разных текста или этапа.',
             reward_coins=2200,
             reward_exp=22000,
             reward_items=[
@@ -650,7 +661,7 @@ def get_quests():
         quest(
             quest_id='finish_long_text_50000',
             name='Большая форма',
-            description='Завершите текст объёмом не меньше 50000 символов.',
+            description='Завершите текст или этап объёмом не меньше 50000 символов.',
             reward_coins=2600,
             reward_exp=26000,
             reward_items=[
@@ -662,7 +673,7 @@ def get_quests():
         quest(
             quest_id='complete_text_with_21_day_streak',
             name='Финиш марафонца',
-            description='Завершите текст со стриком не меньше 21 дня.',
+            description='Завершите текст или этап со стриком не меньше 21 дня.',
             reward_coins=3200,
             reward_exp=32000,
             reward_items=[
@@ -674,7 +685,7 @@ def get_quests():
         quest(
             quest_id='two_texts_with_7_day_streaks',
             name='Две линии огня',
-            description='Доведите стрик до 7 дней минимум в двух разных текстах.',
+            description='Доведите стрик до 7 дней минимум в двух разных текстах или этапах.',
             reward_coins=3000,
             reward_exp=30000,
             reward_items=[
@@ -708,7 +719,7 @@ def get_quests():
         quest(
             quest_id='write_1000_symbols_today',
             name='Тысяча за день',
-            description='Напишите не меньше 1000 символов за один день в любом тексте.',
+            description='Напишите не меньше 1000 символов за один день в одном тексте или этапе.',
             reward_coins=180,
             reward_exp=1800,
             reward_items=[],
@@ -718,7 +729,7 @@ def get_quests():
         quest(
             quest_id='keep_three_active_projects',
             name='Три фронта',
-            description='Держите 3 активных текста одновременно.',
+            description='Держите 3 активных текста или этапа одновременно.',
             reward_coins=350,
             reward_exp=3500,
             reward_items=[
@@ -730,7 +741,7 @@ def get_quests():
         quest(
             quest_id='finish_short_text_5000',
             name='Короткая победа',
-            description='Завершите текст объёмом от 5000 до 15000 символов.',
+            description='Завершите текст или этап объёмом от 5000 до 15000 символов.',
             reward_coins=650,
             reward_exp=6500,
             reward_items=[
@@ -764,7 +775,7 @@ def get_quests():
         quest(
             quest_id='write_30_notes_in_one_text',
             name='Дневник рукописи',
-            description='Добавьте 30 записей с положительным приростом в один текст.',
+            description='Добавьте 30 записей с положительным приростом в один текст или этап.',
             reward_coins=1800,
             reward_exp=18000,
             reward_items=[
@@ -800,7 +811,7 @@ def get_quests():
         quest(
             quest_id='finish_five_texts',
             name='Пять завершений',
-            description='Завершите 5 разных текстов.',
+            description='Завершите 5 разных текстов или этапов.',
             reward_coins=5200,
             reward_exp=52000,
             reward_items=[
@@ -812,7 +823,7 @@ def get_quests():
         quest(
             quest_id='write_100000_symbols_total',
             name='Сто тысяч',
-            description='Накопите 100000 написанных символов суммарно по всем текстам.',
+            description='Накопите 100000 написанных символов суммарно по всем текстам и этапам.',
             reward_coins=7000,
             reward_exp=70000,
             reward_items=[

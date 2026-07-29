@@ -1,28 +1,28 @@
 {
-  "version": "4.8.8",
-  "notes": "Исправление багов",
+  "version": "4.9.2",
+  "notes": "Интерфейс\n\nУлучшен поиск - теперь поиск идет и по этапам проектов.\n\nВ проектах с этапами отображается счетчик активных/завершенных этапов\n\nИсправлен баг с отображением проекта/этапа после завершения.",
   "windows": {
-    "version": "4.8.7",
-    "url": "https://nfproject.ru/app/nfprogress-windows-4.8.7.zip",
-    "sha256": "837943b9dc4c3286560eb9cb67edc44c4085ef45c1e3680524e2992bc71fecf8",
-    "size": 48425110,
+    "version": "4.9.1",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.9.1.zip",
+    "sha256": "8a9c0c344150d18be4581b2b30545b5e04efde9320f39a10e9d524c7b813c5cf",
+    "size": 49492359,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.8.7.exe",
-    "installer_sha256": "fcef4efef8489d25ddc34b7750eca3e2fbc8415fab84b603e0ae1cd8d51f9d99",
-    "installer_size": 33529840
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.9.1.exe",
+    "installer_sha256": "f41f57d67924ca197ce4b07cc5a0148b07cf6765ec5485f4550923c04dd3a577",
+    "installer_size": 33978748
   },
   "macos_arm": {
-    "version": "4.8.8",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.8.zip"
+    "version": "4.9.2",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.2.zip"
   },
   "macos_intel": {
-    "version": "4.8.8",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.8.zip"
+    "version": "4.9.2",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.2.zip"
   },
-  "windows_version": "4.8.7",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.8.7.zip",
-  "macos_arm_version": "4.8.8",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.8.8.zip",
-  "macos_intel_version": "4.8.8",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.8.8.zip"
+  "windows_version": "4.9.1",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.9.1.zip",
+  "macos_arm_version": "4.9.2",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.2.zip",
+  "macos_intel_version": "4.9.2",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.2.zip"
 }
