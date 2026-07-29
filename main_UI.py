@@ -2015,7 +2015,7 @@ class MainWindow(QMainWindow, main_window_ui):
             if not self._is_stage(widget.project) and widget.project.name == parent_project.name:
                 widget.project = parent_project
                 widget.update_display()
-                item.setSizeHint(widget.sizeHint())
+                self._resize_project_list_item(item, widget)
             elif self._is_stage(widget.project) and getattr(widget.project, 'stage_id', None) == stage_id:
                 stage = next(
                     (current_stage for current_stage in parent_project.stages
@@ -2026,7 +2026,39 @@ class MainWindow(QMainWindow, main_window_ui):
                     widget.project = stage
                     widget.parent_project = parent_project
                     widget.update_display()
-                    item.setSizeHint(widget.sizeHint())
+                    self._resize_project_list_item(item, widget)
+
+    def _resize_project_list_item(self, item, widget):
+        """Подгоняет строку списка под доступную ширину панели проектов.
+
+        Без явной ширины QListWidgetItem использует исходный sizeHint виджета
+        (185 пикселей). Поэтому длинные названия переносились в чрезмерно узкой
+        карточке, а у этапов могли выходить за её границы.
+        """
+        available_width = max(1, self.list_projects.viewport().width())
+        widget.setFixedWidth(available_width)
+        widget.layout().activate()
+        if hasattr(widget, 'widget'):
+            widget.widget.layout().activate()
+
+        height = widget.heightForWidth(available_width)
+        if height < 0:
+            height = widget.sizeHint().height()
+        item.setSizeHint(QSize(available_width, height))
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        # Размер viewport меняется после обработки resizeEvent, поэтому
+        # пересчитываем строки в следующем цикле событий.
+        if hasattr(self, 'list_projects'):
+            QTimer.singleShot(0, self._resize_project_list_items)
+
+    def _resize_project_list_items(self):
+        for index in range(self.list_projects.count()):
+            item = self.list_projects.item(index)
+            widget = self.list_projects.itemWidget(item)
+            if widget is not None and hasattr(widget, 'project'):
+                self._resize_project_list_item(item, widget)
 
     def _sync_project_key(self, project):
         if self._is_stage(project):
@@ -2333,16 +2365,11 @@ class MainWindow(QMainWindow, main_window_ui):
                         data['last_global_streak_bonus'] = bonus_day
                         data_changed = True
 
-            # Принудительно обновляем layout, чтобы sizeHint был актуальным
-            widget.layout().activate()
-            widget.widget.layout().activate()
-            size = widget.sizeHint()
-
             item = QListWidgetItem()
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
-            item.setSizeHint(size)
             list_p.addItem(item)
             list_p.setItemWidget(item, widget)
+            self._resize_project_list_item(item, widget)
 
             if current_project_name and project.name == current_project_name:
                 list_p.setCurrentItem(item)
@@ -2354,12 +2381,11 @@ class MainWindow(QMainWindow, main_window_ui):
             ):
                 for stage in project.stages:
                     stage_widget = StageRowWidget(stage, project, settings.get('global_streak', False))
-                    stage_widget.layout().activate()
                     stage_item = QListWidgetItem()
                     stage_item.setFlags(stage_item.flags() | Qt.ItemFlag.ItemIsDragEnabled)
-                    stage_item.setSizeHint(stage_widget.sizeHint())
                     list_p.addItem(stage_item)
                     list_p.setItemWidget(stage_item, stage_widget)
+                    self._resize_project_list_item(stage_item, stage_widget)
                     if current_stage_id and getattr(stage, 'stage_id', None) == current_stage_id:
                         list_p.setCurrentItem(stage_item)
 
@@ -2381,6 +2407,9 @@ class MainWindow(QMainWindow, main_window_ui):
             en.save_data(data)
         if preserve_scroll:
             QTimer.singleShot(0, lambda value=scroll_value: list_p.verticalScrollBar().setValue(value))
+        # После добавления всех строк может появиться вертикальная прокрутка и
+        # уменьшить viewport. Повторный расчёт исключает горизонтальную полосу.
+        QTimer.singleShot(0, self._resize_project_list_items)
 
     def _save_reordered_stages(self, *args):
         """Сохраняет новый порядок этапов, если они остались внутри своего проекта."""

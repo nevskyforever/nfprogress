@@ -338,6 +338,10 @@ class ProjectWidget(QWidget, Ui_Form):
             # бесконтрольно на Windows с крупными системными шрифтами
             label.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Preferred)
 
+        # Длинное название не должно увеличивать минимальную ширину карточки.
+        # Ширину задаёт QListWidget, а QLabel переносит текст внутри неё.
+        self.name.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+
         self.project = project
         self.display_name = display_name
         self.expanded = expanded
@@ -466,8 +470,9 @@ class StageRowWidget(QWidget):
         self.circular_progress.setValueImmediate(0)
 
         self.name = QLabel(self._get_display_name(), self)
-        self.name.setWordWrap(False)
-        self.name.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Preferred)
+        self.name.setWordWrap(True)
+        # Иначе sizeHint длинного названия расширяет строку за границы списка.
+        self.name.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
         self.name.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
 
         self.total = QLabel(self)
@@ -489,7 +494,7 @@ class StageRowWidget(QWidget):
         text_layout.addWidget(self.streak)
 
         layout.addWidget(self.circular_progress)
-        layout.addLayout(text_layout)
+        layout.addLayout(text_layout, 1)
         self.update_display()
 
     def stop_animations(self):
