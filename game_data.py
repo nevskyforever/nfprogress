@@ -1528,7 +1528,7 @@ super_exp_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье п�
                                      value=10.0,
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60))
-super_exp_potion_24hrs = FuncItem(name='⚡️  Суточное зелье просвещения',
+super_exp_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье просвещения',
                            item_type='Зелья',
                            level=8,
                            price=lambda: calculate_item_price(25000),
@@ -1540,7 +1540,7 @@ super_exp_potion_24hrs = FuncItem(name='⚡️  Суточное зелье пр
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60*24))
 
-coin_potion_1hrs = FuncItem(name='⚡️  Часовое зелье доходности',
+coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье доходности',
                            item_type='Зелья',
                            level=2,
                            price=lambda: calculate_item_price(100),
