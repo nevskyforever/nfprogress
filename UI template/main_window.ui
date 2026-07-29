@@ -40,7 +40,7 @@
        <enum>QTabWidget::TabShape::Rounded</enum>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <property name="usesScrollButtons">
        <bool>false</bool>
@@ -1703,6 +1703,11 @@
               </item>
               <item row="4" column="4">
                <widget class="QPushButton" name="button_to_sell_selected_item">
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
                 <property name="text">
                  <string>Продать</string>
                 </property>
@@ -1958,7 +1963,7 @@
            </font>
           </property>
           <property name="currentIndex">
-           <number>0</number>
+           <number>1</number>
           </property>
           <widget class="QWidget" name="available_quests_tab">
            <attribute name="title">
@@ -2112,12 +2117,22 @@
             </item>
             <item row="0" column="1">
              <widget class="QGroupBox" name="about_selected_active_quest">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
               <property name="title">
                <string>О квесте</string>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout">
                <item>
                 <widget class="QScrollArea" name="scrollArea_2">
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
                  <property name="widgetResizable">
                   <bool>true</bool>
                  </property>
@@ -2126,8 +2141,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>100</width>
-                    <height>168</height>
+                    <width>357</width>
+                    <height>136</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_17">
@@ -2143,6 +2158,11 @@
                    </item>
                    <item row="0" column="0">
                     <widget class="QLabel" name="name_selected_active_quest">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Название</string>
                      </property>
@@ -2240,8 +2260,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>100</width>
-                    <height>168</height>
+                    <width>357</width>
+                    <height>163</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_16">
@@ -2320,7 +2340,7 @@
            </font>
           </property>
           <property name="currentIndex">
-           <number>0</number>
+           <number>2</number>
           </property>
           <widget class="QWidget" name="bufs_tab">
            <attribute name="title">
@@ -2482,16 +2502,31 @@
                 <height>16777215</height>
                </size>
               </property>
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
              </widget>
             </item>
             <item>
              <widget class="QGroupBox" name="about_selected_debuf">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
               <property name="title">
                <string>О бафе</string>
               </property>
               <layout class="QGridLayout" name="gridLayout_24">
                <item row="0" column="0">
                 <widget class="QScrollArea" name="scrol_area">
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
                  <property name="widgetResizable">
                   <bool>true</bool>
                  </property>
@@ -2500,13 +2535,18 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>100</width>
-                    <height>168</height>
+                    <width>357</width>
+                    <height>159</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_25">
                    <item row="4" column="0">
                     <widget class="QLabel" name="label_42">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Дата завершения</string>
                      </property>
@@ -2517,6 +2557,11 @@
                    </item>
                    <item row="2" column="0">
                     <widget class="QLabel" name="label_43">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Эффект</string>
                      </property>
@@ -2527,6 +2572,11 @@
                    </item>
                    <item row="1" column="0">
                     <widget class="QLabel" name="label_44">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Описание</string>
                      </property>
@@ -2537,6 +2587,11 @@
                    </item>
                    <item row="0" column="0">
                     <widget class="QLabel" name="label_45">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Название</string>
                      </property>
@@ -2547,6 +2602,11 @@
                    </item>
                    <item row="3" column="0">
                     <widget class="QLabel" name="label_46">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Дата начала</string>
                      </property>
@@ -2583,16 +2643,31 @@
                 <height>16777215</height>
                </size>
               </property>
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
              </widget>
             </item>
             <item>
              <widget class="QGroupBox" name="groupBox">
+              <property name="font">
+               <font>
+                <family>Arial</family>
+               </font>
+              </property>
               <property name="title">
                <string>О параметре</string>
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_3">
                <item>
                 <widget class="QScrollArea" name="scrollArea_6">
+                 <property name="font">
+                  <font>
+                   <family>Arial</family>
+                  </font>
+                 </property>
                  <property name="widgetResizable">
                   <bool>true</bool>
                  </property>
@@ -2601,13 +2676,18 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>98</width>
-                    <height>56</height>
+                    <width>357</width>
+                    <height>159</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="verticalLayout_4">
                    <item>
                     <widget class="QLabel" name="description_selected_parameter">
+                     <property name="font">
+                      <font>
+                       <family>Arial</family>
+                      </font>
+                     </property>
                      <property name="text">
                       <string>Описание параметра</string>
                      </property>
