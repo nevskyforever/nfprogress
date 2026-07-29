@@ -129,6 +129,10 @@ dispute through negotiation.</p>
 
 TRANSLATION_OVERRIDES = {
     "en": {
+        "Стрики": "Streaks",
+        "Стрики выключены": "Streaks disabled",
+        "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "If you disable project streaks, the current project streak will end.\nEnabled stage streaks will continue based on their daily goals.\nContinue?",
+        "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "If you disable streaks, the current streak will end!\nContinue?",
         "Заморозка глобального стрика": "Global streak freeze",
         "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "There are no active projects with an active streak. Freeze the global streak for today?",
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Could not apply the freeze: check the inventory and global streak status.",
@@ -147,6 +151,10 @@ TRANSLATION_OVERRIDES = {
         "за завершение квеста": "for completing a quest",
     },
     "es": {
+        "Стрики": "Rachas",
+        "Стрики выключены": "Rachas desactivadas",
+        "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "Si desactivas las rachas del proyecto, la racha actual del proyecto finalizará.\nLas rachas activadas de las etapas seguirán funcionando según sus objetivos diarios.\n¿Continuar?",
+        "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "Si desactivas las rachas, la racha actual finalizará.\n¿Continuar?",
         "Заморозка глобального стрика": "Congelación de racha global",
         "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "No hay proyectos activos con una racha activa. ¿Congelar la racha global de hoy?",
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "No se pudo aplicar la congelación: comprueba el inventario y el estado de la racha global.",
@@ -165,6 +173,10 @@ TRANSLATION_OVERRIDES = {
         "за завершение квеста": "por completar una misión",
     },
     "de": {
+        "Стрики": "Serien",
+        "Стрики выключены": "Serien deaktiviert",
+        "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "Wenn Sie die Projektserien deaktivieren, wird die aktuelle Projektserie beendet.\nAktivierte Etappenserien laufen anhand ihrer Tagesziele weiter.\nFortfahren?",
+        "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "Wenn Sie Serien deaktivieren, wird die aktuelle Serie beendet!\nFortfahren?",
         "Заморозка глобального стрика": "Globale Serie einfrieren",
         "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "Es gibt keine aktiven Projekte mit einer aktiven Serie. Die globale Serie für heute einfrieren?",
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Die Einfrierung konnte nicht angewendet werden: Bitte Inventar und Status der globalen Serie prüfen.",
@@ -183,6 +195,10 @@ TRANSLATION_OVERRIDES = {
         "за завершение квеста": "für den Abschluss einer Quest",
     },
     "fr": {
+        "Стрики": "Séries",
+        "Стрики выключены": "Séries désactivées",
+        "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "Si vous désactivez les séries du projet, la série actuelle du projet prendra fin.\nLes séries activées des étapes continueront selon leurs objectifs quotidiens.\nContinuer ?",
+        "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "Si vous désactivez les séries, la série actuelle prendra fin !\nContinuer ?",
         "Заморозка глобального стрика": "Gel de la série globale",
         "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "Il n’y a aucun projet actif avec une série active. Geler la série globale pour aujourd’hui ?",
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Impossible d’appliquer le gel : vérifiez l’inventaire et l’état de la série globale.",
@@ -201,6 +217,10 @@ TRANSLATION_OVERRIDES = {
         "за завершение квеста": "pour avoir terminé une quête",
     },
     "pt_BR": {
+        "Стрики": "Sequências",
+        "Стрики выключены": "Sequências desativadas",
+        "Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\nВключённые стрики этапов продолжат работать по своим целям на день.\nПродолжить?": "Se você desativar as sequências do projeto, a sequência atual do projeto será encerrada.\nAs sequências ativadas das etapas continuarão conforme suas metas diárias.\nContinuar?",
+        "Если вы отключите стрики, текущий стрик будет завершён!\nПродолжить?": "Se você desativar as sequências, a sequência atual será encerrada!\nContinuar?",
         "Заморозка глобального стрика": "Congelamento da sequência global",
         "Нет активных проектов с активным стриком. Заморозить глобальный стрик на сегодня?": "Não há projetos ativos com uma sequência ativa. Congelar a sequência global de hoje?",
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Não foi possível aplicar o congelamento: verifique o inventário e o status da sequência global.",

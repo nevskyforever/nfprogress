@@ -599,10 +599,10 @@ class BankAccount:
                 streak_candidates.append(10 * coins_cf * global_streak_len * inflation)
 
         for project in self._iter_loaded_projects():
-            streaks = getattr(project, 'streaks', [])
-            streak_len = engine.streak_length(streaks)
-            if streak_len > 0:
-                streak_candidates.append(10 * coins_cf * streak_len * inflation)
+            for streak_source in engine.get_project_streak_sources(project):
+                streak_len = engine.streak_length(getattr(streak_source, 'streaks', []))
+                if streak_len > 0:
+                    streak_candidates.append(10 * coins_cf * streak_len * inflation)
 
         if streak_candidates:
             return gamer.round_money(max(streak_candidates))
@@ -1321,8 +1321,9 @@ def calculate_freeze_price():
     ]
 
     streak_lengths = [
-        engine.streak_length(getattr(project, 'streaks', []))
+        engine.streak_length(getattr(streak_source, 'streaks', []))
         for project in active_projects
+        for streak_source in engine.get_project_streak_sources(project)
     ]
     global_streak_len = engine.streak_length(data.get('global_streaks', []))
     if global_streak_len > 0:

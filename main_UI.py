@@ -350,7 +350,8 @@ class MainWindow(QMainWindow, main_window_ui):
                 deadline=deadline,
                 total_symbols=total,
                 unit=unit,
-                personal_goal_for_the_day=personal_goal_for_the_day
+                personal_goal_for_the_day=personal_goal_for_the_day,
+                streak_status='No' if dialog.is_streak_checked() else 'Off',
             )
             if dialog.is_stages_enabled():
                 pending_stages = dialog.get_pending_stages()
@@ -441,6 +442,7 @@ class MainWindow(QMainWindow, main_window_ui):
             unit=unit,
             personal_goal_for_the_day=personal_goal_for_the_day,
             parent_project_name=parent.name,
+            streak_status='No' if dialog.is_streak_checked() else 'Off',
         )
         stage.get_today_goal_value()
         parent.stages.append(stage)
@@ -614,10 +616,12 @@ class MainWindow(QMainWindow, main_window_ui):
                     data['last_global_streak_lost_date'] = None
                     for p in data['projects'].values():
                         p.streaks = []
-                        p.streak_status = 'No'
+                        p.streak_status = 'Off' if p.streak_status == 'Off' else 'No'
                         for stage in getattr(p, 'stages', []):
                             stage.streaks = []
-                            stage.streak_status = 'No'
+                            stage.streak_status = (
+                                'Off' if stage.streak_status == 'Off' else 'No'
+                            )
                     en.save_data(data)
                 en.save_settings(settings)
                 self.change_language(language)
@@ -1043,12 +1047,15 @@ class MainWindow(QMainWindow, main_window_ui):
     def _project_can_show_streak(self, project):
         if self._is_stage(project):
             parent_project = self._get_parent_project(project)
+            stage_id = getattr(project, 'stage_id', None)
             return (
-                    parent_project is not None
-                    and parent_project.deadline == 'Нет'
-                    and project.deadline != 'Нет'
+                parent_project is not None
+                and any(
+                    getattr(source, 'stage_id', None) == stage_id
+                    for source in en.get_project_streak_sources(parent_project)
+                )
             )
-        return project.deadline != 'Нет'
+        return project in en.get_project_streak_sources(project)
 
     def _get_streak_bonus_project(self, data, project):
         if not self._is_stage(project):
@@ -1056,7 +1063,10 @@ class MainWindow(QMainWindow, main_window_ui):
             return project
 
         parent_project, _ = self._find_stage_parent(data, project)
-        if parent_project is not None and parent_project.deadline != 'Нет':
+        if (
+                parent_project is not None
+                and parent_project in en.get_project_streak_sources(parent_project)
+        ):
             parent_project.get_streak_status()
             data['projects'][parent_project.name] = parent_project
             return parent_project
@@ -1557,6 +1567,7 @@ class MainWindow(QMainWindow, main_window_ui):
             old_total = project.total_units
             old_deadline = project.deadline
             old_personal_goal = project.personal_goal_for_the_day
+            old_streak_is_on = project.streak_status != 'Off'
             parent_with_stages = not self._is_stage(project) and project.has_stages()
 
             # Получаем новые значения из диалога
@@ -1569,6 +1580,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 new_total = math.ceil(new_total)
             new_deadline = dialog.get_deadline()
             new_personal_goal = dialog.get_personal_goal_for_the_day()
+            new_streak_is_on = dialog.is_streak_checked()
             stages_enabled = dialog.is_stages_enabled()
             if parent_with_stages:
                 new_goal = old_goal
@@ -1582,7 +1594,13 @@ class MainWindow(QMainWindow, main_window_ui):
             settings = en.load_settings()
 
             # Предупреждаем, что уменьшить цель на день не выйдет
-            if old_personal_goal < new_personal_goal and settings.get('global_streak', False) and not en.dev_mode:
+            if (
+                    old_streak_is_on
+                    and new_streak_is_on
+                    and old_personal_goal < new_personal_goal
+                    and settings.get('global_streak', False)
+                    and not en.dev_mode
+            ):
                 if not en.streak_contains_day(project.streaks, en.today_for_test()):
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -1600,7 +1618,13 @@ class MainWindow(QMainWindow, main_window_ui):
                         project.personal_goal_for_the_day = new_personal_goal
 
             # Если персональная цель проекта изменилась и сегодня есть в стриках - удаляем сегодняшнюю дату
-            if old_personal_goal < new_personal_goal and project.streaks and settings.get('global_streak', False):
+            if (
+                    old_streak_is_on
+                    and new_streak_is_on
+                    and old_personal_goal < new_personal_goal
+                    and project.streaks
+                    and settings.get('global_streak', False)
+            ):
                 if en.streak_last_day(project.streaks) == en.today_for_test():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -1628,7 +1652,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     else:
                         return
             # Запрещаем менять цель на день, если стрик не продлен сегодня
-            if old_personal_goal > new_personal_goal and not en.dev_mode:
+            if old_streak_is_on and new_streak_is_on and old_personal_goal > new_personal_goal and not en.dev_mode:
                 if project.streaks and not en.streak_contains_day(project.streaks, en.today_for_test()) and not dialog.checkBox.isChecked():
                     # 1. Создаем диалог
                     confirm_goal_dialog = ConfirmDialog()
@@ -1643,22 +1667,21 @@ class MainWindow(QMainWindow, main_window_ui):
                     # 4. Обрабатываем результат
                     if result_personal_goal == QDialog.Accepted:
                         return
-            # Если удаляем дедлайн с активным стриком
-            if dialog.checkBox.isChecked() and project.streaks:
+            # Отключение стрика завершает его независимо от наличия дедлайна.
+            if old_streak_is_on and not new_streak_is_on and project.streaks:
                 # 1. Создаем диалог
                 confirm_goal_dialog = ConfirmDialog()
 
                 # 2. НАСТРАИВАЕМ текст (ДО вызова exec)
                 if not self._is_stage(project) and project.has_stages():
                     confirm_goal_dialog.message.setText(
-                        tr('Если вы удалите дедлайн проекта, стрик проекта будет потерян.\n'
-                        'Этапы снова будут вести собственные стрики по своим дедлайнам и текущей активности.\n'
-                        'Ранее перенесенный в проект стрик не вернется этапам как история.\n'
+                        tr('Если вы отключите стрики проекта, текущий стрик проекта будет завершён.\n'
+                        'Включённые стрики этапов продолжат работать по своим целям на день.\n'
                         'Продолжить?')
                     )
                 else:
                     confirm_goal_dialog.message.setText(
-                        tr('Если вы удалите дедлайн, стрик проекта будет потерян!\n'
+                        tr('Если вы отключите стрики, текущий стрик будет завершён!\n'
                         'Продолжить?')
                     )
 
@@ -1666,25 +1689,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 result_personal_goal = confirm_goal_dialog.exec()
 
                 # 4. Обрабатываем результат
-                if result_personal_goal == QDialog.Accepted:
-                    project.streaks.clear()
-                else:
-                    return
-
-            if (
-                    not self._is_stage(project)
-                    and project.has_stages()
-                    and old_deadline == 'Нет'
-                    and new_deadline != 'Нет'
-                    and any(en.streak_length(stage.streaks) > 0 for stage in project.stages)
-            ):
-                confirm_goal_dialog = ConfirmDialog()
-                confirm_goal_dialog.message.setText(
-                    tr('При добавлении дедлайна проекта самый длинный стрик этапа будет перенесен в проект.\n'
-                    'Стрики этапов будут очищены и начнутся заново. Дедлайны этапов сохранятся.\n'
-                    'Продолжить?')
-                )
-                if confirm_goal_dialog.exec() != QDialog.Accepted:
+                if result_personal_goal != QDialog.Accepted:
                     return
 
 
@@ -1727,6 +1732,7 @@ class MainWindow(QMainWindow, main_window_ui):
                         stage.parent_project_name = project.name
                         stage.unit = project.unit
                         project.stages.append(stage)
+            project.set_streak_state(new_streak_is_on)
 
             # Обновляем статус проекта (если цель достигнута)
             if project.total_units >= project.goal and project.status != 'завершен':
@@ -1813,6 +1819,14 @@ class MainWindow(QMainWindow, main_window_ui):
             completion_date = en.today_for_test()
             is_stage = self._is_stage(project)
             entities_to_complete = en.get_completion_entities(project)
+            streak_parent = self._get_parent_project(project) if is_stage else project
+            completion_streak_sources = en.get_project_streak_sources(streak_parent)
+            active_stage_streak_ids = {
+                getattr(source, 'stage_id', None)
+                for source in completion_streak_sources
+                if self._is_stage(source)
+            }
+            parent_streak_is_active = streak_parent in completion_streak_sources
 
             for entity in entities_to_complete:
                 entity.status = "завершен"
@@ -1822,9 +1836,18 @@ class MainWindow(QMainWindow, main_window_ui):
             if settings['game_mode']:
                 for entity in entities_to_complete:
                     entity_is_stage = self._is_stage(entity)
+                    entity_streak_is_active = (
+                        getattr(entity, 'stage_id', None) in active_stage_streak_ids
+                        if entity_is_stage
+                        else parent_streak_is_active
+                    )
                     bonus_key = self._completion_bonus_key(entity, project if entity_is_stage and not is_stage else None)
                     streak_len = en.streak_length(entity.streaks)
-                    if settings['global_streak'] and entity.deadline != 'Нет' and streak_len:
+                    if (
+                            settings['global_streak']
+                            and entity_streak_is_active
+                            and streak_len
+                    ):
                         self.game_controller.give_streak_bonus(
                             streak_status='Complete',
                             streak_type='Local',
@@ -1878,7 +1901,9 @@ class MainWindow(QMainWindow, main_window_ui):
                 project.status = "в архиве"
                 project.deadline = 'Нет'
                 project.streaks = []
-                project.streak_status = 'No'
+                project.streak_status = (
+                    'Off' if project.streak_status == 'Off' else 'No'
+                )
                 msg = f'{project.name} архивирован.'
             else:
                 project.status = "активен"
@@ -2034,9 +2059,13 @@ class MainWindow(QMainWindow, main_window_ui):
         return project.name
 
     def generate_project_widget(self, project, display_name=None):
+        show_streak = (
+            en.load_settings().get('global_streak', False)
+            and project.streak_status != 'Off'
+        )
         return ProjectWidget(
             project,
-            en.load_settings()['global_streak'],
+            show_streak,
             expanded=project.name in self._expanded_stage_projects,
             toggle_callback=self._toggle_project_stages,
             display_name=display_name,
@@ -2150,9 +2179,13 @@ class MainWindow(QMainWindow, main_window_ui):
             if not isinstance(project, en.Project):
                 continue
 
-            streak_sources = project.stages if project.has_stages() and project.deadline == 'Нет' else [project]
+            streak_sources = en.get_project_streak_sources(project)
             project_freezes_before = getattr(project, 'freezes', 0)
-            previous_batch = en.begin_project_freeze_batch(project) if project.has_stages() and project.deadline == 'Нет' else None
+            previous_batch = (
+                en.begin_project_freeze_batch(project)
+                if streak_sources and streak_sources != [project]
+                else None
+            )
             try:
                 for streak_source in streak_sources:
                     old_streaks = list(streak_source.streaks) if isinstance(streak_source.streaks, list) else []
@@ -2184,7 +2217,7 @@ class MainWindow(QMainWindow, main_window_ui):
                                 global_streaks.append(en.STREAK_FREEZE_MARKER)
                                 data['global_streak_status'] = 'Freeze'
             finally:
-                if previous_batch is not None or project.has_stages() and project.deadline == 'Нет':
+                if previous_batch is not None:
                     en.end_project_freeze_batch(previous_batch)
 
             if getattr(project, 'freezes', 0) != project_freezes_before:
@@ -2310,7 +2343,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
             # Даем бонус за стрик проекта и глобальный, если он включен
             if should_give_streak_bonus and not is_stage_search_result:
-                streak_sources = project.stages if project.has_stages() and project.deadline == 'Нет' else [project]
+                streak_sources = en.get_project_streak_sources(project)
                 bonus_day = en.today_for_test()
                 for streak_source in streak_sources:
                     if en.streak_bonus_is_due(streak_source.last_streak_bonus, bonus_day):
@@ -2353,7 +2386,11 @@ class MainWindow(QMainWindow, main_window_ui):
                     project.name in self._expanded_stage_projects
             ):
                 for stage in project.stages:
-                    stage_widget = StageRowWidget(stage, project, settings.get('global_streak', False))
+                    show_stage_streak = (
+                        settings.get('global_streak', False)
+                        and stage.streak_status != 'Off'
+                    )
+                    stage_widget = StageRowWidget(stage, project, show_stage_streak)
                     stage_widget.layout().activate()
                     stage_item = QListWidgetItem()
                     stage_item.setFlags(stage_item.flags() | Qt.ItemFlag.ItemIsDragEnabled)
@@ -2988,6 +3025,9 @@ class CreateProject(QDialog, create_project_ui):
         self.existing_names = set(existing_names or [])
         self.stage_mode = stage_mode
         self.pending_stages = []
+        self.streaks_available = en.load_settings().get('global_streak', False)
+        self.streak_checkBox.setVisible(self.streaks_available)
+        self.streak_checkBox.setChecked(True)
 
         # Словари для преобразования
         self.text_to_unit = {
@@ -3020,6 +3060,7 @@ class CreateProject(QDialog, create_project_ui):
 
         # Подключаем сигналы
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
+        self.streak_checkBox.toggled.connect(self.on_streak_toggled)
         self.de_deadline.dateChanged.connect(self.validate_all)
         self.de_deadline.dateChanged.connect(self.on_deadline_changed)
         self.le_name.textChanged.connect(self.validate_all)
@@ -3052,14 +3093,29 @@ class CreateProject(QDialog, create_project_ui):
         """Обработчик чекбокса 'Нет дедлайна'."""
         if checked:
             self.de_deadline.setDisabled(True)
-            self.le_personal_goal_for_the_day.setDisabled(True)
-            self.le_personal_goal_for_the_day.setText(tr("0"))
+            streak_goal_enabled = (
+                self.streaks_available
+                and self.streak_checkBox.isChecked()
+            )
+            self.le_personal_goal_for_the_day.setEnabled(streak_goal_enabled)
+            if not streak_goal_enabled:
+                self.le_personal_goal_for_the_day.setText(tr("0"))
             self.incorrect_data.setVisible(False)
         else:
             self.de_deadline.setEnabled(True)
             self.de_deadline.setMinimumDate(en.today_for_test())
             self.le_personal_goal_for_the_day.setEnabled(True)
             self.on_deadline_changed()
+        self.validate_all()
+
+    def on_streak_toggled(self, checked):
+        """Обновляет доступность личной цели для стрика без дедлайна."""
+        if self.checkBox.isChecked():
+            self.le_personal_goal_for_the_day.setEnabled(
+                self.streaks_available and checked
+            )
+            if not checked:
+                self.le_personal_goal_for_the_day.setText(tr("0"))
         self.validate_all()
 
     def on_stages_toggled(self, checked):
@@ -3113,6 +3169,7 @@ class CreateProject(QDialog, create_project_ui):
             total_symbols=total,
             unit=self.current_unit,
             personal_goal_for_the_day=dialog.get_personal_goal_for_the_day(),
+            streak_status='No' if dialog.is_streak_checked() else 'Off',
         )
         stage.get_today_goal_value()
         self.pending_stages.append(stage)
@@ -3319,7 +3376,10 @@ class CreateProject(QDialog, create_project_ui):
         return self.le_name.text().strip()
 
     def get_personal_goal_for_the_day(self):
-        if self.checkBox.isChecked():
+        if (
+                self.checkBox.isChecked()
+                and not (self.streaks_available and self.streak_checkBox.isChecked())
+        ):
             return 0
         try:
             val = float(self.le_personal_goal_for_the_day.text())
@@ -3329,6 +3389,9 @@ class CreateProject(QDialog, create_project_ui):
 
     def is_stages_enabled(self):
         return self.enable_Stages.isChecked()
+
+    def is_streak_checked(self):
+        return self.streak_checkBox.isChecked()
 
     def get_pending_stages(self):
         return list(self.pending_stages)
@@ -3344,6 +3407,9 @@ class EditProject(QDialog, create_project_ui):
         self.original_name = project.name
         self.existing_names = set(existing_names or [])
         self.pending_stages = []
+        self.streaks_available = en.load_settings().get('global_streak', False)
+        self.streak_checkBox.setVisible(self.streaks_available)
+        self.streak_checkBox.setChecked(project.streak_status != 'Off')
 
         # Словари для преобразования
         self.text_to_unit = {
@@ -3401,6 +3467,7 @@ class EditProject(QDialog, create_project_ui):
 
         # Подключаем сигналы
         self.checkBox.toggled.connect(self.on_checkbox_toggled)
+        self.streak_checkBox.toggled.connect(self.on_streak_toggled)
         self.de_deadline.dateChanged.connect(self.validate_all)
         self.de_deadline.dateChanged.connect(self.on_deadline_changed)
         self.le_name.textChanged.connect(self.validate_all)
@@ -3421,7 +3488,7 @@ class EditProject(QDialog, create_project_ui):
         self.on_checkbox_toggled(self.checkBox.isChecked())
 
         # Если у проекта сохранена своя дневная цель — восстанавливаем её поверх автоматической
-        if project.deadline != 'Нет' and project.personal_goal_for_the_day and project.personal_goal_for_the_day > 0:
+        if project.personal_goal_for_the_day and project.personal_goal_for_the_day > 0:
             self._updating = True
             try:
                 self.le_personal_goal_for_the_day.setText(tr(self._format_number(project.personal_goal_for_the_day)))
@@ -3438,14 +3505,29 @@ class EditProject(QDialog, create_project_ui):
     def on_checkbox_toggled(self, checked):
         if checked:
             self.de_deadline.setDisabled(True)
-            self.le_personal_goal_for_the_day.setDisabled(True)
-            self.le_personal_goal_for_the_day.setText(tr("0"))
+            streak_goal_enabled = (
+                self.streaks_available
+                and self.streak_checkBox.isChecked()
+            )
+            self.le_personal_goal_for_the_day.setEnabled(streak_goal_enabled)
+            if not streak_goal_enabled:
+                self.le_personal_goal_for_the_day.setText(tr("0"))
             self.incorrect_data.setVisible(False)
         else:
             self.de_deadline.setEnabled(True)
             self.de_deadline.setMinimumDate(en.today_for_test())
             self.le_personal_goal_for_the_day.setEnabled(True)
             self.on_deadline_changed()
+        self.validate_all()
+
+    def on_streak_toggled(self, checked):
+        """Обновляет доступность личной цели для стрика без дедлайна."""
+        if self.checkBox.isChecked():
+            self.le_personal_goal_for_the_day.setEnabled(
+                self.streaks_available and checked
+            )
+            if not checked:
+                self.le_personal_goal_for_the_day.setText(tr("0"))
         self.validate_all()
 
     def on_stages_toggled(self, checked):
@@ -3499,6 +3581,7 @@ class EditProject(QDialog, create_project_ui):
             unit=self.current_unit,
             personal_goal_for_the_day=dialog.get_personal_goal_for_the_day(),
             parent_project_name=self.project.name,
+            streak_status='No' if dialog.is_streak_checked() else 'Off',
         )
         stage.get_today_goal_value()
         self.pending_stages.append(stage)
@@ -3697,7 +3780,10 @@ class EditProject(QDialog, create_project_ui):
         return self.le_name.text().strip()
 
     def get_personal_goal_for_the_day(self):
-        if self.checkBox.isChecked():
+        if (
+                self.checkBox.isChecked()
+                and not (self.streaks_available and self.streak_checkBox.isChecked())
+        ):
             return 0
         try:
             val = float(self.le_personal_goal_for_the_day.text())
@@ -3707,6 +3793,9 @@ class EditProject(QDialog, create_project_ui):
 
     def is_stages_enabled(self):
         return self.enable_Stages.isChecked()
+
+    def is_streak_checked(self):
+        return self.streak_checkBox.isChecked()
 
     def get_pending_stages(self):
         return list(self.pending_stages)

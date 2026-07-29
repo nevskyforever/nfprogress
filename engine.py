@@ -407,6 +407,10 @@ class Project:
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
+        # Удаляем промежуточный дублирующий флаг: состояние полностью хранится
+        # в streak_status ('Off' — выключено, остальные статусы — включено).
+        if hasattr(self, 'streak_enabled'):
+            delattr(self, 'streak_enabled')
         defaults = {
             '_name': 'Без имени',
             '_goal': None,
@@ -482,9 +486,6 @@ class Project:
                 stage = converted_stage
             stage.parent_project_name = self.name
             stage.migrate()
-        if self.has_stages() and self.deadline != 'Нет':
-            self.transfer_longest_stage_streak()
-
     @property
     def name(self):
         return self._name
@@ -534,19 +535,22 @@ class Project:
         if deadline in ('', 'Нет', None):
             self._deadline = 'Нет'
             self.deadline_set_date = None
-            if self.has_stages():
-                self.streaks = []
-                self.streak_status = 'No'
-                self.last_streak_bonus = None
-                self.last_streak_lost_date = None
-                for stage in self.stages:
-                    if getattr(stage, 'deadline', 'Нет') != 'Нет':
-                        stage.get_streak_status()
         else:
             self._deadline = deadline
             self.deadline_set_date = today_for_test()
-            if self.has_stages():
-                self.transfer_longest_stage_streak()
+
+    def set_streak_state(self, enabled):
+        """Включает или отключает локальный стрик независимо от дедлайна."""
+        enabled = bool(enabled)
+        if (self.streak_status != 'Off') == enabled:
+            return
+
+        if self.streaks:
+            self.max_streak = max(self.max_streak, streak_length(self.streaks))
+        self.streaks = []
+        self.last_streak_bonus = None
+        self.last_streak_lost_date = None
+        self.streak_status = 'No' if enabled else 'Off'
 
     @property
     def deadline_str(self):
@@ -831,14 +835,13 @@ class Project:
 
     def get_streak_status(self):
         """Возвращает статус локального стрика проекта (статусы потери только в день потери)."""
+        if self.streak_status == 'Off':
+            return 'Off'
+
         today = today_for_test()
         yesterday = today - timedelta(days=1)
         total = self.get_total_symbols()
         planned = self.get_today_goal_value()
-
-        # Проверяем, есть ли дедлайн
-        if self.deadline == 'Нет':
-            return 'No'
 
         # Завершенный проект или этап всегда завершает локальный стрик.
         if self.status == 'завершен':
@@ -1013,6 +1016,8 @@ class Project:
             return f'🎉 СТРИК ЗАВЕРШЕН! Вы выполняли цель {streaks} дней подряд, потрясающе!'
         elif status == 'No':
             return f'🙃 Стрик не начат'
+        elif status == 'Off':
+            return 'Стрики выключены'
         elif status.split()[0] == 'Lose':
             status_parts = status.split()
             if len(status_parts) == 2:
@@ -1085,7 +1090,7 @@ class Project:
         self._deadline = 'Нет'
         self.deadline_set_date = None
         self.streaks = []
-        self.streak_status = 'No'
+        self.streak_status = 'Off'
         self.last_streak_bonus = None
         self.last_streak_lost_date = None
 
@@ -1130,8 +1135,16 @@ class Project:
             self._deadline = getattr(stage_with_longest_streak, 'deadline', 'Нет')
             self.deadline_set_date = getattr(stage_with_longest_streak, 'deadline_set_date', None)
         self.project_plan = {}
+        stages_have_enabled_streaks = any(
+            getattr(stage, 'streak_status', 'No') != 'Off'
+            for stage in self.stages
+        )
         self.enable_stages = False
         self.stages = []
+        if not stages_have_enabled_streaks:
+            self.streak_status = 'Off'
+        elif self.streak_status == 'Off':
+            self.streak_status = 'No'
         self.get_today_goal_value()
 
     def _merged_stage_streaks(self):
@@ -1448,7 +1461,7 @@ def apply_project_freeze(project, freeze_day=None, gamer=None, save_gamer=True):
 
     if not isinstance(project, Project):
         return False
-    if (project.deadline == 'Нет' and not project.has_stages()) or project.status == 'завершен':
+    if project.streak_status == 'Off' or project.status == 'завершен':
         return False
     if project.goal == float('inf') or project.get_today_goal_value() == 0:
         return False
@@ -1503,6 +1516,27 @@ def apply_project_freeze(project, freeze_day=None, gamer=None, save_gamer=True):
     return True
 
 
+def get_project_streak_sources(project):
+    """Возвращает локальные стрики, которые участвуют в расчёте проекта."""
+    if not isinstance(project, Project):
+        return []
+
+    project_streak_is_on = project.streak_status != 'Off'
+    project_has_own_plan = (
+        project.deadline != 'Нет'
+        or bool(getattr(project, 'personal_goal_for_the_day', 0))
+    )
+    if not project.has_stages():
+        return [project] if project_streak_is_on else []
+    if project_streak_is_on and project_has_own_plan:
+        return [project]
+    return [
+        stage
+        for stage in project.stages
+        if getattr(stage, 'streak_status', 'No') != 'Off'
+    ]
+
+
 def get_project_freeze_sources(project, freeze_day=None):
     """Возвращает стрики, которые можно заморозить в выбранном проекте."""
     if freeze_day is None:
@@ -1510,16 +1544,13 @@ def get_project_freeze_sources(project, freeze_day=None):
     if not isinstance(project, Project) or project.status == 'завершен':
         return []
 
-    if project.has_stages() and project.deadline == 'Нет':
-        sources = list(project.stages)
-    else:
-        sources = [project]
+    sources = get_project_streak_sources(project)
 
     freeze_sources = []
     for source in sources:
         if not isinstance(source, Project):
             continue
-        if source.deadline == 'Нет' or not isinstance(getattr(source, 'streaks', None), list):
+        if not isinstance(getattr(source, 'streaks', None), list):
             continue
         if streak_last_day(source.streaks) != freeze_day - timedelta(days=1):
             continue
@@ -1587,7 +1618,7 @@ def apply_project_freeze_group(project, freeze_day=None, gamer=None, save_gamer=
     if not freeze_sources:
         return False
 
-    if project.has_stages() and project.deadline == 'Нет':
+    if freeze_sources != [project]:
         if not load_settings().get('game_mode', False):
             return False
 
@@ -1876,10 +1907,7 @@ def _iter_streak_sources(projects):
     for project in projects.values():
         if not isinstance(project, Project):
             continue
-        if project.has_stages() and project.deadline == 'Нет':
-            yield from project.stages
-        else:
-            yield project
+        yield from get_project_streak_sources(project)
 
 
 def refresh_project_streak_statuses(data):
@@ -1895,10 +1923,14 @@ def refresh_project_streak_statuses(data):
     for project_name, project in projects.items():
         if not isinstance(project, Project):
             continue
-        streak_sources = list(project.stages) if project.has_stages() and project.deadline == 'Нет' else [project]
+        streak_sources = get_project_streak_sources(project)
         source_changed = False
         old_project_freezes = getattr(project, 'freezes', 0)
-        previous_batch = begin_project_freeze_batch(project) if project.has_stages() and project.deadline == 'Нет' else None
+        previous_batch = (
+            begin_project_freeze_batch(project)
+            if streak_sources and streak_sources != [project]
+            else None
+        )
 
         try:
             for streak_source in streak_sources:
@@ -1932,7 +1964,7 @@ def refresh_project_streak_statuses(data):
                 ):
                     source_changed = True
         finally:
-            if previous_batch is not None or project.has_stages() and project.deadline == 'Нет':
+            if previous_batch is not None:
                 end_project_freeze_batch(previous_batch)
 
         if getattr(project, 'freezes', 0) != old_project_freezes:
