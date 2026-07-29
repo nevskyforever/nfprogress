@@ -599,10 +599,10 @@ class BankAccount:
                 streak_candidates.append(10 * coins_cf * global_streak_len * inflation)
 
         for project in self._iter_loaded_projects():
-            streaks = getattr(project, 'streaks', [])
-            streak_len = engine.streak_length(streaks)
-            if streak_len > 0:
-                streak_candidates.append(10 * coins_cf * streak_len * inflation)
+            for streak_source in engine.get_project_streak_sources(project):
+                streak_len = engine.streak_length(getattr(streak_source, 'streaks', []))
+                if streak_len > 0:
+                    streak_candidates.append(10 * coins_cf * streak_len * inflation)
 
         if streak_candidates:
             return gamer.round_money(max(streak_candidates))
@@ -1321,8 +1321,9 @@ def calculate_freeze_price():
     ]
 
     streak_lengths = [
-        engine.streak_length(getattr(project, 'streaks', []))
+        engine.streak_length(getattr(streak_source, 'streaks', []))
         for project in active_projects
+        for streak_source in engine.get_project_streak_sources(project)
     ]
     global_streak_len = engine.streak_length(data.get('global_streaks', []))
     if global_streak_len > 0:
@@ -1376,6 +1377,21 @@ literary_slave = Item(
         Buff('Литературная поддержка', 'Постоянный бонус к коэффициенту опыта.', Buff.POSITIVE, 'exp', 0.25),
         Buff('Литературная поддержка дохода', 'Постоянный бонус к коэффициенту монет.', Buff.POSITIVE, 'coins', 0.25),
     ],
+)
+recovery_amulet = Item(
+    name='❤️  Амулет восстановления',
+    item_type='Предметы',
+    level=10,
+    price=lambda: calculate_item_price(10000),
+    description='Постоянно увеличивает коэффициент восстановления здоровья на 1.',
+    buff=Buff(
+        name='Исцеление амулетом',
+        description='Постоянный бонус к коэффициенту восстановления здоровья.',
+        buff_type=Buff.POSITIVE,
+        target_cf='health_recovery',
+        value=1.0,
+    ),
+    maximum_quantity_in_stock=1,
 )
 health_potion_5 = FuncItem('🧪  Микро зелье здоровья', item_type='Зелья', level=1, func=health_potion_func, price=lambda: calculate_item_price(10), add=5,
                            description='🧪  Восстанавливает здоровье на 5 единиц')
@@ -1512,7 +1528,7 @@ super_exp_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье п�
                                      value=10.0,
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60))
-super_exp_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье просвещения',
+super_exp_potion_24hrs = FuncItem(name='⚡️  Суточное зелье просвещения',
                            item_type='Зелья',
                            level=8,
                            price=lambda: calculate_item_price(25000),
@@ -1524,7 +1540,7 @@ super_exp_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье 
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60*24))
 
-coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье доходности',
+coin_potion_1hrs = FuncItem(name='⚡️  Часовое зелье доходности',
                            item_type='Зелья',
                            level=2,
                            price=lambda: calculate_item_price(100),
@@ -1540,10 +1556,32 @@ coin_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье до�
                            level=2,
                            price=lambda: calculate_item_price(500),
                            description='Увеличивает коэффициент монет на 0.5 на один день',
-                           buff=Buff(name='Минибустер прибыли',
+                           buff=Buff(name='Супербустер прибыли',
                                      description='Применен зелье прибыли',
                                      target_cf='coins',
                                      value=0.5,
+                                     buff_type=Buff.POSITIVE,
+                                     duration_minutes=60*24))
+super_coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье супердоходности',
+                           item_type='Зелья',
+                           level=15,
+                           price=lambda: calculate_item_price(2000),
+                           description='Увеличивает коэффициент монет на 10 на один час',
+                           buff=Buff(name='Супербустер прибыли',
+                                     description='Применено зелье суперприбыли',
+                                     target_cf='coins',
+                                     value=10,
+                                     buff_type=Buff.POSITIVE,
+                                     duration_minutes=60))
+super_coin_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье супердоходности',
+                           item_type='Зелья',
+                           level=15,
+                           price=lambda: calculate_item_price(10000),
+                           description='Увеличивает коэффициент монет на 10 на один день',
+                           buff=Buff(name='Супербустер прибыли',
+                                     description='Применено зелье суперприбыли',
+                                     target_cf='coins',
+                                     value=10,
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60*24))
 
@@ -1559,12 +1597,15 @@ ITEM_REGISTRY = {'Зелья':
                       'Часовое зелье доходности': coin_potion_1hrs,
                       'Суточное зелье доходности': coin_potion_24hrs,
                       'Часовое зелье просвещения': super_exp_potion_1hrs,
-                      'Суточное зелье просвещения': super_exp_potion_24hrs,},
+                      'Суточное зелье просвещения': super_exp_potion_24hrs,
+                      'Часовое зелье супердоходности': super_coin_potion_1hrs,
+                      'Суточное зелье супердоходности': super_coin_potion_24hrs,},
                  'Предметы': {'Заморозка': freeze,
                               'Лотерейный билет': lottery_ticket,
                               'Печатная машинка Хемингуэя': hemingway_typewriter,
                               'Ноутбук Роалинг': rowling_laptop,
-                              'Литературный раб': literary_slave,},
+                              'Литературный раб': literary_slave,
+                              'Амулет восстановления': recovery_amulet,},
                  'Награды': {'👑 Корона Первой Эпохи': crown_of_the_first_era,
                              '💎 Перо Миллионера': millionaires_pen,
                              'Знак заботы о здоровье': health_care_badge,

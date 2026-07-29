@@ -3,9 +3,11 @@
 
 from __future__ import annotations
 
+import argparse
 import ast
 import json
 import re
+import runpy
 import ssl
 import sys
 import time
@@ -234,13 +236,57 @@ def write_catalog(catalog: dict[str, dict[str, str]], agreement: str) -> None:
     )
 
 
+def load_catalog() -> dict[str, dict[str, str]]:
+    catalog_path = PROJECT_ROOT / "translations_catalog.py"
+    if not catalog_path.exists():
+        return {}
+
+    namespace = runpy.run_path(str(catalog_path))
+    translations = namespace.get("TRANSLATIONS", {})
+    return {
+        language: dict(language_catalog)
+        for language, language_catalog in translations.items()
+    }
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate missing translations for the bundled catalog."
+    )
+    parser.add_argument(
+        "--full",
+        action="store_true",
+        help="Regenerate every translation instead of adding only missing strings.",
+    )
+    return parser.parse_args()
+
+
 def main() -> int:
+    args = parse_args()
     strings, agreement = source_strings()
     print(f"Extracted {len(strings)} Russian strings", file=sys.stderr)
-    catalog = {"ru": {source: source for source in strings}}
+    catalog = {} if args.full else load_catalog()
+    russian_catalog = catalog.setdefault("ru", {})
+    russian_catalog.update({source: source for source in strings})
+
     for language in TARGET_LANGUAGES:
         output_language = CATALOG_LANGUAGE.get(language, language)
-        catalog[output_language] = translate_language(language, strings)
+        language_catalog = catalog.setdefault(output_language, {})
+        missing_strings = (
+            strings
+            if args.full
+            else [source for source in strings if source not in language_catalog]
+        )
+        print(
+            f"{output_language}: {len(missing_strings)} missing strings",
+            file=sys.stderr,
+        )
+        if args.full:
+            language_catalog.clear()
+        if missing_strings:
+            language_catalog.update(
+                translate_language(language, missing_strings)
+            )
 
     english_agreement = catalog["en"].get(agreement, agreement)
     for language in ("es", "de", "fr", "pt_BR"):

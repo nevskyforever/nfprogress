@@ -2329,7 +2329,7 @@ class FreezeProject(QDialog, Ui_freeze_projrct):
             if not freeze_sources:
                 continue
 
-            if project.has_stages() and project.deadline == 'Нет':
+            if freeze_sources != [project]:
                 max_streak_len = max(engine.streak_length(source.streaks) for source in freeze_sources)
                 display_text = f"{project.name} (этапы: {len(freeze_sources)}, стрик: {max_streak_len} дн.)"
             else:

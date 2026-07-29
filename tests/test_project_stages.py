@@ -112,7 +112,7 @@ def test_convert_project_to_stages_moves_notes_to_first_stage():
     assert project.stages[0].max_streak == 1
     assert project.streaks == []
     assert project.deadline == 'Нет'
-    assert project.streak_status == 'No'
+    assert project.streak_status == 'Off'
     assert project.stages[0].synch == {'type': 'word', 'path': '/tmp/book.docx'}
     assert project.synch is None
     assert project.goal == 1000
@@ -209,6 +209,73 @@ def test_stage_can_have_streak_status():
     assert stage.streaks == [engine.today_for_test()]
 
 
+def test_disabled_project_streak_has_off_status_even_with_deadline():
+    project = engine.Project(
+        name='Book',
+        goal=1000,
+        deadline=engine.today_for_test() + datetime.timedelta(days=10),
+        streak_status='Off',
+    )
+
+    assert project.streak_status == 'Off'
+    assert project.get_streak_status() == 'Off'
+
+
+def test_project_streak_works_without_deadline_when_daily_goal_is_set():
+    project = engine.Project(
+        name='Book',
+        goal=1000,
+        personal_goal_for_the_day=100,
+    )
+    project.get_today_goal_value()
+    project.total_units = 100
+
+    assert project.deadline == 'Нет'
+    assert project.get_streak_status() == 'Start'
+    assert project.streaks == [engine.today_for_test()]
+
+
+def test_disabled_parent_streak_uses_enabled_stage_sources():
+    project = engine.Project(
+        name='Book',
+        deadline=engine.today_for_test() + datetime.timedelta(days=10),
+        streak_status='Off',
+    )
+    enabled_stage = engine.Stage(name='Draft', goal=1000)
+    disabled_stage = engine.Stage(name='Edit', goal=500, streak_status='Off')
+    project.enable_stages = True
+    project.stages = [enabled_stage, disabled_stage]
+
+    assert engine.get_project_streak_sources(project) == [enabled_stage]
+
+
+def test_disabling_streak_clears_current_run_and_preserves_maximum():
+    today = engine.today_for_test()
+    project = engine.Project(name='Book')
+    project.streaks = [today - datetime.timedelta(days=1), today]
+
+    project.set_streak_state(False)
+
+    assert project.streak_status == 'Off'
+    assert project.streaks == []
+    assert project.max_streak == 2
+
+
+def test_migration_removes_legacy_streak_flag_and_keeps_status():
+    enabled = engine.Project(name='Enabled', goal=1000)
+    disabled = engine.Project(name='Disabled', goal=1000, streak_status='Off')
+    enabled.streak_enabled = True
+    disabled.streak_enabled = False
+
+    enabled.migrate()
+    disabled.migrate()
+
+    assert not hasattr(enabled, 'streak_enabled')
+    assert not hasattr(disabled, 'streak_enabled')
+    assert enabled.streak_status == 'No'
+    assert disabled.streak_status == 'Off'
+
+
 def test_parent_deadline_transfers_longest_stage_streak():
     project = engine.Project(name='Book', unit='symbols')
     first_deadline = datetime.date(2026, 7, 10)
@@ -232,7 +299,7 @@ def test_parent_deadline_transfers_longest_stage_streak():
     assert second.deadline == second_deadline
 
 
-def test_removing_parent_deadline_clears_project_streak_without_restoring_stage_streaks():
+def test_removing_parent_deadline_preserves_independent_streak_setting():
     project = engine.Project(name='Book', deadline=datetime.date(2026, 7, 30), unit='symbols')
     first = engine.Stage(name='Draft', goal=1000, deadline=datetime.date(2026, 7, 10), parent_project_name='Book')
     project.enable_stages = True
@@ -242,13 +309,13 @@ def test_removing_parent_deadline_clears_project_streak_without_restoring_stage_
 
     project.deadline = 'Нет'
 
-    assert project.streaks == []
-    assert project.streak_status == 'No'
+    assert project.streaks == [datetime.date(2026, 7, 1), datetime.date(2026, 7, 2)]
+    assert project.streak_status != 'Off'
     assert first.streaks == []
     assert first.deadline == datetime.date(2026, 7, 10)
 
 
-def test_removing_parent_deadline_rechecks_stage_streak_from_current_activity(monkeypatch):
+def test_removing_parent_deadline_does_not_switch_streak_source_implicitly(monkeypatch):
     today = datetime.date(2026, 7, 18)
     monkeypatch.setattr(engine, 'today_for_test', lambda: today)
     monkeypatch.setattr(engine, 'load_settings', lambda: {'game_mode': False, 'global_streak': True})
@@ -273,10 +340,10 @@ def test_removing_parent_deadline_rechecks_stage_streak_from_current_activity(mo
 
     project.deadline = 'Нет'
 
-    assert project.streaks == []
-    assert project.streak_status == 'No'
-    assert stage.streaks == [today]
-    assert stage.streak_status == 'Start'
+    assert project.streaks == [today - datetime.timedelta(days=1)]
+    assert project.streak_status == 'Active'
+    assert stage.streaks == []
+    assert stage.streak_status == 'No'
 
 
 def test_parent_without_deadline_freezes_all_active_stage_streaks(monkeypatch):
