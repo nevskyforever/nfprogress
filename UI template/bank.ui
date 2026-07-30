@@ -24,6 +24,9 @@
   <property name="windowTitle">
    <string>Банк</string>
   </property>
+  <property name="accessibleName">
+   <string>Банк</string>
+  </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="2" column="0" colspan="2">
     <widget class="QWidget" name="widget" native="true">
@@ -37,6 +40,9 @@
       </item>
       <item row="4" column="0">
        <widget class="QLineEdit" name="loan_partial_repayment_amount">
+        <property name="accessibleName">
+         <string>Частичное погашение</string>
+        </property>
         <property name="placeholderText">
          <string>Сумма к погашению (100.0)</string>
         </property>
@@ -70,6 +76,9 @@
       </item>
       <item row="4" column="1">
        <widget class="QLineEdit" name="active_deposit_topup_amount">
+        <property name="accessibleName">
+         <string>Пополнить вклад</string>
+        </property>
         <property name="placeholderText">
          <string>Сумма к пополнению (100.0)</string>
         </property>
@@ -229,6 +238,17 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>take_credit_btn</tabstop>
+  <tabstop>return_credit_btn</tabstop>
+  <tabstop>make_a_loan_payment</tabstop>
+  <tabstop>loan_partial_repayment_amount</tabstop>
+  <tabstop>partial_loan_repayment</tabstop>
+  <tabstop>make_deposit_btn</tabstop>
+  <tabstop>active_deposit_topup_amount</tabstop>
+  <tabstop>return_deposit_btn</tabstop>
+  <tabstop>withdraw_interest_from_a_deposit</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>

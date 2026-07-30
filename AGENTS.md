@@ -45,6 +45,45 @@ The application is built with Nuitka for:
 * Do not change the UI structure without an explicit request.
 * Account for Windows and macOS compatibility.
 
+## Accessibility
+
+All new and changed interface elements must remain usable with VoiceOver on macOS,
+Windows screen readers, and keyboard-only navigation.
+
+* Add accessibility metadata to the source `UI template/*.ui` file. Do not patch
+  generated `UI_fiiles/*.py` forms. Code-only custom widgets with no `.ui`
+  source are the exception; update their hand-maintained implementation.
+* Give every window and every interactive control a meaningful accessible name.
+  Prefer a visible `QLabel` with its `buddy` set to the control. Use
+  `accessibleName` when there is no visible label, especially for lists, tab
+  containers, custom controls, and icon-only buttons.
+* Use `accessibleDescription` for important behavior that is not clear from the
+  control name. Keep names short; do not copy long help text into them.
+* Keep every action available from the keyboard, preserve a logical Tab order,
+  and never use `Qt.NoFocus` for a control that performs a user action.
+* Do not communicate state, validation errors, selection, or progress only with
+  color, an icon, or an emoji. Expose the same information as text to the
+  accessibility tree.
+* Custom-painted widgets must expose their current value or state through
+  accessibility properties and emit the appropriate `QAccessible` update event
+  when it changes.
+* When `setItemWidget()` is used, also set meaningful
+  `accessibleName` text on the embedded widget and put the same text only in
+  the item's `Qt.AccessibleTextRole`. Never put accessibility-only text in
+  `DisplayRole` or call `setText()` for it: on macOS it can be drawn over the
+  embedded widget and change its layout. Announce current-item changes through
+  `QAccessibleAnnouncementEvent`.
+* Transient notifications that do not take focus must be sent as a
+  `QAccessibleAnnouncementEvent`.
+* Use `accessibility.refresh_accessibility()` for programmatically created forms
+  and preserve the application-wide manager installed by
+  `accessibility.install_accessibility()`.
+* Accessibility text is user-facing text and follows all localization rules
+  below. Reapply generated accessibility names after changing the language.
+* For UI changes, run the focused accessibility tests in addition to syntax and
+  feature tests. Verify the result with keyboard navigation; when the platform
+  is available, also smoke-test with VoiceOver or a Windows screen reader.
+
 ## Localization
 
 Russian is the source language for the interface and keys. Supported languages are Russian, English, Spanish, German, French, and Brazilian Portuguese.

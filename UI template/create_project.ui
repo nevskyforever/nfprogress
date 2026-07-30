@@ -36,6 +36,9 @@
   <property name="windowTitle">
    <string>Создание проекта</string>
   </property>
+  <property name="accessibleName">
+   <string>Создание проекта</string>
+  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QWidget" name="widget" native="true">
@@ -64,6 +67,9 @@
         <property name="text">
          <string>Что отслеживаем:</string>
         </property>
+        <property name="buddy">
+         <cstring>cb_unit</cstring>
+        </property>
         <property name="wordWrap">
          <bool>true</bool>
         </property>
@@ -73,6 +79,9 @@
        <widget class="QLabel" name="label_2">
         <property name="text">
          <string>Цель</string>
+        </property>
+        <property name="buddy">
+         <cstring>le_goal</cstring>
         </property>
        </widget>
       </item>
@@ -103,6 +112,9 @@
        <widget class="QLabel" name="label_3">
         <property name="text">
          <string>Дедлайн</string>
+        </property>
+        <property name="buddy">
+         <cstring>de_deadline</cstring>
         </property>
        </widget>
       </item>
@@ -147,6 +159,9 @@
         <property name="text">
          <string>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;Текущее&lt;br/&gt;кол-во&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</string>
         </property>
+        <property name="buddy">
+         <cstring>le_total_symbols</cstring>
+        </property>
         <property name="textFormat">
          <enum>Qt::TextFormat::AutoText</enum>
         </property>
@@ -162,6 +177,9 @@
        <widget class="QLabel" name="label_8">
         <property name="text">
          <string>Цель на день</string>
+        </property>
+        <property name="buddy">
+         <cstring>le_personal_goal_for_the_day</cstring>
         </property>
        </widget>
       </item>
@@ -211,6 +229,9 @@
        <widget class="QLabel" name="label">
         <property name="text">
          <string>Название</string>
+        </property>
+        <property name="buddy">
+         <cstring>le_name</cstring>
         </property>
        </widget>
       </item>
@@ -323,6 +344,19 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>le_name</tabstop>
+  <tabstop>le_goal</tabstop>
+  <tabstop>de_deadline</tabstop>
+  <tabstop>checkBox</tabstop>
+  <tabstop>le_personal_goal_for_the_day</tabstop>
+  <tabstop>le_total_symbols</tabstop>
+  <tabstop>cb_unit</tabstop>
+  <tabstop>enable_Stages</tabstop>
+  <tabstop>add_Stage</tabstop>
+  <tabstop>streak_checkBox</tabstop>
+  <tabstop>auto_freeze_checkBox</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

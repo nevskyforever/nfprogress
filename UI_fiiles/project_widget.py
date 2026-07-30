@@ -1,8 +1,9 @@
 from PySide6.QtCore import (QCoreApplication, QMetaObject, QSize, Qt, QRect, QRectF, QEasingCurve, QVariantAnimation)
-from PySide6.QtGui import (QColor, QFont, QFontMetrics, QPainter,
-                           QPen)
+from PySide6.QtGui import (QAccessible, QAccessibleEvent, QColor, QFont,
+                           QFontMetrics, QPainter, QPen)
 from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
-                               QSizePolicy, QVBoxLayout, QWidget, QPushButton, QHBoxLayout)
+                               QSizePolicy, QVBoxLayout, QWidget, QPushButton,
+                               QHBoxLayout)
 from PySide6.scripts.pyside_tool import project
 from engine import streak_length as get_streak_length
 from localization import tr
@@ -36,11 +37,13 @@ def _stage_completion_counts(project):
 # =============================================================================
 # Кастомный виджет кругового прогресс-бара
 # =============================================================================
-class CircularProgressBar(QWidget):
+class CircularProgressBar(QProgressBar):
     """Круговой прогресс-бар в виде кольца"""
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setRange(0, 100)
+        QProgressBar.setValue(self, 0)
         self._value = 0
         self._text_visible = False
         self._ring_width = 8
@@ -63,15 +66,24 @@ class CircularProgressBar(QWidget):
 
         self._initializing = True
         self._target_value = 0  # Целевое значение для анимации
+        self.setAccessibleName(tr("Прогресс"))
+        self._update_accessible_value()
+
+    def _update_accessible_value(self):
+        self.setAccessibleDescription(f"{self._target_value:.0f}%")
+        event = QAccessibleEvent(self, QAccessible.Event.DescriptionChanged)
+        QAccessible.updateAccessibility(event)
 
     def _on_animation_value_changed(self, value):
         """Обновляет значение во время анимации"""
         self._value = value
+        QProgressBar.setValue(self, round(value))
         self.update()
 
     def _on_animation_finished(self):
         """Убеждаемся, что конечное значение точно установлено"""
         self._value = self._target_value
+        QProgressBar.setValue(self, round(self._target_value))
         self.update()
 
     def setValue(self, value, animated=True):
@@ -87,11 +99,13 @@ class CircularProgressBar(QWidget):
             self._initializing = False
 
         self._target_value = value
+        self._update_accessible_value()
 
         if not animated:
             # Без анимации - просто устанавливаем значение
             self._animation.stop()
             self._value = value
+            QProgressBar.setValue(self, round(value))
             self.update()
             return
 
@@ -110,15 +124,21 @@ class CircularProgressBar(QWidget):
         value = max(0, min(100, value))
         self._animation.stop()
         self._value = value
+        QProgressBar.setValue(self, round(value))
         self._target_value = value
         self._initializing = False
+        self._update_accessible_value()
         self.update()
 
     def value(self):
         return self._value
 
+    def targetValue(self):
+        return self._target_value
+
     def setTextVisible(self, visible):
         self._text_visible = visible
+        QProgressBar.setTextVisible(self, visible)
         self.update()
 
     def setRingWidth(self, width):
@@ -354,8 +374,9 @@ class ProjectWidget(QWidget, Ui_Form):
         if has_stages:
             self.stage_toggle = QPushButton('▾' if expanded else '▸', self.widget)
             self.stage_toggle.setFixedSize(22, 22)
-            self.stage_toggle.setFocusPolicy(Qt.NoFocus)
+            self.stage_toggle.setFocusPolicy(Qt.StrongFocus)
             self.stage_toggle.setToolTip(tr('Показать этапы' if not expanded else 'Скрыть этапы'))
+            self.stage_toggle.setAccessibleName(self.stage_toggle.toolTip())
             self.stage_toggle.clicked.connect(self._toggle_stages)
             self.gridLayout.addWidget(self.stage_toggle, 0, 0, 1, 1, Qt.AlignCenter)
 
@@ -430,6 +451,18 @@ class ProjectWidget(QWidget, Ui_Form):
                 self.streak_status.setVisible(True)
         else:
             self.deadline.setVisible(False)
+
+        accessible_parts = [
+            self.name.text(),
+            f"{tr('Прогресс')}: {self.circular_progress.targetValue():.0f}%",
+            self.symbols.text(),
+        ]
+        accessible_parts.extend(
+            label.text()
+            for label in (self.deadline, self.streak, self.streak_status)
+            if not label.isHidden() and label.text()
+        )
+        self.setAccessibleName(". ".join(accessible_parts))
 
         # Обновляем геометрию
         self.updateGeometry()
@@ -518,6 +551,17 @@ class StageRowWidget(QWidget):
             self.streak.setVisible(True)
         else:
             self.streak.setVisible(False)
+        accessible_parts = [
+            self.name.text(),
+            f"{tr('Прогресс')}: {self.circular_progress.targetValue():.0f}%",
+            self.total.text(),
+        ]
+        accessible_parts.extend(
+            label.text()
+            for label in (self.deadline, self.streak)
+            if not label.isHidden() and label.text()
+        )
+        self.setAccessibleName(". ".join(accessible_parts))
 
         self.updateGeometry()
 

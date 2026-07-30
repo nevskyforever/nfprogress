@@ -24,6 +24,9 @@
   <property name="windowTitle">
    <string>Создание награды</string>
   </property>
+  <property name="accessibleName">
+   <string>Создание награды</string>
+  </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="3">
     <spacer name="horizontalSpacer_2">
@@ -121,12 +124,18 @@
      <property name="text">
       <string>Стоимость:</string>
      </property>
+     <property name="buddy">
+      <cstring>award_price_le</cstring>
+     </property>
     </widget>
    </item>
    <item row="1" column="1">
     <widget class="QLabel" name="item_name_label">
      <property name="text">
       <string>Название:</string>
+     </property>
+     <property name="buddy">
+      <cstring>award_name_le</cstring>
      </property>
     </widget>
    </item>
@@ -139,6 +148,11 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>award_name_le</tabstop>
+  <tabstop>award_price_le</tabstop>
+  <tabstop>inflation_checkBox</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

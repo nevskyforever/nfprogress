@@ -10,6 +10,12 @@ from PySide6.QtWidgets import QApplication, QAbstractItemView
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel, QInputDialog
 
+from accessibility import (
+    announce_accessible_text,
+    install_accessibility,
+    refresh_accessibility,
+    set_item_accessible_text,
+)
 import engine as en
 import game
 import game_data
@@ -175,7 +181,16 @@ class MainWindow(QMainWindow, main_window_ui):
         self.note_widget.setVisible(False)
         self.change_project_widget.setVisible(False)
         self.btn_create_project.clicked.connect(self.create_project)
-        self.list_projects.itemClicked.connect(self.view_project)
+        self.list_projects.currentItemChanged.connect(
+            self.on_project_current_item_changed
+        )
+        self.list_projects.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.list_projects.setSelectionMode(
+            QAbstractItemView.SelectionMode.SingleSelection
+        )
+        self.list_projects.setSelectionBehavior(
+            QAbstractItemView.SelectionBehavior.SelectItems
+        )
         self.list_projects.itemClicked.connect(self.clear_project_search)
         self.list_projects.itemDoubleClicked.connect(self.open_search_result)
         self.list_projects.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
@@ -636,6 +651,7 @@ class MainWindow(QMainWindow, main_window_ui):
             en.save_settings(settings)
 
         self.retranslateUi(self)
+        refresh_accessibility(self)
         self.create_stage_action.setText(tr('Создать этап'))
         self.application_settings_action.setText(tr('Настройки приложения'))
         if self.developer_mode_action is not None:
@@ -691,6 +707,18 @@ class MainWindow(QMainWindow, main_window_ui):
         settings = en.load_settings()
         settings['last_project'] = project.name
         save_settings(settings)
+
+    def on_project_current_item_changed(self, current_item, _previous_item):
+        """Updates project details and announces the selected custom card."""
+        self.view_project()
+        if current_item is None:
+            return
+        widget = self.list_projects.itemWidget(current_item)
+        if widget is not None and widget.accessibleName():
+            announce_accessible_text(
+                self.list_projects,
+                widget.accessibleName(),
+            )
 
     def show_project_info(self, project: en.Project):
         """Заполняет виджеты информацией о проекте."""
@@ -828,6 +856,7 @@ class MainWindow(QMainWindow, main_window_ui):
         else:
             self.l.setText(tr("Нет записей"))
 
+        refresh_accessibility(self)
 
     def show_last_project(self, project_name):
         self.select_project_by_name(project_name)
@@ -1469,6 +1498,10 @@ class MainWindow(QMainWindow, main_window_ui):
                 widget = self.list_projects.itemWidget(current_item)
                 if widget:
                     widget.update_display()
+                    set_item_accessible_text(
+                        current_item,
+                        widget.accessibleName(),
+                    )
 
         # Обновляем панель информации и список заметок
         self.show_project_info(project)
@@ -2021,6 +2054,7 @@ class MainWindow(QMainWindow, main_window_ui):
             if not self._is_stage(widget.project) and widget.project.name == parent_project.name:
                 widget.project = parent_project
                 widget.update_display()
+                set_item_accessible_text(item, widget.accessibleName())
                 self._resize_project_list_item(item, widget)
             elif self._is_stage(widget.project) and getattr(widget.project, 'stage_id', None) == stage_id:
                 stage = next(
@@ -2032,6 +2066,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     widget.project = stage
                     widget.parent_project = parent_project
                     widget.update_display()
+                    set_item_accessible_text(item, widget.accessibleName())
                     self._resize_project_list_item(item, widget)
 
     def _resize_project_list_item(self, item, widget):
@@ -2143,6 +2178,16 @@ class MainWindow(QMainWindow, main_window_ui):
                 if widget and hasattr(widget, 'project'):
                     self.show_project_info(widget.project)
                     self.setup_project_buttons(widget.project)
+        elif self.tabWidget.widget(index) is self.game_tab:
+            refresh_accessibility(self)
+            QTimer.singleShot(0, self._focus_game_mode)
+
+    def _focus_game_mode(self):
+        """Moves keyboard and screen-reader focus into the selected game page."""
+        if self.tabWidget.currentWidget() is not self.game_tab:
+            return
+        self.frame_5.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+        self.frame_5.setFocus(Qt.FocusReason.TabFocusReason)
 
     def refresh_global_streak_status(self):
         # Загружаем глобальный стрик
@@ -2377,6 +2422,7 @@ class MainWindow(QMainWindow, main_window_ui):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
             list_p.addItem(item)
             list_p.setItemWidget(item, widget)
+            set_item_accessible_text(item, widget.accessibleName())
             self._resize_project_list_item(item, widget)
 
             if current_project_name and project.name == current_project_name:
@@ -2393,6 +2439,10 @@ class MainWindow(QMainWindow, main_window_ui):
                     stage_item.setFlags(stage_item.flags() | Qt.ItemFlag.ItemIsDragEnabled)
                     list_p.addItem(stage_item)
                     list_p.setItemWidget(stage_item, stage_widget)
+                    set_item_accessible_text(
+                        stage_item,
+                        stage_widget.accessibleName(),
+                    )
                     self._resize_project_list_item(stage_item, stage_widget)
                     if current_stage_id and getattr(stage, 'stage_id', None) == current_stage_id:
                         list_p.setCurrentItem(stage_item)
@@ -2758,6 +2808,10 @@ class MainWindow(QMainWindow, main_window_ui):
                 if widget and hasattr(widget, 'project') and widget.project.name == project.name:
                     # Обновляем существующий виджет
                     widget.update_display()
+                    set_item_accessible_text(
+                        current_item,
+                        widget.accessibleName(),
+                    )
                     self.written_today_in_all_projects()
                 else:
                     # Если текущий виджет не соответствует проекту, ищем нужный
@@ -4022,7 +4076,10 @@ class ScrivenerItemDialog(QDialog):
         layout.addWidget(label)
 
         self.tree = QTreeWidget()
+        self.tree.setObjectName("scrivener_items_tree")
+        self.tree.setAccessibleName(label.text())
         self.tree.setHeaderHidden(True)
+        label.setBuddy(self.tree)
         layout.addWidget(self.tree)
 
         # Кнопки
@@ -4305,6 +4362,7 @@ if __name__ == "__main__":
         settings['language'] = language
         en.save_settings(settings)
     set_language(app, language)
+    install_accessibility(app)
 
     window = MainWindow()
     window.show()

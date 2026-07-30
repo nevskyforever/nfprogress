@@ -18,6 +18,9 @@
   <property name="windowTitle">
    <string>Пользовательское соглашение</string>
   </property>
+  <property name="accessibleName">
+   <string>Пользовательское соглашение</string>
+  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QTextBrowser" name="textBrowser">
@@ -102,6 +105,10 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>textBrowser</tabstop>
+  <tabstop>agree_checkBox</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

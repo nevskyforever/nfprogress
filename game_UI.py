@@ -222,7 +222,9 @@ class GameMenuController:
     def connect_signals(self):
         """Подключение сигналов к слотам"""
         # Инвентарь
-        self.ui.inventory_list.itemClicked.connect(self.on_inventory_item_selected)
+        self.ui.inventory_list.currentItemChanged.connect(
+            lambda current, _previous: self.on_inventory_item_selected(current)
+        )
         self.ui.button_for_selected_item.clicked.connect(self.on_use_item)
         if hasattr(self.ui, 'button_to_sell_selected_item'):
             self.ui.button_to_sell_selected_item.clicked.connect(self.on_sell_item)
@@ -244,30 +246,36 @@ class GameMenuController:
         self.ui.bank_btn.clicked.connect(self.bank)
 
         # Квесты
-        self.ui.available_quests_list.itemClicked.connect(
-            lambda item: self.on_quest_selected(item, game.Quest.AVAILABLE)
+        self.ui.available_quests_list.currentItemChanged.connect(
+            lambda current, _previous: self.on_quest_selected(
+                current,
+                game.Quest.AVAILABLE,
+            )
         )
-        self.ui.active_quests_list.itemClicked.connect(
-            lambda item: self.on_quest_selected(item, game.Quest.ACTIVE)
+        self.ui.active_quests_list.currentItemChanged.connect(
+            lambda current, _previous: self.on_quest_selected(
+                current,
+                game.Quest.ACTIVE,
+            )
         )
-        self.ui.completed_quests_list.itemClicked.connect(
-            lambda item: self.on_quest_selected(item, game.Quest.COMPLETED)
+        self.ui.completed_quests_list.currentItemChanged.connect(
+            lambda current, _previous: self.on_quest_selected(
+                current,
+                game.Quest.COMPLETED,
+            )
         )
         self.ui.button_for_start_selected_quest.clicked.connect(self.on_start_selected_quest)
         self.ui.button_for_stop_selected_quest.clicked.connect(self.on_abandon_selected_quest)
 
         # Параметры персонажа
-        self.ui.gamer_parameters_list.itemClicked.connect(self.on_gamer_parameter_selected)
         self.ui.gamer_parameters_list.currentItemChanged.connect(
-            lambda current, previous: self.on_gamer_parameter_selected(current)
+            lambda current, _previous: self.on_gamer_parameter_selected(current)
         )
-        self.ui.buf_list.itemClicked.connect(lambda item: self.on_buff_selected(item, positive=True))
         self.ui.buf_list.currentItemChanged.connect(
-            lambda current, previous: self.on_buff_selected(current, positive=True)
+            lambda current, _previous: self.on_buff_selected(current, positive=True)
         )
-        self.ui.debuf_list.itemClicked.connect(lambda item: self.on_buff_selected(item, positive=False))
         self.ui.debuf_list.currentItemChanged.connect(
-            lambda current, previous: self.on_buff_selected(current, positive=False)
+            lambda current, _previous: self.on_buff_selected(current, positive=False)
         )
         for skill_key, spinbox in self.get_skill_widgets().items():
             spinbox.valueChanged.connect(
@@ -658,21 +666,48 @@ class GameMenuController:
 
     def load_gamer_parameters_list(self):
         """Загружает список параметров персонажа."""
-        self.ui.gamer_parameters_list.clear()
-
         if not self.gamer:
+            self.ui.gamer_parameters_list.clear()
             self.ui.description_selected_parameter.clear()
             return
 
+        entries = []
         for parameter in self.gamer.get_cf_parameters():
             value = self.format_gamer_parameter_value(parameter['value'])
-            item = QListWidgetItem(f"{tr(parameter['name'])} - x{value}")
-            item.setData(Qt.ItemDataRole.UserRole, parameter['key'])
-            self.ui.gamer_parameters_list.addItem(item)
+            entries.append(
+                (
+                    parameter['key'],
+                    f"{tr(parameter['name'])} - x{value}",
+                )
+            )
+
+        current_keys = [
+            self.ui.gamer_parameters_list.item(row).data(
+                Qt.ItemDataRole.UserRole
+            )
+            for row in range(self.ui.gamer_parameters_list.count())
+        ]
+        next_keys = [key for key, _text in entries]
+
+        if current_keys == next_keys:
+            for row, (key, text) in enumerate(entries):
+                item = self.ui.gamer_parameters_list.item(row)
+                if item.text() != text:
+                    item.setText(text)
+                item.setData(Qt.ItemDataRole.UserRole, key)
+        else:
+            self.ui.gamer_parameters_list.clear()
+            for key, text in entries:
+                item = QListWidgetItem(text)
+                item.setData(Qt.ItemDataRole.UserRole, key)
+                self.ui.gamer_parameters_list.addItem(item)
 
         if self.ui.gamer_parameters_list.count() > 0:
-            self.ui.gamer_parameters_list.setCurrentRow(0)
-            self.on_gamer_parameter_selected(self.ui.gamer_parameters_list.currentItem())
+            if self.ui.gamer_parameters_list.currentItem() is None:
+                self.ui.gamer_parameters_list.setCurrentRow(0)
+            self.on_gamer_parameter_selected(
+                self.ui.gamer_parameters_list.currentItem()
+            )
         else:
             self.ui.description_selected_parameter.clear()
 
@@ -751,14 +786,38 @@ class GameMenuController:
 
     def load_buffs_list(self, positive=True):
         list_widget = self.ui.buf_list if positive else self.ui.debuf_list
-        list_widget.clear()
 
         if not self.gamer:
+            list_widget.clear()
             self.clear_buff_info(positive)
             return
 
-        for buff, stacks in self.gamer.get_all_buffs(positive=positive):
-            item = QListWidgetItem(self.get_buff_display_text(buff, stacks))
+        entries = [
+            (buff, stacks, self.get_buff_display_text(buff, stacks))
+            for buff, stacks in self.gamer.get_all_buffs(positive=positive)
+        ]
+        current_names = [
+            getattr(
+                list_widget.item(row).data(Qt.ItemDataRole.UserRole),
+                'name',
+                None,
+            )
+            for row in range(list_widget.count())
+        ]
+        next_names = [buff.name for buff, _stacks, _text in entries]
+
+        if current_names == next_names:
+            for row, (buff, stacks, text) in enumerate(entries):
+                item = list_widget.item(row)
+                if item.text() != text:
+                    item.setText(text)
+                item.setData(Qt.ItemDataRole.UserRole, buff)
+                item.setData(Qt.ItemDataRole.UserRole + 1, stacks)
+            return
+
+        list_widget.clear()
+        for buff, stacks, text in entries:
+            item = QListWidgetItem(text)
             item.setData(Qt.ItemDataRole.UserRole, buff)
             item.setData(Qt.ItemDataRole.UserRole + 1, stacks)
             list_widget.addItem(item)
@@ -1006,6 +1065,9 @@ class GameMenuController:
 
     def on_inventory_item_selected(self, item):
         """Выбор предмета в инвентаре"""
+        if item is None:
+            self.clear_inventory_item_info()
+            return
         category, item_name = item.data(Qt.ItemDataRole.UserRole)
 
         if category == 'Кастомные награды':
@@ -1211,8 +1273,11 @@ class GameMenuController:
         """Подключает список и кнопку покупки любой вкладки магазина."""
         shop_list = getattr(self.ui, shop_config['list'])
         buy_button = getattr(self.ui, shop_config['buy_button'])
-        shop_list.itemClicked.connect(
-            lambda item, config=shop_config: self.on_shop_item_selected(item, config)
+        shop_list.currentItemChanged.connect(
+            lambda current, _previous, config=shop_config: self.on_shop_item_selected(
+                current,
+                config,
+            )
         )
         buy_button.clicked.connect(
             lambda checked=False, config=shop_config: self.on_buy_shop_item(config)
@@ -1220,6 +1285,9 @@ class GameMenuController:
 
     def on_shop_item_selected(self, item, shop_config):
         """Общий обработчик выбора товара на любой вкладке магазина."""
+        if item is None:
+            self.clear_shop_tab_info(shop_config)
+            return
         self.clear_shop_info(except_config=shop_config)
         category, item_name = item.data(Qt.ItemDataRole.UserRole)
         self.show_shop_item_info(category, item_name, shop_config)

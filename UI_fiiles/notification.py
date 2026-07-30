@@ -1,5 +1,5 @@
 from PySide6.QtCore import Qt, QTimer, QPropertyAnimation, Property
-from PySide6.QtGui import QFontMetrics
+from PySide6.QtGui import QAccessible, QAccessibleAnnouncementEvent, QFontMetrics
 from PySide6.QtWidgets import QFrame, QLabel, QHBoxLayout, QGraphicsOpacityEffect, QSizePolicy
 
 
@@ -27,6 +27,7 @@ class ToastNotification(QFrame):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(10, 5, 10, 5)
         self.label = QLabel(message)
+        self.setAccessibleName(message)
         self.label.setWordWrap(True)
         parent_width = parent.width() if parent else 560
         max_label_width = max(140, min(520, parent_width - 60))
@@ -61,6 +62,12 @@ class ToastNotification(QFrame):
         self.timer.start(duration)
 
         self.adjustSize()
+        QTimer.singleShot(0, self._announce)
+
+    def _announce(self):
+        event = QAccessibleAnnouncementEvent(self, self.accessibleName())
+        event.setPoliteness(QAccessible.AnnouncementPoliteness.Polite)
+        QAccessible.updateAccessibility(event)
 
     def set_global_position(self, x, y):
         self.move(x, y)

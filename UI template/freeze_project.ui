@@ -18,6 +18,9 @@
   <property name="windowTitle">
    <string>Заморозка проекта</string>
   </property>
+  <property name="accessibleName">
+   <string>Заморозка проекта</string>
+  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QLabel" name="label">
@@ -27,7 +30,11 @@
     </widget>
    </item>
    <item>
-    <widget class="QListWidget" name="list_projects"/>
+    <widget class="QListWidget" name="list_projects">
+     <property name="accessibleName">
+      <string>Выберите проект для заморозки</string>
+     </property>
+    </widget>
    </item>
    <item>
     <widget class="QLabel" name="label_2">
@@ -51,6 +58,9 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>list_projects</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

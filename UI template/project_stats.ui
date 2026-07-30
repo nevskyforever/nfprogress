@@ -18,6 +18,9 @@
   <property name="windowTitle">
    <string>Статистика по проекту</string>
   </property>
+  <property name="accessibleName">
+   <string>Статистика по проекту</string>
+  </property>
   <property name="styleSheet">
    <string notr="true">QScrollArea {
     border: none;

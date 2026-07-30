@@ -19,6 +19,9 @@
   <property name="windowTitle">
    <string>nfprogress</string>
   </property>
+  <property name="accessibleName">
+   <string>nfprogress</string>
+  </property>
   <property name="styleSheet">
    <string notr="true">QScrollArea {
     border: none;
@@ -28,6 +31,9 @@
    <layout class="QHBoxLayout" name="horizontalLayout_2">
     <item>
      <widget class="QTabWidget" name="tabWidget">
+      <property name="accessibleName">
+       <string>nfprogress</string>
+      </property>
       <property name="enabled">
        <bool>true</bool>
       </property>
@@ -61,6 +67,9 @@
        <layout class="QGridLayout" name="gridLayout_3">
         <item row="5" column="0">
          <widget class="QListWidget" name="list_projects">
+          <property name="accessibleName">
+           <string>Проекты</string>
+          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -136,6 +145,9 @@
              <property name="text">
               <string>Сортировка по свойству:</string>
              </property>
+             <property name="buddy">
+              <cstring>sort_project_box</cstring>
+             </property>
             </widget>
            </item>
            <item row="1" column="0">
@@ -147,6 +159,9 @@
              </property>
              <property name="text">
               <string>Фильтр по статусу:</string>
+             </property>
+             <property name="buddy">
+              <cstring>filter_project_box</cstring>
              </property>
             </widget>
            </item>
@@ -217,7 +232,10 @@
           </property>
           <layout class="QGridLayout" name="gridLayout_4">
            <item row="0" column="0">
-            <widget class="QLabel" name="name_selected_project">
+           <widget class="QLabel" name="name_selected_project">
+            <property name="focusPolicy">
+             <enum>Qt::FocusPolicy::StrongFocus</enum>
+            </property>
              <property name="font">
               <font>
                <family>Arial</family>
@@ -369,6 +387,9 @@
                 <property name="text">
                  <string>Записи проекта</string>
                 </property>
+                <property name="buddy">
+                 <cstring>note_list</cstring>
+                </property>
                 <property name="alignment">
                  <set>Qt::AlignmentFlag::AlignCenter</set>
                 </property>
@@ -418,6 +439,9 @@
                    </property>
                    <property name="text">
                     <string>Новая запись:</string>
+                   </property>
+                   <property name="buddy">
+                    <cstring>new_symbols</cstring>
                    </property>
                   </widget>
                  </item>
@@ -485,7 +509,10 @@
              </property>
              <layout class="QGridLayout" name="gridLayout_2">
               <item row="0" column="0">
-               <widget class="QScrollArea" name="scrollArea_5">
+             <widget class="QScrollArea" name="scrollArea_5">
+              <property name="accessibleName">
+               <string>Информация о проекте</string>
+              </property>
                 <property name="font">
                  <font>
                   <family>Arial</family>
@@ -517,7 +544,10 @@
                    </widget>
                   </item>
                   <item row="8" column="1">
-                   <widget class="QLabel" name="streaks">
+                 <widget class="QLabel" name="streaks">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -529,7 +559,10 @@
                    </widget>
                   </item>
                   <item row="26" column="1">
-                   <widget class="QLabel" name="max_streak">
+                 <widget class="QLabel" name="max_streak">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -553,7 +586,10 @@
                    </widget>
                   </item>
                   <item row="2" column="1">
-                   <widget class="QLabel" name="today_goal">
+                 <widget class="QLabel" name="today_goal">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -577,7 +613,10 @@
                    </widget>
                   </item>
                   <item row="5" column="1">
-                   <widget class="QLabel" name="deadline">
+                 <widget class="QLabel" name="deadline">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -601,7 +640,10 @@
                    </widget>
                   </item>
                   <item row="22" column="1">
-                   <widget class="QLabel" name="need">
+                 <widget class="QLabel" name="need">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -625,7 +667,10 @@
                    </widget>
                   </item>
                   <item row="3" column="1">
-                   <widget class="QLabel" name="total">
+                 <widget class="QLabel" name="total">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -637,7 +682,10 @@
                    </widget>
                   </item>
                   <item row="7" column="1">
-                   <widget class="QLabel" name="streak_status">
+                 <widget class="QLabel" name="streak_status">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -652,7 +700,10 @@
                    </widget>
                   </item>
                   <item row="21" column="1">
-                   <widget class="QLabel" name="added_today">
+                 <widget class="QLabel" name="added_today">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -664,7 +715,10 @@
                    </widget>
                   </item>
                   <item row="23" column="1">
-                   <widget class="QLabel" name="unit">
+                 <widget class="QLabel" name="unit">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -688,7 +742,10 @@
                    </widget>
                   </item>
                   <item row="1" column="1">
-                   <widget class="QLabel" name="progress">
+                 <widget class="QLabel" name="progress">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -700,7 +757,10 @@
                    </widget>
                   </item>
                   <item row="0" column="1">
-                   <widget class="QLabel" name="status">
+                 <widget class="QLabel" name="status">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -775,7 +835,10 @@
                    </widget>
                   </item>
                   <item row="27" column="1">
-                   <widget class="QLabel" name="l">
+                 <widget class="QLabel" name="l">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -814,7 +877,10 @@
                    </widget>
                   </item>
                   <item row="4" column="1">
-                   <widget class="QLabel" name="goal">
+                 <widget class="QLabel" name="goal">
+                  <property name="focusPolicy">
+                   <enum>Qt::FocusPolicy::StrongFocus</enum>
+                  </property>
                     <property name="font">
                      <font>
                       <family>Arial</family>
@@ -873,6 +939,9 @@
         </item>
         <item row="3" column="0">
          <widget class="QLabel" name="global_streak_status">
+          <property name="focusPolicy">
+           <enum>Qt::FocusPolicy::StrongFocus</enum>
+          </property>
           <property name="font">
            <font>
             <family>Arial</family>
@@ -888,6 +957,9 @@
         </item>
         <item row="2" column="0">
          <widget class="QLabel" name="written_today_in_all_projects_label">
+          <property name="focusPolicy">
+           <enum>Qt::FocusPolicy::StrongFocus</enum>
+          </property>
           <property name="font">
            <font>
             <family>Arial</family>
@@ -908,12 +980,18 @@
        <zorder>written_today_in_all_projects_label</zorder>
       </widget>
       <widget class="QWidget" name="game_tab">
+       <property name="accessibleName">
+        <string>Игровой режим</string>
+       </property>
        <attribute name="title">
         <string>Игровой режим</string>
        </attribute>
        <layout class="QGridLayout" name="gridLayout_5">
         <item row="4" column="1">
          <widget class="QTabWidget" name="game_shop_tabs">
+          <property name="accessibleName">
+           <string>Магазин</string>
+          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -935,6 +1013,9 @@
            <layout class="QGridLayout" name="gridLayout_27">
             <item row="0" column="0">
              <widget class="QListWidget" name="item_shop_list">
+              <property name="accessibleName">
+               <string>Предметы</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
                 <horstretch>0</horstretch>
@@ -985,7 +1066,7 @@
                   <bool>false</bool>
                  </property>
                  <property name="focusPolicy">
-                  <enum>Qt::FocusPolicy::NoFocus</enum>
+                  <enum>Qt::FocusPolicy::StrongFocus</enum>
                  </property>
                  <property name="text">
                   <string>Купить</string>
@@ -1029,6 +1110,9 @@
                  <property name="text">
                   <string>Количество:</string>
                  </property>
+                 <property name="buddy">
+                  <cstring>value_for_buy_selected_item</cstring>
+                 </property>
                  <property name="alignment">
                   <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                  </property>
@@ -1036,6 +1120,9 @@
                </item>
                <item row="0" column="0" colspan="4">
                 <widget class="QScrollArea" name="about_selected_goods">
+                 <property name="accessibleName">
+                  <string>О товаре</string>
+                 </property>
                  <property name="font">
                   <font>
                    <family>Arial</family>
@@ -1148,6 +1235,9 @@
            <layout class="QHBoxLayout" name="horizontalLayout">
             <item>
              <widget class="QListWidget" name="potion_shop_list">
+              <property name="accessibleName">
+               <string>Зелья</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
                 <horstretch>0</horstretch>
@@ -1178,6 +1268,9 @@
                  </property>
                  <property name="text">
                   <string>Количество:</string>
+                 </property>
+                 <property name="buddy">
+                  <cstring>value_for_buy_selected_potion</cstring>
                  </property>
                  <property name="alignment">
                   <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
@@ -1214,7 +1307,10 @@
                 </widget>
                </item>
                <item row="0" column="0" colspan="4">
-                <widget class="QScrollArea" name="scrollArea_4">
+               <widget class="QScrollArea" name="scrollArea_4">
+                <property name="accessibleName">
+                 <string>О товаре</string>
+                </property>
                  <property name="widgetResizable">
                   <bool>true</bool>
                  </property>
@@ -1284,6 +1380,9 @@
            <layout class="QHBoxLayout" name="horizontalLayout_3">
             <item>
              <widget class="QListWidget" name="item_shop_list_2">
+              <property name="accessibleName">
+               <string>Награды</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
                 <horstretch>0</horstretch>
@@ -1351,13 +1450,19 @@
                  <property name="text">
                   <string>Количество:</string>
                  </property>
+                 <property name="buddy">
+                  <cstring>value_for_buy_selected_item_3</cstring>
+                 </property>
                  <property name="alignment">
                   <set>Qt::AlignmentFlag::AlignRight|Qt::AlignmentFlag::AlignTrailing|Qt::AlignmentFlag::AlignVCenter</set>
                  </property>
                 </widget>
                </item>
                <item row="0" column="0" colspan="7">
-                <widget class="QScrollArea" name="about_selected_goods_3">
+               <widget class="QScrollArea" name="about_selected_goods_3">
+                <property name="accessibleName">
+                 <string>О товаре</string>
+                </property>
                  <property name="font">
                   <font>
                    <family>Arial</family>
@@ -1443,7 +1548,7 @@
                   <bool>false</bool>
                  </property>
                  <property name="focusPolicy">
-                  <enum>Qt::FocusPolicy::NoFocus</enum>
+                  <enum>Qt::FocusPolicy::StrongFocus</enum>
                  </property>
                  <property name="text">
                   <string>Купить</string>
@@ -1515,6 +1620,9 @@
           <layout class="QHBoxLayout" name="horizontalLayout_5">
            <item>
             <widget class="QListWidget" name="inventory_list">
+             <property name="accessibleName">
+              <string>Инвентарь</string>
+             </property>
              <property name="sizePolicy">
               <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
                <horstretch>0</horstretch>
@@ -1547,6 +1655,9 @@
              <layout class="QGridLayout" name="gridLayout_12">
               <item row="0" column="0">
                <widget class="QComboBox" name="inventory_filter_comboBox">
+                <property name="accessibleName">
+                 <string>Инвентарь</string>
+                </property>
                 <property name="font">
                  <font>
                   <family>Arial</family>
@@ -1588,6 +1699,9 @@
                 <property name="text">
                  <string>Количество:</string>
                 </property>
+                <property name="buddy">
+                 <cstring>value_for_use_selected_item</cstring>
+                </property>
                 <property name="alignment">
                  <set>Qt::AlignmentFlag::AlignLeading|Qt::AlignmentFlag::AlignLeft|Qt::AlignmentFlag::AlignVCenter</set>
                 </property>
@@ -1618,7 +1732,10 @@
                </widget>
               </item>
               <item row="1" column="0" colspan="5">
-               <widget class="QScrollArea" name="about_selected_inventory_item">
+              <widget class="QScrollArea" name="about_selected_inventory_item">
+               <property name="accessibleName">
+                <string>О товаре</string>
+               </property>
                 <property name="font">
                  <font>
                   <family>Arial</family>
@@ -1742,6 +1859,12 @@
         </item>
         <item row="0" column="0" colspan="2">
          <widget class="QFrame" name="frame_5">
+          <property name="focusPolicy">
+           <enum>Qt::FocusPolicy::StrongFocus</enum>
+          </property>
+          <property name="accessibleName">
+           <string>Параметры персонажа</string>
+          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
             <horstretch>0</horstretch>
@@ -1776,6 +1899,9 @@
              <property name="text">
               <string>Здоровье 100/100</string>
              </property>
+             <property name="buddy">
+              <cstring>gamer_health_progressbar</cstring>
+             </property>
              <property name="alignment">
               <set>Qt::AlignmentFlag::AlignCenter</set>
              </property>
@@ -1790,6 +1916,9 @@
              </property>
              <property name="text">
               <string>Опыт: 0/100</string>
+             </property>
+             <property name="buddy">
+              <cstring>exp_progressbar</cstring>
              </property>
              <property name="alignment">
               <set>Qt::AlignmentFlag::AlignCenter</set>
@@ -1951,6 +2080,9 @@
         </item>
         <item row="4" column="0">
          <widget class="QTabWidget" name="quests_tabs">
+          <property name="accessibleName">
+           <string>Квесты</string>
+          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -1972,6 +2104,9 @@
            <layout class="QGridLayout" name="gridLayout_8">
             <item row="0" column="0">
              <widget class="QListWidget" name="available_quests_list">
+              <property name="accessibleName">
+               <string>Квесты</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
                 <horstretch>0</horstretch>
@@ -2003,7 +2138,10 @@
               </property>
               <layout class="QGridLayout" name="gridLayout_13">
                <item row="2" column="1">
-                <widget class="QScrollArea" name="scrollArea_3">
+               <widget class="QScrollArea" name="scrollArea_3">
+                <property name="accessibleName">
+                 <string>О квесте</string>
+                </property>
                  <property name="font">
                   <font>
                    <family>Arial</family>
@@ -2101,6 +2239,9 @@
            <layout class="QGridLayout" name="gridLayout_9">
             <item row="0" column="0">
              <widget class="QListWidget" name="active_quests_list">
+              <property name="accessibleName">
+               <string>Квесты</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
                 <horstretch>0</horstretch>
@@ -2127,7 +2268,10 @@
               </property>
               <layout class="QVBoxLayout" name="verticalLayout">
                <item>
-                <widget class="QScrollArea" name="scrollArea_2">
+               <widget class="QScrollArea" name="scrollArea_2">
+                <property name="accessibleName">
+                 <string>О квесте</string>
+                </property>
                  <property name="font">
                   <font>
                    <family>Arial</family>
@@ -2230,6 +2374,9 @@
            <layout class="QGridLayout" name="gridLayout_10">
             <item row="0" column="0">
              <widget class="QListWidget" name="completed_quests_list">
+              <property name="accessibleName">
+               <string>Квесты</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
                 <horstretch>0</horstretch>
@@ -2251,7 +2398,10 @@
               </property>
               <layout class="QGridLayout" name="gridLayout_15">
                <item row="0" column="1">
-                <widget class="QScrollArea" name="scrollArea">
+               <widget class="QScrollArea" name="scrollArea">
+                <property name="accessibleName">
+                 <string>О квесте</string>
+                </property>
                  <property name="widgetResizable">
                   <bool>true</bool>
                  </property>
@@ -2328,6 +2478,9 @@
         </item>
         <item row="2" column="0">
          <widget class="QTabWidget" name="parameters_tabs">
+          <property name="accessibleName">
+           <string>Параметры персонажа</string>
+          </property>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -2349,6 +2502,9 @@
            <layout class="QHBoxLayout" name="horizontalLayout_7">
             <item>
              <widget class="QListWidget" name="buf_list">
+              <property name="accessibleName">
+               <string>Бафы</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Minimum" vsizetype="Minimum">
                 <horstretch>0</horstretch>
@@ -2380,7 +2536,10 @@
               </property>
               <layout class="QGridLayout" name="gridLayout_22">
                <item row="0" column="0">
-                <widget class="QScrollArea" name="scrollArea_7">
+              <widget class="QScrollArea" name="scrollArea_7">
+               <property name="accessibleName">
+                <string>О бафе</string>
+               </property>
                  <property name="font">
                   <font>
                    <family>Arial</family>
@@ -2490,6 +2649,9 @@
            <layout class="QHBoxLayout" name="horizontalLayout_8">
             <item>
              <widget class="QListWidget" name="debuf_list">
+              <property name="accessibleName">
+               <string>Дебафы</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
                 <horstretch>0</horstretch>
@@ -2521,7 +2683,10 @@
               </property>
               <layout class="QGridLayout" name="gridLayout_24">
                <item row="0" column="0">
-                <widget class="QScrollArea" name="scrol_area">
+              <widget class="QScrollArea" name="scrol_area">
+               <property name="accessibleName">
+                <string>О бафе</string>
+               </property>
                  <property name="font">
                   <font>
                    <family>Arial</family>
@@ -2631,6 +2796,9 @@
            <layout class="QHBoxLayout" name="horizontalLayout_4">
             <item>
              <widget class="QListWidget" name="gamer_parameters_list">
+              <property name="accessibleName">
+               <string>Параметры персонажа</string>
+              </property>
               <property name="sizePolicy">
                <sizepolicy hsizetype="Fixed" vsizetype="Expanding">
                 <horstretch>0</horstretch>
@@ -2662,7 +2830,10 @@
               </property>
               <layout class="QVBoxLayout" name="verticalLayout_3">
                <item>
-                <widget class="QScrollArea" name="scrollArea_6">
+              <widget class="QScrollArea" name="scrollArea_6">
+               <property name="accessibleName">
+                <string>О параметре</string>
+               </property>
                  <property name="font">
                   <font>
                    <family>Arial</family>
@@ -2753,6 +2924,9 @@
               <property name="text">
                <string>Доходность</string>
               </property>
+              <property name="buddy">
+               <cstring>skill_points_profitability</cstring>
+              </property>
               <property name="alignment">
                <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
@@ -2820,6 +2994,9 @@
               <property name="text">
                <string>Выносливость</string>
               </property>
+              <property name="buddy">
+               <cstring>endurance_skill_points</cstring>
+              </property>
               <property name="alignment">
                <set>Qt::AlignmentFlag::AlignCenter</set>
               </property>
@@ -2852,6 +3029,9 @@
               </property>
               <property name="text">
                <string>Продуктивность</string>
+              </property>
+              <property name="buddy">
+               <cstring>productivity_skill_points</cstring>
               </property>
               <property name="alignment">
                <set>Qt::AlignmentFlag::AlignCenter</set>
@@ -2951,6 +3131,84 @@
    </property>
   </action>
  </widget>
+ <tabstops>
+  <tabstop>tabWidget</tabstop>
+  <tabstop>filter_project_box</tabstop>
+  <tabstop>sort_project_box</tabstop>
+  <tabstop>search_project</tabstop>
+  <tabstop>btn_create_project</tabstop>
+  <tabstop>written_today_in_all_projects_label</tabstop>
+  <tabstop>global_streak_status</tabstop>
+  <tabstop>list_projects</tabstop>
+  <tabstop>btn_synch_project</tabstop>
+  <tabstop>btn_change_project</tabstop>
+  <tabstop>btn_complete_project</tabstop>
+  <tabstop>btn_archived_project</tabstop>
+  <tabstop>btn_delete_project</tabstop>
+  <tabstop>share_progress</tabstop>
+  <tabstop>name_selected_project</tabstop>
+  <tabstop>scrollArea_5</tabstop>
+  <tabstop>status</tabstop>
+  <tabstop>total</tabstop>
+  <tabstop>goal</tabstop>
+  <tabstop>added_today</tabstop>
+  <tabstop>need</tabstop>
+  <tabstop>unit</tabstop>
+  <tabstop>deadline</tabstop>
+  <tabstop>progress</tabstop>
+  <tabstop>today_goal</tabstop>
+  <tabstop>streaks</tabstop>
+  <tabstop>max_streak</tabstop>
+  <tabstop>streak_status</tabstop>
+  <tabstop>l</tabstop>
+  <tabstop>note_list</tabstop>
+  <tabstop>new_symbols</tabstop>
+  <tabstop>pb_save_flash_note</tabstop>
+  <tabstop>delete_note</tabstop>
+  <tabstop>frame_5</tabstop>
+  <tabstop>bank_btn</tabstop>
+  <tabstop>game_shop_tabs</tabstop>
+  <tabstop>item_shop_list</tabstop>
+  <tabstop>about_selected_goods</tabstop>
+  <tabstop>value_for_buy_selected_item</tabstop>
+  <tabstop>button_for_buy_selected_item</tabstop>
+  <tabstop>potion_shop_list</tabstop>
+  <tabstop>scrollArea_4</tabstop>
+  <tabstop>value_for_buy_selected_potion</tabstop>
+  <tabstop>button_for_buy_selected_potion</tabstop>
+  <tabstop>item_shop_list_2</tabstop>
+  <tabstop>about_selected_goods_3</tabstop>
+  <tabstop>value_for_buy_selected_item_3</tabstop>
+  <tabstop>button_for_buy_selected_item_3</tabstop>
+  <tabstop>button_for_create_custom_award</tabstop>
+  <tabstop>button_for_edit_selected_custom_award</tabstop>
+  <tabstop>button_for_delete_selected_custom_award</tabstop>
+  <tabstop>inventory_list</tabstop>
+  <tabstop>inventory_filter_comboBox</tabstop>
+  <tabstop>about_selected_inventory_item</tabstop>
+  <tabstop>value_for_use_selected_item</tabstop>
+  <tabstop>button_for_selected_item</tabstop>
+  <tabstop>button_to_sell_selected_item</tabstop>
+  <tabstop>quests_tabs</tabstop>
+  <tabstop>available_quests_list</tabstop>
+  <tabstop>scrollArea_3</tabstop>
+  <tabstop>button_for_start_selected_quest</tabstop>
+  <tabstop>active_quests_list</tabstop>
+  <tabstop>scrollArea_2</tabstop>
+  <tabstop>button_for_stop_selected_quest</tabstop>
+  <tabstop>completed_quests_list</tabstop>
+  <tabstop>scrollArea</tabstop>
+  <tabstop>parameters_tabs</tabstop>
+  <tabstop>buf_list</tabstop>
+  <tabstop>scrollArea_7</tabstop>
+  <tabstop>debuf_list</tabstop>
+  <tabstop>scrol_area</tabstop>
+  <tabstop>gamer_parameters_list</tabstop>
+  <tabstop>scrollArea_6</tabstop>
+  <tabstop>productivity_skill_points</tabstop>
+  <tabstop>skill_points_profitability</tabstop>
+  <tabstop>endurance_skill_points</tabstop>
+ </tabstops>
  <resources/>
  <connections/>
 </ui>
