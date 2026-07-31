@@ -156,6 +156,11 @@ class GameMenuController:
         if not self.gamer:
             self.gamer = game.Gamer()
             self.gamer.save()
+        migration_message = self.gamer.consume_quest_item_migration_notification()
+        if migration_message:
+            self.gamer.save()
+            if self.notifications:
+                self.notifications.show_success(migration_message)
 
     def setup_ui_defaults(self):
         """Настройка начальных значений интерфейса"""

@@ -1486,6 +1486,16 @@ serious_deposit_badge = quest_award('Знак серьезного вклада'
 smart_deposit_badge = quest_award('Знак умного вклада', 'Награда за вклад с полученными процентами.', 'coins')
 five_finishes_badge = quest_award('Знак пяти завершений', 'Награда за пять завершенных текстов.', 'exp')
 hundred_thousand_badge = quest_award('Знак ста тысяч', 'Награда за сто тысяч написанных символов.', 'exp')
+seven_manuscripts_badge = quest_award('Знак семи рукописей', 'Награда за семь завершенных текстов.', 'exp', 0.05)
+one_and_half_months_badge = quest_award('Знак полутора месяцев', 'Награда за сорок пять дней глобального стрика.', 'health_recovery', 0.05)
+month_without_ice_badge = quest_award('Знак месяца без льда', 'Награда за месяц дисциплины без заморозок.', 'health_recovery', 0.05)
+ten_days_badge = quest_award('Знак десяти дней', 'Награда за десять продуктивных дней.', 'exp', 0.05)
+quarter_million_badge = quest_award('Знак четверти миллиона', 'Награда за четверть миллиона символов.', 'exp', 0.075)
+master_week_badge = quest_award('Знак недели мастера', 'Награда за особенно продуктивную неделю.', 'coins', 0.05)
+half_million_badge = quest_award('Знак половины миллиона', 'Награда за половину миллиона символов.', 'exp', 0.1)
+fifteen_finishes_badge = quest_award('Знак пятнадцати завершений', 'Награда за пятнадцать завершенных текстов.', 'exp', 0.075)
+finished_novel_badge = quest_award('Знак завершённого романа', 'Награда за завершение большого романа.', 'exp', 0.1)
+mastery_legend_badge = quest_award('Знак легенды мастерства', 'Награда за достижение 30 уровня.', 'coins', 0.1)
 global_week_badge = quest_award('Знак глобальной недели', 'Награда за семь дней глобального стрика.', 'health_recovery')
 global_two_weeks_badge = quest_award('Знак глобальных двух недель', 'Награда за четырнадцать дней глобального стрика.', 'health_recovery')
 global_habit_badge = quest_award('Знак глобальной привычки', 'Награда за двадцать один день глобального стрика.', 'health_recovery')
@@ -1632,6 +1642,16 @@ ITEM_REGISTRY = {'Зелья':
                              'Знак умного вклада': smart_deposit_badge,
                              'Знак пяти завершений': five_finishes_badge,
                              'Знак ста тысяч': hundred_thousand_badge,
+                             'Знак семи рукописей': seven_manuscripts_badge,
+                             'Знак полутора месяцев': one_and_half_months_badge,
+                             'Знак месяца без льда': month_without_ice_badge,
+                             'Знак десяти дней': ten_days_badge,
+                             'Знак четверти миллиона': quarter_million_badge,
+                             'Знак недели мастера': master_week_badge,
+                             'Знак половины миллиона': half_million_badge,
+                             'Знак пятнадцати завершений': fifteen_finishes_badge,
+                             'Знак завершённого романа': finished_novel_badge,
+                             'Знак легенды мастерства': mastery_legend_badge,
                              'Знак глобальной недели': global_week_badge,
                              'Знак глобальных двух недель': global_two_weeks_badge,
                              'Знак глобальной привычки': global_habit_badge,

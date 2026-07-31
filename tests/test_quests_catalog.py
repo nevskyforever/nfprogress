@@ -19,6 +19,29 @@ NEW_QUEST_IDS = {
     'write_100000_symbols_total',
 }
 
+ADVANCED_QUEST_IDS = {
+    'write_150000_symbols_total',
+    'finish_seven_texts',
+    'write_5000_symbols_today',
+    'global_streak_45_days',
+    'write_10000_symbols_in_week',
+    'no_freeze_30_days',
+    'save_20000_coins_no_credit',
+    'write_2000_symbols_on_10_days',
+    'keep_deposit_10000_coins',
+    'write_250000_symbols_total',
+    'finish_ten_texts',
+    'write_20000_symbols_in_week',
+    'global_streak_120_days',
+    'write_500000_symbols_total',
+    'write_notes_60_days_any_text',
+    'finish_fifteen_texts',
+    'own_typewriter',
+    'finish_text_100000',
+    'own_rowling_laptop',
+    'reach_level_30',
+}
+
 
 def test_quest_catalog_has_unique_ids_and_valid_functions():
     quests = gama_quests.get_quests()
@@ -28,6 +51,97 @@ def test_quest_catalog_has_unique_ids_and_valid_functions():
     assert len(quest_ids) == len(set(quest_ids))
     for quest in quests:
         assert callable(getattr(gama_quests, quest.quest_func))
+
+
+def test_all_quests_have_registered_item_rewards_and_advanced_quests_cover_levels_10_to_30():
+    quests = {quest.quest_id: quest for quest in gama_quests.get_quests()}
+
+    assert ADVANCED_QUEST_IDS.issubset(quests)
+    assert {quests[quest_id].level for quest_id in ADVANCED_QUEST_IDS} == {
+        10, 11, 12, 13, 14, 15, 16, 17, 18, 19,
+        20, 21, 22, 24, 25, 26, 27, 28, 29, 30,
+    }
+    for quest in quests.values():
+        assert quest.reward_items
+        for reward in quest.reward_items:
+            assert game_data.find_registry_item(
+                reward.get('category', 'Награды'), reward['name'],
+            )[1] is not None
+
+    unique_award = game_data.find_registry_item(
+        'Награды', quests['finish_seven_texts'].reward_items[0]['name'],
+    )[1]
+    assert unique_award.buff.target_cf == 'exp'
+    assert quests['write_5000_symbols_today'].reward_items[0]['category'] == 'Зелья'
+
+
+def test_migration_gives_item_reward_for_legacy_completed_quest_once(monkeypatch):
+    monkeypatch.setattr(game.Gamer, 'save', lambda self: None)
+    gamer = game.Gamer(level=3)
+    legacy_quest = game.Quest(
+        'reach_level_2', 'Первые шаги', 'Достигните 2 уровня.', status=game.Quest.COMPLETED,
+    )
+    del legacy_quest.reward_items_received
+    gamer.quests = [legacy_quest]
+
+    gamer.migrate()
+    migrated_quest = gamer.get_quest('reach_level_2')
+    reward = migrated_quest.reward_items[0]
+    category = reward['category']
+    name, _ = game_data.find_registry_item(category, reward['name'])
+    assert gamer.items[category][name] == reward['count']
+
+    gamer.migrate()
+    assert gamer.items[category][name] == reward['count']
+
+
+def test_migration_does_not_duplicate_existing_quest_award(monkeypatch):
+    monkeypatch.setattr(game.Gamer, 'save', lambda self: None)
+    gamer = game.Gamer(level=11)
+    gamer.items = {'Предметы': {}, 'Зелья': {}, 'Награды': {'⭐️ Знак семи рукописей': 1}}
+    legacy_quest = game.Quest(
+        'finish_seven_texts', 'Семь рукописей', '', status=game.Quest.COMPLETED,
+    )
+    del legacy_quest.reward_items_received
+    gamer.quests = [legacy_quest]
+
+    gamer.migrate()
+
+    assert gamer.items['Награды']['⭐️ Знак семи рукописей'] == 1
+    assert gamer.get_quest('finish_seven_texts').reward_items_received is True
+    assert gamer.consume_quest_item_migration_notification() is None
+
+
+def test_migration_compensates_limited_shop_item_and_allows_extra_freezes(monkeypatch):
+    monkeypatch.setattr(game.Gamer, 'save', lambda self: None)
+    gamer = game.Gamer(level=27)
+    gamer.items = {
+        'Предметы': {'❤️  Амулет восстановления': 1, '❄️ Заморозка': 2},
+        'Зелья': {},
+        'Награды': {},
+    }
+    limited_quest = game.Quest(
+        'own_typewriter', 'Классика на столе', '', status=game.Quest.COMPLETED,
+    )
+    freeze_quest = game.Quest(
+        'write_10000_symbols_in_week', 'Неделя большого темпа', '', status=game.Quest.COMPLETED,
+    )
+    del limited_quest.reward_items_received
+    del freeze_quest.reward_items_received
+    gamer.quests = [limited_quest, freeze_quest]
+    _, amulet = game_data.find_registry_item('Предметы', 'Амулет восстановления')
+    expected_compensation = gamer.round_money(amulet.sell_price)
+
+    gamer.migrate()
+
+    assert gamer.items['Предметы']['Амулет восстановления'] == 1
+    assert gamer.items['Предметы']['Заморозка'] == 4
+    assert gamer.coins == expected_compensation
+    message = gamer.consume_quest_item_migration_notification()
+    assert 'Бонус за старые квесты в связи с обновлением' in message
+    assert 'Получено предметов: 2 шт.' in message
+    assert f'Денежная компенсация: {expected_compensation:g} монет.' in message
+    assert gamer.consume_quest_item_migration_notification() is None
 
 
 def test_week_symbol_quest_counts_last_seven_days(monkeypatch):

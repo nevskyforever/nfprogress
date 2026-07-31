@@ -81,7 +81,10 @@ def make_reward_buffs(level, quest_id=None, target=None):
 def quest(*args, buff_target='both', reward_buffs=None, **kwargs):
     level = kwargs.get('level', 1)
     quest_id = kwargs.get('quest_id')
-    reward_items = kwargs.get('reward_items') or []
+    reward_items = list(kwargs.get('reward_items') or [])
+    if not reward_items:
+        reward_items = [default_shop_reward(level, quest_id)]
+        kwargs['reward_items'] = reward_items
     for reward_item in reward_items:
         if reward_item.get('category', 'Награды') != 'Награды':
             continue
@@ -92,6 +95,20 @@ def quest(*args, buff_target='both', reward_buffs=None, **kwargs):
         has_award_reward = any(item.get('category', 'Награды') == 'Награды' for item in reward_items)
         reward_buffs = [] if has_award_reward else make_reward_buffs(level, quest_id=quest_id, target=buff_target)
     return Quest(*args, reward_buffs=reward_buffs, **kwargs)
+
+
+def default_shop_reward(level, quest_id):
+    """Возвращает доступный в магазине предмет для обычных квестов."""
+    rewards = (
+        ('Зелья', 'Малое зелье здоровья'),
+        ('Зелья', 'Среднее зелье здоровья'),
+        ('Зелья', 'Часовое зелье познания'),
+        ('Зелья', 'Часовое зелье доходности'),
+        ('Предметы', 'Заморозка'),
+    )
+    category, name = rewards[(level + sum(map(ord, quest_id or ''))) % len(rewards)]
+    count = 3 if level >= 10 else 2 if level >= 5 else 1
+    return {'category': category, 'name': name, 'count': count}
 
 
 def get_projects():
@@ -430,6 +447,107 @@ def global_streak_30_days_no_freezes(gamer, quest):
     if engine.streak_length(streaks) < 30:
         return False
     return not any(entry == engine.STREAK_FREEZE_MARKER for entry in streaks)
+
+
+def write_150000_symbols_total(gamer, quest):
+    return sum(unit.get_total_symbols() for unit in get_writing_units()) >= 150000
+
+
+def finish_seven_texts(gamer, quest):
+    return len(get_completed_projects()) >= 7
+
+
+def write_5000_symbols_today(gamer, quest):
+    return any(unit.get_added_symbols_today_value() >= 5000 for unit in get_writing_units())
+
+
+def global_streak_45_days(gamer, quest):
+    return global_streak_at_least(45)
+
+
+def write_10000_symbols_in_week(gamer, quest):
+    today = engine.today_for_test()
+    return sum(
+        symbols for day, symbols in get_symbols_by_date(get_writing_units()).items()
+        if today - timedelta(days=6) <= day <= today
+    ) >= 10000
+
+
+def no_freeze_30_days(gamer, quest):
+    start_date = quest_start_date(quest)
+    if not start_date or engine.today_for_test() < start_date + timedelta(days=30):
+        return False
+    return all(
+        entry != engine.STREAK_FREEZE_MARKER or effective_day < start_date
+        for unit in get_writing_units()
+        for entry, effective_day in engine.iter_streak_days(getattr(unit, 'streaks', []))
+    )
+
+
+def save_20000_coins_no_credit(gamer, quest):
+    bank_account = getattr(gamer, 'bank_account', None)
+    return gamer.get_coins() >= 20000 and not bool(bank_account and bank_account.credit)
+
+
+def write_2000_symbols_on_10_days(gamer, quest):
+    return sum(symbols >= 2000 for symbols in get_symbols_by_date(get_writing_units()).values()) >= 10
+
+
+def keep_deposit_10000_coins(gamer, quest):
+    bank_account = getattr(gamer, 'bank_account', None)
+    deposit = getattr(bank_account, 'deposit', None) if bank_account else None
+    return bool(deposit and deposit.get_sum() >= 10000)
+
+
+def write_250000_symbols_total(gamer, quest):
+    return sum(unit.get_total_symbols() for unit in get_writing_units()) >= 250000
+
+
+def finish_ten_texts(gamer, quest):
+    return len(get_completed_projects()) >= 10
+
+
+def write_20000_symbols_in_week(gamer, quest):
+    today = engine.today_for_test()
+    return sum(
+        symbols for day, symbols in get_symbols_by_date(get_writing_units()).items()
+        if today - timedelta(days=6) <= day <= today
+    ) >= 20000
+
+
+def global_streak_120_days(gamer, quest):
+    return global_streak_at_least(120)
+
+
+def write_500000_symbols_total(gamer, quest):
+    return sum(unit.get_total_symbols() for unit in get_writing_units()) >= 500000
+
+
+def write_notes_60_days_any_text(gamer, quest):
+    return any(has_consecutive_dates(get_note_dates(unit), 60) for unit in get_writing_units())
+
+
+def finish_fifteen_texts(gamer, quest):
+    return len(get_completed_projects()) >= 15
+
+
+def own_typewriter(gamer, quest):
+    return gamer.items.get('Предметы', {}).get('Печатная машинка Хемингуэя', 0) > 0
+
+
+def finish_text_100000(gamer, quest):
+    return any(
+        getattr(unit, 'status', None) == 'завершен' and unit.get_total_symbols() >= 100000
+        for unit in get_writing_units()
+    )
+
+
+def own_rowling_laptop(gamer, quest):
+    return gamer.items.get('Предметы', {}).get('Ноутбук Роалинг', 0) > 0
+
+
+def reach_level_30(gamer, quest):
+    return gamer.level >= 30
 
 
 def get_quests():
@@ -831,6 +949,206 @@ def get_quests():
             ],
             level=12,
             quest_func='write_100000_symbols_total',
+        ),
+        quest(
+            quest_id='write_150000_symbols_total',
+            name='Полторы сотни тысяч',
+            description='Накопите 150000 написанных символов во всех текстах и этапах.',
+            reward_coins=9000,
+            reward_exp=90000,
+            reward_items=[{'category': 'Зелья', 'name': 'Суточное зелье познания', 'count': 1}],
+            level=10,
+            quest_func='write_150000_symbols_total',
+        ),
+        quest(
+            quest_id='finish_seven_texts',
+            name='Семь рукописей',
+            description='Завершите 7 разных текстов или этапов.',
+            reward_coins=10500,
+            reward_exp=105000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак семи рукописей', 'count': 1}],
+            level=11,
+            quest_func='finish_seven_texts',
+        ),
+        quest(
+            quest_id='write_5000_symbols_today',
+            name='День высокой концентрации',
+            description='Напишите 5000 символов за один день в одном тексте или этапе.',
+            reward_coins=12000,
+            reward_exp=120000,
+            reward_items=[{'category': 'Зелья', 'name': 'Часовое зелье просвещения', 'count': 1}],
+            level=12,
+            quest_func='write_5000_symbols_today',
+        ),
+        quest(
+            quest_id='global_streak_45_days',
+            name='Полтора глобальных месяца',
+            description='Продержите глобальный стрик 45 дней.',
+            reward_coins=13500,
+            reward_exp=135000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак полутора месяцев', 'count': 1}],
+            level=13,
+            quest_func='global_streak_45_days',
+        ),
+        quest(
+            quest_id='write_10000_symbols_in_week',
+            name='Неделя большого темпа',
+            description='Напишите суммарно 10000 символов за последние 7 дней.',
+            reward_coins=15000,
+            reward_exp=150000,
+            reward_items=[{'category': 'Предметы', 'name': 'Заморозка', 'count': 2}],
+            level=14,
+            quest_func='write_10000_symbols_in_week',
+        ),
+        quest(
+            quest_id='no_freeze_30_days',
+            name='Месяц без льда',
+            description='После старта квеста продержитесь 30 дней без заморозки в текстах или этапах.',
+            reward_coins=16500,
+            reward_exp=165000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак месяца без льда', 'count': 1}],
+            level=15,
+            quest_func='no_freeze_30_days',
+        ),
+        quest(
+            quest_id='save_20000_coins_no_credit',
+            name='Капитал автора',
+            description='Накопите 20000 монет и не имейте активного кредита.',
+            reward_coins=18000,
+            reward_exp=180000,
+            reward_items=[{'category': 'Зелья', 'name': 'Суточное зелье доходности', 'count': 1}],
+            level=16,
+            quest_func='save_20000_coins_no_credit',
+        ),
+        quest(
+            quest_id='write_2000_symbols_on_10_days',
+            name='Десять продуктивных дней',
+            description='Напишите не меньше 2000 символов в каждый из 10 разных дней.',
+            reward_coins=19500,
+            reward_exp=195000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак десяти дней', 'count': 1}],
+            level=17,
+            quest_func='write_2000_symbols_on_10_days',
+        ),
+        quest(
+            quest_id='keep_deposit_10000_coins',
+            name='Инвестор',
+            description='Держите активный банковский вклад на сумму не меньше 10000 монет.',
+            reward_coins=21000,
+            reward_exp=210000,
+            reward_items=[{'category': 'Зелья', 'name': 'Часовое зелье супердоходности', 'count': 1}],
+            level=18,
+            quest_func='keep_deposit_10000_coins',
+        ),
+        quest(
+            quest_id='write_250000_symbols_total',
+            name='Четверть миллиона',
+            description='Накопите 250000 написанных символов во всех текстах и этапах.',
+            reward_coins=23000,
+            reward_exp=230000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак четверти миллиона', 'count': 1}],
+            level=19,
+            quest_func='write_250000_symbols_total',
+        ),
+        quest(
+            quest_id='finish_ten_texts',
+            name='Десять финалов',
+            description='Завершите 10 разных текстов или этапов.',
+            reward_coins=25000,
+            reward_exp=250000,
+            reward_items=[{'category': 'Предметы', 'name': 'Лотерейный билет', 'count': 3}],
+            level=20,
+            quest_func='finish_ten_texts',
+        ),
+        quest(
+            quest_id='write_20000_symbols_in_week',
+            name='Неделя мастера',
+            description='Напишите суммарно 20000 символов за последние 7 дней.',
+            reward_coins=27000,
+            reward_exp=270000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак недели мастера', 'count': 1}],
+            level=21,
+            quest_func='write_20000_symbols_in_week',
+        ),
+        quest(
+            quest_id='global_streak_120_days',
+            name='Глобальные четыре месяца',
+            description='Продержите глобальный стрик 120 дней.',
+            reward_coins=30000,
+            reward_exp=300000,
+            reward_items=[{'category': 'Зелья', 'name': 'Суточное зелье просвещения', 'count': 1}],
+            level=22,
+            quest_func='global_streak_120_days',
+        ),
+        quest(
+            quest_id='write_500000_symbols_total',
+            name='Половина миллиона',
+            description='Накопите 500000 написанных символов во всех текстах и этапах.',
+            reward_coins=33000,
+            reward_exp=330000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак половины миллиона', 'count': 1}],
+            level=24,
+            quest_func='write_500000_symbols_total',
+        ),
+        quest(
+            quest_id='write_notes_60_days_any_text',
+            name='Два месяца записей',
+            description='Добавляйте записи 60 дней подряд в один текст или этап.',
+            reward_coins=36000,
+            reward_exp=360000,
+            reward_items=[{'category': 'Зелья', 'name': 'Суточное зелье супердоходности', 'count': 1}],
+            level=25,
+            quest_func='write_notes_60_days_any_text',
+        ),
+        quest(
+            quest_id='finish_fifteen_texts',
+            name='Пятнадцать завершений',
+            description='Завершите 15 разных текстов или этапов.',
+            reward_coins=39000,
+            reward_exp=390000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак пятнадцати завершений', 'count': 1}],
+            level=26,
+            quest_func='finish_fifteen_texts',
+        ),
+        quest(
+            quest_id='own_typewriter',
+            name='Классика на столе',
+            description='Получите печатную машинку Хемингуэя.',
+            reward_coins=42000,
+            reward_exp=420000,
+            reward_items=[{'category': 'Предметы', 'name': 'Амулет восстановления', 'count': 1}],
+            level=27,
+            quest_func='own_typewriter',
+        ),
+        quest(
+            quest_id='finish_text_100000',
+            name='Роман завершён',
+            description='Завершите текст или этап объёмом не меньше 100000 символов.',
+            reward_coins=45000,
+            reward_exp=450000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак завершённого романа', 'count': 1}],
+            level=28,
+            quest_func='finish_text_100000',
+        ),
+        quest(
+            quest_id='own_rowling_laptop',
+            name='Портативная мастерская',
+            description='Получите ноутбук Роалинг.',
+            reward_coins=48000,
+            reward_exp=480000,
+            reward_items=[{'category': 'Предметы', 'name': 'Лотерейный билет', 'count': 5}],
+            level=29,
+            quest_func='own_rowling_laptop',
+        ),
+        quest(
+            quest_id='reach_level_30',
+            name='Легенда мастерства',
+            description='Достигните 30 уровня.',
+            reward_coins=60000,
+            reward_exp=600000,
+            reward_items=[{'category': 'Награды', 'name': 'Знак легенды мастерства', 'count': 1}],
+            level=30,
+            quest_func='reach_level_30',
         ),
         quest(
             quest_id='global_streak_3_days',

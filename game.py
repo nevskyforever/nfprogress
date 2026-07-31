@@ -63,6 +63,9 @@ class Quest:
         self.reward_exp = reward_exp
         self.reward_items = reward_items or []
         self.reward_buffs = reward_buffs or []
+        # None means that the quest was saved before item rewards were added.
+        # It is intentionally distinct from False so migration can compensate it.
+        self.reward_items_received = False
         self.level = level
         self.status = status
         self.quest_func = quest_func
@@ -114,20 +117,45 @@ class Quest:
         if self.reward_exp:
             gamer.add_exp(self.reward_exp)
         self.give_reward_items(gamer)
+        self.reward_items_received = True
         self.give_reward_buffs(gamer)
         return f'Квест "{self.name}" завершен.\n{self.format_reward()}'
 
-    def give_reward_items(self, gamer):
+    def give_reward_items(self, gamer, skip_existing_awards=False):
+        """Выдает предметы квеста и компенсирует переполнение ограниченного инвентаря."""
+        granted_items = []
+        compensated_coins = 0
         for reward_item in self.reward_items:
             category = reward_item.get('category', 'Награды')
             name = reward_item.get('name')
             count = int(reward_item.get('count', 1))
             if not name or count <= 0:
                 continue
-            registry_key, _ = game_data.find_registry_item(category, name)
+            registry_key, item = game_data.find_registry_item(category, name)
             name = registry_key or name
             gamer.items.setdefault(category, {})
-            gamer.items[category][name] = gamer.items[category].get(name, 0) + count
+            current_count = gamer.items[category].get(name, 0)
+
+            if skip_existing_awards and category == 'Награды' and current_count > 0:
+                continue
+
+            granted_count = count
+            maximum = getattr(item, 'maximum_quantity_in_stock', None)
+            is_freeze = item is getattr(game_data, 'freeze', None)
+            if maximum is not None and not is_freeze:
+                granted_count = min(count, max(0, maximum - current_count))
+                overflow_count = count - granted_count
+                if overflow_count:
+                    compensated_coins += item.sell_price * overflow_count
+
+            if granted_count:
+                gamer.items[category][name] = current_count + granted_count
+                granted_items.append((item.name if item else name, granted_count))
+
+        compensated_coins = gamer.round_money(compensated_coins)
+        if compensated_coins:
+            gamer.set_coins(compensated_coins, process_bank_events=False, save=False)
+        return granted_items, compensated_coins
 
     def give_reward_buffs(self, gamer):
         for buff in self.reward_buffs:
@@ -175,6 +203,8 @@ class Quest:
             self.reward_items = []
         if not hasattr(self, 'reward_buffs') or self.reward_buffs is None:
             self.reward_buffs = []
+        if not hasattr(self, 'reward_items_received'):
+            self.reward_items_received = None
         if not hasattr(self, 'status') or self.status not in (self.AVAILABLE, self.ACTIVE, self.COMPLETED):
             self.status = self.AVAILABLE
         if not hasattr(self, 'start_date'):
@@ -762,6 +792,46 @@ class Gamer:
         self.refresh_available_quests()
         return self.quests
 
+    def migrate_completed_quest_item_rewards(self):
+        """Выдает предметы за квесты, завершенные до появления предметных наград."""
+        granted_items = []
+        compensated_coins = 0
+        processed_quests = False
+        for quest in self.quests:
+            if (quest.status != Quest.COMPLETED
+                    or getattr(quest, 'reward_items_received', None) is True):
+                continue
+            quest_items, quest_compensation = quest.give_reward_items(
+                self, skip_existing_awards=True,
+            )
+            granted_items.extend(quest_items)
+            compensated_coins += quest_compensation
+            quest.reward_items_received = True
+            processed_quests = True
+        compensated_coins = self.round_money(compensated_coins)
+        if granted_items or compensated_coins:
+            self.pending_quest_item_migration_notification = self.format_quest_item_migration_notification(
+                granted_items, compensated_coins,
+            )
+        return processed_quests
+
+    @staticmethod
+    def format_quest_item_migration_notification(granted_items, compensated_coins):
+        item_count = sum(count for _, count in granted_items)
+        item_lines = []
+        if item_count:
+            item_lines.append(f'Получено предметов: {item_count} шт.')
+        if compensated_coins:
+            item_lines.append(f'Денежная компенсация: {compensated_coins:g} монет.')
+        return 'Бонус за старые квесты в связи с обновлением:\n' + '\n'.join(
+            f'- {item}' for item in item_lines
+        )
+
+    def consume_quest_item_migration_notification(self):
+        message = getattr(self, 'pending_quest_item_migration_notification', None)
+        self.pending_quest_item_migration_notification = None
+        return message
+
     def refresh_available_quests(self):
         """Проверяет условия доступности квестов, сейчас базовое условие - уровень."""
         changed = False
@@ -1074,6 +1144,7 @@ class Gamer:
             'buffs': [],
             'debuffs': [],
             'quests': [],
+            'pending_quest_item_migration_notification': None,
         }
 
         for attr, default_value in defaults.items():
@@ -1163,13 +1234,15 @@ class Gamer:
             skill_points_migrated = bool(self.add_skill_points_for_levels(self.level))
         self.update_cf()
         self.sync_quests()
+        migrated_quest_item_rewards = self.migrate_completed_quest_item_rewards()
         if self.bank_account is None:
             self.bank_account = game_data.BankAccount()
         else:
             self.bank_account.normalize()
 
         if (migrated_awards or migrated_inventory or migrated_buff_names
-                or skill_points_migrated or max_health_migrated or complete_bonus_projects_migrated):
+                or skill_points_migrated or max_health_migrated or complete_bonus_projects_migrated
+                or migrated_quest_item_rewards):
             self.save()
 
     def calculate_inflation(self):
