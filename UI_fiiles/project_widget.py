@@ -462,6 +462,15 @@ class ProjectWidget(QWidget, Ui_Form):
             for label in (self.deadline, self.streak, self.streak_status)
             if not label.isHidden() and label.text()
         )
+        if self.project.has_stages():
+            stage_action = tr(
+                'Скрыть этапы' if self.expanded else 'Показать этапы'
+            )
+            stage_shortcut = f"{stage_action}. Ctrl+Enter"
+            accessible_parts.append(stage_shortcut)
+            self.setAccessibleDescription(stage_shortcut)
+        else:
+            self.setAccessibleDescription("")
         self.setAccessibleName(". ".join(accessible_parts))
 
         # Обновляем геометрию

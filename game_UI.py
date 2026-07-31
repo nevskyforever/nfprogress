@@ -7,6 +7,7 @@ import re
 from PySide6.QtCore import QDate, QSignalBlocker, QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QDialog
 
+from accessibility import announce_accessible_text, set_item_accessible_text
 import engine
 import game
 import game_data
@@ -272,10 +273,16 @@ class GameMenuController:
             lambda current, _previous: self.on_gamer_parameter_selected(current)
         )
         self.ui.buf_list.currentItemChanged.connect(
-            lambda current, _previous: self.on_buff_selected(current, positive=True)
+            lambda current, _previous: self.on_buff_current_item_changed(
+                current,
+                positive=True,
+            )
         )
         self.ui.debuf_list.currentItemChanged.connect(
-            lambda current, _previous: self.on_buff_selected(current, positive=False)
+            lambda current, _previous: self.on_buff_current_item_changed(
+                current,
+                positive=False,
+            )
         )
         for skill_key, spinbox in self.get_skill_widgets().items():
             spinbox.valueChanged.connect(
@@ -784,6 +791,29 @@ class GameMenuController:
             return name
         return f"{name} - {self.format_buff_remaining_time(buff)}"
 
+    def get_buff_accessible_text(self, buff, stacks=1):
+        """Return a complete screen-reader summary for a buff list row."""
+        sign = "+" if buff.is_positive() else "-"
+        parameter_name = tr(self.get_cf_display_name(buff.target_cf))
+        parts = [
+            self.get_buff_display_text(buff, stacks),
+            localized_game_description(buff.description),
+            f"{tr('Параметр')}: {parameter_name}",
+            f"{tr('Значение за награду')}: {sign}{abs(buff.value):g}",
+        ]
+        if stacks > 1:
+            parts.extend(
+                (
+                    f"{tr('Количество')}: {stacks}",
+                    f"{tr('Итого')}: {sign}{abs(buff.value * stacks):g}",
+                )
+            )
+        if buff.end_time is not None:
+            parts.append(
+                f"{tr('Осталось')}: {self.format_buff_remaining_time(buff)}"
+            )
+        return ". ".join(part for part in parts if part)
+
     def load_buffs_list(self, positive=True):
         list_widget = self.ui.buf_list if positive else self.ui.debuf_list
 
@@ -813,6 +843,10 @@ class GameMenuController:
                     item.setText(text)
                 item.setData(Qt.ItemDataRole.UserRole, buff)
                 item.setData(Qt.ItemDataRole.UserRole + 1, stacks)
+                set_item_accessible_text(
+                    item,
+                    self.get_buff_accessible_text(buff, stacks),
+                )
             return
 
         list_widget.clear()
@@ -820,6 +854,10 @@ class GameMenuController:
             item = QListWidgetItem(text)
             item.setData(Qt.ItemDataRole.UserRole, buff)
             item.setData(Qt.ItemDataRole.UserRole + 1, stacks)
+            set_item_accessible_text(
+                item,
+                self.get_buff_accessible_text(buff, stacks),
+            )
             list_widget.addItem(item)
 
     def update_buffs_list(self, positive=True):
@@ -861,6 +899,26 @@ class GameMenuController:
         )
         for label in labels:
             label.clear()
+
+    def on_buff_current_item_changed(self, item, positive=True):
+        """Show and announce the current buff without resetting list focus."""
+        self.on_buff_selected(item, positive)
+        if item is None:
+            return
+        text = (
+            item.data(Qt.ItemDataRole.AccessibleTextRole)
+            or item.text()
+        )
+        source = (
+            self.ui.about_selected_buf
+            if positive
+            else self.ui.about_selected_debuf
+        )
+        announce_accessible_text(
+            source,
+            text,
+            update_description=False,
+        )
 
     def on_buff_selected(self, item, positive=True):
         if not item:

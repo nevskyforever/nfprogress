@@ -61,6 +61,9 @@ Windows screen readers, and keyboard-only navigation.
   control name. Keep names short; do not copy long help text into them.
 * Keep every action available from the keyboard, preserve a logical Tab order,
   and never use `Qt.NoFocus` for a control that performs a user action.
+* When a selected custom row supports an additional action such as expanding
+  child rows, provide a layout-independent shortcut and include the shortcut
+  and current action in its accessible name or description.
 * Do not communicate state, validation errors, selection, or progress only with
   color, an icon, or an emoji. Expose the same information as text to the
   accessibility tree.
@@ -75,6 +78,10 @@ Windows screen readers, and keyboard-only navigation.
   `QAccessibleAnnouncementEvent`.
 * Transient notifications that do not take focus must be sent as a
   `QAccessibleAnnouncementEvent`.
+* Apply the current interface `QLocale` to open widgets. For Qt item views,
+  whose model-item accessibility interfaces may not expose a locale, send
+  selection announcements from a visible locale-bearing parent or embedded
+  widget so screen readers choose the correct language voice.
 * Use `accessibility.refresh_accessibility()` for programmatically created forms
   and preserve the application-wide manager installed by
   `accessibility.install_accessibility()`.

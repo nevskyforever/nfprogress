@@ -5,7 +5,7 @@ import sys
 import threading
 
 from PySide6.QtCore import QObject, QDate, QTime, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF, QSize
-from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon
+from PySide6.QtGui import QKeySequence, QShortcut, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon
 from PySide6.QtWidgets import QApplication, QAbstractItemView
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel, QInputDialog
@@ -190,6 +190,16 @@ class MainWindow(QMainWindow, main_window_ui):
         )
         self.list_projects.setSelectionBehavior(
             QAbstractItemView.SelectionBehavior.SelectItems
+        )
+        self.toggle_stages_shortcut = QShortcut(
+            QKeySequence("Ctrl+Return"),
+            self.list_projects,
+        )
+        self.toggle_stages_shortcut.setContext(
+            Qt.ShortcutContext.WidgetWithChildrenShortcut
+        )
+        self.toggle_stages_shortcut.activated.connect(
+            self.toggle_selected_project_stages
         )
         self.list_projects.itemClicked.connect(self.clear_project_search)
         self.list_projects.itemDoubleClicked.connect(self.open_search_result)
@@ -716,8 +726,9 @@ class MainWindow(QMainWindow, main_window_ui):
         widget = self.list_projects.itemWidget(current_item)
         if widget is not None and widget.accessibleName():
             announce_accessible_text(
-                self.list_projects,
+                widget,
                 widget.accessibleName(),
+                update_description=False,
             )
 
     def show_project_info(self, project: en.Project):
@@ -1501,6 +1512,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     set_item_accessible_text(
                         current_item,
                         widget.accessibleName(),
+                        widget.accessibleDescription(),
                     )
 
         # Обновляем панель информации и список заметок
@@ -2031,6 +2043,21 @@ class MainWindow(QMainWindow, main_window_ui):
         if expanding:
             QTimer.singleShot(0, lambda name=project_name: self._scroll_to_first_stage(name))
 
+    def toggle_selected_project_stages(self):
+        """Expand or collapse stages for the selected project."""
+        current_item = self.list_projects.currentItem()
+        if current_item is None:
+            return
+        widget = self.list_projects.itemWidget(current_item)
+        project = getattr(widget, 'project', None)
+        if (
+            project is None
+            or self._is_stage(project)
+            or not getattr(project, 'has_stages', lambda: False)()
+        ):
+            return
+        self._toggle_project_stages(project.name)
+
     def _scroll_to_first_stage(self, parent_project_name):
         for i in range(self.list_projects.count()):
             item = self.list_projects.item(i)
@@ -2054,7 +2081,11 @@ class MainWindow(QMainWindow, main_window_ui):
             if not self._is_stage(widget.project) and widget.project.name == parent_project.name:
                 widget.project = parent_project
                 widget.update_display()
-                set_item_accessible_text(item, widget.accessibleName())
+                set_item_accessible_text(
+                    item,
+                    widget.accessibleName(),
+                    widget.accessibleDescription(),
+                )
                 self._resize_project_list_item(item, widget)
             elif self._is_stage(widget.project) and getattr(widget.project, 'stage_id', None) == stage_id:
                 stage = next(
@@ -2066,7 +2097,11 @@ class MainWindow(QMainWindow, main_window_ui):
                     widget.project = stage
                     widget.parent_project = parent_project
                     widget.update_display()
-                    set_item_accessible_text(item, widget.accessibleName())
+                    set_item_accessible_text(
+                        item,
+                        widget.accessibleName(),
+                        widget.accessibleDescription(),
+                    )
                     self._resize_project_list_item(item, widget)
 
     def _resize_project_list_item(self, item, widget):
@@ -2422,7 +2457,11 @@ class MainWindow(QMainWindow, main_window_ui):
             item.setFlags(item.flags() & ~Qt.ItemFlag.ItemIsDragEnabled)
             list_p.addItem(item)
             list_p.setItemWidget(item, widget)
-            set_item_accessible_text(item, widget.accessibleName())
+            set_item_accessible_text(
+                item,
+                widget.accessibleName(),
+                widget.accessibleDescription(),
+            )
             self._resize_project_list_item(item, widget)
 
             if current_project_name and project.name == current_project_name:
@@ -2442,6 +2481,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     set_item_accessible_text(
                         stage_item,
                         stage_widget.accessibleName(),
+                        stage_widget.accessibleDescription(),
                     )
                     self._resize_project_list_item(stage_item, stage_widget)
                     if current_stage_id and getattr(stage, 'stage_id', None) == current_stage_id:
@@ -2811,6 +2851,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     set_item_accessible_text(
                         current_item,
                         widget.accessibleName(),
+                        widget.accessibleDescription(),
                     )
                     self.written_today_in_all_projects()
                 else:

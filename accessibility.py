@@ -6,7 +6,7 @@ import re
 import weakref
 from collections.abc import Iterable
 
-from PySide6.QtCore import QEvent, QObject, QTimer, Qt
+from PySide6.QtCore import QEvent, QLocale, QObject, QTimer, Qt
 from PySide6.QtGui import (
     QAccessible,
     QAccessibleAnnouncementEvent,
@@ -29,11 +29,19 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from localization import tr
+from localization import current_language, tr
 
 
 _GENERATED_NAME_PROPERTY = "_nf_accessible_name_generated"
 _DYNAMIC_UPDATES_PROPERTY = "_nf_accessibility_updates_connected"
+_LOCALE_NAMES = {
+    "ru": "ru_RU",
+    "en": "en_US",
+    "es": "es_ES",
+    "de": "de_DE",
+    "fr": "fr_FR",
+    "pt_BR": "pt_BR",
+}
 
 # Связи сохраняют подпись поля в accessibility-дереве даже в тех текущих
 # сгенерированных формах, которые были созданы до добавления buddy в .ui.
@@ -241,12 +249,18 @@ _PROJECT_INFO_FIELDS = (
 )
 
 
-def announce_accessible_text(widget: QWidget, text: str) -> None:
+def announce_accessible_text(
+    widget: QWidget,
+    text: str,
+    *,
+    update_description: bool = True,
+) -> None:
     """Announce a selection without changing its model or visual layout."""
     text = _plain_text(text)
     if not text:
         return
-    _set_accessible_description(widget, text)
+    if update_description:
+        _set_accessible_description(widget, text)
     widget_ref = weakref.ref(widget)
 
     def announce():
@@ -263,9 +277,17 @@ def announce_accessible_text(widget: QWidget, text: str) -> None:
     QTimer.singleShot(0, announce)
 
 
-def set_item_accessible_text(item: QListWidgetItem, text: str) -> None:
+def set_item_accessible_text(
+    item: QListWidgetItem,
+    text: str,
+    description: str = "",
+) -> None:
     """Name a model item for screen readers without adding painted text."""
     item.setData(Qt.ItemDataRole.AccessibleTextRole, _plain_text(text))
+    item.setData(
+        Qt.ItemDataRole.AccessibleDescriptionRole,
+        _plain_text(description),
+    )
 
 
 def _plain_text(text: str) -> str:
@@ -503,8 +525,11 @@ def _apply_tab_order(root: QWidget) -> None:
 
 def refresh_accessibility(root: QWidget) -> None:
     """Refresh accessibility metadata for a window and its child widgets."""
+    locale = QLocale(_LOCALE_NAMES[current_language()])
     _connect_field_labels(root)
     for widget in _iter_widgets(root):
+        if widget.locale() != locale:
+            widget.setLocale(locale)
         _configure_widget(widget)
     _configure_project_information(root)
     _configure_game_status(root)
@@ -541,7 +566,16 @@ class _AccessibilityManager(QObject):
                             and embedded_widget.accessibleName()
                         ):
                             item_text = embedded_widget.accessibleName()
-                        announce_accessible_text(watched, item_text)
+                        announcement_source = (
+                            embedded_widget
+                            or watched.parentWidget()
+                            or watched
+                        )
+                        announce_accessible_text(
+                            announcement_source,
+                            item_text,
+                            update_description=False,
+                        )
                 _configure_project_information(watched.window())
                 _configure_game_status(watched.window())
         return super().eventFilter(watched, event)
