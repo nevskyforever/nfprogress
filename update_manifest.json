@@ -1,28 +1,28 @@
 {
-  "version": "4.9.3",
-  "notes": "Расширено управление стриками\n\nТеперь можно включать и выключать стрики в отдельных проектах или этапах, если где-то вы не хотите их использовать. Управление доступно, если стрики включены в настройках.\n\nИгровой режим\n\nДобавлено 3 новых предмета\n\nЗелье супердоходности (1/24 ч.) - добавляет +10 к доходности, доступно с 15 уровня.\n\nАмулет восстановления - добавляет +1 здоровья в час, доступен с 10 уровня.\n\nКвесты адаптированы к проектам с этапами.",
+  "version": "4.9.6",
+  "notes": "Добавлено 20 новых квестов с 10 по 30 уровень: на объём текста, продуктивные дни и недели, стрики, завершение рукописей, накопления, вклады и предметы.\nВсе квесты теперь награждают предметами. Уникальные квестовые знаки дают постоянные бонусы к опыту, монетам или восстановлению здоровья; за часть заданий выдаются магазинные предметы, иногда в нескольких экземплярах.\nСтарые завершённые квесты автоматически получают новые награды. Уже имеющиеся знаки не дублируются, предметы с лимитом выдаются в пределах свободного места, а за невозможные к выдаче экземпляры начисляются монеты по цене продажи. «Заморозка» добавляется даже сверх лимита. После миграции один раз показывается уведомление с количеством предметов и компенсацией.",
   "windows": {
-    "version": "4.9.2",
-    "url": "https://nfproject.ru/app/nfprogress-windows-4.9.2.zip",
-    "sha256": "1f4d907536db2660118017a28befdeb6cf04f6d72175c4055ec5386c067979ca",
-    "size": 49502262,
+    "version": "4.9.5",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.9.5.zip",
+    "sha256": "1410b594a96559cf3c049aab28a5f3fded204364af3eabb63273c0d8244fb5f1",
+    "size": 49529349,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.9.2.exe",
-    "installer_sha256": "e1e9e87aac0327a323bb7d14ac77bc842314d474969589362e1b8dd404a87686",
-    "installer_size": 33985140
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.9.5.exe",
+    "installer_sha256": "ab0ed3c4fbff68573cb1aacd63f84965a8f0a9d618b91aa9dbf1d7a54be4d2e8",
+    "installer_size": 33995498
   },
   "macos_arm": {
-    "version": "4.9.3",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.3.zip"
+    "version": "4.9.6",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.6.zip"
   },
   "macos_intel": {
-    "version": "4.9.3",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.3.zip"
+    "version": "4.9.6",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.6.zip"
   },
-  "windows_version": "4.9.2",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.9.2.zip",
-  "macos_arm_version": "4.9.3",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.3.zip",
-  "macos_intel_version": "4.9.3",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.3.zip"
+  "windows_version": "4.9.5",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.9.5.zip",
+  "macos_arm_version": "4.9.6",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.6.zip",
+  "macos_intel_version": "4.9.6",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.6.zip"
 }

@@ -1304,6 +1304,89 @@ def calculate_item_price(price):
 
     return round(price * level_multiplier, 1)
 
+
+def _estimate_recent_daily_symbols(data, today):
+    """Оценивает обычный дневной объём по последним 30 календарным дням."""
+    projects = data.get('projects') or {}
+    if isinstance(projects, dict):
+        projects = projects.values()
+
+    period_start = today - timedelta(days=29)
+    written_symbols = 0
+    for project in projects:
+        sources = [project, *getattr(project, 'stages', [])]
+        for source in sources:
+            for note in getattr(source, 'notes', []):
+                note_datetime = getattr(note, 'date_create', None)
+                if not isinstance(note_datetime, datetime):
+                    continue
+                if period_start <= note_datetime.date() <= today:
+                    written_symbols += max(0, getattr(note, 'added_symbols', 0))
+
+    daily_symbols = written_symbols / 30
+    return min(5000, max(500, daily_symbols))
+
+
+def _get_active_streak_length(data, today):
+    """Возвращает самый длинный стрик, продолжающийся сейчас."""
+    projects = data.get('projects') or {}
+    if isinstance(projects, dict):
+        projects = projects.values()
+
+    streaks = [data.get('global_streaks', [])]
+    streaks.extend(
+        getattr(streak_source, 'streaks', [])
+        for project in projects
+        if getattr(project, 'status', None) == 'активен'
+        for streak_source in engine.get_project_streak_sources(project)
+    )
+
+    active_lengths = []
+    for streak in streaks:
+        last_day = engine.streak_last_day(streak)
+        if last_day is not None and last_day >= today - timedelta(days=1):
+            active_lengths.append(engine.streak_length(streak))
+    return max(active_lengths, default=0)
+
+
+def calculate_coin_potion_price(minimum_price, buff_value, duration_days):
+    """Считает посильную цену относительно ожидаемой прибыли от зелья.
+
+    Минимальная цена растёт по уровню игрока. Для развитых профилей цена
+    дополнительно учитывает реальную ценность прибавки к письму и стрику,
+    чтобы зелье оставалось выгодным, но не создавало бесконечную прибыль.
+    """
+    gamer = game.load_game()
+    level = max(getattr(gamer, 'level', 1), 1)
+    level_multiplier = 1 + (level - 1) * 0.05
+    price_floor = minimum_price * level_multiplier
+
+    data = engine.load_data()
+    today = engine.today_for_test()
+    daily_symbols = _estimate_recent_daily_symbols(data, today)
+    streak_length = _get_active_streak_length(data, today)
+    inflation = gamer.calculate_inflation()
+
+    sessions = max(1, int(duration_days))
+    expected_profit = 0
+    for day_offset in range(sessions):
+        writing_profit = daily_symbols / 100 * base_coin_bonus * buff_value
+        streak_profit = 0
+        if streak_length > 0:
+            streak_profit = (
+                10 * buff_value * (streak_length + day_offset) * inflation
+            )
+        expected_profit += writing_profit + streak_profit
+
+    if duration_days < 1:
+        price_share = 0.65
+    elif duration_days == 1:
+        price_share = 0.90
+    else:
+        price_share = 0.85
+
+    return gamer.round_money(max(price_floor, expected_profit * price_share))
+
 def calculate_freeze_price():
     """Считает стоимость заморозки от ценности спасаемого стрика."""
     gamer = game.load_game()
@@ -1508,7 +1591,7 @@ global_year_badge = quest_award('Знак глобального года', 'Н�
 exp_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье познания',
                            item_type='Зелья',
                            level=2,
-                           price=lambda: calculate_item_price(25),
+                           price=lambda: calculate_item_price(100),
                            description='Увеличивает коэффициент опыта на 1 на один час',
                            buff=Buff(name='Бустер опыта',
                                      description='Применено зелье познания',
@@ -1518,8 +1601,8 @@ exp_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье позн�
                                      duration_minutes=60))
 exp_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье познания',
                            item_type='Зелья',
-                           level=2,
-                           price=lambda: calculate_item_price(2500),
+                           level=4,
+                           price=lambda: calculate_item_price(1200),
                            description='Увеличивает коэффициент опыта на 1 на один день',
                            buff=Buff(name='Бустер опыта',
                                      description='Применен зелье познания',
@@ -1527,10 +1610,21 @@ exp_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье поз
                                      value=1.0,
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60*24))
+exp_potion_7days = FuncItem(name='🧪⚡️  Недельное зелье познания',
+                            item_type='Зелья',
+                            level=6,
+                            price=lambda: calculate_item_price(5400),
+                            description='Увеличивает коэффициент опыта на 1 на одну неделю',
+                            buff=Buff(name='Бустер опыта',
+                                      description='Применено зелье познания',
+                                      target_cf='exp',
+                                      value=1.0,
+                                      buff_type=Buff.POSITIVE,
+                                      duration_minutes=60*24*7))
 super_exp_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье просвещения',
                            item_type='Зелья',
                            level=8,
-                           price=lambda: calculate_item_price(2500),
+                           price=lambda: calculate_item_price(1000),
                            description='Увеличивает коэффициент опыта на 10 на один час',
                            buff=Buff(name='Супер бустер опыта',
                                      description='Применено зелье познания',
@@ -1540,8 +1634,8 @@ super_exp_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье п�
                                      duration_minutes=60))
 super_exp_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье просвещения',
                            item_type='Зелья',
-                           level=8,
-                           price=lambda: calculate_item_price(25000),
+                           level=10,
+                           price=lambda: calculate_item_price(12000),
                            description='Увеличивает коэффициент опыта на 10 на один день',
                            buff=Buff(name='Супер бустер опыта',
                                      description='Применен зелье познания',
@@ -1549,11 +1643,22 @@ super_exp_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье 
                                      value=10.0,
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60*24))
+super_exp_potion_7days = FuncItem(name='🧪⚡️  Недельное зелье просвещения',
+                                  item_type='Зелья',
+                                  level=12,
+                                  price=lambda: calculate_item_price(54000),
+                                  description='Увеличивает коэффициент опыта на 10 на одну неделю',
+                                  buff=Buff(name='Супер бустер опыта',
+                                            description='Применено зелье познания',
+                                            target_cf='exp',
+                                            value=10.0,
+                                            buff_type=Buff.POSITIVE,
+                                            duration_minutes=60*24*7))
 
 coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье доходности',
                            item_type='Зелья',
                            level=2,
-                           price=lambda: calculate_item_price(100),
+                           price=lambda: calculate_coin_potion_price(60, 0.5, 1 / 24),
                            description='Увеличивает коэффициент монет на 0.5 на один час',
                            buff=Buff(name='Минибустер прибыли',
                                      description='Применено зелье прибыли',
@@ -1563,8 +1668,8 @@ coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье дохо
                                      duration_minutes=60))
 coin_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье доходности',
                            item_type='Зелья',
-                           level=2,
-                           price=lambda: calculate_item_price(500),
+                           level=4,
+                           price=lambda: calculate_coin_potion_price(720, 0.5, 1),
                            description='Увеличивает коэффициент монет на 0.5 на один день',
                            buff=Buff(name='Супербустер прибыли',
                                      description='Применен зелье прибыли',
@@ -1572,10 +1677,21 @@ coin_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье до�
                                      value=0.5,
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60*24))
+coin_potion_7days = FuncItem(name='🧪⚡️  Недельное зелье доходности',
+                             item_type='Зелья',
+                             level=6,
+                             price=lambda: calculate_coin_potion_price(3240, 0.5, 7),
+                             description='Увеличивает коэффициент монет на 0.5 на одну неделю',
+                             buff=Buff(name='Супербустер прибыли',
+                                       description='Применен зелье прибыли',
+                                       target_cf='coins',
+                                       value=0.5,
+                                       buff_type=Buff.POSITIVE,
+                                       duration_minutes=60*24*7))
 super_coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье супердоходности',
                            item_type='Зелья',
                            level=15,
-                           price=lambda: calculate_item_price(2000),
+                           price=lambda: calculate_coin_potion_price(1200, 10, 1 / 24),
                            description='Увеличивает коэффициент монет на 10 на один час',
                            buff=Buff(name='Супербустер прибыли',
                                      description='Применено зелье суперприбыли',
@@ -1585,8 +1701,8 @@ super_coin_potion_1hrs = FuncItem(name='🧪⚡️  Часовое зелье с
                                      duration_minutes=60))
 super_coin_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье супердоходности',
                            item_type='Зелья',
-                           level=15,
-                           price=lambda: calculate_item_price(10000),
+                           level=18,
+                           price=lambda: calculate_coin_potion_price(14400, 10, 1),
                            description='Увеличивает коэффициент монет на 10 на один день',
                            buff=Buff(name='Супербустер прибыли',
                                      description='Применено зелье суперприбыли',
@@ -1594,6 +1710,17 @@ super_coin_potion_24hrs = FuncItem(name='🧪⚡️  Суточное зелье
                                      value=10,
                                      buff_type=Buff.POSITIVE,
                                      duration_minutes=60*24))
+super_coin_potion_7days = FuncItem(name='🧪⚡️  Недельное зелье супердоходности',
+                                   item_type='Зелья',
+                                   level=21,
+                                   price=lambda: calculate_coin_potion_price(64800, 10, 7),
+                                   description='Увеличивает коэффициент монет на 10 на одну неделю',
+                                   buff=Buff(name='Супербустер прибыли',
+                                             description='Применено зелье суперприбыли',
+                                             target_cf='coins',
+                                             value=10,
+                                             buff_type=Buff.POSITIVE,
+                                             duration_minutes=60*24*7))
 
 # Реестр предметов
 ITEM_REGISTRY = {'Зелья':
@@ -1604,12 +1731,16 @@ ITEM_REGISTRY = {'Зелья':
                       'Зелье воскрешения': health_recovery,
                       'Часовое зелье познания': exp_potion_1hrs,
                       'Суточное зелье познания': exp_potion_24hrs,
+                      'Недельное зелье познания': exp_potion_7days,
                       'Часовое зелье доходности': coin_potion_1hrs,
                       'Суточное зелье доходности': coin_potion_24hrs,
+                      'Недельное зелье доходности': coin_potion_7days,
                       'Часовое зелье просвещения': super_exp_potion_1hrs,
                       'Суточное зелье просвещения': super_exp_potion_24hrs,
+                      'Недельное зелье просвещения': super_exp_potion_7days,
                       'Часовое зелье супердоходности': super_coin_potion_1hrs,
-                      'Суточное зелье супердоходности': super_coin_potion_24hrs,},
+                      'Суточное зелье супердоходности': super_coin_potion_24hrs,
+                      'Недельное зелье супердоходности': super_coin_potion_7days,},
                  'Предметы': {'Заморозка': freeze,
                               'Лотерейный билет': lottery_ticket,
                               'Печатная машинка Хемингуэя': hemingway_typewriter,
