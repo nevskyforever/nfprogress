@@ -1,28 +1,28 @@
 {
-  "version": "4.9.7",
-  "notes": "Игровой режим\n\nУлучшен баланс цен на зелья доходности и опыта, добавлены зелья недельной длительности.",
+  "version": "4.10",
+  "notes": "Исправление багов и интерфейса.",
   "windows": {
-    "version": "4.9.6",
-    "url": "https://nfproject.ru/app/nfprogress-windows-4.9.6.zip",
-    "sha256": "753b9d2543a0dfb6083552db8402d14efe92d6ed0d7e9a408d969513f290da35",
-    "size": 49584447,
+    "version": "4.9.8",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.9.8.zip",
+    "sha256": "9841e9732c601b4f0bcc8bb98d906f0c8f4ac660e638f8048558f05b708aa0f6",
+    "size": 49596391,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.9.6.exe",
-    "installer_sha256": "49842f9c4153375aef15aa80075a0ef52db1dbbffddb53e14ca16ca556ca6354",
-    "installer_size": 34018306
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.9.8.exe",
+    "installer_sha256": "51bac3d7ba06dfb7a13d1ea51296601a8ea1eeca7ba33af5d03195552243d24e",
+    "installer_size": 34016072
   },
   "macos_arm": {
-    "version": "4.9.7",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.7.zip"
+    "version": "4.10",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.10.zip"
   },
   "macos_intel": {
-    "version": "4.9.7",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.7.zip"
+    "version": "4.10",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.10.zip"
   },
-  "windows_version": "4.9.6",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.9.6.zip",
-  "macos_arm_version": "4.9.7",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.9.7.zip",
-  "macos_intel_version": "4.9.7",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.9.7.zip"
+  "windows_version": "4.9.8",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.9.8.zip",
+  "macos_arm_version": "4.10",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.10.zip",
+  "macos_intel_version": "4.10",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.10.zip"
 }

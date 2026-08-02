@@ -16,7 +16,15 @@ import urllib.request
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QSettings, QThread, Signal, Slot
-from PySide6.QtWidgets import QApplication, QProgressDialog
+from PySide6.QtWidgets import (
+    QApplication,
+    QDialog,
+    QDialogButtonBox,
+    QLabel,
+    QProgressDialog,
+    QTextBrowser,
+    QVBoxLayout,
+)
 
 import engine as en
 from localization import LocalizedMessageBox as QMessageBox, tr
@@ -611,26 +619,56 @@ class UpdateChecker(QObject):
     def _show_update_dialog(self, parent, manifest, release, settings):
         latest_version = release["version"]
         notes = str(manifest.get("notes", "")).strip()
-        message = f"Доступна новая версия {latest_version}."
+
+        dialog = QDialog(parent)
+        dialog.setWindowTitle(tr("Обновление приложения"))
+        dialog.setMinimumWidth(520)
+        layout = QVBoxLayout(dialog)
+
+        version_label = QLabel(tr(f"Доступна новая версия {latest_version}."), dialog)
+        version_label.setWordWrap(True)
+        layout.addWidget(version_label)
+
         if notes:
-            message += f"\n\n{notes}"
+            notes_view = QTextBrowser(dialog)
+            notes_view.setPlainText(notes)
+            notes_view.setReadOnly(True)
+            notes_view.setFixedHeight(220)
+            layout.addWidget(notes_view)
+
         if platform.system() == "Windows" and (_current_app_target() is not None):
             if not _is_standalone_install(_current_app_target()):
-                message += (
-                    "\n\nФормат установки изменился. Новая версия будет установлена в "
-                    f"{_windows_programs_dir()}. Старый EXE автоматически удаляться не будет."
+                migration_label = QLabel(
+                    tr(
+                        "\n\nФормат установки изменился. Новая версия будет установлена в "
+                        f"{_windows_programs_dir()}. Старый EXE автоматически удаляться не будет."
+                    ).strip(),
+                    dialog,
                 )
-        message += "\n\nАрхив будет скачан и проверен перед закрытием приложения."
+                migration_label.setWordWrap(True)
+                layout.addWidget(migration_label)
 
-        dialog = QMessageBox(parent)
-        dialog.setWindowTitle(tr("Обновление приложения"))
-        dialog.setIcon(QMessageBox.Information)
-        dialog.setText(tr(message))
-        update_button = dialog.addButton(tr("Обновить"), QMessageBox.AcceptRole)
-        skip_button = dialog.addButton(tr("Пропустить эту версию"), QMessageBox.RejectRole)
-        dialog.addButton(tr("Позже"), QMessageBox.DestructiveRole)
-        dialog.exec()
-        if dialog.clickedButton() == update_button:
+        archive_label = QLabel(
+            tr("\n\nАрхив будет скачан и проверен перед закрытием приложения.").strip(),
+            dialog,
+        )
+        archive_label.setWordWrap(True)
+        layout.addWidget(archive_label)
+
+        buttons = QDialogButtonBox(dialog)
+        update_button = buttons.addButton(tr("Обновить"), QDialogButtonBox.AcceptRole)
+        skip_button = buttons.addButton(
+            tr("Пропустить эту версию"), QDialogButtonBox.RejectRole
+        )
+        later_button = buttons.addButton(tr("Позже"), QDialogButtonBox.DestructiveRole)
+        skip_version_result = 2
+        update_button.clicked.connect(dialog.accept)
+        skip_button.clicked.connect(lambda: dialog.done(skip_version_result))
+        later_button.clicked.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        result = dialog.exec()
+        if result == QDialog.Accepted:
             if platform.system() == "Windows":
                 self._start_windows_download(release, parent)
             else:
@@ -640,7 +678,7 @@ class UpdateChecker(QObject):
                     QMessageBox.critical(parent, "Обновление приложения", str(error))
                 else:
                     QApplication.quit()
-        elif dialog.clickedButton() == skip_button:
+        elif result == skip_version_result:
             settings.setValue(SKIPPED_VERSION_KEY, latest_version)
 
     def _start_windows_download(self, release, parent):
