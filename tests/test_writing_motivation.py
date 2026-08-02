@@ -523,3 +523,38 @@ def test_cabinet_relics_define_card_text():
         assert relic['name']
         assert relic['description']
         assert relic['condition']
+        assert relic['effect_description']
+        assert relic['bonus'] > 0
+
+
+def test_cabinet_relics_apply_writing_bonus(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.daily_challenge['target'] = 100000
+    gamer.cabinet_relics = ['ink_candle', 'triple_map']
+
+    gamer.give_symbol_bonus(100)
+
+    assert gamer.coins == 10.3
+    assert gamer.exp == 515
+
+
+def test_cabinet_sets_unlock_and_apply_bonus(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.cabinet_relics = list(game.CABINET_RELICS)
+
+    unlocked_sets = gamer.get_unlocked_cabinet_sets()
+    inspiration = gamer.add_inspiration(10)
+
+    assert unlocked_sets == ['manuscript_path', 'authors_library']
+    assert gamer.get_cabinet_bonus('writing') == 0.06
+    assert inspiration == 13
+
+
+def test_cabinet_relic_progress_counts_qualifying_projects(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.manuscript_journeys = {
+        'one': [10, 25, 50],
+        'two': [10, 25],
+    }
+
+    assert gamer.cabinet_relic_progress('chapter_shelf') == (2, 3)

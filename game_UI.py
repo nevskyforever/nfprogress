@@ -951,19 +951,23 @@ class GameMenuController:
 
     def update_cabinet_ui(self):
         relic_keys = self.gamer.cabinet_relics
+        unlocked_sets = self.gamer.get_unlocked_cabinet_sets()
         if not relic_keys:
             self.ui.cabinet_collection_status.setText(
                 tr('Кабинет писателя: реликвий пока нет.')
             )
         else:
-            names = ', '.join(
-                tr(game.CABINET_RELICS[relic_key]['name'])
-                for relic_key in relic_keys
-            )
             self.ui.cabinet_collection_status.setText(
-                f"{tr('Кабинет писателя')} "
-                f"({len(relic_keys)}/{len(game.CABINET_RELICS)}): {names}"
+                f"{tr('Кабинет писателя')}: "
+                f"{len(relic_keys)}/{len(game.CABINET_RELICS)} {tr('реликвий')} · "
+                f"{len(unlocked_sets)}/{len(game.CABINET_SETS)} {tr('комплектов')}."
             )
+        set_descriptions = [
+            f"{tr(game.CABINET_SETS[set_key]['name'])}: "
+            f"{tr(game.CABINET_SETS[set_key]['description'])}"
+            for set_key in unlocked_sets
+        ]
+        self.ui.cabinet_collection_status.setToolTip('\n'.join(set_descriptions))
 
         signature = (tuple(relic_keys), tr('Кабинет писателя'))
         if signature == self._cabinet_signature:
@@ -994,15 +998,20 @@ class GameMenuController:
         if relic is None:
             return
         unlocked = relic_key in self.gamer.cabinet_relics
+        relic_progress, relic_target = self.gamer.cabinet_relic_progress(relic_key)
         self.ui.cabinet_relic_unlock_status.setText(
             tr('Открыта') if unlocked else tr('Не открыта')
         )
         self.ui.cabinet_relic_condition.setText(
-            f"{tr('Условие')}: {tr(relic['condition'])}"
+            f"{tr('Условие')}: {tr(relic['condition'])} "
+            f"{tr('Прогресс')}: {relic_progress}/{relic_target}."
         )
         if unlocked:
             self.ui.cabinet_relic_name.setText(tr(relic['name']))
-            self.ui.cabinet_relic_description.setText(tr(relic['description']))
+            self.ui.cabinet_relic_description.setText(
+                f"{tr(relic['description'])}\n"
+                f"{tr('Эффект')}: {tr(relic['effect_description'])}"
+            )
         else:
             self.ui.cabinet_relic_name.setText(tr('Неизвестная реликвия'))
             self.ui.cabinet_relic_description.setText(

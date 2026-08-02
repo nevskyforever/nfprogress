@@ -169,9 +169,13 @@ The cabinet is an achievement view over manuscript progress:
 * `Gamer.manuscript_journeys` stores received milestone percentages by stable project
   key. `advance_manuscript_journey()` awards only thresholds not already stored.
 * `CABINET_RELICS` defines name, description, condition, `required_progress`, and
-  `required_projects`. The current generic unlocker supports any relic based on the
-  number of projects that reached a milestone. Add a separate explicit rule only
-  when a new relic cannot be represented by these two fields.
+  `required_projects`, plus one passive `effect_type` and `bonus`. The current generic
+  unlocker supports any relic based on the number of projects that reached a
+  milestone. Add a separate explicit rule only when a new relic cannot be represented
+  by these two fields.
+* `CABINET_SETS` derives collection bonuses from unlocked relic keys; do not persist
+  duplicated set state. Apply cabinet reward bonuses at the final reward multiplier
+  and route earned inspiration through `Gamer.add_inspiration()`.
 * Locked relics intentionally hide their name and description but show the unlock
   condition. `update_cabinet_ui()` rebuilds the list only when its signature changes.
 * Keep the cabinet page size-independent from description length: use bounded,

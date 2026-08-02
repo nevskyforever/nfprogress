@@ -115,6 +115,9 @@ CABINET_RELICS = {
         'condition': 'Достигните рубежа 10% в одном тексте.',
         'required_progress': 10,
         'required_projects': 1,
+        'effect_type': 'writing',
+        'bonus': 0.01,
+        'effect_description': 'Даёт +1% к наградам за написанный текст.',
     },
     'plot_map': {
         'name': 'Карта сюжетных поворотов',
@@ -122,6 +125,9 @@ CABINET_RELICS = {
         'condition': 'Достигните рубежа 50% в одном тексте.',
         'required_progress': 50,
         'required_projects': 1,
+        'effect_type': 'challenge',
+        'bonus': 0.03,
+        'effect_description': 'Даёт +3% к наградам за испытания.',
     },
     'first_binding': {
         'name': 'Переплёт первой рукописи',
@@ -129,6 +135,9 @@ CABINET_RELICS = {
         'condition': 'Доведите один текст до 100%.',
         'required_progress': 100,
         'required_projects': 1,
+        'effect_type': 'completion',
+        'bonus': 0.05,
+        'effect_description': 'Даёт +5% к наградам за завершение этапов и проектов.',
     },
     'chapter_shelf': {
         'name': 'Полка первых глав',
@@ -136,6 +145,9 @@ CABINET_RELICS = {
         'condition': 'Доведите три разных текста минимум до 25%.',
         'required_progress': 25,
         'required_projects': 3,
+        'effect_type': 'session',
+        'bonus': 0.03,
+        'effect_description': 'Даёт +3% к наградам за успешные сессии.',
     },
     'turning_quill': {
         'name': 'Перо переломного момента',
@@ -143,6 +155,9 @@ CABINET_RELICS = {
         'condition': 'Достигните рубежа 75% в одном тексте.',
         'required_progress': 75,
         'required_projects': 1,
+        'effect_type': 'milestone',
+        'bonus': 0.05,
+        'effect_description': 'Даёт +5% к наградам за рубежи рукописи.',
     },
     'final_lamp': {
         'name': 'Лампа финишной прямой',
@@ -150,6 +165,9 @@ CABINET_RELICS = {
         'condition': 'Достигните рубежа 90% в одном тексте.',
         'required_progress': 90,
         'required_projects': 1,
+        'effect_type': 'inspiration',
+        'bonus': 0.10,
+        'effect_description': 'Увеличивает получаемое за работу вдохновение на 10%.',
     },
     'triple_map': {
         'name': 'Атлас трёх миров',
@@ -157,6 +175,9 @@ CABINET_RELICS = {
         'condition': 'Доведите три разных текста минимум до 50%.',
         'required_progress': 50,
         'required_projects': 3,
+        'effect_type': 'writing',
+        'bonus': 0.02,
+        'effect_description': 'Даёт +2% к наградам за написанный текст.',
     },
     'finished_shelf': {
         'name': 'Полка завершённых рукописей',
@@ -164,6 +185,28 @@ CABINET_RELICS = {
         'condition': 'Доведите три разных текста до 100%.',
         'required_progress': 100,
         'required_projects': 3,
+        'effect_type': 'completion',
+        'bonus': 0.10,
+        'effect_description': 'Даёт +10% к наградам за завершение этапов и проектов.',
+    },
+}
+
+CABINET_SETS = {
+    'manuscript_path': {
+        'name': 'Путь большой рукописи',
+        'description': 'Пять реликвий пути дают +3% ко всем наградам монетами и опытом.',
+        'relics': (
+            'ink_candle', 'plot_map', 'turning_quill', 'final_lamp', 'first_binding',
+        ),
+        'effect_type': 'all_rewards',
+        'bonus': 0.03,
+    },
+    'authors_library': {
+        'name': 'Авторская библиотека',
+        'description': 'Три реликвии библиотеки увеличивают получаемое вдохновение на 20%.',
+        'relics': ('chapter_shelf', 'triple_map', 'finished_shelf'),
+        'effect_type': 'inspiration',
+        'bonus': 0.20,
     },
 }
 
@@ -1110,7 +1153,11 @@ class Gamer:
         messages = []
         milestones_reached = 0
         ability_multiplier = self._specialization_ability_multiplier('milestone')
-        reward_multiplier = (1 + self.manuscript_reward_bonus) * ability_multiplier
+        reward_multiplier = (
+            (1 + self.manuscript_reward_bonus)
+            * ability_multiplier
+            * (1 + self.get_cabinet_bonus('milestone'))
+        )
         for milestone in MANUSCRIPT_MILESTONES:
             threshold = milestone['progress']
             if threshold > progress or threshold in received:
@@ -1122,14 +1169,11 @@ class Gamer:
                 save=False,
             )
             exp = self.add_exp(milestone['exp'] * reward_multiplier)
-            self.inspiration = min(
-                MAX_INSPIRATION,
-                self.inspiration + milestone['inspiration'],
-            )
+            inspiration = self.add_inspiration(milestone['inspiration'])
             messages.append(
                 f'Рубеж рукописи «{milestone["name"]}» достигнут! '
                 f'Получено {coins} монет, {exp} опыта и '
-                f'{milestone["inspiration"]} вдохновения.'
+                f'{inspiration:g} вдохновения.'
             )
         received.sort()
         if messages:
@@ -1150,16 +1194,59 @@ class Gamer:
         for relic_key, relic in CABINET_RELICS.items():
             if relic_key in self.cabinet_relics:
                 continue
-            qualifying_projects = sum(
-                relic['required_progress'] in milestones
-                or any(value >= relic['required_progress'] for value in milestones)
-                for milestones in self.manuscript_journeys.values()
-            )
+            qualifying_projects, _ = self.cabinet_relic_progress(relic_key)
             if qualifying_projects < relic['required_projects']:
                 continue
             self.cabinet_relics.append(relic_key)
             messages.append(f'Новая реликвия в кабинете: «{relic["name"]}».')
         return messages
+
+    def cabinet_relic_progress(self, relic_key):
+        relic = CABINET_RELICS.get(relic_key)
+        if relic is None:
+            return 0, 0
+        qualifying_projects = sum(
+            relic['required_progress'] in milestones
+            or any(value >= relic['required_progress'] for value in milestones)
+            for milestones in self.manuscript_journeys.values()
+        )
+        return min(qualifying_projects, relic['required_projects']), relic['required_projects']
+
+    def get_unlocked_cabinet_sets(self):
+        unlocked = set(self.cabinet_relics)
+        return [
+            set_key for set_key, meta in CABINET_SETS.items()
+            if set(meta['relics']).issubset(unlocked)
+        ]
+
+    def get_cabinet_bonus(self, reward_type):
+        bonus = sum(
+            relic['bonus']
+            for relic_key, relic in CABINET_RELICS.items()
+            if relic_key in self.cabinet_relics
+            and relic['effect_type'] == reward_type
+        )
+        for set_key in self.get_unlocked_cabinet_sets():
+            cabinet_set = CABINET_SETS[set_key]
+            if (
+                    cabinet_set['effect_type'] == reward_type
+                    or (
+                        cabinet_set['effect_type'] == 'all_rewards'
+                        and reward_type != 'inspiration'
+                    )
+            ):
+                bonus += cabinet_set['bonus']
+        return round(bonus, 4)
+
+    def add_inspiration(self, value):
+        try:
+            value = max(0.0, float(value))
+        except (TypeError, ValueError):
+            return 0.0
+        value *= 1 + self.get_cabinet_bonus('inspiration')
+        old_value = self.inspiration
+        self.inspiration = min(MAX_INSPIRATION, round(self.inspiration + value, 2))
+        return round(self.inspiration - old_value, 2)
 
     def get_manuscript_journey_status(self, progress):
         try:
@@ -1254,6 +1341,7 @@ class Gamer:
         reward_multiplier = (
             (1 + self.challenge_reward_bonus)
             * self.get_specialization_reward_multiplier('challenge')
+            * (1 + self.get_cabinet_bonus('challenge'))
         )
         self.challenge_reward_bonus = 0.0
         return reward_multiplier
@@ -1326,7 +1414,7 @@ class Gamer:
                 self.save()
             return False, 'Сессия завершена. Цель не достигнута — штрафа нет.'
 
-        self.inspiration = min(MAX_INSPIRATION, self.inspiration + 10)
+        inspiration = self.add_inspiration(10)
         ability_multiplier = self._specialization_ability_multiplier(
             'session', intention=session.get('intention')
         )
@@ -1336,6 +1424,7 @@ class Gamer:
                 'session', intention=session.get('intention')
             )
             * ability_multiplier
+            * (1 + self.get_cabinet_bonus('session'))
         )
         self.session_reward_bonus = 0.0
         if ability_multiplier > 1:
@@ -1357,7 +1446,7 @@ class Gamer:
         )
         if save:
             self.save()
-        message = f'Сессия завершена! Получено {coins} монет, {exp} опыта и 10 вдохновения.'
+        message = f'Сессия завершена! Получено {coins} монет, {exp} опыта и {inspiration:g} вдохновения.'
         if weekly_message:
             message += f'\n{weekly_message}'
         if mastery_message:
@@ -1410,8 +1499,8 @@ class Gamer:
             save=False,
         )
         exp = self.add_exp(meta['reward_exp'] * reward_multiplier)
-        self.inspiration = min(MAX_INSPIRATION, self.inspiration + 20)
-        message = f'Недельное испытание завершено! Получено {coins} монет, {exp} опыта и 20 вдохновения.'
+        inspiration = self.add_inspiration(20)
+        message = f'Недельное испытание завершено! Получено {coins} монет, {exp} опыта и {inspiration:g} вдохновения.'
         if self.specialization == 'explorer':
             mastery_message = self.add_specialization_mastery('explorer')
             if mastery_message:
@@ -1425,10 +1514,7 @@ class Gamer:
             return []
 
         messages = []
-        self.inspiration = min(
-            MAX_INSPIRATION,
-            self.inspiration + symbols / INSPIRATION_SYMBOL_STEP,
-        )
+        self.add_inspiration(symbols / INSPIRATION_SYMBOL_STEP)
         if self.writing_session is not None:
             self.writing_session['progress'] = self.writing_session.get('progress', 0) + symbols
 
@@ -1442,9 +1528,9 @@ class Gamer:
                 save=False,
             )
             exp = self.add_exp(daily['target'] * 0.5 * reward_multiplier)
-            self.inspiration = min(MAX_INSPIRATION, self.inspiration + 10)
+            inspiration = self.add_inspiration(10)
             messages.append(
-                f'Адаптивная цель дня выполнена! Получено {coins} монет, {exp} опыта и 10 вдохновения.'
+                f'Адаптивная цель дня выполнена! Получено {coins} монет, {exp} опыта и {inspiration:g} вдохновения.'
             )
             if self.specialization == 'explorer':
                 mastery_message = self.add_specialization_mastery('explorer')
@@ -1464,6 +1550,7 @@ class Gamer:
             * (1 + self.writing_reward_bonus)
             * self.get_specialization_reward_multiplier('writing', symbols=symbols)
             * self._specialization_ability_multiplier('writing', symbols=symbols)
+            * (1 + self.get_cabinet_bonus('writing'))
         )
         exp_cf = self.get_cf_value('exp', 1.0)
         exps = self.add_exp(
@@ -1593,7 +1680,10 @@ class Gamer:
         if project_name and not self.mark_complete_bonus_received(project_name):
             return None
 
-        bonus_multiplier *= self.get_specialization_reward_multiplier('completion')
+        bonus_multiplier *= (
+            self.get_specialization_reward_multiplier('completion')
+            * (1 + self.get_cabinet_bonus('completion'))
+        )
         cf_total = round(project_total / 1000 + 0.5)  # обычное деление, не целочисленное
         cf_coins = self.get_cf_value('coins')
         cf_exp = self.get_cf_value('exp')
