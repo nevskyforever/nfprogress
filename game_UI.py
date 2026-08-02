@@ -89,11 +89,12 @@ class GameMenuController:
             'list': 'potion_shop_list',
             'name_label': 'name_selected_potion_on_shop',
             'description_label': 'description_selected_potion_on_shop',
+            'level_label': 'level_selected_potion_on_shop',
             'price_label': 'price_selected_potion_on_shop',
             'effect_label': 'effect_selected_potion_on_shop',
             'spinbox': 'value_for_buy_selected_potion',
             'buy_button': 'button_for_buy_selected_potion',
-            'prefix': '🧪',
+            'prefix': '',
             'empty_text': 'Выберите товар',
             'source': 'registry',
         },
@@ -1043,13 +1044,15 @@ class GameMenuController:
             )
             self.ui.level_selected_item.setText(tr(f"⭐ Уровень: {item_obj.level}"))
 
-            # Получаем эффект, если есть функция
-            effect_text = "Нет эффекта"
+            # Получаем эффект, если есть функция или бафф.
+            effect_text = ""
             if hasattr(item_obj, '_func') and item_obj._func:
                 try:
                     effect_text = item_obj._func("?") or "Активируется при использовании"
-                except:
+                except Exception:
                     effect_text = "Активируется при использовании"
+            elif not item_obj.get_buffs():
+                effect_text = "Нет эффекта"
 
             # Добавляем информацию о количестве
             count = self.get_inventory_item_count(category, item_obj, registry_key, item_name)
@@ -1247,8 +1250,10 @@ class GameMenuController:
         if not item_obj:
             return
 
+        name_prefix = shop_config['prefix']
+        display_name = localized_game_name(item_obj.name)
         getattr(self.ui, shop_config['name_label']).setText(
-            f"{shop_config['prefix']} {localized_game_name(item_obj.name)}"
+            f"{name_prefix} {display_name}" if name_prefix else display_name
         )
         if level_label := shop_config.get('level_label'):
             getattr(self.ui, level_label).setText(
@@ -1273,12 +1278,14 @@ class GameMenuController:
 
     @staticmethod
     def get_shop_item_effect(item_obj):
-        effect_text = "Нет эффекта"
+        effect_text = ""
         if hasattr(item_obj, '_func') and item_obj._func:
             try:
                 effect_text = item_obj._func("?") or "Активируется при использовании"
             except Exception:
                 effect_text = "Активируется при использовании"
+        elif not item_obj.get_buffs():
+            effect_text = "Нет эффекта"
         return effect_text
 
     def clear_shop_info(self, except_config=None):

@@ -669,19 +669,25 @@ class Ui_main_window(object):
         self.price_selected_potion_on_shop.setObjectName(u"price_selected_potion_on_shop")
         self.price_selected_potion_on_shop.setWordWrap(True)
 
-        self.gridLayout_18.addWidget(self.price_selected_potion_on_shop, 2, 0, 1, 1)
+        self.gridLayout_18.addWidget(self.price_selected_potion_on_shop, 3, 0, 1, 1)
 
         self.effect_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
         self.effect_selected_potion_on_shop.setObjectName(u"effect_selected_potion_on_shop")
         self.effect_selected_potion_on_shop.setWordWrap(True)
 
-        self.gridLayout_18.addWidget(self.effect_selected_potion_on_shop, 3, 0, 1, 1)
+        self.gridLayout_18.addWidget(self.effect_selected_potion_on_shop, 4, 0, 1, 1)
 
         self.description_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
         self.description_selected_potion_on_shop.setObjectName(u"description_selected_potion_on_shop")
         self.description_selected_potion_on_shop.setWordWrap(True)
 
         self.gridLayout_18.addWidget(self.description_selected_potion_on_shop, 1, 0, 1, 1)
+
+        self.level_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
+        self.level_selected_potion_on_shop.setObjectName(u"level_selected_potion_on_shop")
+        self.level_selected_potion_on_shop.setWordWrap(True)
+
+        self.gridLayout_18.addWidget(self.level_selected_potion_on_shop, 2, 0, 1, 1)
 
         self.scrollArea_4.setWidget(self.scrollAreaWidgetContents_5)
 
@@ -1602,6 +1608,7 @@ class Ui_main_window(object):
         self.price_selected_potion_on_shop.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u043e\u0438\u043c\u043e\u0441\u0442\u044c", None))
         self.effect_selected_potion_on_shop.setText(QCoreApplication.translate("main_window", u"\u042d\u0444\u0444\u0435\u043a\u0442\u044b", None))
         self.description_selected_potion_on_shop.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", None))
+        self.level_selected_potion_on_shop.setText(QCoreApplication.translate("main_window", u"\u0423\u0440\u043e\u0432\u0435\u043d\u044c", None))
         self.game_shop_tabs.setTabText(self.game_shop_tabs.indexOf(self.potions_shop_tab), QCoreApplication.translate("main_window", u"\u0417\u0435\u043b\u044c\u044f", None))
         self.selected_goods_item_infobox_2.setTitle(QCoreApplication.translate("main_window", u"\u041e \u0442\u043e\u0432\u0430\u0440\u0435", None))
         self.label_16.setText(QCoreApplication.translate("main_window", u"\u041a\u043e\u043b\u0438\u0447\u0435\u0441\u0442\u0432\u043e:", None))
@@ -1681,4 +1688,3 @@ class Ui_main_window(object):
         self.settings_menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
         self.project_menu.setTitle(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442", None))
     # retranslateUi
-
