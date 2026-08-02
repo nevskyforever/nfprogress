@@ -17,6 +17,8 @@ for writers who prefer extra motivation.
   rewards, and streak freezes.
 - Run timed writing sessions, build inspiration, and complete adaptive daily
   goals and selectable weekly challenges.
+- Choose a writing specialization that rewards long sessions, rituals,
+  finishing projects, challenges, or editing work.
 - Check for and install application updates.
 
 ## Supported platforms

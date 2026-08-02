@@ -33,6 +33,31 @@ BASE_MAX_HEALTH = 100
 MAX_HEALTH_PER_5_LEVELS = 10
 MAX_INSPIRATION = 100
 INSPIRATION_SYMBOL_STEP = 500
+SPECIALIZATION_LEVEL = 3
+SPECIALIZATION_CHANGE_COOLDOWN_DAYS = 14
+
+SPECIALIZATIONS = {
+    'marathoner': {
+        'name': 'Марафонец',
+        'description': 'Даёт +15% монет и опыта за записи от 3 000 символов.',
+    },
+    'ritualist': {
+        'name': 'Ритуалист',
+        'description': 'Даёт +25% к награде за успешную писательскую сессию.',
+    },
+    'finisher': {
+        'name': 'Финишер',
+        'description': 'Даёт +20% к награде за завершение этапа или проекта.',
+    },
+    'explorer': {
+        'name': 'Исследователь',
+        'description': 'Даёт +20% к наградам за дневные и недельные испытания.',
+    },
+    'editor': {
+        'name': 'Редактор',
+        'description': 'Даёт +25% к награде за успешную редакторскую сессию.',
+    },
+}
 
 WEEKLY_CHALLENGES = {
     'symbols': {
@@ -261,6 +286,11 @@ def get_effective_now():
     return engine.now_for_test()
 
 
+def get_session_now():
+    """Возвращает реальное время для живого таймера писательской сессии."""
+    return datetime.now()
+
+
 class Gamer:
     # === 2. ИНИЦИАЛИЗАЦИЯ ===
     def __init__(self, level=1, exp=0, coins=0, health=100):
@@ -297,6 +327,8 @@ class Gamer:
         self.weekly_challenge = None
         self.writing_session = None
         self.session_reward_bonus = 0.0
+        self.specialization = None
+        self.specialization_changed_at = None
         self.sync_quests()
 
     def _make_cf_parameter(self, key, value, base_value=None):
@@ -669,6 +701,11 @@ class Gamer:
             self.weekly_challenge = None
         if not isinstance(self.writing_session, dict):
             self.writing_session = None
+        elif self.writing_session.get('clock_source') != 'wall':
+            # Старые сессии могли использовать зафиксированное время режима
+            # разработчика. Начинаем их таймер заново, не теряя прогресс.
+            self.writing_session['started_at'] = get_session_now()
+            self.writing_session['clock_source'] = 'wall'
         try:
             self.session_reward_bonus = min(1.0, max(0.0, float(self.session_reward_bonus)))
         except (TypeError, ValueError):
@@ -681,6 +718,59 @@ class Gamer:
         week_start = today - timedelta(days=today.weekday())
         if self.weekly_challenge and self.weekly_challenge.get('week_start') != week_start.isoformat():
             self.weekly_challenge = None
+
+        if self.specialization not in SPECIALIZATIONS:
+            self.specialization = None
+        if self.specialization_changed_at is not None:
+            try:
+                datetime.fromisoformat(str(self.specialization_changed_at))
+            except (TypeError, ValueError):
+                self.specialization_changed_at = None
+
+    def specialization_change_days_remaining(self):
+        self.normalize_motivation()
+        if self.specialization is None or self.specialization_changed_at is None:
+            return 0
+        changed_at = datetime.fromisoformat(str(self.specialization_changed_at)).date()
+        elapsed_days = (engine.today_for_test() - changed_at).days
+        return max(0, SPECIALIZATION_CHANGE_COOLDOWN_DAYS - elapsed_days)
+
+    def select_specialization(self, specialization_key, save=True):
+        self.normalize_motivation()
+        if self.level < SPECIALIZATION_LEVEL:
+            return False, f'Специализации открываются на {SPECIALIZATION_LEVEL} уровне.'
+        if specialization_key not in SPECIALIZATIONS:
+            return False, 'Неизвестная специализация.'
+        if specialization_key == self.specialization:
+            return False, 'Эта специализация уже выбрана.'
+
+        days_remaining = self.specialization_change_days_remaining()
+        if days_remaining > 0:
+            return False, f'Сменить специализацию можно через {days_remaining} дн.'
+
+        self.specialization = specialization_key
+        self.specialization_changed_at = engine.today_for_test().isoformat()
+        if save:
+            self.save()
+        return True, f'Выбрана специализация «{SPECIALIZATIONS[specialization_key]["name"]}».'
+
+    def get_specialization_reward_multiplier(self, reward_type, symbols=0, intention=None):
+        specialization = self.specialization
+        if specialization == 'marathoner' and reward_type == 'writing' and symbols >= 3000:
+            return 1.15
+        if specialization == 'ritualist' and reward_type == 'session':
+            return 1.25
+        if specialization == 'finisher' and reward_type == 'completion':
+            return 1.2
+        if specialization == 'explorer' and reward_type == 'challenge':
+            return 1.2
+        if (
+                specialization == 'editor'
+                and reward_type == 'session'
+                and intention == 'Отредактировать текст'
+        ):
+            return 1.25
+        return 1.0
 
     @staticmethod
     def calculate_adaptive_daily_target(data=None):
@@ -755,7 +845,8 @@ class Gamer:
             return False, 'Выберите длительность и положительную цель сессии.'
 
         self.writing_session = {
-            'started_at': get_effective_now(),
+            'started_at': get_session_now(),
+            'clock_source': 'wall',
             'duration_minutes': duration_minutes,
             'target_symbols': target_symbols,
             'progress': 0,
@@ -773,8 +864,8 @@ class Gamer:
         if not isinstance(started_at, datetime):
             return 0
         duration = self.writing_session.get('duration_minutes', 0) * 60
-        elapsed = (get_effective_now() - started_at).total_seconds()
-        return max(0, int(duration - elapsed))
+        elapsed = (get_session_now() - started_at).total_seconds()
+        return max(0, math.ceil(duration - elapsed))
 
     def finish_writing_session(self, save=True):
         self.normalize_motivation()
@@ -790,7 +881,12 @@ class Gamer:
             return False, 'Сессия завершена. Цель не достигнута — штрафа нет.'
 
         self.inspiration = min(MAX_INSPIRATION, self.inspiration + 10)
-        reward_multiplier = 1 + self.session_reward_bonus
+        reward_multiplier = (
+            (1 + self.session_reward_bonus)
+            * self.get_specialization_reward_multiplier(
+                'session', intention=session.get('intention')
+            )
+        )
         self.session_reward_bonus = 0.0
         coins = self.set_coins(25 * self.calculate_inflation() * reward_multiplier, save=False)
         exp = self.add_exp(250 * reward_multiplier)
@@ -834,8 +930,12 @@ class Gamer:
         if challenge['progress'] < meta['target']:
             return None
         challenge['completed'] = True
-        coins = self.set_coins(meta['reward_coins'] * self.calculate_inflation(), save=False)
-        exp = self.add_exp(meta['reward_exp'])
+        reward_multiplier = self.get_specialization_reward_multiplier('challenge')
+        coins = self.set_coins(
+            meta['reward_coins'] * self.calculate_inflation() * reward_multiplier,
+            save=False,
+        )
+        exp = self.add_exp(meta['reward_exp'] * reward_multiplier)
         self.inspiration = min(MAX_INSPIRATION, self.inspiration + 20)
         return f'Недельное испытание завершено! Получено {coins} монет, {exp} опыта и 20 вдохновения.'
 
@@ -857,8 +957,12 @@ class Gamer:
         daily['progress'] += symbols
         if not daily['completed'] and daily['progress'] >= daily['target']:
             daily['completed'] = True
-            coins = self.set_coins(daily['target'] / 20 * self.calculate_inflation(), save=False)
-            exp = self.add_exp(daily['target'] * 0.5)
+            reward_multiplier = self.get_specialization_reward_multiplier('challenge')
+            coins = self.set_coins(
+                daily['target'] / 20 * self.calculate_inflation() * reward_multiplier,
+                save=False,
+            )
+            exp = self.add_exp(daily['target'] * 0.5 * reward_multiplier)
             self.inspiration = min(MAX_INSPIRATION, self.inspiration + 10)
             messages.append(
                 f'Адаптивная цель дня выполнена! Получено {coins} монет, {exp} опыта и 10 вдохновения.'
@@ -872,14 +976,17 @@ class Gamer:
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols):
         self.normalize_motivation()
-        inspiration_multiplier = 1 + self.inspiration / MAX_INSPIRATION * 0.1
+        reward_multiplier = (
+            (1 + self.inspiration / MAX_INSPIRATION * 0.1)
+            * self.get_specialization_reward_multiplier('writing', symbols=symbols)
+        )
         exp_cf = self.get_cf_value('exp', 1.0)
         exps = self.add_exp(
-            symbols / 100 * game_data.base_exp_bonus * exp_cf * inspiration_multiplier
+            symbols / 100 * game_data.base_exp_bonus * exp_cf * reward_multiplier
         )
         self.save()
         coins_cf = self.get_cf_value('coins', 1.0)
-        coins = symbols / 100 * game_data.base_coin_bonus * coins_cf * inspiration_multiplier
+        coins = symbols / 100 * game_data.base_coin_bonus * coins_cf * reward_multiplier
         coins = self.set_coins(coins)
         motivation_messages = self.record_motivation_progress(symbols)
         self.save()
@@ -986,6 +1093,7 @@ class Gamer:
         if project_name and not self.mark_complete_bonus_received(project_name):
             return None
 
+        bonus_multiplier *= self.get_specialization_reward_multiplier('completion')
         cf_total = round(project_total / 1000 + 0.5)  # обычное деление, не целочисленное
         cf_coins = self.get_cf_value('coins')
         cf_exp = self.get_cf_value('exp')
@@ -1368,6 +1476,7 @@ class Gamer:
         had_skill_award_marker = hasattr(self, 'skill_points_awarded_for_level')
         had_max_health_marker = hasattr(self, 'max_health')
         had_motivation_marker = hasattr(self, 'inspiration')
+        had_specialization_marker = hasattr(self, 'specialization')
         complete_bonus_projects_migrated = not hasattr(self, 'complete_bonus_projects')
         defaults = {
             'level': 1,
@@ -1401,6 +1510,8 @@ class Gamer:
             'weekly_challenge': None,
             'writing_session': None,
             'session_reward_bonus': 0.0,
+            'specialization': None,
+            'specialization_changed_at': None,
             'pending_quest_item_migration_notification': None,
         }
 
@@ -1500,7 +1611,8 @@ class Gamer:
 
         if (migrated_awards or migrated_inventory or migrated_buff_names
                 or skill_points_migrated or max_health_migrated or complete_bonus_projects_migrated
-                or migrated_quest_item_rewards or not had_motivation_marker):
+                or migrated_quest_item_rewards or not had_motivation_marker
+                or not had_specialization_marker):
             self.save()
 
     def calculate_inflation(self):

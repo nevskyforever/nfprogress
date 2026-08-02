@@ -45,6 +45,15 @@ def test_formatted_messages_preserve_runtime_values():
     assert tr(source, "de") == 'Projekt „Черновик“ existiert bereits!'
 
 
+def test_specialization_terms_and_cooldown_are_localized():
+    assert tr('Исследователь', 'en') == 'Explorer'
+    assert tr('Редактор', 'de') == 'Lektor'
+    assert tr('Марафонец', 'es') == 'Maratonista'
+    assert tr('Смена будет доступна через 9 дн.', 'fr') == (
+        'La spécialisation pourra être changée dans 9 jours.'
+    )
+
+
 def test_non_russian_languages_share_the_english_agreement():
     for language in TARGET_LANGUAGES:
         assert tr(AGREEMENT_SOURCE, language) == ENGLISH_AGREEMENT_HTML

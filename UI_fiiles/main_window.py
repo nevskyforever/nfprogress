@@ -1594,6 +1594,32 @@ class Ui_main_window(object):
 
         self.writing_rhythm_layout.addWidget(self.cancel_writing_session_button, 7, 2, 1, 1)
 
+        self.specialization_title_label = QLabel(self.writing_rhythm_tab)
+        self.specialization_title_label.setObjectName(u"specialization_title_label")
+
+        self.writing_rhythm_layout.addWidget(self.specialization_title_label, 8, 0, 1, 3)
+
+        self.specialization_combo = QComboBox(self.writing_rhythm_tab)
+        self.specialization_combo.addItem("")
+        self.specialization_combo.addItem("")
+        self.specialization_combo.addItem("")
+        self.specialization_combo.addItem("")
+        self.specialization_combo.addItem("")
+        self.specialization_combo.setObjectName(u"specialization_combo")
+
+        self.writing_rhythm_layout.addWidget(self.specialization_combo, 9, 0, 1, 2)
+
+        self.select_specialization_button = QPushButton(self.writing_rhythm_tab)
+        self.select_specialization_button.setObjectName(u"select_specialization_button")
+
+        self.writing_rhythm_layout.addWidget(self.select_specialization_button, 9, 2, 1, 1)
+
+        self.specialization_status = QLabel(self.writing_rhythm_tab)
+        self.specialization_status.setObjectName(u"specialization_status")
+        self.specialization_status.setWordWrap(True)
+
+        self.writing_rhythm_layout.addWidget(self.specialization_status, 10, 0, 1, 3)
+
         self.parameters_tabs.addTab(self.writing_rhythm_tab, "")
 
         self.gridLayout_5.addWidget(self.parameters_tabs, 2, 0, 1, 1)
@@ -1813,6 +1839,15 @@ class Ui_main_window(object):
         self.start_writing_session_button.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u0447\u0430\u0442\u044c \u0441\u0435\u0441\u0441\u0438\u044e", None))
         self.finish_writing_session_button.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c", None))
         self.cancel_writing_session_button.setText(QCoreApplication.translate("main_window", u"\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c", None))
+        self.specialization_title_label.setText(QCoreApplication.translate("main_window", u"\u0421\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044f \u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0430", None))
+        self.specialization_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u041c\u0430\u0440\u0430\u0444\u043e\u043d\u0435\u0446", None))
+        self.specialization_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u0420\u0438\u0442\u0443\u0430\u043b\u0438\u0441\u0442", None))
+        self.specialization_combo.setItemText(2, QCoreApplication.translate("main_window", u"\u0424\u0438\u043d\u0438\u0448\u0435\u0440", None))
+        self.specialization_combo.setItemText(3, QCoreApplication.translate("main_window", u"\u0418\u0441\u0441\u043b\u0435\u0434\u043e\u0432\u0430\u0442\u0435\u043b\u044c", None))
+        self.specialization_combo.setItemText(4, QCoreApplication.translate("main_window", u"\u0420\u0435\u0434\u0430\u043a\u0442\u043e\u0440", None))
+
+        self.select_specialization_button.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0440\u0430\u0442\u044c \u0441\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044e", None))
+        self.specialization_status.setText(QCoreApplication.translate("main_window", u"\u0421\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044f \u043d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d\u0430.", None))
         self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.writing_rhythm_tab), QCoreApplication.translate("main_window", u"\u0422\u0432\u043e\u0440\u0447\u0435\u0441\u043a\u0438\u0439 \u0440\u0438\u0442\u043c", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.game_tab), QCoreApplication.translate("main_window", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
         self.settings_menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))

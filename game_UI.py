@@ -76,6 +76,7 @@ class GameMenuController:
         'Отредактировать текст',
         'Составить план',
     )
+    SPECIALIZATION_KEYS = tuple(game.SPECIALIZATIONS)
 
     SHOP_TABS = (
         {
@@ -148,6 +149,7 @@ class GameMenuController:
         self.timer = QTimer()
         self.timer.timeout.connect(self.update_game_data)
         self.timer.start(1000)  # Обновление каждую секунду
+        self.setup_writing_session_timer()
 
         # Банк доступен из игрового меню.
         self.ui.bank_btn.setVisible(True)
@@ -295,6 +297,7 @@ class GameMenuController:
         self.ui.start_writing_session_button.clicked.connect(self.on_start_writing_session)
         self.ui.finish_writing_session_button.clicked.connect(self.on_finish_writing_session)
         self.ui.cancel_writing_session_button.clicked.connect(self.on_cancel_writing_session)
+        self.ui.select_specialization_button.clicked.connect(self.on_select_specialization)
 
         # Создание своей награды
 
@@ -718,6 +721,7 @@ class GameMenuController:
             )
 
         session = self.gamer.writing_session
+        self.update_specialization_ui()
         session_active = session is not None
         self.ui.start_writing_session_button.setEnabled(not session_active)
         self.ui.finish_writing_session_button.setEnabled(session_active)
@@ -729,6 +733,24 @@ class GameMenuController:
             self.ui.writing_session_status.setText(tr('Нет активной писательской сессии.'))
             return
 
+        self.update_writing_session_status(session)
+
+    def setup_writing_session_timer(self):
+        """Запускает независимое ежесекундное обновление таймера сессии."""
+        parent = getattr(self.ui, 'centralwidget', None)
+        self.writing_session_timer = QTimer(parent)
+        self.writing_session_timer.setTimerType(Qt.TimerType.PreciseTimer)
+        self.writing_session_timer.setInterval(1000)
+        self.writing_session_timer.timeout.connect(self.update_writing_session_clock)
+        self.writing_session_timer.start()
+
+    def update_writing_session_clock(self):
+        """Обновляет только часы сессии, не перерисовывая игровое меню."""
+        if not self.gamer or self.gamer.writing_session is None:
+            return
+        self.update_writing_session_status(self.gamer.writing_session)
+
+    def update_writing_session_status(self, session):
         remaining = self.gamer.writing_session_remaining_seconds()
         minutes, seconds = divmod(remaining, 60)
         progress = session.get('progress', 0)
@@ -778,6 +800,43 @@ class GameMenuController:
         self.update_motivation_ui()
         if self.notifications:
             (self.notifications.show_info if ok else self.notifications.show_warning)(message)
+
+    def update_specialization_ui(self):
+        specialization = self.gamer.specialization
+        days_remaining = self.gamer.specialization_change_days_remaining()
+        unlocked = self.gamer.level >= game.SPECIALIZATION_LEVEL
+        can_change = unlocked and days_remaining == 0
+        self.ui.specialization_combo.setEnabled(can_change)
+        self.ui.select_specialization_button.setEnabled(can_change)
+
+        if specialization in self.SPECIALIZATION_KEYS:
+            self.ui.specialization_combo.setCurrentIndex(
+                self.SPECIALIZATION_KEYS.index(specialization)
+            )
+
+        if not unlocked:
+            self.ui.specialization_status.setText(
+                tr(f'Специализации откроются на {game.SPECIALIZATION_LEVEL} уровне.')
+            )
+            return
+        if specialization is None:
+            self.ui.specialization_status.setText(tr('Специализация не выбрана.'))
+            return
+
+        meta = game.SPECIALIZATIONS[specialization]
+        status = f"{tr(meta['name'])}. {tr(meta['description'])}"
+        if days_remaining > 0:
+            status += f" {tr(f'Смена будет доступна через {days_remaining} дн.')}"
+        self.ui.specialization_status.setText(status)
+
+    def on_select_specialization(self):
+        index = self.ui.specialization_combo.currentIndex()
+        if not 0 <= index < len(self.SPECIALIZATION_KEYS):
+            return
+        ok, message = self.gamer.select_specialization(self.SPECIALIZATION_KEYS[index])
+        self.update_specialization_ui()
+        if self.notifications:
+            (self.notifications.show_success if ok else self.notifications.show_warning)(message)
 
     def load_gamer_parameters_list(self):
         """Загружает список параметров персонажа."""

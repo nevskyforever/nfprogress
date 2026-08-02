@@ -166,6 +166,12 @@ TRANSLATION_OVERRIDES = {
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Permanent bonus to the health recovery ratio.",
         "символов": "characters",
         " символов": " characters",
+        "Марафонец": "Marathoner",
+        "Ритуалист": "Ritualist",
+        "Финишер": "Finisher",
+        "Исследователь": "Explorer",
+        "Редактор": "Editor",
+        "Смена будет доступна через {0} дн.": "Specialization can be changed in {0} days.",
     },
     "es": {
         "Стрики": "Rachas",
@@ -205,6 +211,12 @@ TRANSLATION_OVERRIDES = {
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Bono permanente a la proporción de recuperación de salud.",
         "символов": "caracteres",
         " символов": " caracteres",
+        "Марафонец": "Maratonista",
+        "Ритуалист": "Ritualista",
+        "Финишер": "Finalizador",
+        "Исследователь": "Explorador",
+        "Редактор": "Editor",
+        "Смена будет доступна через {0} дн.": "La especialización se podrá cambiar dentro de {0} días.",
     },
     "de": {
         "Стрики": "Serien",
@@ -244,6 +256,12 @@ TRANSLATION_OVERRIDES = {
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Dauerhafter Bonus auf den Gesundheitsregenerationsfaktor.",
         "символов": "Zeichen",
         " символов": " Zeichen",
+        "Марафонец": "Marathonläufer",
+        "Ритуалист": "Ritualist",
+        "Финишер": "Finisher",
+        "Исследователь": "Entdecker",
+        "Редактор": "Lektor",
+        "Смена будет доступна через {0} дн.": "Die Spezialisierung kann in {0} Tagen geändert werden.",
     },
     "fr": {
         "Стрики": "Séries",
@@ -283,6 +301,12 @@ TRANSLATION_OVERRIDES = {
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Bonus permanent au ratio de récupération de santé.",
         "символов": "caractères",
         " символов": " caractères",
+        "Марафонец": "Marathonien",
+        "Ритуалист": "Ritualiste",
+        "Финишер": "Finisseur",
+        "Исследователь": "Explorateur",
+        "Редактор": "Réviseur",
+        "Смена будет доступна через {0} дн.": "La spécialisation pourra être changée dans {0} jours.",
     },
     "pt_BR": {
         "Стрики": "Sequências",
@@ -322,6 +346,12 @@ TRANSLATION_OVERRIDES = {
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Bônus permanente para a proporção de recuperação de saúde.",
         "символов": "caracteres",
         " символов": " caracteres",
+        "Марафонец": "Maratonista",
+        "Ритуалист": "Ritualista",
+        "Финишер": "Finalizador",
+        "Исследователь": "Explorador",
+        "Редактор": "Editor",
+        "Смена будет доступна через {0} дн.": "A especialização poderá ser alterada em {0} dias.",
     },
 }
 
@@ -405,7 +435,8 @@ def _template_regex(template: str) -> tuple[re.Pattern[str], list[str]] | None:
 @lru_cache(maxsize=None)
 def _template_entries(language: str, reverse: bool = False):
     entries = []
-    language_catalog = TRANSLATIONS.get(language, {})
+    language_catalog = dict(TRANSLATIONS.get(language, {}))
+    language_catalog.update(TRANSLATION_OVERRIDES.get(language, {}))
     for source, translated in language_catalog.items():
         template = translated if reverse else source
         replacement = source if reverse else translated

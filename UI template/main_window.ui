@@ -2970,6 +2970,31 @@
               <property name="text"><string>Отменить</string></property>
              </widget>
             </item>
+            <item row="8" column="0" colspan="3">
+             <widget class="QLabel" name="specialization_title_label">
+              <property name="text"><string>Специализация персонажа</string></property>
+             </widget>
+            </item>
+            <item row="9" column="0" colspan="2">
+             <widget class="QComboBox" name="specialization_combo">
+              <item><property name="text"><string>Марафонец</string></property></item>
+              <item><property name="text"><string>Ритуалист</string></property></item>
+              <item><property name="text"><string>Финишер</string></property></item>
+              <item><property name="text"><string>Исследователь</string></property></item>
+              <item><property name="text"><string>Редактор</string></property></item>
+             </widget>
+            </item>
+            <item row="9" column="2">
+             <widget class="QPushButton" name="select_specialization_button">
+              <property name="text"><string>Выбрать специализацию</string></property>
+             </widget>
+            </item>
+            <item row="10" column="0" colspan="3">
+             <widget class="QLabel" name="specialization_status">
+              <property name="text"><string>Специализация не выбрана.</string></property>
+              <property name="wordWrap"><bool>true</bool></property>
+             </widget>
+            </item>
            </layout>
           </widget>
          </widget>
