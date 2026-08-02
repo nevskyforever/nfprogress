@@ -149,6 +149,10 @@ Creative rhythm is coordinated by `game.py` and `game_UI.py`:
   bonus field. Keep its order synchronized with `inspiration_ability_combo`. Spend
   inspiration only after validation, reject a second pending effect of the same
   type, and consume the bonus only when the promised reward is actually granted.
+* Specialization mastery is stored as cumulative XP in
+  `Gamer.specialization_mastery`; ranks are derived from
+  `SPECIALIZATION_MASTERY_THRESHOLDS`. Award mastery only for an action matching the
+  currently selected specialization, and derive its passive bonus from the rank.
 * A writing session is stored in `Gamer.writing_session`. Its timer uses wall-clock
   time through `get_session_now()` and is refreshed by the existing one-second
   `QTimer`; do not implement a blocking timer or decrement the saved duration.

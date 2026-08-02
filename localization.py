@@ -387,6 +387,7 @@ TRANSLATION_OVERRIDES = {
         "Творческий импульс": "Impulso criativo",
         "Искра сессии": "Centelha da sessão",
         "Фокус испытания": "Foco no desafio",
+        "Ранг": "Grau",
     },
 }
 

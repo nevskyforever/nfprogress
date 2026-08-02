@@ -1618,7 +1618,14 @@ class Ui_main_window(object):
         self.specialization_title_label = QLabel(self.writing_rhythm_tab)
         self.specialization_title_label.setObjectName(u"specialization_title_label")
 
-        self.writing_rhythm_layout.addWidget(self.specialization_title_label, 8, 0, 1, 3)
+        self.writing_rhythm_layout.addWidget(self.specialization_title_label, 8, 0, 1, 1)
+
+        self.specialization_mastery_progressbar = QProgressBar(self.writing_rhythm_tab)
+        self.specialization_mastery_progressbar.setObjectName(u"specialization_mastery_progressbar")
+        self.specialization_mastery_progressbar.setMaximum(3)
+        self.specialization_mastery_progressbar.setValue(0)
+
+        self.writing_rhythm_layout.addWidget(self.specialization_mastery_progressbar, 8, 1, 1, 2)
 
         self.specialization_combo = QComboBox(self.writing_rhythm_tab)
         self.specialization_combo.addItem("")
@@ -1938,6 +1945,7 @@ class Ui_main_window(object):
         self.finish_writing_session_button.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c", None))
         self.cancel_writing_session_button.setText(QCoreApplication.translate("main_window", u"\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c", None))
         self.specialization_title_label.setText(QCoreApplication.translate("main_window", u"\u0421\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044f \u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0430", None))
+        self.specialization_mastery_progressbar.setFormat(QCoreApplication.translate("main_window", u"\u041c\u0430\u0441\u0442\u0435\u0440\u0441\u0442\u0432\u043e", None))
         self.specialization_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u041c\u0430\u0440\u0430\u0444\u043e\u043d\u0435\u0446", None))
         self.specialization_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u0420\u0438\u0442\u0443\u0430\u043b\u0438\u0441\u0442", None))
         self.specialization_combo.setItemText(2, QCoreApplication.translate("main_window", u"\u0424\u0438\u043d\u0438\u0448\u0435\u0440", None))

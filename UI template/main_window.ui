@@ -2990,9 +2990,16 @@
               <property name="text"><string>Отменить</string></property>
              </widget>
             </item>
-            <item row="8" column="0" colspan="3">
+            <item row="8" column="0">
              <widget class="QLabel" name="specialization_title_label">
               <property name="text"><string>Специализация персонажа</string></property>
+             </widget>
+            </item>
+            <item row="8" column="1" colspan="2">
+             <widget class="QProgressBar" name="specialization_mastery_progressbar">
+              <property name="maximum"><number>3</number></property>
+              <property name="value"><number>0</number></property>
+              <property name="format"><string>Мастерство</string></property>
              </widget>
             </item>
             <item row="9" column="0" colspan="2">

@@ -174,7 +174,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
         'writing_session', 'writing_reward_bonus', 'session_reward_bonus',
         'challenge_reward_bonus', 'specialization',
         'manuscript_reward_bonus',
-        'specialization_changed_at', 'manuscript_journeys',
+        'specialization_changed_at', 'specialization_mastery', 'manuscript_journeys',
         'cabinet_relics',
     ):
         delattr(gamer, attribute)
@@ -191,6 +191,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     assert gamer.manuscript_reward_bonus == 0
     assert gamer.specialization is None
     assert gamer.specialization_changed_at is None
+    assert gamer.specialization_mastery == {}
     assert gamer.manuscript_journeys == {}
     assert gamer.cabinet_relics == []
 
@@ -218,6 +219,35 @@ def test_specialization_unlock_and_change_cooldown(monkeypatch):
     assert ok is True
 
 
+def test_specialization_mastery_increases_rank_and_bonus(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.specialization = 'marathoner'
+    gamer.daily_challenge['target'] = 100000
+
+    for _ in range(3):
+        gamer.give_symbol_bonus(3000)
+
+    assert gamer.specialization_mastery['marathoner'] == 3
+    assert gamer.specialization_mastery_rank() == 2
+    assert gamer.get_specialization_bonus() == 0.175
+
+
+def test_profile_actions_advance_matching_mastery(monkeypatch):
+    ritualist = make_gamer(monkeypatch)
+    ritualist.specialization = 'ritualist'
+    ritualist.start_writing_session(15, 100, 'Продолжить черновик', save=False)
+    ritualist.record_motivation_progress(100)
+    ritualist.finish_writing_session(save=False)
+
+    explorer = make_gamer(monkeypatch)
+    explorer.specialization = 'explorer'
+    explorer.daily_challenge['target'] = 100
+    explorer.record_motivation_progress(100)
+
+    assert ritualist.specialization_mastery['ritualist'] == 1
+    assert explorer.specialization_mastery['explorer'] == 1
+
+
 def test_marathoner_rewards_large_entries(monkeypatch):
     gamer = make_gamer(monkeypatch)
     gamer.specialization = 'marathoner'
@@ -240,6 +270,7 @@ def test_editor_rewards_editorial_session(monkeypatch):
     assert ok is True
     assert gamer.coins == 31.3
     assert gamer.exp == 312.5
+    assert gamer.specialization_mastery['editor'] == 1
 
 
 def test_editorial_session_advances_editorial_week(monkeypatch):
@@ -284,6 +315,7 @@ def test_finisher_increases_completion_reward(monkeypatch):
 
     assert gamer.coins == 240
     assert gamer.exp == 24000
+    assert gamer.specialization_mastery['finisher'] == 3
 
 
 def test_explorer_increases_daily_challenge_reward(monkeypatch):

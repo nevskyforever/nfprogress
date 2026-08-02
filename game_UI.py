@@ -855,6 +855,7 @@ class GameMenuController:
         can_change = unlocked and days_remaining == 0
         self.ui.specialization_combo.setEnabled(can_change)
         self.ui.select_specialization_button.setEnabled(can_change)
+        mastery_bar = self.ui.specialization_mastery_progressbar
 
         if specialization in self.SPECIALIZATION_KEYS:
             self.ui.specialization_combo.setCurrentIndex(
@@ -862,16 +863,37 @@ class GameMenuController:
             )
 
         if not unlocked:
+            mastery_bar.setRange(0, 1)
+            mastery_bar.setValue(0)
+            mastery_bar.setFormat(tr('Мастерство недоступно'))
             self.ui.specialization_status.setText(
                 tr(f'Специализации откроются на {game.SPECIALIZATION_LEVEL} уровне.')
             )
             return
         if specialization is None:
+            mastery_bar.setRange(0, 1)
+            mastery_bar.setValue(0)
+            mastery_bar.setFormat(tr('Выберите специализацию'))
             self.ui.specialization_status.setText(tr('Специализация не выбрана.'))
             return
 
         meta = game.SPECIALIZATIONS[specialization]
-        status = f"{tr(meta['name'])}. {tr(meta['description'])}"
+        rank = self.gamer.specialization_mastery_rank(specialization)
+        mastery = self.gamer.specialization_mastery.get(specialization, 0)
+        if rank < len(game.SPECIALIZATION_MASTERY_THRESHOLDS):
+            next_threshold = game.SPECIALIZATION_MASTERY_THRESHOLDS[rank]
+            mastery_bar.setRange(0, next_threshold)
+            mastery_bar.setValue(min(mastery, next_threshold))
+            mastery_bar.setFormat(
+                f"{tr('Ранг')} {rank} · {mastery}/{next_threshold}"
+            )
+        else:
+            mastery_bar.setRange(0, 1)
+            mastery_bar.setValue(1)
+            mastery_bar.setFormat(f"{tr('Ранг')} {rank} · {tr('максимум')}")
+        current_bonus = self.gamer.get_specialization_bonus(specialization) * 100
+        status = f"{tr(meta['name'])}. {tr('Текущий бонус')}: +{current_bonus:g}%."
+        self.ui.specialization_status.setToolTip(tr(meta['description']))
         if days_remaining > 0:
             status += f" {tr(f'Смена будет доступна через {days_remaining} дн.')}"
         self.ui.specialization_status.setText(status)
