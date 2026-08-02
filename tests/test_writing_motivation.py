@@ -324,3 +324,10 @@ def test_cabinet_relics_unlock_from_manuscript_achievements(monkeypatch):
         'ink_candle', 'plot_map', 'first_binding', 'chapter_shelf'
     ]
     assert any('Полка первых глав' in message for message in messages)
+
+
+def test_cabinet_relics_define_card_text():
+    for relic in game.CABINET_RELICS.values():
+        assert relic['name']
+        assert relic['description']
+        assert relic['condition']

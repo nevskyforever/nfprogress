@@ -1634,6 +1634,50 @@ class Ui_main_window(object):
         self.writing_rhythm_layout.addWidget(self.cabinet_collection_status, 11, 0, 1, 3)
 
         self.parameters_tabs.addTab(self.writing_rhythm_tab, "")
+        self.cabinet_tab = QWidget()
+        self.cabinet_tab.setObjectName(u"cabinet_tab")
+        self.cabinet_layout = QHBoxLayout(self.cabinet_tab)
+        self.cabinet_layout.setObjectName(u"cabinet_layout")
+        self.cabinet_relics_list = QListWidget(self.cabinet_tab)
+        self.cabinet_relics_list.setObjectName(u"cabinet_relics_list")
+
+        self.cabinet_layout.addWidget(self.cabinet_relics_list)
+
+        self.cabinet_relic_details = QGroupBox(self.cabinet_tab)
+        self.cabinet_relic_details.setObjectName(u"cabinet_relic_details")
+        self.cabinet_relic_details_layout = QVBoxLayout(self.cabinet_relic_details)
+        self.cabinet_relic_details_layout.setObjectName(u"cabinet_relic_details_layout")
+        self.cabinet_relic_name = QLabel(self.cabinet_relic_details)
+        self.cabinet_relic_name.setObjectName(u"cabinet_relic_name")
+        self.cabinet_relic_name.setWordWrap(True)
+
+        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_name)
+
+        self.cabinet_relic_unlock_status = QLabel(self.cabinet_relic_details)
+        self.cabinet_relic_unlock_status.setObjectName(u"cabinet_relic_unlock_status")
+
+        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_unlock_status)
+
+        self.cabinet_relic_description = QLabel(self.cabinet_relic_details)
+        self.cabinet_relic_description.setObjectName(u"cabinet_relic_description")
+        self.cabinet_relic_description.setWordWrap(True)
+
+        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_description)
+
+        self.cabinet_relic_condition = QLabel(self.cabinet_relic_details)
+        self.cabinet_relic_condition.setObjectName(u"cabinet_relic_condition")
+        self.cabinet_relic_condition.setWordWrap(True)
+
+        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_condition)
+
+        self.cabinet_relic_spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.cabinet_relic_details_layout.addItem(self.cabinet_relic_spacer)
+
+
+        self.cabinet_layout.addWidget(self.cabinet_relic_details)
+
+        self.parameters_tabs.addTab(self.cabinet_tab, "")
 
         self.gridLayout_5.addWidget(self.parameters_tabs, 2, 0, 1, 1)
 
@@ -1864,6 +1908,12 @@ class Ui_main_window(object):
         self.specialization_status.setText(QCoreApplication.translate("main_window", u"\u0421\u043f\u0435\u0446\u0438\u0430\u043b\u0438\u0437\u0430\u0446\u0438\u044f \u043d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d\u0430.", None))
         self.cabinet_collection_status.setText(QCoreApplication.translate("main_window", u"\u041a\u0430\u0431\u0438\u043d\u0435\u0442 \u043f\u0438\u0441\u0430\u0442\u0435\u043b\u044f: \u0440\u0435\u043b\u0438\u043a\u0432\u0438\u0439 \u043f\u043e\u043a\u0430 \u043d\u0435\u0442.", None))
         self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.writing_rhythm_tab), QCoreApplication.translate("main_window", u"\u0422\u0432\u043e\u0440\u0447\u0435\u0441\u043a\u0438\u0439 \u0440\u0438\u0442\u043c", None))
+        self.cabinet_relic_details.setTitle(QCoreApplication.translate("main_window", u"\u0420\u0435\u043b\u0438\u043a\u0432\u0438\u044f", None))
+        self.cabinet_relic_name.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0440\u0435\u043b\u0438\u043a\u0432\u0438\u044e", None))
+        self.cabinet_relic_unlock_status.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u0430\u0442\u0443\u0441", None))
+        self.cabinet_relic_description.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u0440\u0435\u043b\u0438\u043a\u0432\u0438\u0438", None))
+        self.cabinet_relic_condition.setText(QCoreApplication.translate("main_window", u"\u0423\u0441\u043b\u043e\u0432\u0438\u0435 \u043e\u0442\u043a\u0440\u044b\u0442\u0438\u044f", None))
+        self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.cabinet_tab), QCoreApplication.translate("main_window", u"\u041a\u0430\u0431\u0438\u043d\u0435\u0442", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.game_tab), QCoreApplication.translate("main_window", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
         self.settings_menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
         self.project_menu.setTitle(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442", None))

@@ -132,6 +132,7 @@ class GameMenuController:
         self.notifications = notifications
         self.gamer = None
         self._last_quest_check_at = None
+        self._cabinet_signature = None
 
         # Загружаем игрока
         self.load_gamer()
@@ -298,6 +299,9 @@ class GameMenuController:
         self.ui.finish_writing_session_button.clicked.connect(self.on_finish_writing_session)
         self.ui.cancel_writing_session_button.clicked.connect(self.on_cancel_writing_session)
         self.ui.select_specialization_button.clicked.connect(self.on_select_specialization)
+        self.ui.cabinet_relics_list.currentItemChanged.connect(
+            lambda current, previous: self.on_cabinet_relic_selected(current)
+        )
 
         # Создание своей награды
 
@@ -836,15 +840,59 @@ class GameMenuController:
             self.ui.cabinet_collection_status.setText(
                 tr('Кабинет писателя: реликвий пока нет.')
             )
+        else:
+            names = ', '.join(
+                tr(game.CABINET_RELICS[relic_key]['name'])
+                for relic_key in relic_keys
+            )
+            self.ui.cabinet_collection_status.setText(
+                f"{tr('Кабинет писателя')} "
+                f"({len(relic_keys)}/{len(game.CABINET_RELICS)}): {names}"
+            )
+
+        signature = (tuple(relic_keys), tr('Кабинет писателя'))
+        if signature == self._cabinet_signature:
             return
-        names = ', '.join(
-            tr(game.CABINET_RELICS[relic_key]['name'])
-            for relic_key in relic_keys
+        self._cabinet_signature = signature
+        selected = self.ui.cabinet_relics_list.currentItem()
+        selected_key = selected.data(Qt.ItemDataRole.UserRole) if selected else None
+        self.ui.cabinet_relics_list.clear()
+        for relic_key, relic in game.CABINET_RELICS.items():
+            unlocked = relic_key in relic_keys
+            display_name = (
+                f"✓ {tr(relic['name'])}"
+                if unlocked else f"🔒 {tr('Неизвестная реликвия')}"
+            )
+            item = QListWidgetItem(display_name)
+            item.setData(Qt.ItemDataRole.UserRole, relic_key)
+            self.ui.cabinet_relics_list.addItem(item)
+            if relic_key == selected_key:
+                self.ui.cabinet_relics_list.setCurrentItem(item)
+        if self.ui.cabinet_relics_list.currentItem() is None:
+            self.ui.cabinet_relics_list.setCurrentRow(0)
+
+    def on_cabinet_relic_selected(self, item):
+        if item is None:
+            return
+        relic_key = item.data(Qt.ItemDataRole.UserRole)
+        relic = game.CABINET_RELICS.get(relic_key)
+        if relic is None:
+            return
+        unlocked = relic_key in self.gamer.cabinet_relics
+        self.ui.cabinet_relic_unlock_status.setText(
+            tr('Открыта') if unlocked else tr('Не открыта')
         )
-        self.ui.cabinet_collection_status.setText(
-            f"{tr('Кабинет писателя')} "
-            f"({len(relic_keys)}/{len(game.CABINET_RELICS)}): {names}"
+        self.ui.cabinet_relic_condition.setText(
+            f"{tr('Условие')}: {tr(relic['condition'])}"
         )
+        if unlocked:
+            self.ui.cabinet_relic_name.setText(tr(relic['name']))
+            self.ui.cabinet_relic_description.setText(tr(relic['description']))
+        else:
+            self.ui.cabinet_relic_name.setText(tr('Неизвестная реликвия'))
+            self.ui.cabinet_relic_description.setText(
+                tr('Описание откроется после получения реликвии.')
+            )
 
     def on_select_specialization(self):
         index = self.ui.specialization_combo.currentIndex()

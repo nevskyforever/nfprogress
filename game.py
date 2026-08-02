@@ -69,10 +69,34 @@ MANUSCRIPT_MILESTONES = (
 )
 
 CABINET_RELICS = {
-    'ink_candle': {'name': 'Чернильная свеча', 'required_progress': 10, 'required_projects': 1},
-    'plot_map': {'name': 'Карта сюжетных поворотов', 'required_progress': 50, 'required_projects': 1},
-    'first_binding': {'name': 'Переплёт первой рукописи', 'required_progress': 100, 'required_projects': 1},
-    'chapter_shelf': {'name': 'Полка первых глав', 'required_progress': 25, 'required_projects': 3},
+    'ink_candle': {
+        'name': 'Чернильная свеча',
+        'description': 'Маленький огонь, зажжённый первой настоящей работой над рукописью.',
+        'condition': 'Достигните рубежа 10% в одном тексте.',
+        'required_progress': 10,
+        'required_projects': 1,
+    },
+    'plot_map': {
+        'name': 'Карта сюжетных поворотов',
+        'description': 'Карта пройденного пути через середину большой истории.',
+        'condition': 'Достигните рубежа 50% в одном тексте.',
+        'required_progress': 50,
+        'required_projects': 1,
+    },
+    'first_binding': {
+        'name': 'Переплёт первой рукописи',
+        'description': 'Память о тексте, который прошёл весь путь от замысла до финала.',
+        'condition': 'Доведите один текст до 100%.',
+        'required_progress': 100,
+        'required_projects': 1,
+    },
+    'chapter_shelf': {
+        'name': 'Полка первых глав',
+        'description': 'Место для историй, каждая из которых уже обрела собственный голос.',
+        'condition': 'Доведите три разных текста минимум до 25%.',
+        'required_progress': 25,
+        'required_projects': 3,
+    },
 }
 
 WEEKLY_CHALLENGES = {

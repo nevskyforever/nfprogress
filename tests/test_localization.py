@@ -1,5 +1,6 @@
 import re
 
+import game
 import game_data
 from game_UI import (
     localized_game_description,
@@ -59,6 +60,15 @@ def test_manuscript_journey_terms_are_localized():
     assert tr('следующий рубеж', 'de') == 'nächster Meilenstein'
     assert tr('Искра замысла', 'pt_BR') == 'Centelha de uma ideia'
     assert tr('Путь этапа', 'es') == 'Ruta de la etapa'
+
+
+def test_cabinet_relic_cards_are_localized():
+    cyrillic = re.compile(r"[А-Яа-яЁё]")
+    for language in TARGET_LANGUAGES:
+        for relic in game.CABINET_RELICS.values():
+            assert not cyrillic.search(tr(relic['name'], language))
+            assert not cyrillic.search(tr(relic['description'], language))
+            assert not cyrillic.search(tr(relic['condition'], language))
 
 
 def test_non_russian_languages_share_the_english_agreement():
