@@ -722,6 +722,7 @@ class GameMenuController:
 
         session = self.gamer.writing_session
         self.update_specialization_ui()
+        self.update_cabinet_ui()
         session_active = session is not None
         self.ui.start_writing_session_button.setEnabled(not session_active)
         self.ui.finish_writing_session_button.setEnabled(session_active)
@@ -828,6 +829,22 @@ class GameMenuController:
         if days_remaining > 0:
             status += f" {tr(f'Смена будет доступна через {days_remaining} дн.')}"
         self.ui.specialization_status.setText(status)
+
+    def update_cabinet_ui(self):
+        relic_keys = self.gamer.cabinet_relics
+        if not relic_keys:
+            self.ui.cabinet_collection_status.setText(
+                tr('Кабинет писателя: реликвий пока нет.')
+            )
+            return
+        names = ', '.join(
+            tr(game.CABINET_RELICS[relic_key]['name'])
+            for relic_key in relic_keys
+        )
+        self.ui.cabinet_collection_status.setText(
+            f"{tr('Кабинет писателя')} "
+            f"({len(relic_keys)}/{len(game.CABINET_RELICS)}): {names}"
+        )
 
     def on_select_specialization(self):
         index = self.ui.specialization_combo.currentIndex()

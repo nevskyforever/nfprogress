@@ -68,6 +68,13 @@ MANUSCRIPT_MILESTONES = (
     {'progress': 100, 'name': 'Рукопись завершена', 'coins': 300, 'exp': 3000, 'inspiration': 10},
 )
 
+CABINET_RELICS = {
+    'ink_candle': {'name': 'Чернильная свеча', 'required_progress': 10, 'required_projects': 1},
+    'plot_map': {'name': 'Карта сюжетных поворотов', 'required_progress': 50, 'required_projects': 1},
+    'first_binding': {'name': 'Переплёт первой рукописи', 'required_progress': 100, 'required_projects': 1},
+    'chapter_shelf': {'name': 'Полка первых глав', 'required_progress': 25, 'required_projects': 3},
+}
+
 WEEKLY_CHALLENGES = {
     'symbols': {
         'name': 'Марафон',
@@ -339,6 +346,7 @@ class Gamer:
         self.specialization = None
         self.specialization_changed_at = None
         self.manuscript_journeys = {}
+        self.cabinet_relics = []
         self.sync_quests()
 
     def _make_cf_parameter(self, key, value, base_value=None):
@@ -747,6 +755,12 @@ class Gamer:
             for project_key, values in self.manuscript_journeys.items()
             if project_key and isinstance(values, (list, tuple, set))
         }
+        if not isinstance(self.cabinet_relics, list):
+            self.cabinet_relics = []
+        self.cabinet_relics = [
+            relic_key for relic_key in dict.fromkeys(self.cabinet_relics)
+            if relic_key in CABINET_RELICS
+        ]
 
     def specialization_change_days_remaining(self):
         self.normalize_motivation()
@@ -824,6 +838,23 @@ class Gamer:
                 f'{milestone["inspiration"]} вдохновения.'
             )
         received.sort()
+        messages.extend(self.unlock_cabinet_relics())
+        return messages
+
+    def unlock_cabinet_relics(self):
+        messages = []
+        for relic_key, relic in CABINET_RELICS.items():
+            if relic_key in self.cabinet_relics:
+                continue
+            qualifying_projects = sum(
+                relic['required_progress'] in milestones
+                or any(value >= relic['required_progress'] for value in milestones)
+                for milestones in self.manuscript_journeys.values()
+            )
+            if qualifying_projects < relic['required_projects']:
+                continue
+            self.cabinet_relics.append(relic_key)
+            messages.append(f'Новая реликвия в кабинете: «{relic["name"]}».')
         return messages
 
     def get_manuscript_journey_status(self, progress):
@@ -1561,6 +1592,7 @@ class Gamer:
         had_motivation_marker = hasattr(self, 'inspiration')
         had_specialization_marker = hasattr(self, 'specialization')
         had_journey_marker = hasattr(self, 'manuscript_journeys')
+        had_cabinet_marker = hasattr(self, 'cabinet_relics')
         complete_bonus_projects_migrated = not hasattr(self, 'complete_bonus_projects')
         defaults = {
             'level': 1,
@@ -1597,6 +1629,7 @@ class Gamer:
             'specialization': None,
             'specialization_changed_at': None,
             'manuscript_journeys': {},
+            'cabinet_relics': [],
             'pending_quest_item_migration_notification': None,
         }
 
@@ -1697,7 +1730,8 @@ class Gamer:
         if (migrated_awards or migrated_inventory or migrated_buff_names
                 or skill_points_migrated or max_health_migrated or complete_bonus_projects_migrated
                 or migrated_quest_item_rewards or not had_motivation_marker
-                or not had_specialization_marker or not had_journey_marker):
+                or not had_specialization_marker or not had_journey_marker
+                or not had_cabinet_marker):
             self.save()
 
     def calculate_inflation(self):

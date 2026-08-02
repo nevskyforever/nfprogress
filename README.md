@@ -21,6 +21,8 @@ for writers who prefer extra motivation.
   finishing projects, challenges, or editing work.
 - Follow each manuscript through rewarded progress milestones from the first
   idea to a completed draft.
+- Collect cosmetic relics for the writer's study by advancing manuscripts
+  and reaching major writing milestones.
 - Check for and install application updates.
 
 ## Supported platforms

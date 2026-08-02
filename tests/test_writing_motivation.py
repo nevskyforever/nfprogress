@@ -115,6 +115,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
         'inspiration', 'daily_challenge', 'weekly_challenge',
         'writing_session', 'session_reward_bonus', 'specialization',
         'specialization_changed_at', 'manuscript_journeys',
+        'cabinet_relics',
     ):
         delattr(gamer, attribute)
 
@@ -128,6 +129,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     assert gamer.specialization is None
     assert gamer.specialization_changed_at is None
     assert gamer.manuscript_journeys == {}
+    assert gamer.cabinet_relics == []
 
 
 def test_specialization_unlock_and_change_cooldown(monkeypatch):
@@ -285,13 +287,14 @@ def test_manuscript_journey_rewards_crossed_milestones_once(monkeypatch):
     exp_after_first_award = gamer.exp
     repeated_messages = gamer.advance_manuscript_journey('Роман', 52)
 
-    assert len(messages) == 3
+    assert len(messages) == 5
     assert repeated_messages == []
     assert gamer.manuscript_journeys['Роман'] == [10, 25, 50]
     assert coins_after_first_award == 175
     assert exp_after_first_award == 1750
     assert gamer.coins == coins_after_first_award
     assert gamer.exp == exp_after_first_award
+    assert gamer.cabinet_relics == ['ink_candle', 'plot_map']
 
 
 def test_manuscript_journey_status_and_rename(monkeypatch):
@@ -308,3 +311,16 @@ def test_manuscript_journey_status_and_rename(monkeypatch):
     assert renamed is True
     assert 'Черновик' not in gamer.manuscript_journeys
     assert gamer.manuscript_journeys['Новая рукопись'] == [10, 25]
+
+
+def test_cabinet_relics_unlock_from_manuscript_achievements(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+
+    gamer.advance_manuscript_journey('Роман', 100)
+    gamer.advance_manuscript_journey('Повесть', 25)
+    messages = gamer.advance_manuscript_journey('Рассказ', 25)
+
+    assert gamer.cabinet_relics == [
+        'ink_candle', 'plot_map', 'first_binding', 'chapter_shelf'
+    ]
+    assert any('Полка первых глав' in message for message in messages)
