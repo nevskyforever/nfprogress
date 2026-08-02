@@ -719,8 +719,14 @@ class Project:
 
         # === 3. ПЕРЕСЧЕТ ПЛАНА (Инициализация) ===
 
-        today_added_symbols = 0
-        if hasattr(self, 'streaks') and isinstance(self.streaks, list):
+        # При изменении цели или дедлайна план строится заново. Базой для
+        # сегодняшней цели должен быть прогресс на начало дня, иначе уже
+        # написанное сегодня попадёт в базу и новая дневная норма прибавится
+        # к нему повторно.
+        today_added_symbols = self.get_added_symbols_today_value()
+        if not today_added_symbols and hasattr(self, 'streaks') and isinstance(self.streaks, list):
+            # Поддерживаем старые сохранения, в которых сегодняшнее значение
+            # могло храниться только в записи стрика.
             for streak in self.streaks:
                 if isinstance(streak, dict) and streak.get('date') == today:
                     today_added_symbols = streak.get('count', 0)

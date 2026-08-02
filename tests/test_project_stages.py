@@ -185,6 +185,59 @@ def test_parent_deadline_recalculates_daily_goal_after_stage_changes(monkeypatch
     assert round(project.get_today_goal_value(), 2) == 192.31
 
 
+def test_recalculated_daily_goal_does_not_add_todays_progress_twice(monkeypatch):
+    today = datetime.date(2026, 7, 18)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = engine.Project(
+        name='Book',
+        goal=1000,
+        total_symbols=100,
+        deadline=today + datetime.timedelta(days=9),
+        unit='symbols',
+    )
+    project.notes = [
+        engine.Note(100, 100, 10, datetime.datetime(2026, 7, 18, 12, 0)),
+    ]
+
+    assert project.get_today_goal_value() == 100
+
+    # После изменения общей цели пересчитывается дневная норма (120), а не
+    # добавляется к уже написанным за сегодня 100 символам.
+    project.goal = 1200
+
+    assert project.get_today_goal_value() == 120
+
+
+def test_changed_daily_goal_uses_start_of_day_progress(monkeypatch):
+    today = datetime.date(2026, 7, 18)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = engine.Project(
+        name='Book',
+        goal=2000,
+        total_symbols=1100,
+        deadline=today + datetime.timedelta(days=9),
+        unit='symbols',
+        personal_goal_for_the_day=100,
+    )
+    project.notes = [
+        engine.Note(1100, 100, 5, datetime.datetime(2026, 7, 18, 12, 0)),
+    ]
+
+    assert project.get_today_goal_value() == 1100
+
+    # При изменении общей цели та же дневная норма продлевает план, не меняя
+    # уже рассчитанную накопительную цель на сегодня.
+    project.goal = 2500
+    project.deadline = today + datetime.timedelta(days=14)
+    assert project.get_today_goal_value() == 1100
+
+    project.personal_goal_for_the_day = 200
+    assert project.get_today_goal_value() == 1200
+
+    project.personal_goal_for_the_day = 50
+    assert project.get_today_goal_value() == 1050
+
+
 def test_parent_daily_goal_uses_original_plan_when_stages_have_no_deadlines():
     parent_deadline = engine.today_for_test() + datetime.timedelta(days=9)
     project = engine.Project(name='Book', goal=1000, total_symbols=100, deadline=parent_deadline, unit='symbols')
