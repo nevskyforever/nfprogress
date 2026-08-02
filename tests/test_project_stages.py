@@ -238,6 +238,30 @@ def test_changed_daily_goal_uses_start_of_day_progress(monkeypatch):
     assert project.get_today_goal_value() == 1050
 
 
+def test_changed_goal_preserves_existing_todays_accumulated_goal(monkeypatch):
+    today = datetime.date(2026, 7, 18)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = engine.Project(
+        name='Book',
+        goal=5000,
+        total_symbols=3500,
+        deadline=today + datetime.timedelta(days=3),
+        unit='symbols',
+        personal_goal_for_the_day=500,
+    )
+
+    assert project.get_today_goal_value() == 4000
+
+    # Пользователь отстаёт от старого плана, но меняет общую цель, сохраняя
+    # дневную норму. Сегодняшняя цель не должна опуститься до 3700.
+    project.total_units = 3200
+    project.goal = 7500
+    project.deadline = today + datetime.timedelta(days=7)
+
+    assert project.get_today_goal_value() == 4000
+    assert project.project_plan[today + datetime.timedelta(days=7)] == 7500
+
+
 def test_parent_daily_goal_uses_original_plan_when_stages_have_no_deadlines():
     parent_deadline = engine.today_for_test() + datetime.timedelta(days=9)
     project = engine.Project(name='Book', goal=1000, total_symbols=100, deadline=parent_deadline, unit='symbols')

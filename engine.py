@@ -719,6 +719,13 @@ class Project:
 
         # === 3. ПЕРЕСЧЕТ ПЛАНА (Инициализация) ===
 
+        previous_today_goal = plan.get(today)
+        previous_daily_goal = plan.get('daily_goal_symbols')
+        if previous_daily_goal is None:
+            next_day_goal = plan.get(today + timedelta(days=1))
+            if isinstance(previous_today_goal, (int, float)) and isinstance(next_day_goal, (int, float)):
+                previous_daily_goal = next_day_goal - previous_today_goal
+
         # При изменении цели или дедлайна план строится заново. Базой для
         # сегодняшней цели должен быть прогресс на начало дня, иначе уже
         # написанное сегодня попадёт в базу и новая дневная норма прибавится
@@ -755,18 +762,32 @@ class Project:
                 else:
                     daily_goal_symbols = goal_sym
 
+        preserve_today_goal = (
+            isinstance(previous_today_goal, (int, float))
+            and isinstance(previous_daily_goal, (int, float))
+            and math.isclose(previous_daily_goal, daily_goal_symbols)
+        )
+
         # === 4. ГЕНЕРАЦИЯ ЛЕСЕНКИ ПЛАНА ===
 
         # Если кэш устарел (настройки поменялись) или его нет — строим заново
         if not plan or plan.get('signature') != current_signature:
             plan.clear()
             plan['signature'] = current_signature  # Сохраняем слепок настроек
+            plan['daily_goal_symbols'] = daily_goal_symbols
 
             end_date = self.deadline if (self.deadline != 'Нет' and isinstance(self.deadline, date)) else (
                         today + timedelta(days=30))
 
             current_date = today
             current_goal = base_total
+
+            if preserve_today_goal:
+                current_goal = previous_today_goal
+                if self.deadline != 'Нет' and isinstance(self.deadline, date):
+                    current_goal = min(current_goal, self.get_goal_symbols())
+                plan[current_date] = current_goal
+                current_date += timedelta(days=1)
 
             while current_date <= end_date:
                 current_goal += daily_goal_symbols
