@@ -662,6 +662,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.note_widget.setVisible(False)
             self.change_project_widget.setVisible(False)
             self.name_selected_project.setText(tr("Выберите проект"))
+            self.manuscript_journey_label.setVisible(False)
             self.create_stage_action.setEnabled(False)
             return
 
@@ -716,6 +717,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Основная информация
         self.status.setText(tr(project.status))
         self.progress.setText(tr(f"{project.progress:.1f}%"))
+        self.update_manuscript_journey_label(project)
         # Обрабатываем бесконечный проект
         if project.goal == float('inf'):
             self.goal.setText(tr('∞'))
@@ -827,6 +829,28 @@ class MainWindow(QMainWindow, main_window_ui):
             self.l.setText(tr(f"{stage_prefix}{last_note.get_date_create_str()} (+{self._format_number(added_disp)})"))
         else:
             self.l.setText(tr("Нет записей"))
+
+    def update_manuscript_journey_label(self, project):
+        game_enabled = en.load_settings().get('game_mode', False)
+        if not game_enabled or project.goal == float('inf'):
+            self.manuscript_journey_label.setVisible(False)
+            return
+
+        reached, upcoming = self.game_controller.gamer.get_manuscript_journey_status(
+            project.progress
+        )
+        path_title = 'Путь этапа' if self._is_stage(project) else 'Путь рукописи'
+        current_name = reached['name'] if reached else 'Замысел'
+        if upcoming is None:
+            text = f"{tr(path_title)}: {tr(current_name)}"
+        else:
+            text = (
+                f"{tr(path_title)}: {tr(current_name)} · "
+                f"{tr('следующий рубеж')}: {tr(upcoming['name'])} "
+                f"({upcoming['progress']}%)"
+            )
+        self.manuscript_journey_label.setText(text)
+        self.manuscript_journey_label.setVisible(True)
 
 
     def show_last_project(self, project_name):
@@ -1428,7 +1452,12 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
         if settings.get('game_mode', False) and added_symbols > 0:
-            self.game_controller.add_symbols(added_symbols)
+            journey_parent, _ = (
+                self._find_stage_parent(data, project)
+                if self._is_stage(project) else (None, None)
+            )
+            journey_key = self._completion_bonus_key(project, journey_parent)
+            self.game_controller.add_symbols(added_symbols, journey_key, project.progress)
             # Даем бонус за стрик проекта и глобальный, если он включен
             if settings.get('global_streak', False):
                 bonus_day = en.today_for_test()
@@ -1557,6 +1586,11 @@ class MainWindow(QMainWindow, main_window_ui):
         if result == QDialog.Accepted:
             data = en.load_data()
             old_name = project.name
+            journey_parent, _ = (
+                self._find_stage_parent(data, project)
+                if self._is_stage(project) else (None, None)
+            )
+            old_journey_key = self._completion_bonus_key(project, journey_parent)
             old_goal = project.goal
             old_total = project.total_units
             old_deadline = project.deadline
@@ -1712,6 +1746,11 @@ class MainWindow(QMainWindow, main_window_ui):
                     stage.total_units = en.unit_converter(project.unit, stage.total_units, new_unit)
                     stage.unit = new_unit
             project.name = new_name
+            new_journey_key = self._completion_bonus_key(project, journey_parent)
+            if settings.get('game_mode', False) and old_journey_key != new_journey_key:
+                self.game_controller.rename_manuscript_journey(
+                    old_journey_key, new_journey_key
+                )
             if not parent_with_stages:
                 project.goal = new_goal
                 project.total_units = new_total
@@ -2721,7 +2760,12 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
         if settings.get('game_mode', False) and added_symbols > 0:
-            self.game_controller.add_symbols(added_symbols)
+            journey_parent, _ = (
+                self._find_stage_parent(data, project)
+                if self._is_stage(project) else (None, None)
+            )
+            journey_key = self._completion_bonus_key(project, journey_parent)
+            self.game_controller.add_symbols(added_symbols, journey_key, project.progress)
             # Даем бонус за стрик проекта и глобальный, если он включен
             if settings.get('global_streak', False):
                 bonus_day = en.today_for_test()

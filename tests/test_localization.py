@@ -54,6 +54,13 @@ def test_specialization_terms_and_cooldown_are_localized():
     )
 
 
+def test_manuscript_journey_terms_are_localized():
+    assert tr('Переломная точка', 'en') == 'Turning Point'
+    assert tr('следующий рубеж', 'de') == 'nächster Meilenstein'
+    assert tr('Искра замысла', 'pt_BR') == 'Centelha de uma ideia'
+    assert tr('Путь этапа', 'es') == 'Ruta de la etapa'
+
+
 def test_non_russian_languages_share_the_english_agreement():
     for language in TARGET_LANGUAGES:
         assert tr(AGREEMENT_SOURCE, language) == ENGLISH_AGREEMENT_HTML

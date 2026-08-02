@@ -172,6 +172,10 @@ TRANSLATION_OVERRIDES = {
         "Исследователь": "Explorer",
         "Редактор": "Editor",
         "Смена будет доступна через {0} дн.": "Specialization can be changed in {0} days.",
+        "Искра замысла": "Spark of an Idea",
+        "Переломная точка": "Turning Point",
+        "следующий рубеж": "next milestone",
+        "Путь этапа": "Stage Path",
     },
     "es": {
         "Стрики": "Rachas",
@@ -217,6 +221,10 @@ TRANSLATION_OVERRIDES = {
         "Исследователь": "Explorador",
         "Редактор": "Editor",
         "Смена будет доступна через {0} дн.": "La especialización se podrá cambiar dentro de {0} días.",
+        "Искра замысла": "Chispa de una idea",
+        "Переломная точка": "Punto de giro",
+        "следующий рубеж": "siguiente hito",
+        "Путь этапа": "Ruta de la etapa",
     },
     "de": {
         "Стрики": "Serien",
@@ -262,6 +270,10 @@ TRANSLATION_OVERRIDES = {
         "Исследователь": "Entdecker",
         "Редактор": "Lektor",
         "Смена будет доступна через {0} дн.": "Die Spezialisierung kann in {0} Tagen geändert werden.",
+        "Искра замысла": "Funke einer Idee",
+        "Переломная точка": "Wendepunkt",
+        "следующий рубеж": "nächster Meilenstein",
+        "Путь этапа": "Etappenpfad",
     },
     "fr": {
         "Стрики": "Séries",
@@ -307,6 +319,10 @@ TRANSLATION_OVERRIDES = {
         "Исследователь": "Explorateur",
         "Редактор": "Réviseur",
         "Смена будет доступна через {0} дн.": "La spécialisation pourra être changée dans {0} jours.",
+        "Искра замысла": "Étincelle d’une idée",
+        "Переломная точка": "Tournant",
+        "следующий рубеж": "prochain jalon",
+        "Путь этапа": "Parcours de l’étape",
     },
     "pt_BR": {
         "Стрики": "Sequências",
@@ -352,6 +368,10 @@ TRANSLATION_OVERRIDES = {
         "Исследователь": "Explorador",
         "Редактор": "Editor",
         "Смена будет доступна через {0} дн.": "A especialização poderá ser alterada em {0} dias.",
+        "Искра замысла": "Centelha de uma ideia",
+        "Переломная точка": "Ponto de virada",
+        "следующий рубеж": "próximo marco",
+        "Путь этапа": "Caminho da etapa",
     },
 }
 

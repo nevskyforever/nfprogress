@@ -59,6 +59,15 @@ SPECIALIZATIONS = {
     },
 }
 
+MANUSCRIPT_MILESTONES = (
+    {'progress': 10, 'name': 'Искра замысла', 'coins': 25, 'exp': 250, 'inspiration': 2},
+    {'progress': 25, 'name': 'Первые главы', 'coins': 50, 'exp': 500, 'inspiration': 3},
+    {'progress': 50, 'name': 'Переломная точка', 'coins': 100, 'exp': 1000, 'inspiration': 5},
+    {'progress': 75, 'name': 'Финишная прямая', 'coins': 150, 'exp': 1500, 'inspiration': 7},
+    {'progress': 90, 'name': 'Почти готово', 'coins': 200, 'exp': 2000, 'inspiration': 8},
+    {'progress': 100, 'name': 'Рукопись завершена', 'coins': 300, 'exp': 3000, 'inspiration': 10},
+)
+
 WEEKLY_CHALLENGES = {
     'symbols': {
         'name': 'Марафон',
@@ -329,6 +338,7 @@ class Gamer:
         self.session_reward_bonus = 0.0
         self.specialization = None
         self.specialization_changed_at = None
+        self.manuscript_journeys = {}
         self.sync_quests()
 
     def _make_cf_parameter(self, key, value, base_value=None):
@@ -726,6 +736,17 @@ class Gamer:
                 datetime.fromisoformat(str(self.specialization_changed_at))
             except (TypeError, ValueError):
                 self.specialization_changed_at = None
+        if not isinstance(self.manuscript_journeys, dict):
+            self.manuscript_journeys = {}
+        valid_milestones = {item['progress'] for item in MANUSCRIPT_MILESTONES}
+        self.manuscript_journeys = {
+            str(project_key): sorted({
+                int(value) for value in values
+                if isinstance(value, (int, float)) and int(value) in valid_milestones
+            })
+            for project_key, values in self.manuscript_journeys.items()
+            if project_key and isinstance(values, (list, tuple, set))
+        }
 
     def specialization_change_days_remaining(self):
         self.normalize_motivation()
@@ -771,6 +792,66 @@ class Gamer:
         ):
             return 1.25
         return 1.0
+
+    def advance_manuscript_journey(self, project_key, progress):
+        self.normalize_motivation()
+        if not project_key:
+            return []
+        try:
+            progress = min(100.0, max(0.0, float(progress)))
+        except (TypeError, ValueError):
+            return []
+
+        project_key = str(project_key)
+        received = self.manuscript_journeys.setdefault(project_key, [])
+        messages = []
+        for milestone in MANUSCRIPT_MILESTONES:
+            threshold = milestone['progress']
+            if threshold > progress or threshold in received:
+                continue
+            received.append(threshold)
+            coins = self.set_coins(
+                milestone['coins'] * self.calculate_inflation(), save=False
+            )
+            exp = self.add_exp(milestone['exp'])
+            self.inspiration = min(
+                MAX_INSPIRATION,
+                self.inspiration + milestone['inspiration'],
+            )
+            messages.append(
+                f'Рубеж рукописи «{milestone["name"]}» достигнут! '
+                f'Получено {coins} монет, {exp} опыта и '
+                f'{milestone["inspiration"]} вдохновения.'
+            )
+        received.sort()
+        return messages
+
+    def get_manuscript_journey_status(self, progress):
+        try:
+            progress = min(100.0, max(0.0, float(progress)))
+        except (TypeError, ValueError):
+            progress = 0.0
+        reached = None
+        upcoming = None
+        for milestone in MANUSCRIPT_MILESTONES:
+            if milestone['progress'] <= progress:
+                reached = milestone
+            elif upcoming is None:
+                upcoming = milestone
+        return reached, upcoming
+
+    def rename_manuscript_journey(self, old_key, new_key, save=True):
+        self.normalize_motivation()
+        if not old_key or not new_key or old_key == new_key:
+            return False
+        old_values = self.manuscript_journeys.pop(str(old_key), [])
+        if not old_values:
+            return False
+        current_values = self.manuscript_journeys.setdefault(str(new_key), [])
+        current_values[:] = sorted(set(current_values) | set(old_values))
+        if save:
+            self.save()
+        return True
 
     @staticmethod
     def calculate_adaptive_daily_target(data=None):
@@ -974,7 +1055,7 @@ class Gamer:
         return messages
 
     # === 4. ИГРОВАЯ ЛОГИКА ===
-    def give_symbol_bonus(self, symbols):
+    def give_symbol_bonus(self, symbols, project_key=None, project_progress=None):
         self.normalize_motivation()
         reward_multiplier = (
             (1 + self.inspiration / MAX_INSPIRATION * 0.1)
@@ -989,10 +1070,12 @@ class Gamer:
         coins = symbols / 100 * game_data.base_coin_bonus * coins_cf * reward_multiplier
         coins = self.set_coins(coins)
         motivation_messages = self.record_motivation_progress(symbols)
+        journey_messages = self.advance_manuscript_journey(project_key, project_progress)
         self.save()
         message = f'Получено {coins} монет\nПолучено {exps} опыта'
-        if motivation_messages:
-            message += '\n' + '\n'.join(motivation_messages)
+        extra_messages = [*motivation_messages, *journey_messages]
+        if extra_messages:
+            message += '\n' + '\n'.join(extra_messages)
         return message
 
     def give_streak_bonus(self, status, streak_type, streak_len=1, project_name=None):
@@ -1477,6 +1560,7 @@ class Gamer:
         had_max_health_marker = hasattr(self, 'max_health')
         had_motivation_marker = hasattr(self, 'inspiration')
         had_specialization_marker = hasattr(self, 'specialization')
+        had_journey_marker = hasattr(self, 'manuscript_journeys')
         complete_bonus_projects_migrated = not hasattr(self, 'complete_bonus_projects')
         defaults = {
             'level': 1,
@@ -1512,6 +1596,7 @@ class Gamer:
             'session_reward_bonus': 0.0,
             'specialization': None,
             'specialization_changed_at': None,
+            'manuscript_journeys': {},
             'pending_quest_item_migration_notification': None,
         }
 
@@ -1612,7 +1697,7 @@ class Gamer:
         if (migrated_awards or migrated_inventory or migrated_buff_names
                 or skill_points_migrated or max_health_migrated or complete_bonus_projects_migrated
                 or migrated_quest_item_rewards or not had_motivation_marker
-                or not had_specialization_marker):
+                or not had_specialization_marker or not had_journey_marker):
             self.save()
 
     def calculate_inflation(self):

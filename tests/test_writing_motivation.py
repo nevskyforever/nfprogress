@@ -114,7 +114,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     for attribute in (
         'inspiration', 'daily_challenge', 'weekly_challenge',
         'writing_session', 'session_reward_bonus', 'specialization',
-        'specialization_changed_at',
+        'specialization_changed_at', 'manuscript_journeys',
     ):
         delattr(gamer, attribute)
 
@@ -127,6 +127,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     assert gamer.session_reward_bonus == 0
     assert gamer.specialization is None
     assert gamer.specialization_changed_at is None
+    assert gamer.manuscript_journeys == {}
 
 
 def test_specialization_unlock_and_change_cooldown(monkeypatch):
@@ -274,3 +275,36 @@ def test_ui_session_timer_refreshes_label_every_second():
     assert len(label.values) >= 2
     assert '15:00' in label.values[0]
     assert '14:59' in label.values[-1]
+
+
+def test_manuscript_journey_rewards_crossed_milestones_once(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+
+    messages = gamer.advance_manuscript_journey('Роман', 52)
+    coins_after_first_award = gamer.coins
+    exp_after_first_award = gamer.exp
+    repeated_messages = gamer.advance_manuscript_journey('Роман', 52)
+
+    assert len(messages) == 3
+    assert repeated_messages == []
+    assert gamer.manuscript_journeys['Роман'] == [10, 25, 50]
+    assert coins_after_first_award == 175
+    assert exp_after_first_award == 1750
+    assert gamer.coins == coins_after_first_award
+    assert gamer.exp == exp_after_first_award
+
+
+def test_manuscript_journey_status_and_rename(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.advance_manuscript_journey('Черновик', 26)
+
+    reached, upcoming = gamer.get_manuscript_journey_status(26)
+    renamed = gamer.rename_manuscript_journey(
+        'Черновик', 'Новая рукопись', save=False
+    )
+
+    assert reached['name'] == 'Первые главы'
+    assert upcoming['progress'] == 50
+    assert renamed is True
+    assert 'Черновик' not in gamer.manuscript_journeys
+    assert gamer.manuscript_journeys['Новая рукопись'] == [10, 25]

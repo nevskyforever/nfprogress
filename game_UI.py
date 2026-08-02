@@ -2279,7 +2279,7 @@ class GameMenuController:
         # Сбрасываем флаг через минуту
         QTimer.singleShot(60000, lambda: setattr(self, '_death_warning_shown', False))
 
-    def add_symbols(self, symbols_count):
+    def add_symbols(self, symbols_count, project_key=None, project_progress=None):
         """
         Добавление написанных символов (вызывается из основного окна)
 
@@ -2289,7 +2289,11 @@ class GameMenuController:
         if not self.gamer:
             return "Игровой режим не активен"
 
-        result = self.gamer.give_symbol_bonus(symbols_count)
+        result = self.gamer.give_symbol_bonus(
+            symbols_count,
+            project_key=project_key,
+            project_progress=project_progress,
+        )
         if result:
             level_up_msg = self.gamer.level_up()  # <-- сохраняем сообщение
             if level_up_msg:
@@ -2301,6 +2305,11 @@ class GameMenuController:
             self.notifications.show_success(result)
             return result
         return
+
+    def rename_manuscript_journey(self, old_key, new_key):
+        if not self.gamer:
+            return False
+        return self.gamer.rename_manuscript_journey(old_key, new_key, save=True)
 
     def give_streak_bonus(self, streak_status, streak_type=None, streak_len=1, project_name=None):
         """

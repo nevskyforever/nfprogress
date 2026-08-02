@@ -19,6 +19,8 @@ for writers who prefer extra motivation.
   goals and selectable weekly challenges.
 - Choose a writing specialization that rewards long sessions, rituals,
   finishing projects, challenges, or editing work.
+- Follow each manuscript through rewarded progress milestones from the first
+  idea to a completed draft.
 - Check for and install application updates.
 
 ## Supported platforms

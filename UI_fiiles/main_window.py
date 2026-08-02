@@ -161,6 +161,13 @@ class Ui_main_window(object):
 
         self.gridLayout_4.addWidget(self.name_selected_project, 0, 0, 1, 1)
 
+        self.manuscript_journey_label = QLabel(self.project_detail_widget)
+        self.manuscript_journey_label.setObjectName(u"manuscript_journey_label")
+        self.manuscript_journey_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.manuscript_journey_label.setWordWrap(True)
+
+        self.gridLayout_4.addWidget(self.manuscript_journey_label, 1, 0, 1, 1)
+
         self.change_project_widget = QWidget(self.project_detail_widget)
         self.change_project_widget.setObjectName(u"change_project_widget")
         self.change_project_widget.setEnabled(False)
@@ -1683,6 +1690,7 @@ class Ui_main_window(object):
         self.btn_create_project.setText(QCoreApplication.translate("main_window", u"\u0421\u043e\u0437\u0434\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.search_project.setPlaceholderText(QCoreApplication.translate("main_window", u"\u041f\u043e\u0438\u0441\u043a...", None))
         self.name_selected_project.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043f\u0440\u043e\u0435\u043a\u0442", None))
+        self.manuscript_journey_label.setText(QCoreApplication.translate("main_window", u"\u041f\u0443\u0442\u044c \u0440\u0443\u043a\u043e\u043f\u0438\u0441\u0438", None))
         self.btn_synch_project.setText(QCoreApplication.translate("main_window", u"\u0421\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0438\u0440\u043e\u0432\u0430\u0442\u044c", None))
         self.btn_change_project.setText(QCoreApplication.translate("main_window", u"\u0418\u0437\u043c\u0435\u043d\u0438\u0442\u044c", None))
         self.btn_complete_project.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c", None))
