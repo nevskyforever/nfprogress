@@ -725,6 +725,11 @@ class Project:
             next_day_goal = plan.get(today + timedelta(days=1))
             if isinstance(previous_today_goal, (int, float)) and isinstance(next_day_goal, (int, float)):
                 previous_daily_goal = next_day_goal - previous_today_goal
+        previous_past_goals = {
+            plan_date: goal
+            for plan_date, goal in plan.items()
+            if isinstance(plan_date, date) and plan_date < today
+        }
 
         # При изменении цели или дедлайна план строится заново. Базой для
         # сегодняшней цели должен быть прогресс на начало дня, иначе уже
@@ -767,6 +772,11 @@ class Project:
             and isinstance(previous_daily_goal, (int, float))
             and math.isclose(previous_daily_goal, daily_goal_symbols)
         )
+        adjust_today_goal_by_daily_difference = (
+            isinstance(previous_today_goal, (int, float))
+            and isinstance(previous_daily_goal, (int, float))
+            and not math.isclose(previous_daily_goal, daily_goal_symbols)
+        )
 
         # === 4. ГЕНЕРАЦИЯ ЛЕСЕНКИ ПЛАНА ===
 
@@ -775,6 +785,7 @@ class Project:
             plan.clear()
             plan['signature'] = current_signature  # Сохраняем слепок настроек
             plan['daily_goal_symbols'] = daily_goal_symbols
+            plan.update(previous_past_goals)
 
             end_date = self.deadline if (self.deadline != 'Нет' and isinstance(self.deadline, date)) else (
                         today + timedelta(days=30))
@@ -788,6 +799,8 @@ class Project:
                     current_goal = min(current_goal, self.get_goal_symbols())
                 plan[current_date] = current_goal
                 current_date += timedelta(days=1)
+            elif adjust_today_goal_by_daily_difference:
+                current_goal = previous_today_goal - previous_daily_goal
 
             while current_date <= end_date:
                 current_goal += daily_goal_symbols

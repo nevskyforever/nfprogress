@@ -3400,6 +3400,28 @@ class CreateProject(QDialog, create_project_ui):
 
 
 class EditProject(QDialog, create_project_ui):
+    def _get_today_and_daily_plan_goal(self):
+        """Возвращает старые накопленную и дневную цели в текущей единице."""
+        plan = getattr(self.project, 'project_plan', {})
+        if not isinstance(plan, dict):
+            return None
+
+        today = en.today_for_test()
+        today_goal = plan.get(today)
+        daily_goal = plan.get('daily_goal_symbols')
+        if daily_goal is None:
+            next_day_goal = plan.get(today + datetime.timedelta(days=1))
+            if isinstance(today_goal, (int, float)) and isinstance(next_day_goal, (int, float)):
+                daily_goal = next_day_goal - today_goal
+
+        if not isinstance(today_goal, (int, float)) or not isinstance(daily_goal, (int, float)):
+            return None
+
+        return (
+            en.unit_converter('symbols', today_goal, self.current_unit),
+            en.unit_converter('symbols', daily_goal, self.current_unit),
+        )
+
     def on_goal_changed(self):
         """Сохраняет дневную норму и продлевает план при изменении общей цели."""
         if self._updating or self.checkBox.isChecked():
@@ -3700,10 +3722,17 @@ class EditProject(QDialog, create_project_ui):
             return
         if personal_goal <= 0 or goal <= total:
             return
-        remaining = goal - total
-        days_needed = math.ceil(remaining / personal_goal)
         today = en.today_for_test()
-        computed_deadline = today + datetime.timedelta(days=days_needed - 1)
+        current_plan_goals = self._get_today_and_daily_plan_goal()
+        if current_plan_goals is None:
+            remaining = goal - total
+            days_needed = math.ceil(remaining / personal_goal)
+            computed_deadline = today + datetime.timedelta(days=days_needed - 1)
+        else:
+            old_today_goal, old_daily_goal = current_plan_goals
+            new_today_goal = old_today_goal - old_daily_goal + personal_goal
+            days_after_today = math.ceil(max(0, goal - new_today_goal) / personal_goal)
+            computed_deadline = today + datetime.timedelta(days=days_after_today)
         self._updating = True
         try:
             qdate = QDate(computed_deadline.year, computed_deadline.month, computed_deadline.day)
