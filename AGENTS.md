@@ -131,6 +131,55 @@ After making changes:
 
 If no tests cover the modified code, report that fact.
 
+## Extending creative rhythm, cabinet, and shop
+
+The feature state belongs to `game.Gamer`. New fields must have defaults both in
+`Gamer.__init__()` and `Gamer.migrate()`, and malformed values must be repaired in
+`normalize_motivation()`. Keep save-compatible keys canonical and Russian where the
+project already uses Russian keys.
+
+Creative rhythm is coordinated by `game.py` and `game_UI.py`:
+
+* `WEEKLY_CHALLENGES` contains challenge metadata and canonical keys.
+* `GameMenuController.WEEKLY_CHALLENGE_KEYS` maps combo-box positions to those keys.
+  Its order must exactly match `weekly_challenge_combo` in `UI template/main_window.ui`.
+* `_advance_weekly_challenge()` is the only place that advances and rewards weekly
+  challenges. Pass it explicit event data instead of inferring intent from UI state.
+* A writing session is stored in `Gamer.writing_session`. Its timer uses wall-clock
+  time through `get_session_now()` and is refreshed by the existing one-second
+  `QTimer`; do not implement a blocking timer or decrement the saved duration.
+* New permanent controls belong in the source `.ui`; regenerate
+  `UI_fiiles/main_window.py` after changing it.
+
+The cabinet is an achievement view over manuscript progress:
+
+* `MANUSCRIPT_MILESTONES` defines one-time rewards per project.
+* `Gamer.manuscript_journeys` stores received milestone percentages by stable project
+  key. `advance_manuscript_journey()` awards only thresholds not already stored.
+* `CABINET_RELICS` defines name, description, condition, `required_progress`, and
+  `required_projects`. The current generic unlocker supports any relic based on the
+  number of projects that reached a milestone. Add a separate explicit rule only
+  when a new relic cannot be represented by these two fields.
+* Locked relics intentionally hide their name and description but show the unlock
+  condition. `update_cabinet_ui()` rebuilds the list only when its signature changes.
+* Keep the cabinet page size-independent from description length: use bounded,
+  word-wrapped labels and an expanding detail panel. Test several relics in a compact
+  main window after changing text or layout.
+
+Shop content is declared in `game_data.py`. Add a reusable `Item` or `FuncItem`, then
+register it under its canonical key in `ITEM_REGISTRY`. A `FuncItem` handler must
+support `?` without loading a save, handle `use`, normalize affected motivation
+state, save once, and return a user-facing result. Temporary bonuses need a migrated
+field and must be cleared only when their promised reward is actually granted.
+
+For every extension, add the Russian UI strings to source Python or `.ui` files,
+regenerate translations, and verify all five non-Russian languages. At minimum run:
+
+```bash
+python3 -m py_compile game.py game_UI.py game_data.py localization.py
+python3 -m pytest -q tests/test_writing_motivation.py tests/test_potion_catalog.py tests/test_localization.py
+```
+
 ## Response format
 
 After completing a task, provide a brief report:

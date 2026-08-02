@@ -97,6 +97,34 @@ CABINET_RELICS = {
         'required_progress': 25,
         'required_projects': 3,
     },
+    'turning_quill': {
+        'name': 'Перо переломного момента',
+        'description': 'Перо, которым история была проведена через самый трудный поворот.',
+        'condition': 'Достигните рубежа 75% в одном тексте.',
+        'required_progress': 75,
+        'required_projects': 1,
+    },
+    'final_lamp': {
+        'name': 'Лампа финишной прямой',
+        'description': 'Её свет помогает не потерять дорогу, когда до финала остаётся совсем немного.',
+        'condition': 'Достигните рубежа 90% в одном тексте.',
+        'required_progress': 90,
+        'required_projects': 1,
+    },
+    'triple_map': {
+        'name': 'Атлас трёх миров',
+        'description': 'Три истории на одной карте — доказательство широты авторской вселенной.',
+        'condition': 'Доведите три разных текста минимум до 50%.',
+        'required_progress': 50,
+        'required_projects': 3,
+    },
+    'finished_shelf': {
+        'name': 'Полка завершённых рукописей',
+        'description': 'Полка для историй, которым автор подарил настоящий финал.',
+        'condition': 'Доведите три разных текста до 100%.',
+        'required_progress': 100,
+        'required_projects': 3,
+    },
 }
 
 WEEKLY_CHALLENGES = {
@@ -120,6 +148,13 @@ WEEKLY_CHALLENGES = {
         'target': 5,
         'reward_coins': 450,
         'reward_exp': 1350,
+    },
+    'editing': {
+        'name': 'Редакторская неделя',
+        'description': 'Завершить три успешные сессии с намерением отредактировать текст.',
+        'target': 3,
+        'reward_coins': 425,
+        'reward_exp': 1300,
     },
 }
 
@@ -367,6 +402,7 @@ class Gamer:
         self.weekly_challenge = None
         self.writing_session = None
         self.session_reward_bonus = 0.0
+        self.manuscript_reward_bonus = 0.0
         self.specialization = None
         self.specialization_changed_at = None
         self.manuscript_journeys = {}
@@ -752,6 +788,12 @@ class Gamer:
             self.session_reward_bonus = min(1.0, max(0.0, float(self.session_reward_bonus)))
         except (TypeError, ValueError):
             self.session_reward_bonus = 0.0
+        try:
+            self.manuscript_reward_bonus = min(
+                1.0, max(0.0, float(self.manuscript_reward_bonus))
+            )
+        except (TypeError, ValueError):
+            self.manuscript_reward_bonus = 0.0
 
         today = engine.today_for_test()
         if self.daily_challenge and self.daily_challenge.get('date') != today.isoformat():
@@ -843,15 +885,17 @@ class Gamer:
         project_key = str(project_key)
         received = self.manuscript_journeys.setdefault(project_key, [])
         messages = []
+        reward_multiplier = 1 + self.manuscript_reward_bonus
         for milestone in MANUSCRIPT_MILESTONES:
             threshold = milestone['progress']
             if threshold > progress or threshold in received:
                 continue
             received.append(threshold)
             coins = self.set_coins(
-                milestone['coins'] * self.calculate_inflation(), save=False
+                milestone['coins'] * self.calculate_inflation() * reward_multiplier,
+                save=False,
             )
-            exp = self.add_exp(milestone['exp'])
+            exp = self.add_exp(milestone['exp'] * reward_multiplier)
             self.inspiration = min(
                 MAX_INSPIRATION,
                 self.inspiration + milestone['inspiration'],
@@ -862,6 +906,8 @@ class Gamer:
                 f'{milestone["inspiration"]} вдохновения.'
             )
         received.sort()
+        if messages:
+            self.manuscript_reward_bonus = 0.0
         messages.extend(self.unlock_cabinet_relics())
         return messages
 
@@ -1026,7 +1072,11 @@ class Gamer:
         self.session_reward_bonus = 0.0
         coins = self.set_coins(25 * self.calculate_inflation() * reward_multiplier, save=False)
         exp = self.add_exp(250 * reward_multiplier)
-        weekly_message = self._advance_weekly_challenge(0, successful_session=True)
+        weekly_message = self._advance_weekly_challenge(
+            0,
+            successful_session=True,
+            session_intention=session.get('intention'),
+        )
         if save:
             self.save()
         message = f'Сессия завершена! Получено {coins} монет, {exp} опыта и 10 вдохновения.'
@@ -1043,7 +1093,9 @@ class Gamer:
             self.save()
         return True, 'Писательская сессия отменена без штрафа.'
 
-    def _advance_weekly_challenge(self, symbols, successful_session=False):
+    def _advance_weekly_challenge(
+            self, symbols, successful_session=False, session_intention=None
+    ):
         if not self.weekly_challenge or self.weekly_challenge.get('completed'):
             return None
         challenge = self.weekly_challenge
@@ -1061,6 +1113,12 @@ class Gamer:
                 days.append(today)
             challenge['progress'] = len(days)
         elif challenge_key == 'sessions' and successful_session:
+            challenge['progress'] += 1
+        elif (
+                challenge_key == 'editing'
+                and successful_session
+                and session_intention == 'Отредактировать текст'
+        ):
             challenge['progress'] += 1
 
         if challenge['progress'] < meta['target']:
@@ -1650,6 +1708,7 @@ class Gamer:
             'weekly_challenge': None,
             'writing_session': None,
             'session_reward_bonus': 0.0,
+            'manuscript_reward_bonus': 0.0,
             'specialization': None,
             'specialization_changed_at': None,
             'manuscript_journeys': {},

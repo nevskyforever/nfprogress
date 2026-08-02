@@ -119,3 +119,11 @@ def test_weekly_potions_are_registered():
     assert potions['Недельное зелье доходности'] is game_data.coin_potion_7days
     assert potions['Недельное зелье просвещения'] is game_data.super_exp_potion_7days
     assert potions['Недельное зелье супердоходности'] is game_data.super_coin_potion_7days
+
+
+def test_writing_motivation_items_are_registered():
+    potions = game_data.ITEM_REGISTRY['Зелья']
+    items = game_data.ITEM_REGISTRY['Предметы']
+
+    assert potions['Большое зелье вдохновения'] is game_data.large_inspiration_potion
+    assert items['Компас рукописи'] is game_data.manuscript_compass

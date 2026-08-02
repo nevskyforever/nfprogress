@@ -68,7 +68,7 @@ class GameMenuController:
     FREEZE_CATEGORY = 'Предметы'
     FREEZE_ITEM_KEY = 'Заморозка'
     FREEZE_MAX_COUNT = 2
-    WEEKLY_CHALLENGE_KEYS = ('symbols', 'days', 'sessions')
+    WEEKLY_CHALLENGE_KEYS = ('symbols', 'days', 'sessions', 'editing')
     WRITING_SESSION_DURATIONS = (15, 25, 45, 60)
     WRITING_INTENTIONS = (
         'Написать новую сцену',

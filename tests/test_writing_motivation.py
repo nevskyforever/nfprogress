@@ -114,6 +114,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     for attribute in (
         'inspiration', 'daily_challenge', 'weekly_challenge',
         'writing_session', 'session_reward_bonus', 'specialization',
+        'manuscript_reward_bonus',
         'specialization_changed_at', 'manuscript_journeys',
         'cabinet_relics',
     ):
@@ -126,6 +127,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     assert gamer.weekly_challenge is None
     assert gamer.writing_session is None
     assert gamer.session_reward_bonus == 0
+    assert gamer.manuscript_reward_bonus == 0
     assert gamer.specialization is None
     assert gamer.specialization_changed_at is None
     assert gamer.manuscript_journeys == {}
@@ -177,6 +179,40 @@ def test_editor_rewards_editorial_session(monkeypatch):
     assert ok is True
     assert gamer.coins == 31.3
     assert gamer.exp == 312.5
+
+
+def test_editorial_session_advances_editorial_week(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.select_weekly_challenge('editing', save=False)
+    gamer.start_writing_session(15, 100, 'Отредактировать текст', save=False)
+    gamer.record_motivation_progress(100)
+
+    ok, _ = gamer.finish_writing_session(save=False)
+
+    assert ok is True
+    assert gamer.weekly_challenge['progress'] == 1
+
+
+def test_manuscript_bonus_is_spent_on_next_milestones(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.manuscript_reward_bonus = 0.25
+
+    messages = gamer.advance_manuscript_journey('novel', 25)
+
+    assert len(messages) >= 2
+    assert gamer.manuscript_reward_bonus == 0
+    assert gamer.exp == 937.5
+    assert gamer.coins == 93.8
+
+
+def test_extended_cabinet_unlocks_multi_project_relics(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+
+    for project_key in ('one', 'two', 'three'):
+        gamer.advance_manuscript_journey(project_key, 100)
+
+    assert 'triple_map' in gamer.cabinet_relics
+    assert 'finished_shelf' in gamer.cabinet_relics
 
 
 def test_finisher_increases_completion_reward(monkeypatch):
@@ -321,7 +357,8 @@ def test_cabinet_relics_unlock_from_manuscript_achievements(monkeypatch):
     messages = gamer.advance_manuscript_journey('Рассказ', 25)
 
     assert gamer.cabinet_relics == [
-        'ink_candle', 'plot_map', 'first_binding', 'chapter_shelf'
+        'ink_candle', 'plot_map', 'first_binding', 'turning_quill',
+        'final_lamp', 'chapter_shelf',
     ]
     assert any('Полка первых глав' in message for message in messages)
 

@@ -27,7 +27,7 @@ class Ui_main_window(object):
     def setupUi(self, main_window):
         if not main_window.objectName():
             main_window.setObjectName(u"main_window")
-        main_window.resize(1380, 765)
+        main_window.resize(1180, 720)
         font = QFont()
         font.setFamilies([u"Arial"])
         font.setPointSize(14)
@@ -1538,6 +1538,7 @@ class Ui_main_window(object):
         self.weekly_challenge_combo.addItem("")
         self.weekly_challenge_combo.addItem("")
         self.weekly_challenge_combo.addItem("")
+        self.weekly_challenge_combo.addItem("")
         self.weekly_challenge_combo.setObjectName(u"weekly_challenge_combo")
 
         self.writing_rhythm_layout.addWidget(self.weekly_challenge_combo, 3, 0, 1, 2)
@@ -1636,19 +1637,35 @@ class Ui_main_window(object):
         self.parameters_tabs.addTab(self.writing_rhythm_tab, "")
         self.cabinet_tab = QWidget()
         self.cabinet_tab.setObjectName(u"cabinet_tab")
+        sizePolicy9 = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
+        sizePolicy9.setHorizontalStretch(0)
+        sizePolicy9.setVerticalStretch(0)
+        sizePolicy9.setHeightForWidth(self.cabinet_tab.sizePolicy().hasHeightForWidth())
+        self.cabinet_tab.setSizePolicy(sizePolicy9)
         self.cabinet_layout = QHBoxLayout(self.cabinet_tab)
         self.cabinet_layout.setObjectName(u"cabinet_layout")
         self.cabinet_relics_list = QListWidget(self.cabinet_tab)
         self.cabinet_relics_list.setObjectName(u"cabinet_relics_list")
+        self.cabinet_relics_list.setMinimumSize(QSize(180, 0))
+        self.cabinet_relics_list.setMaximumSize(QSize(260, 16777215))
+        self.cabinet_relics_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
         self.cabinet_layout.addWidget(self.cabinet_relics_list)
 
         self.cabinet_relic_details = QGroupBox(self.cabinet_tab)
         self.cabinet_relic_details.setObjectName(u"cabinet_relic_details")
+        sizePolicy10 = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        sizePolicy10.setHorizontalStretch(0)
+        sizePolicy10.setVerticalStretch(0)
+        sizePolicy10.setHeightForWidth(self.cabinet_relic_details.sizePolicy().hasHeightForWidth())
+        self.cabinet_relic_details.setSizePolicy(sizePolicy10)
+        self.cabinet_relic_details.setMinimumSize(QSize(0, 0))
         self.cabinet_relic_details_layout = QVBoxLayout(self.cabinet_relic_details)
         self.cabinet_relic_details_layout.setObjectName(u"cabinet_relic_details_layout")
         self.cabinet_relic_name = QLabel(self.cabinet_relic_details)
         self.cabinet_relic_name.setObjectName(u"cabinet_relic_name")
+        self.cabinet_relic_name.setMinimumSize(QSize(0, 44))
+        self.cabinet_relic_name.setMaximumSize(QSize(16777215, 44))
         self.cabinet_relic_name.setWordWrap(True)
 
         self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_name)
@@ -1660,12 +1677,16 @@ class Ui_main_window(object):
 
         self.cabinet_relic_description = QLabel(self.cabinet_relic_details)
         self.cabinet_relic_description.setObjectName(u"cabinet_relic_description")
+        self.cabinet_relic_description.setMinimumSize(QSize(0, 82))
+        self.cabinet_relic_description.setMaximumSize(QSize(16777215, 82))
         self.cabinet_relic_description.setWordWrap(True)
 
         self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_description)
 
         self.cabinet_relic_condition = QLabel(self.cabinet_relic_details)
         self.cabinet_relic_condition.setObjectName(u"cabinet_relic_condition")
+        self.cabinet_relic_condition.setMinimumSize(QSize(0, 82))
+        self.cabinet_relic_condition.setMaximumSize(QSize(16777215, 82))
         self.cabinet_relic_condition.setWordWrap(True)
 
         self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_condition)
@@ -1879,6 +1900,7 @@ class Ui_main_window(object):
         self.weekly_challenge_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u041c\u0430\u0440\u0430\u0444\u043e\u043d \u2014 10 000 \u0441\u0438\u043c\u0432\u043e\u043b\u043e\u0432", None))
         self.weekly_challenge_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u0420\u0438\u0442\u043c \u2014 4 \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u0438\u0432\u043d\u044b\u0445 \u0434\u043d\u044f", None))
         self.weekly_challenge_combo.setItemText(2, QCoreApplication.translate("main_window", u"\u0427\u0438\u0441\u0442\u044b\u0439 \u043f\u043e\u0442\u043e\u043a \u2014 5 \u0441\u0435\u0441\u0441\u0438\u0439", None))
+        self.weekly_challenge_combo.setItemText(3, QCoreApplication.translate("main_window", u"\u0420\u0435\u0434\u0430\u043a\u0442\u043e\u0440\u0441\u043a\u0430\u044f \u043d\u0435\u0434\u0435\u043b\u044f \u2014 3 \u0441\u0435\u0441\u0441\u0438\u0438", None))
 
         self.start_weekly_challenge_button.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0440\u0430\u0442\u044c \u0438\u0441\u043f\u044b\u0442\u0430\u043d\u0438\u0435", None))
         self.weekly_challenge_status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0434\u0435\u043b\u044c\u043d\u043e\u0435 \u0438\u0441\u043f\u044b\u0442\u0430\u043d\u0438\u0435 \u043d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d\u043e.", None))
