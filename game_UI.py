@@ -68,6 +68,14 @@ class GameMenuController:
     FREEZE_CATEGORY = 'Предметы'
     FREEZE_ITEM_KEY = 'Заморозка'
     FREEZE_MAX_COUNT = 2
+    WEEKLY_CHALLENGE_KEYS = ('symbols', 'days', 'sessions')
+    WRITING_SESSION_DURATIONS = (15, 25, 45, 60)
+    WRITING_INTENTIONS = (
+        'Написать новую сцену',
+        'Продолжить черновик',
+        'Отредактировать текст',
+        'Составить план',
+    )
 
     SHOP_TABS = (
         {
@@ -170,6 +178,8 @@ class GameMenuController:
 
         self.setup_quests()
         self.setup_skill_controls()
+        self.gamer.ensure_daily_challenge()
+        self.gamer.save()
 
         self.ui.value_for_use_selected_item.setMaximum(999)
         self.ui.value_for_buy_selected_item.setMaximum(999)
@@ -280,6 +290,12 @@ class GameMenuController:
                 lambda value, current_skill_key=skill_key: self.on_skill_points_changed(current_skill_key, value)
             )
 
+        # Творческий ритм
+        self.ui.start_weekly_challenge_button.clicked.connect(self.on_start_weekly_challenge)
+        self.ui.start_writing_session_button.clicked.connect(self.on_start_writing_session)
+        self.ui.finish_writing_session_button.clicked.connect(self.on_finish_writing_session)
+        self.ui.cancel_writing_session_button.clicked.connect(self.on_cancel_writing_session)
+
         # Создание своей награды
 
         self.ui.button_for_create_custom_award.clicked.connect(self.create_custom_award)
@@ -296,6 +312,7 @@ class GameMenuController:
         self.update_skills_tab()
         self.update_buffs_lists()
         self.update_quests_lists()
+        self.update_motivation_ui()
 
     def update_game_data(self, force_quests=False):
         """Обновление основных параметров игрока"""
@@ -369,6 +386,7 @@ class GameMenuController:
         self.update_gamer_parameters_list()
         self.update_skills_tab()
         self.update_buffs_lists()
+        self.update_motivation_ui()
         if should_check_quests or level_up_msg:
             self.update_quests_lists()
 
@@ -661,6 +679,105 @@ class GameMenuController:
                 self.notifications.show_warning(message)
             else:
                 QMessageBox.warning(self.ui.centralwidget, 'Умения', message)
+
+    def update_motivation_ui(self):
+        """Обновляет вкладку с сессиями и адаптивными испытаниями."""
+        if not self.gamer:
+            return
+        self.gamer.normalize_motivation()
+        daily = self.gamer.ensure_daily_challenge()
+
+        inspiration = self.gamer.inspiration
+        self.ui.inspiration_label.setText(
+            f"{tr('Вдохновение')}: {inspiration:g}/{game.MAX_INSPIRATION} · "
+            f"{tr('Бонус к наградам за текст')}: "
+            f"+{inspiration / game.MAX_INSPIRATION * 10:g}%"
+        )
+        self.ui.inspiration_progressbar.setMaximum(game.MAX_INSPIRATION)
+        self.ui.inspiration_progressbar.setValue(int(inspiration))
+
+        daily_progress = min(daily['progress'], daily['target'])
+        daily_state = tr('выполнена') if daily['completed'] else tr('в процессе')
+        self.ui.daily_challenge_status.setText(
+            f"{tr('Адаптивная цель дня')}: {daily_progress}/{daily['target']} "
+            f"{tr('символов')} — {daily_state}."
+        )
+
+        weekly = self.gamer.weekly_challenge
+        self.ui.start_weekly_challenge_button.setEnabled(weekly is None)
+        self.ui.weekly_challenge_combo.setEnabled(weekly is None)
+        if weekly is None:
+            self.ui.weekly_challenge_status.setText(tr('Недельное испытание не выбрано.'))
+        else:
+            meta = game.WEEKLY_CHALLENGES[weekly['key']]
+            progress = min(weekly['progress'], meta['target'])
+            state = tr('выполнено') if weekly['completed'] else tr('в процессе')
+            self.ui.weekly_challenge_status.setText(
+                f"{tr(meta['name'])}: {progress:g}/{meta['target']} — {state}. "
+                f"{tr(meta['description'])}"
+            )
+
+        session = self.gamer.writing_session
+        session_active = session is not None
+        self.ui.start_writing_session_button.setEnabled(not session_active)
+        self.ui.finish_writing_session_button.setEnabled(session_active)
+        self.ui.cancel_writing_session_button.setEnabled(session_active)
+        self.ui.writing_intention_combo.setEnabled(not session_active)
+        self.ui.writing_session_duration_combo.setEnabled(not session_active)
+        self.ui.writing_session_target.setEnabled(not session_active)
+        if not session_active:
+            self.ui.writing_session_status.setText(tr('Нет активной писательской сессии.'))
+            return
+
+        remaining = self.gamer.writing_session_remaining_seconds()
+        minutes, seconds = divmod(remaining, 60)
+        progress = session.get('progress', 0)
+        target = session.get('target_symbols', 0)
+        intention = tr(session.get('intention', ''))
+        self.ui.writing_session_status.setText(
+            f"{tr('Сессия')}: {intention}. "
+            f"{tr('Прогресс')}: {progress}/{target} {tr('символов')}. "
+            f"{tr('Осталось')}: {minutes:02d}:{seconds:02d}."
+        )
+
+    def on_start_weekly_challenge(self):
+        index = self.ui.weekly_challenge_combo.currentIndex()
+        if not 0 <= index < len(self.WEEKLY_CHALLENGE_KEYS):
+            return
+        ok, message = self.gamer.select_weekly_challenge(self.WEEKLY_CHALLENGE_KEYS[index])
+        self.update_motivation_ui()
+        if self.notifications:
+            (self.notifications.show_success if ok else self.notifications.show_warning)(message)
+
+    def on_start_writing_session(self):
+        duration_index = self.ui.writing_session_duration_combo.currentIndex()
+        intention_index = self.ui.writing_intention_combo.currentIndex()
+        if (
+                not 0 <= duration_index < len(self.WRITING_SESSION_DURATIONS)
+                or not 0 <= intention_index < len(self.WRITING_INTENTIONS)
+        ):
+            return
+        ok, message = self.gamer.start_writing_session(
+            self.WRITING_SESSION_DURATIONS[duration_index],
+            self.ui.writing_session_target.value(),
+            self.WRITING_INTENTIONS[intention_index],
+        )
+        self.update_motivation_ui()
+        if self.notifications:
+            (self.notifications.show_success if ok else self.notifications.show_warning)(message)
+
+    def on_finish_writing_session(self):
+        ok, message = self.gamer.finish_writing_session()
+        self.gamer = game.load_game()
+        self.update_game_data()
+        if self.notifications:
+            (self.notifications.show_success if ok else self.notifications.show_info)(message)
+
+    def on_cancel_writing_session(self):
+        ok, message = self.gamer.cancel_writing_session()
+        self.update_motivation_ui()
+        if self.notifications:
+            (self.notifications.show_info if ok else self.notifications.show_warning)(message)
 
     def load_gamer_parameters_list(self):
         """Загружает список параметров персонажа."""

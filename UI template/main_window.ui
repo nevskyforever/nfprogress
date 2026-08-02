@@ -2882,6 +2882,96 @@
             </item>
            </layout>
           </widget>
+          <widget class="QWidget" name="writing_rhythm_tab">
+           <attribute name="title">
+            <string>Творческий ритм</string>
+           </attribute>
+           <layout class="QGridLayout" name="writing_rhythm_layout">
+            <item row="0" column="0" colspan="3">
+             <widget class="QLabel" name="inspiration_label">
+              <property name="text">
+               <string>Вдохновение: 0/100</string>
+              </property>
+             </widget>
+            </item>
+            <item row="1" column="0" colspan="3">
+             <widget class="QProgressBar" name="inspiration_progressbar">
+              <property name="maximum"><number>100</number></property>
+              <property name="value"><number>0</number></property>
+             </widget>
+            </item>
+            <item row="2" column="0" colspan="3">
+             <widget class="QLabel" name="daily_challenge_status">
+              <property name="text"><string>Цель дня загружается…</string></property>
+              <property name="wordWrap"><bool>true</bool></property>
+             </widget>
+            </item>
+            <item row="3" column="0" colspan="2">
+             <widget class="QComboBox" name="weekly_challenge_combo">
+              <item><property name="text"><string>Марафон — 10 000 символов</string></property></item>
+              <item><property name="text"><string>Ритм — 4 продуктивных дня</string></property></item>
+              <item><property name="text"><string>Чистый поток — 5 сессий</string></property></item>
+             </widget>
+            </item>
+            <item row="3" column="2">
+             <widget class="QPushButton" name="start_weekly_challenge_button">
+              <property name="text"><string>Выбрать испытание</string></property>
+             </widget>
+            </item>
+            <item row="4" column="0" colspan="3">
+             <widget class="QLabel" name="weekly_challenge_status">
+              <property name="text"><string>Недельное испытание не выбрано.</string></property>
+              <property name="wordWrap"><bool>true</bool></property>
+             </widget>
+            </item>
+            <item row="5" column="0" colspan="3">
+             <widget class="QLabel" name="writing_session_status">
+              <property name="text"><string>Нет активной писательской сессии.</string></property>
+              <property name="wordWrap"><bool>true</bool></property>
+             </widget>
+            </item>
+            <item row="6" column="0">
+             <widget class="QComboBox" name="writing_intention_combo">
+              <item><property name="text"><string>Написать новую сцену</string></property></item>
+              <item><property name="text"><string>Продолжить черновик</string></property></item>
+              <item><property name="text"><string>Отредактировать текст</string></property></item>
+              <item><property name="text"><string>Составить план</string></property></item>
+             </widget>
+            </item>
+            <item row="6" column="1">
+             <widget class="QComboBox" name="writing_session_duration_combo">
+              <item><property name="text"><string>15 минут</string></property></item>
+              <item><property name="text"><string>25 минут</string></property></item>
+              <item><property name="text"><string>45 минут</string></property></item>
+              <item><property name="text"><string>60 минут</string></property></item>
+             </widget>
+            </item>
+            <item row="6" column="2">
+             <widget class="QSpinBox" name="writing_session_target">
+              <property name="minimum"><number>100</number></property>
+              <property name="maximum"><number>100000</number></property>
+              <property name="singleStep"><number>100</number></property>
+              <property name="value"><number>1000</number></property>
+              <property name="suffix"><string> символов</string></property>
+             </widget>
+            </item>
+            <item row="7" column="0">
+             <widget class="QPushButton" name="start_writing_session_button">
+              <property name="text"><string>Начать сессию</string></property>
+             </widget>
+            </item>
+            <item row="7" column="1">
+             <widget class="QPushButton" name="finish_writing_session_button">
+              <property name="text"><string>Завершить</string></property>
+             </widget>
+            </item>
+            <item row="7" column="2">
+             <widget class="QPushButton" name="cancel_writing_session_button">
+              <property name="text"><string>Отменить</string></property>
+             </widget>
+            </item>
+           </layout>
+          </widget>
          </widget>
         </item>
        </layout>

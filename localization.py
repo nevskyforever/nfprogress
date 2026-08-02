@@ -164,6 +164,8 @@ TRANSLATION_OVERRIDES = {
         "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Permanently increases the health recovery ratio by 1.",
         "Исцеление амулетом": "Amulet Healing",
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Permanent bonus to the health recovery ratio.",
+        "символов": "characters",
+        " символов": " characters",
     },
     "es": {
         "Стрики": "Rachas",
@@ -201,6 +203,8 @@ TRANSLATION_OVERRIDES = {
         "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Aumenta permanentemente en 1 la proporción de recuperación de salud.",
         "Исцеление амулетом": "Curación del amuleto",
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Bono permanente a la proporción de recuperación de salud.",
+        "символов": "caracteres",
+        " символов": " caracteres",
     },
     "de": {
         "Стрики": "Serien",
@@ -238,6 +242,8 @@ TRANSLATION_OVERRIDES = {
         "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Erhöht den Gesundheitsregenerationsfaktor dauerhaft um 1.",
         "Исцеление амулетом": "Amulettheilung",
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Dauerhafter Bonus auf den Gesundheitsregenerationsfaktor.",
+        "символов": "Zeichen",
+        " символов": " Zeichen",
     },
     "fr": {
         "Стрики": "Séries",
@@ -275,6 +281,8 @@ TRANSLATION_OVERRIDES = {
         "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Augmente définitivement le ratio de récupération de santé de 1.",
         "Исцеление амулетом": "Soin de l’amulette",
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Bonus permanent au ratio de récupération de santé.",
+        "символов": "caractères",
+        " символов": " caractères",
     },
     "pt_BR": {
         "Стрики": "Sequências",
@@ -312,6 +320,8 @@ TRANSLATION_OVERRIDES = {
         "Постоянно увеличивает коэффициент восстановления здоровья на 1.": "Aumenta permanentemente em 1 a proporção de recuperação de saúde.",
         "Исцеление амулетом": "Cura do amuleto",
         "Постоянный бонус к коэффициенту восстановления здоровья.": "Bônus permanente para a proporção de recuperação de saúde.",
+        "символов": "caracteres",
+        " символов": " caracteres",
     },
 }
 

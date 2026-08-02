@@ -31,6 +31,32 @@ SKILL_POINTS_PER_LEVEL = 2
 SKILL_CF_STEP = 0.25
 BASE_MAX_HEALTH = 100
 MAX_HEALTH_PER_5_LEVELS = 10
+MAX_INSPIRATION = 100
+INSPIRATION_SYMBOL_STEP = 500
+
+WEEKLY_CHALLENGES = {
+    'symbols': {
+        'name': 'Марафон',
+        'description': 'Написать 10 000 символов за неделю.',
+        'target': 10000,
+        'reward_coins': 500,
+        'reward_exp': 1500,
+    },
+    'days': {
+        'name': 'Ритм',
+        'description': 'Писать в четыре разных дня за неделю.',
+        'target': 4,
+        'reward_coins': 400,
+        'reward_exp': 1200,
+    },
+    'sessions': {
+        'name': 'Чистый поток',
+        'description': 'Завершить пять успешных писательских сессий.',
+        'target': 5,
+        'reward_coins': 450,
+        'reward_exp': 1350,
+    },
+}
 
 SKILL_META = {
     'productivity': {
@@ -266,6 +292,11 @@ class Gamer:
         self.debuffs = []
 
         self.quests = []
+        self.inspiration = 0
+        self.daily_challenge = None
+        self.weekly_challenge = None
+        self.writing_session = None
+        self.session_reward_bonus = 0.0
         self.sync_quests()
 
     def _make_cf_parameter(self, key, value, base_value=None):
@@ -625,17 +656,237 @@ class Gamer:
         data_file = get_data_file_path()
         engine.atomic_pickle_save(self, data_file)
 
+    # === МОТИВАЦИЯ И ПИСАТЕЛЬСКИЕ СЕССИИ ===
+    def normalize_motivation(self):
+        try:
+            self.inspiration = min(MAX_INSPIRATION, max(0.0, float(self.inspiration)))
+        except (TypeError, ValueError):
+            self.inspiration = 0.0
+
+        if not isinstance(self.daily_challenge, dict):
+            self.daily_challenge = None
+        if not isinstance(self.weekly_challenge, dict):
+            self.weekly_challenge = None
+        if not isinstance(self.writing_session, dict):
+            self.writing_session = None
+        try:
+            self.session_reward_bonus = min(1.0, max(0.0, float(self.session_reward_bonus)))
+        except (TypeError, ValueError):
+            self.session_reward_bonus = 0.0
+
+        today = engine.today_for_test()
+        if self.daily_challenge and self.daily_challenge.get('date') != today.isoformat():
+            self.daily_challenge = None
+
+        week_start = today - timedelta(days=today.weekday())
+        if self.weekly_challenge and self.weekly_challenge.get('week_start') != week_start.isoformat():
+            self.weekly_challenge = None
+
+    @staticmethod
+    def calculate_adaptive_daily_target(data=None):
+        """Возвращает посильную цель: 80% среднего результата за продуктивные дни."""
+        data = engine.load_data() if data is None else data
+        today = engine.today_for_test()
+        earliest_day = today - timedelta(days=14)
+        symbols_by_day = {}
+
+        def collect_notes(project):
+            stages = getattr(project, 'stages', []) if getattr(project, 'enable_stages', False) else []
+            if stages:
+                for stage in stages:
+                    collect_notes(stage)
+                return
+            for note in getattr(project, 'notes', []):
+                note_day = note.get_date_create()
+                added = note.get_added_symbols()
+                if earliest_day <= note_day < today and added > 0:
+                    symbols_by_day[note_day] = symbols_by_day.get(note_day, 0) + added
+
+        for project in data.get('projects', {}).values():
+            collect_notes(project)
+
+        if not symbols_by_day:
+            return 1000
+        average = sum(symbols_by_day.values()) / len(symbols_by_day)
+        target = min(5000, max(500, average * 0.8))
+        return int(round(target / 100) * 100)
+
+    def ensure_daily_challenge(self, target=None):
+        self.normalize_motivation()
+        if self.daily_challenge is None:
+            self.daily_challenge = {
+                'date': engine.today_for_test().isoformat(),
+                'target': int(target or self.calculate_adaptive_daily_target()),
+                'progress': 0,
+                'completed': False,
+            }
+        return self.daily_challenge
+
+    def select_weekly_challenge(self, challenge_key, save=True):
+        self.normalize_motivation()
+        if challenge_key not in WEEKLY_CHALLENGES:
+            return False, 'Неизвестное недельное испытание.'
+        if self.weekly_challenge is not None:
+            return False, 'Недельное испытание уже выбрано.'
+
+        today = engine.today_for_test()
+        week_start = today - timedelta(days=today.weekday())
+        self.weekly_challenge = {
+            'key': challenge_key,
+            'week_start': week_start.isoformat(),
+            'progress': 0,
+            'writing_days': [],
+            'completed': False,
+        }
+        if save:
+            self.save()
+        return True, f'Начато недельное испытание «{WEEKLY_CHALLENGES[challenge_key]["name"]}».'
+
+    def start_writing_session(self, duration_minutes, target_symbols, intention, save=True):
+        self.normalize_motivation()
+        if self.writing_session is not None:
+            return False, 'Сначала завершите текущую писательскую сессию.'
+        try:
+            duration_minutes = int(duration_minutes)
+            target_symbols = int(target_symbols)
+        except (TypeError, ValueError):
+            return False, 'Некорректные параметры писательской сессии.'
+        if duration_minutes not in (15, 25, 45, 60) or target_symbols <= 0:
+            return False, 'Выберите длительность и положительную цель сессии.'
+
+        self.writing_session = {
+            'started_at': get_effective_now(),
+            'duration_minutes': duration_minutes,
+            'target_symbols': target_symbols,
+            'progress': 0,
+            'intention': str(intention),
+        }
+        if save:
+            self.save()
+        return True, 'Писательская сессия начата.'
+
+    def writing_session_remaining_seconds(self):
+        self.normalize_motivation()
+        if self.writing_session is None:
+            return 0
+        started_at = self.writing_session.get('started_at')
+        if not isinstance(started_at, datetime):
+            return 0
+        duration = self.writing_session.get('duration_minutes', 0) * 60
+        elapsed = (get_effective_now() - started_at).total_seconds()
+        return max(0, int(duration - elapsed))
+
+    def finish_writing_session(self, save=True):
+        self.normalize_motivation()
+        if self.writing_session is None:
+            return False, 'Нет активной писательской сессии.'
+
+        session = self.writing_session
+        successful = session.get('progress', 0) >= session.get('target_symbols', 1)
+        self.writing_session = None
+        if not successful:
+            if save:
+                self.save()
+            return False, 'Сессия завершена. Цель не достигнута — штрафа нет.'
+
+        self.inspiration = min(MAX_INSPIRATION, self.inspiration + 10)
+        reward_multiplier = 1 + self.session_reward_bonus
+        self.session_reward_bonus = 0.0
+        coins = self.set_coins(25 * self.calculate_inflation() * reward_multiplier, save=False)
+        exp = self.add_exp(250 * reward_multiplier)
+        weekly_message = self._advance_weekly_challenge(0, successful_session=True)
+        if save:
+            self.save()
+        message = f'Сессия завершена! Получено {coins} монет, {exp} опыта и 10 вдохновения.'
+        if weekly_message:
+            message += f'\n{weekly_message}'
+        return True, message
+
+    def cancel_writing_session(self, save=True):
+        self.normalize_motivation()
+        if self.writing_session is None:
+            return False, 'Нет активной писательской сессии.'
+        self.writing_session = None
+        if save:
+            self.save()
+        return True, 'Писательская сессия отменена без штрафа.'
+
+    def _advance_weekly_challenge(self, symbols, successful_session=False):
+        if not self.weekly_challenge or self.weekly_challenge.get('completed'):
+            return None
+        challenge = self.weekly_challenge
+        challenge_key = challenge.get('key')
+        meta = WEEKLY_CHALLENGES.get(challenge_key)
+        if meta is None:
+            return None
+
+        if challenge_key == 'symbols':
+            challenge['progress'] += symbols
+        elif challenge_key == 'days' and symbols > 0:
+            today = engine.today_for_test().isoformat()
+            days = challenge.setdefault('writing_days', [])
+            if today not in days:
+                days.append(today)
+            challenge['progress'] = len(days)
+        elif challenge_key == 'sessions' and successful_session:
+            challenge['progress'] += 1
+
+        if challenge['progress'] < meta['target']:
+            return None
+        challenge['completed'] = True
+        coins = self.set_coins(meta['reward_coins'] * self.calculate_inflation(), save=False)
+        exp = self.add_exp(meta['reward_exp'])
+        self.inspiration = min(MAX_INSPIRATION, self.inspiration + 20)
+        return f'Недельное испытание завершено! Получено {coins} монет, {exp} опыта и 20 вдохновения.'
+
+    def record_motivation_progress(self, symbols):
+        self.normalize_motivation()
+        symbols = max(0, int(symbols))
+        if symbols <= 0:
+            return []
+
+        messages = []
+        self.inspiration = min(
+            MAX_INSPIRATION,
+            self.inspiration + symbols / INSPIRATION_SYMBOL_STEP,
+        )
+        if self.writing_session is not None:
+            self.writing_session['progress'] = self.writing_session.get('progress', 0) + symbols
+
+        daily = self.ensure_daily_challenge()
+        daily['progress'] += symbols
+        if not daily['completed'] and daily['progress'] >= daily['target']:
+            daily['completed'] = True
+            coins = self.set_coins(daily['target'] / 20 * self.calculate_inflation(), save=False)
+            exp = self.add_exp(daily['target'] * 0.5)
+            self.inspiration = min(MAX_INSPIRATION, self.inspiration + 10)
+            messages.append(
+                f'Адаптивная цель дня выполнена! Получено {coins} монет, {exp} опыта и 10 вдохновения.'
+            )
+
+        weekly_message = self._advance_weekly_challenge(symbols)
+        if weekly_message:
+            messages.append(weekly_message)
+        return messages
+
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols):
+        self.normalize_motivation()
+        inspiration_multiplier = 1 + self.inspiration / MAX_INSPIRATION * 0.1
         exp_cf = self.get_cf_value('exp', 1.0)
-        exps = self.add_exp(symbols / 100 * game_data.base_exp_bonus * exp_cf)
+        exps = self.add_exp(
+            symbols / 100 * game_data.base_exp_bonus * exp_cf * inspiration_multiplier
+        )
         self.save()
         coins_cf = self.get_cf_value('coins', 1.0)
-        coins = symbols / 100 * game_data.base_coin_bonus * coins_cf
+        coins = symbols / 100 * game_data.base_coin_bonus * coins_cf * inspiration_multiplier
         coins = self.set_coins(coins)
+        motivation_messages = self.record_motivation_progress(symbols)
         self.save()
-        return (f'Получено {coins} монет'
-                f'\nПолучено {exps} опыта')
+        message = f'Получено {coins} монет\nПолучено {exps} опыта'
+        if motivation_messages:
+            message += '\n' + '\n'.join(motivation_messages)
+        return message
 
     def give_streak_bonus(self, status, streak_type, streak_len=1, project_name=None):
         if (
@@ -1116,6 +1367,7 @@ class Gamer:
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
         had_skill_award_marker = hasattr(self, 'skill_points_awarded_for_level')
         had_max_health_marker = hasattr(self, 'max_health')
+        had_motivation_marker = hasattr(self, 'inspiration')
         complete_bonus_projects_migrated = not hasattr(self, 'complete_bonus_projects')
         defaults = {
             'level': 1,
@@ -1144,6 +1396,11 @@ class Gamer:
             'buffs': [],
             'debuffs': [],
             'quests': [],
+            'inspiration': 0,
+            'daily_challenge': None,
+            'weekly_challenge': None,
+            'writing_session': None,
+            'session_reward_bonus': 0.0,
             'pending_quest_item_migration_notification': None,
         }
 
@@ -1228,6 +1485,7 @@ class Gamer:
         # Особая обработка для bank_account
         self.normalize_cf()
         self.normalize_skills()
+        self.normalize_motivation()
         skill_points_migrated = False
         if not had_skill_award_marker:
             self.skill_points_awarded_for_level = 1
@@ -1242,7 +1500,7 @@ class Gamer:
 
         if (migrated_awards or migrated_inventory or migrated_buff_names
                 or skill_points_migrated or max_health_migrated or complete_bonus_projects_migrated
-                or migrated_quest_item_rewards):
+                or migrated_quest_item_rewards or not had_motivation_marker):
             self.save()
 
     def calculate_inflation(self):

@@ -15,6 +15,8 @@ for writers who prefer extra motivation.
 - Use infinite projects for ongoing work without a fixed final goal.
 - Enable optional game mechanics with experience, coins, quests, items,
   rewards, and streak freezes.
+- Run timed writing sessions, build inspiration, and complete adaptive daily
+  goals and selectable weekly challenges.
 - Check for and install application updates.
 
 ## Supported platforms

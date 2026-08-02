@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowJpLwPD.ui'
+## Form generated from reading UI file 'main_window.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -905,6 +905,7 @@ class Ui_main_window(object):
 
         self.button_to_sell_selected_item = QPushButton(self.inventory_scroll_area)
         self.button_to_sell_selected_item.setObjectName(u"button_to_sell_selected_item")
+        self.button_to_sell_selected_item.setFont(font1)
 
         self.gridLayout_12.addWidget(self.button_to_sell_selected_item, 4, 4, 1, 1)
 
@@ -1107,14 +1108,16 @@ class Ui_main_window(object):
 
         self.about_selected_active_quest = QGroupBox(self.active_quests_tab)
         self.about_selected_active_quest.setObjectName(u"about_selected_active_quest")
+        self.about_selected_active_quest.setFont(font1)
         self.verticalLayout = QVBoxLayout(self.about_selected_active_quest)
         self.verticalLayout.setObjectName(u"verticalLayout")
         self.scrollArea_2 = QScrollArea(self.about_selected_active_quest)
         self.scrollArea_2.setObjectName(u"scrollArea_2")
+        self.scrollArea_2.setFont(font1)
         self.scrollArea_2.setWidgetResizable(True)
         self.scrollAreaWidgetContents_3 = QWidget()
         self.scrollAreaWidgetContents_3.setObjectName(u"scrollAreaWidgetContents_3")
-        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 100, 168))
+        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 357, 136))
         self.gridLayout_17 = QGridLayout(self.scrollAreaWidgetContents_3)
         self.gridLayout_17.setObjectName(u"gridLayout_17")
         self.date_start_selected_active_quest = QLabel(self.scrollAreaWidgetContents_3)
@@ -1125,6 +1128,7 @@ class Ui_main_window(object):
 
         self.name_selected_active_quest = QLabel(self.scrollAreaWidgetContents_3)
         self.name_selected_active_quest.setObjectName(u"name_selected_active_quest")
+        self.name_selected_active_quest.setFont(font1)
         self.name_selected_active_quest.setWordWrap(True)
 
         self.gridLayout_17.addWidget(self.name_selected_active_quest, 0, 0, 1, 1)
@@ -1183,7 +1187,7 @@ class Ui_main_window(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents_2 = QWidget()
         self.scrollAreaWidgetContents_2.setObjectName(u"scrollAreaWidgetContents_2")
-        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 100, 168))
+        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 357, 163))
         self.gridLayout_16 = QGridLayout(self.scrollAreaWidgetContents_2)
         self.gridLayout_16.setObjectName(u"gridLayout_16")
         self.date_end_selected_completed_quest = QLabel(self.scrollAreaWidgetContents_2)
@@ -1311,47 +1315,55 @@ class Ui_main_window(object):
         sizePolicy.setHeightForWidth(self.debuf_list.sizePolicy().hasHeightForWidth())
         self.debuf_list.setSizePolicy(sizePolicy)
         self.debuf_list.setMaximumSize(QSize(193, 16777215))
+        self.debuf_list.setFont(font1)
 
         self.horizontalLayout_8.addWidget(self.debuf_list)
 
         self.about_selected_debuf = QGroupBox(self.defufs_tab)
         self.about_selected_debuf.setObjectName(u"about_selected_debuf")
+        self.about_selected_debuf.setFont(font1)
         self.gridLayout_24 = QGridLayout(self.about_selected_debuf)
         self.gridLayout_24.setObjectName(u"gridLayout_24")
         self.scrol_area = QScrollArea(self.about_selected_debuf)
         self.scrol_area.setObjectName(u"scrol_area")
+        self.scrol_area.setFont(font1)
         self.scrol_area.setWidgetResizable(True)
         self.scrollAreaWidgetContents_9 = QWidget()
         self.scrollAreaWidgetContents_9.setObjectName(u"scrollAreaWidgetContents_9")
-        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 100, 168))
+        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 357, 159))
         self.gridLayout_25 = QGridLayout(self.scrollAreaWidgetContents_9)
         self.gridLayout_25.setObjectName(u"gridLayout_25")
         self.label_42 = QLabel(self.scrollAreaWidgetContents_9)
         self.label_42.setObjectName(u"label_42")
+        self.label_42.setFont(font1)
         self.label_42.setWordWrap(True)
 
         self.gridLayout_25.addWidget(self.label_42, 4, 0, 1, 1)
 
         self.label_43 = QLabel(self.scrollAreaWidgetContents_9)
         self.label_43.setObjectName(u"label_43")
+        self.label_43.setFont(font1)
         self.label_43.setWordWrap(True)
 
         self.gridLayout_25.addWidget(self.label_43, 2, 0, 1, 1)
 
         self.label_44 = QLabel(self.scrollAreaWidgetContents_9)
         self.label_44.setObjectName(u"label_44")
+        self.label_44.setFont(font1)
         self.label_44.setWordWrap(True)
 
         self.gridLayout_25.addWidget(self.label_44, 1, 0, 1, 1)
 
         self.label_45 = QLabel(self.scrollAreaWidgetContents_9)
         self.label_45.setObjectName(u"label_45")
+        self.label_45.setFont(font1)
         self.label_45.setWordWrap(True)
 
         self.gridLayout_25.addWidget(self.label_45, 0, 0, 1, 1)
 
         self.label_46 = QLabel(self.scrollAreaWidgetContents_9)
         self.label_46.setObjectName(u"label_46")
+        self.label_46.setFont(font1)
         self.label_46.setWordWrap(True)
 
         self.gridLayout_25.addWidget(self.label_46, 3, 0, 1, 1)
@@ -1373,23 +1385,27 @@ class Ui_main_window(object):
         sizePolicy.setHeightForWidth(self.gamer_parameters_list.sizePolicy().hasHeightForWidth())
         self.gamer_parameters_list.setSizePolicy(sizePolicy)
         self.gamer_parameters_list.setMaximumSize(QSize(193, 16777215))
+        self.gamer_parameters_list.setFont(font1)
 
         self.horizontalLayout_4.addWidget(self.gamer_parameters_list)
 
         self.groupBox = QGroupBox(self.gamer_parameters_tab)
         self.groupBox.setObjectName(u"groupBox")
+        self.groupBox.setFont(font1)
         self.verticalLayout_3 = QVBoxLayout(self.groupBox)
         self.verticalLayout_3.setObjectName(u"verticalLayout_3")
         self.scrollArea_6 = QScrollArea(self.groupBox)
         self.scrollArea_6.setObjectName(u"scrollArea_6")
+        self.scrollArea_6.setFont(font1)
         self.scrollArea_6.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 98, 56))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 357, 159))
         self.verticalLayout_4 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_4.setObjectName(u"verticalLayout_4")
         self.description_selected_parameter = QLabel(self.scrollAreaWidgetContents)
         self.description_selected_parameter.setObjectName(u"description_selected_parameter")
+        self.description_selected_parameter.setFont(font1)
         self.description_selected_parameter.setWordWrap(True)
 
         self.verticalLayout_4.addWidget(self.description_selected_parameter)
@@ -1489,6 +1505,96 @@ class Ui_main_window(object):
         self.gridLayout_7.addWidget(self.available_skill_points, 0, 1, 1, 1)
 
         self.parameters_tabs.addTab(self.skills_tab, "")
+        self.writing_rhythm_tab = QWidget()
+        self.writing_rhythm_tab.setObjectName(u"writing_rhythm_tab")
+        self.writing_rhythm_layout = QGridLayout(self.writing_rhythm_tab)
+        self.writing_rhythm_layout.setObjectName(u"writing_rhythm_layout")
+        self.inspiration_label = QLabel(self.writing_rhythm_tab)
+        self.inspiration_label.setObjectName(u"inspiration_label")
+
+        self.writing_rhythm_layout.addWidget(self.inspiration_label, 0, 0, 1, 3)
+
+        self.inspiration_progressbar = QProgressBar(self.writing_rhythm_tab)
+        self.inspiration_progressbar.setObjectName(u"inspiration_progressbar")
+        self.inspiration_progressbar.setMaximum(100)
+        self.inspiration_progressbar.setValue(0)
+
+        self.writing_rhythm_layout.addWidget(self.inspiration_progressbar, 1, 0, 1, 3)
+
+        self.daily_challenge_status = QLabel(self.writing_rhythm_tab)
+        self.daily_challenge_status.setObjectName(u"daily_challenge_status")
+        self.daily_challenge_status.setWordWrap(True)
+
+        self.writing_rhythm_layout.addWidget(self.daily_challenge_status, 2, 0, 1, 3)
+
+        self.weekly_challenge_combo = QComboBox(self.writing_rhythm_tab)
+        self.weekly_challenge_combo.addItem("")
+        self.weekly_challenge_combo.addItem("")
+        self.weekly_challenge_combo.addItem("")
+        self.weekly_challenge_combo.setObjectName(u"weekly_challenge_combo")
+
+        self.writing_rhythm_layout.addWidget(self.weekly_challenge_combo, 3, 0, 1, 2)
+
+        self.start_weekly_challenge_button = QPushButton(self.writing_rhythm_tab)
+        self.start_weekly_challenge_button.setObjectName(u"start_weekly_challenge_button")
+
+        self.writing_rhythm_layout.addWidget(self.start_weekly_challenge_button, 3, 2, 1, 1)
+
+        self.weekly_challenge_status = QLabel(self.writing_rhythm_tab)
+        self.weekly_challenge_status.setObjectName(u"weekly_challenge_status")
+        self.weekly_challenge_status.setWordWrap(True)
+
+        self.writing_rhythm_layout.addWidget(self.weekly_challenge_status, 4, 0, 1, 3)
+
+        self.writing_session_status = QLabel(self.writing_rhythm_tab)
+        self.writing_session_status.setObjectName(u"writing_session_status")
+        self.writing_session_status.setWordWrap(True)
+
+        self.writing_rhythm_layout.addWidget(self.writing_session_status, 5, 0, 1, 3)
+
+        self.writing_intention_combo = QComboBox(self.writing_rhythm_tab)
+        self.writing_intention_combo.addItem("")
+        self.writing_intention_combo.addItem("")
+        self.writing_intention_combo.addItem("")
+        self.writing_intention_combo.addItem("")
+        self.writing_intention_combo.setObjectName(u"writing_intention_combo")
+
+        self.writing_rhythm_layout.addWidget(self.writing_intention_combo, 6, 0, 1, 1)
+
+        self.writing_session_duration_combo = QComboBox(self.writing_rhythm_tab)
+        self.writing_session_duration_combo.addItem("")
+        self.writing_session_duration_combo.addItem("")
+        self.writing_session_duration_combo.addItem("")
+        self.writing_session_duration_combo.addItem("")
+        self.writing_session_duration_combo.setObjectName(u"writing_session_duration_combo")
+
+        self.writing_rhythm_layout.addWidget(self.writing_session_duration_combo, 6, 1, 1, 1)
+
+        self.writing_session_target = QSpinBox(self.writing_rhythm_tab)
+        self.writing_session_target.setObjectName(u"writing_session_target")
+        self.writing_session_target.setMinimum(100)
+        self.writing_session_target.setMaximum(100000)
+        self.writing_session_target.setSingleStep(100)
+        self.writing_session_target.setValue(1000)
+
+        self.writing_rhythm_layout.addWidget(self.writing_session_target, 6, 2, 1, 1)
+
+        self.start_writing_session_button = QPushButton(self.writing_rhythm_tab)
+        self.start_writing_session_button.setObjectName(u"start_writing_session_button")
+
+        self.writing_rhythm_layout.addWidget(self.start_writing_session_button, 7, 0, 1, 1)
+
+        self.finish_writing_session_button = QPushButton(self.writing_rhythm_tab)
+        self.finish_writing_session_button.setObjectName(u"finish_writing_session_button")
+
+        self.writing_rhythm_layout.addWidget(self.finish_writing_session_button, 7, 1, 1, 1)
+
+        self.cancel_writing_session_button = QPushButton(self.writing_rhythm_tab)
+        self.cancel_writing_session_button.setObjectName(u"cancel_writing_session_button")
+
+        self.writing_rhythm_layout.addWidget(self.cancel_writing_session_button, 7, 2, 1, 1)
+
+        self.parameters_tabs.addTab(self.writing_rhythm_tab, "")
 
         self.gridLayout_5.addWidget(self.parameters_tabs, 2, 0, 1, 1)
 
@@ -1519,10 +1625,10 @@ class Ui_main_window(object):
 
         self.retranslateUi(main_window)
 
-        self.tabWidget.setCurrentIndex(0)
+        self.tabWidget.setCurrentIndex(1)
         self.game_shop_tabs.setCurrentIndex(0)
-        self.quests_tabs.setCurrentIndex(0)
-        self.parameters_tabs.setCurrentIndex(0)
+        self.quests_tabs.setCurrentIndex(1)
+        self.parameters_tabs.setCurrentIndex(2)
 
 
         QMetaObject.connectSlotsByName(main_window)
@@ -1684,6 +1790,30 @@ class Ui_main_window(object):
         self.label_6.setText(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0434\u0443\u043a\u0442\u0438\u0432\u043d\u043e\u0441\u0442\u044c", None))
         self.available_skill_points.setText(QCoreApplication.translate("main_window", u"\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435 \u0431\u0430\u043b\u043b\u044b \u0443\u043c\u0435\u043d\u0438\u0439: 0", None))
         self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.skills_tab), QCoreApplication.translate("main_window", u"\u0423\u043c\u0435\u043d\u0438\u044f", None))
+        self.inspiration_label.setText(QCoreApplication.translate("main_window", u"\u0412\u0434\u043e\u0445\u043d\u043e\u0432\u0435\u043d\u0438\u0435: 0/100", None))
+        self.daily_challenge_status.setText(QCoreApplication.translate("main_window", u"\u0426\u0435\u043b\u044c \u0434\u043d\u044f \u0437\u0430\u0433\u0440\u0443\u0436\u0430\u0435\u0442\u0441\u044f\u2026", None))
+        self.weekly_challenge_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u041c\u0430\u0440\u0430\u0444\u043e\u043d \u2014 10 000 \u0441\u0438\u043c\u0432\u043e\u043b\u043e\u0432", None))
+        self.weekly_challenge_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u0420\u0438\u0442\u043c \u2014 4 \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u0438\u0432\u043d\u044b\u0445 \u0434\u043d\u044f", None))
+        self.weekly_challenge_combo.setItemText(2, QCoreApplication.translate("main_window", u"\u0427\u0438\u0441\u0442\u044b\u0439 \u043f\u043e\u0442\u043e\u043a \u2014 5 \u0441\u0435\u0441\u0441\u0438\u0439", None))
+
+        self.start_weekly_challenge_button.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0440\u0430\u0442\u044c \u0438\u0441\u043f\u044b\u0442\u0430\u043d\u0438\u0435", None))
+        self.weekly_challenge_status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0434\u0435\u043b\u044c\u043d\u043e\u0435 \u0438\u0441\u043f\u044b\u0442\u0430\u043d\u0438\u0435 \u043d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d\u043e.", None))
+        self.writing_session_status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0430\u043a\u0442\u0438\u0432\u043d\u043e\u0439 \u043f\u0438\u0441\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u043e\u0439 \u0441\u0435\u0441\u0441\u0438\u0438.", None))
+        self.writing_intention_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u041d\u0430\u043f\u0438\u0441\u0430\u0442\u044c \u043d\u043e\u0432\u0443\u044e \u0441\u0446\u0435\u043d\u0443", None))
+        self.writing_intention_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a", None))
+        self.writing_intention_combo.setItemText(2, QCoreApplication.translate("main_window", u"\u041e\u0442\u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0442\u0435\u043a\u0441\u0442", None))
+        self.writing_intention_combo.setItemText(3, QCoreApplication.translate("main_window", u"\u0421\u043e\u0441\u0442\u0430\u0432\u0438\u0442\u044c \u043f\u043b\u0430\u043d", None))
+
+        self.writing_session_duration_combo.setItemText(0, QCoreApplication.translate("main_window", u"15 \u043c\u0438\u043d\u0443\u0442", None))
+        self.writing_session_duration_combo.setItemText(1, QCoreApplication.translate("main_window", u"25 \u043c\u0438\u043d\u0443\u0442", None))
+        self.writing_session_duration_combo.setItemText(2, QCoreApplication.translate("main_window", u"45 \u043c\u0438\u043d\u0443\u0442", None))
+        self.writing_session_duration_combo.setItemText(3, QCoreApplication.translate("main_window", u"60 \u043c\u0438\u043d\u0443\u0442", None))
+
+        self.writing_session_target.setSuffix(QCoreApplication.translate("main_window", u" \u0441\u0438\u043c\u0432\u043e\u043b\u043e\u0432", None))
+        self.start_writing_session_button.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u0447\u0430\u0442\u044c \u0441\u0435\u0441\u0441\u0438\u044e", None))
+        self.finish_writing_session_button.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c", None))
+        self.cancel_writing_session_button.setText(QCoreApplication.translate("main_window", u"\u041e\u0442\u043c\u0435\u043d\u0438\u0442\u044c", None))
+        self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.writing_rhythm_tab), QCoreApplication.translate("main_window", u"\u0422\u0432\u043e\u0440\u0447\u0435\u0441\u043a\u0438\u0439 \u0440\u0438\u0442\u043c", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.game_tab), QCoreApplication.translate("main_window", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
         self.settings_menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
         self.project_menu.setTitle(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442", None))

@@ -1240,6 +1240,38 @@ def health_potion_func(do, add=None):
     return 'Неизвестное действие'
 
 
+def inspiration_potion_func(do, add=None):
+    """Восстанавливает положительную шкалу вдохновения."""
+    add = 25 if add is None else add
+    if do == '?':
+        return f'Восстанавливает {add:g} вдохновения'
+    if do != 'use':
+        return 'Неизвестное действие'
+
+    gamer = game.load_game()
+    gamer.normalize_motivation()
+    old_value = gamer.inspiration
+    gamer.inspiration = min(game.MAX_INSPIRATION, gamer.inspiration + add)
+    restored = gamer.inspiration - old_value
+    gamer.save()
+    return f'Вдохновение восстановлено на {restored:g}. Текущее: {gamer.inspiration:g}/{game.MAX_INSPIRATION}'
+
+
+def flow_ink_func(do, add=None):
+    """Усиливает награду за следующую успешную писательскую сессию."""
+    add = 0.25 if add is None else add
+    if do == '?':
+        return f'Увеличивает награду за следующую успешную сессию на {add * 100:g}%'
+    if do != 'use':
+        return 'Неизвестное действие'
+
+    gamer = game.load_game()
+    gamer.normalize_motivation()
+    gamer.session_reward_bonus = min(1.0, gamer.session_reward_bonus + add)
+    gamer.save()
+    return f'Бонус следующей успешной сессии: +{gamer.session_reward_bonus * 100:g}%'
+
+
 def lottery_ticket_func(do, add=None):
     """Функция лотерейного билета"""
 
@@ -1486,6 +1518,16 @@ health_potion_50 = FuncItem('🧪  Большое зелье здоровья', 
                             description='🧪  Восстанавливает здоровье на 50 единиц')
 health_recovery = FuncItem('🧪  Зелье воскрешения', item_type='Зелья', level=3, func=health_potion_func, price=lambda: calculate_item_price(200), add=100,
                            description='🧪  Полностью восстанавливает здоровье')
+inspiration_potion = FuncItem(
+    '✨ Зелье вдохновения', item_type='Зелья', level=2,
+    func=inspiration_potion_func, price=lambda: calculate_item_price(75), add=25,
+    description='Восстанавливает 25 вдохновения.',
+)
+flow_ink = FuncItem(
+    '🖋️ Чернильница потока', item_type='Предметы', level=3,
+    func=flow_ink_func, price=lambda: calculate_item_price(150), add=0.25,
+    description='Увеличивает награду за следующую успешную писательскую сессию на 25%.',
+)
 crown_of_the_first_era = Item(name='👑  Корона Первой Эпохи', item_type='Награды', price=250000, sellable=False,
                               description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре',
                               buff=Buff(name='Опыт миллионера',
@@ -1729,6 +1771,7 @@ ITEM_REGISTRY = {'Зелья':
                       'Среднее зелье здоровья': health_potion_25,
                       'Большое зелье здоровья': health_potion_50,
                       'Зелье воскрешения': health_recovery,
+                      'Зелье вдохновения': inspiration_potion,
                       'Часовое зелье познания': exp_potion_1hrs,
                       'Суточное зелье познания': exp_potion_24hrs,
                       'Недельное зелье познания': exp_potion_7days,
@@ -1742,6 +1785,7 @@ ITEM_REGISTRY = {'Зелья':
                       'Суточное зелье супердоходности': super_coin_potion_24hrs,
                       'Недельное зелье супердоходности': super_coin_potion_7days,},
                  'Предметы': {'Заморозка': freeze,
+                              'Чернильница потока': flow_ink,
                               'Лотерейный билет': lottery_ticket,
                               'Печатная машинка Хемингуэя': hemingway_typewriter,
                               'Ноутбук Роалинг': rowling_laptop,
