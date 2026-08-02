@@ -69,6 +69,7 @@ class GameMenuController:
     FREEZE_ITEM_KEY = 'Заморозка'
     FREEZE_MAX_COUNT = 2
     WEEKLY_CHALLENGE_KEYS = ('symbols', 'days', 'sessions', 'editing')
+    INSPIRATION_ABILITY_KEYS = tuple(game.INSPIRATION_ABILITIES)
     WRITING_SESSION_DURATIONS = (15, 25, 45, 60)
     WRITING_INTENTIONS = (
         'Написать новую сцену',
@@ -294,6 +295,12 @@ class GameMenuController:
             )
 
         # Творческий ритм
+        self.ui.inspiration_ability_combo.currentIndexChanged.connect(
+            self.update_inspiration_ability_ui
+        )
+        self.ui.activate_inspiration_ability_button.clicked.connect(
+            self.on_activate_inspiration_ability
+        )
         self.ui.start_weekly_challenge_button.clicked.connect(self.on_start_weekly_challenge)
         self.ui.start_writing_session_button.clicked.connect(self.on_start_writing_session)
         self.ui.finish_writing_session_button.clicked.connect(self.on_finish_writing_session)
@@ -702,6 +709,7 @@ class GameMenuController:
         )
         self.ui.inspiration_progressbar.setMaximum(game.MAX_INSPIRATION)
         self.ui.inspiration_progressbar.setValue(int(inspiration))
+        self.update_inspiration_ability_ui()
 
         daily_progress = min(daily['progress'], daily['target'])
         daily_state = tr('выполнена') if daily['completed'] else tr('в процессе')
@@ -739,6 +747,40 @@ class GameMenuController:
             return
 
         self.update_writing_session_status(session)
+
+    def update_inspiration_ability_ui(self, *_):
+        index = self.ui.inspiration_ability_combo.currentIndex()
+        if not self.gamer or not 0 <= index < len(self.INSPIRATION_ABILITY_KEYS):
+            self.ui.activate_inspiration_ability_button.setEnabled(False)
+            return
+
+        ability = game.INSPIRATION_ABILITIES[self.INSPIRATION_ABILITY_KEYS[index]]
+        active = getattr(self.gamer, ability['bonus_field']) > 0
+        tooltip = (
+            f"{tr('Стоимость')}: {ability['cost']} {tr('вдохновения')}. "
+            f"{tr(ability['description'])}"
+        )
+        if active:
+            tooltip += f" {tr('Эффект уже активен.')}"
+        self.ui.inspiration_ability_combo.setToolTip(tooltip)
+        self.ui.activate_inspiration_ability_button.setToolTip(tooltip)
+        self.ui.activate_inspiration_ability_button.setText(
+            tr('Активно') if active else tr('Активировать')
+        )
+        self.ui.activate_inspiration_ability_button.setEnabled(
+            not active and self.gamer.inspiration >= ability['cost']
+        )
+
+    def on_activate_inspiration_ability(self):
+        index = self.ui.inspiration_ability_combo.currentIndex()
+        if not 0 <= index < len(self.INSPIRATION_ABILITY_KEYS):
+            return
+        ok, message = self.gamer.activate_inspiration_ability(
+            self.INSPIRATION_ABILITY_KEYS[index]
+        )
+        self.update_motivation_ui()
+        if self.notifications:
+            (self.notifications.show_success if ok else self.notifications.show_warning)(message)
 
     def setup_writing_session_timer(self):
         """Запускает независимое ежесекундное обновление таймера сессии."""

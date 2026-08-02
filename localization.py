@@ -176,6 +176,9 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Turning Point",
         "следующий рубеж": "next milestone",
         "Путь этапа": "Stage Path",
+        "Творческий импульс": "Creative Surge",
+        "Искра сессии": "Session Spark",
+        "Фокус испытания": "Challenge Focus",
     },
     "es": {
         "Стрики": "Rachas",
@@ -225,6 +228,9 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Punto de giro",
         "следующий рубеж": "siguiente hito",
         "Путь этапа": "Ruta de la etapa",
+        "Творческий импульс": "Impulso creativo",
+        "Искра сессии": "Chispa de sesión",
+        "Фокус испытания": "Enfoque del desafío",
     },
     "de": {
         "Стрики": "Serien",
@@ -274,6 +280,9 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Wendepunkt",
         "следующий рубеж": "nächster Meilenstein",
         "Путь этапа": "Etappenpfad",
+        "Творческий импульс": "Kreativer Impuls",
+        "Искра сессии": "Sitzungsfunke",
+        "Фокус испытания": "Herausforderungsfokus",
     },
     "fr": {
         "Стрики": "Séries",
@@ -323,6 +332,9 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Tournant",
         "следующий рубеж": "prochain jalon",
         "Путь этапа": "Parcours de l’étape",
+        "Творческий импульс": "Élan créatif",
+        "Искра сессии": "Étincelle de session",
+        "Фокус испытания": "Concentration du défi",
     },
     "pt_BR": {
         "Стрики": "Sequências",
@@ -372,6 +384,9 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Ponto de virada",
         "следующий рубеж": "próximo marco",
         "Путь этапа": "Caminho da etapa",
+        "Творческий импульс": "Impulso criativo",
+        "Искра сессии": "Centelha da sessão",
+        "Фокус испытания": "Foco no desafio",
     },
 }
 

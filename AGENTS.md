@@ -145,6 +145,10 @@ Creative rhythm is coordinated by `game.py` and `game_UI.py`:
   Its order must exactly match `weekly_challenge_combo` in `UI template/main_window.ui`.
 * `_advance_weekly_challenge()` is the only place that advances and rewards weekly
   challenges. Pass it explicit event data instead of inferring intent from UI state.
+* `INSPIRATION_ABILITIES` maps each active ability to its cost, bonus, and pending
+  bonus field. Keep its order synchronized with `inspiration_ability_combo`. Spend
+  inspiration only after validation, reject a second pending effect of the same
+  type, and consume the bonus only when the promised reward is actually granted.
 * A writing session is stored in `Gamer.writing_session`. Its timer uses wall-clock
   time through `get_session_now()` and is refreshed by the existing one-second
   `QTimer`; do not implement a blocking timer or decrement the saved duration.

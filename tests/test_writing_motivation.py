@@ -85,6 +85,64 @@ def test_inspiration_increases_writing_rewards(monkeypatch):
     assert gamer.exp == 525
 
 
+def test_creative_surge_spends_inspiration_on_next_text(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.inspiration = 30
+
+    ok, _ = gamer.activate_inspiration_ability('creative_surge', save=False)
+    gamer.give_symbol_bonus(100)
+
+    assert ok is True
+    assert gamer.writing_reward_bonus == 0
+    assert gamer.inspiration == 0.2
+    assert gamer.coins == 12.5
+    assert gamer.exp == 625
+
+
+def test_session_spark_rewards_next_successful_session(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.inspiration = 25
+    gamer.activate_inspiration_ability('session_spark', save=False)
+    gamer.start_writing_session(15, 100, 'Продолжить черновик', save=False)
+    gamer.record_motivation_progress(100)
+
+    ok, _ = gamer.finish_writing_session(save=False)
+
+    assert ok is True
+    assert gamer.session_reward_bonus == 0
+    assert gamer.coins == 31.3
+    assert gamer.exp == 312.5
+
+
+def test_challenge_focus_rewards_next_completed_challenge(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.inspiration = 40
+    gamer.daily_challenge['target'] = 100
+    gamer.activate_inspiration_ability('challenge_focus', save=False)
+
+    messages = gamer.record_motivation_progress(100)
+
+    assert messages
+    assert gamer.challenge_reward_bonus == 0
+    assert gamer.coins == 6.3
+    assert gamer.exp == 62.5
+
+
+def test_inspiration_ability_requires_resource_and_free_effect_slot(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+
+    ok, message = gamer.activate_inspiration_ability('creative_surge', save=False)
+    assert ok is False
+    assert 'Недостаточно вдохновения' in message
+
+    gamer.inspiration = 100
+    gamer.writing_reward_bonus = 0.25
+    ok, message = gamer.activate_inspiration_ability('creative_surge', save=False)
+    assert ok is False
+    assert 'уже активен' in message
+    assert gamer.inspiration == 100
+
+
 def test_adaptive_target_uses_recent_productive_days(monkeypatch):
     class Note:
         def __init__(self, day, symbols):
@@ -113,7 +171,8 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     gamer = make_gamer(monkeypatch)
     for attribute in (
         'inspiration', 'daily_challenge', 'weekly_challenge',
-        'writing_session', 'session_reward_bonus', 'specialization',
+        'writing_session', 'writing_reward_bonus', 'session_reward_bonus',
+        'challenge_reward_bonus', 'specialization',
         'manuscript_reward_bonus',
         'specialization_changed_at', 'manuscript_journeys',
         'cabinet_relics',
@@ -126,7 +185,9 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     assert gamer.daily_challenge is None
     assert gamer.weekly_challenge is None
     assert gamer.writing_session is None
+    assert gamer.writing_reward_bonus == 0
     assert gamer.session_reward_bonus == 0
+    assert gamer.challenge_reward_bonus == 0
     assert gamer.manuscript_reward_bonus == 0
     assert gamer.specialization is None
     assert gamer.specialization_changed_at is None

@@ -1526,7 +1526,20 @@ class Ui_main_window(object):
         self.inspiration_progressbar.setMaximum(100)
         self.inspiration_progressbar.setValue(0)
 
-        self.writing_rhythm_layout.addWidget(self.inspiration_progressbar, 1, 0, 1, 3)
+        self.writing_rhythm_layout.addWidget(self.inspiration_progressbar, 1, 0, 1, 1)
+
+        self.inspiration_ability_combo = QComboBox(self.writing_rhythm_tab)
+        self.inspiration_ability_combo.addItem("")
+        self.inspiration_ability_combo.addItem("")
+        self.inspiration_ability_combo.addItem("")
+        self.inspiration_ability_combo.setObjectName(u"inspiration_ability_combo")
+
+        self.writing_rhythm_layout.addWidget(self.inspiration_ability_combo, 1, 1, 1, 1)
+
+        self.activate_inspiration_ability_button = QPushButton(self.writing_rhythm_tab)
+        self.activate_inspiration_ability_button.setObjectName(u"activate_inspiration_ability_button")
+
+        self.writing_rhythm_layout.addWidget(self.activate_inspiration_ability_button, 1, 2, 1, 1)
 
         self.daily_challenge_status = QLabel(self.writing_rhythm_tab)
         self.daily_challenge_status.setObjectName(u"daily_challenge_status")
@@ -1896,6 +1909,11 @@ class Ui_main_window(object):
         self.available_skill_points.setText(QCoreApplication.translate("main_window", u"\u0414\u043e\u0441\u0442\u0443\u043f\u043d\u044b\u0435 \u0431\u0430\u043b\u043b\u044b \u0443\u043c\u0435\u043d\u0438\u0439: 0", None))
         self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.skills_tab), QCoreApplication.translate("main_window", u"\u0423\u043c\u0435\u043d\u0438\u044f", None))
         self.inspiration_label.setText(QCoreApplication.translate("main_window", u"\u0412\u0434\u043e\u0445\u043d\u043e\u0432\u0435\u043d\u0438\u0435: 0/100", None))
+        self.inspiration_ability_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u0422\u0432\u043e\u0440\u0447\u0435\u0441\u043a\u0438\u0439 \u0438\u043c\u043f\u0443\u043b\u044c\u0441", None))
+        self.inspiration_ability_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u0418\u0441\u043a\u0440\u0430 \u0441\u0435\u0441\u0441\u0438\u0438", None))
+        self.inspiration_ability_combo.setItemText(2, QCoreApplication.translate("main_window", u"\u0424\u043e\u043a\u0443\u0441 \u0438\u0441\u043f\u044b\u0442\u0430\u043d\u0438\u044f", None))
+
+        self.activate_inspiration_ability_button.setText(QCoreApplication.translate("main_window", u"\u0410\u043a\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c", None))
         self.daily_challenge_status.setText(QCoreApplication.translate("main_window", u"\u0426\u0435\u043b\u044c \u0434\u043d\u044f \u0437\u0430\u0433\u0440\u0443\u0436\u0430\u0435\u0442\u0441\u044f\u2026", None))
         self.weekly_challenge_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u041c\u0430\u0440\u0430\u0444\u043e\u043d \u2014 10 000 \u0441\u0438\u043c\u0432\u043e\u043b\u043e\u0432", None))
         self.weekly_challenge_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u0420\u0438\u0442\u043c \u2014 4 \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u0438\u0432\u043d\u044b\u0445 \u0434\u043d\u044f", None))

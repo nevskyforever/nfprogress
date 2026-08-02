@@ -158,6 +158,30 @@ WEEKLY_CHALLENGES = {
     },
 }
 
+INSPIRATION_ABILITIES = {
+    'creative_surge': {
+        'name': 'Творческий импульс',
+        'description': 'Даёт +25% монет и опыта за следующую запись текста.',
+        'cost': 30,
+        'bonus': 0.25,
+        'bonus_field': 'writing_reward_bonus',
+    },
+    'session_spark': {
+        'name': 'Искра сессии',
+        'description': 'Даёт +25% к награде за следующую успешную писательскую сессию.',
+        'cost': 25,
+        'bonus': 0.25,
+        'bonus_field': 'session_reward_bonus',
+    },
+    'challenge_focus': {
+        'name': 'Фокус испытания',
+        'description': 'Даёт +25% к награде за следующее выполненное испытание.',
+        'cost': 40,
+        'bonus': 0.25,
+        'bonus_field': 'challenge_reward_bonus',
+    },
+}
+
 SKILL_META = {
     'productivity': {
         'name': 'Продуктивность',
@@ -401,7 +425,9 @@ class Gamer:
         self.daily_challenge = None
         self.weekly_challenge = None
         self.writing_session = None
+        self.writing_reward_bonus = 0.0
         self.session_reward_bonus = 0.0
+        self.challenge_reward_bonus = 0.0
         self.manuscript_reward_bonus = 0.0
         self.specialization = None
         self.specialization_changed_at = None
@@ -784,10 +810,18 @@ class Gamer:
             # разработчика. Начинаем их таймер заново, не теряя прогресс.
             self.writing_session['started_at'] = get_session_now()
             self.writing_session['clock_source'] = 'wall'
-        try:
-            self.session_reward_bonus = min(1.0, max(0.0, float(self.session_reward_bonus)))
-        except (TypeError, ValueError):
-            self.session_reward_bonus = 0.0
+        for bonus_field in (
+                'writing_reward_bonus',
+                'session_reward_bonus',
+                'challenge_reward_bonus',
+        ):
+            try:
+                normalized_bonus = min(
+                    1.0, max(0.0, float(getattr(self, bonus_field)))
+                )
+            except (AttributeError, TypeError, ValueError):
+                normalized_bonus = 0.0
+            setattr(self, bonus_field, normalized_bonus)
         try:
             self.manuscript_reward_bonus = min(
                 1.0, max(0.0, float(self.manuscript_reward_bonus))
@@ -994,6 +1028,36 @@ class Gamer:
             }
         return self.daily_challenge
 
+    def activate_inspiration_ability(self, ability_key, save=True):
+        self.normalize_motivation()
+        ability = INSPIRATION_ABILITIES.get(ability_key)
+        if ability is None:
+            return False, 'Неизвестная способность вдохновения.'
+
+        bonus_field = ability['bonus_field']
+        if getattr(self, bonus_field) > 0:
+            return False, 'Этот эффект вдохновения уже активен.'
+        if self.inspiration < ability['cost']:
+            return False, 'Недостаточно вдохновения для этой способности.'
+
+        self.inspiration -= ability['cost']
+        setattr(self, bonus_field, ability['bonus'])
+        if save:
+            self.save()
+        return (
+            True,
+            f'Активирована способность «{ability["name"]}». '
+            f'Потрачено {ability["cost"]} вдохновения.',
+        )
+
+    def _consume_challenge_reward_multiplier(self):
+        reward_multiplier = (
+            (1 + self.challenge_reward_bonus)
+            * self.get_specialization_reward_multiplier('challenge')
+        )
+        self.challenge_reward_bonus = 0.0
+        return reward_multiplier
+
     def select_weekly_challenge(self, challenge_key, save=True):
         self.normalize_motivation()
         if challenge_key not in WEEKLY_CHALLENGES:
@@ -1124,7 +1188,7 @@ class Gamer:
         if challenge['progress'] < meta['target']:
             return None
         challenge['completed'] = True
-        reward_multiplier = self.get_specialization_reward_multiplier('challenge')
+        reward_multiplier = self._consume_challenge_reward_multiplier()
         coins = self.set_coins(
             meta['reward_coins'] * self.calculate_inflation() * reward_multiplier,
             save=False,
@@ -1151,7 +1215,7 @@ class Gamer:
         daily['progress'] += symbols
         if not daily['completed'] and daily['progress'] >= daily['target']:
             daily['completed'] = True
-            reward_multiplier = self.get_specialization_reward_multiplier('challenge')
+            reward_multiplier = self._consume_challenge_reward_multiplier()
             coins = self.set_coins(
                 daily['target'] / 20 * self.calculate_inflation() * reward_multiplier,
                 save=False,
@@ -1172,6 +1236,7 @@ class Gamer:
         self.normalize_motivation()
         reward_multiplier = (
             (1 + self.inspiration / MAX_INSPIRATION * 0.1)
+            * (1 + self.writing_reward_bonus)
             * self.get_specialization_reward_multiplier('writing', symbols=symbols)
         )
         exp_cf = self.get_cf_value('exp', 1.0)
@@ -1182,6 +1247,8 @@ class Gamer:
         coins_cf = self.get_cf_value('coins', 1.0)
         coins = symbols / 100 * game_data.base_coin_bonus * coins_cf * reward_multiplier
         coins = self.set_coins(coins)
+        if symbols > 0:
+            self.writing_reward_bonus = 0.0
         motivation_messages = self.record_motivation_progress(symbols)
         journey_messages = self.advance_manuscript_journey(project_key, project_progress)
         self.save()
@@ -1707,7 +1774,9 @@ class Gamer:
             'daily_challenge': None,
             'weekly_challenge': None,
             'writing_session': None,
+            'writing_reward_bonus': 0.0,
             'session_reward_bonus': 0.0,
+            'challenge_reward_bonus': 0.0,
             'manuscript_reward_bonus': 0.0,
             'specialization': None,
             'specialization_changed_at': None,
