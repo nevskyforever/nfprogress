@@ -36,6 +36,7 @@ INSPIRATION_SYMBOL_STEP = 500
 SPECIALIZATION_LEVEL = 3
 SPECIALIZATION_CHANGE_COOLDOWN_DAYS = 14
 SPECIALIZATION_MASTERY_THRESHOLDS = (0, 3, 8, 15, 25)
+SPECIALIZATION_ABILITY_COOLDOWN_HOURS = 24
 
 SPECIALIZATIONS = {
     'marathoner': {
@@ -67,6 +68,34 @@ SPECIALIZATIONS = {
         'description': 'Даёт +25% к награде за успешную редакторскую сессию.',
         'base_bonus': 0.25,
         'mastery_step': 0.025,
+    },
+}
+
+SPECIALIZATION_ABILITIES = {
+    'marathoner': {
+        'name': 'Длинное дыхание',
+        'description': 'Даёт +30% к следующей записи объёмом не менее 3 000 символов.',
+        'bonus': 0.30,
+    },
+    'ritualist': {
+        'name': 'Сила ритуала',
+        'description': 'Даёт +30% к награде за следующую успешную сессию.',
+        'bonus': 0.30,
+    },
+    'finisher': {
+        'name': 'Рывок к финалу',
+        'description': 'Даёт +30% к наградам за следующие достигнутые рубежи одной рукописи.',
+        'bonus': 0.30,
+    },
+    'explorer': {
+        'name': 'Новый маршрут',
+        'description': 'Бесплатно заменяет текущее недельное испытание другим.',
+        'bonus': 0.0,
+    },
+    'editor': {
+        'name': 'Точный взгляд',
+        'description': 'Даёт +30% к награде за следующую успешную редакторскую сессию.',
+        'bonus': 0.30,
     },
 }
 
@@ -443,6 +472,8 @@ class Gamer:
         self.specialization = None
         self.specialization_changed_at = None
         self.specialization_mastery = {}
+        self.specialization_ability_ready_at = {}
+        self.specialization_ability_effects = {}
         self.manuscript_journeys = {}
         self.cabinet_relics = []
         self.sync_quests()
@@ -863,6 +894,22 @@ class Gamer:
             except (TypeError, ValueError):
                 normalized_mastery[specialization_key] = 0
         self.specialization_mastery = normalized_mastery
+        raw_ready_at = getattr(self, 'specialization_ability_ready_at', {})
+        if not isinstance(raw_ready_at, dict):
+            raw_ready_at = {}
+        self.specialization_ability_ready_at = {
+            key: str(value)
+            for key, value in raw_ready_at.items()
+            if key in SPECIALIZATIONS and value
+        }
+        raw_effects = getattr(self, 'specialization_ability_effects', {})
+        if not isinstance(raw_effects, dict):
+            raw_effects = {}
+        self.specialization_ability_effects = {
+            key: bool(value)
+            for key, value in raw_effects.items()
+            if key in SPECIALIZATIONS and bool(value)
+        }
         if self.specialization_changed_at is not None:
             try:
                 datetime.fromisoformat(str(self.specialization_changed_at))
@@ -970,6 +1017,85 @@ class Gamer:
             f'повышено до ранга {new_rank}!'
         )
 
+    def specialization_ability_remaining_seconds(self, specialization_key=None):
+        specialization_key = specialization_key or self.specialization
+        if specialization_key not in SPECIALIZATION_ABILITIES:
+            return 0
+        ready_at = self.specialization_ability_ready_at.get(specialization_key)
+        if not ready_at:
+            return 0
+        try:
+            ready_at = datetime.fromisoformat(str(ready_at))
+        except (TypeError, ValueError):
+            self.specialization_ability_ready_at.pop(specialization_key, None)
+            return 0
+        return max(0, math.ceil((ready_at - get_effective_now()).total_seconds()))
+
+    def activate_specialization_ability(self, save=True):
+        self.normalize_motivation()
+        specialization = self.specialization
+        ability = SPECIALIZATION_ABILITIES.get(specialization)
+        if ability is None:
+            return False, 'Сначала выберите специализацию.'
+        remaining = self.specialization_ability_remaining_seconds(specialization)
+        if remaining > 0:
+            return False, 'Активное умение специализации ещё восстанавливается.'
+        if self.specialization_ability_effects.get(specialization):
+            return False, 'Эффект активного умения уже ожидает применения.'
+
+        if specialization == 'explorer':
+            challenge = self.weekly_challenge
+            if not challenge or challenge.get('completed'):
+                return False, 'Нет активного недельного испытания для замены.'
+            keys = tuple(WEEKLY_CHALLENGES)
+            current_key = challenge.get('key')
+            current_index = keys.index(current_key) if current_key in keys else -1
+            challenge.update({
+                'key': keys[(current_index + 1) % len(keys)],
+                'progress': 0,
+                'writing_days': [],
+                'completed': False,
+            })
+        else:
+            self.specialization_ability_effects[specialization] = True
+
+        ready_at = get_effective_now() + timedelta(
+            hours=SPECIALIZATION_ABILITY_COOLDOWN_HOURS
+        )
+        self.specialization_ability_ready_at[specialization] = ready_at.isoformat()
+        if save:
+            self.save()
+        return True, f'Активировано умение «{ability["name"]}».'
+
+    def _specialization_ability_multiplier(
+            self, reward_type, symbols=0, intention=None
+    ):
+        specialization = self.specialization
+        if not self.specialization_ability_effects.get(specialization):
+            return 1.0
+        applicable = (
+            specialization == 'marathoner'
+            and reward_type == 'writing'
+            and symbols >= 3000
+        ) or (
+            specialization == 'ritualist'
+            and reward_type == 'session'
+        ) or (
+            specialization == 'finisher'
+            and reward_type == 'milestone'
+        ) or (
+            specialization == 'editor'
+            and reward_type == 'session'
+            and intention == 'Отредактировать текст'
+        )
+        if not applicable:
+            return 1.0
+        return 1 + SPECIALIZATION_ABILITIES[specialization]['bonus']
+
+    def _consume_specialization_ability(self, specialization_key=None):
+        specialization_key = specialization_key or self.specialization
+        self.specialization_ability_effects.pop(specialization_key, None)
+
     def advance_manuscript_journey(self, project_key, progress):
         self.normalize_motivation()
         if not project_key:
@@ -983,7 +1109,8 @@ class Gamer:
         received = self.manuscript_journeys.setdefault(project_key, [])
         messages = []
         milestones_reached = 0
-        reward_multiplier = 1 + self.manuscript_reward_bonus
+        ability_multiplier = self._specialization_ability_multiplier('milestone')
+        reward_multiplier = (1 + self.manuscript_reward_bonus) * ability_multiplier
         for milestone in MANUSCRIPT_MILESTONES:
             threshold = milestone['progress']
             if threshold > progress or threshold in received:
@@ -1007,6 +1134,8 @@ class Gamer:
         received.sort()
         if messages:
             self.manuscript_reward_bonus = 0.0
+            if ability_multiplier > 1:
+                self._consume_specialization_ability('finisher')
         if self.specialization == 'finisher' and milestones_reached:
             mastery_message = self.add_specialization_mastery(
                 'finisher', milestones_reached
@@ -1198,13 +1327,19 @@ class Gamer:
             return False, 'Сессия завершена. Цель не достигнута — штрафа нет.'
 
         self.inspiration = min(MAX_INSPIRATION, self.inspiration + 10)
+        ability_multiplier = self._specialization_ability_multiplier(
+            'session', intention=session.get('intention')
+        )
         reward_multiplier = (
             (1 + self.session_reward_bonus)
             * self.get_specialization_reward_multiplier(
                 'session', intention=session.get('intention')
             )
+            * ability_multiplier
         )
         self.session_reward_bonus = 0.0
+        if ability_multiplier > 1:
+            self._consume_specialization_ability()
         coins = self.set_coins(25 * self.calculate_inflation() * reward_multiplier, save=False)
         exp = self.add_exp(250 * reward_multiplier)
         mastery_message = None
@@ -1328,6 +1463,7 @@ class Gamer:
             (1 + self.inspiration / MAX_INSPIRATION * 0.1)
             * (1 + self.writing_reward_bonus)
             * self.get_specialization_reward_multiplier('writing', symbols=symbols)
+            * self._specialization_ability_multiplier('writing', symbols=symbols)
         )
         exp_cf = self.get_cf_value('exp', 1.0)
         exps = self.add_exp(
@@ -1339,6 +1475,12 @@ class Gamer:
         coins = self.set_coins(coins)
         if symbols > 0:
             self.writing_reward_bonus = 0.0
+        if (
+                self.specialization == 'marathoner'
+                and symbols >= 3000
+                and self.specialization_ability_effects.get('marathoner')
+        ):
+            self._consume_specialization_ability('marathoner')
         mastery_message = None
         if self.specialization == 'marathoner' and symbols >= 3000:
             mastery_message = self.add_specialization_mastery('marathoner')
@@ -1881,6 +2023,8 @@ class Gamer:
             'specialization': None,
             'specialization_changed_at': None,
             'specialization_mastery': {},
+            'specialization_ability_ready_at': {},
+            'specialization_ability_effects': {},
             'manuscript_journeys': {},
             'cabinet_relics': [],
             'pending_quest_item_migration_notification': None,

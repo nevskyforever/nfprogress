@@ -2995,11 +2995,17 @@
               <property name="text"><string>Специализация персонажа</string></property>
              </widget>
             </item>
-            <item row="8" column="1" colspan="2">
+            <item row="8" column="1">
              <widget class="QProgressBar" name="specialization_mastery_progressbar">
               <property name="maximum"><number>3</number></property>
               <property name="value"><number>0</number></property>
               <property name="format"><string>Мастерство</string></property>
+             </widget>
+            </item>
+            <item row="8" column="2">
+             <widget class="QPushButton" name="activate_specialization_ability_button">
+              <property name="maximumSize"><size><width>16777215</width><height>24</height></size></property>
+              <property name="text"><string>Применить умение</string></property>
              </widget>
             </item>
             <item row="9" column="0" colspan="2">

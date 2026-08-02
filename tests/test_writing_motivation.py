@@ -175,6 +175,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
         'challenge_reward_bonus', 'specialization',
         'manuscript_reward_bonus',
         'specialization_changed_at', 'specialization_mastery', 'manuscript_journeys',
+        'specialization_ability_ready_at', 'specialization_ability_effects',
         'cabinet_relics',
     ):
         delattr(gamer, attribute)
@@ -192,6 +193,8 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     assert gamer.specialization is None
     assert gamer.specialization_changed_at is None
     assert gamer.specialization_mastery == {}
+    assert gamer.specialization_ability_ready_at == {}
+    assert gamer.specialization_ability_effects == {}
     assert gamer.manuscript_journeys == {}
     assert gamer.cabinet_relics == []
 
@@ -246,6 +249,65 @@ def test_profile_actions_advance_matching_mastery(monkeypatch):
 
     assert ritualist.specialization_mastery['ritualist'] == 1
     assert explorer.specialization_mastery['explorer'] == 1
+
+
+def test_marathoner_active_ability_boosts_matching_entry(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.level = 3
+    gamer.specialization = 'marathoner'
+    gamer.daily_challenge['target'] = 100000
+
+    ok, _ = gamer.activate_specialization_ability(save=False)
+    gamer.give_symbol_bonus(3000)
+
+    assert ok is True
+    assert gamer.coins == 448.5
+    assert gamer.exp == 22425
+    assert 'marathoner' not in gamer.specialization_ability_effects
+    assert gamer.specialization_ability_remaining_seconds() > 0
+
+
+def test_finisher_active_ability_boosts_next_milestones(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.level = 3
+    gamer.specialization = 'finisher'
+    gamer.activate_specialization_ability(save=False)
+
+    gamer.advance_manuscript_journey('novel', 10)
+
+    assert gamer.coins == 42.3
+    assert gamer.exp == 325
+    assert 'finisher' not in gamer.specialization_ability_effects
+
+
+def test_explorer_active_ability_replaces_weekly_challenge(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.level = 3
+    gamer.specialization = 'explorer'
+    gamer.select_weekly_challenge('symbols', save=False)
+    gamer.weekly_challenge['progress'] = 500
+
+    ok, _ = gamer.activate_specialization_ability(save=False)
+
+    assert ok is True
+    assert gamer.weekly_challenge['key'] == 'days'
+    assert gamer.weekly_challenge['progress'] == 0
+    assert gamer.specialization_ability_remaining_seconds() > 0
+
+
+def test_specialization_ability_rejects_use_during_cooldown(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.level = 3
+    gamer.specialization = 'ritualist'
+    gamer.activate_specialization_ability(save=False)
+    gamer.start_writing_session(15, 100, 'Продолжить черновик', save=False)
+    gamer.record_motivation_progress(100)
+    gamer.finish_writing_session(save=False)
+
+    ok, message = gamer.activate_specialization_ability(save=False)
+
+    assert ok is False
+    assert 'восстанавливается' in message
 
 
 def test_marathoner_rewards_large_entries(monkeypatch):

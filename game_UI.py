@@ -306,6 +306,9 @@ class GameMenuController:
         self.ui.finish_writing_session_button.clicked.connect(self.on_finish_writing_session)
         self.ui.cancel_writing_session_button.clicked.connect(self.on_cancel_writing_session)
         self.ui.select_specialization_button.clicked.connect(self.on_select_specialization)
+        self.ui.activate_specialization_ability_button.clicked.connect(
+            self.on_activate_specialization_ability
+        )
         self.ui.cabinet_relics_list.currentItemChanged.connect(
             lambda current, previous: self.on_cabinet_relic_selected(current)
         )
@@ -793,6 +796,8 @@ class GameMenuController:
 
     def update_writing_session_clock(self):
         """Обновляет только часы сессии, не перерисовывая игровое меню."""
+        if self.gamer and hasattr(self.ui, 'activate_specialization_ability_button'):
+            self.update_specialization_ability_ui()
         if not self.gamer or self.gamer.writing_session is None:
             return
         self.update_writing_session_status(self.gamer.writing_session)
@@ -856,6 +861,7 @@ class GameMenuController:
         self.ui.specialization_combo.setEnabled(can_change)
         self.ui.select_specialization_button.setEnabled(can_change)
         mastery_bar = self.ui.specialization_mastery_progressbar
+        self.update_specialization_ability_ui()
 
         if specialization in self.SPECIALIZATION_KEYS:
             self.ui.specialization_combo.setCurrentIndex(
@@ -897,6 +903,51 @@ class GameMenuController:
         if days_remaining > 0:
             status += f" {tr(f'Смена будет доступна через {days_remaining} дн.')}"
         self.ui.specialization_status.setText(status)
+
+    def update_specialization_ability_ui(self):
+        button = self.ui.activate_specialization_ability_button
+        specialization = self.gamer.specialization if self.gamer else None
+        ability = game.SPECIALIZATION_ABILITIES.get(specialization)
+        if ability is None:
+            button.setText(tr('Применить умение'))
+            button.setToolTip(tr('Сначала выберите специализацию.'))
+            button.setEnabled(False)
+            return
+
+        tooltip = f"{tr(ability['name'])}. {tr(ability['description'])}"
+        if self.gamer.specialization_ability_effects.get(specialization):
+            button.setText(tr('Эффект активен'))
+            button.setToolTip(tooltip)
+            button.setEnabled(False)
+            return
+
+        remaining = self.gamer.specialization_ability_remaining_seconds(specialization)
+        if remaining > 0:
+            hours, remainder = divmod(remaining, 3600)
+            minutes, seconds = divmod(remainder, 60)
+            button.setText(f'{hours:02d}:{minutes:02d}:{seconds:02d}')
+            button.setToolTip(f"{tooltip} {tr('Умение восстанавливается.')}")
+            button.setEnabled(False)
+            return
+
+        explorer_blocked = (
+            specialization == 'explorer'
+            and (
+                not self.gamer.weekly_challenge
+                or self.gamer.weekly_challenge.get('completed')
+            )
+        )
+        button.setText(tr('Применить умение'))
+        if explorer_blocked:
+            tooltip += f" {tr('Нет активного недельного испытания для замены.')}"
+        button.setToolTip(tooltip)
+        button.setEnabled(not explorer_blocked)
+
+    def on_activate_specialization_ability(self):
+        ok, message = self.gamer.activate_specialization_ability()
+        self.update_motivation_ui()
+        if self.notifications:
+            (self.notifications.show_success if ok else self.notifications.show_warning)(message)
 
     def update_cabinet_ui(self):
         relic_keys = self.gamer.cabinet_relics

@@ -153,6 +153,10 @@ Creative rhythm is coordinated by `game.py` and `game_UI.py`:
   `Gamer.specialization_mastery`; ranks are derived from
   `SPECIALIZATION_MASTERY_THRESHOLDS`. Award mastery only for an action matching the
   currently selected specialization, and derive its passive bonus from the rank.
+* Active specialization cooldowns and pending effects live in
+  `specialization_ability_ready_at` and `specialization_ability_effects`. Start a
+  cooldown only after successful activation, keep an inapplicable effect pending,
+  and clear it at the exact reward point it modifies.
 * A writing session is stored in `Gamer.writing_session`. Its timer uses wall-clock
   time through `get_session_now()` and is refreshed by the existing one-second
   `QTimer`; do not implement a blocking timer or decrement the saved duration.
