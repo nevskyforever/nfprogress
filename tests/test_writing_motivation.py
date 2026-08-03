@@ -48,6 +48,98 @@ def test_successful_session_advances_session_challenge(monkeypatch):
     assert gamer.weekly_challenge['progress'] == 1
 
 
+def test_session_modes_validate_duration_and_intention(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+
+    sprint_ok, _ = gamer.start_writing_session(
+        25, 100, 'Написать новую сцену', mode_key='sprint', save=False
+    )
+    deep_ok, _ = gamer.start_writing_session(
+        25, 100, 'Написать новую сцену', mode_key='deep', save=False
+    )
+    editing_ok, _ = gamer.start_writing_session(
+        25, 100, 'Написать новую сцену', mode_key='editing', save=False
+    )
+
+    assert sprint_ok is False
+    assert deep_ok is False
+    assert editing_ok is False
+
+
+def test_gold_session_gets_grade_and_early_finish_bonus(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.start_writing_session(25, 100, 'Продолжить черновик', save=False)
+    gamer.record_motivation_progress(150)
+
+    ok, message = gamer.finish_writing_session(save=False)
+
+    assert ok is True
+    assert 'Золото' in message
+    assert 'досрочный' in message
+    assert gamer.coins == 35.8
+    assert gamer.exp == 357.5
+    assert gamer.writing_session_history[-1]['grade'] == 'gold'
+
+
+def test_sprint_mode_applies_mode_reward(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.start_writing_session(
+        15, 100, 'Написать новую сцену', mode_key='sprint', save=False
+    )
+    gamer.record_motivation_progress(100)
+
+    gamer.finish_writing_session(save=False)
+
+    assert gamer.coins == 28.8
+    assert gamer.exp == 287.5
+    assert gamer.writing_session_history[-1]['mode'] == 'sprint'
+
+
+def test_session_streak_and_history_track_results(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    for _ in range(2):
+        gamer.start_writing_session(25, 100, 'Продолжить черновик', save=False)
+        gamer.record_motivation_progress(100)
+        gamer.finish_writing_session(save=False)
+
+    gamer.start_writing_session(25, 100, 'Продолжить черновик', save=False)
+    gamer.finish_writing_session(save=False)
+
+    assert gamer.writing_session_streak == 0
+    assert len(gamer.writing_session_history) == 3
+    assert gamer.writing_session_history[-1]['successful'] is False
+
+
+def test_session_history_keeps_last_twenty_entries(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    session = {
+        'mode': 'flow', 'intention': 'Продолжить черновик',
+        'duration_minutes': 25, 'target_symbols': 100, 'progress': 100,
+    }
+
+    for index in range(25):
+        current = dict(session, progress=100 + index)
+        gamer._record_writing_session_result(current, 'bronze', True)
+
+    assert len(gamer.writing_session_history) == 20
+    assert gamer.writing_session_history[0]['progress'] == 105
+
+
+def test_ritualist_ability_preserves_session_streak_on_failure(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.level = 3
+    gamer.specialization = 'ritualist'
+    gamer.writing_session_streak = 4
+    gamer.activate_specialization_ability(save=False)
+    gamer.start_writing_session(25, 100, 'Продолжить черновик', save=False)
+
+    ok, message = gamer.finish_writing_session(save=False)
+
+    assert ok is False
+    assert gamer.writing_session_streak == 4
+    assert 'сохранила серию' in message
+
+
 def test_unsuccessful_session_has_no_penalty(monkeypatch):
     gamer = make_gamer(monkeypatch)
     initial_health = gamer.health
@@ -171,7 +263,8 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     gamer = make_gamer(monkeypatch)
     for attribute in (
         'inspiration', 'daily_challenge', 'weekly_challenge',
-        'writing_session', 'writing_reward_bonus', 'session_reward_bonus',
+        'writing_session', 'writing_session_streak', 'writing_session_history',
+        'writing_reward_bonus', 'session_reward_bonus',
         'challenge_reward_bonus', 'specialization',
         'manuscript_reward_bonus',
         'specialization_changed_at', 'specialization_mastery', 'manuscript_journeys',
@@ -186,6 +279,8 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     assert gamer.daily_challenge is None
     assert gamer.weekly_challenge is None
     assert gamer.writing_session is None
+    assert gamer.writing_session_streak == 0
+    assert gamer.writing_session_history == []
     assert gamer.writing_reward_bonus == 0
     assert gamer.session_reward_bonus == 0
     assert gamer.challenge_reward_bonus == 0

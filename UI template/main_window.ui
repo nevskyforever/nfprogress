@@ -2894,6 +2894,7 @@
             <string>Творческий ритм</string>
            </attribute>
            <layout class="QGridLayout" name="writing_rhythm_layout">
+            <property name="verticalSpacing"><number>3</number></property>
             <item row="0" column="0" colspan="3">
              <widget class="QLabel" name="inspiration_label">
               <property name="text">
@@ -2944,10 +2945,20 @@
               <property name="wordWrap"><bool>true</bool></property>
              </widget>
             </item>
-            <item row="5" column="0" colspan="3">
+            <item row="5" column="0" colspan="2">
              <widget class="QLabel" name="writing_session_status">
               <property name="text"><string>Нет активной писательской сессии.</string></property>
               <property name="wordWrap"><bool>true</bool></property>
+             </widget>
+            </item>
+            <item row="5" column="2">
+             <widget class="QComboBox" name="writing_session_mode_combo">
+              <property name="maximumSize"><size><width>16777215</width><height>24</height></size></property>
+              <property name="currentIndex"><number>1</number></property>
+              <item><property name="text"><string>Спринт</string></property></item>
+              <item><property name="text"><string>Поток</string></property></item>
+              <item><property name="text"><string>Глубокая работа</string></property></item>
+              <item><property name="text"><string>Редакторский проход</string></property></item>
              </widget>
             </item>
             <item row="6" column="0">

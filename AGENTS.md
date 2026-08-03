@@ -160,6 +160,10 @@ Creative rhythm is coordinated by `game.py` and `game_UI.py`:
 * A writing session is stored in `Gamer.writing_session`. Its timer uses wall-clock
   time through `get_session_now()` and is refreshed by the existing one-second
   `QTimer`; do not implement a blocking timer or decrement the saved duration.
+* Session modes are canonical keys in `WRITING_SESSION_MODES`. Results derive a grade
+  from progress, update `writing_session_streak`, and append a normalized entry to
+  the last-20 `writing_session_history`. Failed sessions must not grant rewards;
+  cancellations do not count as results.
 * New permanent controls belong in the source `.ui`; regenerate
   `UI_fiiles/main_window.py` after changing it.
 

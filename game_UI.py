@@ -71,6 +71,7 @@ class GameMenuController:
     WEEKLY_CHALLENGE_KEYS = ('symbols', 'days', 'sessions', 'editing')
     INSPIRATION_ABILITY_KEYS = tuple(game.INSPIRATION_ABILITIES)
     WRITING_SESSION_DURATIONS = (15, 25, 45, 60)
+    WRITING_SESSION_MODE_KEYS = tuple(game.WRITING_SESSION_MODES)
     WRITING_INTENTIONS = (
         'Написать новую сцену',
         'Продолжить черновик',
@@ -305,6 +306,12 @@ class GameMenuController:
         self.ui.start_writing_session_button.clicked.connect(self.on_start_writing_session)
         self.ui.finish_writing_session_button.clicked.connect(self.on_finish_writing_session)
         self.ui.cancel_writing_session_button.clicked.connect(self.on_cancel_writing_session)
+        self.ui.writing_session_mode_combo.currentIndexChanged.connect(
+            self.on_writing_session_mode_changed
+        )
+        self.on_writing_session_mode_changed(
+            self.ui.writing_session_mode_combo.currentIndex()
+        )
         self.ui.select_specialization_button.clicked.connect(self.on_select_specialization)
         self.ui.activate_specialization_ability_button.clicked.connect(
             self.on_activate_specialization_ability
@@ -745,8 +752,15 @@ class GameMenuController:
         self.ui.writing_intention_combo.setEnabled(not session_active)
         self.ui.writing_session_duration_combo.setEnabled(not session_active)
         self.ui.writing_session_target.setEnabled(not session_active)
+        self.ui.writing_session_mode_combo.setEnabled(not session_active)
         if not session_active:
-            self.ui.writing_session_status.setText(tr('Нет активной писательской сессии.'))
+            history = self.gamer.writing_session_history
+            self.ui.writing_session_status.setText(
+                f"{tr('Нет активной писательской сессии.')} "
+                f"{tr('Серия')}: {self.gamer.writing_session_streak} · "
+                f"{tr('История')}: {len(history)}."
+            )
+            self.update_writing_session_history_tooltip()
             return
 
         self.update_writing_session_status(session)
@@ -808,11 +822,45 @@ class GameMenuController:
         progress = session.get('progress', 0)
         target = session.get('target_symbols', 0)
         intention = tr(session.get('intention', ''))
+        mode = game.WRITING_SESSION_MODES.get(
+            session.get('mode', 'flow'), game.WRITING_SESSION_MODES['flow']
+        )
         self.ui.writing_session_status.setText(
-            f"{tr('Сессия')}: {intention}. "
+            f"{tr(mode['name'])}: {intention}. "
             f"{tr('Прогресс')}: {progress}/{target} {tr('символов')}. "
             f"{tr('Осталось')}: {minutes:02d}:{seconds:02d}."
         )
+
+    def update_writing_session_history_tooltip(self):
+        grade_names = {
+            grade_key: grade_name
+            for grade_key, grade_name, _, _ in game.WRITING_SESSION_GRADES
+        }
+        grade_names['failed'] = 'Цель не достигнута'
+        lines = []
+        for entry in reversed(self.gamer.writing_session_history[-10:]):
+            mode = game.WRITING_SESSION_MODES.get(
+                entry.get('mode'), game.WRITING_SESSION_MODES['flow']
+            )
+            grade_name = grade_names.get(entry.get('grade'), 'Цель не достигнута')
+            lines.append(
+                f"{tr(mode['name'])}: {entry.get('progress', 0)}/"
+                f"{entry.get('target_symbols', 0)} · {tr(grade_name)}"
+            )
+        self.ui.writing_session_status.setToolTip('\n'.join(lines))
+
+    def on_writing_session_mode_changed(self, index):
+        if not 0 <= index < len(self.WRITING_SESSION_MODE_KEYS):
+            return
+        mode_key = self.WRITING_SESSION_MODE_KEYS[index]
+        mode = game.WRITING_SESSION_MODES[mode_key]
+        self.ui.writing_session_mode_combo.setToolTip(tr(mode['description']))
+        if mode_key == 'sprint':
+            self.ui.writing_session_duration_combo.setCurrentIndex(0)
+        elif mode_key == 'deep' and self.ui.writing_session_duration_combo.currentIndex() < 2:
+            self.ui.writing_session_duration_combo.setCurrentIndex(2)
+        elif mode_key == 'editing':
+            self.ui.writing_intention_combo.setCurrentIndex(2)
 
     def on_start_weekly_challenge(self):
         index = self.ui.weekly_challenge_combo.currentIndex()
@@ -826,15 +874,18 @@ class GameMenuController:
     def on_start_writing_session(self):
         duration_index = self.ui.writing_session_duration_combo.currentIndex()
         intention_index = self.ui.writing_intention_combo.currentIndex()
+        mode_index = self.ui.writing_session_mode_combo.currentIndex()
         if (
                 not 0 <= duration_index < len(self.WRITING_SESSION_DURATIONS)
                 or not 0 <= intention_index < len(self.WRITING_INTENTIONS)
+                or not 0 <= mode_index < len(self.WRITING_SESSION_MODE_KEYS)
         ):
             return
         ok, message = self.gamer.start_writing_session(
             self.WRITING_SESSION_DURATIONS[duration_index],
             self.ui.writing_session_target.value(),
             self.WRITING_INTENTIONS[intention_index],
+            mode_key=self.WRITING_SESSION_MODE_KEYS[mode_index],
         )
         self.update_motivation_ui()
         if self.notifications:

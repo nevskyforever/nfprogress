@@ -185,6 +185,10 @@ TRANSLATION_OVERRIDES = {
         "Новый маршрут": "New Route",
         "Точный взгляд": "Keen Eye",
         "Умение восстанавливается.": "The ability is recharging.",
+        "Спринт": "Sprint",
+        "Поток": "Flow",
+        "Глубокая работа": "Deep Work",
+        "Редакторский проход": "Editing Pass",
     },
     "es": {
         "Стрики": "Rachas",
@@ -243,6 +247,10 @@ TRANSLATION_OVERRIDES = {
         "Новый маршрут": "Nueva ruta",
         "Точный взгляд": "Mirada precisa",
         "Умение восстанавливается.": "La habilidad se está recargando.",
+        "Спринт": "Sprint",
+        "Поток": "Flujo",
+        "Глубокая работа": "Trabajo profundo",
+        "Редакторский проход": "Pase de edición",
     },
     "de": {
         "Стрики": "Serien",
@@ -301,6 +309,10 @@ TRANSLATION_OVERRIDES = {
         "Новый маршрут": "Neue Route",
         "Точный взгляд": "Scharfer Blick",
         "Умение восстанавливается.": "Die Fähigkeit lädt sich wieder auf.",
+        "Спринт": "Sprint",
+        "Поток": "Flow",
+        "Глубокая работа": "Tiefenarbeit",
+        "Редакторский проход": "Überarbeitungsdurchgang",
     },
     "fr": {
         "Стрики": "Séries",
@@ -359,6 +371,10 @@ TRANSLATION_OVERRIDES = {
         "Новый маршрут": "Nouvel itinéraire",
         "Точный взгляд": "Regard précis",
         "Умение восстанавливается.": "La capacité se recharge.",
+        "Спринт": "Sprint",
+        "Поток": "Flux",
+        "Глубокая работа": "Travail profond",
+        "Редакторский проход": "Passe de révision",
     },
     "pt_BR": {
         "Стрики": "Sequências",
@@ -418,6 +434,10 @@ TRANSLATION_OVERRIDES = {
         "Новый маршрут": "Nova rota",
         "Точный взгляд": "Olhar preciso",
         "Умение восстанавливается.": "A habilidade está recarregando.",
+        "Спринт": "Sprint",
+        "Поток": "Fluxo",
+        "Глубокая работа": "Trabalho profundo",
+        "Редакторский проход": "Passe de revisão",
     },
 }
 

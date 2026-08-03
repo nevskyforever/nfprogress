@@ -1516,6 +1516,7 @@ class Ui_main_window(object):
         self.writing_rhythm_tab.setObjectName(u"writing_rhythm_tab")
         self.writing_rhythm_layout = QGridLayout(self.writing_rhythm_tab)
         self.writing_rhythm_layout.setObjectName(u"writing_rhythm_layout")
+        self.writing_rhythm_layout.setVerticalSpacing(3)
         self.inspiration_label = QLabel(self.writing_rhythm_tab)
         self.inspiration_label.setObjectName(u"inspiration_label")
 
@@ -1571,7 +1572,17 @@ class Ui_main_window(object):
         self.writing_session_status.setObjectName(u"writing_session_status")
         self.writing_session_status.setWordWrap(True)
 
-        self.writing_rhythm_layout.addWidget(self.writing_session_status, 5, 0, 1, 3)
+        self.writing_rhythm_layout.addWidget(self.writing_session_status, 5, 0, 1, 2)
+
+        self.writing_session_mode_combo = QComboBox(self.writing_rhythm_tab)
+        self.writing_session_mode_combo.addItem("")
+        self.writing_session_mode_combo.addItem("")
+        self.writing_session_mode_combo.addItem("")
+        self.writing_session_mode_combo.addItem("")
+        self.writing_session_mode_combo.setObjectName(u"writing_session_mode_combo")
+        self.writing_session_mode_combo.setMaximumSize(QSize(16777215, 24))
+
+        self.writing_rhythm_layout.addWidget(self.writing_session_mode_combo, 5, 2, 1, 1)
 
         self.writing_intention_combo = QComboBox(self.writing_rhythm_tab)
         self.writing_intention_combo.addItem("")
@@ -1759,6 +1770,7 @@ class Ui_main_window(object):
         self.game_shop_tabs.setCurrentIndex(0)
         self.quests_tabs.setCurrentIndex(1)
         self.parameters_tabs.setCurrentIndex(2)
+        self.writing_session_mode_combo.setCurrentIndex(1)
 
 
         QMetaObject.connectSlotsByName(main_window)
@@ -1936,6 +1948,11 @@ class Ui_main_window(object):
         self.start_weekly_challenge_button.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0440\u0430\u0442\u044c \u0438\u0441\u043f\u044b\u0442\u0430\u043d\u0438\u0435", None))
         self.weekly_challenge_status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0434\u0435\u043b\u044c\u043d\u043e\u0435 \u0438\u0441\u043f\u044b\u0442\u0430\u043d\u0438\u0435 \u043d\u0435 \u0432\u044b\u0431\u0440\u0430\u043d\u043e.", None))
         self.writing_session_status.setText(QCoreApplication.translate("main_window", u"\u041d\u0435\u0442 \u0430\u043a\u0442\u0438\u0432\u043d\u043e\u0439 \u043f\u0438\u0441\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u043e\u0439 \u0441\u0435\u0441\u0441\u0438\u0438.", None))
+        self.writing_session_mode_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u0421\u043f\u0440\u0438\u043d\u0442", None))
+        self.writing_session_mode_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u041f\u043e\u0442\u043e\u043a", None))
+        self.writing_session_mode_combo.setItemText(2, QCoreApplication.translate("main_window", u"\u0413\u043b\u0443\u0431\u043e\u043a\u0430\u044f \u0440\u0430\u0431\u043e\u0442\u0430", None))
+        self.writing_session_mode_combo.setItemText(3, QCoreApplication.translate("main_window", u"\u0420\u0435\u0434\u0430\u043a\u0442\u043e\u0440\u0441\u043a\u0438\u0439 \u043f\u0440\u043e\u0445\u043e\u0434", None))
+
         self.writing_intention_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u041d\u0430\u043f\u0438\u0441\u0430\u0442\u044c \u043d\u043e\u0432\u0443\u044e \u0441\u0446\u0435\u043d\u0443", None))
         self.writing_intention_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0434\u043e\u043b\u0436\u0438\u0442\u044c \u0447\u0435\u0440\u043d\u043e\u0432\u0438\u043a", None))
         self.writing_intention_combo.setItemText(2, QCoreApplication.translate("main_window", u"\u041e\u0442\u0440\u0435\u0434\u0430\u043a\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u0442\u0435\u043a\u0441\u0442", None))

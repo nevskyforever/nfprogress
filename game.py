@@ -79,7 +79,7 @@ SPECIALIZATION_ABILITIES = {
     },
     'ritualist': {
         'name': 'Сила ритуала',
-        'description': 'Даёт +30% к награде за следующую успешную сессию.',
+        'description': 'Даёт +30% к следующей успешной сессии или один раз сохраняет серию при неудаче.',
         'bonus': 0.30,
     },
     'finisher': {
@@ -264,6 +264,36 @@ INSPIRATION_ABILITIES = {
         'bonus_field': 'challenge_reward_bonus',
     },
 }
+
+WRITING_SESSION_MODES = {
+    'sprint': {
+        'name': 'Спринт',
+        'description': '15 минут: +15% к награде за быстрый результат.',
+        'reward_bonus': 0.15,
+    },
+    'flow': {
+        'name': 'Поток',
+        'description': 'Свободный сбалансированный режим без дополнительных условий.',
+        'reward_bonus': 0.0,
+    },
+    'deep': {
+        'name': 'Глубокая работа',
+        'description': '45 или 60 минут: +25% к награде за длительную концентрацию.',
+        'reward_bonus': 0.25,
+    },
+    'editing': {
+        'name': 'Редакторский проход',
+        'description': 'Для редактуры текста: +20% к награде за успешную сессию.',
+        'reward_bonus': 0.20,
+    },
+}
+
+WRITING_SESSION_GRADES = (
+    ('gold', 'Золото', 1.50, 1.30),
+    ('silver', 'Серебро', 1.25, 1.15),
+    ('bronze', 'Бронза', 1.00, 1.00),
+)
+WRITING_SESSION_HISTORY_LIMIT = 20
 
 SKILL_META = {
     'productivity': {
@@ -508,6 +538,8 @@ class Gamer:
         self.daily_challenge = None
         self.weekly_challenge = None
         self.writing_session = None
+        self.writing_session_streak = 0
+        self.writing_session_history = []
         self.writing_reward_bonus = 0.0
         self.session_reward_bonus = 0.0
         self.challenge_reward_bonus = 0.0
@@ -896,6 +928,20 @@ class Gamer:
             # разработчика. Начинаем их таймер заново, не теряя прогресс.
             self.writing_session['started_at'] = get_session_now()
             self.writing_session['clock_source'] = 'wall'
+        if self.writing_session is not None:
+            if self.writing_session.get('mode') not in WRITING_SESSION_MODES:
+                self.writing_session['mode'] = 'flow'
+        try:
+            self.writing_session_streak = max(0, int(self.writing_session_streak))
+        except (AttributeError, TypeError, ValueError):
+            self.writing_session_streak = 0
+        raw_history = getattr(self, 'writing_session_history', [])
+        if not isinstance(raw_history, list):
+            raw_history = []
+        self.writing_session_history = [
+            entry for entry in raw_history[-WRITING_SESSION_HISTORY_LIMIT:]
+            if isinstance(entry, dict)
+        ]
         for bonus_field in (
                 'writing_reward_bonus',
                 'session_reward_bonus',
@@ -1366,7 +1412,9 @@ class Gamer:
             self.save()
         return True, f'Начато недельное испытание «{WEEKLY_CHALLENGES[challenge_key]["name"]}».'
 
-    def start_writing_session(self, duration_minutes, target_symbols, intention, save=True):
+    def start_writing_session(
+            self, duration_minutes, target_symbols, intention, mode_key='flow', save=True
+    ):
         self.normalize_motivation()
         if self.writing_session is not None:
             return False, 'Сначала завершите текущую писательскую сессию.'
@@ -1377,6 +1425,14 @@ class Gamer:
             return False, 'Некорректные параметры писательской сессии.'
         if duration_minutes not in (15, 25, 45, 60) or target_symbols <= 0:
             return False, 'Выберите длительность и положительную цель сессии.'
+        if mode_key not in WRITING_SESSION_MODES:
+            return False, 'Неизвестный режим писательской сессии.'
+        if mode_key == 'sprint' and duration_minutes != 15:
+            return False, 'Спринт рассчитан только на 15 минут.'
+        if mode_key == 'deep' and duration_minutes not in (45, 60):
+            return False, 'Глубокая работа рассчитана на 45 или 60 минут.'
+        if mode_key == 'editing' and intention != 'Отредактировать текст':
+            return False, 'Редакторский проход требует намерения отредактировать текст.'
 
         self.writing_session = {
             'started_at': get_session_now(),
@@ -1385,6 +1441,7 @@ class Gamer:
             'target_symbols': target_symbols,
             'progress': 0,
             'intention': str(intention),
+            'mode': mode_key,
         }
         if save:
             self.save()
@@ -1401,22 +1458,76 @@ class Gamer:
         elapsed = (get_session_now() - started_at).total_seconds()
         return max(0, math.ceil(duration - elapsed))
 
+    @staticmethod
+    def writing_session_grade(progress, target):
+        try:
+            ratio = max(0.0, float(progress)) / max(1.0, float(target))
+        except (TypeError, ValueError):
+            ratio = 0.0
+        for grade_key, grade_name, threshold, reward_multiplier in WRITING_SESSION_GRADES:
+            if ratio >= threshold:
+                return grade_key, grade_name, reward_multiplier
+        return 'failed', 'Цель не достигнута', 0.0
+
+    def _record_writing_session_result(
+            self, session, grade_key, successful, coins=0, exp=0
+    ):
+        self.writing_session_history.append({
+            'finished_at': get_effective_now().isoformat(),
+            'mode': session.get('mode', 'flow'),
+            'intention': session.get('intention', ''),
+            'duration_minutes': session.get('duration_minutes', 0),
+            'target_symbols': session.get('target_symbols', 0),
+            'progress': session.get('progress', 0),
+            'grade': grade_key,
+            'successful': bool(successful),
+            'coins': coins,
+            'exp': exp,
+        })
+        self.writing_session_history = self.writing_session_history[
+            -WRITING_SESSION_HISTORY_LIMIT:
+        ]
+
     def finish_writing_session(self, save=True):
         self.normalize_motivation()
         if self.writing_session is None:
             return False, 'Нет активной писательской сессии.'
 
         session = self.writing_session
-        successful = session.get('progress', 0) >= session.get('target_symbols', 1)
+        remaining_seconds = self.writing_session_remaining_seconds()
+        grade_key, grade_name, grade_multiplier = self.writing_session_grade(
+            session.get('progress', 0), session.get('target_symbols', 1)
+        )
+        successful = grade_key != 'failed'
         self.writing_session = None
         if not successful:
+            protected = (
+                self.specialization == 'ritualist'
+                and self.specialization_ability_effects.get('ritualist')
+            )
+            if protected:
+                self._consume_specialization_ability('ritualist')
+            else:
+                self.writing_session_streak = 0
+            self._record_writing_session_result(session, grade_key, False)
             if save:
                 self.save()
-            return False, 'Сессия завершена. Цель не достигнута — штрафа нет.'
+            message = 'Сессия завершена. Цель не достигнута — штрафа нет.'
+            if protected:
+                message += '\nСила ритуала сохранила серию успешных сессий.'
+            return False, message
 
         inspiration = self.add_inspiration(10)
+        mode = WRITING_SESSION_MODES.get(
+            session.get('mode', 'flow'), WRITING_SESSION_MODES['flow']
+        )
         ability_multiplier = self._specialization_ability_multiplier(
             'session', intention=session.get('intention')
+        )
+        self.writing_session_streak += 1
+        streak_multiplier = 1 + min(self.writing_session_streak - 1, 5) * 0.03
+        early_finish_multiplier = (
+            1.10 if remaining_seconds > 0 and grade_key in ('silver', 'gold') else 1.0
         )
         reward_multiplier = (
             (1 + self.session_reward_bonus)
@@ -1425,6 +1536,10 @@ class Gamer:
             )
             * ability_multiplier
             * (1 + self.get_cabinet_bonus('session'))
+            * (1 + mode['reward_bonus'])
+            * grade_multiplier
+            * streak_multiplier
+            * early_finish_multiplier
         )
         self.session_reward_bonus = 0.0
         if ability_multiplier > 1:
@@ -1444,9 +1559,18 @@ class Gamer:
             successful_session=True,
             session_intention=session.get('intention'),
         )
+        self._record_writing_session_result(
+            session, grade_key, True, coins=coins, exp=exp
+        )
         if save:
             self.save()
-        message = f'Сессия завершена! Получено {coins} монет, {exp} опыта и {inspiration:g} вдохновения.'
+        message = (
+            f'Сессия завершена! Результат: {grade_name}. '
+            f'Серия: {self.writing_session_streak}. '
+            f'Получено {coins} монет, {exp} опыта и {inspiration:g} вдохновения.'
+        )
+        if early_finish_multiplier > 1:
+            message += '\nБонус за досрочный высокий результат: +10%.'
         if weekly_message:
             message += f'\n{weekly_message}'
         if mastery_message:
@@ -2106,6 +2230,8 @@ class Gamer:
             'daily_challenge': None,
             'weekly_challenge': None,
             'writing_session': None,
+            'writing_session_streak': 0,
+            'writing_session_history': [],
             'writing_reward_bonus': 0.0,
             'session_reward_bonus': 0.0,
             'challenge_reward_bonus': 0.0,
