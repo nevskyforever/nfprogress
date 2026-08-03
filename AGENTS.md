@@ -164,6 +164,15 @@ Creative rhythm is coordinated by `game.py` and `game_UI.py`:
   from progress, update `writing_session_streak`, and append a normalized entry to
   the last-20 `writing_session_history`. Failed sessions must not grant rewards;
   cancellations do not count as results.
+* Daily challenge variants are declared by `DAILY_CHALLENGE_TYPES` and
+  `DAILY_CHALLENGE_DIFFICULTIES`. Keep the chosen challenge and all offered options
+  for the same date; changing a choice spends inspiration only after validating the
+  new option. Advance symbol, session, and editing goals only from their explicit
+  matching events.
+* Creative events are defined in `CREATIVE_EVENTS` and become pending after the
+  configured number of productive text actions. Never open a modal while text is
+  being recorded: show the pending event on the rhythm tab and resolve its safe or
+  risky choice there. Apply and persist an event result exactly once, then clear it.
 * New permanent controls belong in the source `.ui`; regenerate
   `UI_fiiles/main_window.py` after changing it.
 

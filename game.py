@@ -2,6 +2,7 @@ import os
 import pickle
 import sys
 import math
+import random
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -295,6 +296,55 @@ WRITING_SESSION_GRADES = (
 )
 WRITING_SESSION_HISTORY_LIMIT = 20
 
+DAILY_CHALLENGE_CHANGE_COST = 15
+DAILY_CHALLENGE_TYPES = {
+    'symbols': {
+        'name': 'Объём дня',
+        'description': 'Написать выбранный объём текста за день.',
+    },
+    'sessions': {
+        'name': 'Сессионный ритм',
+        'description': 'Завершить несколько успешных писательских сессий.',
+    },
+    'editing': {
+        'name': 'День редактора',
+        'description': 'Завершить успешные сессии с намерением отредактировать текст.',
+    },
+}
+DAILY_CHALLENGE_DIFFICULTIES = {
+    'easy': {'name': 'Легко', 'target_multiplier': 0.75, 'reward_multiplier': 0.8},
+    'normal': {'name': 'Обычно', 'target_multiplier': 1.0, 'reward_multiplier': 1.0},
+    'hard': {'name': 'Сложно', 'target_multiplier': 1.25, 'reward_multiplier': 1.4},
+}
+
+CREATIVE_EVENTS = {
+    'unexpected_idea': {
+        'name': 'Неожиданная идея',
+        'description': 'В тексте появился новый перспективный поворот.',
+        'safe_description': 'Записать идею и получить 6 вдохновения.',
+        'risk_description': 'Развить идею: 55% получить 15 вдохновения, иначе потерять 5.',
+        'safe': ('inspiration', 6),
+        'risk': ('inspiration', 15, 'inspiration_loss', 5),
+    },
+    'second_wind': {
+        'name': 'Второе дыхание',
+        'description': 'Рабочий темп неожиданно стал легче и увереннее.',
+        'safe_description': 'Сохранить темп: +10% к следующей записи.',
+        'risk_description': 'Ускориться: 55% получить +30%, иначе потерять 8 вдохновения.',
+        'safe': ('writing_bonus', 0.10),
+        'risk': ('writing_bonus', 0.30, 'inspiration_loss', 8),
+    },
+    'lucky_find': {
+        'name': 'Удачная находка',
+        'description': 'В старых заметках нашлась полезная деталь для рукописи.',
+        'safe_description': 'Использовать сразу и получить 50 монет.',
+        'risk_description': 'Проверить редкую версию: 55% получить 150 монет.',
+        'safe': ('coins', 50),
+        'risk': ('coins', 150, 'nothing', 0),
+    },
+}
+CREATIVE_EVENT_PRODUCTIVE_INTERVAL = 5
+
 SKILL_META = {
     'productivity': {
         'name': 'Продуктивность',
@@ -536,7 +586,12 @@ class Gamer:
         self.quests = []
         self.inspiration = 0
         self.daily_challenge = None
+        self.daily_challenge_options = []
+        self.daily_challenge_history = []
         self.weekly_challenge = None
+        self.productive_actions_since_event = 0
+        self.pending_creative_event = None
+        self.creative_event_history = []
         self.writing_session = None
         self.writing_session_streak = 0
         self.writing_session_history = []
@@ -964,6 +1019,36 @@ class Gamer:
         today = engine.today_for_test()
         if self.daily_challenge and self.daily_challenge.get('date') != today.isoformat():
             self.daily_challenge = None
+            self.daily_challenge_options = []
+        if self.daily_challenge is not None:
+            self.daily_challenge.setdefault('type', 'symbols')
+            self.daily_challenge.setdefault('difficulty', 'normal')
+            self.daily_challenge.setdefault('option_id', 'symbols:normal')
+        raw_options = getattr(self, 'daily_challenge_options', [])
+        self.daily_challenge_options = (
+            [option for option in raw_options if isinstance(option, dict)]
+            if isinstance(raw_options, list) else []
+        )
+        raw_daily_history = getattr(self, 'daily_challenge_history', [])
+        self.daily_challenge_history = (
+            [str(value) for value in raw_daily_history[-14:]]
+            if isinstance(raw_daily_history, list) else []
+        )
+        try:
+            self.productive_actions_since_event = max(
+                0, int(getattr(self, 'productive_actions_since_event', 0))
+            )
+        except (TypeError, ValueError):
+            self.productive_actions_since_event = 0
+        pending_event = getattr(self, 'pending_creative_event', None)
+        self.pending_creative_event = (
+            pending_event if pending_event in CREATIVE_EVENTS else None
+        )
+        raw_event_history = getattr(self, 'creative_event_history', [])
+        self.creative_event_history = (
+            [entry for entry in raw_event_history[-20:] if isinstance(entry, dict)]
+            if isinstance(raw_event_history, list) else []
+        )
 
         week_start = today - timedelta(days=today.weekday())
         if self.weekly_challenge and self.weekly_challenge.get('week_start') != week_start.isoformat():
@@ -1353,13 +1438,173 @@ class Gamer:
     def ensure_daily_challenge(self, target=None):
         self.normalize_motivation()
         if self.daily_challenge is None:
-            self.daily_challenge = {
-                'date': engine.today_for_test().isoformat(),
-                'target': int(target or self.calculate_adaptive_daily_target()),
+            self.daily_challenge_options = self.generate_daily_challenge_options(target)
+            self.daily_challenge = dict(self.daily_challenge_options[0])
+        elif not self.daily_challenge_options:
+            generated = self.generate_daily_challenge_options(target)
+            current_id = self.daily_challenge.get('option_id')
+            self.daily_challenge_options = [dict(self.daily_challenge)] + [
+                option for option in generated
+                if option.get('option_id') != current_id
+            ][:2]
+        return self.daily_challenge
+
+    def generate_daily_challenge_options(self, target=None):
+        today = engine.today_for_test()
+        base_target = int(target or self.calculate_adaptive_daily_target())
+        type_keys = tuple(DAILY_CHALLENGE_TYPES)
+        shift = today.toordinal() % len(type_keys)
+        type_keys = type_keys[shift:] + type_keys[:shift]
+        difficulty_keys = ('normal', 'easy', 'hard')
+        options = []
+        for challenge_type, difficulty_key in zip(type_keys, difficulty_keys):
+            difficulty = DAILY_CHALLENGE_DIFFICULTIES[difficulty_key]
+            if challenge_type == 'symbols':
+                challenge_target = max(
+                    100,
+                    int(round(base_target * difficulty['target_multiplier'] / 100) * 100),
+                )
+                reward_coins = challenge_target / 20
+                reward_exp = challenge_target * 0.5
+            elif challenge_type == 'sessions':
+                challenge_target = {'easy': 1, 'normal': 2, 'hard': 3}[difficulty_key]
+                reward_coins = 120 * challenge_target
+                reward_exp = 500 * challenge_target
+            else:
+                challenge_target = {'easy': 1, 'normal': 1, 'hard': 2}[difficulty_key]
+                reward_coins = 150 * challenge_target
+                reward_exp = 600 * challenge_target
+            options.append({
+                'date': today.isoformat(),
+                'option_id': f'{challenge_type}:{difficulty_key}',
+                'type': challenge_type,
+                'difficulty': difficulty_key,
+                'target': challenge_target,
                 'progress': 0,
                 'completed': False,
-            }
-        return self.daily_challenge
+                'reward_coins': reward_coins * difficulty['reward_multiplier'],
+                'reward_exp': reward_exp * difficulty['reward_multiplier'],
+            })
+        return options
+
+    def select_daily_challenge_option(self, option_index, free=False, save=True):
+        self.normalize_motivation()
+        daily = self.ensure_daily_challenge()
+        if daily.get('completed'):
+            return False, 'Выполненную цель дня заменить нельзя.'
+        try:
+            option = self.daily_challenge_options[int(option_index)]
+        except (IndexError, TypeError, ValueError):
+            return False, 'Неизвестный вариант цели дня.'
+        if option.get('option_id') == daily.get('option_id'):
+            return False, 'Этот вариант цели дня уже выбран.'
+        if not free and self.inspiration < DAILY_CHALLENGE_CHANGE_COST:
+            return False, 'Недостаточно вдохновения для смены цели дня.'
+        if not free:
+            self.inspiration -= DAILY_CHALLENGE_CHANGE_COST
+        self.daily_challenge = dict(option)
+        if save:
+            self.save()
+        return True, 'Выбрана новая цель дня.'
+
+    def _advance_daily_challenge(
+            self, symbols=0, successful_session=False, session_intention=None
+    ):
+        daily = self.ensure_daily_challenge()
+        if daily.get('completed'):
+            return []
+        challenge_type = daily.get('type', 'symbols')
+        if challenge_type == 'symbols' and symbols > 0:
+            daily['progress'] += symbols
+        elif challenge_type == 'sessions' and successful_session:
+            daily['progress'] += 1
+        elif (
+                challenge_type == 'editing'
+                and successful_session
+                and session_intention == 'Отредактировать текст'
+        ):
+            daily['progress'] += 1
+        if daily['progress'] < daily['target']:
+            return []
+
+        daily['completed'] = True
+        self.daily_challenge_history.append(daily.get('option_id', challenge_type))
+        self.daily_challenge_history = self.daily_challenge_history[-14:]
+        reward_multiplier = self._consume_challenge_reward_multiplier()
+        reward_coins = daily.get('reward_coins', daily['target'] / 20)
+        reward_exp = daily.get('reward_exp', daily['target'] * 0.5)
+        coins = self.set_coins(
+            reward_coins * self.calculate_inflation() * reward_multiplier,
+            save=False,
+        )
+        exp = self.add_exp(reward_exp * reward_multiplier)
+        inspiration = self.add_inspiration(10)
+        messages = [
+            f'Цель дня выполнена! Получено {coins} монет, {exp} опыта и '
+            f'{inspiration:g} вдохновения.'
+        ]
+        if self.specialization == 'explorer':
+            mastery_message = self.add_specialization_mastery('explorer')
+            if mastery_message:
+                messages.append(mastery_message)
+        return messages
+
+    def _maybe_trigger_creative_event(self, symbols):
+        if symbols < 1000 or self.pending_creative_event is not None:
+            return None
+        self.productive_actions_since_event += 1
+        if self.productive_actions_since_event < CREATIVE_EVENT_PRODUCTIVE_INTERVAL:
+            return None
+        self.productive_actions_since_event = 0
+        event_keys = tuple(CREATIVE_EVENTS)
+        event_key = event_keys[len(self.creative_event_history) % len(event_keys)]
+        self.pending_creative_event = event_key
+        event = CREATIVE_EVENTS[event_key]
+        return f'Творческое событие «{event["name"]}» ожидает вашего решения.'
+
+    def resolve_creative_event(self, choice, save=True):
+        self.normalize_motivation()
+        event_key = self.pending_creative_event
+        event = CREATIVE_EVENTS.get(event_key)
+        if event is None:
+            return False, 'Нет творческого события, ожидающего решения.'
+        if choice not in ('safe', 'risk'):
+            return False, 'Неизвестный выбор творческого события.'
+
+        success = choice == 'safe' or random.random() < 0.55
+        effect = event['safe'] if choice == 'safe' else event['risk']
+        if success:
+            effect_type, value = effect[0], effect[1]
+        else:
+            effect_type, value = effect[2], effect[3]
+
+        if effect_type == 'inspiration':
+            gained = self.add_inspiration(value)
+            result = f'Получено {gained:g} вдохновения.'
+        elif effect_type == 'inspiration_loss':
+            lost = min(self.inspiration, float(value))
+            self.inspiration -= lost
+            result = f'Потеряно {lost:g} вдохновения.'
+        elif effect_type == 'writing_bonus':
+            self.writing_reward_bonus = min(1.0, self.writing_reward_bonus + value)
+            result = f'Бонус к следующей записи: +{value * 100:g}%.'
+        elif effect_type == 'coins':
+            coins = self.set_coins(value * self.calculate_inflation(), save=False)
+            result = f'Получено {coins} монет.'
+        else:
+            result = 'Риск не принёс награды.'
+
+        self.creative_event_history.append({
+            'event': event_key,
+            'choice': choice,
+            'success': success,
+            'resolved_at': get_effective_now().isoformat(),
+        })
+        self.creative_event_history = self.creative_event_history[-20:]
+        self.pending_creative_event = None
+        if save:
+            self.save()
+        return True, f'Событие «{event["name"]}» завершено. {result}'
 
     def activate_inspiration_ability(self, ability_key, save=True):
         self.normalize_motivation()
@@ -1554,6 +1799,10 @@ class Gamer:
                 and session.get('intention') == 'Отредактировать текст'
         ):
             mastery_message = self.add_specialization_mastery('editor')
+        daily_messages = self._advance_daily_challenge(
+            successful_session=True,
+            session_intention=session.get('intention'),
+        )
         weekly_message = self._advance_weekly_challenge(
             0,
             successful_session=True,
@@ -1573,6 +1822,8 @@ class Gamer:
             message += '\nБонус за досрочный высокий результат: +10%.'
         if weekly_message:
             message += f'\n{weekly_message}'
+        if daily_messages:
+            message += '\n' + '\n'.join(daily_messages)
         if mastery_message:
             message += f'\n{mastery_message}'
         return True, message
@@ -1642,28 +1893,14 @@ class Gamer:
         if self.writing_session is not None:
             self.writing_session['progress'] = self.writing_session.get('progress', 0) + symbols
 
-        daily = self.ensure_daily_challenge()
-        daily['progress'] += symbols
-        if not daily['completed'] and daily['progress'] >= daily['target']:
-            daily['completed'] = True
-            reward_multiplier = self._consume_challenge_reward_multiplier()
-            coins = self.set_coins(
-                daily['target'] / 20 * self.calculate_inflation() * reward_multiplier,
-                save=False,
-            )
-            exp = self.add_exp(daily['target'] * 0.5 * reward_multiplier)
-            inspiration = self.add_inspiration(10)
-            messages.append(
-                f'Адаптивная цель дня выполнена! Получено {coins} монет, {exp} опыта и {inspiration:g} вдохновения.'
-            )
-            if self.specialization == 'explorer':
-                mastery_message = self.add_specialization_mastery('explorer')
-                if mastery_message:
-                    messages.append(mastery_message)
+        messages.extend(self._advance_daily_challenge(symbols=symbols))
 
         weekly_message = self._advance_weekly_challenge(symbols)
         if weekly_message:
             messages.append(weekly_message)
+        event_message = self._maybe_trigger_creative_event(symbols)
+        if event_message:
+            messages.append(event_message)
         return messages
 
     # === 4. ИГРОВАЯ ЛОГИКА ===
@@ -2228,7 +2465,12 @@ class Gamer:
             'quests': [],
             'inspiration': 0,
             'daily_challenge': None,
+            'daily_challenge_options': [],
+            'daily_challenge_history': [],
             'weekly_challenge': None,
+            'productive_actions_since_event': 0,
+            'pending_creative_event': None,
+            'creative_event_history': [],
             'writing_session': None,
             'writing_session_streak': 0,
             'writing_session_history': [],

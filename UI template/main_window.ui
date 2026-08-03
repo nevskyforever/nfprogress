@@ -2920,10 +2920,22 @@
               <property name="text"><string>Активировать</string></property>
              </widget>
             </item>
-            <item row="2" column="0" colspan="3">
+            <item row="2" column="0">
              <widget class="QLabel" name="daily_challenge_status">
               <property name="text"><string>Цель дня загружается…</string></property>
               <property name="wordWrap"><bool>true</bool></property>
+             </widget>
+            </item>
+            <item row="2" column="1">
+             <widget class="QComboBox" name="daily_challenge_combo">
+              <property name="maximumSize"><size><width>16777215</width><height>24</height></size></property>
+              <item><property name="text"><string>Варианты цели дня</string></property></item>
+             </widget>
+            </item>
+            <item row="2" column="2">
+             <widget class="QPushButton" name="change_daily_challenge_button">
+              <property name="maximumSize"><size><width>16777215</width><height>24</height></size></property>
+              <property name="text"><string>Сменить за 15</string></property>
              </widget>
             </item>
             <item row="3" column="0" colspan="2">
@@ -3043,6 +3055,25 @@
              <widget class="QLabel" name="cabinet_collection_status">
               <property name="text"><string>Кабинет писателя: реликвий пока нет.</string></property>
               <property name="wordWrap"><bool>true</bool></property>
+             </widget>
+            </item>
+            <item row="12" column="0">
+             <widget class="QLabel" name="creative_event_status">
+              <property name="text"><string>Творческих событий пока нет.</string></property>
+              <property name="wordWrap"><bool>true</bool></property>
+             </widget>
+            </item>
+            <item row="12" column="1">
+             <widget class="QComboBox" name="creative_event_choice_combo">
+              <property name="maximumSize"><size><width>16777215</width><height>24</height></size></property>
+              <item><property name="text"><string>Надёжный выбор</string></property></item>
+              <item><property name="text"><string>Рискнуть</string></property></item>
+             </widget>
+            </item>
+            <item row="12" column="2">
+             <widget class="QPushButton" name="resolve_creative_event_button">
+              <property name="maximumSize"><size><width>16777215</width><height>24</height></size></property>
+              <property name="text"><string>Принять решение</string></property>
              </widget>
             </item>
            </layout>

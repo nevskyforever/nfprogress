@@ -263,6 +263,9 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     gamer = make_gamer(monkeypatch)
     for attribute in (
         'inspiration', 'daily_challenge', 'weekly_challenge',
+        'daily_challenge_options', 'daily_challenge_history',
+        'productive_actions_since_event', 'pending_creative_event',
+        'creative_event_history',
         'writing_session', 'writing_session_streak', 'writing_session_history',
         'writing_reward_bonus', 'session_reward_bonus',
         'challenge_reward_bonus', 'specialization',
@@ -277,6 +280,11 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
 
     assert gamer.inspiration == 0
     assert gamer.daily_challenge is None
+    assert gamer.daily_challenge_options == []
+    assert gamer.daily_challenge_history == []
+    assert gamer.productive_actions_since_event == 0
+    assert gamer.pending_creative_event is None
+    assert gamer.creative_event_history == []
     assert gamer.weekly_challenge is None
     assert gamer.writing_session is None
     assert gamer.writing_session_streak == 0
@@ -653,3 +661,92 @@ def test_cabinet_relic_progress_counts_qualifying_projects(monkeypatch):
     }
 
     assert gamer.cabinet_relic_progress('chapter_shelf') == (2, 3)
+
+
+def test_daily_challenge_offers_three_different_options(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.daily_challenge = None
+
+    daily = gamer.ensure_daily_challenge(target=1200)
+
+    assert len(gamer.daily_challenge_options) == 3
+    assert len({option['type'] for option in gamer.daily_challenge_options}) == 3
+    assert {option['difficulty'] for option in gamer.daily_challenge_options} == {
+        'easy', 'normal', 'hard'
+    }
+    assert daily == gamer.daily_challenge_options[0]
+
+
+def test_daily_challenge_can_be_changed_for_inspiration(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.daily_challenge = None
+    gamer.inspiration = 30
+    gamer.ensure_daily_challenge(target=1000)
+
+    ok, message = gamer.select_daily_challenge_option(1, save=False)
+
+    assert ok is True
+    assert 'новая цель' in message
+    assert gamer.inspiration == 15
+    assert gamer.daily_challenge == gamer.daily_challenge_options[1]
+
+
+def test_session_daily_challenge_advances_on_success(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.daily_challenge = {
+        'date': engine.today_for_test().isoformat(),
+        'option_id': 'sessions:normal',
+        'type': 'sessions',
+        'difficulty': 'normal',
+        'target': 1,
+        'progress': 0,
+        'completed': False,
+        'reward_coins': 100,
+        'reward_exp': 400,
+    }
+    gamer.start_writing_session(25, 100, 'Продолжить черновик', save=False)
+    gamer.record_motivation_progress(100)
+
+    ok, message = gamer.finish_writing_session(save=False)
+
+    assert ok is True
+    assert 'Цель дня выполнена' in message
+    assert gamer.daily_challenge['completed'] is True
+
+
+def test_creative_event_appears_after_five_productive_actions(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.daily_challenge['target'] = 100000
+
+    for _ in range(5):
+        gamer.record_motivation_progress(1000)
+
+    assert gamer.pending_creative_event == 'unexpected_idea'
+    assert gamer.productive_actions_since_event == 0
+
+
+def test_safe_creative_event_grants_reward(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.pending_creative_event = 'unexpected_idea'
+
+    ok, message = gamer.resolve_creative_event('safe', save=False)
+
+    assert ok is True
+    assert 'Получено 6 вдохновения' in message
+    assert gamer.inspiration == 6
+    assert gamer.pending_creative_event is None
+    assert gamer.creative_event_history[-1]['success'] is True
+
+
+def test_failed_risky_creative_event_records_result(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.inspiration = 20
+    gamer.pending_creative_event = 'second_wind'
+    monkeypatch.setattr(game.random, 'random', lambda: 1.0)
+
+    ok, message = gamer.resolve_creative_event('risk', save=False)
+
+    assert ok is True
+    assert 'Потеряно 8 вдохновения' in message
+    assert gamer.inspiration == 12
+    assert gamer.creative_event_history[-1]['success'] is False

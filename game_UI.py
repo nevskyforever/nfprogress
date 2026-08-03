@@ -302,6 +302,12 @@ class GameMenuController:
         self.ui.activate_inspiration_ability_button.clicked.connect(
             self.on_activate_inspiration_ability
         )
+        self.ui.daily_challenge_combo.currentIndexChanged.connect(
+            self.update_daily_challenge_choice_ui
+        )
+        self.ui.change_daily_challenge_button.clicked.connect(
+            self.on_change_daily_challenge
+        )
         self.ui.start_weekly_challenge_button.clicked.connect(self.on_start_weekly_challenge)
         self.ui.start_writing_session_button.clicked.connect(self.on_start_writing_session)
         self.ui.finish_writing_session_button.clicked.connect(self.on_finish_writing_session)
@@ -315,6 +321,12 @@ class GameMenuController:
         self.ui.select_specialization_button.clicked.connect(self.on_select_specialization)
         self.ui.activate_specialization_ability_button.clicked.connect(
             self.on_activate_specialization_ability
+        )
+        self.ui.creative_event_choice_combo.currentIndexChanged.connect(
+            self.update_creative_event_ui
+        )
+        self.ui.resolve_creative_event_button.clicked.connect(
+            self.on_resolve_creative_event
         )
         self.ui.cabinet_relics_list.currentItemChanged.connect(
             lambda current, previous: self.on_cabinet_relic_selected(current)
@@ -721,12 +733,22 @@ class GameMenuController:
         self.ui.inspiration_progressbar.setValue(int(inspiration))
         self.update_inspiration_ability_ui()
 
+        daily_meta = game.DAILY_CHALLENGE_TYPES.get(
+            daily.get('type'), game.DAILY_CHALLENGE_TYPES['symbols']
+        )
+        difficulty = game.DAILY_CHALLENGE_DIFFICULTIES.get(
+            daily.get('difficulty'), game.DAILY_CHALLENGE_DIFFICULTIES['normal']
+        )
         daily_progress = min(daily['progress'], daily['target'])
         daily_state = tr('выполнена') if daily['completed'] else tr('в процессе')
+        daily_unit = tr('символов') if daily.get('type') == 'symbols' else tr('сессий')
         self.ui.daily_challenge_status.setText(
-            f"{tr('Адаптивная цель дня')}: {daily_progress}/{daily['target']} "
-            f"{tr('символов')} — {daily_state}."
+            f"{tr(daily_meta['name'])} · {tr(difficulty['name'])}: "
+            f"{daily_progress}/{daily['target']} {daily_unit} — {daily_state}."
         )
+        self.ui.daily_challenge_status.setToolTip(tr(daily_meta['description']))
+        self.update_daily_challenge_options_ui()
+        self.update_creative_event_ui()
 
         weekly = self.gamer.weekly_challenge
         self.ui.start_weekly_challenge_button.setEnabled(weekly is None)
@@ -764,6 +786,92 @@ class GameMenuController:
             return
 
         self.update_writing_session_status(session)
+
+    def update_daily_challenge_options_ui(self):
+        combo = self.ui.daily_challenge_combo
+        current_id = self.gamer.daily_challenge.get('option_id')
+        with QSignalBlocker(combo):
+            combo.clear()
+            current_index = 0
+            for index, option in enumerate(self.gamer.daily_challenge_options):
+                meta = game.DAILY_CHALLENGE_TYPES.get(
+                    option.get('type'), game.DAILY_CHALLENGE_TYPES['symbols']
+                )
+                difficulty = game.DAILY_CHALLENGE_DIFFICULTIES.get(
+                    option.get('difficulty'), game.DAILY_CHALLENGE_DIFFICULTIES['normal']
+                )
+                unit = tr('символов') if option.get('type') == 'symbols' else tr('сессий')
+                combo.addItem(
+                    f"{tr(meta['name'])} · {tr(difficulty['name'])} · "
+                    f"{option.get('target', 0)} {unit}"
+                )
+                if option.get('option_id') == current_id:
+                    current_index = index
+            combo.setCurrentIndex(current_index)
+        self.update_daily_challenge_choice_ui()
+
+    def update_daily_challenge_choice_ui(self, *_):
+        if not self.gamer:
+            self.ui.change_daily_challenge_button.setEnabled(False)
+            return
+        index = self.ui.daily_challenge_combo.currentIndex()
+        options = self.gamer.daily_challenge_options
+        valid = 0 <= index < len(options)
+        selected_id = options[index].get('option_id') if valid else None
+        current = self.gamer.daily_challenge or {}
+        can_change = (
+            valid
+            and not current.get('completed')
+            and selected_id != current.get('option_id')
+            and self.gamer.inspiration >= game.DAILY_CHALLENGE_CHANGE_COST
+        )
+        self.ui.change_daily_challenge_button.setText(
+            f"{tr('Сменить за')} {game.DAILY_CHALLENGE_CHANGE_COST}"
+        )
+        self.ui.change_daily_challenge_button.setEnabled(can_change)
+        if valid:
+            meta = game.DAILY_CHALLENGE_TYPES.get(options[index].get('type'), {})
+            self.ui.daily_challenge_combo.setToolTip(tr(meta.get('description', '')))
+
+    def on_change_daily_challenge(self):
+        ok, message = self.gamer.select_daily_challenge_option(
+            self.ui.daily_challenge_combo.currentIndex()
+        )
+        self.update_motivation_ui()
+        if self.notifications:
+            (self.notifications.show_success if ok else self.notifications.show_warning)(message)
+
+    def update_creative_event_ui(self, *_):
+        event_key = self.gamer.pending_creative_event if self.gamer else None
+        event = game.CREATIVE_EVENTS.get(event_key)
+        active = event is not None
+        self.ui.creative_event_choice_combo.setEnabled(active)
+        self.ui.resolve_creative_event_button.setEnabled(active)
+        if not active:
+            self.ui.creative_event_status.setText(tr('Творческих событий пока нет.'))
+            self.ui.creative_event_status.setToolTip('')
+            return
+        self.ui.creative_event_status.setText(
+            f"{tr('Творческое событие')}: {tr(event['name'])}"
+        )
+        description_key = (
+            'safe_description'
+            if self.ui.creative_event_choice_combo.currentIndex() == 0
+            else 'risk_description'
+        )
+        tooltip = f"{tr(event['description'])} {tr(event[description_key])}"
+        self.ui.creative_event_status.setToolTip(tooltip)
+        self.ui.creative_event_choice_combo.setToolTip(tooltip)
+        self.ui.resolve_creative_event_button.setToolTip(tooltip)
+
+    def on_resolve_creative_event(self):
+        choice = (
+            'safe' if self.ui.creative_event_choice_combo.currentIndex() == 0 else 'risk'
+        )
+        ok, message = self.gamer.resolve_creative_event(choice)
+        self.update_motivation_ui()
+        if self.notifications:
+            (self.notifications.show_success if ok else self.notifications.show_warning)(message)
 
     def update_inspiration_ability_ui(self, *_):
         index = self.ui.inspiration_ability_combo.currentIndex()
