@@ -125,9 +125,13 @@ opened from the Help menu in `main_UI.py`.
   one. Remove or rewrite obsolete instructions when behavior is removed or renamed.
 * Keep section keys stable and canonical. Write titles and HTML content in Russian,
   preserve valid HTML structure, and do not put user data into help text.
-* The help search indexes localized titles and article text automatically. Keep topic
-  titles specific enough for the macOS Help-menu search and the in-window search to
-  return useful results.
+* The in-window help search indexes localized titles and article text automatically.
+  Keep topic titles specific enough to return useful results.
+* Native macOS Help-menu search is provided by the `NSUserInterfaceItemSearching`
+  bridge in `macos_help_search.py`. Keep its index synchronized with `HELP_SECTIONS`
+  and the selected language. Do not replace it with ordinary topic `QAction` objects
+  or a separate "Search Help" menu action; those do not supply custom topics to the
+  system Help search field.
 * Add permanent help-window controls only to `UI template/help_dialog.ui`, then
   regenerate `UI_fiiles/help_dialog.py`. Changes to Help-menu controls belong in
   `UI template/main_window.ui`, followed by regeneration of

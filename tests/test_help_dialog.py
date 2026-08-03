@@ -1,4 +1,5 @@
 import os
+import platform
 import re
 from types import SimpleNamespace
 
@@ -11,6 +12,11 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QMenu
 from UI_fiiles.main_window import Ui_main_window
 from help_content import HELP_SECTIONS
 from localization import set_language, tr
+from macos_help_search import (
+    HelpSearchItem,
+    create_macos_help_search,
+    ranked_help_search_items,
+)
 from main_UI import HelpDialog, MainWindow
 
 
@@ -63,7 +69,7 @@ def test_help_action_is_in_menu_bar_with_required_shortcut():
 
     assert ui.help_menu.menuAction() in ui.menuBar.actions()
     assert ui.help_action in ui.help_menu.actions()
-    assert ui.help_search_action in ui.help_menu.actions()
+    assert not hasattr(ui, "help_search_action")
     assert ui.help_topics_menu.menuAction() in ui.help_menu.actions()
     assert ui.help_action.shortcut().toString(
         QKeySequence.SequenceFormat.PortableText
@@ -111,12 +117,14 @@ def test_help_dialog_searches_titles_and_article_text():
     ) == "bank"
 
 
-def test_help_topic_menu_exposes_sections_to_native_menu_search():
+def test_help_topic_menu_and_system_index_include_every_section():
     set_language(APP, "ru")
     opened_sections = []
     owner = SimpleNamespace(
         help_topics_menu=QMenu(),
         _help_topic_actions=[],
+        _help_search_items=(),
+        _macos_help_search=None,
         show_help=lambda section_key: opened_sections.append(section_key),
     )
 
@@ -128,10 +136,65 @@ def test_help_topic_menu_exposes_sections_to_native_menu_search():
     )
     assert bank_action.text() == "Банк"
     assert bank_action.menuRole() == QAction.MenuRole.NoRole
+    assert len(owner._help_search_items) == len(list(flatten_sections(HELP_SECTIONS)))
+
+    native_matches = ranked_help_search_items(
+        owner._help_search_items, "банк", 10
+    )
+    assert native_matches[0].key == "bank"
+    assert native_matches[0].display_path == ("Игровой режим", "Банк")
 
     bank_action.trigger()
 
     assert opened_sections == ["bank"]
+
+
+def test_macos_help_search_handler_registers_when_available():
+    item = HelpSearchItem.create(
+        key="bank",
+        display_path=("Игровой режим", "Банк"),
+        titles=("Банк", "Bank"),
+        text_parts=("Кредит, вклад и банковский рейтинг",),
+    )
+    opened_sections = []
+
+    bridge = create_macos_help_search((item,), opened_sections.append)
+
+    if platform.system() != "Darwin":
+        assert bridge is None
+        return
+
+    assert bridge is not None
+    try:
+        assert bridge.is_registered
+        assert bridge.search("  ", 10) == ()
+        assert bridge.search("банк", 10) == ("bank",)
+        assert bridge.localized_titles("bank") == ("Игровой режим", "Банк")
+    finally:
+        bridge.unregister()
+    assert not bridge.is_registered
+
+
+def test_system_help_index_uses_selected_language():
+    updated_indexes = []
+    owner = SimpleNamespace(
+        help_topics_menu=QMenu(),
+        _help_topic_actions=[],
+        _help_search_items=(),
+        _macos_help_search=SimpleNamespace(
+            update_items=lambda items: updated_indexes.append(tuple(items))
+        ),
+        show_help=lambda _section_key: None,
+    )
+    set_language(APP, "en")
+    try:
+        MainWindow._rebuild_help_topics_menu(owner)
+        matches = ranked_help_search_items(updated_indexes[-1], "bank", 10)
+
+        assert matches[0].key == "bank"
+        assert matches[0].display_path == ("Game mode", "Bank")
+    finally:
+        set_language(APP, "ru")
 
 
 def test_help_search_messages_are_localized():

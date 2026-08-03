@@ -28,6 +28,11 @@ from UI_fiiles.project_stats import Ui_project_stats as project_stats_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
 from help_content import HELP_SECTIONS
+from macos_help_search import (
+    HelpSearchItem,
+    create_macos_help_search,
+    help_search_match_ranks,
+)
 from localization import (
     LocalizedMessageBox as QMessageBox,
     SUPPORTED_LANGUAGES,
@@ -38,6 +43,31 @@ from localization import (
 )
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
 from update_checker import UpdateChecker
+
+
+def _build_help_search_item(
+    section,
+    translated_title,
+    translated_content,
+    display_path,
+    document,
+):
+    """Builds one shared search entry from localized and Russian help text."""
+    document.setHtml(translated_content)
+    translated_plain_text = document.toPlainText()
+    document.setHtml(section["content"])
+    source_plain_text = document.toPlainText()
+    return HelpSearchItem.create(
+        key=section["key"],
+        display_path=display_path,
+        titles=(translated_title, section["title"]),
+        text_parts=(
+            translated_title,
+            translated_plain_text,
+            section["title"],
+            source_plain_text,
+        ),
+    )
 
 
 def _read_word_sync_source(project):
@@ -128,6 +158,8 @@ class MainWindow(QMainWindow, main_window_ui):
         self.developer_mode_action = None
         self._help_dialog = None
         self._help_topic_actions = []
+        self._help_search_items = ()
+        self._macos_help_search = None
 
         self.unit_to_display = {
             'symbols': 'Символы',
@@ -196,10 +228,12 @@ class MainWindow(QMainWindow, main_window_ui):
         self.application_settings_action.triggered.connect(self.edit_settings)
         self.help_action.triggered.connect(lambda _checked=False: self.show_help())
         self.help_action.setShortcut(QKeySequence("Ctrl+H"))
-        self.help_search_action.triggered.connect(
-            lambda _checked=False: self.show_help(focus_search=True)
-        )
         self._rebuild_help_topics_menu()
+        self._macos_help_search = create_macos_help_search(
+            self._help_search_items,
+            self.show_help,
+            self,
+        )
         if self.global_streak_mode:
             self.refresh_global_streak_status()
             QTimer.singleShot(1000, self.check_global_streak)
@@ -639,12 +673,14 @@ class MainWindow(QMainWindow, main_window_ui):
         self.applying_settings()
 
     def _rebuild_help_topics_menu(self):
-        """Builds localized topic actions indexed by the native macOS Help search."""
+        """Builds the localized topic menu and native macOS search index."""
         self.help_topics_menu.clear()
         self._help_topic_actions.clear()
+        search_items = []
+        index_document = QTextDocument()
 
-        def add_topic_action(menu, section):
-            action = menu.addAction(tr(section["title"]))
+        def add_topic_action(menu, section, translated_title):
+            action = menu.addAction(translated_title)
             action.setMenuRole(QAction.MenuRole.NoRole)
             action.setData(section["key"])
             action.triggered.connect(
@@ -652,20 +688,32 @@ class MainWindow(QMainWindow, main_window_ui):
             )
             self._help_topic_actions.append(action)
 
-        def add_sections(menu, sections):
+        def add_sections(menu, sections, translated_path=()):
             for section in sections:
+                translated_title = tr(section["title"])
+                current_path = translated_path + (translated_title,)
+                search_items.append(_build_help_search_item(
+                    section,
+                    translated_title,
+                    tr(section["content"]),
+                    current_path,
+                    index_document,
+                ))
                 children = section.get("children", ())
                 if children:
-                    section_menu = menu.addMenu(tr(section["title"]))
-                    add_topic_action(section_menu, section)
+                    section_menu = menu.addMenu(translated_title)
+                    add_topic_action(section_menu, section, translated_title)
                     section_menu.addSeparator()
-                    add_sections(section_menu, children)
+                    add_sections(section_menu, children, current_path)
                 else:
-                    add_topic_action(menu, section)
+                    add_topic_action(menu, section, translated_title)
 
         add_sections(self.help_topics_menu, HELP_SECTIONS)
+        self._help_search_items = tuple(search_items)
+        if self._macos_help_search is not None:
+            self._macos_help_search.update_items(self._help_search_items)
 
-    def show_help(self, section_key=None, focus_search=False):
+    def show_help(self, section_key=None):
         """Opens the modeless application help window."""
         if self._help_dialog is None:
             self._help_dialog = HelpDialog(self)
@@ -677,8 +725,6 @@ class MainWindow(QMainWindow, main_window_ui):
         self._help_dialog.show()
         self._help_dialog.raise_()
         self._help_dialog.activateWindow()
-        if focus_search:
-            self._help_dialog.focus_search()
 
     def change_language(self, language):
         """Changes the interface language immediately and refreshes visible data."""
@@ -4180,8 +4226,7 @@ class HelpDialog(QDialog, help_dialog_ui):
         self.setupUi(self)
         self._content_by_key = {}
         self._items_by_key = {}
-        self._search_titles_by_key = {}
-        self._search_text_by_key = {}
+        self._search_items_by_key = {}
         self._ordered_keys = []
         self._selected_key = "quick_start"
         self.help_splitter.setStretchFactor(0, 0)
@@ -4210,8 +4255,7 @@ class HelpDialog(QDialog, help_dialog_ui):
         self.help_tree.clear()
         self._content_by_key.clear()
         self._items_by_key.clear()
-        self._search_titles_by_key.clear()
-        self._search_text_by_key.clear()
+        self._search_items_by_key.clear()
         self._ordered_keys.clear()
         selected_item = None
         index_document = QTextDocument()
@@ -4240,20 +4284,15 @@ class HelpDialog(QDialog, help_dialog_ui):
             self._items_by_key[section["key"]] = item
             self._ordered_keys.append(section["key"])
 
-            index_document.setHtml(translated_content)
-            translated_plain_text = index_document.toPlainText()
-            index_document.setHtml(section["content"])
-            source_plain_text = index_document.toPlainText()
-            self._search_titles_by_key[section["key"]] = tuple(
-                " ".join(title.casefold().split())
-                for title in (translated_title, section["title"])
+            self._search_items_by_key[section["key"]] = (
+                _build_help_search_item(
+                    section,
+                    translated_title,
+                    translated_content,
+                    (translated_title,),
+                    index_document,
+                )
             )
-            self._search_text_by_key[section["key"]] = "\n".join((
-                translated_title,
-                translated_plain_text,
-                section["title"],
-                source_plain_text,
-            )).casefold()
             if section["key"] == selected_key:
                 selected_item = item
             for child in section.get("children", ()):
@@ -4285,21 +4324,10 @@ class HelpDialog(QDialog, help_dialog_ui):
 
     def _filter_sections(self, query):
         terms = [term for term in query.casefold().split() if term]
-        normalized_query = " ".join(terms)
-        match_ranks = {}
-        if terms:
-            for key, search_text in self._search_text_by_key.items():
-                titles = self._search_titles_by_key[key]
-                if normalized_query in titles:
-                    match_ranks[key] = 0
-                elif any(title.startswith(normalized_query) for title in titles):
-                    match_ranks[key] = 1
-                elif any(all(term in title for term in terms) for title in titles):
-                    match_ranks[key] = 2
-                elif all(term in search_text for term in terms):
-                    match_ranks[key] = 3
-        else:
-            match_ranks = dict.fromkeys(self._ordered_keys, 0)
+        search_items = (
+            self._search_items_by_key[key] for key in self._ordered_keys
+        )
+        match_ranks = help_search_match_ranks(search_items, query)
         matching_keys = set(match_ranks)
 
         def update_visibility(item):
