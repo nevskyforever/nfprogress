@@ -2893,7 +2893,20 @@
            <attribute name="title">
             <string>Творческий ритм</string>
            </attribute>
-           <layout class="QGridLayout" name="writing_rhythm_layout">
+           <layout class="QVBoxLayout" name="writing_rhythm_tab_layout">
+            <property name="leftMargin"><number>0</number></property>
+            <property name="topMargin"><number>0</number></property>
+            <property name="rightMargin"><number>0</number></property>
+            <property name="bottomMargin"><number>0</number></property>
+            <item>
+             <widget class="QScrollArea" name="writing_rhythm_scroll_area">
+              <property name="horizontalScrollBarPolicy"><enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum></property>
+              <property name="widgetResizable"><bool>true</bool></property>
+              <widget class="QWidget" name="writing_rhythm_scroll_content">
+               <property name="geometry">
+                <rect><x>0</x><y>0</y><width>640</width><height>360</height></rect>
+               </property>
+               <layout class="QGridLayout" name="writing_rhythm_layout">
             <property name="verticalSpacing"><number>3</number></property>
             <item row="0" column="0" colspan="3">
              <widget class="QLabel" name="inspiration_label">
@@ -2928,13 +2941,11 @@
             </item>
             <item row="2" column="1">
              <widget class="QComboBox" name="daily_challenge_combo">
-              <property name="maximumSize"><size><width>16777215</width><height>18</height></size></property>
               <item><property name="text"><string>Варианты цели дня</string></property></item>
              </widget>
             </item>
             <item row="2" column="2">
              <widget class="QPushButton" name="change_daily_challenge_button">
-              <property name="maximumSize"><size><width>16777215</width><height>18</height></size></property>
               <property name="text"><string>Сменить за 15</string></property>
              </widget>
             </item>
@@ -2965,7 +2976,6 @@
             </item>
             <item row="5" column="2">
              <widget class="QComboBox" name="writing_session_mode_combo">
-              <property name="maximumSize"><size><width>16777215</width><height>24</height></size></property>
               <property name="currentIndex"><number>1</number></property>
               <item><property name="text"><string>Спринт</string></property></item>
               <item><property name="text"><string>Поток</string></property></item>
@@ -3027,7 +3037,6 @@
             </item>
             <item row="8" column="2">
              <widget class="QPushButton" name="activate_specialization_ability_button">
-              <property name="maximumSize"><size><width>16777215</width><height>24</height></size></property>
               <property name="text"><string>Применить умение</string></property>
              </widget>
             </item>
@@ -3059,15 +3068,17 @@
             </item>
             <item row="11" column="1">
              <widget class="QComboBox" name="creative_event_choice_combo">
-              <property name="maximumSize"><size><width>16777215</width><height>18</height></size></property>
               <item><property name="text"><string>Надёжный выбор</string></property></item>
               <item><property name="text"><string>Рискнуть</string></property></item>
              </widget>
             </item>
             <item row="11" column="2">
              <widget class="QPushButton" name="resolve_creative_event_button">
-              <property name="maximumSize"><size><width>16777215</width><height>18</height></size></property>
               <property name="text"><string>Принять решение</string></property>
+             </widget>
+            </item>
+               </layout>
+              </widget>
              </widget>
             </item>
            </layout>

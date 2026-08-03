@@ -19,6 +19,8 @@ The application is built with Nuitka for:
 * Preserve the existing architecture and style.
 * Do not add dependencies unless necessary.
 * Do not change public application behavior without an explicit request.
+* After completing each user task, create a clear commit whose subject summarizes
+  the completed change and whose body explains the important behavior and checks.
 
 ## Working with files
 

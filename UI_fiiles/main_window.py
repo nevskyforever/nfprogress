@@ -1514,22 +1514,32 @@ class Ui_main_window(object):
         self.parameters_tabs.addTab(self.skills_tab, "")
         self.writing_rhythm_tab = QWidget()
         self.writing_rhythm_tab.setObjectName(u"writing_rhythm_tab")
-        self.writing_rhythm_layout = QGridLayout(self.writing_rhythm_tab)
+        self.writing_rhythm_tab_layout = QVBoxLayout(self.writing_rhythm_tab)
+        self.writing_rhythm_tab_layout.setObjectName(u"writing_rhythm_tab_layout")
+        self.writing_rhythm_tab_layout.setContentsMargins(0, 0, 0, 0)
+        self.writing_rhythm_scroll_area = QScrollArea(self.writing_rhythm_tab)
+        self.writing_rhythm_scroll_area.setObjectName(u"writing_rhythm_scroll_area")
+        self.writing_rhythm_scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.writing_rhythm_scroll_area.setWidgetResizable(True)
+        self.writing_rhythm_scroll_content = QWidget()
+        self.writing_rhythm_scroll_content.setObjectName(u"writing_rhythm_scroll_content")
+        self.writing_rhythm_scroll_content.setGeometry(QRect(0, 0, 640, 360))
+        self.writing_rhythm_layout = QGridLayout(self.writing_rhythm_scroll_content)
         self.writing_rhythm_layout.setObjectName(u"writing_rhythm_layout")
         self.writing_rhythm_layout.setVerticalSpacing(3)
-        self.inspiration_label = QLabel(self.writing_rhythm_tab)
+        self.inspiration_label = QLabel(self.writing_rhythm_scroll_content)
         self.inspiration_label.setObjectName(u"inspiration_label")
 
         self.writing_rhythm_layout.addWidget(self.inspiration_label, 0, 0, 1, 3)
 
-        self.inspiration_progressbar = QProgressBar(self.writing_rhythm_tab)
+        self.inspiration_progressbar = QProgressBar(self.writing_rhythm_scroll_content)
         self.inspiration_progressbar.setObjectName(u"inspiration_progressbar")
         self.inspiration_progressbar.setMaximum(100)
         self.inspiration_progressbar.setValue(0)
 
         self.writing_rhythm_layout.addWidget(self.inspiration_progressbar, 1, 0, 1, 1)
 
-        self.inspiration_ability_combo = QComboBox(self.writing_rhythm_tab)
+        self.inspiration_ability_combo = QComboBox(self.writing_rhythm_scroll_content)
         self.inspiration_ability_combo.addItem("")
         self.inspiration_ability_combo.addItem("")
         self.inspiration_ability_combo.addItem("")
@@ -1537,31 +1547,29 @@ class Ui_main_window(object):
 
         self.writing_rhythm_layout.addWidget(self.inspiration_ability_combo, 1, 1, 1, 1)
 
-        self.activate_inspiration_ability_button = QPushButton(self.writing_rhythm_tab)
+        self.activate_inspiration_ability_button = QPushButton(self.writing_rhythm_scroll_content)
         self.activate_inspiration_ability_button.setObjectName(u"activate_inspiration_ability_button")
 
         self.writing_rhythm_layout.addWidget(self.activate_inspiration_ability_button, 1, 2, 1, 1)
 
-        self.daily_challenge_status = QLabel(self.writing_rhythm_tab)
+        self.daily_challenge_status = QLabel(self.writing_rhythm_scroll_content)
         self.daily_challenge_status.setObjectName(u"daily_challenge_status")
         self.daily_challenge_status.setWordWrap(True)
 
         self.writing_rhythm_layout.addWidget(self.daily_challenge_status, 2, 0, 1, 1)
 
-        self.daily_challenge_combo = QComboBox(self.writing_rhythm_tab)
+        self.daily_challenge_combo = QComboBox(self.writing_rhythm_scroll_content)
         self.daily_challenge_combo.addItem("")
         self.daily_challenge_combo.setObjectName(u"daily_challenge_combo")
-        self.daily_challenge_combo.setMaximumSize(QSize(16777215, 18))
 
         self.writing_rhythm_layout.addWidget(self.daily_challenge_combo, 2, 1, 1, 1)
 
-        self.change_daily_challenge_button = QPushButton(self.writing_rhythm_tab)
+        self.change_daily_challenge_button = QPushButton(self.writing_rhythm_scroll_content)
         self.change_daily_challenge_button.setObjectName(u"change_daily_challenge_button")
-        self.change_daily_challenge_button.setMaximumSize(QSize(16777215, 18))
 
         self.writing_rhythm_layout.addWidget(self.change_daily_challenge_button, 2, 2, 1, 1)
 
-        self.weekly_challenge_combo = QComboBox(self.writing_rhythm_tab)
+        self.weekly_challenge_combo = QComboBox(self.writing_rhythm_scroll_content)
         self.weekly_challenge_combo.addItem("")
         self.weekly_challenge_combo.addItem("")
         self.weekly_challenge_combo.addItem("")
@@ -1570,34 +1578,33 @@ class Ui_main_window(object):
 
         self.writing_rhythm_layout.addWidget(self.weekly_challenge_combo, 3, 0, 1, 2)
 
-        self.start_weekly_challenge_button = QPushButton(self.writing_rhythm_tab)
+        self.start_weekly_challenge_button = QPushButton(self.writing_rhythm_scroll_content)
         self.start_weekly_challenge_button.setObjectName(u"start_weekly_challenge_button")
 
         self.writing_rhythm_layout.addWidget(self.start_weekly_challenge_button, 3, 2, 1, 1)
 
-        self.weekly_challenge_status = QLabel(self.writing_rhythm_tab)
+        self.weekly_challenge_status = QLabel(self.writing_rhythm_scroll_content)
         self.weekly_challenge_status.setObjectName(u"weekly_challenge_status")
         self.weekly_challenge_status.setWordWrap(True)
 
         self.writing_rhythm_layout.addWidget(self.weekly_challenge_status, 4, 0, 1, 3)
 
-        self.writing_session_status = QLabel(self.writing_rhythm_tab)
+        self.writing_session_status = QLabel(self.writing_rhythm_scroll_content)
         self.writing_session_status.setObjectName(u"writing_session_status")
         self.writing_session_status.setWordWrap(True)
 
         self.writing_rhythm_layout.addWidget(self.writing_session_status, 5, 0, 1, 2)
 
-        self.writing_session_mode_combo = QComboBox(self.writing_rhythm_tab)
+        self.writing_session_mode_combo = QComboBox(self.writing_rhythm_scroll_content)
         self.writing_session_mode_combo.addItem("")
         self.writing_session_mode_combo.addItem("")
         self.writing_session_mode_combo.addItem("")
         self.writing_session_mode_combo.addItem("")
         self.writing_session_mode_combo.setObjectName(u"writing_session_mode_combo")
-        self.writing_session_mode_combo.setMaximumSize(QSize(16777215, 24))
 
         self.writing_rhythm_layout.addWidget(self.writing_session_mode_combo, 5, 2, 1, 1)
 
-        self.writing_intention_combo = QComboBox(self.writing_rhythm_tab)
+        self.writing_intention_combo = QComboBox(self.writing_rhythm_scroll_content)
         self.writing_intention_combo.addItem("")
         self.writing_intention_combo.addItem("")
         self.writing_intention_combo.addItem("")
@@ -1606,7 +1613,7 @@ class Ui_main_window(object):
 
         self.writing_rhythm_layout.addWidget(self.writing_intention_combo, 6, 0, 1, 1)
 
-        self.writing_session_duration_combo = QComboBox(self.writing_rhythm_tab)
+        self.writing_session_duration_combo = QComboBox(self.writing_rhythm_scroll_content)
         self.writing_session_duration_combo.addItem("")
         self.writing_session_duration_combo.addItem("")
         self.writing_session_duration_combo.addItem("")
@@ -1615,7 +1622,7 @@ class Ui_main_window(object):
 
         self.writing_rhythm_layout.addWidget(self.writing_session_duration_combo, 6, 1, 1, 1)
 
-        self.writing_session_target = QSpinBox(self.writing_rhythm_tab)
+        self.writing_session_target = QSpinBox(self.writing_rhythm_scroll_content)
         self.writing_session_target.setObjectName(u"writing_session_target")
         self.writing_session_target.setMinimum(100)
         self.writing_session_target.setMaximum(100000)
@@ -1624,40 +1631,39 @@ class Ui_main_window(object):
 
         self.writing_rhythm_layout.addWidget(self.writing_session_target, 6, 2, 1, 1)
 
-        self.start_writing_session_button = QPushButton(self.writing_rhythm_tab)
+        self.start_writing_session_button = QPushButton(self.writing_rhythm_scroll_content)
         self.start_writing_session_button.setObjectName(u"start_writing_session_button")
 
         self.writing_rhythm_layout.addWidget(self.start_writing_session_button, 7, 0, 1, 1)
 
-        self.finish_writing_session_button = QPushButton(self.writing_rhythm_tab)
+        self.finish_writing_session_button = QPushButton(self.writing_rhythm_scroll_content)
         self.finish_writing_session_button.setObjectName(u"finish_writing_session_button")
 
         self.writing_rhythm_layout.addWidget(self.finish_writing_session_button, 7, 1, 1, 1)
 
-        self.cancel_writing_session_button = QPushButton(self.writing_rhythm_tab)
+        self.cancel_writing_session_button = QPushButton(self.writing_rhythm_scroll_content)
         self.cancel_writing_session_button.setObjectName(u"cancel_writing_session_button")
 
         self.writing_rhythm_layout.addWidget(self.cancel_writing_session_button, 7, 2, 1, 1)
 
-        self.specialization_title_label = QLabel(self.writing_rhythm_tab)
+        self.specialization_title_label = QLabel(self.writing_rhythm_scroll_content)
         self.specialization_title_label.setObjectName(u"specialization_title_label")
 
         self.writing_rhythm_layout.addWidget(self.specialization_title_label, 8, 0, 1, 1)
 
-        self.specialization_mastery_progressbar = QProgressBar(self.writing_rhythm_tab)
+        self.specialization_mastery_progressbar = QProgressBar(self.writing_rhythm_scroll_content)
         self.specialization_mastery_progressbar.setObjectName(u"specialization_mastery_progressbar")
         self.specialization_mastery_progressbar.setMaximum(3)
         self.specialization_mastery_progressbar.setValue(0)
 
         self.writing_rhythm_layout.addWidget(self.specialization_mastery_progressbar, 8, 1, 1, 1)
 
-        self.activate_specialization_ability_button = QPushButton(self.writing_rhythm_tab)
+        self.activate_specialization_ability_button = QPushButton(self.writing_rhythm_scroll_content)
         self.activate_specialization_ability_button.setObjectName(u"activate_specialization_ability_button")
-        self.activate_specialization_ability_button.setMaximumSize(QSize(16777215, 24))
 
         self.writing_rhythm_layout.addWidget(self.activate_specialization_ability_button, 8, 2, 1, 1)
 
-        self.specialization_combo = QComboBox(self.writing_rhythm_tab)
+        self.specialization_combo = QComboBox(self.writing_rhythm_scroll_content)
         self.specialization_combo.addItem("")
         self.specialization_combo.addItem("")
         self.specialization_combo.addItem("")
@@ -1667,36 +1673,38 @@ class Ui_main_window(object):
 
         self.writing_rhythm_layout.addWidget(self.specialization_combo, 9, 0, 1, 2)
 
-        self.select_specialization_button = QPushButton(self.writing_rhythm_tab)
+        self.select_specialization_button = QPushButton(self.writing_rhythm_scroll_content)
         self.select_specialization_button.setObjectName(u"select_specialization_button")
 
         self.writing_rhythm_layout.addWidget(self.select_specialization_button, 9, 2, 1, 1)
 
-        self.specialization_status = QLabel(self.writing_rhythm_tab)
+        self.specialization_status = QLabel(self.writing_rhythm_scroll_content)
         self.specialization_status.setObjectName(u"specialization_status")
         self.specialization_status.setWordWrap(True)
 
         self.writing_rhythm_layout.addWidget(self.specialization_status, 10, 0, 1, 3)
 
-        self.creative_event_status = QLabel(self.writing_rhythm_tab)
+        self.creative_event_status = QLabel(self.writing_rhythm_scroll_content)
         self.creative_event_status.setObjectName(u"creative_event_status")
         self.creative_event_status.setWordWrap(True)
 
         self.writing_rhythm_layout.addWidget(self.creative_event_status, 11, 0, 1, 1)
 
-        self.creative_event_choice_combo = QComboBox(self.writing_rhythm_tab)
+        self.creative_event_choice_combo = QComboBox(self.writing_rhythm_scroll_content)
         self.creative_event_choice_combo.addItem("")
         self.creative_event_choice_combo.addItem("")
         self.creative_event_choice_combo.setObjectName(u"creative_event_choice_combo")
-        self.creative_event_choice_combo.setMaximumSize(QSize(16777215, 18))
 
         self.writing_rhythm_layout.addWidget(self.creative_event_choice_combo, 11, 1, 1, 1)
 
-        self.resolve_creative_event_button = QPushButton(self.writing_rhythm_tab)
+        self.resolve_creative_event_button = QPushButton(self.writing_rhythm_scroll_content)
         self.resolve_creative_event_button.setObjectName(u"resolve_creative_event_button")
-        self.resolve_creative_event_button.setMaximumSize(QSize(16777215, 18))
 
         self.writing_rhythm_layout.addWidget(self.resolve_creative_event_button, 11, 2, 1, 1)
+
+        self.writing_rhythm_scroll_area.setWidget(self.writing_rhythm_scroll_content)
+
+        self.writing_rhythm_tab_layout.addWidget(self.writing_rhythm_scroll_area)
 
         self.parameters_tabs.addTab(self.writing_rhythm_tab, "")
         self.cabinet_tab = QWidget()
