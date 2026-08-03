@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1180</width>
-    <height>720</height>
+    <width>1187</width>
+    <height>765</height>
    </rect>
   </property>
   <property name="font">
@@ -40,7 +40,7 @@
        <enum>QTabWidget::TabShape::Rounded</enum>
       </property>
       <property name="currentIndex">
-       <number>1</number>
+       <number>0</number>
       </property>
       <property name="usesScrollButtons">
        <bool>false</bool>
@@ -237,9 +237,15 @@
            </item>
            <item row="1" column="0">
             <widget class="QLabel" name="manuscript_journey_label">
-             <property name="text"><string>Путь рукописи</string></property>
-             <property name="alignment"><set>Qt::AlignmentFlag::AlignCenter</set></property>
-             <property name="wordWrap"><bool>true</bool></property>
+             <property name="text">
+              <string>Путь рукописи</string>
+             </property>
+             <property name="alignment">
+              <set>Qt::AlignmentFlag::AlignCenter</set>
+             </property>
+             <property name="wordWrap">
+              <bool>true</bool>
+             </property>
             </widget>
            </item>
            <item row="2" column="0">
@@ -1231,7 +1237,7 @@
                     <x>0</x>
                     <y>0</y>
                     <width>98</width>
-                    <height>112</height>
+                    <height>136</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_18">
@@ -1650,7 +1656,7 @@
                    <x>0</x>
                    <y>0</y>
                    <width>409</width>
-                   <height>110</height>
+                   <height>112</height>
                   </rect>
                  </property>
                  <layout class="QGridLayout" name="gridLayout_19">
@@ -1980,7 +1986,7 @@
            </font>
           </property>
           <property name="currentIndex">
-           <number>1</number>
+           <number>0</number>
           </property>
           <widget class="QWidget" name="available_quests_tab">
            <attribute name="title">
@@ -2034,8 +2040,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>357</width>
-                    <height>131</height>
+                    <width>164</width>
+                    <height>129</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_14">
@@ -2158,8 +2164,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>357</width>
-                    <height>136</height>
+                    <width>164</width>
+                    <height>135</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_17">
@@ -2277,8 +2283,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>357</width>
-                    <height>163</height>
+                    <width>100</width>
+                    <height>168</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_16">
@@ -2357,7 +2363,7 @@
            </font>
           </property>
           <property name="currentIndex">
-           <number>2</number>
+           <number>0</number>
           </property>
           <widget class="QWidget" name="bufs_tab">
            <attribute name="title">
@@ -2411,8 +2417,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>357</width>
-                    <height>159</height>
+                    <width>164</width>
+                    <height>161</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_23">
@@ -2552,8 +2558,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>357</width>
-                    <height>159</height>
+                    <width>98</width>
+                    <height>146</height>
                    </rect>
                   </property>
                   <layout class="QGridLayout" name="gridLayout_25">
@@ -2693,8 +2699,8 @@
                    <rect>
                     <x>0</x>
                     <y>0</y>
-                    <width>357</width>
-                    <height>159</height>
+                    <width>164</width>
+                    <height>161</height>
                    </rect>
                   </property>
                   <layout class="QVBoxLayout" name="verticalLayout_4">
@@ -2894,189 +2900,378 @@
             <string>Творческий ритм</string>
            </attribute>
            <layout class="QVBoxLayout" name="writing_rhythm_tab_layout">
-            <property name="leftMargin"><number>0</number></property>
-            <property name="topMargin"><number>0</number></property>
-            <property name="rightMargin"><number>0</number></property>
-            <property name="bottomMargin"><number>0</number></property>
+            <property name="leftMargin">
+             <number>0</number>
+            </property>
+            <property name="topMargin">
+             <number>0</number>
+            </property>
+            <property name="rightMargin">
+             <number>0</number>
+            </property>
+            <property name="bottomMargin">
+             <number>0</number>
+            </property>
             <item>
              <widget class="QScrollArea" name="writing_rhythm_scroll_area">
-              <property name="horizontalScrollBarPolicy"><enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum></property>
-              <property name="widgetResizable"><bool>true</bool></property>
+              <property name="horizontalScrollBarPolicy">
+               <enum>Qt::ScrollBarPolicy::ScrollBarAlwaysOff</enum>
+              </property>
+              <property name="widgetResizable">
+               <bool>true</bool>
+              </property>
               <widget class="QWidget" name="writing_rhythm_scroll_content">
                <property name="geometry">
-                <rect><x>0</x><y>0</y><width>640</width><height>360</height></rect>
+                <rect>
+                 <x>0</x>
+                 <y>0</y>
+                 <width>610</width>
+                 <height>334</height>
+                </rect>
                </property>
                <layout class="QGridLayout" name="writing_rhythm_layout">
-            <property name="verticalSpacing"><number>3</number></property>
-            <item row="0" column="0" colspan="3">
-             <widget class="QLabel" name="inspiration_label">
-              <property name="text">
-               <string>Вдохновение: 0/100</string>
-              </property>
-             </widget>
-            </item>
-            <item row="1" column="0">
-             <widget class="QProgressBar" name="inspiration_progressbar">
-              <property name="maximum"><number>100</number></property>
-              <property name="value"><number>0</number></property>
-             </widget>
-            </item>
-            <item row="1" column="1">
-             <widget class="QComboBox" name="inspiration_ability_combo">
-              <item><property name="text"><string>Творческий импульс</string></property></item>
-              <item><property name="text"><string>Искра сессии</string></property></item>
-              <item><property name="text"><string>Фокус испытания</string></property></item>
-             </widget>
-            </item>
-            <item row="1" column="2">
-             <widget class="QPushButton" name="activate_inspiration_ability_button">
-              <property name="text"><string>Активировать</string></property>
-             </widget>
-            </item>
-            <item row="2" column="0">
-             <widget class="QLabel" name="daily_challenge_status">
-              <property name="text"><string>Цель дня загружается…</string></property>
-              <property name="wordWrap"><bool>true</bool></property>
-             </widget>
-            </item>
-            <item row="2" column="1">
-             <widget class="QComboBox" name="daily_challenge_combo">
-              <item><property name="text"><string>Варианты цели дня</string></property></item>
-             </widget>
-            </item>
-            <item row="2" column="2">
-             <widget class="QPushButton" name="change_daily_challenge_button">
-              <property name="text"><string>Сменить за 15</string></property>
-             </widget>
-            </item>
-            <item row="3" column="0" colspan="2">
-             <widget class="QComboBox" name="weekly_challenge_combo">
-              <item><property name="text"><string>Марафон — 10 000 символов</string></property></item>
-              <item><property name="text"><string>Ритм — 4 продуктивных дня</string></property></item>
-              <item><property name="text"><string>Чистый поток — 5 сессий</string></property></item>
-              <item><property name="text"><string>Редакторская неделя — 3 сессии</string></property></item>
-             </widget>
-            </item>
-            <item row="3" column="2">
-             <widget class="QPushButton" name="start_weekly_challenge_button">
-              <property name="text"><string>Выбрать испытание</string></property>
-             </widget>
-            </item>
-            <item row="4" column="0" colspan="3">
-             <widget class="QLabel" name="weekly_challenge_status">
-              <property name="text"><string>Недельное испытание не выбрано.</string></property>
-              <property name="wordWrap"><bool>true</bool></property>
-             </widget>
-            </item>
-            <item row="5" column="0" colspan="2">
-             <widget class="QLabel" name="writing_session_status">
-              <property name="text"><string>Нет активной писательской сессии.</string></property>
-              <property name="wordWrap"><bool>true</bool></property>
-             </widget>
-            </item>
-            <item row="5" column="2">
-             <widget class="QComboBox" name="writing_session_mode_combo">
-              <property name="currentIndex"><number>1</number></property>
-              <item><property name="text"><string>Спринт</string></property></item>
-              <item><property name="text"><string>Поток</string></property></item>
-              <item><property name="text"><string>Глубокая работа</string></property></item>
-              <item><property name="text"><string>Редакторский проход</string></property></item>
-             </widget>
-            </item>
-            <item row="6" column="0">
-             <widget class="QComboBox" name="writing_intention_combo">
-              <item><property name="text"><string>Написать новую сцену</string></property></item>
-              <item><property name="text"><string>Продолжить черновик</string></property></item>
-              <item><property name="text"><string>Отредактировать текст</string></property></item>
-              <item><property name="text"><string>Составить план</string></property></item>
-             </widget>
-            </item>
-            <item row="6" column="1">
-             <widget class="QComboBox" name="writing_session_duration_combo">
-              <item><property name="text"><string>15 минут</string></property></item>
-              <item><property name="text"><string>25 минут</string></property></item>
-              <item><property name="text"><string>45 минут</string></property></item>
-              <item><property name="text"><string>60 минут</string></property></item>
-             </widget>
-            </item>
-            <item row="6" column="2">
-             <widget class="QSpinBox" name="writing_session_target">
-              <property name="minimum"><number>100</number></property>
-              <property name="maximum"><number>100000</number></property>
-              <property name="singleStep"><number>100</number></property>
-              <property name="value"><number>1000</number></property>
-              <property name="suffix"><string> символов</string></property>
-             </widget>
-            </item>
-            <item row="7" column="0">
-             <widget class="QPushButton" name="start_writing_session_button">
-              <property name="text"><string>Начать сессию</string></property>
-             </widget>
-            </item>
-            <item row="7" column="1">
-             <widget class="QPushButton" name="finish_writing_session_button">
-              <property name="text"><string>Завершить</string></property>
-             </widget>
-            </item>
-            <item row="7" column="2">
-             <widget class="QPushButton" name="cancel_writing_session_button">
-              <property name="text"><string>Отменить</string></property>
-             </widget>
-            </item>
-            <item row="8" column="0">
-             <widget class="QLabel" name="specialization_title_label">
-              <property name="text"><string>Специализация персонажа</string></property>
-             </widget>
-            </item>
-            <item row="8" column="1">
-             <widget class="QProgressBar" name="specialization_mastery_progressbar">
-              <property name="maximum"><number>3</number></property>
-              <property name="value"><number>0</number></property>
-              <property name="format"><string>Мастерство</string></property>
-             </widget>
-            </item>
-            <item row="8" column="2">
-             <widget class="QPushButton" name="activate_specialization_ability_button">
-              <property name="text"><string>Применить умение</string></property>
-             </widget>
-            </item>
-            <item row="9" column="0" colspan="2">
-             <widget class="QComboBox" name="specialization_combo">
-              <item><property name="text"><string>Марафонец</string></property></item>
-              <item><property name="text"><string>Ритуалист</string></property></item>
-              <item><property name="text"><string>Финишер</string></property></item>
-              <item><property name="text"><string>Исследователь</string></property></item>
-              <item><property name="text"><string>Редактор</string></property></item>
-             </widget>
-            </item>
-            <item row="9" column="2">
-             <widget class="QPushButton" name="select_specialization_button">
-              <property name="text"><string>Выбрать специализацию</string></property>
-             </widget>
-            </item>
-            <item row="10" column="0" colspan="3">
-             <widget class="QLabel" name="specialization_status">
-              <property name="text"><string>Специализация не выбрана.</string></property>
-              <property name="wordWrap"><bool>true</bool></property>
-             </widget>
-            </item>
-            <item row="11" column="0">
-             <widget class="QLabel" name="creative_event_status">
-              <property name="text"><string>Творческих событий пока нет.</string></property>
-              <property name="wordWrap"><bool>true</bool></property>
-             </widget>
-            </item>
-            <item row="11" column="1">
-             <widget class="QComboBox" name="creative_event_choice_combo">
-              <item><property name="text"><string>Надёжный выбор</string></property></item>
-              <item><property name="text"><string>Рискнуть</string></property></item>
-             </widget>
-            </item>
-            <item row="11" column="2">
-             <widget class="QPushButton" name="resolve_creative_event_button">
-              <property name="text"><string>Принять решение</string></property>
-             </widget>
-            </item>
+                <property name="verticalSpacing">
+                 <number>3</number>
+                </property>
+                <item row="0" column="0" colspan="3">
+                 <widget class="QLabel" name="inspiration_label">
+                  <property name="text">
+                   <string>Вдохновение: 0/100</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="0">
+                 <widget class="QProgressBar" name="inspiration_progressbar">
+                  <property name="maximum">
+                   <number>100</number>
+                  </property>
+                  <property name="value">
+                   <number>0</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="1" column="1">
+                 <widget class="QComboBox" name="inspiration_ability_combo">
+                  <item>
+                   <property name="text">
+                    <string>Творческий импульс</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Искра сессии</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Фокус испытания</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="1" column="2">
+                 <widget class="QPushButton" name="activate_inspiration_ability_button">
+                  <property name="text">
+                   <string>Активировать</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="0">
+                 <widget class="QLabel" name="daily_challenge_status">
+                  <property name="text">
+                   <string>Цель дня загружается…</string>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="2" column="1">
+                 <widget class="QComboBox" name="daily_challenge_combo">
+                  <item>
+                   <property name="text">
+                    <string>Варианты цели дня</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="2" column="2">
+                 <widget class="QPushButton" name="change_daily_challenge_button">
+                  <property name="text">
+                   <string>Сменить за 15</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="3" column="0" colspan="2">
+                 <widget class="QComboBox" name="weekly_challenge_combo">
+                  <item>
+                   <property name="text">
+                    <string>Марафон — 10 000 символов</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Ритм — 4 продуктивных дня</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Чистый поток — 5 сессий</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Редакторская неделя — 3 сессии</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="3" column="2">
+                 <widget class="QPushButton" name="start_weekly_challenge_button">
+                  <property name="text">
+                   <string>Выбрать испытание</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="4" column="0" colspan="3">
+                 <widget class="QLabel" name="weekly_challenge_status">
+                  <property name="text">
+                   <string>Недельное испытание не выбрано.</string>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="5" column="0" colspan="2">
+                 <widget class="QLabel" name="writing_session_status">
+                  <property name="text">
+                   <string>Нет активной писательской сессии.</string>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="5" column="2">
+                 <widget class="QComboBox" name="writing_session_mode_combo">
+                  <property name="currentIndex">
+                   <number>1</number>
+                  </property>
+                  <item>
+                   <property name="text">
+                    <string>Спринт</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Поток</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Глубокая работа</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Редакторский проход</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="6" column="0">
+                 <widget class="QComboBox" name="writing_intention_combo">
+                  <item>
+                   <property name="text">
+                    <string>Написать новую сцену</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Продолжить черновик</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Отредактировать текст</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Составить план</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="6" column="1">
+                 <widget class="QComboBox" name="writing_session_duration_combo">
+                  <item>
+                   <property name="text">
+                    <string>15 минут</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>25 минут</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>45 минут</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>60 минут</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="6" column="2">
+                 <widget class="QSpinBox" name="writing_session_target">
+                  <property name="suffix">
+                   <string> символов</string>
+                  </property>
+                  <property name="minimum">
+                   <number>100</number>
+                  </property>
+                  <property name="maximum">
+                   <number>100000</number>
+                  </property>
+                  <property name="singleStep">
+                   <number>100</number>
+                  </property>
+                  <property name="value">
+                   <number>1000</number>
+                  </property>
+                 </widget>
+                </item>
+                <item row="7" column="0">
+                 <widget class="QPushButton" name="start_writing_session_button">
+                  <property name="text">
+                   <string>Начать сессию</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="7" column="1">
+                 <widget class="QPushButton" name="finish_writing_session_button">
+                  <property name="text">
+                   <string>Завершить</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="7" column="2">
+                 <widget class="QPushButton" name="cancel_writing_session_button">
+                  <property name="text">
+                   <string>Отменить</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="8" column="0">
+                 <widget class="QLabel" name="specialization_title_label">
+                  <property name="text">
+                   <string>Специализация персонажа</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="8" column="1">
+                 <widget class="QProgressBar" name="specialization_mastery_progressbar">
+                  <property name="maximum">
+                   <number>3</number>
+                  </property>
+                  <property name="value">
+                   <number>0</number>
+                  </property>
+                  <property name="format">
+                   <string>Мастерство</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="8" column="2">
+                 <widget class="QPushButton" name="activate_specialization_ability_button">
+                  <property name="text">
+                   <string>Применить умение</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="9" column="0" colspan="2">
+                 <widget class="QComboBox" name="specialization_combo">
+                  <item>
+                   <property name="text">
+                    <string>Марафонец</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Ритуалист</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Финишер</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Исследователь</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Редактор</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="9" column="2">
+                 <widget class="QPushButton" name="select_specialization_button">
+                  <property name="text">
+                   <string>Выбрать специализацию</string>
+                  </property>
+                 </widget>
+                </item>
+                <item row="10" column="0" colspan="3">
+                 <widget class="QLabel" name="specialization_status">
+                  <property name="text">
+                   <string>Специализация не выбрана.</string>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="11" column="0">
+                 <widget class="QLabel" name="creative_event_status">
+                  <property name="text">
+                   <string>Творческих событий пока нет.</string>
+                  </property>
+                  <property name="wordWrap">
+                   <bool>true</bool>
+                  </property>
+                 </widget>
+                </item>
+                <item row="11" column="1">
+                 <widget class="QComboBox" name="creative_event_choice_combo">
+                  <item>
+                   <property name="text">
+                    <string>Надёжный выбор</string>
+                   </property>
+                  </item>
+                  <item>
+                   <property name="text">
+                    <string>Рискнуть</string>
+                   </property>
+                  </item>
+                 </widget>
+                </item>
+                <item row="11" column="2">
+                 <widget class="QPushButton" name="resolve_creative_event_button">
+                  <property name="text">
+                   <string>Принять решение</string>
+                  </property>
+                 </widget>
+                </item>
                </layout>
               </widget>
              </widget>
@@ -3090,13 +3285,27 @@
              <verstretch>0</verstretch>
             </sizepolicy>
            </property>
-           <attribute name="title"><string>Кабинет</string></attribute>
+           <attribute name="title">
+            <string>Кабинет</string>
+           </attribute>
            <layout class="QHBoxLayout" name="cabinet_layout">
             <item>
              <widget class="QListWidget" name="cabinet_relics_list">
-              <property name="minimumSize"><size><width>180</width><height>0</height></size></property>
-              <property name="maximumSize"><size><width>260</width><height>16777215</height></size></property>
-              <property name="horizontalScrollBarPolicy"><enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum></property>
+              <property name="minimumSize">
+               <size>
+                <width>180</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>260</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="horizontalScrollBarPolicy">
+               <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
+              </property>
              </widget>
             </item>
             <item>
@@ -3107,14 +3316,102 @@
                 <verstretch>0</verstretch>
                </sizepolicy>
               </property>
-              <property name="minimumSize"><size><width>0</width><height>0</height></size></property>
-              <property name="title"><string>Реликвия</string></property>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="title">
+               <string>Реликвия</string>
+              </property>
               <layout class="QVBoxLayout" name="cabinet_relic_details_layout">
-               <item><widget class="QLabel" name="cabinet_relic_name"><property name="minimumSize"><size><width>0</width><height>44</height></size></property><property name="maximumSize"><size><width>16777215</width><height>44</height></size></property><property name="text"><string>Выберите реликвию</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
-               <item><widget class="QLabel" name="cabinet_relic_unlock_status"><property name="text"><string>Статус</string></property></widget></item>
-               <item><widget class="QLabel" name="cabinet_relic_description"><property name="minimumSize"><size><width>0</width><height>82</height></size></property><property name="maximumSize"><size><width>16777215</width><height>82</height></size></property><property name="text"><string>Описание реликвии</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
-               <item><widget class="QLabel" name="cabinet_relic_condition"><property name="minimumSize"><size><width>0</width><height>82</height></size></property><property name="maximumSize"><size><width>16777215</width><height>82</height></size></property><property name="text"><string>Условие открытия</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
-               <item><spacer name="cabinet_relic_spacer"><property name="orientation"><enum>Qt::Orientation::Vertical</enum></property><property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property></spacer></item>
+               <item>
+                <widget class="QLabel" name="cabinet_relic_name">
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>44</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>44</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Выберите реликвию</string>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="cabinet_relic_unlock_status">
+                 <property name="text">
+                  <string>Статус</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="cabinet_relic_description">
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>82</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>82</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Описание реликвии</string>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="cabinet_relic_condition">
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>82</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>82</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Условие открытия</string>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="cabinet_relic_spacer">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Vertical</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>20</width>
+                   <height>40</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
               </layout>
              </widget>
             </item>
@@ -3133,7 +3430,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>1380</width>
+     <width>1187</width>
      <height>30</height>
     </rect>
    </property>

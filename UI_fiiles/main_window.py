@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_window.ui'
+## Form generated from reading UI file 'main_windowJOGSKv.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -27,7 +27,7 @@ class Ui_main_window(object):
     def setupUi(self, main_window):
         if not main_window.objectName():
             main_window.setObjectName(u"main_window")
-        main_window.resize(1180, 720)
+        main_window.resize(1187, 765)
         font = QFont()
         font.setFamilies([u"Arial"])
         font.setPointSize(14)
@@ -669,7 +669,7 @@ class Ui_main_window(object):
         self.scrollArea_4.setWidgetResizable(True)
         self.scrollAreaWidgetContents_5 = QWidget()
         self.scrollAreaWidgetContents_5.setObjectName(u"scrollAreaWidgetContents_5")
-        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 98, 112))
+        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 98, 136))
         self.gridLayout_18 = QGridLayout(self.scrollAreaWidgetContents_5)
         self.gridLayout_18.setObjectName(u"gridLayout_18")
         self.name_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
@@ -881,7 +881,7 @@ class Ui_main_window(object):
         self.about_selected_inventory_item.setWidgetResizable(True)
         self.scrollAreaWidgetContents_6 = QWidget()
         self.scrollAreaWidgetContents_6.setObjectName(u"scrollAreaWidgetContents_6")
-        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 409, 110))
+        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 409, 112))
         self.gridLayout_19 = QGridLayout(self.scrollAreaWidgetContents_6)
         self.gridLayout_19.setObjectName(u"gridLayout_19")
         self.level_selected_item = QLabel(self.scrollAreaWidgetContents_6)
@@ -1067,7 +1067,7 @@ class Ui_main_window(object):
         self.scrollArea_3.setWidgetResizable(True)
         self.scrollAreaWidgetContents_4 = QWidget()
         self.scrollAreaWidgetContents_4.setObjectName(u"scrollAreaWidgetContents_4")
-        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 357, 131))
+        self.scrollAreaWidgetContents_4.setGeometry(QRect(0, 0, 164, 129))
         self.gridLayout_14 = QGridLayout(self.scrollAreaWidgetContents_4)
         self.gridLayout_14.setObjectName(u"gridLayout_14")
         self.name_selected_available_quest = QLabel(self.scrollAreaWidgetContents_4)
@@ -1130,7 +1130,7 @@ class Ui_main_window(object):
         self.scrollArea_2.setWidgetResizable(True)
         self.scrollAreaWidgetContents_3 = QWidget()
         self.scrollAreaWidgetContents_3.setObjectName(u"scrollAreaWidgetContents_3")
-        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 357, 136))
+        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 164, 135))
         self.gridLayout_17 = QGridLayout(self.scrollAreaWidgetContents_3)
         self.gridLayout_17.setObjectName(u"gridLayout_17")
         self.date_start_selected_active_quest = QLabel(self.scrollAreaWidgetContents_3)
@@ -1200,7 +1200,7 @@ class Ui_main_window(object):
         self.scrollArea.setWidgetResizable(True)
         self.scrollAreaWidgetContents_2 = QWidget()
         self.scrollAreaWidgetContents_2.setObjectName(u"scrollAreaWidgetContents_2")
-        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 357, 163))
+        self.scrollAreaWidgetContents_2.setGeometry(QRect(0, 0, 100, 168))
         self.gridLayout_16 = QGridLayout(self.scrollAreaWidgetContents_2)
         self.gridLayout_16.setObjectName(u"gridLayout_16")
         self.date_end_selected_completed_quest = QLabel(self.scrollAreaWidgetContents_2)
@@ -1273,7 +1273,7 @@ class Ui_main_window(object):
         self.scrollArea_7.setWidgetResizable(True)
         self.scrollAreaWidgetContents_8 = QWidget()
         self.scrollAreaWidgetContents_8.setObjectName(u"scrollAreaWidgetContents_8")
-        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 357, 159))
+        self.scrollAreaWidgetContents_8.setGeometry(QRect(0, 0, 164, 161))
         self.gridLayout_23 = QGridLayout(self.scrollAreaWidgetContents_8)
         self.gridLayout_23.setObjectName(u"gridLayout_23")
         self.label_37 = QLabel(self.scrollAreaWidgetContents_8)
@@ -1343,7 +1343,7 @@ class Ui_main_window(object):
         self.scrol_area.setWidgetResizable(True)
         self.scrollAreaWidgetContents_9 = QWidget()
         self.scrollAreaWidgetContents_9.setObjectName(u"scrollAreaWidgetContents_9")
-        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 357, 159))
+        self.scrollAreaWidgetContents_9.setGeometry(QRect(0, 0, 98, 146))
         self.gridLayout_25 = QGridLayout(self.scrollAreaWidgetContents_9)
         self.gridLayout_25.setObjectName(u"gridLayout_25")
         self.label_42 = QLabel(self.scrollAreaWidgetContents_9)
@@ -1413,7 +1413,7 @@ class Ui_main_window(object):
         self.scrollArea_6.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 357, 159))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 164, 161))
         self.verticalLayout_4 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_4.setObjectName(u"verticalLayout_4")
         self.description_selected_parameter = QLabel(self.scrollAreaWidgetContents)
@@ -1529,7 +1529,7 @@ class Ui_main_window(object):
         self.writing_rhythm_scroll_area.setWidgetResizable(True)
         self.writing_rhythm_scroll_content = QWidget()
         self.writing_rhythm_scroll_content.setObjectName(u"writing_rhythm_scroll_content")
-        self.writing_rhythm_scroll_content.setGeometry(QRect(0, 0, 640, 360))
+        self.writing_rhythm_scroll_content.setGeometry(QRect(0, 0, 610, 334))
         self.writing_rhythm_layout = QGridLayout(self.writing_rhythm_scroll_content)
         self.writing_rhythm_layout.setObjectName(u"writing_rhythm_layout")
         self.writing_rhythm_layout.setVerticalSpacing(3)
@@ -1787,7 +1787,7 @@ class Ui_main_window(object):
         main_window.setCentralWidget(self.centralwidget)
         self.menuBar = QMenuBar(main_window)
         self.menuBar.setObjectName(u"menuBar")
-        self.menuBar.setGeometry(QRect(0, 0, 1380, 30))
+        self.menuBar.setGeometry(QRect(0, 0, 1187, 30))
         self.settings_menu = QMenu(self.menuBar)
         self.settings_menu.setObjectName(u"settings_menu")
         self.project_menu = QMenu(self.menuBar)
@@ -1811,10 +1811,10 @@ class Ui_main_window(object):
 
         self.retranslateUi(main_window)
 
-        self.tabWidget.setCurrentIndex(1)
+        self.tabWidget.setCurrentIndex(0)
         self.game_shop_tabs.setCurrentIndex(0)
-        self.quests_tabs.setCurrentIndex(1)
-        self.parameters_tabs.setCurrentIndex(2)
+        self.quests_tabs.setCurrentIndex(0)
+        self.parameters_tabs.setCurrentIndex(0)
         self.writing_session_mode_combo.setCurrentIndex(1)
 
 
@@ -2044,3 +2044,4 @@ class Ui_main_window(object):
         self.project_menu.setTitle(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442", None))
         self.help_menu.setTitle(QCoreApplication.translate("main_window", u"\u0421\u043f\u0440\u0430\u0432\u043a\u0430", None))
     # retranslateUi
+
