@@ -400,11 +400,21 @@ jobs:
           }
           $message = $env:TELEGRAM_MESSAGE
           if ([string]::IsNullOrWhiteSpace($message)) { $message = "Обновление $($env:APP_VERSION)" }
-          Invoke-RestMethod `
-            -Uri "https://api.telegram.org/bot$($env:TELEGRAM_BOT_TOKEN)/sendMessage" `
-            -Method Post `
-            -Body @{ chat_id = $env:TELEGRAM_CHANNEL_ID; text = $message; disable_web_page_preview = "true" } |
-            Out-Null
+          $maxMessageLength = 4000
+          while ($message.Length -gt 0) {
+            $chunkLength = [Math]::Min($message.Length, $maxMessageLength)
+            if ($message.Length -gt $maxMessageLength) {
+              $lineBreak = $message.LastIndexOf("`n", $maxMessageLength - 1)
+              if ($lineBreak -gt 0) { $chunkLength = $lineBreak + 1 }
+            }
+            $chunk = $message.Substring(0, $chunkLength)
+            Invoke-RestMethod `
+              -Uri "https://api.telegram.org/bot$($env:TELEGRAM_BOT_TOKEN)/sendMessage" `
+              -Method Post `
+              -Body @{ chat_id = $env:TELEGRAM_CHANNEL_ID; text = $chunk; disable_web_page_preview = "true" } |
+              Out-Null
+            $message = $message.Substring($chunkLength)
+          }
 
   publish_release:
     name: Publish GitHub Release
