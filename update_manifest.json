@@ -1,28 +1,28 @@
 {
-  "version": "4.10.1",
+  "version": "4.11",
   "notes": "Улучшено окно обновления приложения - описания обновления теперь можно скроллить, если оно большое, окно обновление больше не растягивается под объем текста.",
   "windows": {
-    "version": "4.10",
-    "url": "https://nfproject.ru/app/nfprogress-windows-4.10.zip",
-    "sha256": "511744341291ab7ecd778aee6d30dc1b357d5734c5131be7714faba3e34cd138",
-    "size": 49607192,
+    "version": "4.10.1",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.10.1.zip",
+    "sha256": "37886e8b8fa87a49fcd6f6050df54df6624ced6354eb1e21f037d210007acd74",
+    "size": 49609512,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.10.exe",
-    "installer_sha256": "6f206c522175441e55339aa301954142a3eb2e4eb514ef5eb3356ce008ffacf6",
-    "installer_size": 34028580
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.10.1.exe",
+    "installer_sha256": "bb3e46b45da2db0d1c28f1a1ce55d70b1913956686a23f007ffe01ed4036df9e",
+    "installer_size": 34032977
   },
   "macos_arm": {
-    "version": "4.10.1",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.10.1.zip"
+    "version": "4.11",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.11.zip"
   },
   "macos_intel": {
-    "version": "4.10.1",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.10.1.zip"
+    "version": "4.11",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.11.zip"
   },
-  "windows_version": "4.10",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.10.zip",
-  "macos_arm_version": "4.10.1",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.10.1.zip",
-  "macos_intel_version": "4.10.1",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.10.1.zip"
+  "windows_version": "4.10.1",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.10.1.zip",
+  "macos_arm_version": "4.11",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.11.zip",
+  "macos_intel_version": "4.11",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.11.zip"
 }
