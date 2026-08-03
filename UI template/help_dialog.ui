@@ -29,6 +29,16 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <widget class="QLineEdit" name="help_search">
+     <property name="placeholderText">
+      <string>Поиск по справке…</string>
+     </property>
+     <property name="clearButtonEnabled">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
     <widget class="QSplitter" name="help_splitter">
      <property name="orientation">
       <enum>Qt::Orientation::Horizontal</enum>

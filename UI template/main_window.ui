@@ -3456,7 +3456,14 @@
     <property name="title">
      <string>Справка</string>
     </property>
+    <widget class="QMenu" name="help_topics_menu">
+     <property name="title">
+      <string>Разделы справки</string>
+     </property>
+    </widget>
     <addaction name="help_action"/>
+    <addaction name="help_search_action"/>
+    <addaction name="help_topics_menu"/>
    </widget>
    <addaction name="settings_menu"/>
    <addaction name="project_menu"/>
@@ -3511,6 +3518,11 @@
    </property>
    <property name="shortcutContext">
     <enum>Qt::ShortcutContext::ApplicationShortcut</enum>
+   </property>
+  </action>
+  <action name="help_search_action">
+   <property name="text">
+    <string>Поиск по справке…</string>
    </property>
   </action>
  </widget>

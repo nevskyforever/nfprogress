@@ -57,6 +57,8 @@ class Ui_main_window(object):
         self.help_action.setShortcut(u"Ctrl+H")
 #endif // QT_CONFIG(shortcut)
         self.help_action.setShortcutContext(Qt.ShortcutContext.ApplicationShortcut)
+        self.help_search_action = QAction(main_window)
+        self.help_search_action.setObjectName(u"help_search_action")
         self.centralwidget = QWidget(main_window)
         self.centralwidget.setObjectName(u"centralwidget")
         self.horizontalLayout_2 = QHBoxLayout(self.centralwidget)
@@ -1794,6 +1796,8 @@ class Ui_main_window(object):
         self.project_menu.setObjectName(u"project_menu")
         self.help_menu = QMenu(self.menuBar)
         self.help_menu.setObjectName(u"help_menu")
+        self.help_topics_menu = QMenu(self.help_menu)
+        self.help_topics_menu.setObjectName(u"help_topics_menu")
         main_window.setMenuBar(self.menuBar)
 
         self.menuBar.addAction(self.settings_menu.menuAction())
@@ -1808,6 +1812,8 @@ class Ui_main_window(object):
         self.project_menu.addAction(self.complete_project_action)
         self.project_menu.addAction(self.delete_project_action)
         self.help_menu.addAction(self.help_action)
+        self.help_menu.addAction(self.help_search_action)
+        self.help_menu.addAction(self.help_topics_menu.menuAction())
 
         self.retranslateUi(main_window)
 
@@ -1832,6 +1838,7 @@ class Ui_main_window(object):
         self.archive_project_action.setText(QCoreApplication.translate("main_window", u"\u0410\u0440\u0445\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.complete_project_action.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u0432\u0435\u0440\u0448\u0438\u0442\u044c \u043f\u0440\u043e\u0435\u043a\u0442", None))
         self.help_action.setText(QCoreApplication.translate("main_window", u"\u041e\u0442\u043a\u0440\u044b\u0442\u044c \u0441\u043f\u0440\u0430\u0432\u043a\u0443", None))
+        self.help_search_action.setText(QCoreApplication.translate("main_window", u"\u041f\u043e\u0438\u0441\u043a \u043f\u043e \u0441\u043f\u0440\u0430\u0432\u043a\u0435\u2026", None))
         self.sort_project_box.setItemText(0, QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
         self.sort_project_box.setItemText(1, QCoreApplication.translate("main_window", u"\u0414\u0435\u0434\u043b\u0430\u0439\u043d", None))
         self.sort_project_box.setItemText(2, QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0433\u0440\u0435\u0441\u0441", None))
@@ -2043,5 +2050,5 @@ class Ui_main_window(object):
         self.settings_menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
         self.project_menu.setTitle(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442", None))
         self.help_menu.setTitle(QCoreApplication.translate("main_window", u"\u0421\u043f\u0440\u0430\u0432\u043a\u0430", None))
+        self.help_topics_menu.setTitle(QCoreApplication.translate("main_window", u"\u0420\u0430\u0437\u0434\u0435\u043b\u044b \u0441\u043f\u0440\u0430\u0432\u043a\u0438", None))
     # retranslateUi
-

@@ -6,7 +6,7 @@ import sys
 import threading
 
 from PySide6.QtCore import QObject, QDate, QTime, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF, QSize
-from PySide6.QtGui import QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon
+from PySide6.QtGui import QAction, QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon, QShortcut, QTextDocument
 from PySide6.QtWidgets import QApplication, QAbstractItemView
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel, QInputDialog
@@ -127,6 +127,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.game_controller = GameMenuController(self, self.notifications)
         self.developer_mode_action = None
         self._help_dialog = None
+        self._help_topic_actions = []
 
         self.unit_to_display = {
             'symbols': 'Символы',
@@ -193,8 +194,12 @@ class MainWindow(QMainWindow, main_window_ui):
         # Настройки
         self.application_settings_action = self.settings_menu.addAction(tr("Настройки приложения"))
         self.application_settings_action.triggered.connect(self.edit_settings)
-        self.help_action.triggered.connect(self.show_help)
+        self.help_action.triggered.connect(lambda _checked=False: self.show_help())
         self.help_action.setShortcut(QKeySequence("Ctrl+H"))
+        self.help_search_action.triggered.connect(
+            lambda _checked=False: self.show_help(focus_search=True)
+        )
+        self._rebuild_help_topics_menu()
         if self.global_streak_mode:
             self.refresh_global_streak_status()
             QTimer.singleShot(1000, self.check_global_streak)
@@ -633,16 +638,47 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.change_language(language)
         self.applying_settings()
 
-    def show_help(self):
+    def _rebuild_help_topics_menu(self):
+        """Builds localized topic actions indexed by the native macOS Help search."""
+        self.help_topics_menu.clear()
+        self._help_topic_actions.clear()
+
+        def add_topic_action(menu, section):
+            action = menu.addAction(tr(section["title"]))
+            action.setMenuRole(QAction.MenuRole.NoRole)
+            action.setData(section["key"])
+            action.triggered.connect(
+                lambda _checked=False, key=section["key"]: self.show_help(key)
+            )
+            self._help_topic_actions.append(action)
+
+        def add_sections(menu, sections):
+            for section in sections:
+                children = section.get("children", ())
+                if children:
+                    section_menu = menu.addMenu(tr(section["title"]))
+                    add_topic_action(section_menu, section)
+                    section_menu.addSeparator()
+                    add_sections(section_menu, children)
+                else:
+                    add_topic_action(menu, section)
+
+        add_sections(self.help_topics_menu, HELP_SECTIONS)
+
+    def show_help(self, section_key=None, focus_search=False):
         """Opens the modeless application help window."""
         if self._help_dialog is None:
             self._help_dialog = HelpDialog(self)
         else:
             self._help_dialog.refresh_translations()
 
+        if section_key is not None:
+            self._help_dialog.select_section(section_key)
         self._help_dialog.show()
         self._help_dialog.raise_()
         self._help_dialog.activateWindow()
+        if focus_search:
+            self._help_dialog.focus_search()
 
     def change_language(self, language):
         """Changes the interface language immediately and refreshes visible data."""
@@ -653,6 +689,7 @@ class MainWindow(QMainWindow, main_window_ui):
             en.save_settings(settings)
 
         self.retranslateUi(self)
+        self._rebuild_help_topics_menu()
         self.create_stage_action.setText(tr('Создать этап'))
         self.application_settings_action.setText(tr('Настройки приложения'))
         if self.developer_mode_action is not None:
@@ -4142,6 +4179,11 @@ class HelpDialog(QDialog, help_dialog_ui):
         super().__init__(parent)
         self.setupUi(self)
         self._content_by_key = {}
+        self._items_by_key = {}
+        self._search_titles_by_key = {}
+        self._search_text_by_key = {}
+        self._ordered_keys = []
+        self._selected_key = "quick_start"
         self.help_splitter.setStretchFactor(0, 0)
         self.help_splitter.setStretchFactor(1, 1)
         self.help_splitter.setSizes([260, 700])
@@ -4151,6 +4193,9 @@ class HelpDialog(QDialog, help_dialog_ui):
             "li { margin-bottom: 5px; }"
         )
         self.help_tree.currentItemChanged.connect(self._show_current_section)
+        self.help_search.textChanged.connect(self._filter_sections)
+        self._find_shortcut = QShortcut(QKeySequence.StandardKey.Find, self)
+        self._find_shortcut.activated.connect(self.focus_search)
         self.refresh_translations()
 
     def refresh_translations(self):
@@ -4158,17 +4203,23 @@ class HelpDialog(QDialog, help_dialog_ui):
         current_item = self.help_tree.currentItem()
         selected_key = (
             current_item.data(0, Qt.ItemDataRole.UserRole)
-            if current_item is not None else "quick_start"
+            if current_item is not None else self._selected_key
         )
 
         self.retranslateUi(self)
         self.help_tree.clear()
         self._content_by_key.clear()
+        self._items_by_key.clear()
+        self._search_titles_by_key.clear()
+        self._search_text_by_key.clear()
+        self._ordered_keys.clear()
         selected_item = None
+        index_document = QTextDocument()
 
         def add_section(section, parent_item=None):
             nonlocal selected_item
-            item = QTreeWidgetItem([tr(section["title"])])
+            translated_title = tr(section["title"])
+            item = QTreeWidgetItem([translated_title])
             item.setData(0, Qt.ItemDataRole.UserRole, section["key"])
             if parent_item is None:
                 self.help_tree.addTopLevelItem(item)
@@ -4186,6 +4237,23 @@ class HelpDialog(QDialog, help_dialog_ui):
                     + translated_content[heading_end + len("</h2>"):]
                 )
             self._content_by_key[section["key"]] = translated_content
+            self._items_by_key[section["key"]] = item
+            self._ordered_keys.append(section["key"])
+
+            index_document.setHtml(translated_content)
+            translated_plain_text = index_document.toPlainText()
+            index_document.setHtml(section["content"])
+            source_plain_text = index_document.toPlainText()
+            self._search_titles_by_key[section["key"]] = tuple(
+                " ".join(title.casefold().split())
+                for title in (translated_title, section["title"])
+            )
+            self._search_text_by_key[section["key"]] = "\n".join((
+                translated_title,
+                translated_plain_text,
+                section["title"],
+                source_plain_text,
+            )).casefold()
             if section["key"] == selected_key:
                 selected_item = item
             for child in section.get("children", ()):
@@ -4198,12 +4266,100 @@ class HelpDialog(QDialog, help_dialog_ui):
         if selected_item is None:
             selected_item = self.help_tree.topLevelItem(0)
         self.help_tree.setCurrentItem(selected_item)
+        self._filter_sections(self.help_search.text())
+
+    def select_section(self, section_key):
+        """Selects a help topic opened from the Help menu."""
+        item = self._items_by_key.get(section_key)
+        if item is None:
+            return False
+        self.help_search.clear()
+        self.help_tree.setCurrentItem(item)
+        self.help_tree.scrollToItem(item)
+        return True
+
+    def focus_search(self):
+        """Moves keyboard focus to the in-window help search."""
+        self.help_search.setFocus()
+        self.help_search.selectAll()
+
+    def _filter_sections(self, query):
+        terms = [term for term in query.casefold().split() if term]
+        normalized_query = " ".join(terms)
+        match_ranks = {}
+        if terms:
+            for key, search_text in self._search_text_by_key.items():
+                titles = self._search_titles_by_key[key]
+                if normalized_query in titles:
+                    match_ranks[key] = 0
+                elif any(title.startswith(normalized_query) for title in titles):
+                    match_ranks[key] = 1
+                elif any(all(term in title for term in terms) for title in titles):
+                    match_ranks[key] = 2
+                elif all(term in search_text for term in terms):
+                    match_ranks[key] = 3
+        else:
+            match_ranks = dict.fromkeys(self._ordered_keys, 0)
+        matching_keys = set(match_ranks)
+
+        def update_visibility(item):
+            child_is_visible = any(
+                update_visibility(item.child(index))
+                for index in range(item.childCount())
+            )
+            key = item.data(0, Qt.ItemDataRole.UserRole)
+            is_visible = not terms or key in matching_keys or child_is_visible
+            item.setHidden(not is_visible)
+            if terms and child_is_visible:
+                item.setExpanded(True)
+            return is_visible
+
+        for index in range(self.help_tree.topLevelItemCount()):
+            update_visibility(self.help_tree.topLevelItem(index))
+
+        if not terms:
+            self.help_tree.expandAll()
+            current_item = self.help_tree.currentItem()
+            if current_item is None:
+                current_item = self._items_by_key.get(self._selected_key)
+                self.help_tree.setCurrentItem(current_item)
+            return
+
+        first_match_key = next(
+            (
+                key
+                for rank in range(4)
+                for key in self._ordered_keys
+                if match_ranks.get(key) == rank
+            ),
+            None,
+        )
+        first_match = (
+            self._items_by_key[first_match_key]
+            if first_match_key is not None else None
+        )
+        current_item = self.help_tree.currentItem()
+        current_key = (
+            current_item.data(0, Qt.ItemDataRole.UserRole)
+            if current_item is not None else None
+        )
+        if first_match is None:
+            self.help_tree.setCurrentItem(None)
+            message = html.escape(tr("Поиск не дал результатов"))
+            self.help_content.setHtml(f"<html><body><h2>{message}</h2></body></html>")
+        elif (
+            current_key not in matching_keys
+            or match_ranks[current_key] > match_ranks[first_match_key]
+        ):
+            self.help_tree.setCurrentItem(first_match)
+            self.help_tree.scrollToItem(first_match)
 
     def _show_current_section(self, current, _previous):
         if current is None:
             self.help_content.clear()
             return
         section_key = current.data(0, Qt.ItemDataRole.UserRole)
+        self._selected_key = section_key
         self.help_content.setHtml(self._content_by_key.get(section_key, ""))
         self.help_content.verticalScrollBar().setValue(0)
 

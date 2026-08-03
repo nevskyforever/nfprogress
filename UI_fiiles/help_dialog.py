@@ -16,8 +16,9 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
 from PySide6.QtWidgets import (QAbstractButton, QApplication, QDialog, QDialogButtonBox,
-    QHeaderView, QSizePolicy, QSplitter, QTextBrowser,
-    QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+    QHeaderView, QLineEdit, QSizePolicy, QSplitter,
+    QTextBrowser, QTreeWidget, QTreeWidgetItem, QVBoxLayout,
+    QWidget)
 
 class Ui_help_dialog(object):
     def setupUi(self, help_dialog):
@@ -31,6 +32,12 @@ class Ui_help_dialog(object):
         help_dialog.setSizeGripEnabled(True)
         self.verticalLayout = QVBoxLayout(help_dialog)
         self.verticalLayout.setObjectName(u"verticalLayout")
+        self.help_search = QLineEdit(help_dialog)
+        self.help_search.setObjectName(u"help_search")
+        self.help_search.setClearButtonEnabled(True)
+
+        self.verticalLayout.addWidget(self.help_search)
+
         self.help_splitter = QSplitter(help_dialog)
         self.help_splitter.setObjectName(u"help_splitter")
         self.help_splitter.setOrientation(Qt.Orientation.Horizontal)
@@ -66,6 +73,7 @@ class Ui_help_dialog(object):
 
     def retranslateUi(self, help_dialog):
         help_dialog.setWindowTitle(QCoreApplication.translate("help_dialog", u"\u0421\u043f\u0440\u0430\u0432\u043a\u0430", None))
+        self.help_search.setPlaceholderText(QCoreApplication.translate("help_dialog", u"\u041f\u043e\u0438\u0441\u043a \u043f\u043e \u0441\u043f\u0440\u0430\u0432\u043a\u0435\u2026", None))
         ___qtreewidgetitem = self.help_tree.headerItem()
         ___qtreewidgetitem.setText(0, QCoreApplication.translate("help_dialog", u"\u0420\u0430\u0437\u0434\u0435\u043b\u044b \u0441\u043f\u0440\u0430\u0432\u043a\u0438", None));
     # retranslateUi

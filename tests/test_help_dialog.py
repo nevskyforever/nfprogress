@@ -1,16 +1,17 @@
 import os
 import re
+from types import SimpleNamespace
 
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QKeySequence
-from PySide6.QtWidgets import QApplication, QMainWindow
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtWidgets import QApplication, QMainWindow, QMenu
 
 from UI_fiiles.main_window import Ui_main_window
 from help_content import HELP_SECTIONS
 from localization import set_language, tr
-from main_UI import HelpDialog
+from main_UI import HelpDialog, MainWindow
 
 
 APP = QApplication.instance() or QApplication([])
@@ -62,6 +63,8 @@ def test_help_action_is_in_menu_bar_with_required_shortcut():
 
     assert ui.help_menu.menuAction() in ui.menuBar.actions()
     assert ui.help_action in ui.help_menu.actions()
+    assert ui.help_search_action in ui.help_menu.actions()
+    assert ui.help_topics_menu.menuAction() in ui.help_menu.actions()
     assert ui.help_action.shortcut().toString(
         QKeySequence.SequenceFormat.PortableText
     ) == "Ctrl+H"
@@ -77,6 +80,86 @@ def test_help_dialog_builds_navigation_and_initial_content():
         0, Qt.ItemDataRole.UserRole
     ) == "quick_start"
     assert "nfprogress" in dialog.help_content.toPlainText()
+
+
+def test_help_dialog_searches_titles_and_article_text():
+    set_language(APP, "ru")
+    dialog = HelpDialog()
+
+    dialog.help_search.setText("банк")
+
+    assert dialog.help_tree.currentItem().data(
+        0, Qt.ItemDataRole.UserRole
+    ) == "bank"
+
+    dialog.help_search.setText("капитализирует")
+
+    assert dialog.help_tree.currentItem().data(
+        0, Qt.ItemDataRole.UserRole
+    ) == "bank"
+    assert dialog.help_content.toPlainText().startswith("Банк")
+
+    dialog.help_search.setText("заведомо отсутствующий запрос")
+
+    assert dialog.help_tree.currentItem() is None
+    assert dialog.help_content.toPlainText() == "Поиск не дал результатов"
+
+    dialog.help_search.clear()
+
+    assert dialog.help_tree.currentItem().data(
+        0, Qt.ItemDataRole.UserRole
+    ) == "bank"
+
+
+def test_help_topic_menu_exposes_sections_to_native_menu_search():
+    set_language(APP, "ru")
+    opened_sections = []
+    owner = SimpleNamespace(
+        help_topics_menu=QMenu(),
+        _help_topic_actions=[],
+        show_help=lambda section_key: opened_sections.append(section_key),
+    )
+
+    MainWindow._rebuild_help_topics_menu(owner)
+
+    bank_action = next(
+        action for action in owner._help_topic_actions
+        if action.data() == "bank"
+    )
+    assert bank_action.text() == "Банк"
+    assert bank_action.menuRole() == QAction.MenuRole.NoRole
+
+    bank_action.trigger()
+
+    assert opened_sections == ["bank"]
+
+
+def test_help_search_messages_are_localized():
+    expected_messages = {
+        "en": ("Search Help…", "No search results"),
+        "es": ("Buscar en la ayuda…", "La búsqueda no produjo resultados"),
+        "de": ("Hilfe durchsuchen…", "Die Suche ergab keine Treffer"),
+        "fr": (
+            "Rechercher dans l’aide…",
+            "La recherche n’a donné aucun résultat",
+        ),
+        "pt_BR": (
+            "Pesquisar na ajuda…",
+            "A pesquisa não encontrou resultados",
+        ),
+    }
+    try:
+        for language, (placeholder, no_results) in expected_messages.items():
+            set_language(APP, language)
+            dialog = HelpDialog()
+
+            assert dialog.help_search.placeholderText() == placeholder
+
+            dialog.help_search.setText("query-with-no-matches-7281")
+
+            assert dialog.help_content.toPlainText() == no_results
+    finally:
+        set_language(APP, "ru")
 
 
 def test_help_dialog_uses_reviewed_translation_for_article_heading():

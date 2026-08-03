@@ -113,6 +113,29 @@ python3 -m pytest -q tests/test_localization.py
 
 Verify that new text is translated into all five languages, dynamic values are preserved, and internal game-object keys remain unchanged. The user agreement is intentionally displayed in a single English version for every non-Russian language.
 
+## Maintaining in-application help
+
+The in-application guide is defined by `HELP_SECTIONS` in `help_content.py` and is
+opened from the Help menu in `main_UI.py`.
+
+* Whenever a user-facing feature, workflow, restriction, reward, shortcut, setting,
+  or calculation changes, review the related help section in the same task and keep
+  it consistent with the implemented behavior.
+* Add a new help section when a new feature cannot be clearly covered by an existing
+  one. Remove or rewrite obsolete instructions when behavior is removed or renamed.
+* Keep section keys stable and canonical. Write titles and HTML content in Russian,
+  preserve valid HTML structure, and do not put user data into help text.
+* The help search indexes localized titles and article text automatically. Keep topic
+  titles specific enough for the macOS Help-menu search and the in-window search to
+  return useful results.
+* Add permanent help-window controls only to `UI template/help_dialog.ui`, then
+  regenerate `UI_fiiles/help_dialog.py`. Changes to Help-menu controls belong in
+  `UI template/main_window.ui`, followed by regeneration of
+  `UI_fiiles/main_window.py`.
+* After help changes, regenerate `translations_catalog.py`, verify every supported
+  language, and run `tests/test_help_dialog.py` together with
+  `tests/test_localization.py`.
+
 ## Building
 
 * Do not run a full Nuitka build unless necessary.
