@@ -1,4 +1,5 @@
 import datetime
+import html
 import math
 import os
 import sys
@@ -16,6 +17,7 @@ import game_data
 from UI_fiiles.confirm_dialog import Ui_confirm_dialog as confirm_dialog_ui
 from UI_fiiles.create_project import Ui_create_project as create_project_ui
 from UI_fiiles.developer_mode import Ui_developer_node
+from UI_fiiles.help_dialog import Ui_help_dialog as help_dialog_ui
 from UI_fiiles.main_window import Ui_main_window as main_window_ui
 from UI_fiiles.notification import ToastNotification
 from UI_fiiles.project_widget import ProjectWidget, StageRowWidget
@@ -25,6 +27,7 @@ from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
 from UI_fiiles.project_stats import Ui_project_stats as project_stats_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
+from help_content import HELP_SECTIONS
 from localization import (
     LocalizedMessageBox as QMessageBox,
     SUPPORTED_LANGUAGES,
@@ -123,6 +126,7 @@ class MainWindow(QMainWindow, main_window_ui):
         # Инициализация игрового контроллера
         self.game_controller = GameMenuController(self, self.notifications)
         self.developer_mode_action = None
+        self._help_dialog = None
 
         self.unit_to_display = {
             'symbols': 'Символы',
@@ -189,6 +193,8 @@ class MainWindow(QMainWindow, main_window_ui):
         # Настройки
         self.application_settings_action = self.settings_menu.addAction(tr("Настройки приложения"))
         self.application_settings_action.triggered.connect(self.edit_settings)
+        self.help_action.triggered.connect(self.show_help)
+        self.help_action.setShortcut(QKeySequence("Ctrl+H"))
         if self.global_streak_mode:
             self.refresh_global_streak_status()
             QTimer.singleShot(1000, self.check_global_streak)
@@ -627,6 +633,17 @@ class MainWindow(QMainWindow, main_window_ui):
                 self.change_language(language)
         self.applying_settings()
 
+    def show_help(self):
+        """Opens the modeless application help window."""
+        if self._help_dialog is None:
+            self._help_dialog = HelpDialog(self)
+        else:
+            self._help_dialog.refresh_translations()
+
+        self._help_dialog.show()
+        self._help_dialog.raise_()
+        self._help_dialog.activateWindow()
+
     def change_language(self, language):
         """Changes the interface language immediately and refreshes visible data."""
         language = set_language(QApplication.instance(), language)
@@ -640,6 +657,8 @@ class MainWindow(QMainWindow, main_window_ui):
         self.application_settings_action.setText(tr('Настройки приложения'))
         if self.developer_mode_action is not None:
             self.developer_mode_action.setText(tr('Режим разработчика'))
+        if self._help_dialog is not None:
+            self._help_dialog.refresh_translations()
 
         self.filter_project_box.setCurrentIndex(
             max(0, self.filter_project_box.findData(settings.get('project_filter', 'Активен')))
@@ -4114,6 +4133,79 @@ class UserAgreement(QDialog, user_agreement_ui):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setupUi(self)
+
+
+class HelpDialog(QDialog, help_dialog_ui):
+    """Navigable, localized guide to the application's user-facing features."""
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setupUi(self)
+        self._content_by_key = {}
+        self.help_splitter.setStretchFactor(0, 0)
+        self.help_splitter.setStretchFactor(1, 1)
+        self.help_splitter.setSizes([260, 700])
+        self.help_content.document().setDefaultStyleSheet(
+            "h2 { margin-top: 0; margin-bottom: 12px; } "
+            "p { margin-top: 6px; margin-bottom: 10px; } "
+            "li { margin-bottom: 5px; }"
+        )
+        self.help_tree.currentItemChanged.connect(self._show_current_section)
+        self.refresh_translations()
+
+    def refresh_translations(self):
+        """Rebuilds the navigation tree while preserving the selected section."""
+        current_item = self.help_tree.currentItem()
+        selected_key = (
+            current_item.data(0, Qt.ItemDataRole.UserRole)
+            if current_item is not None else "quick_start"
+        )
+
+        self.retranslateUi(self)
+        self.help_tree.clear()
+        self._content_by_key.clear()
+        selected_item = None
+
+        def add_section(section, parent_item=None):
+            nonlocal selected_item
+            item = QTreeWidgetItem([tr(section["title"])])
+            item.setData(0, Qt.ItemDataRole.UserRole, section["key"])
+            if parent_item is None:
+                self.help_tree.addTopLevelItem(item)
+            else:
+                parent_item.addChild(item)
+
+            translated_content = tr(section["content"])
+            heading_start = translated_content.find("<h2>")
+            heading_end = translated_content.find("</h2>", heading_start)
+            if heading_start >= 0 and heading_end >= 0:
+                translated_heading = html.escape(tr(section["title"]))
+                translated_content = (
+                    translated_content[:heading_start]
+                    + f"<h2>{translated_heading}</h2>"
+                    + translated_content[heading_end + len("</h2>"):]
+                )
+            self._content_by_key[section["key"]] = translated_content
+            if section["key"] == selected_key:
+                selected_item = item
+            for child in section.get("children", ()):
+                add_section(child, item)
+
+        for section in HELP_SECTIONS:
+            add_section(section)
+
+        self.help_tree.expandAll()
+        if selected_item is None:
+            selected_item = self.help_tree.topLevelItem(0)
+        self.help_tree.setCurrentItem(selected_item)
+
+    def _show_current_section(self, current, _previous):
+        if current is None:
+            self.help_content.clear()
+            return
+        section_key = current.data(0, Qt.ItemDataRole.UserRole)
+        self.help_content.setHtml(self._content_by_key.get(section_key, ""))
+        self.help_content.verticalScrollBar().setValue(0)
 
 
 class ScrivenerItemDialog(QDialog):

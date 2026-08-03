@@ -26,6 +26,7 @@ PYTHON_SOURCES = (
     "game.py",
     "game_UI.py",
     "game_data.py",
+    "help_content.py",
     "main_UI.py",
     "scrivener_parser.py",
     "update_checker.py",
@@ -168,28 +169,45 @@ def translate_batch(language: str, batch: list[str]) -> list[str]:
 
 
 def translate_html(language: str, source: str) -> str:
-    parts = re.split(r"(<[^>]+>)", source)
-    text_indexes = []
-    text_values = []
-    whitespace = []
-    for index in range(0, len(parts), 2):
-        text = parts[index]
-        if not CYRILLIC.search(text):
-            continue
-        match = re.match(r"^(\s*)(.*?)(\s*)$", text, re.DOTALL)
-        leading, core, trailing = match.groups()
-        text_indexes.append(index)
-        text_values.append(core)
-        whitespace.append((leading, trailing))
+    return translate_html_strings(language, [source])[source]
 
+
+def translate_html_strings(language: str, sources: list[str]) -> dict[str, str]:
+    """Translate text nodes from several HTML strings in shared API batches."""
+    parsed_sources = []
+    text_targets = []
+    text_values = []
+
+    for source in sources:
+        parts = re.split(r"(<[^>]+>)", source)
+        parsed_sources.append((source, parts))
+        for index in range(0, len(parts), 2):
+            source_text = parts[index]
+            if not CYRILLIC.search(source_text):
+                continue
+            match = re.match(r"^(\s*)(.*?)(\s*)$", source_text, re.DOTALL)
+            leading, core, trailing = match.groups()
+            text_targets.append((parts, index, leading, trailing))
+            text_values.append(core)
+
+    batches = list(make_batches(text_values))
     translated_values = []
-    for batch in make_batches(text_values):
+    for completed, batch in enumerate(batches, start=1):
         translated_values.extend(translate_batch(language, batch))
-    for index, translated, (leading, trailing) in zip(
-        text_indexes, translated_values, whitespace
-    ):
+        print(
+            f"{language}: HTML batch {completed}/{len(batches)}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    for target, translated in zip(text_targets, translated_values):
+        parts, index, leading, trailing = target
         parts[index] = leading + translated + trailing
-    return "".join(parts)
+
+    return {
+        source: "".join(parts)
+        for source, parts in parsed_sources
+    }
 
 
 def translate_language(language: str, strings: list[str]) -> dict[str, str]:
@@ -215,13 +233,7 @@ def translate_language(language: str, strings: list[str]) -> dict[str, str]:
                 file=sys.stderr,
                 flush=True,
             )
-    for completed, source in enumerate(html_strings, start=1):
-        results[source] = translate_html(language, source)
-        print(
-            f"{language}: HTML {completed}/{len(html_strings)}",
-            file=sys.stderr,
-            flush=True,
-        )
+    results.update(translate_html_strings(language, html_strings))
     return results
 
 
@@ -287,6 +299,9 @@ def main() -> int:
             language_catalog.update(
                 translate_language(language, missing_strings)
             )
+            # Keep completed languages so a temporary translation-service
+            # failure can be resumed without repeating successful requests.
+            write_catalog(catalog, agreement)
 
     english_agreement = catalog["en"].get(agreement, agreement)
     for language in ("es", "de", "fr", "pt_BR"):

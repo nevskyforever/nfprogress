@@ -3155,8 +3155,15 @@
     <addaction name="complete_project_action"/>
     <addaction name="delete_project_action"/>
    </widget>
+   <widget class="QMenu" name="help_menu">
+    <property name="title">
+     <string>Справка</string>
+    </property>
+    <addaction name="help_action"/>
+   </widget>
    <addaction name="settings_menu"/>
    <addaction name="project_menu"/>
+   <addaction name="help_menu"/>
   </widget>
   <action name="synch_action">
    <property name="text">
@@ -3196,6 +3203,17 @@
   <action name="complete_project_action">
    <property name="text">
     <string>Завершить проект</string>
+   </property>
+  </action>
+  <action name="help_action">
+   <property name="text">
+    <string>Открыть справку</string>
+   </property>
+   <property name="shortcut">
+    <string notr="true">Ctrl+H</string>
+   </property>
+   <property name="shortcutContext">
+    <enum>Qt::ShortcutContext::ApplicationShortcut</enum>
    </property>
   </action>
  </widget>
