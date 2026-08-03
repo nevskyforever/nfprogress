@@ -1552,8 +1552,9 @@ class MainWindow(QMainWindow, main_window_ui):
         bonus_project = self._get_streak_bonus_project(data, project)
         settings = en.load_settings()
 
-        # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
-        if settings.get('game_mode', False) and added_symbols > 0:
+        # Положительная разница даёт обычные награды, а отрицательная может
+        # продвинуть только активную редакторскую сессию.
+        if settings.get('game_mode', False) and added_symbols != 0:
             journey_parent, _ = (
                 self._find_stage_parent(data, project)
                 if self._is_stage(project) else (None, None)
@@ -1561,7 +1562,7 @@ class MainWindow(QMainWindow, main_window_ui):
             journey_key = self._completion_bonus_key(project, journey_parent)
             self.game_controller.add_symbols(added_symbols, journey_key, project.progress)
             # Даем бонус за стрик проекта и глобальный, если он включен
-            if settings.get('global_streak', False):
+            if added_symbols > 0 and settings.get('global_streak', False):
                 bonus_day = en.today_for_test()
                 if en.streak_bonus_is_due(bonus_project.last_streak_bonus, bonus_day):
                     if self.game_controller.give_streak_bonus(bonus_project.get_streak_status(), 'Local', en.streak_length(bonus_project.streaks)):
@@ -2860,8 +2861,9 @@ class MainWindow(QMainWindow, main_window_ui):
         bonus_project = self._get_streak_bonus_project(data, project)
         settings = en.load_settings()
 
-        # Обновляем игровой режим ТОЛЬКО если символы были ДОБАВЛЕНЫ (не удалены)
-        if settings.get('game_mode', False) and added_symbols > 0:
+        # Положительная разница даёт обычные награды, а отрицательная может
+        # продвинуть только активную редакторскую сессию.
+        if settings.get('game_mode', False) and added_symbols != 0:
             journey_parent, _ = (
                 self._find_stage_parent(data, project)
                 if self._is_stage(project) else (None, None)
@@ -2869,7 +2871,7 @@ class MainWindow(QMainWindow, main_window_ui):
             journey_key = self._completion_bonus_key(project, journey_parent)
             self.game_controller.add_symbols(added_symbols, journey_key, project.progress)
             # Даем бонус за стрик проекта и глобальный, если он включен
-            if settings.get('global_streak', False):
+            if added_symbols > 0 and settings.get('global_streak', False):
                 bonus_day = en.today_for_test()
                 if en.streak_bonus_is_due(bonus_project.last_streak_bonus, bonus_day):
                     if self.game_controller.give_streak_bonus(bonus_project.get_streak_status(), 'Local',

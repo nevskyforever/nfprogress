@@ -805,3 +805,116 @@ def test_quality_medal_waits_when_session_is_already_gold(monkeypatch):
 
     assert gamer.writing_session_history[-1]['grade'] == 'gold'
     assert gamer.session_grade_boosts == 1
+
+
+def test_editing_session_counts_added_and_removed_symbols(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.daily_challenge['target'] = 100000
+    gamer.start_writing_session(
+        25, 600, 'Отредактировать текст', mode_key='editing', save=False
+    )
+
+    gamer.record_motivation_progress(200)
+    processed = gamer.record_editing_progress(-400)
+    ok, message = gamer.finish_writing_session(save=False)
+
+    assert processed == 400
+    assert ok is True
+    assert 'Бронза' in message
+    assert gamer.writing_session_history[-1]['progress'] == 600
+
+
+def test_removed_symbols_do_not_grant_writing_rewards(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.daily_challenge['target'] = 100000
+    gamer.select_weekly_challenge('symbols', save=False)
+    gamer.start_writing_session(
+        25, 300, 'Отредактировать текст', mode_key='editing', save=False
+    )
+
+    gamer.record_editing_progress(-300)
+
+    assert gamer.writing_session['progress'] == 300
+    assert gamer.daily_challenge['progress'] == 0
+    assert gamer.weekly_challenge['progress'] == 0
+    assert gamer.inspiration == 0
+    assert gamer.coins == 0
+    assert gamer.exp == 0
+
+
+def test_removed_symbols_are_ignored_outside_editing_session(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.start_writing_session(25, 300, 'Продолжить черновик', save=False)
+
+    processed = gamer.record_editing_progress(-300)
+
+    assert processed == 0
+    assert gamer.writing_session['progress'] == 0
+
+
+def test_removed_symbols_can_complete_editor_challenges(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.daily_challenge = {
+        'date': engine.today_for_test().isoformat(),
+        'option_id': 'editing:normal',
+        'type': 'editing',
+        'difficulty': 'normal',
+        'target': 1,
+        'progress': 0,
+        'completed': False,
+        'reward_coins': 100,
+        'reward_exp': 400,
+    }
+    gamer.select_weekly_challenge('editing', save=False)
+    gamer.start_writing_session(
+        25, 300, 'Отредактировать текст', mode_key='editing', save=False
+    )
+    gamer.record_editing_progress(-300)
+
+    ok, _ = gamer.finish_writing_session(save=False)
+
+    assert ok is True
+    assert gamer.daily_challenge['completed'] is True
+    assert gamer.weekly_challenge['progress'] == 1
+
+
+def test_editing_target_uses_processed_symbols_label():
+    from types import SimpleNamespace
+
+    from game_UI import GameMenuController
+
+    class TargetSpinBox:
+        def setSuffix(self, value):
+            self.suffix = value
+
+        def setToolTip(self, value):
+            self.tooltip = value
+
+    target = TargetSpinBox()
+    controller = GameMenuController.__new__(GameMenuController)
+    controller.ui = SimpleNamespace(writing_session_target=target)
+
+    controller.update_writing_session_target_ui('Отредактировать текст')
+
+    assert target.suffix == ' обработанных символов'
+    assert 'добавленные' in target.tooltip
+    assert 'удалённые' in target.tooltip
+
+
+def test_controller_routes_removed_symbols_to_editing_progress(monkeypatch):
+    from game_UI import GameMenuController
+
+    gamer = make_gamer(monkeypatch)
+    gamer.start_writing_session(
+        25, 250, 'Отредактировать текст', mode_key='editing', save=False
+    )
+    updates = []
+    controller = GameMenuController.__new__(GameMenuController)
+    controller.gamer = gamer
+    controller.update_motivation_ui = lambda: updates.append(True)
+
+    processed = controller.add_symbols(-250)
+
+    assert processed == 250
+    assert gamer.writing_session['progress'] == 250
+    assert updates == [True]
