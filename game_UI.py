@@ -315,8 +315,14 @@ class GameMenuController:
         self.ui.writing_session_mode_combo.currentIndexChanged.connect(
             self.on_writing_session_mode_changed
         )
+        self.ui.writing_intention_combo.currentIndexChanged.connect(
+            self.on_writing_intention_changed
+        )
         self.on_writing_session_mode_changed(
             self.ui.writing_session_mode_combo.currentIndex()
+        )
+        self.on_writing_intention_changed(
+            self.ui.writing_intention_combo.currentIndex()
         )
         self.ui.select_specialization_button.clicked.connect(self.on_select_specialization)
         self.ui.activate_specialization_ability_button.clicked.connect(
@@ -765,6 +771,9 @@ class GameMenuController:
             )
 
         session = self.gamer.writing_session
+        self.update_writing_session_target_ui(
+            session.get('intention') if session is not None else None
+        )
         self.update_specialization_ui()
         self.update_cabinet_ui()
         session_active = session is not None
@@ -935,9 +944,14 @@ class GameMenuController:
         mode = game.WRITING_SESSION_MODES.get(
             session.get('mode', 'flow'), game.WRITING_SESSION_MODES['flow']
         )
+        progress_unit = (
+            tr('обработанных символов')
+            if session.get('intention') == 'Отредактировать текст'
+            else tr('символов')
+        )
         self.ui.writing_session_status.setText(
             f"{tr(mode['name'])}: {intention}. "
-            f"{tr('Прогресс')}: {progress}/{target} {tr('символов')}. "
+            f"{tr('Прогресс')}: {progress}/{target} {progress_unit}. "
             f"{tr('Осталось')}: {minutes:02d}:{seconds:02d}."
         )
 
@@ -971,6 +985,32 @@ class GameMenuController:
             self.ui.writing_session_duration_combo.setCurrentIndex(2)
         elif mode_key == 'editing':
             self.ui.writing_intention_combo.setCurrentIndex(2)
+
+    def on_writing_intention_changed(self, index):
+        intention = (
+            self.WRITING_INTENTIONS[index]
+            if 0 <= index < len(self.WRITING_INTENTIONS) else None
+        )
+        self.update_writing_session_target_ui(intention)
+
+    def update_writing_session_target_ui(self, intention=None):
+        if intention is None:
+            index = self.ui.writing_intention_combo.currentIndex()
+            intention = (
+                self.WRITING_INTENTIONS[index]
+                if 0 <= index < len(self.WRITING_INTENTIONS) else ''
+            )
+        editing = intention == 'Отредактировать текст'
+        unit = tr('обработанных символов') if editing else tr('символов')
+        self.ui.writing_session_target.setSuffix(f' {unit}')
+        tooltip = (
+            tr(
+                'В редакторской сессии учитываются и добавленные, и удалённые '
+                'символы по модулю изменения объёма.'
+            )
+            if editing else ''
+        )
+        self.ui.writing_session_target.setToolTip(tooltip)
 
     def on_start_weekly_challenge(self):
         index = self.ui.weekly_challenge_combo.currentIndex()
@@ -2630,13 +2670,20 @@ class GameMenuController:
 
     def add_symbols(self, symbols_count, project_key=None, project_progress=None):
         """
-        Добавление написанных символов (вызывается из основного окна)
+        Apply a signed character-count change received from the main window.
 
         Args:
-            symbols_count: Количество написанных символов
+            symbols_count: Signed character-count change.
         """
         if not self.gamer:
             return "Игровой режим не активен"
+
+        if symbols_count < 0:
+            processed = self.gamer.record_editing_progress(symbols_count)
+            if processed:
+                self.gamer.save()
+                self.update_motivation_ui()
+            return processed
 
         result = self.gamer.give_symbol_bonus(
             symbols_count,

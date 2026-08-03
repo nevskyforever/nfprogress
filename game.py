@@ -284,7 +284,10 @@ WRITING_SESSION_MODES = {
     },
     'editing': {
         'name': 'Редакторский проход',
-        'description': 'Для редактуры текста: +20% к награде за успешную сессию.',
+        'description': (
+            'Учитывает добавленные и удалённые символы по модулю изменения '
+            'и даёт +20% к награде за успешную сессию.'
+        ),
         'reward_bonus': 0.20,
     },
 }
@@ -1968,6 +1971,25 @@ class Gamer:
         if event_message:
             messages.append(event_message)
         return messages
+
+    def record_editing_progress(self, symbols):
+        """Count removed characters only for an active editing session."""
+        self.normalize_motivation()
+        if (
+                self.writing_session is None
+                or self.writing_session.get('intention') != 'Отредактировать текст'
+        ):
+            return 0
+        try:
+            processed_symbols = abs(int(symbols))
+        except (TypeError, ValueError):
+            return 0
+        if processed_symbols <= 0:
+            return 0
+        self.writing_session['progress'] = (
+            self.writing_session.get('progress', 0) + processed_symbols
+        )
+        return processed_symbols
 
     # === 4. ИГРОВАЯ ЛОГИКА ===
     def give_symbol_bonus(self, symbols, project_key=None, project_progress=None):

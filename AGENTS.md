@@ -193,6 +193,11 @@ Creative rhythm is coordinated by `game.py` and `game_UI.py`:
   from progress, update `writing_session_streak`, and append a normalized entry to
   the last-20 `writing_session_history`. Failed sessions must not grant rewards;
   cancellations do not count as results.
+* Sessions whose intention is `Отредактировать текст` count the absolute size of
+  both positive and negative text changes. Route negative changes through
+  `record_editing_progress()` only: they must not grant writing rewards, inspiration,
+  symbol-challenge progress, or streak rewards. Unchanged totals cannot be inferred
+  as edited text and intentionally create no progress record.
 * Daily challenge variants are declared by `DAILY_CHALLENGE_TYPES` and
   `DAILY_CHALLENGE_DIFFICULTIES`. Keep the chosen challenge and all offered options
   for the same date; changing a choice spends inspiration only after validating the
