@@ -200,6 +200,11 @@ register it under its canonical key in `ITEM_REGISTRY`. A `FuncItem` handler mus
 support `?` without loading a save, handle `use`, normalize affected motivation
 state, save once, and return a user-facing result. Temporary bonuses need a migrated
 field and must be cleared only when their promised reward is actually granted.
+Session consumables use `session_streak_shields` (maximum three) and
+`session_grade_boosts` (maximum one). A streak shield is spent only on a failed
+completed session; a quality medal upgrades bronze or silver once and remains
+pending after a failed or already-gold session. Item handlers should reject use at
+the stacking limit so the inventory controller does not consume the item.
 
 For every extension, add the Russian UI strings to source Python or `.ui` files,
 regenerate translations, and verify all five non-Russian languages. At minimum run:

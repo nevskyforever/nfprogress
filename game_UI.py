@@ -780,7 +780,9 @@ class GameMenuController:
             self.ui.writing_session_status.setText(
                 f"{tr('Нет активной писательской сессии.')} "
                 f"{tr('Серия')}: {self.gamer.writing_session_streak} · "
-                f"{tr('История')}: {len(history)}."
+                f"{tr('История')}: {len(history)} · "
+                f"{tr('Защита серии')}: {self.gamer.session_streak_shields} · "
+                f"{tr('Медаль качества')}: {self.gamer.session_grade_boosts}."
             )
             self.update_writing_session_history_tooltip()
             return

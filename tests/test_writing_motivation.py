@@ -267,6 +267,7 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
         'productive_actions_since_event', 'pending_creative_event',
         'creative_event_history',
         'writing_session', 'writing_session_streak', 'writing_session_history',
+        'session_streak_shields', 'session_grade_boosts',
         'writing_reward_bonus', 'session_reward_bonus',
         'challenge_reward_bonus', 'specialization',
         'manuscript_reward_bonus',
@@ -289,6 +290,8 @@ def test_migration_adds_motivation_state_to_old_gamer(monkeypatch):
     assert gamer.writing_session is None
     assert gamer.writing_session_streak == 0
     assert gamer.writing_session_history == []
+    assert gamer.session_streak_shields == 0
+    assert gamer.session_grade_boosts == 0
     assert gamer.writing_reward_bonus == 0
     assert gamer.session_reward_bonus == 0
     assert gamer.challenge_reward_bonus == 0
@@ -750,3 +753,43 @@ def test_failed_risky_creative_event_records_result(monkeypatch):
     assert 'Потеряно 8 вдохновения' in message
     assert gamer.inspiration == 12
     assert gamer.creative_event_history[-1]['success'] is False
+
+
+def test_session_streak_shield_is_consumed_on_failure(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.writing_session_streak = 4
+    gamer.session_streak_shields = 1
+    gamer.start_writing_session(25, 100, 'Продолжить черновик', save=False)
+
+    ok, message = gamer.finish_writing_session(save=False)
+
+    assert ok is False
+    assert gamer.writing_session_streak == 4
+    assert gamer.session_streak_shields == 0
+    assert 'Нить ритуала' in message
+
+
+def test_quality_medal_upgrades_successful_session_grade(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.session_grade_boosts = 1
+    gamer.start_writing_session(25, 100, 'Продолжить черновик', save=False)
+    gamer.record_motivation_progress(100)
+
+    ok, message = gamer.finish_writing_session(save=False)
+
+    assert ok is True
+    assert gamer.writing_session_history[-1]['grade'] == 'silver'
+    assert gamer.session_grade_boosts == 0
+    assert 'Медаль качества' in message
+
+
+def test_quality_medal_waits_when_session_is_already_gold(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.session_grade_boosts = 1
+    gamer.start_writing_session(25, 100, 'Продолжить черновик', save=False)
+    gamer.record_motivation_progress(150)
+
+    gamer.finish_writing_session(save=False)
+
+    assert gamer.writing_session_history[-1]['grade'] == 'gold'
+    assert gamer.session_grade_boosts == 1

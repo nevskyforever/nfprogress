@@ -127,3 +127,75 @@ def test_writing_motivation_items_are_registered():
 
     assert potions['Большое зелье вдохновения'] is game_data.large_inspiration_potion
     assert items['Компас рукописи'] is game_data.manuscript_compass
+    assert potions['Искра вдохновения'] is game_data.inspiration_spark
+    assert potions['Эликсир вдохновения'] is game_data.grand_inspiration_elixir
+    assert items['Учебник мастерства'] is game_data.mastery_manual
+    assert items['Жетон новой цели'] is game_data.daily_route_token
+    assert items['Нить ритуала'] is game_data.session_streak_thread
+    assert items['Медаль качества'] is game_data.session_grade_medal
+
+
+def test_mastery_manual_adds_selected_specialization_xp(monkeypatch):
+    gamer = game.Gamer(level=4)
+    gamer.specialization = 'editor'
+    monkeypatch.setattr(game_data.game, 'load_game', lambda: gamer)
+    monkeypatch.setattr(gamer, 'save', lambda: None)
+
+    result = game_data.mastery_manual_func('use', 2)
+
+    assert gamer.specialization_mastery['editor'] == 2
+    assert '2 опыта' in result
+
+
+def test_daily_route_token_changes_goal_without_spending_inspiration(monkeypatch):
+    gamer = game.Gamer(level=2)
+    gamer.inspiration = 20
+    gamer.ensure_daily_challenge(target=1000)
+    first_id = gamer.daily_challenge['option_id']
+    monkeypatch.setattr(game_data.game, 'load_game', lambda: gamer)
+    monkeypatch.setattr(gamer, 'save', lambda: None)
+
+    result = game_data.daily_route_token_func('use')
+
+    assert gamer.daily_challenge['option_id'] != first_id
+    assert gamer.inspiration == 20
+    assert 'бесплатно заменена' in result
+
+
+def test_session_shop_effects_enforce_stack_limits(monkeypatch):
+    gamer = game.Gamer(level=5)
+    monkeypatch.setattr(game_data.game, 'load_game', lambda: gamer)
+    monkeypatch.setattr(gamer, 'save', lambda: None)
+
+    for _ in range(3):
+        game_data.session_streak_thread_func('use')
+    game_data.session_grade_medal_func('use')
+
+    assert gamer.session_streak_shields == 3
+    assert gamer.session_grade_boosts == 1
+
+    try:
+        game_data.session_streak_thread_func('use')
+    except ValueError as error:
+        assert 'максимум' in str(error)
+    else:
+        raise AssertionError('Защита серии превысила лимит накопления')
+
+    try:
+        game_data.session_grade_medal_func('use')
+    except ValueError as error:
+        assert 'уже подготовлена' in str(error)
+    else:
+        raise AssertionError('Вторая медаль качества была принята')
+
+
+def test_new_item_descriptions_do_not_load_save(monkeypatch):
+    monkeypatch.setattr(
+        game_data.game, 'load_game',
+        lambda: (_ for _ in ()).throw(AssertionError('save must not be loaded')),
+    )
+
+    assert 'мастерства' in game_data.mastery_manual_func('?')
+    assert 'цель дня' in game_data.daily_route_token_func('?')
+    assert 'максимум 3' in game_data.session_streak_thread_func('?')
+    assert 'одну ступень' in game_data.session_grade_medal_func('?')

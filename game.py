@@ -595,6 +595,8 @@ class Gamer:
         self.writing_session = None
         self.writing_session_streak = 0
         self.writing_session_history = []
+        self.session_streak_shields = 0
+        self.session_grade_boosts = 0
         self.writing_reward_bonus = 0.0
         self.session_reward_bonus = 0.0
         self.challenge_reward_bonus = 0.0
@@ -997,6 +999,15 @@ class Gamer:
             entry for entry in raw_history[-WRITING_SESSION_HISTORY_LIMIT:]
             if isinstance(entry, dict)
         ]
+        for counter_field, maximum in (
+                ('session_streak_shields', 3),
+                ('session_grade_boosts', 1),
+        ):
+            try:
+                value = min(maximum, max(0, int(getattr(self, counter_field))))
+            except (AttributeError, TypeError, ValueError):
+                value = 0
+            setattr(self, counter_field, value)
         for bonus_field in (
                 'writing_reward_bonus',
                 'session_reward_bonus',
@@ -1744,14 +1755,29 @@ class Gamer:
             session.get('progress', 0), session.get('target_symbols', 1)
         )
         successful = grade_key != 'failed'
+        grade_boosted = False
+        if successful and self.session_grade_boosts > 0 and grade_key != 'gold':
+            grade_order = {
+                'bronze': ('silver', 'Серебро', 1.15),
+                'silver': ('gold', 'Золото', 1.30),
+            }
+            grade_key, grade_name, grade_multiplier = grade_order[grade_key]
+            self.session_grade_boosts -= 1
+            grade_boosted = True
         self.writing_session = None
         if not successful:
+            protection_message = None
             protected = (
                 self.specialization == 'ritualist'
                 and self.specialization_ability_effects.get('ritualist')
             )
             if protected:
                 self._consume_specialization_ability('ritualist')
+                protection_message = 'Сила ритуала сохранила серию успешных сессий.'
+            elif self.session_streak_shields > 0:
+                self.session_streak_shields -= 1
+                protected = True
+                protection_message = 'Нить ритуала сохранила серию успешных сессий.'
             else:
                 self.writing_session_streak = 0
             self._record_writing_session_result(session, grade_key, False)
@@ -1759,7 +1785,7 @@ class Gamer:
                 self.save()
             message = 'Сессия завершена. Цель не достигнута — штрафа нет.'
             if protected:
-                message += '\nСила ритуала сохранила серию успешных сессий.'
+                message += f'\n{protection_message}'
             return False, message
 
         inspiration = self.add_inspiration(10)
@@ -1820,6 +1846,8 @@ class Gamer:
         )
         if early_finish_multiplier > 1:
             message += '\nБонус за досрочный высокий результат: +10%.'
+        if grade_boosted:
+            message += '\nМедаль качества повысила результат сессии.'
         if weekly_message:
             message += f'\n{weekly_message}'
         if daily_messages:
@@ -2474,6 +2502,8 @@ class Gamer:
             'writing_session': None,
             'writing_session_streak': 0,
             'writing_session_history': [],
+            'session_streak_shields': 0,
+            'session_grade_boosts': 0,
             'writing_reward_bonus': 0.0,
             'session_reward_bonus': 0.0,
             'challenge_reward_bonus': 0.0,

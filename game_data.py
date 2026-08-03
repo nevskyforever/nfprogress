@@ -1287,6 +1287,82 @@ def manuscript_compass_func(do, add=None):
     return f'Бонус следующих рубежей рукописи: +{gamer.manuscript_reward_bonus * 100:g}%'
 
 
+def mastery_manual_func(do, add=None):
+    """Добавляет опыт мастерства выбранной специализации."""
+    add = 2 if add is None else max(1, int(add))
+    if do == '?':
+        return f'Добавляет {add} опыта мастерства выбранной специализации'
+    if do != 'use':
+        return 'Неизвестное действие'
+
+    gamer = game.load_game()
+    gamer.normalize_motivation()
+    if gamer.specialization not in game.SPECIALIZATIONS:
+        raise ValueError('Сначала выберите специализацию.')
+    specialization = gamer.specialization
+    gamer.add_specialization_mastery(specialization, add)
+    gamer.save()
+    mastery = gamer.specialization_mastery[specialization]
+    return f'Мастерство «{game.SPECIALIZATIONS[specialization]["name"]}»: {mastery} опыта.'
+
+
+def daily_route_token_func(do, add=None):
+    """Бесплатно выбирает следующий вариант ещё не выполненной цели дня."""
+    if do == '?':
+        return 'Бесплатно меняет текущую цель дня на следующий вариант'
+    if do != 'use':
+        return 'Неизвестное действие'
+
+    gamer = game.load_game()
+    daily = gamer.ensure_daily_challenge()
+    if daily.get('completed'):
+        raise ValueError('Выполненную цель дня заменить нельзя.')
+    current_id = daily.get('option_id')
+    current_index = next(
+        (index for index, option in enumerate(gamer.daily_challenge_options)
+         if option.get('option_id') == current_id),
+        0,
+    )
+    next_index = (current_index + 1) % len(gamer.daily_challenge_options)
+    ok, message = gamer.select_daily_challenge_option(next_index, free=True, save=False)
+    if not ok:
+        raise ValueError(message)
+    gamer.save()
+    return 'Цель дня бесплатно заменена.'
+
+
+def session_streak_thread_func(do, add=None):
+    """Даёт расходуемую защиту серии успешных сессий."""
+    if do == '?':
+        return 'Один раз сохраняет серию при неудачной сессии (максимум 3)'
+    if do != 'use':
+        return 'Неизвестное действие'
+
+    gamer = game.load_game()
+    gamer.normalize_motivation()
+    if gamer.session_streak_shields >= 3:
+        raise ValueError('Уже накоплен максимум защит серии: 3.')
+    gamer.session_streak_shields += 1
+    gamer.save()
+    return f'Защит серии: {gamer.session_streak_shields}/3.'
+
+
+def session_grade_medal_func(do, add=None):
+    """Повышает ранг следующей успешной сессии на одну ступень."""
+    if do == '?':
+        return 'Повышает результат следующей успешной сессии на одну ступень'
+    if do != 'use':
+        return 'Неизвестное действие'
+
+    gamer = game.load_game()
+    gamer.normalize_motivation()
+    if gamer.session_grade_boosts >= 1:
+        raise ValueError('Медаль качества уже подготовлена.')
+    gamer.session_grade_boosts = 1
+    gamer.save()
+    return 'Медаль качества подготовлена для следующей успешной сессии.'
+
+
 def lottery_ticket_func(do, add=None):
     """Функция лотерейного билета"""
 
@@ -1538,10 +1614,20 @@ inspiration_potion = FuncItem(
     func=inspiration_potion_func, price=lambda: calculate_item_price(75), add=25,
     description='Восстанавливает 25 вдохновения.',
 )
+inspiration_spark = FuncItem(
+    '💫 Искра вдохновения', item_type='Зелья', level=1,
+    func=inspiration_potion_func, price=lambda: calculate_item_price(35), add=10,
+    description='Восстанавливает 10 вдохновения.', maximum_quantity_in_stock=10,
+)
 large_inspiration_potion = FuncItem(
     '🌟 Большое зелье вдохновения', item_type='Зелья', level=5,
     func=inspiration_potion_func, price=lambda: calculate_item_price(175), add=50,
     description='Восстанавливает 50 вдохновения.',
+)
+grand_inspiration_elixir = FuncItem(
+    '🌌 Эликсир вдохновения', item_type='Зелья', level=8,
+    func=inspiration_potion_func, price=lambda: calculate_item_price(325), add=100,
+    description='Полностью восстанавливает вдохновение.', maximum_quantity_in_stock=3,
 )
 flow_ink = FuncItem(
     '🖋️ Чернильница потока', item_type='Предметы', level=3,
@@ -1552,6 +1638,30 @@ manuscript_compass = FuncItem(
     '🧭 Компас рукописи', item_type='Предметы', level=4,
     func=manuscript_compass_func, price=lambda: calculate_item_price(225), add=0.25,
     description='Увеличивает награду за следующие достигнутые рубежи одной рукописи на 25%.',
+)
+mastery_manual = FuncItem(
+    '📘 Учебник мастерства', item_type='Предметы', level=4,
+    func=mastery_manual_func, price=lambda: calculate_item_price(240), add=2,
+    description='Добавляет 2 опыта мастерства выбранной специализации.',
+    maximum_quantity_in_stock=5,
+)
+daily_route_token = FuncItem(
+    '🎲 Жетон новой цели', item_type='Предметы', level=2,
+    func=daily_route_token_func, price=lambda: calculate_item_price(90),
+    description='Бесплатно меняет текущую цель дня на другой вариант.',
+    maximum_quantity_in_stock=3,
+)
+session_streak_thread = FuncItem(
+    '🧵 Нить ритуала', item_type='Предметы', level=3,
+    func=session_streak_thread_func, price=lambda: calculate_item_price(180),
+    description='Один раз защищает серию успешных сессий при неудаче.',
+    maximum_quantity_in_stock=3,
+)
+session_grade_medal = FuncItem(
+    '🏅 Медаль качества', item_type='Предметы', level=5,
+    func=session_grade_medal_func, price=lambda: calculate_item_price(260),
+    description='Повышает результат следующей успешной сессии на одну ступень.',
+    maximum_quantity_in_stock=2,
 )
 crown_of_the_first_era = Item(name='👑  Корона Первой Эпохи', item_type='Награды', price=250000, sellable=False,
                               description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре',
@@ -1797,7 +1907,9 @@ ITEM_REGISTRY = {'Зелья':
                       'Большое зелье здоровья': health_potion_50,
                       'Зелье воскрешения': health_recovery,
                       'Зелье вдохновения': inspiration_potion,
+                      'Искра вдохновения': inspiration_spark,
                       'Большое зелье вдохновения': large_inspiration_potion,
+                      'Эликсир вдохновения': grand_inspiration_elixir,
                       'Часовое зелье познания': exp_potion_1hrs,
                       'Суточное зелье познания': exp_potion_24hrs,
                       'Недельное зелье познания': exp_potion_7days,
@@ -1813,6 +1925,10 @@ ITEM_REGISTRY = {'Зелья':
                  'Предметы': {'Заморозка': freeze,
                               'Чернильница потока': flow_ink,
                               'Компас рукописи': manuscript_compass,
+                              'Учебник мастерства': mastery_manual,
+                              'Жетон новой цели': daily_route_token,
+                              'Нить ритуала': session_streak_thread,
+                              'Медаль качества': session_grade_medal,
                               'Лотерейный билет': lottery_ticket,
                               'Печатная машинка Хемингуэя': hemingway_typewriter,
                               'Ноутбук Роалинг': rowling_laptop,
