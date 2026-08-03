@@ -680,6 +680,18 @@ def test_daily_challenge_offers_three_different_options(monkeypatch):
     assert daily == gamer.daily_challenge_options[0]
 
 
+def test_malformed_daily_challenge_is_rebuilt(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.daily_challenge['target'] = 'не число'
+    gamer.daily_challenge_options = [{'type': 'unknown', 'target': -1}]
+
+    daily = gamer.ensure_daily_challenge(target=900)
+
+    assert daily['target'] > 0
+    assert daily['type'] in game.DAILY_CHALLENGE_TYPES
+    assert len(gamer.daily_challenge_options) == 3
+
+
 def test_daily_challenge_can_be_changed_for_inspiration(monkeypatch):
     gamer = make_gamer(monkeypatch)
     gamer.daily_challenge = None

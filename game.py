@@ -1032,14 +1032,52 @@ class Gamer:
             self.daily_challenge = None
             self.daily_challenge_options = []
         if self.daily_challenge is not None:
-            self.daily_challenge.setdefault('type', 'symbols')
-            self.daily_challenge.setdefault('difficulty', 'normal')
-            self.daily_challenge.setdefault('option_id', 'symbols:normal')
+            challenge_type = self.daily_challenge.get('type', 'symbols')
+            difficulty = self.daily_challenge.get('difficulty', 'normal')
+            if challenge_type not in DAILY_CHALLENGE_TYPES:
+                challenge_type = 'symbols'
+            if difficulty not in DAILY_CHALLENGE_DIFFICULTIES:
+                difficulty = 'normal'
+            try:
+                target = max(1, int(self.daily_challenge.get('target', 0)))
+                progress = max(0, int(self.daily_challenge.get('progress', 0)))
+            except (TypeError, ValueError):
+                self.daily_challenge = None
+                self.daily_challenge_options = []
+            else:
+                self.daily_challenge['type'] = challenge_type
+                self.daily_challenge['difficulty'] = difficulty
+                self.daily_challenge['option_id'] = f'{challenge_type}:{difficulty}'
+                self.daily_challenge['target'] = target
+                self.daily_challenge['progress'] = progress
+                self.daily_challenge['completed'] = bool(
+                    self.daily_challenge.get('completed', False)
+                )
         raw_options = getattr(self, 'daily_challenge_options', [])
-        self.daily_challenge_options = (
-            [option for option in raw_options if isinstance(option, dict)]
-            if isinstance(raw_options, list) else []
-        )
+        normalized_options = []
+        if isinstance(raw_options, list):
+            for option in raw_options:
+                if (
+                        not isinstance(option, dict)
+                        or option.get('date') != today.isoformat()
+                        or option.get('type') not in DAILY_CHALLENGE_TYPES
+                        or option.get('difficulty') not in DAILY_CHALLENGE_DIFFICULTIES
+                ):
+                    continue
+                try:
+                    target = max(1, int(option.get('target', 0)))
+                    progress = max(0, int(option.get('progress', 0)))
+                except (TypeError, ValueError):
+                    continue
+                normalized = dict(option)
+                normalized['target'] = target
+                normalized['progress'] = progress
+                normalized['completed'] = bool(option.get('completed', False))
+                normalized['option_id'] = (
+                    f'{option["type"]}:{option["difficulty"]}'
+                )
+                normalized_options.append(normalized)
+        self.daily_challenge_options = normalized_options
         raw_daily_history = getattr(self, 'daily_challenge_history', [])
         self.daily_challenge_history = (
             [str(value) for value in raw_daily_history[-14:]]

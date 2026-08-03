@@ -1114,11 +1114,9 @@ class GameMenuController:
         relic_keys = self.gamer.cabinet_relics
         unlocked_sets = self.gamer.get_unlocked_cabinet_sets()
         if not relic_keys:
-            self.ui.cabinet_collection_status.setText(
-                tr('Кабинет писателя: реликвий пока нет.')
-            )
+            collection_status = tr('Кабинет писателя: реликвий пока нет.')
         else:
-            self.ui.cabinet_collection_status.setText(
+            collection_status = (
                 f"{tr('Кабинет писателя')}: "
                 f"{len(relic_keys)}/{len(game.CABINET_RELICS)} {tr('реликвий')} · "
                 f"{len(unlocked_sets)}/{len(game.CABINET_SETS)} {tr('комплектов')}."
@@ -1128,7 +1126,8 @@ class GameMenuController:
             f"{tr(game.CABINET_SETS[set_key]['description'])}"
             for set_key in unlocked_sets
         ]
-        self.ui.cabinet_collection_status.setToolTip('\n'.join(set_descriptions))
+        self.ui.cabinet_relic_details.setTitle(collection_status)
+        self.ui.cabinet_relic_details.setToolTip('\n'.join(set_descriptions))
 
         signature = (tuple(relic_keys), tr('Кабинет писателя'))
         if signature == self._cabinet_signature:
