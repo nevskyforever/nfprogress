@@ -1710,6 +1710,7 @@ class MainWindow(QMainWindow, main_window_ui):
                 new_total = math.ceil(new_total)
             new_deadline = dialog.get_deadline()
             new_personal_goal = dialog.get_personal_goal_for_the_day()
+            recalculate_plan = dialog.should_recalculate_plan()
             stages_enabled = dialog.is_stages_enabled()
             if parent_with_stages:
                 new_goal = old_goal
@@ -1882,7 +1883,9 @@ class MainWindow(QMainWindow, main_window_ui):
                 pass
 
             # Обновляем цель на день
-            project.get_today_goal_value()
+            project.get_today_goal_value(
+                recalculate_from_current_progress=recalculate_plan
+            )
             # Сохраняем под новым именем (или старым, если не изменилось)
             self._store_project_entity(data, project)
             en.save_data(data)
@@ -3194,6 +3197,7 @@ class CreateProject(QDialog, create_project_ui):
         # Скрываем предупреждения
         self.incorrect_data.setVisible(False)
         self.add_Stage.setVisible(False)
+        self.recalculate_plan_checkBox.setVisible(False)
         if self.stage_mode:
             self.setWindowTitle(tr("Создание Этапа"))
             self.le_name.setText(tr("Новый этап"))
@@ -3604,6 +3608,7 @@ class EditProject(QDialog, create_project_ui):
 
         self.project = project
         self.original_name = project.name
+        self.original_personal_goal = project.personal_goal_for_the_day
         self.existing_names = set(existing_names or [])
         self.pending_stages = []
 
@@ -3674,6 +3679,10 @@ class EditProject(QDialog, create_project_ui):
         self.le_total_symbols.textChanged.connect(self.validate_all)
         self.le_total_symbols.textChanged.connect(self.on_total_symbols_changed)
         self.le_personal_goal_for_the_day.textChanged.connect(self.on_personal_goal_changed)
+        self.le_personal_goal_for_the_day.textChanged.connect(self._update_recalculate_plan_state)
+        self.le_goal.textChanged.connect(self._update_recalculated_deadline)
+        self.le_total_symbols.textChanged.connect(self._update_recalculated_deadline)
+        self.recalculate_plan_checkBox.toggled.connect(self._update_recalculated_deadline)
         self.cb_unit.currentTextChanged.connect(self.on_unit_changed)
         self.enable_Stages.toggled.connect(self.on_stages_toggled)
 
@@ -3693,6 +3702,7 @@ class EditProject(QDialog, create_project_ui):
             finally:
                 self._updating = False
 
+        self._update_recalculate_plan_state()
         QTimer.singleShot(0, self.validate_all)
 
     def _format_number(self, num):
@@ -3711,7 +3721,47 @@ class EditProject(QDialog, create_project_ui):
             self.de_deadline.setMinimumDate(en.today_for_test())
             self.le_personal_goal_for_the_day.setEnabled(True)
             self.on_deadline_changed()
+        self._update_recalculate_plan_state()
         self.validate_all()
+
+    def _update_recalculate_plan_state(self):
+        """Разрешает пересчёт только при неизменной положительной дневной цели."""
+        try:
+            personal_goal = float(self.le_personal_goal_for_the_day.text())
+        except (ValueError, AttributeError):
+            personal_goal = 0
+        enabled = (
+            not self.checkBox.isChecked()
+            and personal_goal > 0
+            and math.isclose(personal_goal, self.original_personal_goal)
+        )
+        if not enabled:
+            self.recalculate_plan_checkBox.setChecked(False)
+        self.recalculate_plan_checkBox.setEnabled(enabled)
+
+    def _update_recalculated_deadline(self, *_):
+        """Сдвигает дедлайн для нового плана от текущего прогресса."""
+        if not self.recalculate_plan_checkBox.isChecked():
+            return
+        try:
+            goal = float(self.le_goal.text())
+            total = float(self.le_total_symbols.text())
+            personal_goal = float(self.le_personal_goal_for_the_day.text())
+        except (ValueError, AttributeError):
+            return
+        if personal_goal <= 0:
+            return
+        days_needed = math.ceil(max(0, goal - total) / personal_goal)
+        deadline = en.today_for_test() + datetime.timedelta(
+            days=max(0, days_needed - 1)
+        )
+        self._updating = True
+        try:
+            self.de_deadline.setDate(
+                QDate(deadline.year, deadline.month, deadline.day)
+            )
+        finally:
+            self._updating = False
 
     def on_stages_toggled(self, checked):
         self.add_Stage.setVisible(checked and not isinstance(self.project, en.Stage))
@@ -3984,6 +4034,12 @@ class EditProject(QDialog, create_project_ui):
             return val
         except (ValueError, AttributeError):
             return 0
+
+    def should_recalculate_plan(self):
+        return (
+            self.recalculate_plan_checkBox.isEnabled()
+            and self.recalculate_plan_checkBox.isChecked()
+        )
 
     def is_stages_enabled(self):
         return self.enable_Stages.isChecked()

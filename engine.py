@@ -667,10 +667,16 @@ class Project:
         added_sym = self.get_added_symbols_today_value()
         return unit_converter('symbols', added_sym, self.unit)
 
-    def get_today_goal_value(self):
+    def get_today_goal_value(
+            self,
+            recalculate_from_current_progress: bool = False,
+    ):
         """
         Возвращает накопительный план на сегодня в символах.
         Генерирует план от текущей даты до дедлайна по принципу "лесенки".
+
+        При явном пересчёте сегодняшняя ступень начинается от текущего
+        прогресса, а не от прогресса на начало писательского дня.
         """
         today = today_for_test()
 
@@ -714,13 +720,19 @@ class Project:
         ))
 
         # Если день есть в плане И настройки не менялись с момента последнего расчета — отдаем кэш
-        if today in plan and plan.get('signature') == current_signature:
+        if (
+                not recalculate_from_current_progress
+                and today in plan
+                and plan.get('signature') == current_signature
+        ):
             return plan[today]
 
         # === 3. ПЕРЕСЧЕТ ПЛАНА (Инициализация) ===
 
-        previous_today_goal = plan.get(today)
-        previous_daily_goal = plan.get('daily_goal_symbols')
+        previous_today_goal = None if recalculate_from_current_progress else plan.get(today)
+        previous_daily_goal = (
+            None if recalculate_from_current_progress else plan.get('daily_goal_symbols')
+        )
         if previous_daily_goal is None:
             next_day_goal = plan.get(today + timedelta(days=1))
             if isinstance(previous_today_goal, (int, float)) and isinstance(next_day_goal, (int, float)):
@@ -744,7 +756,9 @@ class Project:
                     today_added_symbols = streak.get('count', 0)
                     break
 
-        base_total = unit_converter(self.unit, self.total_units) - today_added_symbols
+        base_total = unit_converter(self.unit, self.total_units)
+        if not recalculate_from_current_progress:
+            base_total -= today_added_symbols
         daily_goal_symbols = 0
 
         if getattr(self, 'personal_goal_for_the_day', 0):
@@ -781,7 +795,11 @@ class Project:
         # === 4. ГЕНЕРАЦИЯ ЛЕСЕНКИ ПЛАНА ===
 
         # Если кэш устарел (настройки поменялись) или его нет — строим заново
-        if not plan or plan.get('signature') != current_signature:
+        if (
+                recalculate_from_current_progress
+                or not plan
+                or plan.get('signature') != current_signature
+        ):
             plan.clear()
             plan['signature'] = current_signature  # Сохраняем слепок настроек
             plan['daily_goal_symbols'] = daily_goal_symbols

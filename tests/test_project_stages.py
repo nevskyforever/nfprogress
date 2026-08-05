@@ -287,6 +287,31 @@ def test_changed_daily_goal_adjusts_today_by_daily_difference(monkeypatch):
     assert project.project_plan[today + datetime.timedelta(days=1)] == 600
 
 
+def test_plan_can_be_recalculated_from_current_progress(monkeypatch):
+    today = datetime.date(2026, 8, 5)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = engine.Project(
+        name='Book',
+        goal=5000,
+        total_symbols=2000,
+        deadline=today + datetime.timedelta(days=5),
+        unit='symbols',
+        personal_goal_for_the_day=500,
+    )
+    project.project_plan = {
+        'signature': 'old',
+        'daily_goal_symbols': 500,
+        today - datetime.timedelta(days=1): 2500,
+        today: 3000,
+    }
+
+    assert project.get_today_goal_value(
+        recalculate_from_current_progress=True
+    ) == 2500
+    assert project.project_plan[today - datetime.timedelta(days=1)] == 2500
+    assert project.project_plan[today + datetime.timedelta(days=1)] == 3000
+
+
 def test_parent_daily_goal_uses_original_plan_when_stages_have_no_deadlines():
     parent_deadline = engine.today_for_test() + datetime.timedelta(days=9)
     project = engine.Project(name='Book', goal=1000, total_symbols=100, deadline=parent_deadline, unit='symbols')
