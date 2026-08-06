@@ -4,10 +4,28 @@ import { de, en, es, fr, pt, ru } from './i18n.js';
 const localePacks = { de, en, es, fr, pt_BR: pt, ru };
 const loadingElement = document.getElementById('loading');
 
-let bridge = null;
 let mind = null;
 let readOnly = false;
 let saveTimer = null;
+const nativeEvents = [];
+
+const bridge = {
+  changed() {
+    nativeEvents.push({ type: 'changed' });
+  },
+  ready() {
+    nativeEvents.push({ type: 'ready' });
+  },
+  reportError(details) {
+    nativeEvents.push({ type: 'error', details: String(details) });
+  },
+  save(payload) {
+    nativeEvents.push({ type: 'save', payload });
+  },
+  showStatus(message) {
+    nativeEvents.push({ type: 'status', message: String(message) });
+  },
+};
 
 function nodeObject(value) {
   if (value?.nodeObj) {
@@ -188,9 +206,7 @@ function errorText(error) {
 function reportError(error) {
   const message = errorText(error);
   console.error(message);
-  if (bridge) {
-    bridge.reportError(message);
-  }
+  bridge.reportError(message);
 }
 
 function finishActiveEdit() {
@@ -211,7 +227,7 @@ function serializeMap(finishEditing = false) {
 }
 
 function persistMap(finishEditing = false) {
-  if (!bridge || !mind || readOnly) {
+  if (!mind || readOnly) {
     return;
   }
   if (saveTimer !== null) {
@@ -226,7 +242,7 @@ function persistMap(finishEditing = false) {
 }
 
 function scheduleSave(operation) {
-  if (!bridge || readOnly) {
+  if (readOnly) {
     return;
   }
   bridge.changed();
@@ -281,6 +297,7 @@ function initialize(payload) {
 }
 
 window.nfprogressMindMap = {
+  initialize,
   getDataString() {
     return serializeMap(true);
   },
@@ -292,22 +309,10 @@ window.nfprogressMindMap = {
       mind.toCenter();
     }
   },
+  takeEvents() {
+    return JSON.stringify(nativeEvents.splice(0));
+  },
 };
 
 window.addEventListener('error', (event) => reportError(event.error || event.message));
 window.addEventListener('unhandledrejection', (event) => reportError(event.reason));
-
-if (!window.qt || !window.qt.webChannelTransport || !window.QWebChannel) {
-  reportError('Qt WebChannel is unavailable.');
-} else {
-  new window.QWebChannel(window.qt.webChannelTransport, (channel) => {
-    bridge = channel.objects.mindmapBridge;
-    bridge.initialPayload((payloadText) => {
-      try {
-        initialize(JSON.parse(payloadText));
-      } catch (error) {
-        reportError(error);
-      }
-    });
-  });
-}

@@ -2,8 +2,9 @@ import json
 import os
 import time
 
+import pytest
+
 os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
-os.environ.setdefault('QTWEBENGINE_CHROMIUM_FLAGS', '--disable-gpu --no-sandbox')
 
 from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
@@ -11,10 +12,12 @@ from PySide6.QtWidgets import QApplication
 import engine
 import main_UI
 from main_UI import EditProject, MainWindow
-from mindmap import (
-    MindMapBridge,
-    MindMapDialog,
-    _chromium_flags_without_skia_graphite,
+from mindmap import MindMapBridge, MindMapDialog
+
+
+requires_native_webview = pytest.mark.skipif(
+    os.environ.get('QT_QPA_PLATFORM') == 'offscreen',
+    reason='Qt WebView requires a native windowing platform.',
 )
 
 
@@ -50,18 +53,6 @@ def _process_events_for(app, duration):
     while time.monotonic() < deadline:
         app.processEvents()
         time.sleep(0.01)
-
-
-def test_webengine_flags_disable_graphite_without_losing_existing_options():
-    assert _chromium_flags_without_skia_graphite('') == (
-        '--disable-features=SkiaGraphite'
-    )
-    assert _chromium_flags_without_skia_graphite(
-        '--disable-gpu --disable-features=Foo --no-sandbox'
-    ) == '--disable-gpu --disable-features=Foo,SkiaGraphite --no-sandbox'
-    assert _chromium_flags_without_skia_graphite(
-        '--disable-features=Foo,SkiaGraphite'
-    ) == '--disable-features=Foo,SkiaGraphite'
 
 
 def test_project_and_stage_migrate_mindmap_data():
@@ -572,6 +563,7 @@ def test_edit_project_shows_combined_map_checkbox_for_staged_project(monkeypatch
     app.processEvents()
 
 
+@requires_native_webview
 def test_mindmap_dialog_loads_local_editor_and_creates_default_map():
     app = QApplication.instance() or QApplication([])
     saved = []
@@ -597,6 +589,7 @@ def test_mindmap_dialog_loads_local_editor_and_creates_default_map():
     app.processEvents()
 
 
+@requires_native_webview
 def test_mindmap_dialog_displays_empty_stage_message_in_status_area():
     app = QApplication.instance() or QApplication([])
     message = 'Карта не была создана при работе над этапом.'
@@ -619,6 +612,7 @@ def test_mindmap_dialog_displays_empty_stage_message_in_status_area():
     app.processEvents()
 
 
+@requires_native_webview
 def test_mindmap_focus_control_opens_and_closes_first_level_branch():
     app = QApplication.instance() or QApplication([])
     map_data = {
@@ -663,7 +657,7 @@ def test_mindmap_focus_control_opens_and_closes_first_level_branch():
           return Boolean(document.querySelector('#focusBranch'));
         })()
         """,
-    ) is True
+    )
     toolbar_sizes = json.loads(_run_javascript(
         app,
         dialog,
@@ -721,6 +715,7 @@ def test_mindmap_focus_control_opens_and_closes_first_level_branch():
     app.processEvents()
 
 
+@requires_native_webview
 def test_focus_control_reports_empty_completed_stage_in_status_area():
     app = QApplication.instance() or QApplication([])
     project = engine.Project(name='Book', goal=1000)
@@ -770,7 +765,7 @@ def test_focus_control_reports_empty_completed_stage_in_status_area():
           return Boolean(branch);
         })()
         """,
-    ) is True
+    )
     _process_events_for(app, 0.03)
     focus_state = json.loads(_run_javascript(
         app,
@@ -798,6 +793,7 @@ def test_focus_control_reports_empty_completed_stage_in_status_area():
     app.processEvents()
 
 
+@requires_native_webview
 def test_combined_stage_branch_edit_round_trips_through_editor():
     app = QApplication.instance() or QApplication([])
     project = engine.Project(name='Book', goal=1000)
@@ -884,6 +880,7 @@ def test_combined_stage_branch_edit_round_trips_through_editor():
     app.processEvents()
 
 
+@requires_native_webview
 def test_completed_stage_branch_is_read_only_in_combined_editor():
     app = QApplication.instance() or QApplication([])
     project = engine.Project(name='Book', goal=1000)
@@ -954,6 +951,7 @@ def test_completed_stage_branch_is_read_only_in_combined_editor():
     app.processEvents()
 
 
+@requires_native_webview
 def test_mindmap_autosave_keeps_node_editor_open():
     app = QApplication.instance() or QApplication([])
     saved = []

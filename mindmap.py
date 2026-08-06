@@ -1,39 +1,13 @@
-"""Mind Elixir editor embedded in a Qt WebEngine dialog."""
+"""Mind Elixir editor embedded in a native Qt WebView dialog."""
 
 import json
-import os
 from pathlib import Path
 
-
-def _chromium_flags_without_skia_graphite(flags):
-    """Add the Graphite opt-out without discarding existing Chromium flags."""
-    tokens = str(flags or '').split()
-    disable_features_prefix = '--disable-features='
-    for index, token in enumerate(tokens):
-        if not token.startswith(disable_features_prefix):
-            continue
-        features = token[len(disable_features_prefix):].split(',')
-        if 'SkiaGraphite' not in features:
-            features.append('SkiaGraphite')
-        tokens[index] = disable_features_prefix + ','.join(features)
-        break
-    else:
-        tokens.append(f'{disable_features_prefix}SkiaGraphite')
-    return ' '.join(tokens)
-
-
-os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = (
-    _chromium_flags_without_skia_graphite(
-        os.environ.get('QTWEBENGINE_CHROMIUM_FLAGS', '')
-    )
-)
-
-from PySide6.QtCore import QObject, QUrl, Signal, Slot
-from PySide6.QtGui import QCloseEvent, QDesktopServices
-from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineSettings
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QDialog
+from PySide6.QtCore import Q_ARG, QMetaObject, QObject, QTimer, QUrl, Signal, Slot
+from PySide6.QtGui import QCloseEvent
+from PySide6.QtQuick import QQuickView
+from PySide6.QtWebView import QtWebView
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QWidget
 
 import engine
 from UI_fiiles.mindmap_dialog import Ui_mindmap_dialog
@@ -44,12 +18,54 @@ from localization import (
 )
 
 
+QtWebView.initialize()
+
+
 def _canonical_json(data):
     return json.dumps(
         data,
         ensure_ascii=False,
         sort_keys=True,
         separators=(',', ':'),
+    )
+
+
+def _without_module_exports(source):
+    marker = '\nexport {'
+    if marker not in source:
+        raise ValueError('JavaScript module export block is missing.')
+    return source.rsplit(marker, 1)[0]
+
+
+def _standalone_editor_html(assets_path):
+    """Build one offline document because native WebViews reject local file URLs."""
+    index_html = (assets_path / 'index.html').read_text(encoding='utf-8')
+    styles = (assets_path / 'MindElixir.css').read_text(encoding='utf-8')
+    mind_elixir = _without_module_exports(
+        (assets_path / 'MindElixir.js').read_text(encoding='utf-8')
+    )
+    translations = _without_module_exports(
+        (assets_path / 'i18n.js').read_text(encoding='utf-8')
+    )
+    application = (assets_path / 'app.js').read_text(encoding='utf-8')
+    application = '\n'.join(
+        line for line in application.splitlines()
+        if not line.startswith('import ')
+    )
+    bundle = '\n'.join((
+        f'const MindElixir = (() => {{\n{mind_elixir}\nreturn P;\n}})();',
+        'const { de, en, es, fr, pt, ru } = (() => {'
+        f'\n{translations}\n'
+        'return { de: v, en: n, es: r, fr: s, pt: l, ru: a };\n})();',
+        application,
+    ))
+    index_html = index_html.replace(
+        '<link rel="stylesheet" href="MindElixir.css">',
+        f'<style>{styles}</style>',
+    )
+    return index_html.replace(
+        '<script type="module" src="app.js"></script>',
+        f'<script>{bundle}</script>',
     )
 
 
@@ -139,15 +155,72 @@ class MindMapBridge(QObject):
         return True
 
 
-class MindMapPage(QWebEnginePage):
-    """Keep map links out of the embedded editor page."""
+class NativeWebView(QWidget):
+    """Expose the QML WebView through the small API used by the dialog."""
 
-    def acceptNavigationRequest(self, url, navigation_type, is_main_frame):
-        if navigation_type == QWebEnginePage.NavigationType.NavigationTypeLinkClicked:
-            if url.scheme() in {'http', 'https', 'mailto'}:
-                QDesktopServices.openUrl(url)
-            return False
-        return super().acceptNavigationRequest(url, navigation_type, is_main_frame)
+    loadFinished = Signal(bool, str)
+
+    def __init__(self, qml_path, parent=None):
+        super().__init__(parent)
+        self._callbacks = {}
+        self._next_request_id = 1
+        self._view = QQuickView()
+        self._view.setResizeMode(QQuickView.ResizeMode.SizeRootObjectToView)
+        self._view.setSource(QUrl.fromLocalFile(str(qml_path)))
+        self._container = QWidget.createWindowContainer(self._view, self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._container)
+
+        root = self._view.rootObject()
+        if root is None:
+            details = '; '.join(error.toString() for error in self._view.errors())
+            raise RuntimeError(details or tr('Не удалось загрузить редактор карты.'))
+        self._root = root
+        self._root.pageLoadFinished.connect(self.loadFinished)
+        self._root.javaScriptResult.connect(self._handle_java_script_result)
+
+    def page(self):
+        """Keep compatibility with the former QWebEngineView call sites."""
+        return self
+
+    def loadHtml(self, html):
+        QMetaObject.invokeMethod(
+            self._root,
+            'loadHtml',
+            Q_ARG('QVariant', html),
+        )
+
+    def runJavaScript(self, script, callback=None):
+        request_id = self._next_request_id
+        self._next_request_id += 1
+        if callback is not None:
+            self._callbacks[request_id] = callback
+        invoked = QMetaObject.invokeMethod(
+            self._root,
+            'runJavaScript',
+            Q_ARG('QVariant', script),
+            Q_ARG('QVariant', request_id),
+        )
+        if not invoked:
+            self._callbacks.pop(request_id, None)
+            if callback is not None:
+                callback(None)
+
+    def shutdown(self):
+        self._callbacks.clear()
+        try:
+            self._root.pageLoadFinished.disconnect(self.loadFinished)
+            self._root.javaScriptResult.disconnect(self._handle_java_script_result)
+        except RuntimeError:
+            pass
+        self._view.setSource(QUrl())
+
+    @Slot(int, object)
+    def _handle_java_script_result(self, request_id, result):
+        callback = self._callbacks.pop(request_id, None)
+        if callback is not None:
+            callback(result)
 
 
 class MindMapDialog(QDialog, Ui_mindmap_dialog):
@@ -168,6 +241,7 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
         self._ready = False
         self._closing_after_save = False
         self._allow_close = False
+        self._poll_in_flight = False
 
         self.setWindowTitle(f"{tr('Карта')} — {entity_name}")
         self.map_title_label.setText(f"{tr('Карта')}: {entity_name}")
@@ -180,25 +254,16 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
         self.save_button.clicked.connect(self._request_explicit_save)
         self.close_button.clicked.connect(self.close)
 
-        self.web_view = QWebEngineView(self.mindmap_container)
+        qml_path = Path(engine.resource_path('mindmap_assets/WebViewHost.qml'))
+        try:
+            self.web_view = NativeWebView(qml_path, self.mindmap_container)
+        except RuntimeError as error:
+            self._on_editor_failed(tr('Не удалось загрузить редактор карты.'))
+            self.save_status_label.setToolTip(str(error))
+            return
         self.web_view.setAccessibleName(tr('Редактор карты'))
-        self._page = MindMapPage(self.web_view)
-        self.web_view.setPage(self._page)
+        self._page = self.web_view.page()
         self.mindmap_layout.addWidget(self.web_view)
-
-        settings = self.web_view.settings()
-        settings.setAttribute(
-            QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls,
-            True,
-        )
-        settings.setAttribute(
-            QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls,
-            False,
-        )
-        settings.setAttribute(
-            QWebEngineSettings.WebAttribute.JavascriptCanOpenWindows,
-            False,
-        )
 
         self._bridge = MindMapBridge(
             entity_name,
@@ -213,20 +278,73 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
         self._bridge.failed.connect(self._on_editor_failed)
         self._bridge.status_received.connect(self._on_status_message)
 
-        self._channel = QWebChannel(self._page)
-        self._channel.registerObject('mindmapBridge', self._bridge)
-        self._page.setWebChannel(self._channel)
-        self._page.loadFinished.connect(self._on_page_loaded)
+        self.web_view.loadFinished.connect(self._on_page_loaded)
 
-        editor_path = Path(engine.resource_path('mindmap_assets/index.html'))
-        if editor_path.is_file():
-            self.web_view.load(QUrl.fromLocalFile(str(editor_path)))
-        else:
+        self._event_timer = QTimer(self)
+        self._event_timer.setInterval(100)
+        self._event_timer.timeout.connect(self._poll_editor_events)
+
+        assets_path = Path(engine.resource_path('mindmap_assets'))
+        try:
+            editor_html = _standalone_editor_html(assets_path)
+        except (OSError, ValueError) as error:
+            self._bridge.last_error = str(error)
             self._on_editor_failed(tr('Не найдены файлы редактора карты.'))
+        else:
+            self.web_view.loadHtml(editor_html)
 
-    def _on_page_loaded(self, successful):
+    def _on_page_loaded(self, successful, error_text=''):
         if not successful:
+            self._bridge.last_error = str(error_text)
             self._on_editor_failed(tr('Не удалось загрузить редактор карты.'))
+            return
+        self._bridge.last_error = ''
+        payload = self._bridge.initialPayload()
+        script = (
+            '(() => {'
+            'if (!window.nfprogressMindMap) return false;'
+            f'window.nfprogressMindMap.initialize(JSON.parse({json.dumps(payload)}));'
+            'return true;'
+            '})()'
+        )
+        self._page.runJavaScript(script, self._on_editor_initialized)
+
+    def _on_editor_initialized(self, initialized):
+        if not initialized:
+            self._on_editor_failed(tr('Не удалось загрузить редактор карты.'))
+            return
+        self._event_timer.start()
+        self._poll_editor_events()
+
+    def _poll_editor_events(self):
+        if self._poll_in_flight:
+            return
+        self._poll_in_flight = True
+        self._page.runJavaScript(
+            'window.nfprogressMindMap.takeEvents()',
+            self._process_editor_events,
+        )
+
+    def _process_editor_events(self, payload):
+        self._poll_in_flight = False
+        if not isinstance(payload, str):
+            return
+        try:
+            events = json.loads(payload)
+        except (TypeError, ValueError):
+            return
+        for event in events:
+            event_type = event.get('type')
+            if event_type == 'ready':
+                self._on_editor_ready()
+            elif event_type == 'changed':
+                self._bridge.changed()
+            elif event_type == 'save':
+                self._bridge.persist_payload(event.get('payload'))
+            elif event_type == 'error':
+                self._bridge.reportError(event.get('details', ''))
+            elif event_type == 'status':
+                self._bridge.showStatus(event.get('message', ''))
 
     def _on_editor_ready(self):
         self._ready = True
@@ -303,6 +421,10 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
 
     def closeEvent(self, event: QCloseEvent):
         if self._allow_close or self.read_only or not self._ready:
+            if hasattr(self, '_event_timer'):
+                self._event_timer.stop()
+            if hasattr(self, 'web_view'):
+                self.web_view.shutdown()
             event.accept()
             return
         event.ignore()

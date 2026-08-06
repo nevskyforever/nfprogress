@@ -1,4 +1,33 @@
 #!/bin/bash
+BUILD_LOCK_DIR="${TMPDIR:-/tmp}/nfprogress-arm-build-${UID}.lock"
+if ! mkdir "$BUILD_LOCK_DIR" 2>/dev/null; then
+  echo "Ошибка: ARM-сборка уже выполняется. Дождитесь её завершения."
+  exit 1
+fi
+trap 'rmdir "$BUILD_LOCK_DIR" 2>/dev/null || true' EXIT
+if pgrep -f '[n]uitka.*--output-dir=build-arm' >/dev/null; then
+  echo "Ошибка: ARM-сборка уже выполняется. Дождитесь её завершения."
+  exit 1
+fi
+
+MIN_NUITKA_VERSION=4.1.3
+if ! python3 - "$MIN_NUITKA_VERSION" <<'PY'
+import sys
+
+try:
+    from nuitka.Version import getNuitkaVersion
+    current = tuple(int(part) for part in getNuitkaVersion().split('.')[:3])
+    required = tuple(int(part) for part in sys.argv[1].split('.'))
+except (ImportError, ValueError):
+    raise SystemExit(1)
+raise SystemExit(0 if current >= required else 1)
+PY
+then
+  echo "Ошибка: для сборки требуется Nuitka $MIN_NUITKA_VERSION или новее."
+  echo "Обновите Nuitka: python3 -m pip install --upgrade 'Nuitka>=$MIN_NUITKA_VERSION'"
+  exit 1
+fi
+
 VERSION=$(python3 -c "import engine; print(engine.version)")
 echo "Сборка ARM, версия: $VERSION"
 
@@ -22,7 +51,7 @@ for QT_LANGUAGE in "${QT_TRANSLATION_LANGUAGES[@]}"; do
   cp "$PYSIDE_TRANSLATIONS"/*_"$QT_LANGUAGE".qm "$TRANSLATIONS_TMP"/
 done
 
-nuitka --standalone \
+python3 -m nuitka --standalone \
        --macos-create-app-bundle \
        --macos-app-icon=appIcon.icns \
        --macos-app-name="nfprogress" \
@@ -30,6 +59,12 @@ nuitka --standalone \
        --company-name="nfproject" \
        --file-description="Трекер для писателей" \
        --enable-plugin=pyside6 \
+       --include-qt-plugins=qml,webview \
+       --noinclude-dlls='*QtWebEngine*' \
+       --noinclude-dlls='*qtwebengine*' \
+       --noinclude-dlls='*qtwebview_webengine*' \
+       --noinclude-dlls='*qtquickshapesdesignhelpersplugin*' \
+       --noinclude-dlls='PySide6/qml/QtQuick/Shapes/DesignHelpers/*' \
        --output-dir=build-arm \
        --include-data-dir="$TRANSLATIONS_TMP=PySide6/Qt/translations" \
        --include-data-dir=mindmap_assets=mindmap_assets \
