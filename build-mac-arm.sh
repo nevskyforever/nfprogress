@@ -35,6 +35,7 @@ nuitka --standalone \
        --noinclude-dlls='*qtwebengine*' \
        --noinclude-dlls='*qtwebview_webengine*' \
        --noinclude-dlls='*qtquickshapesdesignhelpersplugin*' \
+       --noinclude-dlls='PySide6/qml/QtQuick/Shapes/DesignHelpers/*' \
        --output-dir=build-arm \
        --include-data-dir="$TRANSLATIONS_TMP=PySide6/Qt/translations" \
        --include-data-dir=mindmap_assets=mindmap_assets \

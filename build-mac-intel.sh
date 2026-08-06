@@ -35,6 +35,7 @@ nuitka --standalone \
        --noinclude-dlls='*qtwebengine*' \
        --noinclude-dlls='*qtwebview_webengine*' \
        --noinclude-dlls='*qtquickshapesdesignhelpersplugin*' \
+       --noinclude-dlls='PySide6/qml/QtQuick/Shapes/DesignHelpers/*' \
        --macos-target-arch=x86_64 \
        --output-dir=build-intel \
        --include-data-dir="$TRANSLATIONS_TMP=PySide6/Qt/translations" \

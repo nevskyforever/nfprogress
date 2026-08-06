@@ -144,6 +144,7 @@ jobs:
             --noinclude-dlls="*qtwebengine*" `
             --noinclude-dlls="*qtwebview_webengine*" `
             --noinclude-dlls="*qtquickshapesdesignhelpersplugin*" `
+            --noinclude-dlls="PySide6/qml/QtQuick/Shapes/DesignHelpers/*" `
             --windows-console-mode=disable `
             --lto=yes `
             --windows-icon-from-ico=icon.ico `
