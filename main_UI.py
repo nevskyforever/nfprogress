@@ -2155,11 +2155,19 @@ class MainWindow(QMainWindow, main_window_ui):
             and project.has_stages()
             and getattr(project, 'combine_stage_mindmaps', False)
         )
-        mindmap_data = (
-            en.compose_project_mindmap(
-                project,
-                tr('Карта не была создана при работе над этапом.'),
+        has_empty_completed_stage_map = (
+            combined_stage_maps
+            and any(
+                stage.status == 'завершен'
+                and not en.mindmap_has_content(
+                    getattr(stage, 'mindmap_data', None),
+                    stage.name,
+                )
+                for stage in project.stages
             )
+        )
+        mindmap_data = (
+            en.compose_project_mindmap(project)
             if combined_stage_maps
             else getattr(project, 'mindmap_data', None)
         )
@@ -2174,6 +2182,11 @@ class MainWindow(QMainWindow, main_window_ui):
             read_only=(
                 project.status == 'завершен'
                 and (is_stage or not en.dev_mode)
+            ),
+            status_message=(
+                'Карта не была создана при работе над этапом.'
+                if has_empty_completed_stage_map
+                else None
             ),
             parent=self,
         )

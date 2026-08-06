@@ -276,7 +276,7 @@ def test_combined_project_map_tracks_stage_names_and_order():
     assert second.mindmap_data['nodeData']['topic'] == 'Independent editing root'
 
 
-def test_combined_map_marks_completed_stage_and_explains_empty_map():
+def test_combined_map_marks_completed_stage_without_notice_node():
     project = engine.Project(name='Book', goal=1000)
     completed = engine.Stage(
         name='Editing',
@@ -290,22 +290,12 @@ def test_combined_map_marks_completed_stage_and_explains_empty_map():
     project.combine_stage_mindmaps = True
     project.stages = [completed]
 
-    combined = engine.compose_project_mindmap(
-        project,
-        'The map was not created while working on the stage.',
-    )
+    combined = engine.compose_project_mindmap(project)
     stage_branch = combined['nodeData']['children'][0]
 
     assert stage_branch['topic'] == '✅ Editing'
     assert stage_branch['nfprogressReadOnly'] is True
-    assert stage_branch['children'] == [{
-        'id': 'nfprogress-empty-stage-map-editing-stage',
-        'topic': 'The map was not created while working on the stage.',
-        'children': [],
-        'nfprogressStageId': 'editing-stage',
-        'nfprogressReadOnly': True,
-        'nfprogressEmptyMapNotice': True,
-    }]
+    assert stage_branch['children'] == []
 
     _, stage_maps = engine.split_combined_project_mindmap(project, combined)
     assert stage_maps[completed.stage_id]['nodeData'] == _map_data(
@@ -314,6 +304,41 @@ def test_combined_map_marks_completed_stage_and_explains_empty_map():
     assert stage_maps[completed.stage_id]['arrows'] == []
     assert stage_maps[completed.stage_id]['summaries'] == []
     assert 'nfprogress' not in json.dumps(stage_maps)
+
+
+def test_combined_map_passes_empty_stage_message_to_status_area(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    completed = engine.Stage(
+        name='Editing',
+        goal=1000,
+        parent_project_name='Book',
+        status='завершен',
+    )
+    completed.mindmap_data = _map_data('Editing')
+    project.enable_stages = True
+    project.combine_stage_mindmaps = True
+    project.stages = [completed]
+    opened = []
+
+    class FakeDialog:
+        def __init__(self, *args, **kwargs):
+            opened.append((args, kwargs))
+
+        def exec(self):
+            return None
+
+    monkeypatch.setattr(main_UI, 'MindMapDialog', FakeDialog)
+
+    class Owner:
+        _is_stage = MainWindow._is_stage
+        _save_mindmap_data = MainWindow._save_mindmap_data
+
+    MainWindow.open_mindmap(Owner(), project)
+
+    assert opened[0][0][1]['nodeData']['children'][0]['children'] == []
+    assert opened[0][1]['status_message'] == (
+        'Карта не была создана при работе над этапом.'
+    )
 
 
 def test_mindmap_bridge_validates_and_deduplicates_saves():
@@ -547,6 +572,28 @@ def test_mindmap_dialog_loads_local_editor_and_creates_default_map():
     )
     assert _wait_until(app, lambda: bool(results))
     assert json.loads(results[0])['nodeData']['topic'] == 'Тестовая книга'
+
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+def test_mindmap_dialog_displays_empty_stage_message_in_status_area():
+    app = QApplication.instance() or QApplication([])
+    message = 'Карта не была создана при работе над этапом.'
+    dialog = MindMapDialog(
+        'Book',
+        _map_data('Book'),
+        lambda data: None,
+        status_message=message,
+    )
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    assert dialog.save_status_label.text() == message
+    assert dialog._bridge.last_error == ''
 
     dialog._allow_close = True
     dialog.close()

@@ -125,11 +125,13 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
             save_callback,
             *,
             read_only=False,
+            status_message=None,
             parent=None,
     ):
         super().__init__(parent)
         self.setupUi(self)
         self.read_only = bool(read_only)
+        self.status_message = status_message
         self._ready = False
         self._closing_after_save = False
         self._allow_close = False
@@ -196,7 +198,9 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
         self._ready = True
         self.save_button.setEnabled(not self.read_only)
         self.save_status_label.setToolTip('')
-        if self.read_only:
+        if self.status_message:
+            self.save_status_label.setText(tr(self.status_message))
+        elif self.read_only:
             self.save_status_label.setText(tr('Карта доступна только для просмотра.'))
         else:
             self.save_status_label.setText(tr('Карта готова.'))
