@@ -55,6 +55,20 @@ def test_specialization_terms_and_cooldown_are_localized():
     )
 
 
+def test_creative_event_controls_are_localized():
+    expected_safe_choices = {
+        'en': 'Safe choice',
+        'es': 'Elección segura',
+        'de': 'Sichere Wahl',
+        'fr': 'Choix sûr',
+        'pt_BR': 'Escolha segura',
+    }
+    for language, expected in expected_safe_choices.items():
+        assert tr('Надёжный выбор', language) == expected
+        assert tr('Решить событие', language) != 'Решить событие'
+        assert tr('Инвентарь и кабинет', language) != 'Инвентарь и кабинет'
+
+
 def test_manuscript_journey_terms_are_localized():
     assert tr('Переломная точка', 'en') == 'Turning Point'
     assert tr('следующий рубеж', 'de') == 'nächster Meilenstein'

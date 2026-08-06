@@ -1517,7 +1517,25 @@
          </widget>
         </item>
         <item row="2" column="1">
-         <widget class="QFrame" name="inventory_frame">
+         <widget class="QTabWidget" name="inventory_cabinet_tabs">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="font">
+           <font>
+            <family>Arial</family>
+           </font>
+          </property>
+          <property name="currentIndex">
+           <number>0</number>
+          </property>
+          <widget class="QFrame" name="inventory_frame">
+           <attribute name="title">
+            <string>Инвентарь</string>
+           </attribute>
           <property name="sizePolicy">
            <sizepolicy hsizetype="Expanding" vsizetype="Expanding">
             <horstretch>0</horstretch>
@@ -1741,6 +1759,146 @@
            </item>
           </layout>
          </widget>
+          <widget class="QWidget" name="cabinet_tab">
+           <property name="sizePolicy">
+            <sizepolicy hsizetype="Ignored" vsizetype="Ignored">
+             <horstretch>0</horstretch>
+             <verstretch>0</verstretch>
+            </sizepolicy>
+           </property>
+           <attribute name="title">
+            <string>Кабинет</string>
+           </attribute>
+           <layout class="QHBoxLayout" name="cabinet_layout">
+            <item>
+             <widget class="QListWidget" name="cabinet_relics_list">
+              <property name="minimumSize">
+               <size>
+                <width>180</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="maximumSize">
+               <size>
+                <width>260</width>
+                <height>16777215</height>
+               </size>
+              </property>
+              <property name="horizontalScrollBarPolicy">
+               <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
+              </property>
+             </widget>
+            </item>
+            <item>
+             <widget class="QGroupBox" name="cabinet_relic_details">
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Ignored" vsizetype="Expanding">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
+              </property>
+              <property name="minimumSize">
+               <size>
+                <width>0</width>
+                <height>0</height>
+               </size>
+              </property>
+              <property name="title">
+               <string>Реликвия</string>
+              </property>
+              <layout class="QVBoxLayout" name="cabinet_relic_details_layout">
+               <item>
+                <widget class="QLabel" name="cabinet_relic_name">
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>44</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>44</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Выберите реликвию</string>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="cabinet_relic_unlock_status">
+                 <property name="text">
+                  <string>Статус</string>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="cabinet_relic_description">
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>82</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>82</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Описание реликвии</string>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <widget class="QLabel" name="cabinet_relic_condition">
+                 <property name="minimumSize">
+                  <size>
+                   <width>0</width>
+                   <height>82</height>
+                  </size>
+                 </property>
+                 <property name="maximumSize">
+                  <size>
+                   <width>16777215</width>
+                   <height>82</height>
+                  </size>
+                 </property>
+                 <property name="text">
+                  <string>Условие открытия</string>
+                 </property>
+                 <property name="wordWrap">
+                  <bool>true</bool>
+                 </property>
+                </widget>
+               </item>
+               <item>
+                <spacer name="cabinet_relic_spacer">
+                 <property name="orientation">
+                  <enum>Qt::Orientation::Vertical</enum>
+                 </property>
+                 <property name="sizeHint" stdset="0">
+                  <size>
+                   <width>20</width>
+                   <height>40</height>
+                  </size>
+                 </property>
+                </spacer>
+               </item>
+              </layout>
+             </widget>
+            </item>
+           </layout>
+          </widget>
+         </widget>
         </item>
         <item row="1" column="0">
          <widget class="QLabel" name="gamer_params_label">
@@ -1944,7 +2102,7 @@
            </font>
           </property>
           <property name="text">
-           <string>Инвентарь</string>
+           <string>Инвентарь и кабинет</string>
           </property>
           <property name="alignment">
            <set>Qt::AlignmentFlag::AlignCenter</set>
@@ -3268,151 +3426,12 @@
                 <item row="11" column="2">
                  <widget class="QPushButton" name="resolve_creative_event_button">
                   <property name="text">
-                   <string>Принять решение</string>
+                   <string>Решить событие</string>
                   </property>
                  </widget>
                 </item>
                </layout>
               </widget>
-             </widget>
-            </item>
-           </layout>
-          </widget>
-          <widget class="QWidget" name="cabinet_tab">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Ignored" vsizetype="Ignored">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <attribute name="title">
-            <string>Кабинет</string>
-           </attribute>
-           <layout class="QHBoxLayout" name="cabinet_layout">
-            <item>
-             <widget class="QListWidget" name="cabinet_relics_list">
-              <property name="minimumSize">
-               <size>
-                <width>180</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="maximumSize">
-               <size>
-                <width>260</width>
-                <height>16777215</height>
-               </size>
-              </property>
-              <property name="horizontalScrollBarPolicy">
-               <enum>Qt::ScrollBarPolicy::ScrollBarAsNeeded</enum>
-              </property>
-             </widget>
-            </item>
-            <item>
-             <widget class="QGroupBox" name="cabinet_relic_details">
-              <property name="sizePolicy">
-               <sizepolicy hsizetype="Ignored" vsizetype="Expanding">
-                <horstretch>0</horstretch>
-                <verstretch>0</verstretch>
-               </sizepolicy>
-              </property>
-              <property name="minimumSize">
-               <size>
-                <width>0</width>
-                <height>0</height>
-               </size>
-              </property>
-              <property name="title">
-               <string>Реликвия</string>
-              </property>
-              <layout class="QVBoxLayout" name="cabinet_relic_details_layout">
-               <item>
-                <widget class="QLabel" name="cabinet_relic_name">
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>44</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>16777215</width>
-                   <height>44</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>Выберите реликвию</string>
-                 </property>
-                 <property name="wordWrap">
-                  <bool>true</bool>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QLabel" name="cabinet_relic_unlock_status">
-                 <property name="text">
-                  <string>Статус</string>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QLabel" name="cabinet_relic_description">
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>82</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>16777215</width>
-                   <height>82</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>Описание реликвии</string>
-                 </property>
-                 <property name="wordWrap">
-                  <bool>true</bool>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <widget class="QLabel" name="cabinet_relic_condition">
-                 <property name="minimumSize">
-                  <size>
-                   <width>0</width>
-                   <height>82</height>
-                  </size>
-                 </property>
-                 <property name="maximumSize">
-                  <size>
-                   <width>16777215</width>
-                   <height>82</height>
-                  </size>
-                 </property>
-                 <property name="text">
-                  <string>Условие открытия</string>
-                 </property>
-                 <property name="wordWrap">
-                  <bool>true</bool>
-                 </property>
-                </widget>
-               </item>
-               <item>
-                <spacer name="cabinet_relic_spacer">
-                 <property name="orientation">
-                  <enum>Qt::Orientation::Vertical</enum>
-                 </property>
-                 <property name="sizeHint" stdset="0">
-                  <size>
-                   <width>20</width>
-                   <height>40</height>
-                  </size>
-                 </property>
-                </spacer>
-               </item>
-              </layout>
              </widget>
             </item>
            </layout>

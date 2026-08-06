@@ -324,6 +324,9 @@ class GameMenuController:
         self.on_writing_intention_changed(
             self.ui.writing_intention_combo.currentIndex()
         )
+        self.ui.specialization_combo.currentIndexChanged.connect(
+            self.update_specialization_choice_ui
+        )
         self.ui.select_specialization_button.clicked.connect(self.on_select_specialization)
         self.ui.activate_specialization_ability_button.clicked.connect(
             self.on_activate_specialization_ability
@@ -853,6 +856,18 @@ class GameMenuController:
             (self.notifications.show_success if ok else self.notifications.show_warning)(message)
 
     def update_creative_event_ui(self, *_):
+        safe_tooltip = tr(
+            'Надёжный выбор даёт гарантированную награду события без риска.'
+        )
+        risk_tooltip = tr(
+            'Рискнуть — попытаться получить повышенную награду с возможностью неудачи.'
+        )
+        self.ui.creative_event_choice_combo.setItemData(
+            0, safe_tooltip, Qt.ItemDataRole.ToolTipRole
+        )
+        self.ui.creative_event_choice_combo.setItemData(
+            1, risk_tooltip, Qt.ItemDataRole.ToolTipRole
+        )
         event_key = self.gamer.pending_creative_event if self.gamer else None
         event = game.CREATIVE_EVENTS.get(event_key)
         active = event is not None
@@ -861,6 +876,14 @@ class GameMenuController:
         if not active:
             self.ui.creative_event_status.setText(tr('Творческих событий пока нет.'))
             self.ui.creative_event_status.setToolTip('')
+            self.ui.creative_event_choice_combo.setToolTip(
+                safe_tooltip
+                if self.ui.creative_event_choice_combo.currentIndex() == 0
+                else risk_tooltip
+            )
+            self.ui.resolve_creative_event_button.setToolTip(
+                tr('Применяет выбранный вариант к ожидающему творческому событию.')
+            )
             return
         self.ui.creative_event_status.setText(
             f"{tr('Творческое событие')}: {tr(event['name'])}"
@@ -873,7 +896,9 @@ class GameMenuController:
         tooltip = f"{tr(event['description'])} {tr(event[description_key])}"
         self.ui.creative_event_status.setToolTip(tooltip)
         self.ui.creative_event_choice_combo.setToolTip(tooltip)
-        self.ui.resolve_creative_event_button.setToolTip(tooltip)
+        self.ui.resolve_creative_event_button.setToolTip(
+            f"{tr('Решить событие выбранным способом')}: {tooltip}"
+        )
 
     def on_resolve_creative_event(self):
         choice = (
@@ -1068,6 +1093,7 @@ class GameMenuController:
             self.ui.specialization_combo.setCurrentIndex(
                 self.SPECIALIZATION_KEYS.index(specialization)
             )
+        self.update_specialization_choice_ui()
 
         if not unlocked:
             mastery_bar.setRange(0, 1)
@@ -1081,7 +1107,6 @@ class GameMenuController:
             mastery_bar.setRange(0, 1)
             mastery_bar.setValue(0)
             mastery_bar.setFormat(tr('Выберите специализацию'))
-            self.ui.specialization_status.setText(tr('Специализация не выбрана.'))
             return
 
         meta = game.SPECIALIZATIONS[specialization]
@@ -1099,11 +1124,41 @@ class GameMenuController:
             mastery_bar.setValue(1)
             mastery_bar.setFormat(f"{tr('Ранг')} {rank} · {tr('максимум')}")
         current_bonus = self.gamer.get_specialization_bonus(specialization) * 100
-        status = f"{tr(meta['name'])}. {tr('Текущий бонус')}: +{current_bonus:g}%."
-        self.ui.specialization_status.setToolTip(tr(meta['description']))
+        description = tr(meta['description'])
+        status = (
+            f"{tr(meta['name'])}. {description} "
+            f"{tr('Текущий бонус')}: +{current_bonus:g}%."
+        )
+        self.ui.specialization_status.setToolTip(description)
         if days_remaining > 0:
             status += f" {tr(f'Смена будет доступна через {days_remaining} дн.')}"
         self.ui.specialization_status.setText(status)
+
+    def update_specialization_choice_ui(self, *_):
+        combo = self.ui.specialization_combo
+        for index, specialization_key in enumerate(self.SPECIALIZATION_KEYS):
+            description = tr(game.SPECIALIZATIONS[specialization_key]['description'])
+            combo.setItemData(index, description, Qt.ItemDataRole.ToolTipRole)
+
+        index = combo.currentIndex()
+        if not 0 <= index < len(self.SPECIALIZATION_KEYS):
+            combo.setToolTip('')
+            return
+
+        meta = game.SPECIALIZATIONS[self.SPECIALIZATION_KEYS[index]]
+        description = tr(meta['description'])
+        combo.setToolTip(description)
+        if not self.gamer or self.gamer.specialization is not None:
+            return
+
+        preview = f"{tr(meta['name'])}. {description}"
+        if self.gamer.level < game.SPECIALIZATION_LEVEL:
+            preview = (
+                f"{tr(f'Специализации откроются на {game.SPECIALIZATION_LEVEL} уровне.')} "
+                f"{preview}"
+            )
+        self.ui.specialization_status.setText(preview)
+        self.ui.specialization_status.setToolTip(description)
 
     def update_specialization_ability_ui(self):
         button = self.ui.activate_specialization_ability_button

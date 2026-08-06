@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_windowJOGSKv.ui'
+## Form generated from reading UI file 'main_window.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -818,7 +818,12 @@ class Ui_main_window(object):
 
         self.gridLayout_5.addWidget(self.shop_label, 3, 1, 1, 1)
 
-        self.inventory_frame = QFrame(self.game_tab)
+        self.inventory_cabinet_tabs = QTabWidget(self.game_tab)
+        self.inventory_cabinet_tabs.setObjectName(u"inventory_cabinet_tabs")
+        sizePolicy3.setHeightForWidth(self.inventory_cabinet_tabs.sizePolicy().hasHeightForWidth())
+        self.inventory_cabinet_tabs.setSizePolicy(sizePolicy3)
+        self.inventory_cabinet_tabs.setFont(font1)
+        self.inventory_frame = QFrame()
         self.inventory_frame.setObjectName(u"inventory_frame")
         sizePolicy3.setHeightForWidth(self.inventory_frame.sizePolicy().hasHeightForWidth())
         self.inventory_frame.setSizePolicy(sizePolicy3)
@@ -925,8 +930,73 @@ class Ui_main_window(object):
 
         self.horizontalLayout_5.addWidget(self.inventory_scroll_area)
 
+        self.inventory_cabinet_tabs.addTab(self.inventory_frame, "")
+        self.cabinet_tab = QWidget()
+        self.cabinet_tab.setObjectName(u"cabinet_tab")
+        sizePolicy6 = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
+        sizePolicy6.setHorizontalStretch(0)
+        sizePolicy6.setVerticalStretch(0)
+        sizePolicy6.setHeightForWidth(self.cabinet_tab.sizePolicy().hasHeightForWidth())
+        self.cabinet_tab.setSizePolicy(sizePolicy6)
+        self.cabinet_layout = QHBoxLayout(self.cabinet_tab)
+        self.cabinet_layout.setObjectName(u"cabinet_layout")
+        self.cabinet_relics_list = QListWidget(self.cabinet_tab)
+        self.cabinet_relics_list.setObjectName(u"cabinet_relics_list")
+        self.cabinet_relics_list.setMinimumSize(QSize(180, 0))
+        self.cabinet_relics_list.setMaximumSize(QSize(260, 16777215))
+        self.cabinet_relics_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
-        self.gridLayout_5.addWidget(self.inventory_frame, 2, 1, 1, 1)
+        self.cabinet_layout.addWidget(self.cabinet_relics_list)
+
+        self.cabinet_relic_details = QGroupBox(self.cabinet_tab)
+        self.cabinet_relic_details.setObjectName(u"cabinet_relic_details")
+        sizePolicy7 = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
+        sizePolicy7.setHorizontalStretch(0)
+        sizePolicy7.setVerticalStretch(0)
+        sizePolicy7.setHeightForWidth(self.cabinet_relic_details.sizePolicy().hasHeightForWidth())
+        self.cabinet_relic_details.setSizePolicy(sizePolicy7)
+        self.cabinet_relic_details.setMinimumSize(QSize(0, 0))
+        self.cabinet_relic_details_layout = QVBoxLayout(self.cabinet_relic_details)
+        self.cabinet_relic_details_layout.setObjectName(u"cabinet_relic_details_layout")
+        self.cabinet_relic_name = QLabel(self.cabinet_relic_details)
+        self.cabinet_relic_name.setObjectName(u"cabinet_relic_name")
+        self.cabinet_relic_name.setMinimumSize(QSize(0, 44))
+        self.cabinet_relic_name.setMaximumSize(QSize(16777215, 44))
+        self.cabinet_relic_name.setWordWrap(True)
+
+        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_name)
+
+        self.cabinet_relic_unlock_status = QLabel(self.cabinet_relic_details)
+        self.cabinet_relic_unlock_status.setObjectName(u"cabinet_relic_unlock_status")
+
+        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_unlock_status)
+
+        self.cabinet_relic_description = QLabel(self.cabinet_relic_details)
+        self.cabinet_relic_description.setObjectName(u"cabinet_relic_description")
+        self.cabinet_relic_description.setMinimumSize(QSize(0, 82))
+        self.cabinet_relic_description.setMaximumSize(QSize(16777215, 82))
+        self.cabinet_relic_description.setWordWrap(True)
+
+        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_description)
+
+        self.cabinet_relic_condition = QLabel(self.cabinet_relic_details)
+        self.cabinet_relic_condition.setObjectName(u"cabinet_relic_condition")
+        self.cabinet_relic_condition.setMinimumSize(QSize(0, 82))
+        self.cabinet_relic_condition.setMaximumSize(QSize(16777215, 82))
+        self.cabinet_relic_condition.setWordWrap(True)
+
+        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_condition)
+
+        self.cabinet_relic_spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
+
+        self.cabinet_relic_details_layout.addItem(self.cabinet_relic_spacer)
+
+
+        self.cabinet_layout.addWidget(self.cabinet_relic_details)
+
+        self.inventory_cabinet_tabs.addTab(self.cabinet_tab, "")
+
+        self.gridLayout_5.addWidget(self.inventory_cabinet_tabs, 2, 1, 1, 1)
 
         self.gamer_params_label = QLabel(self.game_tab)
         self.gamer_params_label.setObjectName(u"gamer_params_label")
@@ -938,11 +1008,11 @@ class Ui_main_window(object):
 
         self.frame_5 = QFrame(self.game_tab)
         self.frame_5.setObjectName(u"frame_5")
-        sizePolicy6 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
-        sizePolicy6.setHorizontalStretch(0)
-        sizePolicy6.setVerticalStretch(0)
-        sizePolicy6.setHeightForWidth(self.frame_5.sizePolicy().hasHeightForWidth())
-        self.frame_5.setSizePolicy(sizePolicy6)
+        sizePolicy8 = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        sizePolicy8.setHorizontalStretch(0)
+        sizePolicy8.setVerticalStretch(0)
+        sizePolicy8.setHeightForWidth(self.frame_5.sizePolicy().hasHeightForWidth())
+        self.frame_5.setSizePolicy(sizePolicy8)
         self.frame_5.setMinimumSize(QSize(0, 100))
         self.frame_5.setFont(font1)
         self.frame_5.setFrameShape(QFrame.Shape.StyledPanel)
@@ -972,11 +1042,11 @@ class Ui_main_window(object):
 
         self.exp_progressbar = QProgressBar(self.frame_5)
         self.exp_progressbar.setObjectName(u"exp_progressbar")
-        sizePolicy7 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
-        sizePolicy7.setHorizontalStretch(0)
-        sizePolicy7.setVerticalStretch(0)
-        sizePolicy7.setHeightForWidth(self.exp_progressbar.sizePolicy().hasHeightForWidth())
-        self.exp_progressbar.setSizePolicy(sizePolicy7)
+        sizePolicy9 = QSizePolicy(QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed)
+        sizePolicy9.setHorizontalStretch(0)
+        sizePolicy9.setVerticalStretch(0)
+        sizePolicy9.setHeightForWidth(self.exp_progressbar.sizePolicy().hasHeightForWidth())
+        self.exp_progressbar.setSizePolicy(sizePolicy9)
         self.exp_progressbar.setFont(font1)
         self.exp_progressbar.setValue(24)
 
@@ -984,8 +1054,8 @@ class Ui_main_window(object):
 
         self.gamer_health_progressbar = QProgressBar(self.frame_5)
         self.gamer_health_progressbar.setObjectName(u"gamer_health_progressbar")
-        sizePolicy7.setHeightForWidth(self.gamer_health_progressbar.sizePolicy().hasHeightForWidth())
-        self.gamer_health_progressbar.setSizePolicy(sizePolicy7)
+        sizePolicy9.setHeightForWidth(self.gamer_health_progressbar.sizePolicy().hasHeightForWidth())
+        self.gamer_health_progressbar.setSizePolicy(sizePolicy9)
         self.gamer_health_progressbar.setFont(font1)
         self.gamer_health_progressbar.setValue(24)
 
@@ -1494,11 +1564,11 @@ class Ui_main_window(object):
 
         self.endurance_skill_points = QSpinBox(self.skills_tab)
         self.endurance_skill_points.setObjectName(u"endurance_skill_points")
-        sizePolicy8 = QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
-        sizePolicy8.setHorizontalStretch(0)
-        sizePolicy8.setVerticalStretch(0)
-        sizePolicy8.setHeightForWidth(self.endurance_skill_points.sizePolicy().hasHeightForWidth())
-        self.endurance_skill_points.setSizePolicy(sizePolicy8)
+        sizePolicy10 = QSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        sizePolicy10.setHorizontalStretch(0)
+        sizePolicy10.setVerticalStretch(0)
+        sizePolicy10.setHeightForWidth(self.endurance_skill_points.sizePolicy().hasHeightForWidth())
+        self.endurance_skill_points.setSizePolicy(sizePolicy10)
         self.endurance_skill_points.setFont(font1)
         self.endurance_skill_points.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
@@ -1713,70 +1783,6 @@ class Ui_main_window(object):
         self.writing_rhythm_tab_layout.addWidget(self.writing_rhythm_scroll_area)
 
         self.parameters_tabs.addTab(self.writing_rhythm_tab, "")
-        self.cabinet_tab = QWidget()
-        self.cabinet_tab.setObjectName(u"cabinet_tab")
-        sizePolicy9 = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Ignored)
-        sizePolicy9.setHorizontalStretch(0)
-        sizePolicy9.setVerticalStretch(0)
-        sizePolicy9.setHeightForWidth(self.cabinet_tab.sizePolicy().hasHeightForWidth())
-        self.cabinet_tab.setSizePolicy(sizePolicy9)
-        self.cabinet_layout = QHBoxLayout(self.cabinet_tab)
-        self.cabinet_layout.setObjectName(u"cabinet_layout")
-        self.cabinet_relics_list = QListWidget(self.cabinet_tab)
-        self.cabinet_relics_list.setObjectName(u"cabinet_relics_list")
-        self.cabinet_relics_list.setMinimumSize(QSize(180, 0))
-        self.cabinet_relics_list.setMaximumSize(QSize(260, 16777215))
-        self.cabinet_relics_list.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-
-        self.cabinet_layout.addWidget(self.cabinet_relics_list)
-
-        self.cabinet_relic_details = QGroupBox(self.cabinet_tab)
-        self.cabinet_relic_details.setObjectName(u"cabinet_relic_details")
-        sizePolicy10 = QSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
-        sizePolicy10.setHorizontalStretch(0)
-        sizePolicy10.setVerticalStretch(0)
-        sizePolicy10.setHeightForWidth(self.cabinet_relic_details.sizePolicy().hasHeightForWidth())
-        self.cabinet_relic_details.setSizePolicy(sizePolicy10)
-        self.cabinet_relic_details.setMinimumSize(QSize(0, 0))
-        self.cabinet_relic_details_layout = QVBoxLayout(self.cabinet_relic_details)
-        self.cabinet_relic_details_layout.setObjectName(u"cabinet_relic_details_layout")
-        self.cabinet_relic_name = QLabel(self.cabinet_relic_details)
-        self.cabinet_relic_name.setObjectName(u"cabinet_relic_name")
-        self.cabinet_relic_name.setMinimumSize(QSize(0, 44))
-        self.cabinet_relic_name.setMaximumSize(QSize(16777215, 44))
-        self.cabinet_relic_name.setWordWrap(True)
-
-        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_name)
-
-        self.cabinet_relic_unlock_status = QLabel(self.cabinet_relic_details)
-        self.cabinet_relic_unlock_status.setObjectName(u"cabinet_relic_unlock_status")
-
-        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_unlock_status)
-
-        self.cabinet_relic_description = QLabel(self.cabinet_relic_details)
-        self.cabinet_relic_description.setObjectName(u"cabinet_relic_description")
-        self.cabinet_relic_description.setMinimumSize(QSize(0, 82))
-        self.cabinet_relic_description.setMaximumSize(QSize(16777215, 82))
-        self.cabinet_relic_description.setWordWrap(True)
-
-        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_description)
-
-        self.cabinet_relic_condition = QLabel(self.cabinet_relic_details)
-        self.cabinet_relic_condition.setObjectName(u"cabinet_relic_condition")
-        self.cabinet_relic_condition.setMinimumSize(QSize(0, 82))
-        self.cabinet_relic_condition.setMaximumSize(QSize(16777215, 82))
-        self.cabinet_relic_condition.setWordWrap(True)
-
-        self.cabinet_relic_details_layout.addWidget(self.cabinet_relic_condition)
-
-        self.cabinet_relic_spacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
-
-        self.cabinet_relic_details_layout.addItem(self.cabinet_relic_spacer)
-
-
-        self.cabinet_layout.addWidget(self.cabinet_relic_details)
-
-        self.parameters_tabs.addTab(self.cabinet_tab, "")
 
         self.gridLayout_5.addWidget(self.parameters_tabs, 2, 0, 1, 1)
 
@@ -1816,6 +1822,7 @@ class Ui_main_window(object):
 
         self.tabWidget.setCurrentIndex(0)
         self.game_shop_tabs.setCurrentIndex(0)
+        self.inventory_cabinet_tabs.setCurrentIndex(0)
         self.quests_tabs.setCurrentIndex(0)
         self.parameters_tabs.setCurrentIndex(0)
         self.writing_session_mode_combo.setCurrentIndex(1)
@@ -1926,6 +1933,13 @@ class Ui_main_window(object):
         self.description_selected_item.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435", None))
         self.effect_selected_item.setText(QCoreApplication.translate("main_window", u"\u042d\u0444\u0444\u0435\u043a\u0442\u044b", None))
         self.button_to_sell_selected_item.setText(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0434\u0430\u0442\u044c", None))
+        self.inventory_cabinet_tabs.setTabText(self.inventory_cabinet_tabs.indexOf(self.inventory_frame), QCoreApplication.translate("main_window", u"\u0418\u043d\u0432\u0435\u043d\u0442\u0430\u0440\u044c", None))
+        self.cabinet_relic_details.setTitle(QCoreApplication.translate("main_window", u"\u0420\u0435\u043b\u0438\u043a\u0432\u0438\u044f", None))
+        self.cabinet_relic_name.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0440\u0435\u043b\u0438\u043a\u0432\u0438\u044e", None))
+        self.cabinet_relic_unlock_status.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u0430\u0442\u0443\u0441", None))
+        self.cabinet_relic_description.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u0440\u0435\u043b\u0438\u043a\u0432\u0438\u0438", None))
+        self.cabinet_relic_condition.setText(QCoreApplication.translate("main_window", u"\u0423\u0441\u043b\u043e\u0432\u0438\u0435 \u043e\u0442\u043a\u0440\u044b\u0442\u0438\u044f", None))
+        self.inventory_cabinet_tabs.setTabText(self.inventory_cabinet_tabs.indexOf(self.cabinet_tab), QCoreApplication.translate("main_window", u"\u041a\u0430\u0431\u0438\u043d\u0435\u0442", None))
         self.gamer_params_label.setText(QCoreApplication.translate("main_window", u"\u041f\u0430\u0440\u0430\u043c\u0435\u0442\u0440\u044b \u043f\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0430", None))
         self.gamer_health.setText(QCoreApplication.translate("main_window", u"\u0417\u0434\u043e\u0440\u043e\u0432\u044c\u0435 100/100", None))
         self.gamer_exp.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u044b\u0442: 0/100", None))
@@ -1934,7 +1948,7 @@ class Ui_main_window(object):
         self.label.setText(QCoreApplication.translate("main_window", u"\u0423\u0440\u043e\u0432\u0435\u043d\u044c", None))
         self.gamer_label.setText(QCoreApplication.translate("main_window", u"1", None))
         self.bank_btn.setText(QCoreApplication.translate("main_window", u"\u0411\u0430\u043d\u043a", None))
-        self.inventory_label.setText(QCoreApplication.translate("main_window", u"\u0418\u043d\u0432\u0435\u043d\u0442\u0430\u0440\u044c", None))
+        self.inventory_label.setText(QCoreApplication.translate("main_window", u"\u0418\u043d\u0432\u0435\u043d\u0442\u0430\u0440\u044c \u0438 \u043a\u0430\u0431\u0438\u043d\u0435\u0442", None))
         self.quests_label.setText(QCoreApplication.translate("main_window", u"\u041a\u0432\u0435\u0441\u0442\u044b", None))
         self.about_selected_available_quest.setTitle(QCoreApplication.translate("main_window", u"\u041e \u043a\u0432\u0435\u0441\u0442\u0435", None))
         self.name_selected_available_quest.setText(QCoreApplication.translate("main_window", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
@@ -2034,14 +2048,8 @@ class Ui_main_window(object):
         self.creative_event_choice_combo.setItemText(0, QCoreApplication.translate("main_window", u"\u041d\u0430\u0434\u0451\u0436\u043d\u044b\u0439 \u0432\u044b\u0431\u043e\u0440", None))
         self.creative_event_choice_combo.setItemText(1, QCoreApplication.translate("main_window", u"\u0420\u0438\u0441\u043a\u043d\u0443\u0442\u044c", None))
 
-        self.resolve_creative_event_button.setText(QCoreApplication.translate("main_window", u"\u041f\u0440\u0438\u043d\u044f\u0442\u044c \u0440\u0435\u0448\u0435\u043d\u0438\u0435", None))
+        self.resolve_creative_event_button.setText(QCoreApplication.translate("main_window", u"\u0420\u0435\u0448\u0438\u0442\u044c \u0441\u043e\u0431\u044b\u0442\u0438\u0435", None))
         self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.writing_rhythm_tab), QCoreApplication.translate("main_window", u"\u0422\u0432\u043e\u0440\u0447\u0435\u0441\u043a\u0438\u0439 \u0440\u0438\u0442\u043c", None))
-        self.cabinet_relic_details.setTitle(QCoreApplication.translate("main_window", u"\u0420\u0435\u043b\u0438\u043a\u0432\u0438\u044f", None))
-        self.cabinet_relic_name.setText(QCoreApplication.translate("main_window", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0440\u0435\u043b\u0438\u043a\u0432\u0438\u044e", None))
-        self.cabinet_relic_unlock_status.setText(QCoreApplication.translate("main_window", u"\u0421\u0442\u0430\u0442\u0443\u0441", None))
-        self.cabinet_relic_description.setText(QCoreApplication.translate("main_window", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u0440\u0435\u043b\u0438\u043a\u0432\u0438\u0438", None))
-        self.cabinet_relic_condition.setText(QCoreApplication.translate("main_window", u"\u0423\u0441\u043b\u043e\u0432\u0438\u0435 \u043e\u0442\u043a\u0440\u044b\u0442\u0438\u044f", None))
-        self.parameters_tabs.setTabText(self.parameters_tabs.indexOf(self.cabinet_tab), QCoreApplication.translate("main_window", u"\u041a\u0430\u0431\u0438\u043d\u0435\u0442", None))
         self.tabWidget.setTabText(self.tabWidget.indexOf(self.game_tab), QCoreApplication.translate("main_window", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
         self.settings_menu.setTitle(QCoreApplication.translate("main_window", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
         self.project_menu.setTitle(QCoreApplication.translate("main_window", u"\u041f\u0440\u043e\u0435\u043a\u0442", None))
