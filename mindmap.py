@@ -1,7 +1,32 @@
 """Mind Elixir editor embedded in a Qt WebEngine dialog."""
 
 import json
+import os
 from pathlib import Path
+
+
+def _chromium_flags_without_skia_graphite(flags):
+    """Add the Graphite opt-out without discarding existing Chromium flags."""
+    tokens = str(flags or '').split()
+    disable_features_prefix = '--disable-features='
+    for index, token in enumerate(tokens):
+        if not token.startswith(disable_features_prefix):
+            continue
+        features = token[len(disable_features_prefix):].split(',')
+        if 'SkiaGraphite' not in features:
+            features.append('SkiaGraphite')
+        tokens[index] = disable_features_prefix + ','.join(features)
+        break
+    else:
+        tokens.append(f'{disable_features_prefix}SkiaGraphite')
+    return ' '.join(tokens)
+
+
+os.environ['QTWEBENGINE_CHROMIUM_FLAGS'] = (
+    _chromium_flags_without_skia_graphite(
+        os.environ.get('QTWEBENGINE_CHROMIUM_FLAGS', '')
+    )
+)
 
 from PySide6.QtCore import QObject, QUrl, Signal, Slot
 from PySide6.QtGui import QCloseEvent, QDesktopServices

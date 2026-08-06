@@ -11,7 +11,11 @@ from PySide6.QtWidgets import QApplication
 import engine
 import main_UI
 from main_UI import EditProject, MainWindow
-from mindmap import MindMapBridge, MindMapDialog
+from mindmap import (
+    MindMapBridge,
+    MindMapDialog,
+    _chromium_flags_without_skia_graphite,
+)
 
 
 def _map_data(topic='Роман'):
@@ -46,6 +50,18 @@ def _process_events_for(app, duration):
     while time.monotonic() < deadline:
         app.processEvents()
         time.sleep(0.01)
+
+
+def test_webengine_flags_disable_graphite_without_losing_existing_options():
+    assert _chromium_flags_without_skia_graphite('') == (
+        '--disable-features=SkiaGraphite'
+    )
+    assert _chromium_flags_without_skia_graphite(
+        '--disable-gpu --disable-features=Foo --no-sandbox'
+    ) == '--disable-gpu --disable-features=Foo,SkiaGraphite --no-sandbox'
+    assert _chromium_flags_without_skia_graphite(
+        '--disable-features=Foo,SkiaGraphite'
+    ) == '--disable-features=Foo,SkiaGraphite'
 
 
 def test_project_and_stage_migrate_mindmap_data():
