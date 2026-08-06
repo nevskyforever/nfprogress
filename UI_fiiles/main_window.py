@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'main_window.ui'
+## Form generated from reading UI file 'main_windowZcgrNo.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -558,6 +558,7 @@ class Ui_main_window(object):
         self.value_for_buy_selected_item.setSizePolicy(sizePolicy1)
         self.value_for_buy_selected_item.setFont(font1)
         self.value_for_buy_selected_item.setMinimum(1)
+        self.value_for_buy_selected_item.setMaximum(9999)
         self.value_for_buy_selected_item.setValue(1)
 
         self.gridLayout_20.addWidget(self.value_for_buy_selected_item, 2, 1, 1, 1)
@@ -660,6 +661,7 @@ class Ui_main_window(object):
         sizePolicy1.setHeightForWidth(self.value_for_buy_selected_potion.sizePolicy().hasHeightForWidth())
         self.value_for_buy_selected_potion.setSizePolicy(sizePolicy1)
         self.value_for_buy_selected_potion.setMinimum(1)
+        self.value_for_buy_selected_potion.setMaximum(9999)
         self.value_for_buy_selected_potion.setValue(1)
 
         self.gridLayout_11.addWidget(self.value_for_buy_selected_potion, 2, 1, 1, 1)
@@ -669,7 +671,7 @@ class Ui_main_window(object):
         self.scrollArea_4.setWidgetResizable(True)
         self.scrollAreaWidgetContents_5 = QWidget()
         self.scrollAreaWidgetContents_5.setObjectName(u"scrollAreaWidgetContents_5")
-        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 98, 136))
+        self.scrollAreaWidgetContents_5.setGeometry(QRect(0, 0, 405, 136))
         self.gridLayout_18 = QGridLayout(self.scrollAreaWidgetContents_5)
         self.gridLayout_18.setObjectName(u"gridLayout_18")
         self.name_selected_potion_on_shop = QLabel(self.scrollAreaWidgetContents_5)
@@ -734,6 +736,7 @@ class Ui_main_window(object):
         self.value_for_buy_selected_item_3.setSizePolicy(sizePolicy1)
         self.value_for_buy_selected_item_3.setFont(font1)
         self.value_for_buy_selected_item_3.setMinimum(1)
+        self.value_for_buy_selected_item_3.setMaximum(9999)
         self.value_for_buy_selected_item_3.setValue(1)
 
         self.gridLayout_32.addWidget(self.value_for_buy_selected_item_3, 2, 1, 1, 1)
@@ -753,7 +756,7 @@ class Ui_main_window(object):
         self.about_selected_goods_3.setWidgetResizable(True)
         self.scrollAreaWidgetContents_12 = QWidget()
         self.scrollAreaWidgetContents_12.setObjectName(u"scrollAreaWidgetContents_12")
-        self.scrollAreaWidgetContents_12.setGeometry(QRect(0, 0, 98, 110))
+        self.scrollAreaWidgetContents_12.setGeometry(QRect(0, 0, 405, 110))
         self.gridLayout_33 = QGridLayout(self.scrollAreaWidgetContents_12)
         self.gridLayout_33.setObjectName(u"gridLayout_33")
         self.peice_selected_custom_award_on_shop = QLabel(self.scrollAreaWidgetContents_12)
@@ -875,6 +878,7 @@ class Ui_main_window(object):
         self.value_for_use_selected_item.setSizePolicy(sizePolicy1)
         self.value_for_use_selected_item.setFont(font1)
         self.value_for_use_selected_item.setMinimum(1)
+        self.value_for_use_selected_item.setMaximum(9999)
         self.value_for_use_selected_item.setSingleStep(1)
         self.value_for_use_selected_item.setValue(1)
 
@@ -886,7 +890,7 @@ class Ui_main_window(object):
         self.about_selected_inventory_item.setWidgetResizable(True)
         self.scrollAreaWidgetContents_6 = QWidget()
         self.scrollAreaWidgetContents_6.setObjectName(u"scrollAreaWidgetContents_6")
-        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 409, 112))
+        self.scrollAreaWidgetContents_6.setGeometry(QRect(0, 0, 403, 108))
         self.gridLayout_19 = QGridLayout(self.scrollAreaWidgetContents_6)
         self.gridLayout_19.setObjectName(u"gridLayout_19")
         self.level_selected_item = QLabel(self.scrollAreaWidgetContents_6)
@@ -1200,7 +1204,7 @@ class Ui_main_window(object):
         self.scrollArea_2.setWidgetResizable(True)
         self.scrollAreaWidgetContents_3 = QWidget()
         self.scrollAreaWidgetContents_3.setObjectName(u"scrollAreaWidgetContents_3")
-        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 164, 135))
+        self.scrollAreaWidgetContents_3.setGeometry(QRect(0, 0, 100, 167))
         self.gridLayout_17 = QGridLayout(self.scrollAreaWidgetContents_3)
         self.gridLayout_17.setObjectName(u"gridLayout_17")
         self.date_start_selected_active_quest = QLabel(self.scrollAreaWidgetContents_3)
@@ -1483,7 +1487,7 @@ class Ui_main_window(object):
         self.scrollArea_6.setWidgetResizable(True)
         self.scrollAreaWidgetContents = QWidget()
         self.scrollAreaWidgetContents.setObjectName(u"scrollAreaWidgetContents")
-        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 164, 161))
+        self.scrollAreaWidgetContents.setGeometry(QRect(0, 0, 98, 54))
         self.verticalLayout_4 = QVBoxLayout(self.scrollAreaWidgetContents)
         self.verticalLayout_4.setObjectName(u"verticalLayout_4")
         self.description_selected_parameter = QLabel(self.scrollAreaWidgetContents)
@@ -2056,3 +2060,4 @@ class Ui_main_window(object):
         self.help_menu.setTitle(QCoreApplication.translate("main_window", u"\u0421\u043f\u0440\u0430\u0432\u043a\u0430", None))
         self.help_topics_menu.setTitle(QCoreApplication.translate("main_window", u"\u0420\u0430\u0437\u0434\u0435\u043b\u044b \u0441\u043f\u0440\u0430\u0432\u043a\u0438", None))
     # retranslateUi
+
