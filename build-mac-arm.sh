@@ -1,4 +1,15 @@
 #!/bin/bash
+BUILD_LOCK_DIR="${TMPDIR:-/tmp}/nfprogress-arm-build-${UID}.lock"
+if ! mkdir "$BUILD_LOCK_DIR" 2>/dev/null; then
+  echo "Ошибка: ARM-сборка уже выполняется. Дождитесь её завершения."
+  exit 1
+fi
+trap 'rmdir "$BUILD_LOCK_DIR" 2>/dev/null || true' EXIT
+if pgrep -f '[n]uitka.*--output-dir=build-arm' >/dev/null; then
+  echo "Ошибка: ARM-сборка уже выполняется. Дождитесь её завершения."
+  exit 1
+fi
+
 MIN_NUITKA_VERSION=4.1.3
 if ! python3 - "$MIN_NUITKA_VERSION" <<'PY'
 import sys
