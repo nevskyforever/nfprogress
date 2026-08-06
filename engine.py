@@ -25,7 +25,7 @@ SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 
 
 def _copy_missing_user_data(source_dir, destination_dir):
-    """Копирует старые пользовательские данные без удаления и перезаписи."""
+    """Копирует старые пользовательские данные без удаления и перезаписи"""
     source_dir = Path(source_dir)
     destination_dir = Path(destination_dir)
     if not source_dir.is_dir() or source_dir.resolve() == destination_dir.resolve():
