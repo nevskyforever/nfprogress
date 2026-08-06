@@ -139,6 +139,10 @@ jobs:
             --mode=standalone `
             --assume-yes-for-downloads `
             --enable-plugin=pyside6 `
+            --include-qt-plugins=qml,webview `
+            --noinclude-dlls="*QtWebEngine*" `
+            --noinclude-dlls="*qtwebengine*" `
+            --noinclude-dlls="*qtwebview_webengine*" `
             --windows-console-mode=disable `
             --lto=yes `
             --windows-icon-from-ico=icon.ico `

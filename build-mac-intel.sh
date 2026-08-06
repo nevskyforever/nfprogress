@@ -30,6 +30,10 @@ nuitka --standalone \
        --company-name="nfproject" \
        --file-description="Трекер для писателей" \
        --enable-plugin=pyside6 \
+       --include-qt-plugins=qml,webview \
+       --noinclude-dlls='*QtWebEngine*' \
+       --noinclude-dlls='*qtwebengine*' \
+       --noinclude-dlls='*qtwebview_webengine*' \
        --macos-target-arch=x86_64 \
        --output-dir=build-intel \
        --include-data-dir="$TRANSLATIONS_TMP=PySide6/Qt/translations" \
