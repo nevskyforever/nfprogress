@@ -129,6 +129,22 @@ function protectReadOnlyStageConnections() {
   ));
 }
 
+function installEmbeddedFullscreen() {
+  const originalControl = mind?.el?.querySelector('#fullscreen');
+  if (!originalControl) {
+    return;
+  }
+
+  const embeddedControl = originalControl.cloneNode(true);
+  originalControl.replaceWith(embeddedControl);
+  embeddedControl.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    mind.el.classList.toggle('nfprogress-fullscreen');
+    window.requestAnimationFrame(() => mind.toCenter());
+  });
+}
+
 function errorText(error) {
   if (error instanceof Error) {
     return error.stack || error.message;
@@ -211,6 +227,7 @@ function initialize(payload) {
 
   mind = new MindElixir(options);
   mind.init(payload.data || MindElixir.new(payload.rootTopic));
+  installEmbeddedFullscreen();
   protectReadOnlyStageNodeMutations();
   protectReadOnlyStageConnections();
   markReadOnlyStageNodes();

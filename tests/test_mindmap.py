@@ -602,6 +602,47 @@ def test_mindmap_dialog_displays_empty_stage_message_in_status_area():
     app.processEvents()
 
 
+def test_mindmap_fullscreen_control_uses_embedded_mode_without_error():
+    app = QApplication.instance() or QApplication([])
+    dialog = MindMapDialog('Book', _map_data('Book'), lambda data: None)
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          document.querySelector('#fullscreen').click();
+          return document.querySelector('#map').classList.contains(
+            'nfprogress-fullscreen'
+          );
+        })()
+        """,
+    ) is True
+    _process_events_for(app, 0.1)
+    assert dialog._bridge.last_error == ''
+    assert dialog.save_status_label.text() == 'Карта готова.'
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          document.querySelector('#fullscreen').click();
+          return document.querySelector('#map').classList.contains(
+            'nfprogress-fullscreen'
+          );
+        })()
+        """,
+    ) is False
+
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
 def test_combined_stage_branch_edit_round_trips_through_editor():
     app = QApplication.instance() or QApplication([])
     project = engine.Project(name='Book', goal=1000)
