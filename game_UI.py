@@ -79,6 +79,12 @@ class GameMenuController:
         'Составить план',
     )
     SPECIALIZATION_KEYS = tuple(game.SPECIALIZATIONS)
+    QUANTITY_SPINBOX_NAMES = (
+        'value_for_use_selected_item',
+        'value_for_buy_selected_item',
+        'value_for_buy_selected_potion',
+        'value_for_buy_selected_item_3',
+    )
 
     SHOP_TABS = (
         {
@@ -133,6 +139,10 @@ class GameMenuController:
         self.ui = ui
         self.notifications = notifications
         self.gamer = None
+        self._quantity_spinbox_maximums = {
+            name: getattr(self.ui, name).maximum()
+            for name in self.QUANTITY_SPINBOX_NAMES
+        }
         self._last_quest_check_at = None
         self._cabinet_signature = None
 
@@ -178,7 +188,6 @@ class GameMenuController:
 
     def setup_ui_defaults(self):
         """Настройка начальных значений интерфейса"""
-        # Устанавливаем максимумы для spinbox'ов
         self.ui.gamer_params_label.setVisible(False)
 
         self.setup_quests()
@@ -186,14 +195,18 @@ class GameMenuController:
         self.gamer.ensure_daily_challenge()
         self.gamer.save()
 
-        self.ui.value_for_use_selected_item.setMaximum(999)
-        self.ui.value_for_buy_selected_item.setMaximum(999)
-        self.ui.value_for_buy_selected_potion.setMaximum(999)
-        self.ui.value_for_buy_selected_item_3.setMaximum(999)
         self.ui.value_for_buy_selected_item.setMinimum(1)
 
         # Очищаем информационные поля
         self.clear_all_info()
+
+    def reset_quantity_spinbox_maximum(self, spinbox_name):
+        """Восстанавливает максимум счётчика, заданный в UI-макете."""
+        spinbox = getattr(self.ui, spinbox_name)
+        maximum = self._quantity_spinbox_maximums.get(
+            spinbox_name, spinbox.maximum()
+        )
+        spinbox.setMaximum(maximum)
 
     def setup_skill_controls(self):
         for spinbox in self.get_skill_widgets().values():
@@ -1930,7 +1943,7 @@ class GameMenuController:
 
         if spinbox_name := shop_config.get('spinbox'):
             spinbox = getattr(self.ui, spinbox_name)
-            spinbox.setMaximum(999)
+            self.reset_quantity_spinbox_maximum(spinbox_name)
             spinbox.setValue(1)
         if buy_button_name := shop_config.get('buy_button'):
             getattr(self.ui, buy_button_name).setEnabled(True)
@@ -1957,7 +1970,7 @@ class GameMenuController:
         self.ui.description_selected_item.clear()
         self.ui.effect_selected_item.clear()
         self.ui.value_for_use_selected_item.setValue(1)
-        self.ui.value_for_use_selected_item.setMaximum(999)
+        self.reset_quantity_spinbox_maximum('value_for_use_selected_item')
         if hasattr(self.ui, 'button_to_sell_selected_item'):
             self.ui.button_to_sell_selected_item.setEnabled(False)
 
@@ -2344,7 +2357,7 @@ class GameMenuController:
         button = getattr(self.ui, shop_config['buy_button'])
 
         button.setEnabled(True)
-        spinbox.setMaximum(999)
+        self.reset_quantity_spinbox_maximum(shop_config['spinbox'])
         if spinbox.value() < 1:
             spinbox.setValue(1)
 
