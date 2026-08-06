@@ -41,6 +41,7 @@ from localization import (
     system_language,
     tr,
 )
+from mindmap import MindMapDialog
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
 from update_checker import UpdateChecker
 
@@ -1029,6 +1030,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.btn_complete_project.clicked.disconnect()
             self.btn_archived_project.clicked.disconnect()
             self.btn_delete_project.clicked.disconnect()
+            self.btn_mindmap.clicked.disconnect()
             self.pb_save_flash_note.clicked.disconnect()
             self.delete_note.clicked.disconnect()
             self.btn_synch_project.clicked.disconnect()
@@ -1044,6 +1046,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.btn_complete_project.clicked.connect(lambda: self.complete_project(project))
         self.btn_archived_project.clicked.connect(lambda: self.archive_project(project))
         self.btn_delete_project.clicked.connect(lambda: self.delete_project(project))
+        self.btn_mindmap.clicked.connect(lambda: self.open_mindmap(project))
         self.pb_save_flash_note.clicked.connect(lambda: self.add_note(project))
         self.pb_save_flash_note.clicked.connect(lambda: self.refresh_global_streak_status())
         self.delete_note.clicked.connect(lambda: self.delete_selected_note(project))
@@ -1062,6 +1065,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.change_project_widget.setEnabled(True)
         self.btn_change_project.setVisible(True)
         self.btn_change_project.setText(tr('Изменить'))
+        self.btn_mindmap.setEnabled(True)
         self.flash_note.setEnabled(True)
         self.synch_action.setEnabled(True)
         self.change_project_action.setEnabled(True)
@@ -2122,6 +2126,40 @@ class MainWindow(QMainWindow, main_window_ui):
             for stage in project.stages:
                 stage.parent_project_name = project.name
         return True
+
+    def open_mindmap(self, project):
+        """Open the map owned by the selected project or stage."""
+        dialog = MindMapDialog(
+            project.name,
+            getattr(project, 'mindmap_data', None),
+            lambda mindmap_data: self._save_mindmap_data(project, mindmap_data),
+            read_only=project.status == 'завершен' and not en.dev_mode,
+            parent=self,
+        )
+        dialog.exec()
+
+    def _save_mindmap_data(self, project, mindmap_data):
+        """Persist only map data so background progress updates are preserved."""
+        normalized = en.normalize_mindmap_data(mindmap_data)
+        if normalized is None:
+            raise ValueError(tr('Редактор вернул повреждённые данные карты.'))
+
+        data = en.load_data()
+        if self._is_stage(project):
+            parent, index = self._find_stage_parent(data, project)
+            if parent is None:
+                raise ValueError(tr('Этап больше не существует.'))
+            target = parent.stages[index]
+            target.mindmap_data = normalized
+            data['projects'][parent.name] = parent
+        else:
+            target = data.get('projects', {}).get(project.name)
+            if target is None:
+                raise ValueError(tr('Проект больше не существует.'))
+            target.mindmap_data = normalized
+
+        project.mindmap_data = normalized
+        en.save_data(data)
 
     def _get_parent_project(self, project):
         if not self._is_stage(project):
@@ -3778,7 +3816,8 @@ class EditProject(QDialog, create_project_ui):
                 self,
                 "Этапы проекта",
                 "Все записи этапов будут перенесены в проект в хронологическом порядке. Цели и прогресс этапов "
-                "сложатся и будут пересчитаны как записи одного проекта."
+                "сложатся и будут пересчитаны как записи одного проекта. Карты этапов не объединяются с картой "
+                "проекта и будут удалены."
             )
 
     def _update_add_stage_button_text(self):

@@ -349,7 +349,7 @@
                 </property>
                </widget>
               </item>
-              <item row="0" column="5">
+              <item row="0" column="6">
                <widget class="QPushButton" name="share_progress">
                 <property name="font">
                  <font>
@@ -358,6 +358,18 @@
                 </property>
                 <property name="text">
                  <string>Поделиться</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="5">
+               <widget class="QPushButton" name="btn_mindmap">
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
+                <property name="text">
+                 <string>Карта</string>
                 </property>
                </widget>
               </item>

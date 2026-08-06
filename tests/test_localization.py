@@ -76,6 +76,20 @@ def test_manuscript_journey_terms_are_localized():
     assert tr('Путь этапа', 'es') == 'Ruta de la etapa'
 
 
+def test_mindmap_terms_are_localized():
+    expected_titles = {
+        'en': 'Project and Stage Maps',
+        'es': 'Mapas de proyectos y etapas',
+        'de': 'Projekt- und Etappenkarten',
+        'fr': 'Cartes des projets et des étapes',
+        'pt_BR': 'Mapas de projetos e etapas',
+    }
+    for language, expected_title in expected_titles.items():
+        assert tr('Карты проектов и этапов', language) == expected_title
+        assert tr('Редактор карты', language) != 'Редактор карты'
+        assert tr('Все изменения сохранены.', language) != 'Все изменения сохранены.'
+
+
 def test_cabinet_relic_cards_are_localized():
     cyrillic = re.compile(r"[А-Яа-яЁё]")
     for language in TARGET_LANGUAGES:

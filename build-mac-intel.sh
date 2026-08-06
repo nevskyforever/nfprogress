@@ -33,6 +33,7 @@ nuitka --standalone \
        --macos-target-arch=x86_64 \
        --output-dir=build-intel \
        --include-data-dir="$TRANSLATIONS_TMP=PySide6/Qt/translations" \
+       --include-data-dir=mindmap_assets=mindmap_assets \
        --include-data-files=Icon.svg=Icon.svg \
        --lto=yes \
        --disable-ccache \
@@ -55,6 +56,10 @@ for QT_LANGUAGE in "${QT_TRANSLATION_LANGUAGES[@]}"; do
     exit 1
   fi
 done
+if ! find build-intel -type f -path "*/mindmap_assets/MindElixir.js" -print -quit | grep -q .; then
+  echo "❌ Редактор карт не попал в Intel-сборку!"
+  exit 1
+fi
 
 # Переходим в папку сборки
 cd build-intel

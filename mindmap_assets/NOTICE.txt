@@ -1,0 +1,5 @@
+Mind Elixir 5.14.0
+Source: https://github.com/SSShooter/mind-elixir-core
+License: MIT (see LICENSE.txt)
+
+Vendored for offline use by the nfprogress mind-map editor.

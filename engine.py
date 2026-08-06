@@ -1,3 +1,4 @@
+import json
 import math
 import os
 import pickle
@@ -143,6 +144,36 @@ def resource_path(relative_path):
         # PyInstaller создает временную папку и хранит путь в _MEIPASS
         return os.path.join(sys._MEIPASS, relative_path)
     return str(Path(__file__).resolve().parent / relative_path)
+
+
+def _mindmap_data_has_valid_root(value):
+    if value is None:
+        return False
+    if not isinstance(value, dict):
+        return False
+
+    node_data = value.get('nodeData')
+    if not isinstance(node_data, dict):
+        return False
+    if not isinstance(node_data.get('id'), str) or not node_data['id']:
+        return False
+    if not isinstance(node_data.get('topic'), str):
+        return False
+    if not isinstance(node_data.get('children'), list):
+        return False
+    return True
+
+
+def normalize_mindmap_data(value):
+    """Return JSON-safe Mind Elixir data or ``None`` for malformed input."""
+    if not _mindmap_data_has_valid_root(value):
+        return None
+
+    try:
+        serialized = json.dumps(value, ensure_ascii=False, allow_nan=False)
+    except (TypeError, ValueError):
+        return None
+    return json.loads(serialized)
 
 
 def now_for_test():
@@ -406,6 +437,7 @@ class Project:
         self.enable_stages = False
         self.stages = []
         self.is_stage = False
+        self.mindmap_data = None
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -439,6 +471,7 @@ class Project:
             'enable_stages': False,
             'stages': [],
             'is_stage': False,
+            'mindmap_data': None,
         }
 
         for attr, default_value in defaults.items():
@@ -465,6 +498,12 @@ class Project:
         if not isinstance(getattr(self, 'stages', []), list):
             self.stages = []
 
+        if (
+                self.mindmap_data is not None
+                and not _mindmap_data_has_valid_root(self.mindmap_data)
+        ):
+            self.mindmap_data = None
+
         for index, stage in enumerate(self.stages):
             if not isinstance(stage, Stage):
                 converted_stage = Stage(
@@ -486,6 +525,9 @@ class Project:
                 )
                 converted_stage.synch = getattr(stage, 'synch', None)
                 converted_stage.last_synch = getattr(stage, 'last_synch', None)
+                converted_stage.mindmap_data = normalize_mindmap_data(
+                    getattr(stage, 'mindmap_data', None)
+                )
                 self.stages[index] = converted_stage
                 stage = converted_stage
             stage.parent_project_name = self.name

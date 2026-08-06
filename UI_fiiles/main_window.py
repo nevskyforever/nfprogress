@@ -225,7 +225,13 @@ class Ui_main_window(object):
         self.share_progress.setObjectName(u"share_progress")
         self.share_progress.setFont(font1)
 
-        self.gridLayout_29.addWidget(self.share_progress, 0, 5, 1, 1)
+        self.gridLayout_29.addWidget(self.share_progress, 0, 6, 1, 1)
+
+        self.btn_mindmap = QPushButton(self.change_project_widget)
+        self.btn_mindmap.setObjectName(u"btn_mindmap")
+        self.btn_mindmap.setFont(font1)
+
+        self.gridLayout_29.addWidget(self.btn_mindmap, 0, 5, 1, 1)
 
 
         self.gridLayout_4.addWidget(self.change_project_widget, 2, 0, 1, 1)
@@ -1863,6 +1869,7 @@ class Ui_main_window(object):
         self.btn_archived_project.setText(QCoreApplication.translate("main_window", u"\u0412 \u0430\u0440\u0445\u0438\u0432", None))
         self.btn_delete_project.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))
         self.share_progress.setText(QCoreApplication.translate("main_window", u"\u041f\u043e\u0434\u0435\u043b\u0438\u0442\u044c\u0441\u044f", None))
+        self.btn_mindmap.setText(QCoreApplication.translate("main_window", u"\u041a\u0430\u0440\u0442\u0430", None))
         self.label_2.setText(QCoreApplication.translate("main_window", u"\u0417\u0430\u043f\u0438\u0441\u0438 \u043f\u0440\u043e\u0435\u043a\u0442\u0430", None))
         self.label_9.setText(QCoreApplication.translate("main_window", u"\u041d\u043e\u0432\u0430\u044f \u0437\u0430\u043f\u0438\u0441\u044c:", None))
         self.delete_note.setText(QCoreApplication.translate("main_window", u"\u0423\u0434\u0430\u043b\u0438\u0442\u044c", None))

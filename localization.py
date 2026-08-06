@@ -127,6 +127,19 @@ dispute through negotiation.</p>
 </body></html>
 """
 
+MINDMAP_HELP_SOURCE = """<html><body>
+<h2>Карты проектов и этапов</h2>
+<p>У каждого проекта и каждого этапа есть собственная независимая карта идей. Выберите нужную сущность на вкладке «Проекты» и нажмите «Карта» в панели действий. Редактор откроется в отдельном окне; при первом открытии корневой узел получит название проекта или этапа.</p>
+<ul>
+<li>Дважды щёлкните узел или нажмите F2, чтобы изменить текст. Tab добавляет дочерний узел, Enter — соседний, Delete удаляет выбранный узел.</li>
+<li>Узлы можно перетаскивать. Контекстное меню добавляет, связывает, перемещает и группирует узлы, а встроенная панель управляет масштабом и центрированием.</li>
+<li>Изменения сохраняются автоматически вместе с данными проекта. Кнопка «Сохранить» и закрытие окна также записывают актуальное состояние карты.</li>
+<li>Карта завершённого проекта или этапа доступна только для просмотра.</li>
+<li>При удалении проекта или этапа удаляется и его карта. При преобразовании этапного проекта в обычный карты удаляемых этапов не объединяются с картой родителя.</li>
+</ul>
+<p>Редактор и его ресурсы входят в приложение, поэтому для работы с картой подключение к интернету не требуется.</p>
+</body></html>"""
+
 TRANSLATION_OVERRIDES = {
     "en": {
         "Стрики": "Streaks",
@@ -176,6 +189,42 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Turning Point",
         "следующий рубеж": "next milestone",
         "Путь этапа": "Stage Path",
+        "Карта": "Map",
+        "Карта проекта или этапа": "Project or Stage Map",
+        "Карты проектов и этапов": "Project and Stage Maps",
+        MINDMAP_HELP_SOURCE: """<html><body>
+<h2>Project and Stage Maps</h2>
+<p>Every project and stage has its own independent idea map. Select the project or stage on the “Projects” tab and click “Map” in the action panel. The editor opens in a separate window; the root node is named after the project or stage when the map is first opened.</p>
+<ul>
+<li>Double-click a node or press F2 to edit its text. Tab adds a child node, Enter adds a sibling, and Delete removes the selected node.</li>
+<li>Nodes can be dragged. The context menu adds, links, moves, and groups nodes, while the built-in toolbar controls zoom and centering.</li>
+<li>Changes are saved automatically with the project data. The “Save” button and closing the window also store the map’s current state.</li>
+<li>A completed project or stage map is read-only.</li>
+<li>Deleting a project or stage also deletes its map. When a staged project is converted to a regular project, maps belonging to the removed stages are not merged into the parent map.</li>
+</ul>
+<p>The editor and its resources are bundled with the application, so an internet connection is not required to use the map.</p>
+</body></html>""",
+        "Редактор карты": "Map editor",
+        "Выберите узел: Tab — дочерний, Enter — соседний, F2 — изменить, Delete — удалить. Карта сохраняется автоматически.": "Select a node: Tab — child, Enter — sibling, F2 — edit, Delete — delete. The map is saved automatically.",
+        "Новая тема": "New topic",
+        "Завершённый проект или этап: карта доступна только для просмотра.": "Completed project or stage: the map is read-only.",
+        "Карта доступна только для просмотра.": "The map is read-only.",
+        "Карта готова.": "The map is ready.",
+        "Есть несохранённые изменения.": "There are unsaved changes.",
+        "Все изменения сохранены.": "All changes are saved.",
+        "Загрузка карты…": "Loading map…",
+        "Сохранение карты…": "Saving map…",
+        "Сохранить карту": "Save map",
+        "Закрыть карту": "Close map",
+        "Не удалось загрузить редактор карты.": "The map editor could not be loaded.",
+        "Не найдены файлы редактора карты.": "The map editor files were not found.",
+        "Не удалось получить данные карты.": "The map data could not be retrieved.",
+        "Не удалось сохранить карту.": "The map could not be saved.",
+        "Редактор вернул повреждённые данные карты.": "The editor returned invalid map data.",
+        "Не удалось сохранить карту. Закрыть окно без сохранения?": "The map could not be saved. Close the window without saving?",
+        "Этап больше не существует.": "The stage no longer exists.",
+        "Проект больше не существует.": "The project no longer exists.",
+        "Все записи этапов будут перенесены в проект в хронологическом порядке. Цели и прогресс этапов сложатся и будут пересчитаны как записи одного проекта. Карты этапов не объединяются с картой проекта и будут удалены.": "All stage records will be moved to the project in chronological order. Stage goals and progress will be combined and recalculated as records of one project. Stage maps are not merged with the project map and will be deleted.",
         "Кабинет, реликвии и комплекты": "Cabinet, Relics, and Sets",
         "Предметы творческого ритма": "Creative Rhythm Items",
         "Параметры и умения": "Parameters and Skills",
@@ -254,6 +303,42 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Punto de giro",
         "следующий рубеж": "siguiente hito",
         "Путь этапа": "Ruta de la etapa",
+        "Карта": "Mapa",
+        "Карта проекта или этапа": "Mapa del proyecto o de la etapa",
+        "Карты проектов и этапов": "Mapas de proyectos y etapas",
+        MINDMAP_HELP_SOURCE: """<html><body>
+<h2>Mapas de proyectos y etapas</h2>
+<p>Cada proyecto y cada etapa tiene su propio mapa de ideas independiente. Seleccione el proyecto o la etapa en la pestaña «Proyectos» y pulse «Mapa» en el panel de acciones. El editor se abre en una ventana separada; al abrir el mapa por primera vez, el nodo raíz recibe el nombre del proyecto o de la etapa.</p>
+<ul>
+<li>Haga doble clic en un nodo o pulse F2 para editar el texto. Tab añade un nodo hijo, Intro añade un nodo hermano y Supr elimina el nodo seleccionado.</li>
+<li>Los nodos se pueden arrastrar. El menú contextual permite añadir, vincular, mover y agrupar nodos, mientras que la barra integrada controla el zoom y el centrado.</li>
+<li>Los cambios se guardan automáticamente con los datos del proyecto. El botón «Guardar» y el cierre de la ventana también almacenan el estado actual del mapa.</li>
+<li>El mapa de un proyecto o una etapa finalizados es de solo lectura.</li>
+<li>Al eliminar un proyecto o una etapa también se elimina su mapa. Al convertir un proyecto con etapas en un proyecto normal, los mapas de las etapas eliminadas no se fusionan con el mapa principal.</li>
+</ul>
+<p>El editor y sus recursos se incluyen en la aplicación, por lo que no se necesita conexión a internet para utilizar el mapa.</p>
+</body></html>""",
+        "Редактор карты": "Editor de mapas",
+        "Выберите узел: Tab — дочерний, Enter — соседний, F2 — изменить, Delete — удалить. Карта сохраняется автоматически.": "Seleccione un nodo: Tab — hijo, Intro — hermano, F2 — editar, Supr — eliminar. El mapa se guarda automáticamente.",
+        "Новая тема": "Nuevo tema",
+        "Завершённый проект или этап: карта доступна только для просмотра.": "Proyecto o etapa finalizado: el mapa es de solo lectura.",
+        "Карта доступна только для просмотра.": "El mapa es de solo lectura.",
+        "Карта готова.": "El mapa está listo.",
+        "Есть несохранённые изменения.": "Hay cambios sin guardar.",
+        "Все изменения сохранены.": "Todos los cambios están guardados.",
+        "Загрузка карты…": "Cargando mapa…",
+        "Сохранение карты…": "Guardando mapa…",
+        "Сохранить карту": "Guardar mapa",
+        "Закрыть карту": "Cerrar mapa",
+        "Не удалось загрузить редактор карты.": "No se pudo cargar el editor de mapas.",
+        "Не найдены файлы редактора карты.": "No se encontraron los archivos del editor de mapas.",
+        "Не удалось получить данные карты.": "No se pudieron obtener los datos del mapa.",
+        "Не удалось сохранить карту.": "No se pudo guardar el mapa.",
+        "Редактор вернул повреждённые данные карты.": "El editor devolvió datos de mapa no válidos.",
+        "Не удалось сохранить карту. Закрыть окно без сохранения?": "No se pudo guardar el mapa. ¿Cerrar la ventana sin guardar?",
+        "Этап больше не существует.": "La etapa ya no existe.",
+        "Проект больше не существует.": "El proyecto ya no existe.",
+        "Все записи этапов будут перенесены в проект в хронологическом порядке. Цели и прогресс этапов сложатся и будут пересчитаны как записи одного проекта. Карты этапов не объединяются с картой проекта и будут удалены.": "Todos los registros de las etapas se trasladarán al proyecto en orden cronológico. Los objetivos y el progreso de las etapas se combinarán y se recalcularán como registros de un único proyecto. Los mapas de las etapas no se fusionan con el mapa del proyecto y se eliminarán.",
         "Кабинет, реликвии и комплекты": "Gabinete, reliquias y conjuntos",
         "Предметы творческого ритма": "Objetos del ritmo creativo",
         "Параметры и умения": "Parámetros y habilidades",
@@ -332,6 +417,42 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Wendepunkt",
         "следующий рубеж": "nächster Meilenstein",
         "Путь этапа": "Etappenpfad",
+        "Карта": "Karte",
+        "Карта проекта или этапа": "Projekt- oder Etappenkarte",
+        "Карты проектов и этапов": "Projekt- und Etappenkarten",
+        MINDMAP_HELP_SOURCE: """<html><body>
+<h2>Projekt- und Etappenkarten</h2>
+<p>Jedes Projekt und jede Etappe besitzt eine eigene Ideenkarte. Wählen Sie das Projekt oder die Etappe auf der Registerkarte „Projekte“ aus und klicken Sie im Aktionsbereich auf „Karte“. Der Editor wird in einem separaten Fenster geöffnet; beim ersten Öffnen erhält der Wurzelknoten den Namen des Projekts oder der Etappe.</p>
+<ul>
+<li>Doppelklicken Sie auf einen Knoten oder drücken Sie F2, um den Text zu bearbeiten. Tab fügt einen untergeordneten Knoten hinzu, die Eingabetaste einen gleichgeordneten Knoten und Entf löscht den ausgewählten Knoten.</li>
+<li>Knoten können gezogen werden. Über das Kontextmenü lassen sich Knoten hinzufügen, verknüpfen, verschieben und gruppieren; die integrierte Werkzeugleiste steuert Zoom und Zentrierung.</li>
+<li>Änderungen werden automatisch mit den Projektdaten gespeichert. Auch die Schaltfläche „Speichern“ und das Schließen des Fensters sichern den aktuellen Stand der Karte.</li>
+<li>Die Karte eines abgeschlossenen Projekts oder einer abgeschlossenen Etappe ist schreibgeschützt.</li>
+<li>Beim Löschen eines Projekts oder einer Etappe wird auch die zugehörige Karte gelöscht. Wird ein Etappenprojekt in ein normales Projekt umgewandelt, werden die Karten der entfernten Etappen nicht mit der übergeordneten Karte zusammengeführt.</li>
+</ul>
+<p>Der Editor und seine Ressourcen sind in der Anwendung enthalten; für die Nutzung der Karte ist daher keine Internetverbindung erforderlich.</p>
+</body></html>""",
+        "Редактор карты": "Karteneditor",
+        "Выберите узел: Tab — дочерний, Enter — соседний, F2 — изменить, Delete — удалить. Карта сохраняется автоматически.": "Wählen Sie einen Knoten: Tab — untergeordnet, Eingabetaste — gleichgeordnet, F2 — bearbeiten, Entf — löschen. Die Karte wird automatisch gespeichert.",
+        "Новая тема": "Neues Thema",
+        "Завершённый проект или этап: карта доступна только для просмотра.": "Abgeschlossenes Projekt oder abgeschlossene Etappe: Die Karte ist schreibgeschützt.",
+        "Карта доступна только для просмотра.": "Die Karte ist schreibgeschützt.",
+        "Карта готова.": "Die Karte ist bereit.",
+        "Есть несохранённые изменения.": "Es gibt ungespeicherte Änderungen.",
+        "Все изменения сохранены.": "Alle Änderungen sind gespeichert.",
+        "Загрузка карты…": "Karte wird geladen…",
+        "Сохранение карты…": "Karte wird gespeichert…",
+        "Сохранить карту": "Karte speichern",
+        "Закрыть карту": "Karte schließen",
+        "Не удалось загрузить редактор карты.": "Der Karteneditor konnte nicht geladen werden.",
+        "Не найдены файлы редактора карты.": "Die Dateien des Karteneditors wurden nicht gefunden.",
+        "Не удалось получить данные карты.": "Die Kartendaten konnten nicht abgerufen werden.",
+        "Не удалось сохранить карту.": "Die Karte konnte nicht gespeichert werden.",
+        "Редактор вернул повреждённые данные карты.": "Der Editor hat ungültige Kartendaten zurückgegeben.",
+        "Не удалось сохранить карту. Закрыть окно без сохранения?": "Die Karte konnte nicht gespeichert werden. Fenster ohne Speichern schließen?",
+        "Этап больше не существует.": "Die Etappe existiert nicht mehr.",
+        "Проект больше не существует.": "Das Projekt existiert nicht mehr.",
+        "Все записи этапов будут перенесены в проект в хронологическом порядке. Цели и прогресс этапов сложатся и будут пересчитаны как записи одного проекта. Карты этапов не объединяются с картой проекта и будут удалены.": "Alle Etappeneinträge werden in chronologischer Reihenfolge in das Projekt übernommen. Ziele und Fortschritt der Etappen werden zusammengeführt und als Einträge eines Projekts neu berechnet. Etappenkarten werden nicht mit der Projektkarte zusammengeführt und gelöscht.",
         "Кабинет, реликвии и комплекты": "Kabinett, Relikte und Sets",
         "Предметы творческого ритма": "Gegenstände des kreativen Rhythmus",
         "Параметры и умения": "Parameter und Fertigkeiten",
@@ -410,6 +531,42 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Tournant",
         "следующий рубеж": "prochain jalon",
         "Путь этапа": "Parcours de l’étape",
+        "Карта": "Carte",
+        "Карта проекта или этапа": "Carte du projet ou de l’étape",
+        "Карты проектов и этапов": "Cartes des projets et des étapes",
+        MINDMAP_HELP_SOURCE: """<html><body>
+<h2>Cartes des projets et des étapes</h2>
+<p>Chaque projet et chaque étape possède sa propre carte d’idées indépendante. Sélectionnez le projet ou l’étape dans l’onglet « Projets », puis cliquez sur « Carte » dans le panneau d’actions. L’éditeur s’ouvre dans une fenêtre séparée ; lors de la première ouverture, le nœud racine reçoit le nom du projet ou de l’étape.</p>
+<ul>
+<li>Double-cliquez sur un nœud ou appuyez sur F2 pour modifier son texte. Tab ajoute un nœud enfant, Entrée ajoute un nœud voisin et Suppr efface le nœud sélectionné.</li>
+<li>Les nœuds peuvent être déplacés. Le menu contextuel permet d’ajouter, de relier, de déplacer et de regrouper les nœuds, tandis que la barre intégrée contrôle le zoom et le centrage.</li>
+<li>Les modifications sont enregistrées automatiquement avec les données du projet. Le bouton « Enregistrer » et la fermeture de la fenêtre sauvegardent également l’état actuel de la carte.</li>
+<li>La carte d’un projet ou d’une étape terminé est en lecture seule.</li>
+<li>La suppression d’un projet ou d’une étape supprime aussi sa carte. Lorsqu’un projet à étapes est converti en projet standard, les cartes des étapes supprimées ne sont pas fusionnées avec la carte parente.</li>
+</ul>
+<p>L’éditeur et ses ressources sont intégrés à l’application ; aucune connexion à internet n’est donc nécessaire pour utiliser la carte.</p>
+</body></html>""",
+        "Редактор карты": "Éditeur de cartes",
+        "Выберите узел: Tab — дочерний, Enter — соседний, F2 — изменить, Delete — удалить. Карта сохраняется автоматически.": "Sélectionnez un nœud : Tab — enfant, Entrée — voisin, F2 — modifier, Suppr — supprimer. La carte est enregistrée automatiquement.",
+        "Новая тема": "Nouveau sujet",
+        "Завершённый проект или этап: карта доступна только для просмотра.": "Projet ou étape terminé : la carte est en lecture seule.",
+        "Карта доступна только для просмотра.": "La carte est en lecture seule.",
+        "Карта готова.": "La carte est prête.",
+        "Есть несохранённые изменения.": "Des modifications ne sont pas enregistrées.",
+        "Все изменения сохранены.": "Toutes les modifications sont enregistrées.",
+        "Загрузка карты…": "Chargement de la carte…",
+        "Сохранение карты…": "Enregistrement de la carte…",
+        "Сохранить карту": "Enregistrer la carte",
+        "Закрыть карту": "Fermer la carte",
+        "Не удалось загрузить редактор карты.": "Impossible de charger l’éditeur de cartes.",
+        "Не найдены файлы редактора карты.": "Les fichiers de l’éditeur de cartes sont introuvables.",
+        "Не удалось получить данные карты.": "Impossible de récupérer les données de la carte.",
+        "Не удалось сохранить карту.": "Impossible d’enregistrer la carte.",
+        "Редактор вернул повреждённые данные карты.": "L’éditeur a renvoyé des données de carte non valides.",
+        "Не удалось сохранить карту. Закрыть окно без сохранения?": "Impossible d’enregistrer la carte. Fermer la fenêtre sans enregistrer ?",
+        "Этап больше не существует.": "L’étape n’existe plus.",
+        "Проект больше не существует.": "Le projet n’existe plus.",
+        "Все записи этапов будут перенесены в проект в хронологическом порядке. Цели и прогресс этапов сложатся и будут пересчитаны как записи одного проекта. Карты этапов не объединяются с картой проекта и будут удалены.": "Toutes les entrées des étapes seront transférées au projet dans l’ordre chronologique. Les objectifs et la progression des étapes seront regroupés et recalculés comme les entrées d’un seul projet. Les cartes des étapes ne sont pas fusionnées avec la carte du projet et seront supprimées.",
         "Кабинет, реликвии и комплекты": "Cabinet, reliques et ensembles",
         "Предметы творческого ритма": "Objets du rythme créatif",
         "Параметры и умения": "Paramètres et compétences",
@@ -488,6 +645,42 @@ TRANSLATION_OVERRIDES = {
         "Переломная точка": "Ponto de virada",
         "следующий рубеж": "próximo marco",
         "Путь этапа": "Caminho da etapa",
+        "Карта": "Mapa",
+        "Карта проекта или этапа": "Mapa do projeto ou da etapa",
+        "Карты проектов и этапов": "Mapas de projetos e etapas",
+        MINDMAP_HELP_SOURCE: """<html><body>
+<h2>Mapas de projetos e etapas</h2>
+<p>Cada projeto e cada etapa possui seu próprio mapa de ideias independente. Selecione o projeto ou a etapa na aba “Projetos” e clique em “Mapa” no painel de ações. O editor abre em uma janela separada; na primeira abertura, o nó raiz recebe o nome do projeto ou da etapa.</p>
+<ul>
+<li>Clique duas vezes em um nó ou pressione F2 para editar o texto. Tab adiciona um nó filho, Enter adiciona um nó irmão e Delete exclui o nó selecionado.</li>
+<li>Os nós podem ser arrastados. O menu de contexto permite adicionar, vincular, mover e agrupar nós, enquanto a barra integrada controla o zoom e a centralização.</li>
+<li>As alterações são salvas automaticamente com os dados do projeto. O botão “Salvar” e o fechamento da janela também armazenam o estado atual do mapa.</li>
+<li>O mapa de um projeto ou de uma etapa concluídos é somente leitura.</li>
+<li>Ao excluir um projeto ou uma etapa, seu mapa também é excluído. Ao converter um projeto com etapas em um projeto normal, os mapas das etapas removidas não são mesclados com o mapa principal.</li>
+</ul>
+<p>O editor e seus recursos estão incluídos no aplicativo, portanto não é necessária uma conexão com a internet para usar o mapa.</p>
+</body></html>""",
+        "Редактор карты": "Editor de mapas",
+        "Выберите узел: Tab — дочерний, Enter — соседний, F2 — изменить, Delete — удалить. Карта сохраняется автоматически.": "Selecione um nó: Tab — filho, Enter — irmão, F2 — editar, Delete — excluir. O mapa é salvo automaticamente.",
+        "Новая тема": "Novo tópico",
+        "Завершённый проект или этап: карта доступна только для просмотра.": "Projeto ou etapa concluído: o mapa é somente leitura.",
+        "Карта доступна только для просмотра.": "O mapa é somente leitura.",
+        "Карта готова.": "O mapa está pronto.",
+        "Есть несохранённые изменения.": "Há alterações não salvas.",
+        "Все изменения сохранены.": "Todas as alterações foram salvas.",
+        "Загрузка карты…": "Carregando mapa…",
+        "Сохранение карты…": "Salvando mapa…",
+        "Сохранить карту": "Salvar mapa",
+        "Закрыть карту": "Fechar mapa",
+        "Не удалось загрузить редактор карты.": "Não foi possível carregar o editor de mapas.",
+        "Не найдены файлы редактора карты.": "Os arquivos do editor de mapas não foram encontrados.",
+        "Не удалось получить данные карты.": "Não foi possível obter os dados do mapa.",
+        "Не удалось сохранить карту.": "Não foi possível salvar o mapa.",
+        "Редактор вернул повреждённые данные карты.": "O editor retornou dados de mapa inválidos.",
+        "Не удалось сохранить карту. Закрыть окно без сохранения?": "Não foi possível salvar o mapa. Fechar a janela sem salvar?",
+        "Этап больше не существует.": "A etapa não existe mais.",
+        "Проект больше не существует.": "O projeto não existe mais.",
+        "Все записи этапов будут перенесены в проект в хронологическом порядке. Цели и прогресс этапов сложатся и будут пересчитаны как записи одного проекта. Карты этапов не объединяются с картой проекта и будут удалены.": "Todos os registros das etapas serão movidos para o projeto em ordem cronológica. Os objetivos e o progresso das etapas serão combinados e recalculados como registros de um único projeto. Os mapas das etapas não são mesclados com o mapa do projeto e serão excluídos.",
         "Кабинет, реликвии и комплекты": "Gabinete, relíquias e conjuntos",
         "Предметы творческого ритма": "Itens do ritmo criativo",
         "Параметры и умения": "Parâmetros e habilidades",

@@ -28,6 +28,7 @@ PYTHON_SOURCES = (
     "game_data.py",
     "help_content.py",
     "main_UI.py",
+    "mindmap.py",
     "scrivener_parser.py",
     "update_checker.py",
     "updater_core.py",

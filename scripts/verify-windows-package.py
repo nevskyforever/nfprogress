@@ -7,6 +7,15 @@ from pathlib import Path, PurePosixPath
 
 
 QT_TRANSLATION_LANGUAGES = ("ru", "en", "es", "de", "fr", "pt_BR")
+MINDMAP_ASSETS = (
+    "LICENSE.txt",
+    "MindElixir.css",
+    "MindElixir.js",
+    "NOTICE.txt",
+    "app.js",
+    "i18n.js",
+    "index.html",
+)
 
 
 def sha256(path: Path) -> str:
@@ -96,6 +105,16 @@ def main() -> int:
             f"Package is missing Qt translations: {missing_translations}"
         )
 
+    missing_mindmap_assets = [
+        str(args.package_dir / "mindmap_assets" / filename)
+        for filename in MINDMAP_ASSETS
+        if not (args.package_dir / "mindmap_assets" / filename).is_file()
+    ]
+    if missing_mindmap_assets:
+        raise SystemExit(
+            f"Package is missing mind map assets: {missing_mindmap_assets}"
+        )
+
     pe_results = [inspect_pe(executable) for executable in (main_exe, updater_exe, runtime_updater)]
     if args.installer is not None:
         pe_results.append(inspect_pe(args.installer, allow_large_overlay=True))
@@ -116,6 +135,10 @@ def main() -> int:
         required.update(
             f"nfprogress/PySide6/translations/qtbase_{language}.qm"
             for language in QT_TRANSLATION_LANGUAGES
+        )
+        required.update(
+            f"nfprogress/mindmap_assets/{filename}"
+            for filename in MINDMAP_ASSETS
         )
         missing = required - names
         if missing:

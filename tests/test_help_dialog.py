@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QApplication, QMainWindow, QMenu
 
 from UI_fiiles.main_window import Ui_main_window
 from help_content import HELP_SECTIONS
-from localization import set_language, tr
+from localization import MINDMAP_HELP_SOURCE, set_language, tr
 from macos_help_search import (
     HelpSearchItem,
     create_macos_help_search,
@@ -38,6 +38,7 @@ def test_help_content_has_unique_translatable_sections():
     assert {
         "create_project",
         "stages",
+        "mind_maps",
         "deadlines",
         "game_mode",
         "creative_rhythm",
@@ -46,6 +47,9 @@ def test_help_content_has_unique_translatable_sections():
     }.issubset(keys)
     assert all(section["content"].startswith("<html>") for section in sections)
     assert all(len(section["content"]) <= 3000 for section in sections)
+    assert next(
+        section["content"] for section in sections if section["key"] == "mind_maps"
+    ) == MINDMAP_HELP_SOURCE
 
 
 def test_help_content_is_localized_in_every_supported_language():
