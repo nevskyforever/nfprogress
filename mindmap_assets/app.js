@@ -31,15 +31,17 @@ function finishActiveEdit() {
   }
 }
 
-function getDataString() {
+function serializeMap(finishEditing = false) {
   if (!mind) {
     return null;
   }
-  finishActiveEdit();
+  if (finishEditing) {
+    finishActiveEdit();
+  }
   return mind.getDataString();
 }
 
-function saveNow() {
+function persistMap(finishEditing = false) {
   if (!bridge || !mind || readOnly) {
     return;
   }
@@ -48,21 +50,24 @@ function saveNow() {
     saveTimer = null;
   }
   try {
-    bridge.save(getDataString());
+    bridge.save(serializeMap(finishEditing));
   } catch (error) {
     reportError(error);
   }
 }
 
-function scheduleSave() {
+function scheduleSave(operation) {
   if (!bridge || readOnly) {
     return;
   }
   bridge.changed();
+  if (operation?.name === 'beginEdit') {
+    return;
+  }
   if (saveTimer !== null) {
     window.clearTimeout(saveTimer);
   }
-  saveTimer = window.setTimeout(saveNow, 400);
+  saveTimer = window.setTimeout(() => persistMap(false), 400);
 }
 
 function initialize(payload) {
@@ -96,14 +101,18 @@ function initialize(payload) {
   loadingElement.hidden = true;
   bridge.ready();
   if (!payload.data && !readOnly) {
-    saveNow();
+    persistMap(false);
   }
   window.requestAnimationFrame(() => mind.toCenter());
 }
 
 window.nfprogressMindMap = {
-  getDataString,
-  saveNow,
+  getDataString() {
+    return serializeMap(true);
+  },
+  saveNow() {
+    persistMap(true);
+  },
   toCenter() {
     if (mind) {
       mind.toCenter();

@@ -33,6 +33,20 @@ def _wait_until(app, condition, timeout=10):
     return False
 
 
+def _run_javascript(app, dialog, script):
+    results = []
+    dialog.web_view.page().runJavaScript(script, results.append)
+    assert _wait_until(app, lambda: bool(results))
+    return results[0]
+
+
+def _process_events_for(app, duration):
+    deadline = time.monotonic() + duration
+    while time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+
+
 def test_project_and_stage_migrate_mindmap_data():
     project = engine.Project(name='Book', goal=1000)
     del project.mindmap_data
@@ -117,6 +131,89 @@ def test_mindmap_dialog_loads_local_editor_and_creates_default_map():
     )
     assert _wait_until(app, lambda: bool(results))
     assert json.loads(results[0])['nodeData']['topic'] == 'Тестовая книга'
+
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+def test_mindmap_autosave_keeps_node_editor_open():
+    app = QApplication.instance() or QApplication([])
+    saved = []
+    dialog = MindMapDialog('Тестовая книга', _map_data(), saved.append)
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const node = document.querySelector('me-tpc');
+          node.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerType: 'mouse',
+          }));
+          return Boolean(node);
+        })()
+        """,
+    )
+    _process_events_for(app, 0.03)
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const node = document.querySelector('me-tpc');
+          node.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerType: 'mouse',
+          }));
+          const editor = document.querySelector('#input-box');
+          window.__mindmapEditorBlurred = false;
+          editor.blur = () => { window.__mindmapEditorBlurred = true; };
+          window.setTimeout(() => editor.focus(), 390);
+          return Boolean(editor);
+        })()
+        """,
+    )
+
+    _process_events_for(app, 0.7)
+    edit_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        JSON.stringify({
+          editing: Boolean(document.querySelector('#input-box')),
+          blurred: window.__mindmapEditorBlurred,
+        })
+        """,
+    ))
+    assert edit_state == {'editing': True, 'blurred': False}
+
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const editor = document.querySelector('#input-box');
+          editor.textContent = 'Новая глава';
+          editor.dispatchEvent(new FocusEvent('blur'));
+          return !document.querySelector('#input-box');
+        })()
+        """,
+    )
+    assert _wait_until(
+        app,
+        lambda: (
+            bool(saved)
+            and saved[-1]['nodeData']['topic'] == 'Новая глава'
+        ),
+    )
 
     dialog._allow_close = True
     dialog.close()
