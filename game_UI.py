@@ -1735,6 +1735,7 @@ class GameMenuController:
         # Используем предмет count раз
         result_messages = []
         success_count = 0
+        error_message = None
 
         for i in range(count):
             try:
@@ -1746,6 +1747,7 @@ class GameMenuController:
                 success_count += 1
             except Exception as e:
                 result_messages.append(f"✗ Ошибка: {str(e)}")
+                error_message = str(e)
                 break
 
         if success_count > 0:
@@ -1773,7 +1775,7 @@ class GameMenuController:
             QMessageBox.warning(
                 self.ui.centralwidget,
                 "Ошибка",
-                "Не удалось использовать предмет"
+                error_message or "Не удалось использовать предмет"
             )
             self.clear_inventory_item_info()
             self.clear_item_info()
