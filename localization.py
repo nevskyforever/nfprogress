@@ -134,6 +134,9 @@ MINDMAP_HELP_SOURCE = """<html><body>
 <li>Дважды щёлкните узел или нажмите F2, чтобы изменить текст. Tab добавляет дочерний узел, Enter — соседний, Delete удаляет выбранный узел.</li>
 <li>Узлы можно перетаскивать. Контекстное меню добавляет, связывает, перемещает и группирует узлы, а встроенная панель управляет масштабом и центрированием.</li>
 <li>Изменения сохраняются автоматически вместе с данными проекта. Кнопка «Сохранить» и закрытие окна также записывают актуальное состояние карты.</li>
+<li>В окне изменения проекта с этапами можно включить «Объединять карты этапов в карте проекта». Тогда каждый этап показывается в общей карте отдельной ветвью первого уровня под своим актуальным именем.</li>
+<li>Содержимое ветвей синхронизируется в обе стороны: изменения в общей карте сохраняются в отдельных картах этапов, а изменения отдельной карты появляются при следующем открытии общей карты. Собственные узлы проекта при этом сохраняются.</li>
+<li>Переименование, добавление, удаление и изменение порядка этапов автоматически отражаются в общей карте. Отключение объединения скрывает только собранные ветви и не удаляет карты этапов.</li>
 <li>Карта завершённого проекта или этапа доступна только для просмотра.</li>
 <li>При удалении проекта или этапа удаляется и его карта. При преобразовании этапного проекта в обычный карты удаляемых этапов не объединяются с картой родителя.</li>
 </ul>
@@ -192,6 +195,7 @@ TRANSLATION_OVERRIDES = {
         "Карта": "Map",
         "Карта проекта или этапа": "Project or Stage Map",
         "Карты проектов и этапов": "Project and Stage Maps",
+        "Объединять карты этапов в карте проекта": "Combine stage maps in the project map",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Project and Stage Maps</h2>
 <p>Every project and stage has its own independent idea map. Select the project or stage on the “Projects” tab and click “Map” in the action panel. The editor opens in a separate window; the root node is named after the project or stage when the map is first opened.</p>
@@ -199,6 +203,9 @@ TRANSLATION_OVERRIDES = {
 <li>Double-click a node or press F2 to edit its text. Tab adds a child node, Enter adds a sibling, and Delete removes the selected node.</li>
 <li>Nodes can be dragged. The context menu adds, links, moves, and groups nodes, while the built-in toolbar controls zoom and centering.</li>
 <li>Changes are saved automatically with the project data. The “Save” button and closing the window also store the map’s current state.</li>
+<li>In the edit window for a staged project, you can enable “Combine stage maps in the project map”. Each stage will then appear in the combined map as a separate first-level branch under its current name.</li>
+<li>Branch content is synchronized both ways: changes in the combined map are saved to the individual stage maps, and changes to an individual map appear the next time the combined map is opened. The project’s own nodes are preserved.</li>
+<li>Renaming, adding, deleting, and reordering stages is automatically reflected in the combined map. Turning off combining only hides the generated branches and does not delete stage maps.</li>
 <li>A completed project or stage map is read-only.</li>
 <li>Deleting a project or stage also deletes its map. When a staged project is converted to a regular project, maps belonging to the removed stages are not merged into the parent map.</li>
 </ul>
@@ -306,6 +313,7 @@ TRANSLATION_OVERRIDES = {
         "Карта": "Mapa",
         "Карта проекта или этапа": "Mapa del proyecto o de la etapa",
         "Карты проектов и этапов": "Mapas de proyectos y etapas",
+        "Объединять карты этапов в карте проекта": "Combinar mapas de etapas",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Mapas de proyectos y etapas</h2>
 <p>Cada proyecto y cada etapa tiene su propio mapa de ideas independiente. Seleccione el proyecto o la etapa en la pestaña «Proyectos» y pulse «Mapa» en el panel de acciones. El editor se abre en una ventana separada; al abrir el mapa por primera vez, el nodo raíz recibe el nombre del proyecto o de la etapa.</p>
@@ -313,6 +321,9 @@ TRANSLATION_OVERRIDES = {
 <li>Haga doble clic en un nodo o pulse F2 para editar el texto. Tab añade un nodo hijo, Intro añade un nodo hermano y Supr elimina el nodo seleccionado.</li>
 <li>Los nodos se pueden arrastrar. El menú contextual permite añadir, vincular, mover y agrupar nodos, mientras que la barra integrada controla el zoom y el centrado.</li>
 <li>Los cambios se guardan automáticamente con los datos del proyecto. El botón «Guardar» y el cierre de la ventana también almacenan el estado actual del mapa.</li>
+<li>En la ventana de edición de un proyecto con etapas puede activar «Combinar mapas de etapas». Cada etapa aparecerá en el mapa combinado como una rama independiente de primer nivel con su nombre actual.</li>
+<li>El contenido de las ramas se sincroniza en ambos sentidos: los cambios del mapa combinado se guardan en los mapas individuales de las etapas, y los cambios de un mapa individual aparecen la próxima vez que se abre el mapa combinado. Los nodos propios del proyecto se conservan.</li>
+<li>Los cambios de nombre, la adición, la eliminación y la reordenación de las etapas se reflejan automáticamente en el mapa combinado. Desactivar la combinación solo oculta las ramas generadas y no elimina los mapas de las etapas.</li>
 <li>El mapa de un proyecto o una etapa finalizados es de solo lectura.</li>
 <li>Al eliminar un proyecto o una etapa también se elimina su mapa. Al convertir un proyecto con etapas en un proyecto normal, los mapas de las etapas eliminadas no se fusionan con el mapa principal.</li>
 </ul>
@@ -420,6 +431,7 @@ TRANSLATION_OVERRIDES = {
         "Карта": "Karte",
         "Карта проекта или этапа": "Projekt- oder Etappenkarte",
         "Карты проектов и этапов": "Projekt- und Etappenkarten",
+        "Объединять карты этапов в карте проекта": "Etappenkarten zusammenführen",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Projekt- und Etappenkarten</h2>
 <p>Jedes Projekt und jede Etappe besitzt eine eigene Ideenkarte. Wählen Sie das Projekt oder die Etappe auf der Registerkarte „Projekte“ aus und klicken Sie im Aktionsbereich auf „Karte“. Der Editor wird in einem separaten Fenster geöffnet; beim ersten Öffnen erhält der Wurzelknoten den Namen des Projekts oder der Etappe.</p>
@@ -427,6 +439,9 @@ TRANSLATION_OVERRIDES = {
 <li>Doppelklicken Sie auf einen Knoten oder drücken Sie F2, um den Text zu bearbeiten. Tab fügt einen untergeordneten Knoten hinzu, die Eingabetaste einen gleichgeordneten Knoten und Entf löscht den ausgewählten Knoten.</li>
 <li>Knoten können gezogen werden. Über das Kontextmenü lassen sich Knoten hinzufügen, verknüpfen, verschieben und gruppieren; die integrierte Werkzeugleiste steuert Zoom und Zentrierung.</li>
 <li>Änderungen werden automatisch mit den Projektdaten gespeichert. Auch die Schaltfläche „Speichern“ und das Schließen des Fensters sichern den aktuellen Stand der Karte.</li>
+<li>Im Bearbeitungsfenster eines Etappenprojekts können Sie „Etappenkarten zusammenführen“ aktivieren. Jede Etappe erscheint dann in der Gesamtkarte als eigener Zweig der ersten Ebene unter ihrem aktuellen Namen.</li>
+<li>Der Inhalt der Zweige wird in beide Richtungen synchronisiert: Änderungen in der Gesamtkarte werden in den einzelnen Etappenkarten gespeichert, und Änderungen an einer einzelnen Karte erscheinen beim nächsten Öffnen der Gesamtkarte. Projekteigene Knoten bleiben erhalten.</li>
+<li>Das Umbenennen, Hinzufügen, Löschen und Neuanordnen von Etappen wird automatisch in der Gesamtkarte berücksichtigt. Wenn die Zusammenführung deaktiviert wird, werden nur die erzeugten Zweige ausgeblendet; die Etappenkarten werden nicht gelöscht.</li>
 <li>Die Karte eines abgeschlossenen Projekts oder einer abgeschlossenen Etappe ist schreibgeschützt.</li>
 <li>Beim Löschen eines Projekts oder einer Etappe wird auch die zugehörige Karte gelöscht. Wird ein Etappenprojekt in ein normales Projekt umgewandelt, werden die Karten der entfernten Etappen nicht mit der übergeordneten Karte zusammengeführt.</li>
 </ul>
@@ -534,6 +549,7 @@ TRANSLATION_OVERRIDES = {
         "Карта": "Carte",
         "Карта проекта или этапа": "Carte du projet ou de l’étape",
         "Карты проектов и этапов": "Cartes des projets et des étapes",
+        "Объединять карты этапов в карте проекта": "Regrouper les cartes des étapes",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Cartes des projets et des étapes</h2>
 <p>Chaque projet et chaque étape possède sa propre carte d’idées indépendante. Sélectionnez le projet ou l’étape dans l’onglet « Projets », puis cliquez sur « Carte » dans le panneau d’actions. L’éditeur s’ouvre dans une fenêtre séparée ; lors de la première ouverture, le nœud racine reçoit le nom du projet ou de l’étape.</p>
@@ -541,6 +557,9 @@ TRANSLATION_OVERRIDES = {
 <li>Double-cliquez sur un nœud ou appuyez sur F2 pour modifier son texte. Tab ajoute un nœud enfant, Entrée ajoute un nœud voisin et Suppr efface le nœud sélectionné.</li>
 <li>Les nœuds peuvent être déplacés. Le menu contextuel permet d’ajouter, de relier, de déplacer et de regrouper les nœuds, tandis que la barre intégrée contrôle le zoom et le centrage.</li>
 <li>Les modifications sont enregistrées automatiquement avec les données du projet. Le bouton « Enregistrer » et la fermeture de la fenêtre sauvegardent également l’état actuel de la carte.</li>
+<li>Dans la fenêtre de modification d’un projet à étapes, vous pouvez activer « Regrouper les cartes des étapes ». Chaque étape apparaît alors dans la carte globale sous la forme d’une branche distincte de premier niveau portant son nom actuel.</li>
+<li>Le contenu des branches est synchronisé dans les deux sens : les modifications de la carte globale sont enregistrées dans les cartes individuelles des étapes, et celles d’une carte individuelle apparaissent à la prochaine ouverture de la carte globale. Les nœuds propres au projet sont conservés.</li>
+<li>Le renommage, l’ajout, la suppression et la réorganisation des étapes sont automatiquement répercutés dans la carte globale. La désactivation du regroupement masque uniquement les branches générées et ne supprime pas les cartes des étapes.</li>
 <li>La carte d’un projet ou d’une étape terminé est en lecture seule.</li>
 <li>La suppression d’un projet ou d’une étape supprime aussi sa carte. Lorsqu’un projet à étapes est converti en projet standard, les cartes des étapes supprimées ne sont pas fusionnées avec la carte parente.</li>
 </ul>
@@ -648,6 +667,7 @@ TRANSLATION_OVERRIDES = {
         "Карта": "Mapa",
         "Карта проекта или этапа": "Mapa do projeto ou da etapa",
         "Карты проектов и этапов": "Mapas de projetos e etapas",
+        "Объединять карты этапов в карте проекта": "Combinar mapas das etapas",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Mapas de projetos e etapas</h2>
 <p>Cada projeto e cada etapa possui seu próprio mapa de ideias independente. Selecione o projeto ou a etapa na aba “Projetos” e clique em “Mapa” no painel de ações. O editor abre em uma janela separada; na primeira abertura, o nó raiz recebe o nome do projeto ou da etapa.</p>
@@ -655,6 +675,9 @@ TRANSLATION_OVERRIDES = {
 <li>Clique duas vezes em um nó ou pressione F2 para editar o texto. Tab adiciona um nó filho, Enter adiciona um nó irmão e Delete exclui o nó selecionado.</li>
 <li>Os nós podem ser arrastados. O menu de contexto permite adicionar, vincular, mover e agrupar nós, enquanto a barra integrada controla o zoom e a centralização.</li>
 <li>As alterações são salvas automaticamente com os dados do projeto. O botão “Salvar” e o fechamento da janela também armazenam o estado atual do mapa.</li>
+<li>Na janela de edição de um projeto com etapas, você pode ativar “Combinar mapas das etapas”. Cada etapa será exibida no mapa combinado como uma ramificação separada de primeiro nível com seu nome atual.</li>
+<li>O conteúdo das ramificações é sincronizado nos dois sentidos: as alterações no mapa combinado são salvas nos mapas individuais das etapas, e as alterações em um mapa individual aparecem na próxima vez que o mapa combinado for aberto. Os nós próprios do projeto são preservados.</li>
+<li>Renomear, adicionar, excluir e reordenar etapas é refletido automaticamente no mapa combinado. Desativar a combinação apenas oculta as ramificações geradas e não exclui os mapas das etapas.</li>
 <li>O mapa de um projeto ou de uma etapa concluídos é somente leitura.</li>
 <li>Ao excluir um projeto ou uma etapa, seu mapa também é excluído. Ao converter um projeto com etapas em um projeto normal, os mapas das etapas removidas não são mesclados com o mapa principal.</li>
 </ul>

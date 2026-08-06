@@ -88,6 +88,10 @@ def test_mindmap_terms_are_localized():
         assert tr('Карты проектов и этапов', language) == expected_title
         assert tr('Редактор карты', language) != 'Редактор карты'
         assert tr('Все изменения сохранены.', language) != 'Все изменения сохранены.'
+        assert (
+            tr('Объединять карты этапов в карте проекта', language)
+            != 'Объединять карты этапов в карте проекта'
+        )
 
 
 def test_cabinet_relic_cards_are_localized():

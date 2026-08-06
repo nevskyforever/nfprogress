@@ -7,6 +7,7 @@ import shutil
 import sys
 import tempfile
 import uuid
+from copy import deepcopy
 from datetime import datetime, timedelta, date, date as date_type, time
 from pathlib import Path
 from collections import defaultdict
@@ -174,6 +175,379 @@ def normalize_mindmap_data(value):
     except (TypeError, ValueError):
         return None
     return json.loads(serialized)
+
+
+_MINDMAP_STAGE_ID_KEY = 'nfprogressStageId'
+_MINDMAP_STAGE_ROOT_KEY = 'nfprogressStageRoot'
+_MINDMAP_SOURCE_ID_KEY = 'nfprogressSourceId'
+_MINDMAP_INTERNAL_KEYS = {
+    _MINDMAP_STAGE_ID_KEY,
+    _MINDMAP_STAGE_ROOT_KEY,
+    _MINDMAP_SOURCE_ID_KEY,
+}
+
+
+def _new_mindmap_data(root_topic, root_id):
+    return {
+        'nodeData': {
+            'id': root_id,
+            'topic': root_topic,
+            'children': [],
+        },
+    }
+
+
+def _valid_mindmap_id(value, fallback):
+    return value if isinstance(value, str) and value else fallback
+
+
+def _combined_stage_node_id(stage_id, source_id, is_root=False):
+    if is_root:
+        return f'nfprogress-stage-{stage_id}'
+    return f'nfprogress-stage-{stage_id}-{source_id}'
+
+
+def _combined_stage_item_id(stage_id, source_id, item_type):
+    return f'nfprogress-{item_type}-{stage_id}-{source_id}'
+
+
+def _strip_mindmap_internal_keys(value):
+    cleaned = deepcopy(value)
+    if isinstance(cleaned, dict):
+        for key in _MINDMAP_INTERNAL_KEYS:
+            cleaned.pop(key, None)
+    return cleaned
+
+
+def _copy_project_mindmap_node(node):
+    """Copy a project-owned node while removing generated stage branches."""
+    if not isinstance(node, dict):
+        return None
+    if node.get(_MINDMAP_STAGE_ROOT_KEY):
+        return None
+
+    copied = _strip_mindmap_internal_keys(node)
+    copied.pop('parent', None)
+    copied['children'] = []
+    for child in node.get('children', []):
+        copied_child = _copy_project_mindmap_node(child)
+        if copied_child is not None:
+            copied['children'].append(copied_child)
+    return copied
+
+
+def _copy_stage_mindmap_node(node, stage_id, id_map, is_root=False):
+    if not isinstance(node, dict):
+        return None
+
+    fallback_id = uuid.uuid4().hex
+    source_id = _valid_mindmap_id(node.get('id'), fallback_id)
+    combined_id = _combined_stage_node_id(stage_id, source_id, is_root)
+    id_map[source_id] = combined_id
+
+    copied = _strip_mindmap_internal_keys(node)
+    copied.pop('parent', None)
+    copied.pop('root', None)
+    copied['id'] = combined_id
+    copied[_MINDMAP_STAGE_ID_KEY] = stage_id
+    copied[_MINDMAP_SOURCE_ID_KEY] = source_id
+    copied['children'] = []
+    for child in node.get('children', []):
+        copied_child = _copy_stage_mindmap_node(
+            child,
+            stage_id,
+            id_map,
+        )
+        if copied_child is not None:
+            copied['children'].append(copied_child)
+    if is_root:
+        copied[_MINDMAP_STAGE_ROOT_KEY] = True
+    return copied
+
+
+def _copy_stage_mindmap_item(item, stage_id, id_map, item_type):
+    if not isinstance(item, dict):
+        return None
+
+    copied = _strip_mindmap_internal_keys(item)
+    source_id = _valid_mindmap_id(item.get('id'), uuid.uuid4().hex)
+    copied['id'] = _combined_stage_item_id(stage_id, source_id, item_type)
+    copied[_MINDMAP_STAGE_ID_KEY] = stage_id
+    copied[_MINDMAP_SOURCE_ID_KEY] = source_id
+
+    if item_type == 'arrow':
+        source_from = item.get('from')
+        source_to = item.get('to')
+        if source_from not in id_map or source_to not in id_map:
+            return None
+        copied['from'] = id_map[source_from]
+        copied['to'] = id_map[source_to]
+    else:
+        source_parent = item.get('parent')
+        if source_parent not in id_map:
+            return None
+        copied['parent'] = id_map[source_parent]
+    return copied
+
+
+def compose_project_mindmap(project):
+    """Build a transient project map containing live branches for its stages."""
+    project_map = normalize_mindmap_data(
+        getattr(project, 'mindmap_data', None)
+    )
+    if project_map is None:
+        project_map = _new_mindmap_data(
+            project.name,
+            f'project-map-{uuid.uuid4().hex}',
+        )
+    else:
+        project_map['nodeData'] = _copy_project_mindmap_node(
+            project_map['nodeData']
+        )
+        project_map['arrows'] = [
+            _strip_mindmap_internal_keys(item)
+            for item in project_map.get('arrows', [])
+            if (
+                isinstance(item, dict)
+                and not item.get(_MINDMAP_STAGE_ID_KEY)
+            )
+        ]
+        project_map['summaries'] = [
+            _strip_mindmap_internal_keys(item)
+            for item in project_map.get('summaries', [])
+            if (
+                isinstance(item, dict)
+                and not item.get(_MINDMAP_STAGE_ID_KEY)
+            )
+        ]
+
+    project_map.setdefault('arrows', [])
+    project_map.setdefault('summaries', [])
+    project_children = project_map['nodeData'].setdefault('children', [])
+
+    for stage in getattr(project, 'stages', []):
+        stage_id = _valid_mindmap_id(
+            getattr(stage, 'stage_id', None),
+            uuid.uuid4().hex,
+        )
+        stage_map = normalize_mindmap_data(
+            getattr(stage, 'mindmap_data', None)
+        )
+        if stage_map is None:
+            stage_map = _new_mindmap_data(
+                stage.name,
+                f'stage-map-{stage_id}',
+            )
+
+        id_map = {}
+        stage_root = _copy_stage_mindmap_node(
+            stage_map['nodeData'],
+            stage_id,
+            id_map,
+            is_root=True,
+        )
+        stage_root['topic'] = stage.name
+        project_children.append(stage_root)
+
+        for arrow in stage_map.get('arrows', []):
+            copied_arrow = _copy_stage_mindmap_item(
+                arrow,
+                stage_id,
+                id_map,
+                'arrow',
+            )
+            if copied_arrow is not None:
+                project_map['arrows'].append(copied_arrow)
+        for summary in stage_map.get('summaries', []):
+            copied_summary = _copy_stage_mindmap_item(
+                summary,
+                stage_id,
+                id_map,
+                'summary',
+            )
+            if copied_summary is not None:
+                project_map['summaries'].append(copied_summary)
+
+    return normalize_mindmap_data(project_map)
+
+
+def _collect_combined_stage_roots(node, stage_roots):
+    if not isinstance(node, dict):
+        return
+    if node.get(_MINDMAP_STAGE_ROOT_KEY):
+        stage_id = node.get(_MINDMAP_STAGE_ID_KEY)
+        if isinstance(stage_id, str) and stage_id:
+            stage_roots.setdefault(stage_id, node)
+    for child in node.get('children', []):
+        _collect_combined_stage_roots(child, stage_roots)
+
+
+def _restore_stage_mindmap_node(
+        node,
+        stage_id,
+        source_ids,
+        future_ids,
+        owners,
+        is_root=False,
+):
+    if not isinstance(node, dict):
+        return None
+    if not is_root and node.get(_MINDMAP_STAGE_ROOT_KEY):
+        return None
+
+    current_id = _valid_mindmap_id(node.get('id'), uuid.uuid4().hex)
+    source_id = _valid_mindmap_id(
+        node.get(_MINDMAP_SOURCE_ID_KEY),
+        current_id,
+    )
+    source_ids[current_id] = source_id
+    future_ids[current_id] = _combined_stage_node_id(
+        stage_id,
+        source_id,
+        is_root,
+    )
+    owners[current_id] = stage_id
+
+    restored = _strip_mindmap_internal_keys(node)
+    restored.pop('parent', None)
+    restored['id'] = source_id
+    restored['children'] = []
+    for child in node.get('children', []):
+        restored_child = _restore_stage_mindmap_node(
+            child,
+            stage_id,
+            source_ids,
+            future_ids,
+            owners,
+        )
+        if restored_child is not None:
+            restored['children'].append(restored_child)
+    return restored
+
+
+def _restore_stage_mindmap_item(item):
+    restored = _strip_mindmap_internal_keys(item)
+    restored['id'] = _valid_mindmap_id(
+        item.get(_MINDMAP_SOURCE_ID_KEY),
+        _valid_mindmap_id(item.get('id'), uuid.uuid4().hex),
+    )
+    return restored
+
+
+def split_combined_project_mindmap(project, combined_data):
+    """Split a transient combined map into project and per-stage maps."""
+    combined_map = normalize_mindmap_data(combined_data)
+    if combined_map is None:
+        raise ValueError('Invalid combined mind map data')
+
+    stage_roots = {}
+    _collect_combined_stage_roots(combined_map['nodeData'], stage_roots)
+    project_root = _copy_project_mindmap_node(combined_map['nodeData'])
+    if project_root is None:
+        raise ValueError('Combined mind map has no project root')
+
+    stage_maps = {}
+    source_ids_by_stage = {}
+    future_ids = {}
+    node_owners = {}
+    for stage in getattr(project, 'stages', []):
+        stage_id = getattr(stage, 'stage_id', None)
+        stage_root = stage_roots.get(stage_id)
+        if stage_root is None:
+            continue
+
+        existing_map = normalize_mindmap_data(
+            getattr(stage, 'mindmap_data', None)
+        )
+        if existing_map is None:
+            existing_map = _new_mindmap_data(
+                stage.name,
+                f'stage-map-{stage_id}',
+            )
+
+        source_ids = {}
+        restored_root = _restore_stage_mindmap_node(
+            stage_root,
+            stage_id,
+            source_ids,
+            future_ids,
+            node_owners,
+            is_root=True,
+        )
+        original_root = existing_map['nodeData']
+        restored_root['id'] = original_root['id']
+        restored_root['topic'] = original_root.get('topic', stage.name)
+        if 'root' in original_root:
+            restored_root['root'] = original_root['root']
+        source_ids[stage_root['id']] = restored_root['id']
+        future_ids[stage_root['id']] = _combined_stage_node_id(
+            stage_id,
+            restored_root['id'],
+            is_root=True,
+        )
+
+        restored_map = deepcopy(existing_map)
+        restored_map['nodeData'] = restored_root
+        restored_map['arrows'] = []
+        restored_map['summaries'] = []
+        stage_maps[stage_id] = restored_map
+        source_ids_by_stage[stage_id] = source_ids
+
+    project_arrows = []
+    for arrow in combined_map.get('arrows', []):
+        if not isinstance(arrow, dict):
+            continue
+        from_id = arrow.get('from')
+        to_id = arrow.get('to')
+        from_owner = node_owners.get(from_id)
+        to_owner = node_owners.get(to_id)
+        if from_owner and from_owner == to_owner and from_owner in stage_maps:
+            source_ids = source_ids_by_stage[from_owner]
+            if from_id not in source_ids or to_id not in source_ids:
+                continue
+            restored_arrow = _restore_stage_mindmap_item(arrow)
+            restored_arrow['from'] = source_ids[from_id]
+            restored_arrow['to'] = source_ids[to_id]
+            stage_maps[from_owner]['arrows'].append(restored_arrow)
+            continue
+
+        project_arrow = _strip_mindmap_internal_keys(arrow)
+        if from_id in future_ids:
+            project_arrow['from'] = future_ids[from_id]
+        if to_id in future_ids:
+            project_arrow['to'] = future_ids[to_id]
+        project_arrows.append(project_arrow)
+
+    project_summaries = []
+    for summary in combined_map.get('summaries', []):
+        if not isinstance(summary, dict):
+            continue
+        parent_id = summary.get('parent')
+        owner = node_owners.get(parent_id)
+        if owner and owner in stage_maps:
+            source_ids = source_ids_by_stage[owner]
+            if parent_id not in source_ids:
+                continue
+            restored_summary = _restore_stage_mindmap_item(summary)
+            restored_summary['parent'] = source_ids[parent_id]
+            stage_maps[owner]['summaries'].append(restored_summary)
+            continue
+
+        project_summary = _strip_mindmap_internal_keys(summary)
+        if parent_id in future_ids:
+            project_summary['parent'] = future_ids[parent_id]
+        project_summaries.append(project_summary)
+
+    project_map = deepcopy(combined_map)
+    project_map['nodeData'] = project_root
+    project_map['arrows'] = project_arrows
+    project_map['summaries'] = project_summaries
+    project_map = normalize_mindmap_data(project_map)
+    stage_maps = {
+        stage_id: normalize_mindmap_data(stage_map)
+        for stage_id, stage_map in stage_maps.items()
+    }
+    return project_map, stage_maps
 
 
 def now_for_test():
@@ -438,6 +812,7 @@ class Project:
         self.stages = []
         self.is_stage = False
         self.mindmap_data = None
+        self.combine_stage_mindmaps = False
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -472,6 +847,7 @@ class Project:
             'stages': [],
             'is_stage': False,
             'mindmap_data': None,
+            'combine_stage_mindmaps': False,
         }
 
         for attr, default_value in defaults.items():
@@ -503,6 +879,8 @@ class Project:
                 and not _mindmap_data_has_valid_root(self.mindmap_data)
         ):
             self.mindmap_data = None
+        if not isinstance(self.combine_stage_mindmaps, bool):
+            self.combine_stage_mindmaps = False
 
         for index, stage in enumerate(self.stages):
             if not isinstance(stage, Stage):
@@ -532,6 +910,9 @@ class Project:
                 stage = converted_stage
             stage.parent_project_name = self.name
             stage.migrate()
+        if not self.has_stages():
+            self.combine_stage_mindmaps = False
+
     @property
     def name(self):
         return self._name
@@ -1204,6 +1585,7 @@ class Project:
         if not self.has_stages():
             self.enable_stages = False
             self.stages = []
+            self.combine_stage_mindmaps = False
             return
 
         stage_with_longest_streak = self.get_stage_with_longest_streak()
@@ -1247,6 +1629,7 @@ class Project:
         )
         self.enable_stages = False
         self.stages = []
+        self.combine_stage_mindmaps = False
         if not stages_have_enabled_streaks:
             self.streak_status = 'Off'
         elif self.streak_status == 'Off':
@@ -1433,6 +1816,7 @@ class Stage(Project):
         self.is_stage = True
         self.enable_stages = False
         self.stages = []
+        self.combine_stage_mindmaps = False
         self.parent_project_name = parent_project_name
         self.stage_id = stage_id or uuid.uuid4().hex
 
@@ -1441,6 +1825,7 @@ class Stage(Project):
         self.is_stage = True
         self.enable_stages = False
         self.stages = []
+        self.combine_stage_mindmaps = False
         if not hasattr(self, 'stage_id') or not self.stage_id:
             self.stage_id = uuid.uuid4().hex
         if not hasattr(self, 'parent_project_name'):

@@ -7,7 +7,7 @@
     <x>0</x>
     <y>0</y>
     <width>360</width>
-    <height>455</height>
+    <height>480</height>
    </rect>
   </property>
   <property name="sizePolicy">
@@ -19,13 +19,13 @@
   <property name="minimumSize">
    <size>
     <width>360</width>
-     <height>455</height>
+     <height>480</height>
    </size>
   </property>
   <property name="maximumSize">
    <size>
     <width>360</width>
-     <height>455</height>
+     <height>480</height>
    </size>
   </property>
   <property name="font">
@@ -86,7 +86,7 @@
         </property>
        </widget>
       </item>
-      <item row="10" column="0" colspan="2">
+      <item row="11" column="0" colspan="2">
        <widget class="QPushButton" name="add_Stage">
         <property name="sizePolicy">
          <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
@@ -186,7 +186,14 @@
         </property>
        </widget>
       </item>
-      <item row="11" column="0" colspan="3">
+      <item row="10" column="0" colspan="3">
+       <widget class="QCheckBox" name="combine_stage_mindmaps_checkBox">
+        <property name="text">
+         <string>Объединять карты этапов в карте проекта</string>
+        </property>
+       </widget>
+      </item>
+      <item row="12" column="0" colspan="3">
        <widget class="QLabel" name="incorrect_data">
         <property name="enabled">
          <bool>true</bool>

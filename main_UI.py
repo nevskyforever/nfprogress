@@ -1880,6 +1880,10 @@ class MainWindow(QMainWindow, main_window_ui):
                         stage.parent_project_name = project.name
                         stage.unit = project.unit
                         project.stages.append(stage)
+                project.combine_stage_mindmaps = (
+                    project.has_stages()
+                    and dialog.is_combined_mindmap_enabled()
+                )
 
             # Обновляем статус проекта (если цель достигнута)
             if project.total_units >= project.goal and project.status != 'завершен':
@@ -2066,6 +2070,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     del parent.stages[index]
                     if not parent.stages:
                         parent.enable_stages = False
+                        parent.combine_stage_mindmaps = False
                     data['projects'][parent.name] = parent
                     en.save_data(data)
                     self.notifications.show_success(f'{deleted_name} удален.', position="bottom-left")
@@ -2129,16 +2134,36 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def open_mindmap(self, project):
         """Open the map owned by the selected project or stage."""
+        combined_stage_maps = (
+            not self._is_stage(project)
+            and project.has_stages()
+            and getattr(project, 'combine_stage_mindmaps', False)
+        )
+        mindmap_data = (
+            en.compose_project_mindmap(project)
+            if combined_stage_maps
+            else getattr(project, 'mindmap_data', None)
+        )
         dialog = MindMapDialog(
             project.name,
-            getattr(project, 'mindmap_data', None),
-            lambda mindmap_data: self._save_mindmap_data(project, mindmap_data),
+            mindmap_data,
+            lambda saved_map: self._save_mindmap_data(
+                project,
+                saved_map,
+                combined_stage_maps=combined_stage_maps,
+            ),
             read_only=project.status == 'завершен' and not en.dev_mode,
             parent=self,
         )
         dialog.exec()
 
-    def _save_mindmap_data(self, project, mindmap_data):
+    def _save_mindmap_data(
+            self,
+            project,
+            mindmap_data,
+            *,
+            combined_stage_maps=False,
+    ):
         """Persist only map data so background progress updates are preserved."""
         normalized = en.normalize_mindmap_data(mindmap_data)
         if normalized is None:
@@ -2156,9 +2181,30 @@ class MainWindow(QMainWindow, main_window_ui):
             target = data.get('projects', {}).get(project.name)
             if target is None:
                 raise ValueError(tr('Проект больше не существует.'))
-            target.mindmap_data = normalized
+            if combined_stage_maps:
+                project_map, stage_maps = en.split_combined_project_mindmap(
+                    target,
+                    normalized,
+                )
+                target.mindmap_data = project_map
+                for stage in target.stages:
+                    stage_map = stage_maps.get(stage.stage_id)
+                    if stage_map is None:
+                        continue
+                    if stage.status != 'завершен' or en.dev_mode:
+                        stage.mindmap_data = stage_map
+            else:
+                target.mindmap_data = normalized
 
-        project.mindmap_data = normalized
+        project.mindmap_data = target.mindmap_data
+        if combined_stage_maps:
+            saved_stage_maps = {
+                stage.stage_id: stage.mindmap_data
+                for stage in target.stages
+            }
+            for stage in project.stages:
+                if stage.stage_id in saved_stage_maps:
+                    stage.mindmap_data = saved_stage_maps[stage.stage_id]
         en.save_data(data)
 
     def _get_parent_project(self, project):
@@ -3104,6 +3150,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     del parent.stages[index]
                     if not parent.stages:
                         parent.enable_stages = False
+                        parent.combine_stage_mindmaps = False
                     data['projects'][parent.name] = parent
                     en.save_data(data)
                     self.notifications.show_success(f'{deleted_name} удален.', position="bottom-left")
@@ -3236,6 +3283,7 @@ class CreateProject(QDialog, create_project_ui):
         self.incorrect_data.setVisible(False)
         self.add_Stage.setVisible(False)
         self.recalculate_plan_checkBox.setVisible(False)
+        self.combine_stage_mindmaps_checkBox.setVisible(False)
         if self.stage_mode:
             self.setWindowTitle(tr("Создание Этапа"))
             self.le_name.setText(tr("Новый этап"))
@@ -3673,16 +3721,23 @@ class EditProject(QDialog, create_project_ui):
         self.le_goal.setText(tr(self._format_number(project.goal)))
         self.le_total_symbols.setText(tr(self._format_number(project.total_units)))
         self.enable_Stages.setChecked(getattr(project, 'has_stages', lambda: False)())
+        self.combine_stage_mindmaps_checkBox.setChecked(
+            getattr(project, 'combine_stage_mindmaps', False)
+        )
         self.streak_checkBox.setChecked(project.streak_status != 'Off')
         self.auto_freeze_checkBox.setChecked(getattr(project, 'auto_freeze', True))
         self._configure_streak_controls()
         if isinstance(project, en.Stage):
             self.enable_Stages.setVisible(False)
             self.add_Stage.setVisible(False)
+            self.combine_stage_mindmaps_checkBox.setVisible(False)
             self.cb_unit.setVisible(False)
             self.label_7.setVisible(False)
         else:
             self.add_Stage.setVisible(self.enable_Stages.isChecked())
+            self.combine_stage_mindmaps_checkBox.setVisible(
+                self.enable_Stages.isChecked()
+            )
             self.add_Stage.clicked.connect(self.add_stage)
             self._update_add_stage_button_text()
 
@@ -3803,6 +3858,9 @@ class EditProject(QDialog, create_project_ui):
 
     def on_stages_toggled(self, checked):
         self.add_Stage.setVisible(checked and not isinstance(self.project, en.Stage))
+        self.combine_stage_mindmaps_checkBox.setVisible(
+            checked and not isinstance(self.project, en.Stage)
+        )
         self._update_add_stage_button_text()
         if checked:
             QMessageBox.information(
@@ -4082,6 +4140,12 @@ class EditProject(QDialog, create_project_ui):
 
     def is_stages_enabled(self):
         return self.enable_Stages.isChecked()
+
+    def is_combined_mindmap_enabled(self):
+        return (
+            self.enable_Stages.isChecked()
+            and self.combine_stage_mindmaps_checkBox.isChecked()
+        )
 
     def get_pending_stages(self):
         return list(self.pending_stages)

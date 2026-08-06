@@ -126,6 +126,7 @@ def test_project_with_stages_aggregates_goal_total_and_notes():
     first.notes = [engine.Note(400, 400, 40, datetime.datetime(2026, 7, 2, 10, 0))]
     second.notes = [engine.Note(100, 100, 20, datetime.datetime(2026, 7, 1, 10, 0))]
     project.enable_stages = True
+    project.combine_stage_mindmaps = True
     project.stages = [first, second]
 
     assert project.goal == 1500
@@ -740,6 +741,7 @@ def test_convert_project_with_stages_to_single_rebuilds_chronological_notes():
     project.convert_to_single()
 
     assert not project.has_stages()
+    assert project.combine_stage_mindmaps is False
     assert project.goal == 1500
     assert project.total_units == 500
     assert [note.get_added_symbols() for note in project.notes] == [100, 400]

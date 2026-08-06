@@ -24,14 +24,14 @@ class Ui_create_project(object):
     def setupUi(self, create_project):
         if not create_project.objectName():
             create_project.setObjectName(u"create_project")
-        create_project.resize(360, 455)
+        create_project.resize(360, 480)
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
         sizePolicy.setHorizontalStretch(3)
         sizePolicy.setVerticalStretch(0)
         sizePolicy.setHeightForWidth(create_project.sizePolicy().hasHeightForWidth())
         create_project.setSizePolicy(sizePolicy)
-        create_project.setMinimumSize(QSize(360, 455))
-        create_project.setMaximumSize(QSize(360, 455))
+        create_project.setMinimumSize(QSize(360, 480))
+        create_project.setMaximumSize(QSize(360, 480))
         font = QFont()
         font.setFamilies([u"Arial"])
         create_project.setFont(font)
@@ -77,7 +77,7 @@ class Ui_create_project(object):
         sizePolicy2.setHeightForWidth(self.add_Stage.sizePolicy().hasHeightForWidth())
         self.add_Stage.setSizePolicy(sizePolicy2)
 
-        self.gridLayout.addWidget(self.add_Stage, 10, 0, 1, 2)
+        self.gridLayout.addWidget(self.add_Stage, 11, 0, 1, 2)
 
         self.label_3 = QLabel(self.widget)
         self.label_3.setObjectName(u"label_3")
@@ -133,6 +133,11 @@ class Ui_create_project(object):
 
         self.gridLayout.addWidget(self.enable_Stages, 9, 0, 1, 2)
 
+        self.combine_stage_mindmaps_checkBox = QCheckBox(self.widget)
+        self.combine_stage_mindmaps_checkBox.setObjectName(u"combine_stage_mindmaps_checkBox")
+
+        self.gridLayout.addWidget(self.combine_stage_mindmaps_checkBox, 10, 0, 1, 3)
+
         self.incorrect_data = QLabel(self.widget)
         self.incorrect_data.setObjectName(u"incorrect_data")
         self.incorrect_data.setEnabled(True)
@@ -141,7 +146,7 @@ class Ui_create_project(object):
 "}")
         self.incorrect_data.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        self.gridLayout.addWidget(self.incorrect_data, 11, 0, 1, 3)
+        self.gridLayout.addWidget(self.incorrect_data, 12, 0, 1, 3)
 
         self.le_total_symbols = QLineEdit(self.widget)
         self.le_total_symbols.setObjectName(u"le_total_symbols")
@@ -225,6 +230,7 @@ class Ui_create_project(object):
         self.label_9.setText(QCoreApplication.translate("create_project", u"\u0435\u0434\u0438\u043d\u0438\u0446 (\u0447\u0438\u0441\u043b\u043e)", None))
         self.recalculate_plan_checkBox.setText(QCoreApplication.translate("create_project", u"\u041f\u0435\u0440\u0435\u0441\u0447\u0438\u0442\u0430\u0442\u044c \u0446\u0435\u043b\u0438 \u043d\u0430 \u0434\u0435\u043d\u044c \u0441 \u0441\u0435\u0433\u043e\u0434\u043d\u044f\u0448\u043d\u0435\u0433\u043e \u0434\u043d\u044f", None))
         self.enable_Stages.setText(QCoreApplication.translate("create_project", u"\u043f\u0440\u043e\u0435\u043a\u0442 \u0441 \u042d\u0442\u0430\u043f\u0430\u043c\u0438", None))
+        self.combine_stage_mindmaps_checkBox.setText(QCoreApplication.translate("create_project", u"\u041e\u0431\u044a\u0435\u0434\u0438\u043d\u044f\u0442\u044c \u043a\u0430\u0440\u0442\u044b \u044d\u0442\u0430\u043f\u043e\u0432 \u0432 \u043a\u0430\u0440\u0442\u0435 \u043f\u0440\u043e\u0435\u043a\u0442\u0430", None))
         self.incorrect_data.setText(QCoreApplication.translate("create_project", u"<html><head/><body><p align=\"center\">\u041d\u0435\u043a\u043e\u0440\u0440\u0435\u043a\u0442\u043d\u044b\u0435 \u0434\u0430\u043d\u043d\u044b\u0435</p></body></html>", None))
         self.le_total_symbols.setText(QCoreApplication.translate("create_project", u"0", None))
         self.label.setText(QCoreApplication.translate("create_project", u"\u041d\u0430\u0437\u0432\u0430\u043d\u0438\u0435", None))
