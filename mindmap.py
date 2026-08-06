@@ -35,6 +35,7 @@ class MindMapBridge(QObject):
     changed_received = Signal()
     saved = Signal()
     failed = Signal(str)
+    status_received = Signal(str)
 
     def __init__(self, entity_name, mindmap_data, read_only, save_callback, parent=None):
         super().__init__(parent)
@@ -55,6 +56,9 @@ class MindMapBridge(QObject):
             {
                 'data': self.mindmap_data,
                 'editorLabel': tr('Редактор карты'),
+                'emptyStageMapText': tr(
+                    'Карта не была создана при работе над этапом.'
+                ),
                 'locale': current_language(),
                 'loadingText': tr('Загрузка карты…'),
                 'newTopicName': tr('Новая тема'),
@@ -81,6 +85,10 @@ class MindMapBridge(QObject):
     def reportError(self, details):
         self.last_error = str(details)
         self.failed.emit(tr('Не удалось загрузить редактор карты.'))
+
+    @Slot(str)
+    def showStatus(self, message):
+        self.status_received.emit(str(message))
 
     def persist_payload(self, payload):
         if self.read_only:
@@ -178,6 +186,7 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
         self._bridge.changed_received.connect(self._on_editor_changed)
         self._bridge.saved.connect(self._on_editor_saved)
         self._bridge.failed.connect(self._on_editor_failed)
+        self._bridge.status_received.connect(self._on_status_message)
 
         self._channel = QWebChannel(self._page)
         self._channel.registerObject('mindmapBridge', self._bridge)
@@ -215,6 +224,10 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
     def _on_editor_failed(self, message):
         self.save_status_label.setText(message)
         self.save_status_label.setToolTip(self._bridge.last_error if hasattr(self, '_bridge') else '')
+
+    def _on_status_message(self, message):
+        self.save_status_label.setText(message)
+        self.save_status_label.setToolTip('')
 
     def _request_explicit_save(self):
         if not self._ready or self.read_only:

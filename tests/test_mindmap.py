@@ -295,6 +295,7 @@ def test_combined_map_marks_completed_stage_without_notice_node():
 
     assert stage_branch['topic'] == '✅ Editing'
     assert stage_branch['nfprogressReadOnly'] is True
+    assert stage_branch['nfprogressEmptyStageMap'] is True
     assert stage_branch['children'] == []
 
     _, stage_maps = engine.split_combined_project_mindmap(project, combined)
@@ -602,9 +603,24 @@ def test_mindmap_dialog_displays_empty_stage_message_in_status_area():
     app.processEvents()
 
 
-def test_mindmap_fullscreen_control_uses_embedded_mode_without_error():
+def test_mindmap_focus_control_opens_and_closes_first_level_branch():
     app = QApplication.instance() or QApplication([])
-    dialog = MindMapDialog('Book', _map_data('Book'), lambda data: None)
+    map_data = {
+        'nodeData': {
+            'id': 'book-root',
+            'topic': 'Book',
+            'children': [{
+                'id': 'draft-branch',
+                'topic': 'Draft',
+                'children': [{
+                    'id': 'scene',
+                    'topic': 'First scene',
+                    'children': [],
+                }],
+            }],
+        },
+    }
+    dialog = MindMapDialog('Book', map_data, lambda data: None)
     dialog.show()
 
     assert _wait_until(app, lambda: dialog._ready)
@@ -613,28 +629,136 @@ def test_mindmap_fullscreen_control_uses_embedded_mode_without_error():
         dialog,
         """
         (() => {
-          document.querySelector('#fullscreen').click();
-          return document.querySelector('#map').classList.contains(
-            'nfprogress-fullscreen'
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.topic === 'Draft'
           );
+          branch.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            pointerType: 'mouse',
+          }));
+          branch.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            pointerType: 'mouse',
+          }));
+          return Boolean(document.querySelector('#focusBranch'));
         })()
         """,
     ) is True
+    _process_events_for(app, 0.03)
+    focus_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const control = document.querySelector('#focusBranch');
+          control.click();
+          return JSON.stringify({
+            rootTopic: document.querySelector('me-root > me-tpc').nodeObj.topic,
+            active: control.classList.contains('nfprogress-focus-active'),
+          });
+        })()
+        """,
+    ))
+    assert focus_state == {'rootTopic': 'Draft', 'active': True}
     _process_events_for(app, 0.1)
     assert dialog._bridge.last_error == ''
     assert dialog.save_status_label.text() == 'Карта готова.'
+    restored_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const control = document.querySelector('#focusBranch');
+          control.click();
+          return JSON.stringify({
+            rootTopic: document.querySelector('me-root > me-tpc').nodeObj.topic,
+            active: control.classList.contains('nfprogress-focus-active'),
+          });
+        })()
+        """,
+    ))
+    assert restored_state == {'rootTopic': 'Book', 'active': False}
+
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+def test_focus_control_reports_empty_completed_stage_in_status_area():
+    app = QApplication.instance() or QApplication([])
+    project = engine.Project(name='Book', goal=1000)
+    stage = engine.Stage(
+        name='Editing',
+        goal=1000,
+        parent_project_name='Book',
+        stage_id='editing-stage',
+        status='завершен',
+    )
+    stage.mindmap_data = _map_data('Editing')
+    project.enable_stages = True
+    project.combine_stage_mindmaps = True
+    project.stages = [stage]
+    message = 'Карта не была создана при работе над этапом.'
+    dialog = MindMapDialog(
+        project.name,
+        engine.compose_project_mindmap(project),
+        lambda data: None,
+        status_message=message,
+    )
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    dialog._on_editor_saved()
+    assert dialog.save_status_label.text() == 'Все изменения сохранены.'
     assert _run_javascript(
         app,
         dialog,
         """
         (() => {
-          document.querySelector('#fullscreen').click();
-          return document.querySelector('#map').classList.contains(
-            'nfprogress-fullscreen'
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.nfprogressEmptyStageMap
           );
+          branch.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            pointerType: 'mouse',
+          }));
+          branch.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            pointerType: 'mouse',
+          }));
+          return Boolean(branch);
         })()
         """,
-    ) is False
+    ) is True
+    _process_events_for(app, 0.03)
+    focus_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const control = document.querySelector('#focusBranch');
+          control.click();
+          return JSON.stringify({
+            rootTopic: document.querySelector('me-root > me-tpc').nodeObj.topic,
+            active: control.classList.contains('nfprogress-focus-active'),
+          });
+        })()
+        """,
+    ))
+
+    assert focus_state == {'rootTopic': 'Book', 'active': False}
+    assert _wait_until(app, lambda: dialog.save_status_label.text() == message)
+    assert dialog._bridge.last_error == ''
 
     dialog._allow_close = True
     dialog.close()

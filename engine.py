@@ -181,11 +181,13 @@ _MINDMAP_STAGE_ID_KEY = 'nfprogressStageId'
 _MINDMAP_STAGE_ROOT_KEY = 'nfprogressStageRoot'
 _MINDMAP_SOURCE_ID_KEY = 'nfprogressSourceId'
 _MINDMAP_READ_ONLY_KEY = 'nfprogressReadOnly'
+_MINDMAP_EMPTY_STAGE_KEY = 'nfprogressEmptyStageMap'
 _MINDMAP_INTERNAL_KEYS = {
     _MINDMAP_STAGE_ID_KEY,
     _MINDMAP_STAGE_ROOT_KEY,
     _MINDMAP_SOURCE_ID_KEY,
     _MINDMAP_READ_ONLY_KEY,
+    _MINDMAP_EMPTY_STAGE_KEY,
 }
 
 
@@ -373,6 +375,7 @@ def compose_project_mindmap(project):
         stage_map = normalize_mindmap_data(
             getattr(stage, 'mindmap_data', None)
         )
+        stage_map_has_content = mindmap_has_content(stage_map, stage.name)
         if stage_map is None:
             stage_map = _new_mindmap_data(
                 stage.name,
@@ -391,6 +394,8 @@ def compose_project_mindmap(project):
         stage_root['topic'] = (
             f'✅ {stage.name}' if stage_is_completed else stage.name
         )
+        if stage_is_completed and not stage_map_has_content:
+            stage_root[_MINDMAP_EMPTY_STAGE_KEY] = True
         project_children.append(stage_root)
 
         for arrow in stage_map.get('arrows', []):

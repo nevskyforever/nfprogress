@@ -129,19 +129,52 @@ function protectReadOnlyStageConnections() {
   ));
 }
 
-function installEmbeddedFullscreen() {
+function installBranchFocusControl(locale, emptyStageMapText) {
   const originalControl = mind?.el?.querySelector('#fullscreen');
   if (!originalControl) {
     return;
   }
 
-  const embeddedControl = originalControl.cloneNode(true);
-  originalControl.replaceWith(embeddedControl);
-  embeddedControl.addEventListener('click', (event) => {
+  const focusControl = originalControl.cloneNode(false);
+  focusControl.id = 'focusBranch';
+  focusControl.title = locale.focus;
+  focusControl.setAttribute('aria-label', locale.focus);
+  focusControl.innerHTML = `
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M9 4H4v5M15 4h5v5M20 15v5h-5M9 20H4v-5"
+        fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round" />
+    </svg>
+  `;
+  originalControl.replaceWith(focusControl);
+  focusControl.addEventListener('click', (event) => {
     event.preventDefault();
     event.stopPropagation();
-    mind.el.classList.toggle('nfprogress-fullscreen');
-    window.requestAnimationFrame(() => mind.toCenter());
+    if (mind.isFocusMode) {
+      mind.cancelFocus();
+      focusControl.classList.remove('nfprogress-focus-active');
+      focusControl.title = locale.focus;
+      focusControl.setAttribute('aria-label', locale.focus);
+      return;
+    }
+
+    const selectedNode = mind.currentNode;
+    const nodeData = selectedNode?.nodeObj;
+    const isFirstLevelBranch = Boolean(
+      nodeData?.parent && !nodeData.parent.parent
+    );
+    if (!isFirstLevelBranch) {
+      return;
+    }
+    if (nodeData.nfprogressEmptyStageMap) {
+      bridge.showStatus(emptyStageMapText);
+      return;
+    }
+
+    mind.focusNode(selectedNode);
+    focusControl.classList.add('nfprogress-focus-active');
+    focusControl.title = locale.cancelFocus;
+    focusControl.setAttribute('aria-label', locale.cancelFocus);
   });
 }
 
@@ -227,7 +260,7 @@ function initialize(payload) {
 
   mind = new MindElixir(options);
   mind.init(payload.data || MindElixir.new(payload.rootTopic));
-  installEmbeddedFullscreen();
+  installBranchFocusControl(locale, payload.emptyStageMapText);
   protectReadOnlyStageNodeMutations();
   protectReadOnlyStageConnections();
   markReadOnlyStageNodes();

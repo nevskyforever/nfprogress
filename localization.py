@@ -133,6 +133,7 @@ MINDMAP_HELP_SOURCE = """<html><body>
 <ul>
 <li>Дважды щёлкните узел или нажмите F2, чтобы изменить текст. Tab добавляет дочерний узел, Enter — соседний, Delete удаляет выбранный узел.</li>
 <li>Узлы можно перетаскивать. Контекстное меню добавляет, связывает, перемещает и группирует узлы, а встроенная панель управляет масштабом и центрированием.</li>
+<li>Кнопка режима фокуса на нижней панели показывает выбранную ветвь первого уровня отдельно. Повторное нажатие возвращает общую карту.</li>
 <li>Изменения сохраняются автоматически вместе с данными проекта. Кнопка «Сохранить» и закрытие окна также записывают актуальное состояние карты.</li>
 <li>В окне изменения проекта с этапами можно включить «Объединять карты этапов в карте проекта». Тогда каждый этап показывается в общей карте отдельной ветвью первого уровня под своим актуальным именем.</li>
 <li>Содержимое ветвей синхронизируется в обе стороны: изменения в общей карте сохраняются в отдельных картах этапов, а изменения отдельной карты появляются при следующем открытии общей карты. Собственные узлы проекта при этом сохраняются.</li>
@@ -202,6 +203,7 @@ TRANSLATION_OVERRIDES = {
 <ul>
 <li>Double-click a node or press F2 to edit its text. Tab adds a child node, Enter adds a sibling, and Delete removes the selected node.</li>
 <li>Nodes can be dragged. The context menu adds, links, moves, and groups nodes, while the built-in toolbar controls zoom and centering.</li>
+<li>The focus mode button on the bottom toolbar displays the selected first-level branch separately. Press it again to return to the combined map.</li>
 <li>Changes are saved automatically with the project data. The “Save” button and closing the window also store the map’s current state.</li>
 <li>In the edit window for a staged project, you can enable “Combine stage maps in the project map”. Each stage will then appear in the combined map as a separate first-level branch under its current name.</li>
 <li>Branch content is synchronized both ways: changes in the combined map are saved to the individual stage maps, and changes to an individual map appear the next time the combined map is opened. The project’s own nodes are preserved.</li>
@@ -321,6 +323,7 @@ TRANSLATION_OVERRIDES = {
 <ul>
 <li>Haga doble clic en un nodo o pulse F2 para editar el texto. Tab añade un nodo hijo, Intro añade un nodo hermano y Supr elimina el nodo seleccionado.</li>
 <li>Los nodos se pueden arrastrar. El menú contextual permite añadir, vincular, mover y agrupar nodos, mientras que la barra integrada controla el zoom y el centrado.</li>
+<li>El botón de modo de enfoque de la barra inferior muestra por separado la rama de primer nivel seleccionada. Púlselo de nuevo para volver al mapa combinado.</li>
 <li>Los cambios se guardan automáticamente con los datos del proyecto. El botón «Guardar» y el cierre de la ventana también almacenan el estado actual del mapa.</li>
 <li>En la ventana de edición de un proyecto con etapas puede activar «Combinar mapas de etapas». Cada etapa aparecerá en el mapa combinado como una rama independiente de primer nivel con su nombre actual.</li>
 <li>El contenido de las ramas se sincroniza en ambos sentidos: los cambios del mapa combinado se guardan en los mapas individuales de las etapas, y los cambios de un mapa individual aparecen la próxima vez que se abre el mapa combinado. Los nodos propios del proyecto se conservan.</li>
@@ -440,6 +443,7 @@ TRANSLATION_OVERRIDES = {
 <ul>
 <li>Doppelklicken Sie auf einen Knoten oder drücken Sie F2, um den Text zu bearbeiten. Tab fügt einen untergeordneten Knoten hinzu, die Eingabetaste einen gleichgeordneten Knoten und Entf löscht den ausgewählten Knoten.</li>
 <li>Knoten können gezogen werden. Über das Kontextmenü lassen sich Knoten hinzufügen, verknüpfen, verschieben und gruppieren; die integrierte Werkzeugleiste steuert Zoom und Zentrierung.</li>
+<li>Die Schaltfläche für den Fokusmodus in der unteren Werkzeugleiste zeigt den ausgewählten Zweig der ersten Ebene separat an. Ein erneuter Klick kehrt zur Gesamtkarte zurück.</li>
 <li>Änderungen werden automatisch mit den Projektdaten gespeichert. Auch die Schaltfläche „Speichern“ und das Schließen des Fensters sichern den aktuellen Stand der Karte.</li>
 <li>Im Bearbeitungsfenster eines Etappenprojekts können Sie „Etappenkarten zusammenführen“ aktivieren. Jede Etappe erscheint dann in der Gesamtkarte als eigener Zweig der ersten Ebene unter ihrem aktuellen Namen.</li>
 <li>Der Inhalt der Zweige wird in beide Richtungen synchronisiert: Änderungen in der Gesamtkarte werden in den einzelnen Etappenkarten gespeichert, und Änderungen an einer einzelnen Karte erscheinen beim nächsten Öffnen der Gesamtkarte. Projekteigene Knoten bleiben erhalten.</li>
@@ -559,6 +563,7 @@ TRANSLATION_OVERRIDES = {
 <ul>
 <li>Double-cliquez sur un nœud ou appuyez sur F2 pour modifier son texte. Tab ajoute un nœud enfant, Entrée ajoute un nœud voisin et Suppr efface le nœud sélectionné.</li>
 <li>Les nœuds peuvent être déplacés. Le menu contextuel permet d’ajouter, de relier, de déplacer et de regrouper les nœuds, tandis que la barre intégrée contrôle le zoom et le centrage.</li>
+<li>Le bouton du mode focus dans la barre inférieure affiche séparément la branche de premier niveau sélectionnée. Appuyez à nouveau dessus pour revenir à la carte globale.</li>
 <li>Les modifications sont enregistrées automatiquement avec les données du projet. Le bouton « Enregistrer » et la fermeture de la fenêtre sauvegardent également l’état actuel de la carte.</li>
 <li>Dans la fenêtre de modification d’un projet à étapes, vous pouvez activer « Regrouper les cartes des étapes ». Chaque étape apparaît alors dans la carte globale sous la forme d’une branche distincte de premier niveau portant son nom actuel.</li>
 <li>Le contenu des branches est synchronisé dans les deux sens : les modifications de la carte globale sont enregistrées dans les cartes individuelles des étapes, et celles d’une carte individuelle apparaissent à la prochaine ouverture de la carte globale. Les nœuds propres au projet sont conservés.</li>
@@ -678,6 +683,7 @@ TRANSLATION_OVERRIDES = {
 <ul>
 <li>Clique duas vezes em um nó ou pressione F2 para editar o texto. Tab adiciona um nó filho, Enter adiciona um nó irmão e Delete exclui o nó selecionado.</li>
 <li>Os nós podem ser arrastados. O menu de contexto permite adicionar, vincular, mover e agrupar nós, enquanto a barra integrada controla o zoom e a centralização.</li>
+<li>O botão do modo de foco na barra inferior exibe separadamente a ramificação de primeiro nível selecionada. Pressione-o novamente para voltar ao mapa combinado.</li>
 <li>As alterações são salvas automaticamente com os dados do projeto. O botão “Salvar” e o fechamento da janela também armazenam o estado atual do mapa.</li>
 <li>Na janela de edição de um projeto com etapas, você pode ativar “Combinar mapas das etapas”. Cada etapa será exibida no mapa combinado como uma ramificação separada de primeiro nível com seu nome atual.</li>
 <li>O conteúdo das ramificações é sincronizado nos dois sentidos: as alterações no mapa combinado são salvas nos mapas individuais das etapas, e as alterações em um mapa individual aparecem na próxima vez que o mapa combinado for aberto. Os nós próprios do projeto são preservados.</li>
