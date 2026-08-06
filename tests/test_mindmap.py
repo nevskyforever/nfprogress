@@ -648,6 +648,21 @@ def test_mindmap_focus_control_opens_and_closes_first_level_branch():
         })()
         """,
     ) is True
+    toolbar_sizes = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const focusIcon = document.querySelector('#focusBranch svg');
+          const centerIcon = document.querySelector('#toCenter svg');
+          return JSON.stringify({
+            focus: [focusIcon.offsetWidth, focusIcon.offsetHeight],
+            center: [centerIcon.offsetWidth, centerIcon.offsetHeight],
+          });
+        })()
+        """,
+    ))
+    assert toolbar_sizes['focus'] == toolbar_sizes['center']
     _process_events_for(app, 0.03)
     focus_state = json.loads(_run_javascript(
         app,

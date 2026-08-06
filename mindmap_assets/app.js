@@ -140,7 +140,7 @@ function installBranchFocusControl(locale, emptyStageMapText) {
   focusControl.title = locale.focus;
   focusControl.setAttribute('aria-label', locale.focus);
   focusControl.innerHTML = `
-    <svg viewBox="0 0 24 24" aria-hidden="true">
+    <svg class="icon" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M9 4H4v5M15 4h5v5M20 15v5h-5M9 20H4v-5"
         fill="none" stroke="currentColor" stroke-width="2"
         stroke-linecap="round" stroke-linejoin="round" />
