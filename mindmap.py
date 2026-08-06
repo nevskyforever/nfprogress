@@ -5,9 +5,9 @@ from pathlib import Path
 
 from PySide6.QtCore import Q_ARG, QMetaObject, QObject, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QCloseEvent
-from PySide6.QtQuickWidgets import QQuickWidget
+from PySide6.QtQuick import QQuickView
 from PySide6.QtWebView import QtWebView
-from PySide6.QtWidgets import QDialog
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QWidget
 
 import engine
 from UI_fiiles.mindmap_dialog import Ui_mindmap_dialog
@@ -155,7 +155,7 @@ class MindMapBridge(QObject):
         return True
 
 
-class NativeWebView(QQuickWidget):
+class NativeWebView(QWidget):
     """Expose the QML WebView through the small API used by the dialog."""
 
     loadFinished = Signal(bool, str)
@@ -164,12 +164,17 @@ class NativeWebView(QQuickWidget):
         super().__init__(parent)
         self._callbacks = {}
         self._next_request_id = 1
-        self.setResizeMode(QQuickWidget.ResizeMode.SizeRootObjectToView)
-        self.setSource(QUrl.fromLocalFile(str(qml_path)))
+        self._view = QQuickView()
+        self._view.setResizeMode(QQuickView.ResizeMode.SizeRootObjectToView)
+        self._view.setSource(QUrl.fromLocalFile(str(qml_path)))
+        self._container = QWidget.createWindowContainer(self._view, self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(self._container)
 
-        root = self.rootObject()
+        root = self._view.rootObject()
         if root is None:
-            details = '; '.join(error.toString() for error in self.errors())
+            details = '; '.join(error.toString() for error in self._view.errors())
             raise RuntimeError(details or tr('Не удалось загрузить редактор карты.'))
         self._root = root
         self._root.pageLoadFinished.connect(self.loadFinished)
@@ -209,7 +214,7 @@ class NativeWebView(QQuickWidget):
             self._root.javaScriptResult.disconnect(self._handle_java_script_result)
         except RuntimeError:
             pass
-        self.setSource(QUrl())
+        self._view.setSource(QUrl())
 
     @Slot(int, object)
     def _handle_java_script_result(self, request_id, result):
