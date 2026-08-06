@@ -387,6 +387,55 @@ jobs:
           $diagnostics = "dist\nfprogress-windows-$($env:APP_VERSION)-diagnostics.zip"
           & scp @scpOptions $diagnostics "${target}:$($env:SSH_UPLOAD_DIR)/"
           if ($LASTEXITCODE -ne 0) { throw "Unable to upload build diagnostics." }
+
+          $cleanupScript = @'
+          set -eu
+
+          upload_dir=$1
+          keep=$2
+
+          case "$keep" in
+            ''|*[!0-9]*) keep=3 ;;
+          esac
+          if [ "$keep" -lt 1 ]; then
+            keep=3
+          fi
+
+          cd "$upload_dir"
+
+          cleanup_files() {
+            pattern=$1
+            exclude_pattern=${2:-}
+
+            if [ -n "$exclude_pattern" ]; then
+              find . -maxdepth 1 -type f -name "$pattern" ! -name "$exclude_pattern"
+            else
+              find . -maxdepth 1 -type f -name "$pattern"
+            fi |
+              sed 's#^\./##' |
+              sort -V |
+              awk -v keep="$keep" '
+                { files[NR] = $0 }
+                END {
+                  for (i = 1; i <= NR - keep; i++) {
+                    print files[i]
+                  }
+                }
+              ' |
+              while IFS= read -r old_file; do
+                rm -f -- "$old_file"
+                printf 'Removed old release: %s\n' "$old_file"
+              done
+          }
+
+          cleanup_files 'nfprogress-windows-*.zip' 'nfprogress-windows-*-diagnostics.zip'
+          cleanup_files 'nfprogress-setup-*.exe'
+          cleanup_files 'nfprogress-windows-*-diagnostics.zip'
+          cleanup_files 'nfprogress-mac-arm-*.zip'
+          cleanup_files 'nfprogress-mac-intel-*.zip'
+          '@
+          $cleanupScript | & ssh @sshOptions $target "sh -s -- '$($env:SSH_UPLOAD_DIR)' 3"
+          if ($LASTEXITCODE -ne 0) { throw "Unable to remove old release files." }
           "WINDOWS_UPLOAD_COMPLETED=true" >> $env:GITHUB_ENV
 
       - name: Notify Telegram channel

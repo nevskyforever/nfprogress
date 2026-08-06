@@ -48,9 +48,17 @@ else
 fi
 
 RELEASE_PATTERN=""
+RELEASE_EXCLUDE_PATTERN=""
 case "$UPLOADED_NAME" in
+  nfprogress-windows-*-diagnostics.zip)
+    RELEASE_PATTERN="nfprogress-windows-*-diagnostics.zip"
+    ;;
   nfprogress-windows-*.zip)
     RELEASE_PATTERN="nfprogress-windows-*.zip"
+    RELEASE_EXCLUDE_PATTERN="nfprogress-windows-*-diagnostics.zip"
+    ;;
+  nfprogress-setup-*.exe)
+    RELEASE_PATTERN="nfprogress-setup-*.exe"
     ;;
   nfprogress-mac-arm-*.zip)
     RELEASE_PATTERN="nfprogress-mac-arm-*.zip"
@@ -62,12 +70,13 @@ esac
 
 if [ -n "$RELEASE_PATTERN" ]; then
   echo "Keeping latest $RELEASES_TO_KEEP release files matching $RELEASE_PATTERN ..."
-  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "sh -s -- '$SSH_UPLOAD_DIR' '$RELEASE_PATTERN' '$RELEASES_TO_KEEP'" <<'SH'
+  ssh "${SSH_OPTS[@]}" "$SSH_TARGET" "sh -s -- '$SSH_UPLOAD_DIR' '$RELEASE_PATTERN' '$RELEASE_EXCLUDE_PATTERN' '$RELEASES_TO_KEEP'" <<'SH'
 set -eu
 
 upload_dir=$1
 pattern=$2
-keep=$3
+exclude_pattern=$3
+keep=$4
 
 case "$keep" in
   ''|*[!0-9]*)
@@ -81,7 +90,11 @@ fi
 
 cd "$upload_dir" || exit 0
 
-find . -maxdepth 1 -type f -name "$pattern" |
+if [ -n "$exclude_pattern" ]; then
+  find . -maxdepth 1 -type f -name "$pattern" ! -name "$exclude_pattern"
+else
+  find . -maxdepth 1 -type f -name "$pattern"
+fi |
   sed 's#^\./##' |
   sort -V |
   awk -v keep="$keep" '
