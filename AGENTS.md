@@ -46,6 +46,11 @@ The application is built with Nuitka for:
 * Follow the existing signal and slot system.
 * Do not change the UI structure without an explicit request.
 * Account for Windows and macOS compatibility.
+* After editing `UI template/main_window.ui`, restore the form's saved tab state
+  before regenerating `UI_fiiles/main_window.py`: the main window must open on
+  `Проекты`, and every nested tab group in the game mode must open on its first
+  tab. Verify that the corresponding generated `setCurrentIndex()` calls use `0`,
+  unless the task explicitly requires a different default.
 
 ## Localization
 
