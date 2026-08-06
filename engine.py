@@ -180,11 +180,44 @@ def normalize_mindmap_data(value):
 _MINDMAP_STAGE_ID_KEY = 'nfprogressStageId'
 _MINDMAP_STAGE_ROOT_KEY = 'nfprogressStageRoot'
 _MINDMAP_SOURCE_ID_KEY = 'nfprogressSourceId'
+_MINDMAP_READ_ONLY_KEY = 'nfprogressReadOnly'
+_MINDMAP_EMPTY_NOTICE_KEY = 'nfprogressEmptyMapNotice'
 _MINDMAP_INTERNAL_KEYS = {
     _MINDMAP_STAGE_ID_KEY,
     _MINDMAP_STAGE_ROOT_KEY,
     _MINDMAP_SOURCE_ID_KEY,
+    _MINDMAP_READ_ONLY_KEY,
+    _MINDMAP_EMPTY_NOTICE_KEY,
 }
+
+
+def mindmap_has_content(value, root_topic):
+    """Return whether a map contains more than its untouched default root."""
+    normalized = normalize_mindmap_data(value)
+    if normalized is None:
+        return False
+
+    root = normalized['nodeData']
+    if root.get('topic') != root_topic:
+        return True
+    if root.get('children'):
+        return True
+    if normalized.get('arrows') or normalized.get('summaries'):
+        return True
+
+    default_root_keys = {
+        'id',
+        'topic',
+        'children',
+        'root',
+        'expanded',
+        'direction',
+    }
+    return any(
+        value not in (None, '', [], {})
+        for key, value in root.items()
+        if key not in default_root_keys
+    )
 
 
 def _new_mindmap_data(root_topic, root_id):
@@ -236,7 +269,13 @@ def _copy_project_mindmap_node(node):
     return copied
 
 
-def _copy_stage_mindmap_node(node, stage_id, id_map, is_root=False):
+def _copy_stage_mindmap_node(
+        node,
+        stage_id,
+        id_map,
+        is_root=False,
+        read_only=False,
+):
     if not isinstance(node, dict):
         return None
 
@@ -251,12 +290,15 @@ def _copy_stage_mindmap_node(node, stage_id, id_map, is_root=False):
     copied['id'] = combined_id
     copied[_MINDMAP_STAGE_ID_KEY] = stage_id
     copied[_MINDMAP_SOURCE_ID_KEY] = source_id
+    if read_only:
+        copied[_MINDMAP_READ_ONLY_KEY] = True
     copied['children'] = []
     for child in node.get('children', []):
         copied_child = _copy_stage_mindmap_node(
             child,
             stage_id,
             id_map,
+            read_only=read_only,
         )
         if copied_child is not None:
             copied['children'].append(copied_child)
@@ -290,7 +332,10 @@ def _copy_stage_mindmap_item(item, stage_id, id_map, item_type):
     return copied
 
 
-def compose_project_mindmap(project):
+def compose_project_mindmap(
+        project,
+        empty_stage_notice='Карта не была создана при работе над этапом.',
+):
     """Build a transient project map containing live branches for its stages."""
     project_map = normalize_mindmap_data(
         getattr(project, 'mindmap_data', None)
@@ -333,6 +378,7 @@ def compose_project_mindmap(project):
         stage_map = normalize_mindmap_data(
             getattr(stage, 'mindmap_data', None)
         )
+        stage_map_has_content = mindmap_has_content(stage_map, stage.name)
         if stage_map is None:
             stage_map = _new_mindmap_data(
                 stage.name,
@@ -340,13 +386,26 @@ def compose_project_mindmap(project):
             )
 
         id_map = {}
+        stage_is_completed = stage.status == 'завершен'
         stage_root = _copy_stage_mindmap_node(
             stage_map['nodeData'],
             stage_id,
             id_map,
             is_root=True,
+            read_only=stage_is_completed,
         )
-        stage_root['topic'] = stage.name
+        stage_root['topic'] = (
+            f'✅ {stage.name}' if stage_is_completed else stage.name
+        )
+        if stage_is_completed and not stage_map_has_content:
+            stage_root['children'] = [{
+                'id': f'nfprogress-empty-stage-map-{stage_id}',
+                'topic': empty_stage_notice,
+                'children': [],
+                _MINDMAP_STAGE_ID_KEY: stage_id,
+                _MINDMAP_READ_ONLY_KEY: True,
+                _MINDMAP_EMPTY_NOTICE_KEY: True,
+            }]
         project_children.append(stage_root)
 
         for arrow in stage_map.get('arrows', []):
@@ -391,6 +450,8 @@ def _restore_stage_mindmap_node(
         is_root=False,
 ):
     if not isinstance(node, dict):
+        return None
+    if node.get(_MINDMAP_EMPTY_NOTICE_KEY):
         return None
     if not is_root and node.get(_MINDMAP_STAGE_ROOT_KEY):
         return None

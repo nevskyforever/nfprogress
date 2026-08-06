@@ -2134,13 +2134,32 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def open_mindmap(self, project):
         """Open the map owned by the selected project or stage."""
+        is_stage = self._is_stage(project)
+        if (
+                is_stage
+                and project.status == 'завершен'
+                and not en.mindmap_has_content(
+                    getattr(project, 'mindmap_data', None),
+                    project.name,
+                )
+        ):
+            QMessageBox.information(
+                self,
+                'Карта',
+                'Карта не была создана при работе над этапом.',
+            )
+            return
+
         combined_stage_maps = (
-            not self._is_stage(project)
+            not is_stage
             and project.has_stages()
             and getattr(project, 'combine_stage_mindmaps', False)
         )
         mindmap_data = (
-            en.compose_project_mindmap(project)
+            en.compose_project_mindmap(
+                project,
+                tr('Карта не была создана при работе над этапом.'),
+            )
             if combined_stage_maps
             else getattr(project, 'mindmap_data', None)
         )
@@ -2152,7 +2171,10 @@ class MainWindow(QMainWindow, main_window_ui):
                 saved_map,
                 combined_stage_maps=combined_stage_maps,
             ),
-            read_only=project.status == 'завершен' and not en.dev_mode,
+            read_only=(
+                project.status == 'завершен'
+                and (is_stage or not en.dev_mode)
+            ),
             parent=self,
         )
         dialog.exec()
@@ -2191,7 +2213,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     stage_map = stage_maps.get(stage.stage_id)
                     if stage_map is None:
                         continue
-                    if stage.status != 'завершен' or en.dev_mode:
+                    if stage.status != 'завершен':
                         stage.mindmap_data = stage_map
             else:
                 target.mindmap_data = normalized

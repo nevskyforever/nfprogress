@@ -9,6 +9,126 @@ let mind = null;
 let readOnly = false;
 let saveTimer = null;
 
+function nodeObject(value) {
+  if (value?.nodeObj) {
+    return value.nodeObj;
+  }
+  if (value && typeof value === 'object' && typeof value.id === 'string') {
+    return value;
+  }
+  return null;
+}
+
+function isReadOnlyStageNode(value) {
+  return Boolean(nodeObject(value)?.nfprogressReadOnly);
+}
+
+function mutationTouchesReadOnlyStage(instance, values) {
+  const explicitValues = values.flatMap((value) => (
+    Array.isArray(value) ? value : [value]
+  ));
+  return (
+    explicitValues.some(isReadOnlyStageNode)
+    || (instance.currentNodes || []).some(isReadOnlyStageNode)
+  );
+}
+
+function protectReadOnlyStageNodeMutations() {
+  const operationNames = [
+    'addChild',
+    'beginEdit',
+    'copyNode',
+    'copyNodes',
+    'insertParent',
+    'insertSibling',
+    'moveDownNode',
+    'moveNodeAfter',
+    'moveNodeBefore',
+    'moveNodeIn',
+    'moveUpNode',
+    'removeNodes',
+    'reshapeNode',
+    'setNodeTopic',
+  ];
+  for (const operationName of operationNames) {
+    protectMethod(operationName, (...values) => (
+      mutationTouchesReadOnlyStage(mind, values)
+    ));
+  }
+}
+
+function markReadOnlyStageNodes() {
+  if (!mind) {
+    return;
+  }
+  for (const topic of mind.container.querySelectorAll('me-tpc')) {
+    topic.classList.toggle(
+      'nfprogress-read-only-stage',
+      isReadOnlyStageNode(topic),
+    );
+  }
+}
+
+function mapNodeById(nodeId) {
+  if (!mind || typeof nodeId !== 'string') {
+    return null;
+  }
+  return mind.findEle(nodeId)?.nodeObj || null;
+}
+
+function arrowTouchesReadOnlyStage(arrow) {
+  return Boolean(
+    arrow
+    && (
+      isReadOnlyStageNode(mapNodeById(arrow.from))
+      || isReadOnlyStageNode(mapNodeById(arrow.to))
+    )
+  );
+}
+
+function summaryTouchesReadOnlyStage(summary) {
+  return Boolean(
+    summary && isReadOnlyStageNode(mapNodeById(summary.parent))
+  );
+}
+
+function protectMethod(methodName, shouldBlock) {
+  const originalMethod = mind?.[methodName];
+  if (typeof originalMethod !== 'function') {
+    return;
+  }
+  mind[methodName] = function protectedMethod(...values) {
+    if (shouldBlock(...values)) {
+      return undefined;
+    }
+    return originalMethod.apply(this, values);
+  };
+}
+
+function protectReadOnlyStageConnections() {
+  protectMethod('createArrow', (from, to) => (
+    isReadOnlyStageNode(from) || isReadOnlyStageNode(to)
+  ));
+  protectMethod('createArrowFrom', arrowTouchesReadOnlyStage);
+  protectMethod('removeArrow', (arrowElement) => arrowTouchesReadOnlyStage(
+    arrowElement?.arrowObj || mind.currentArrow?.arrowObj,
+  ));
+  protectMethod('editArrowLabel', (arrowElement) => arrowTouchesReadOnlyStage(
+    arrowElement?.arrowObj || mind.currentArrow?.arrowObj,
+  ));
+  protectMethod('reshapeArrow', arrowTouchesReadOnlyStage);
+  protectMethod('createSummary', () => (
+    (mind.currentNodes || []).some(isReadOnlyStageNode)
+  ));
+  protectMethod('createSummaryFrom', summaryTouchesReadOnlyStage);
+  protectMethod('removeSummary', (summaryId) => summaryTouchesReadOnlyStage(
+    (mind.summaries || []).find((summary) => summary.id === summaryId),
+  ));
+  protectMethod('editSummary', (summaryElement) => summaryTouchesReadOnlyStage(
+    summaryElement?.summaryObj,
+  ));
+}
+
 function errorText(error) {
   if (error instanceof Error) {
     return error.stack || error.message;
@@ -91,6 +211,10 @@ function initialize(payload) {
 
   mind = new MindElixir(options);
   mind.init(payload.data || MindElixir.new(payload.rootTopic));
+  protectReadOnlyStageNodeMutations();
+  protectReadOnlyStageConnections();
+  markReadOnlyStageNodes();
+  mind.bus.addListener('linkDiv', markReadOnlyStageNodes);
 
   if (!readOnly) {
     mind.bus.addListener('operation', scheduleSave);

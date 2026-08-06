@@ -9,6 +9,7 @@ from PySide6.QtCore import QCoreApplication, QEvent
 from PySide6.QtWidgets import QApplication
 
 import engine
+import main_UI
 from main_UI import EditProject, MainWindow
 from mindmap import MindMapBridge, MindMapDialog
 
@@ -275,6 +276,46 @@ def test_combined_project_map_tracks_stage_names_and_order():
     assert second.mindmap_data['nodeData']['topic'] == 'Independent editing root'
 
 
+def test_combined_map_marks_completed_stage_and_explains_empty_map():
+    project = engine.Project(name='Book', goal=1000)
+    completed = engine.Stage(
+        name='Editing',
+        goal=1000,
+        parent_project_name='Book',
+        stage_id='editing-stage',
+        status='завершен',
+    )
+    completed.mindmap_data = _map_data('Editing')
+    project.enable_stages = True
+    project.combine_stage_mindmaps = True
+    project.stages = [completed]
+
+    combined = engine.compose_project_mindmap(
+        project,
+        'The map was not created while working on the stage.',
+    )
+    stage_branch = combined['nodeData']['children'][0]
+
+    assert stage_branch['topic'] == '✅ Editing'
+    assert stage_branch['nfprogressReadOnly'] is True
+    assert stage_branch['children'] == [{
+        'id': 'nfprogress-empty-stage-map-editing-stage',
+        'topic': 'The map was not created while working on the stage.',
+        'children': [],
+        'nfprogressStageId': 'editing-stage',
+        'nfprogressReadOnly': True,
+        'nfprogressEmptyMapNotice': True,
+    }]
+
+    _, stage_maps = engine.split_combined_project_mindmap(project, combined)
+    assert stage_maps[completed.stage_id]['nodeData'] == _map_data(
+        'Editing'
+    )['nodeData']
+    assert stage_maps[completed.stage_id]['arrows'] == []
+    assert stage_maps[completed.stage_id]['summaries'] == []
+    assert 'nfprogress' not in json.dumps(stage_maps)
+
+
 def test_mindmap_bridge_validates_and_deduplicates_saves():
     saved = []
     failures = []
@@ -361,7 +402,7 @@ def test_saving_combined_map_updates_stage_without_stale_progress(monkeypatch):
     saved_data = []
     monkeypatch.setattr(engine, 'load_data', lambda: stored_data)
     monkeypatch.setattr(engine, 'save_data', saved_data.append)
-    monkeypatch.setattr(engine, 'dev_mode', False)
+    monkeypatch.setattr(engine, 'dev_mode', True)
 
     combined = engine.compose_project_mindmap(selected_project)
     stage_branch = combined['nodeData']['children'][0]
@@ -394,6 +435,70 @@ def test_saving_combined_map_updates_stage_without_stale_progress(monkeypatch):
     assert selected_stage.mindmap_data == stored_stage.mindmap_data
     assert stored_project.mindmap_data['nodeData']['children'] == []
     assert saved_data == [stored_data]
+
+
+def test_empty_completed_stage_map_shows_explanation_instead_of_editor(
+        monkeypatch,
+):
+    stage = engine.Stage(
+        name='Editing',
+        goal=1000,
+        parent_project_name='Book',
+        status='завершен',
+    )
+    stage.mindmap_data = _map_data('Editing')
+    messages = []
+    opened = []
+    monkeypatch.setattr(
+        main_UI.QMessageBox,
+        'information',
+        lambda parent, title, message: messages.append((title, message)),
+    )
+    monkeypatch.setattr(
+        main_UI,
+        'MindMapDialog',
+        lambda *args, **kwargs: opened.append((args, kwargs)),
+    )
+
+    class Owner:
+        _is_stage = MainWindow._is_stage
+        _save_mindmap_data = MainWindow._save_mindmap_data
+
+    MainWindow.open_mindmap(Owner(), stage)
+
+    assert messages == [
+        ('Карта', 'Карта не была создана при работе над этапом.'),
+    ]
+    assert opened == []
+
+
+def test_completed_stage_map_opens_read_only_even_in_developer_mode(monkeypatch):
+    stage = engine.Stage(
+        name='Editing',
+        goal=1000,
+        parent_project_name='Book',
+        status='завершен',
+    )
+    stage.mindmap_data = _map_data('Editing plan')
+    opened = []
+
+    class FakeDialog:
+        def __init__(self, *args, **kwargs):
+            opened.append((args, kwargs))
+
+        def exec(self):
+            return None
+
+    monkeypatch.setattr(main_UI, 'MindMapDialog', FakeDialog)
+    monkeypatch.setattr(engine, 'dev_mode', True)
+
+    class Owner:
+        _is_stage = MainWindow._is_stage
+        _save_mindmap_data = MainWindow._save_mindmap_data
+
+    MainWindow.open_mindmap(Owner(), stage)
+
+    assert opened[0][1]['read_only'] is True
 
 
 def test_edit_project_shows_combined_map_checkbox_for_staged_project(monkeypatch):
@@ -528,6 +633,76 @@ def test_combined_stage_branch_edit_round_trips_through_editor():
         stage_maps[stage.stage_id]['nodeData']['children'][0]['topic']
         == 'Changed in project map'
     )
+
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+def test_completed_stage_branch_is_read_only_in_combined_editor():
+    app = QApplication.instance() or QApplication([])
+    project = engine.Project(name='Book', goal=1000)
+    stage = engine.Stage(
+        name='Editing',
+        goal=1000,
+        parent_project_name='Book',
+        stage_id='editing-stage',
+        status='завершен',
+    )
+    stage.mindmap_data = {
+        'nodeData': {
+            'id': 'stage-root',
+            'topic': 'Editing plan',
+            'children': [
+                {'id': 'scene', 'topic': 'First scene', 'children': []},
+            ],
+        },
+    }
+    project.enable_stages = True
+    project.combine_stage_mindmaps = True
+    project.stages = [stage]
+    saved = []
+    dialog = MindMapDialog(
+        project.name,
+        engine.compose_project_mindmap(project),
+        saved.append,
+    )
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    edit_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const node = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.topic === 'First scene'
+          );
+          node.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerType: 'mouse',
+          }));
+          node.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerType: 'mouse',
+          }));
+          return JSON.stringify({
+            markedReadOnly: node.classList.contains(
+              'nfprogress-read-only-stage'
+            ),
+            editorOpened: Boolean(document.querySelector('#input-box')),
+          });
+        })()
+        """,
+    ))
+    assert edit_state == {
+        'markedReadOnly': True,
+        'editorOpened': False,
+    }
 
     dialog._allow_close = True
     dialog.close()
