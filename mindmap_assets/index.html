@@ -59,6 +59,17 @@
       pointer-events: none;
     }
 
+    #floating-links .nfprogress-floating-link {
+      pointer-events: stroke;
+      cursor: pointer;
+      outline: none;
+    }
+
+    #floating-links .nfprogress-floating-link.selected {
+      stroke: #2f80ff;
+      stroke-width: 4;
+    }
+
     .floating-item {
       position: absolute;
       min-width: 130px;
@@ -80,9 +91,28 @@
       color: #594300;
     }
 
+    .floating-item.node.root {
+      border-color: #ef3b2d;
+      color: #fff;
+      background: #ef3124;
+      font-weight: 600;
+    }
+
+    .floating-item.node:not(.root) {
+      border-color: #aaa;
+      color: #333;
+      background: #d8d8d8;
+      box-shadow: none;
+    }
+
     .floating-item.selected {
       outline: 2px solid #276fce;
       outline-offset: 2px;
+    }
+
+    #floating-items.linking .floating-item,
+    #map:has(+ #floating-links + #floating-items.linking) me-tpc {
+      cursor: crosshair;
     }
 
     .floating-item-content {
@@ -131,6 +161,16 @@
       transition-delay: 0s;
     }
     .nfprogress-search-input { width: 100%; padding: 7px; }
+    .nfprogress-search-panel::before {
+      content: '⌕';
+      position: absolute;
+      top: 12px;
+      left: 16px;
+      color: #667085;
+      font-size: 18px;
+      pointer-events: none;
+    }
+    .nfprogress-search-input { padding-left: 34px; }
     .nfprogress-search-results { max-height: 230px; overflow-y: auto; }
     .nfprogress-search-result {
       width: 100%; padding: 7px; border: 0; background: transparent;
@@ -138,11 +178,44 @@
     }
     .nfprogress-search-result:hover { background: #4f8cff20; }
     .nfprogress-search-empty { padding: 7px; color: #666; }
+
+    .nfprogress-floating-menu {
+      position: fixed;
+      z-index: 80;
+      min-width: 210px;
+      overflow: hidden;
+      border-radius: 5px;
+      color: var(--panel-color, #222);
+      background: var(--panel-bgcolor, #fff);
+      box-shadow: 0 8px 20px #0004;
+    }
+
+    .nfprogress-floating-menu button {
+      display: block;
+      width: 100%;
+      padding: 7px 11px;
+      border: 0;
+      border-bottom: 1px solid var(--panel-border-color, #ddd);
+      color: inherit;
+      background: transparent;
+      text-align: left;
+      cursor: pointer;
+    }
+
+    .nfprogress-floating-menu button:hover { filter: brightness(.94); }
+    .nfprogress-floating-menu button:last-child { border-bottom: 0; }
   </style>
 </head>
 <body>
   <div id="map" aria-label="Редактор карты"></div>
-  <svg id="floating-links" aria-hidden="true"></svg>
+  <svg id="floating-links" aria-hidden="true">
+    <defs>
+      <marker id="nfprogress-arrowhead" markerWidth="8" markerHeight="8"
+        refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+        <path d="M0,0 L8,4 L0,8 z" fill="#7c8da8"></path>
+      </marker>
+    </defs>
+  </svg>
   <div id="floating-items" aria-label="Свободные элементы карты"></div>
   <div id="loading" aria-live="polite">Загрузка карты…</div>
   <script type="module" src="app.js"></script>

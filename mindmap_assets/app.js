@@ -9,7 +9,12 @@ let readOnly = false;
 let saveTimer = null;
 const nativeEvents = [];
 let floatingItems = [];
+let floatingLinks = [];
 let selectedFloatingItemId = null;
+let selectedFloatingLinkId = null;
+let pendingFloatingLink = null;
+let floatingContextMenu = null;
+let floatingMenuLabels = null;
 let floatingNodeName = 'Свободный узел';
 let floatingNoteName = 'Новая заметка';
 const floatingItemsElement = document.getElementById('floating-items');
@@ -236,10 +241,25 @@ function serializeMap(finishEditing = false) {
     finishActiveEdit();
   }
   const data = JSON.parse(mind.getDataString());
+  const floatingIds = new Set(floatingItems.map((item) => item.id));
+  floatingLinks = floatingLinks.filter((link) => {
+    const fromExists = link.fromType === 'floating'
+      ? floatingIds.has(link.from)
+      : Boolean(findNodeData(data.nodeData, link.from));
+    const toExists = link.toType === 'floating'
+      ? floatingIds.has(link.to)
+      : Boolean(findNodeData(data.nodeData, link.to));
+    return fromExists && toExists;
+  });
   if (floatingItems.length) {
     data.nfprogressFloatingItems = floatingItems;
   } else {
     delete data.nfprogressFloatingItems;
+  }
+  if (floatingLinks.length) {
+    data.nfprogressFloatingLinks = floatingLinks;
+  } else {
+    delete data.nfprogressFloatingLinks;
   }
   return JSON.stringify(data);
 }
@@ -267,29 +287,99 @@ function floatingItemById(itemId) {
   return floatingItems.find((item) => item.id === itemId) || null;
 }
 
+function normalizedFloatingLinks(value) {
+  if (!Array.isArray(value)) return [];
+  return value.filter((link) => (
+    link && typeof link.id === 'string' && link.id
+    && (link.fromType === 'floating' || link.fromType === 'node')
+    && (link.toType === 'floating' || link.toType === 'node')
+    && typeof link.from === 'string' && link.from
+    && typeof link.to === 'string' && link.to
+  )).map((link) => ({
+    id: link.id,
+    fromType: link.fromType,
+    from: link.from,
+    toType: link.toType,
+    to: link.to,
+  }));
+}
+
+function endpointCenter(type, id) {
+  const overlayBounds = floatingLinksElement.getBoundingClientRect();
+  let element = null;
+  if (type === 'floating') {
+    element = floatingItemsElement.querySelector(`[data-item-id="${CSS.escape(id)}"]`);
+  } else {
+    element = mind?.findEle(id);
+  }
+  if (!element) return null;
+  const bounds = element.getBoundingClientRect();
+  return {
+    x: bounds.left + bounds.width / 2 - overlayBounds.left,
+    y: bounds.top + bounds.height / 2 - overlayBounds.top,
+  };
+}
+
 function drawFloatingLinks() {
-  floatingLinksElement.replaceChildren();
+  for (const line of floatingLinksElement.querySelectorAll(':scope > line')) line.remove();
   for (const item of floatingItems) {
     if (!item.parentId) continue;
     const parent = floatingItemById(item.parentId);
     if (!parent) continue;
+    const from = endpointCenter('floating', parent.id);
+    const to = endpointCenter('floating', item.id);
+    if (!from || !to) continue;
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('x1', `${parent.x}%`);
-    line.setAttribute('y1', `${parent.y}%`);
-    line.setAttribute('x2', `${item.x}%`);
-    line.setAttribute('y2', `${item.y}%`);
+    line.setAttribute('x1', from.x);
+    line.setAttribute('y1', from.y);
+    line.setAttribute('x2', to.x);
+    line.setAttribute('y2', to.y);
     line.setAttribute('stroke', '#4f8cff');
     line.setAttribute('stroke-width', '2');
+    floatingLinksElement.appendChild(line);
+  }
+  for (const link of floatingLinks) {
+    const from = endpointCenter(link.fromType, link.from);
+    const to = endpointCenter(link.toType, link.to);
+    if (!from || !to) continue;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', from.x);
+    line.setAttribute('y1', from.y);
+    line.setAttribute('x2', to.x);
+    line.setAttribute('y2', to.y);
+    line.setAttribute('stroke', '#7c8da8');
+    line.setAttribute('stroke-width', '2');
+    line.setAttribute('marker-end', 'url(#nfprogress-arrowhead)');
+    line.classList.add('nfprogress-floating-link');
+    line.dataset.linkId = link.id;
+    line.tabIndex = 0;
+    if (link.id === selectedFloatingLinkId) line.classList.add('selected');
+    line.addEventListener('click', (event) => {
+      event.stopPropagation();
+      selectedFloatingLinkId = link.id;
+      drawFloatingLinks();
+      floatingLinksElement.querySelector(
+        `[data-link-id="${CSS.escape(link.id)}"]`,
+      )?.focus();
+    });
+    line.addEventListener('keydown', (event) => {
+      if (!readOnly && (event.key === 'Delete' || event.key === 'Backspace')) {
+        event.preventDefault();
+        floatingLinks = floatingLinks.filter((value) => value.id !== link.id);
+        selectedFloatingLinkId = null;
+        drawFloatingLinks();
+        scheduleSave();
+      }
+    });
     floatingLinksElement.appendChild(line);
   }
 }
 
 function renderFloatingItems() {
   floatingItemsElement.replaceChildren();
-  drawFloatingLinks();
   for (const item of floatingItems) {
     const element = document.createElement('div');
-    element.className = `floating-item ${item.kind}`;
+    element.className = `floating-item ${item.kind}${item.kind === 'node' && !item.parentId ? ' root' : ''}`;
     element.style.left = `${item.x}%`;
     element.style.top = `${item.y}%`;
     element.dataset.itemId = item.id;
@@ -308,6 +398,10 @@ function renderFloatingItems() {
     });
     content.addEventListener('dblclick', () => beginFloatingEdit(content, item));
     element.addEventListener('click', () => {
+      if (pendingFloatingLink) {
+        finishFloatingLink('floating', item.id);
+        return;
+      }
       selectedFloatingItemId = item.id;
       for (const selected of floatingItemsElement.querySelectorAll('.floating-item.selected')) {
         selected.classList.remove('selected');
@@ -316,12 +410,19 @@ function renderFloatingItems() {
       element.focus();
     });
     element.appendChild(content);
+    element.addEventListener('contextmenu', (event) => {
+      if (readOnly) return;
+      event.preventDefault();
+      event.stopPropagation();
+      selectFloatingItem(item.id, element);
+      showFloatingContextMenu(event.clientX, event.clientY, item);
+    });
     element.addEventListener('pointerdown', (event) => startFloatingDrag(event, item));
     element.addEventListener('keydown', (event) => {
       if (readOnly || document.activeElement === content) return;
       if (event.key === 'Tab' && item.kind === 'node') {
         event.preventDefault();
-        addFloatingNode(item.id, item.x + 8, item.y + 10);
+        addFloatingChild(item);
       } else if (event.key === 'Tab' && item.kind === 'note') {
         event.preventDefault();
         addFloatingItem('note', item.x + 12, item.y);
@@ -331,26 +432,171 @@ function renderFloatingItems() {
       } else if (event.key === 'F2') {
         event.preventDefault();
         beginFloatingEdit(content, item);
-      } else if (event.key === 'Delete') {
-        const removedIds = new Set([item.id]);
-        let foundChild = true;
-        while (foundChild) {
-          foundChild = false;
-          for (const value of floatingItems) {
-            if (removedIds.has(value.parentId) && !removedIds.has(value.id)) {
-              removedIds.add(value.id);
-              foundChild = true;
-            }
-          }
-        }
-        floatingItems = floatingItems.filter((value) => !removedIds.has(value.id));
-        selectedFloatingItemId = null;
-        renderFloatingItems();
-        scheduleSave();
+      } else if (event.key === 'Delete' || event.key === 'Backspace') {
+        event.preventDefault();
+        removeFloatingItem(item.id);
       }
     });
     floatingItemsElement.appendChild(element);
   }
+  drawFloatingLinks();
+}
+
+function selectFloatingItem(itemId, element = null) {
+  selectedFloatingItemId = itemId;
+  for (const selected of floatingItemsElement.querySelectorAll('.floating-item.selected')) {
+    selected.classList.remove('selected');
+  }
+  const target = element || floatingItemsElement.querySelector(
+    `[data-item-id="${CSS.escape(itemId)}"]`,
+  );
+  target?.classList.add('selected');
+  target?.focus();
+}
+
+function descendantFloatingIds(itemId) {
+  const removedIds = new Set([itemId]);
+  let foundChild = true;
+  while (foundChild) {
+    foundChild = false;
+    for (const value of floatingItems) {
+      if (removedIds.has(value.parentId) && !removedIds.has(value.id)) {
+        removedIds.add(value.id);
+        foundChild = true;
+      }
+    }
+  }
+  return removedIds;
+}
+
+function removeFloatingItem(itemId) {
+  const removedIds = descendantFloatingIds(itemId);
+  floatingItems = floatingItems.filter((value) => !removedIds.has(value.id));
+  floatingLinks = floatingLinks.filter((link) => !(
+    (link.fromType === 'floating' && removedIds.has(link.from))
+    || (link.toType === 'floating' && removedIds.has(link.to))
+  ));
+  selectedFloatingItemId = null;
+  selectedFloatingLinkId = null;
+  renderFloatingItems();
+  scheduleSave();
+}
+
+function beginFloatingLink(itemId) {
+  beginFloatingLinkFrom('floating', itemId);
+}
+
+function beginFloatingLinkFrom(type, id) {
+  pendingFloatingLink = { type, id };
+  floatingContextMenu?.remove();
+  floatingContextMenu = null;
+  floatingItemsElement.classList.add('linking');
+}
+
+function beginMapNodeLink() {
+  const nodeId = mind?.currentNode?.nodeObj?.id;
+  const contextMenu = mind?.container.querySelector('.context-menu');
+  if (contextMenu) contextMenu.hidden = true;
+  if (nodeId) beginFloatingLinkFrom('node', nodeId);
+}
+
+function finishFloatingLink(type, id) {
+  if (!pendingFloatingLink) return false;
+  const source = pendingFloatingLink;
+  pendingFloatingLink = null;
+  floatingItemsElement.classList.remove('linking');
+  if (source.type === type && source.id === id) return true;
+  const duplicate = floatingLinks.some((link) => (
+    link.fromType === source.type && link.from === source.id
+    && link.toType === type && link.to === id
+  ));
+  if (!duplicate) {
+    floatingLinks.push({
+      id: `nfprogress-link-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      fromType: source.type,
+      from: source.id,
+      toType: type,
+      to: id,
+    });
+    selectedFloatingLinkId = floatingLinks[floatingLinks.length - 1].id;
+    drawFloatingLinks();
+    scheduleSave();
+  }
+  return true;
+}
+
+function contextMenuAction(label, callback) {
+  const item = document.createElement('button');
+  item.type = 'button';
+  item.textContent = label;
+  item.addEventListener('click', () => {
+    floatingContextMenu?.remove();
+    floatingContextMenu = null;
+    callback();
+  });
+  return item;
+}
+
+function showFloatingContextMenu(x, y, item) {
+  floatingContextMenu?.remove();
+  const menu = document.createElement('div');
+  menu.className = 'nfprogress-floating-menu';
+  if (item.kind === 'node') {
+    menu.appendChild(contextMenuAction(floatingMenuLabels.addChild, () => (
+      addFloatingChild(item)
+    )));
+    menu.appendChild(contextMenuAction(floatingMenuLabels.addSibling, () => (
+      addFloatingNode(item.parentId, item.x + 12, item.y)
+    )));
+  } else {
+    menu.appendChild(contextMenuAction(floatingMenuLabels.addNote, () => (
+      addFloatingItem('note', item.x + 12, item.y)
+    )));
+  }
+  menu.appendChild(contextMenuAction(floatingMenuLabels.edit, () => {
+    const content = floatingItemsElement.querySelector(
+      `[data-item-id="${CSS.escape(item.id)}"] .floating-item-content`,
+    );
+    if (content) beginFloatingEdit(content, item);
+  }));
+  menu.appendChild(contextMenuAction(floatingMenuLabels.link, () => (
+    beginFloatingLink(item.id)
+  )));
+  menu.appendChild(contextMenuAction(floatingMenuLabels.remove, () => (
+    removeFloatingItem(item.id)
+  )));
+  document.body.appendChild(menu);
+  const bounds = menu.getBoundingClientRect();
+  menu.style.left = `${Math.min(x, window.innerWidth - bounds.width - 8)}px`;
+  menu.style.top = `${Math.min(y, window.innerHeight - bounds.height - 8)}px`;
+  floatingContextMenu = menu;
+}
+
+function installFloatingLinkTargets() {
+  mind.container.addEventListener('pointerdown', (event) => {
+    if (!pendingFloatingLink) return;
+    const topic = event.target.closest?.('me-tpc');
+    if (!topic?.nodeObj?.id) return;
+    event.preventDefault();
+    event.stopPropagation();
+    finishFloatingLink('node', topic.nodeObj.id);
+    mind.selectNode(topic);
+  }, true);
+  document.addEventListener('pointerdown', (event) => {
+    if (floatingContextMenu && !floatingContextMenu.contains(event.target)) {
+      floatingContextMenu.remove();
+      floatingContextMenu = null;
+    }
+    if (
+      pendingFloatingLink
+      && !event.target.closest?.('.floating-item')
+      && !event.target.closest?.('me-tpc')
+      && !event.target.closest?.('.nfprogress-floating-menu')
+    ) {
+      pendingFloatingLink = null;
+      floatingItemsElement.classList.remove('linking');
+    }
+  });
 }
 
 function focusSelectedFloatingItem() {
@@ -383,18 +629,36 @@ function beginFloatingEdit(content, item) {
 }
 
 function startFloatingDrag(event, item) {
-  if (readOnly || event.target.isContentEditable) return;
+  if (
+    readOnly || pendingFloatingLink || event.button !== 0
+    || event.target.isContentEditable
+  ) return;
   event.preventDefault();
   selectedFloatingItemId = item.id;
   const bounds = floatingItemsElement.getBoundingClientRect();
+  const startX = event.clientX;
+  const startY = event.clientY;
+  const movedIds = item.kind === 'node' ? descendantFloatingIds(item.id) : new Set([item.id]);
+  const originalPositions = new Map(
+    floatingItems.filter((value) => movedIds.has(value.id)).map((value) => (
+      [value.id, { x: value.x, y: value.y }]
+    )),
+  );
   const move = (moveEvent) => {
-    item.x = Math.max(0, Math.min(100, (moveEvent.clientX - bounds.left) / bounds.width * 100));
-    item.y = Math.max(0, Math.min(100, (moveEvent.clientY - bounds.top) / bounds.height * 100));
+    const dx = (moveEvent.clientX - startX) / bounds.width * 100;
+    const dy = (moveEvent.clientY - startY) / bounds.height * 100;
+    for (const value of floatingItems) {
+      const original = originalPositions.get(value.id);
+      if (!original) continue;
+      value.x = Math.max(0, Math.min(100, original.x + dx));
+      value.y = Math.max(0, Math.min(100, original.y + dy));
+    }
     renderFloatingItems();
   };
   const finish = () => {
     document.removeEventListener('pointermove', move);
     document.removeEventListener('pointerup', finish);
+    focusSelectedFloatingItem();
     scheduleSave();
   };
   document.addEventListener('pointermove', move);
@@ -432,6 +696,11 @@ function addFloatingNode(parentId, x, y) {
   renderFloatingItems();
   focusSelectedFloatingItem();
   scheduleSave();
+}
+
+function addFloatingChild(parent) {
+  const childCount = floatingItems.filter((item) => item.parentId === parent.id).length;
+  addFloatingNode(parent.id, parent.x - 15, parent.y + childCount * 8);
 }
 
 function installFloatingItemControls(payload) {
@@ -571,6 +840,11 @@ function installSearchControl(payload) {
     }
   };
   const toggle = () => {
+    const controlBounds = control.getBoundingClientRect();
+    const editorBounds = mind.el.getBoundingClientRect();
+    panel.style.left = `${controlBounds.right - editorBounds.left + 8}px`;
+    panel.style.top = `${controlBounds.top - editorBounds.top - 7}px`;
+    panel.style.maxWidth = `${Math.max(220, editorBounds.right - controlBounds.right - 24)}px`;
     panel.classList.toggle('open');
     if (panel.classList.contains('open')) input.focus();
   };
@@ -588,10 +862,17 @@ function installSearchControl(payload) {
       panel.classList.remove('open');
     }
   });
-  mind.container.addEventListener('keydown', (event) => {
+  document.addEventListener('keydown', (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
       event.preventDefault();
-      if (!panel.classList.contains('open')) panel.classList.add('open');
+      if (!panel.classList.contains('open')) {
+        const controlBounds = control.getBoundingClientRect();
+        const editorBounds = mind.el.getBoundingClientRect();
+        panel.style.left = `${controlBounds.right - editorBounds.left + 8}px`;
+        panel.style.top = `${controlBounds.top - editorBounds.top - 7}px`;
+        panel.style.maxWidth = `${Math.max(220, editorBounds.right - controlBounds.right - 24)}px`;
+        panel.classList.add('open');
+      }
       input.focus();
     }
   });
@@ -643,7 +924,7 @@ async function requestExport(format) {
   try {
     finishActiveEdit();
     if (format === 'json') {
-      bridge.exportFile(format, mind.getDataString());
+      bridge.exportFile(format, serializeMap(true));
       return;
     }
     const blob = format === 'png'
@@ -664,11 +945,27 @@ function initialize(payload) {
   floatingItemsElement.setAttribute('aria-label', payload.floatingItemsLabel);
   floatingNodeName = payload.floatingNodeName;
   floatingNoteName = payload.floatingNoteName;
+  floatingMenuLabels = {
+    addChild: payload.addChildLabel,
+    addSibling: payload.addSiblingLabel,
+    addNote: payload.addNearbyNoteLabel,
+    edit: payload.editLabel,
+    link: payload.linkLabel,
+    remove: payload.removeLabel,
+  };
   const locale = localePacks[payload.locale] || en;
   const options = {
     el: '#map',
     direction: MindElixir.SIDE,
-    contextMenu: readOnly ? false : { focus: true, link: true, locale },
+    contextMenu: readOnly ? false : {
+      focus: true,
+      link: true,
+      locale,
+      extend: [{
+        name: payload.linkFloatingLabel,
+        onclick: beginMapNodeLink,
+      }],
+    },
     toolBar: true,
     keypress: !readOnly,
     draggable: !readOnly,
@@ -681,14 +978,19 @@ function initialize(payload) {
   mind = new MindElixir(options);
   mind.init(payload.data || MindElixir.new(payload.rootTopic));
   floatingItems = normalizedFloatingItems(payload.data?.nfprogressFloatingItems);
+  floatingLinks = normalizedFloatingLinks(payload.data?.nfprogressFloatingLinks);
   renderFloatingItems();
   installFloatingItemControls(payload);
   installBranchFocusControl(locale, payload.emptyStageMapText);
   installSearchControl(payload);
+  installFloatingLinkTargets();
   protectReadOnlyStageNodeMutations();
   protectReadOnlyStageConnections();
   markReadOnlyStageNodes();
   mind.bus.addListener('linkDiv', markReadOnlyStageNodes);
+  for (const eventName of ['linkDiv', 'move', 'scale', 'expandNode']) {
+    mind.bus.addListener(eventName, () => window.requestAnimationFrame(drawFloatingLinks));
+  }
 
   if (!readOnly) {
     mind.bus.addListener('operation', scheduleSave);

@@ -212,6 +212,36 @@ def normalize_mindmap_data(value):
                 ):
                     item.pop('parentId')
             normalized['nfprogressFloatingItems'] = normalized_items
+    floating_links = normalized.get('nfprogressFloatingLinks')
+    if floating_links is not None:
+        if not isinstance(floating_links, list):
+            normalized.pop('nfprogressFloatingLinks', None)
+        else:
+            normalized['nfprogressFloatingLinks'] = [
+                {
+                    'id': link['id'],
+                    'fromType': link['fromType'],
+                    'from': link['from'],
+                    'toType': link['toType'],
+                    'to': link['to'],
+                }
+                for link in floating_links
+                if (
+                    isinstance(link, dict)
+                    and isinstance(link.get('id'), str)
+                    and link['id']
+                    and link.get('fromType') in {'floating', 'node'}
+                    and isinstance(link.get('from'), str)
+                    and link['from']
+                    and link.get('toType') in {'floating', 'node'}
+                    and isinstance(link.get('to'), str)
+                    and link['to']
+                    and not (
+                        link['fromType'] == link['toType']
+                        and link['from'] == link['to']
+                    )
+                )
+            ]
     return normalized
 
 
@@ -242,7 +272,10 @@ def mindmap_has_content(value, root_topic):
         return True
     if normalized.get('arrows') or normalized.get('summaries'):
         return True
-    if normalized.get('nfprogressFloatingItems'):
+    if (
+        normalized.get('nfprogressFloatingItems')
+        or normalized.get('nfprogressFloatingLinks')
+    ):
         return True
 
     default_root_keys = {

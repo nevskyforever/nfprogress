@@ -53,6 +53,28 @@ def test_normalize_mindmap_data_keeps_valid_floating_items():
     assert engine.mindmap_has_content(map_data, 'Роман')
 
 
+def test_normalize_mindmap_data_keeps_valid_floating_links():
+    map_data = _map_data()
+    map_data['nfprogressFloatingLinks'] = [
+        {
+            'id': 'link-1', 'fromType': 'floating', 'from': 'note-1',
+            'toType': 'node', 'to': 'root-node',
+        },
+        {
+            'id': 'self-link', 'fromType': 'node', 'from': 'root-node',
+            'toType': 'node', 'to': 'root-node',
+        },
+        {'id': 'broken'},
+    ]
+
+    assert engine.normalize_mindmap_data(map_data)['nfprogressFloatingLinks'] == [
+        {
+            'id': 'link-1', 'fromType': 'floating', 'from': 'note-1',
+            'toType': 'node', 'to': 'root-node',
+        },
+    ]
+
+
 def test_combined_map_excludes_floating_items_from_stages():
     project = engine.Project(name='Book', goal=1000)
     project.mindmap_data = _map_data('Book')
@@ -64,12 +86,19 @@ def test_combined_map_excludes_floating_items_from_stages():
     stage.mindmap_data['nfprogressFloatingItems'] = [
         {'id': 'stage-note', 'kind': 'note', 'text': 'Stage', 'x': 20, 'y': 20},
     ]
+    stage.mindmap_data['nfprogressFloatingLinks'] = [
+        {
+            'id': 'stage-link', 'fromType': 'floating', 'from': 'stage-note',
+            'toType': 'node', 'to': 'root-node',
+        },
+    ]
     project.enable_stages = True
     project.stages = [stage]
 
     combined = engine.compose_project_mindmap(project)
 
     assert combined['nfprogressFloatingItems'] == project.mindmap_data['nfprogressFloatingItems']
+    assert 'nfprogressFloatingLinks' not in combined
     assert stage.mindmap_data['nfprogressFloatingItems'][0]['id'] == 'stage-note'
 
 
