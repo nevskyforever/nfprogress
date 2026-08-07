@@ -76,16 +76,6 @@ class Ui_mindmap_dialog(object):
 
         self.buttons_layout.addItem(self.horizontalSpacer)
 
-        self.add_free_node_button = QPushButton(mindmap_dialog)
-        self.add_free_node_button.setObjectName(u"add_free_node_button")
-
-        self.buttons_layout.addWidget(self.add_free_node_button)
-
-        self.add_note_button = QPushButton(mindmap_dialog)
-        self.add_note_button.setObjectName(u"add_note_button")
-
-        self.buttons_layout.addWidget(self.add_note_button)
-
         self.save_button = QPushButton(mindmap_dialog)
         self.save_button.setObjectName(u"save_button")
 
@@ -104,8 +94,6 @@ class Ui_mindmap_dialog(object):
 
         self.verticalLayout.addLayout(self.buttons_layout)
 
-        QWidget.setTabOrder(self.add_free_node_button, self.add_note_button)
-        QWidget.setTabOrder(self.add_note_button, self.save_button)
         QWidget.setTabOrder(self.save_button, self.export_button)
         QWidget.setTabOrder(self.export_button, self.close_button)
 
@@ -125,14 +113,6 @@ class Ui_mindmap_dialog(object):
         self.mindmap_container.setAccessibleName(QCoreApplication.translate("mindmap_dialog", u"\u0420\u0435\u0434\u0430\u043a\u0442\u043e\u0440 \u043a\u0430\u0440\u0442\u044b", None))
 #endif // QT_CONFIG(accessibility)
         self.save_status_label.setText(QCoreApplication.translate("mindmap_dialog", u"\u0417\u0430\u0433\u0440\u0443\u0437\u043a\u0430 \u043a\u0430\u0440\u0442\u044b\u2026", None))
-        self.add_free_node_button.setText(QCoreApplication.translate("mindmap_dialog", u"\u0421\u0432\u043e\u0431\u043e\u0434\u043d\u044b\u0439 \u0443\u0437\u0435\u043b", None))
-#if QT_CONFIG(accessibility)
-        self.add_free_node_button.setAccessibleName(QCoreApplication.translate("mindmap_dialog", u"\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u0441\u0432\u043e\u0431\u043e\u0434\u043d\u044b\u0439 \u0443\u0437\u0435\u043b", None))
-#endif // QT_CONFIG(accessibility)
-        self.add_note_button.setText(QCoreApplication.translate("mindmap_dialog", u"\u0417\u0430\u043c\u0435\u0442\u043a\u0430", None))
-#if QT_CONFIG(accessibility)
-        self.add_note_button.setAccessibleName(QCoreApplication.translate("mindmap_dialog", u"\u0414\u043e\u0431\u0430\u0432\u0438\u0442\u044c \u043f\u043b\u0430\u0432\u0430\u044e\u0449\u0443\u044e \u0437\u0430\u043c\u0435\u0442\u043a\u0443", None))
-#endif // QT_CONFIG(accessibility)
         self.save_button.setText(QCoreApplication.translate("mindmap_dialog", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c", None))
 #if QT_CONFIG(accessibility)
         self.save_button.setAccessibleName(QCoreApplication.translate("mindmap_dialog", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043a\u0430\u0440\u0442\u0443", None))

@@ -104,6 +104,8 @@ class MindMapBridge(QObject):
                 'floatingNodeName': tr('Свободный узел'),
                 'floatingNoteName': tr('Новая заметка'),
                 'floatingItemsLabel': tr('Свободные элементы карты'),
+                'addFloatingNodeLabel': tr('Добавить свободный узел'),
+                'addFloatingNoteLabel': tr('Добавить плавающую заметку'),
                 'locale': current_language(),
                 'loadingText': tr('Загрузка карты…'),
                 'newTopicName': tr('Новая тема'),
@@ -284,14 +286,6 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
                 )
             )
 
-        self.add_free_node_button.setEnabled(not self.read_only)
-        self.add_free_node_button.clicked.connect(
-            lambda: self._add_floating_item('node'),
-        )
-        self.add_note_button.setEnabled(not self.read_only)
-        self.add_note_button.clicked.connect(
-            lambda: self._add_floating_item('note'),
-        )
         self.save_button.setEnabled(False)
         self.save_button.clicked.connect(self._request_explicit_save)
         self.export_button.setEnabled(False)
@@ -412,13 +406,6 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
         self.save_button.setEnabled(not self.read_only)
         self.export_button.setEnabled(True)
         self._show_ready_status()
-
-    def _add_floating_item(self, item_type):
-        if not self._ready or self.read_only:
-            return
-        self._page.runJavaScript(
-            f'window.nfprogressMindMap.addFloatingItem({json.dumps(item_type)})',
-        )
 
     def _show_ready_status(self):
         self.save_status_label.setToolTip('')

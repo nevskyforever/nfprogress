@@ -319,7 +319,7 @@ function startFloatingDrag(event, item) {
 function addFloatingItem(kind) {
   if (readOnly || (kind !== 'node' && kind !== 'note')) return;
   const item = {
-    id: `nfprogress-floating-${crypto.randomUUID()}`,
+    id: `nfprogress-floating-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     kind,
     text: kind === 'note' ? floatingNoteName : floatingNodeName,
     x: 50,
@@ -329,6 +329,42 @@ function addFloatingItem(kind) {
   selectedFloatingItemId = item.id;
   renderFloatingItems();
   scheduleSave();
+}
+
+function installFloatingItemControls(payload) {
+  if (readOnly) return;
+  const toolbar = mind?.el?.querySelector('.mind-elixir-toolbar.rb');
+  if (!toolbar) return;
+
+  const controls = [
+    {
+      kind: 'node',
+      label: payload.addFloatingNodeLabel,
+      icon: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="6" r="3" fill="currentColor"/><circle cx="18" cy="7" r="3" fill="currentColor"/><circle cx="12" cy="18" r="3" fill="currentColor"/><path d="M8.5 7.5l6.8-0.1M7.5 8.5l3 6.5M16.5 9.5l-3 5.5" fill="none" stroke="currentColor" stroke-width="1.7"/></svg>',
+    },
+    {
+      kind: 'note',
+      label: payload.addFloatingNoteLabel,
+      icon: '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18l-4-3-4 3-4-3-2 1.5V3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8h8M8 12h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>',
+    },
+  ];
+  for (const control of controls) {
+    const element = document.createElement('span');
+    element.className = 'nfprogress-floating-control';
+    element.tabIndex = 0;
+    element.title = control.label;
+    element.setAttribute('aria-label', control.label);
+    element.setAttribute('role', 'button');
+    element.innerHTML = control.icon;
+    element.addEventListener('click', () => addFloatingItem(control.kind));
+    element.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        addFloatingItem(control.kind);
+      }
+    });
+    toolbar.appendChild(element);
+  }
 }
 
 function persistMap(finishEditing = false) {
@@ -416,6 +452,7 @@ function initialize(payload) {
   mind.init(payload.data || MindElixir.new(payload.rootTopic));
   floatingItems = normalizedFloatingItems(payload.data?.nfprogressFloatingItems);
   renderFloatingItems();
+  installFloatingItemControls(payload);
   installBranchFocusControl(locale, payload.emptyStageMapText);
   protectReadOnlyStageNodeMutations();
   protectReadOnlyStageConnections();
