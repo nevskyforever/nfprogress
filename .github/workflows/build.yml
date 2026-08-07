@@ -434,6 +434,9 @@ jobs:
           cleanup_files 'nfprogress-mac-arm-*.zip'
           cleanup_files 'nfprogress-mac-intel-*.zip'
           '@
+          # SSH executes this text with a Linux shell.  Normalize both CRLF and
+          # stray CR characters before PowerShell writes the script to stdin.
+          $cleanupScript = ($cleanupScript -replace "`r`n", "`n") -replace "`r", ""
           $cleanupScript | & ssh @sshOptions $target "sh -s -- '$($env:SSH_UPLOAD_DIR)' 3"
           if ($LASTEXITCODE -ne 0) { throw "Unable to remove old release files." }
           "WINDOWS_UPLOAD_COMPLETED=true" >> $env:GITHUB_ENV
