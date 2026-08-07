@@ -132,6 +132,7 @@ MINDMAP_HELP_SOURCE = """<html><body>
 <p>У каждого проекта и каждого этапа есть собственная независимая карта идей. Выберите нужную сущность на вкладке «Проекты» и нажмите «Карта» в панели действий. Редактор откроется в отдельном окне; при первом открытии корневой узел получит название проекта или этапа.</p>
 <ul>
 <li>Дважды щёлкните узел или нажмите F2, чтобы изменить текст. Tab добавляет дочерний узел, Enter — соседний, Delete удаляет выбранный узел.</li>
+<li>Кнопки «Свободный узел» и «Заметка» добавляют независимые карточки поверх карты. Их можно перетаскивать за рамку и менять текст прямо в карточке; Delete удаляет выбранную карточку.</li>
 <li>Узлы можно перетаскивать. Контекстное меню добавляет, связывает, перемещает и группирует узлы, а встроенная панель управляет масштабом и центрированием.</li>
 <li>Кнопка режима фокуса на нижней панели показывает выбранную ветвь первого уровня отдельно. Повторное нажатие возвращает общую карту.</li>
 <li>Изменения сохраняются автоматически вместе с данными проекта. Кнопка «Сохранить» и закрытие окна также записывают актуальное состояние карты.</li>
@@ -203,6 +204,7 @@ TRANSLATION_OVERRIDES = {
 <p>Every project and stage has its own independent idea map. Select the project or stage on the “Projects” tab and click “Map” in the action panel. The editor opens in a separate window; the root node is named after the project or stage when the map is first opened.</p>
 <ul>
 <li>Double-click a node or press F2 to edit its text. Tab adds a child node, Enter adds a sibling, and Delete removes the selected node.</li>
+<li>The “Free node” and “Note” buttons add independent cards on top of the map. Drag a card by its border and edit its text directly; Delete removes the selected card.</li>
 <li>Nodes can be dragged. The context menu adds, links, moves, and groups nodes, while the built-in toolbar controls zoom and centering.</li>
 <li>The focus mode button on the bottom toolbar displays the selected first-level branch separately. Press it again to return to the combined map.</li>
 <li>Changes are saved automatically with the project data. The “Save” button and closing the window also store the map’s current state.</li>
@@ -324,6 +326,7 @@ TRANSLATION_OVERRIDES = {
 <p>Cada proyecto y cada etapa tiene su propio mapa de ideas independiente. Seleccione el proyecto o la etapa en la pestaña «Proyectos» y pulse «Mapa» en el panel de acciones. El editor se abre en una ventana separada; al abrir el mapa por primera vez, el nodo raíz recibe el nombre del proyecto o de la etapa.</p>
 <ul>
 <li>Haga doble clic en un nodo o pulse F2 para editar el texto. Tab añade un nodo hijo, Intro añade un nodo hermano y Supr elimina el nodo seleccionado.</li>
+<li>Los botones «Nodo libre» y «Nota» añaden tarjetas independientes sobre el mapa. Arrastre una tarjeta por su borde y edite el texto directamente; Supr elimina la tarjeta seleccionada.</li>
 <li>Los nodos se pueden arrastrar. El menú contextual permite añadir, vincular, mover y agrupar nodos, mientras que la barra integrada controla el zoom y el centrado.</li>
 <li>El botón de modo de enfoque de la barra inferior muestra por separado la rama de primer nivel seleccionada. Púlselo de nuevo para volver al mapa combinado.</li>
 <li>Los cambios se guardan automáticamente con los datos del proyecto. El botón «Guardar» y el cierre de la ventana también almacenan el estado actual del mapa.</li>
@@ -445,6 +448,7 @@ TRANSLATION_OVERRIDES = {
 <p>Jedes Projekt und jede Etappe besitzt eine eigene Ideenkarte. Wählen Sie das Projekt oder die Etappe auf der Registerkarte „Projekte“ aus und klicken Sie im Aktionsbereich auf „Karte“. Der Editor wird in einem separaten Fenster geöffnet; beim ersten Öffnen erhält der Wurzelknoten den Namen des Projekts oder der Etappe.</p>
 <ul>
 <li>Doppelklicken Sie auf einen Knoten oder drücken Sie F2, um den Text zu bearbeiten. Tab fügt einen untergeordneten Knoten hinzu, die Eingabetaste einen gleichgeordneten Knoten und Entf löscht den ausgewählten Knoten.</li>
+<li>Die Schaltflächen „Freier Knoten“ und „Notiz“ fügen unabhängige Karten über der Karte hinzu. Ziehen Sie eine Karte am Rand und bearbeiten Sie ihren Text direkt; Entf löscht die ausgewählte Karte.</li>
 <li>Knoten können gezogen werden. Über das Kontextmenü lassen sich Knoten hinzufügen, verknüpfen, verschieben und gruppieren; die integrierte Werkzeugleiste steuert Zoom und Zentrierung.</li>
 <li>Die Schaltfläche für den Fokusmodus in der unteren Werkzeugleiste zeigt den ausgewählten Zweig der ersten Ebene separat an. Ein erneuter Klick kehrt zur Gesamtkarte zurück.</li>
 <li>Änderungen werden automatisch mit den Projektdaten gespeichert. Auch die Schaltfläche „Speichern“ und das Schließen des Fensters sichern den aktuellen Stand der Karte.</li>
@@ -566,6 +570,7 @@ TRANSLATION_OVERRIDES = {
 <p>Chaque projet et chaque étape possède sa propre carte d’idées indépendante. Sélectionnez le projet ou l’étape dans l’onglet « Projets », puis cliquez sur « Carte » dans le panneau d’actions. L’éditeur s’ouvre dans une fenêtre séparée ; lors de la première ouverture, le nœud racine reçoit le nom du projet ou de l’étape.</p>
 <ul>
 <li>Double-cliquez sur un nœud ou appuyez sur F2 pour modifier son texte. Tab ajoute un nœud enfant, Entrée ajoute un nœud voisin et Suppr efface le nœud sélectionné.</li>
+<li>Les boutons « Nœud libre » et « Note » ajoutent des cartes indépendantes au-dessus de la carte. Faites glisser une carte par son bord et modifiez son texte directement ; Suppr supprime la carte sélectionnée.</li>
 <li>Les nœuds peuvent être déplacés. Le menu contextuel permet d’ajouter, de relier, de déplacer et de regrouper les nœuds, tandis que la barre intégrée contrôle le zoom et le centrage.</li>
 <li>Le bouton du mode focus dans la barre inférieure affiche séparément la branche de premier niveau sélectionnée. Appuyez à nouveau dessus pour revenir à la carte globale.</li>
 <li>Les modifications sont enregistrées automatiquement avec les données du projet. Le bouton « Enregistrer » et la fermeture de la fenêtre sauvegardent également l’état actuel de la carte.</li>
@@ -687,6 +692,7 @@ TRANSLATION_OVERRIDES = {
 <p>Cada projeto e cada etapa possui seu próprio mapa de ideias independente. Selecione o projeto ou a etapa na aba “Projetos” e clique em “Mapa” no painel de ações. O editor abre em uma janela separada; na primeira abertura, o nó raiz recebe o nome do projeto ou da etapa.</p>
 <ul>
 <li>Clique duas vezes em um nó ou pressione F2 para editar o texto. Tab adiciona um nó filho, Enter adiciona um nó irmão e Delete exclui o nó selecionado.</li>
+<li>Os botões «Nó livre» e «Nota» adicionam cartões independentes sobre o mapa. Arraste um cartão pela borda e edite o texto diretamente; Delete exclui o cartão selecionado.</li>
 <li>Os nós podem ser arrastados. O menu de contexto permite adicionar, vincular, mover e agrupar nós, enquanto a barra integrada controla o zoom e a centralização.</li>
 <li>O botão do modo de foco na barra inferior exibe separadamente a ramificação de primeiro nível selecionada. Pressione-o novamente para voltar ao mapa combinado.</li>
 <li>As alterações são salvas automaticamente com os dados do projeto. O botão “Salvar” e o fechamento da janela também armazenam o estado atual do mapa.</li>

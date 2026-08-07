@@ -32,6 +32,21 @@ def _map_data(topic='Роман'):
     }
 
 
+def test_normalize_mindmap_data_keeps_valid_floating_items():
+    map_data = _map_data()
+    map_data['nfprogressFloatingItems'] = [
+        {'id': 'free-1', 'kind': 'node', 'text': 'Идея', 'x': 120, 'y': -5},
+        {'id': 'note-1', 'kind': 'note', 'text': 'Проверить', 'x': 40, 'y': 60},
+        {'id': 'broken', 'kind': 'note', 'text': 'Нет координат'},
+    ]
+
+    assert engine.normalize_mindmap_data(map_data)['nfprogressFloatingItems'] == [
+        {'id': 'free-1', 'kind': 'node', 'text': 'Идея', 'x': 100, 'y': 0},
+        {'id': 'note-1', 'kind': 'note', 'text': 'Проверить', 'x': 40, 'y': 60},
+    ]
+    assert engine.mindmap_has_content(map_data, 'Роман')
+
+
 def _wait_until(app, condition, timeout=10):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

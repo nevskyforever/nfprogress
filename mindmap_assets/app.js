@@ -8,6 +8,11 @@ let mind = null;
 let readOnly = false;
 let saveTimer = null;
 const nativeEvents = [];
+let floatingItems = [];
+let selectedFloatingItemId = null;
+let floatingNodeName = 'Свободный узел';
+let floatingNoteName = 'Новая заметка';
+const floatingItemsElement = document.getElementById('floating-items');
 
 const bridge = {
   changed() {
@@ -229,7 +234,101 @@ function serializeMap(finishEditing = false) {
   if (finishEditing) {
     finishActiveEdit();
   }
-  return mind.getDataString();
+  const data = JSON.parse(mind.getDataString());
+  if (floatingItems.length) {
+    data.nfprogressFloatingItems = floatingItems;
+  } else {
+    delete data.nfprogressFloatingItems;
+  }
+  return JSON.stringify(data);
+}
+
+function normalizedFloatingItems(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((item) => (
+    item && typeof item.id === 'string' && item.id
+    && (item.kind === 'node' || item.kind === 'note')
+    && typeof item.text === 'string'
+    && Number.isFinite(item.x) && Number.isFinite(item.y)
+  )).map((item) => ({
+    id: item.id,
+    kind: item.kind,
+    text: item.text,
+    x: Math.max(0, Math.min(100, item.x)),
+    y: Math.max(0, Math.min(100, item.y)),
+  }));
+}
+
+function renderFloatingItems() {
+  floatingItemsElement.replaceChildren();
+  for (const item of floatingItems) {
+    const element = document.createElement('div');
+    element.className = `floating-item ${item.kind}`;
+    element.style.left = `${item.x}%`;
+    element.style.top = `${item.y}%`;
+    element.dataset.itemId = item.id;
+    element.tabIndex = readOnly ? -1 : 0;
+    element.setAttribute('role', 'group');
+    if (item.id === selectedFloatingItemId) element.classList.add('selected');
+
+    const content = document.createElement('span');
+    content.className = 'floating-item-content';
+    content.textContent = item.text;
+    content.contentEditable = String(!readOnly);
+    content.spellcheck = true;
+    content.addEventListener('input', () => {
+      item.text = content.textContent;
+      scheduleSave();
+    });
+    content.addEventListener('pointerdown', (event) => event.stopPropagation());
+    element.appendChild(content);
+    element.addEventListener('pointerdown', (event) => startFloatingDrag(event, item));
+    element.addEventListener('keydown', (event) => {
+      if (!readOnly && event.key === 'Delete' && document.activeElement !== content) {
+        floatingItems = floatingItems.filter((value) => value.id !== item.id);
+        selectedFloatingItemId = null;
+        renderFloatingItems();
+        scheduleSave();
+      }
+    });
+    floatingItemsElement.appendChild(element);
+  }
+}
+
+function startFloatingDrag(event, item) {
+  if (readOnly || event.target.isContentEditable) return;
+  event.preventDefault();
+  selectedFloatingItemId = item.id;
+  const bounds = floatingItemsElement.getBoundingClientRect();
+  const move = (moveEvent) => {
+    item.x = Math.max(0, Math.min(100, (moveEvent.clientX - bounds.left) / bounds.width * 100));
+    item.y = Math.max(0, Math.min(100, (moveEvent.clientY - bounds.top) / bounds.height * 100));
+    renderFloatingItems();
+  };
+  const finish = () => {
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', finish);
+    scheduleSave();
+  };
+  document.addEventListener('pointermove', move);
+  document.addEventListener('pointerup', finish, { once: true });
+}
+
+function addFloatingItem(kind) {
+  if (readOnly || (kind !== 'node' && kind !== 'note')) return;
+  const item = {
+    id: `nfprogress-floating-${crypto.randomUUID()}`,
+    kind,
+    text: kind === 'note' ? floatingNoteName : floatingNodeName,
+    x: 50,
+    y: 50,
+  };
+  floatingItems.push(item);
+  selectedFloatingItemId = item.id;
+  renderFloatingItems();
+  scheduleSave();
 }
 
 function persistMap(finishEditing = false) {
@@ -296,6 +395,9 @@ function initialize(payload) {
   document.documentElement.lang = payload.locale.replace('_', '-');
   document.getElementById('map').setAttribute('aria-label', payload.editorLabel);
   loadingElement.textContent = payload.loadingText;
+  floatingItemsElement.setAttribute('aria-label', payload.floatingItemsLabel);
+  floatingNodeName = payload.floatingNodeName;
+  floatingNoteName = payload.floatingNoteName;
   const locale = localePacks[payload.locale] || en;
   const options = {
     el: '#map',
@@ -312,6 +414,8 @@ function initialize(payload) {
 
   mind = new MindElixir(options);
   mind.init(payload.data || MindElixir.new(payload.rootTopic));
+  floatingItems = normalizedFloatingItems(payload.data?.nfprogressFloatingItems);
+  renderFloatingItems();
   installBranchFocusControl(locale, payload.emptyStageMapText);
   protectReadOnlyStageNodeMutations();
   protectReadOnlyStageConnections();
@@ -337,6 +441,7 @@ window.nfprogressMindMap = {
   getDataString() {
     return serializeMap(true);
   },
+  addFloatingItem,
   requestExport,
   saveNow() {
     persistMap(true);

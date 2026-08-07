@@ -42,10 +42,57 @@
     #focusBranch.nfprogress-focus-active {
       color: #4f8cff;
     }
+
+    #floating-items {
+      position: absolute;
+      inset: 0;
+      z-index: 30;
+      pointer-events: none;
+    }
+
+    .floating-item {
+      position: absolute;
+      min-width: 130px;
+      max-width: 260px;
+      padding: 8px 10px;
+      border: 1px solid #4f8cff;
+      border-radius: 7px;
+      box-shadow: 0 2px 8px #0002;
+      color: #1f3554;
+      background: #edf4ff;
+      cursor: grab;
+      pointer-events: auto;
+      user-select: none;
+    }
+
+    .floating-item.note {
+      border-color: #d1a320;
+      background: #fff8cf;
+      color: #594300;
+    }
+
+    .floating-item.selected {
+      outline: 2px solid #276fce;
+      outline-offset: 2px;
+    }
+
+    .floating-item-content {
+      display: block;
+      min-width: 90px;
+      white-space: pre-wrap;
+      user-select: text;
+      cursor: text;
+      outline: none;
+    }
+
+    .floating-item.note .floating-item-content::before {
+      content: '📝 ';
+    }
   </style>
 </head>
 <body>
   <div id="map" aria-label="Редактор карты"></div>
+  <div id="floating-items" aria-label="Свободные элементы карты"></div>
   <div id="loading" aria-live="polite">Загрузка карты…</div>
   <script type="module" src="app.js"></script>
 </body>

@@ -174,7 +174,34 @@ def normalize_mindmap_data(value):
         serialized = json.dumps(value, ensure_ascii=False, allow_nan=False)
     except (TypeError, ValueError):
         return None
-    return json.loads(serialized)
+    normalized = json.loads(serialized)
+    floating_items = normalized.get('nfprogressFloatingItems')
+    if floating_items is not None:
+        if not isinstance(floating_items, list):
+            normalized.pop('nfprogressFloatingItems', None)
+        else:
+            normalized['nfprogressFloatingItems'] = [
+                {
+                    'id': item['id'],
+                    'kind': item['kind'],
+                    'text': item['text'],
+                    'x': min(100, max(0, item['x'])),
+                    'y': min(100, max(0, item['y'])),
+                }
+                for item in floating_items
+                if (
+                    isinstance(item, dict)
+                    and isinstance(item.get('id'), str)
+                    and item['id']
+                    and item.get('kind') in {'node', 'note'}
+                    and isinstance(item.get('text'), str)
+                    and isinstance(item.get('x'), (int, float))
+                    and not isinstance(item['x'], bool)
+                    and isinstance(item.get('y'), (int, float))
+                    and not isinstance(item['y'], bool)
+                )
+            ]
+    return normalized
 
 
 _MINDMAP_STAGE_ID_KEY = 'nfprogressStageId'
@@ -203,6 +230,8 @@ def mindmap_has_content(value, root_topic):
     if root.get('children'):
         return True
     if normalized.get('arrows') or normalized.get('summaries'):
+        return True
+    if normalized.get('nfprogressFloatingItems'):
         return True
 
     default_root_keys = {
