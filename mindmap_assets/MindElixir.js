@@ -1348,7 +1348,7 @@ function Wn(e, t) {
   }, i = t.locale, l = s("cm-add_child", i.addChild, "Tab"), c = s("cm-add_parent", i.addParent, "Ctrl + Enter"), r = s("cm-add_sibling", i.addSibling, "Enter"), a = s("cm-remove_child", i.removeNode, "Delete"), d = s("cm-fucus", i.focus, ""), h = s("cm-unfucus", i.cancelFocus, ""), u = s("cm-up", i.moveUp, "PgUp"), p = s("cm-down", i.moveDown, "Pgdn"), v = s("cm-link", i.link, ""), m = s("cm-link-bidirectional", i.linkBidirectional, ""), y = s("cm-summary", i.summary, ""), g = document.createElement("ul");
   if (g.className = "menu-list", g.appendChild(l), g.appendChild(c), g.appendChild(r), g.appendChild(a), t.focus && (g.appendChild(d), g.appendChild(h)), g.appendChild(u), g.appendChild(p), g.appendChild(y), t.link && (g.appendChild(v), g.appendChild(m)), t && t.extend)
     for (let b = 0; b < t.extend.length; b++) {
-      const w = t.extend[b], S = s(w.name, w.name, w.key || "");
+      const w = t.extend[b], S = s(w.id || w.name, w.name, w.key || "");
       g.appendChild(S), S.onclick = (C) => {
         w.onclick(C);
       };
@@ -2026,7 +2026,7 @@ function lo(e) {
         const i = o.filter((l) => !e.currentNodes?.includes(l));
         if (i.length > 0) {
           for (const l of i)
-            l.className = "selected";
+            l.classList.add("selected");
           e.currentNodes = [...e.currentNodes || [], ...i], e.bus.fire(
             "selectNodes",
             i.map((l) => l.nodeObj)

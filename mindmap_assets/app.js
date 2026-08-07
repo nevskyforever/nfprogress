@@ -459,6 +459,135 @@ function installNativeFreeBehavior() {
   }, true);
 }
 
+function canDetachBranch(node) {
+  return Boolean(
+    node?.parent
+    && !node.parent.nfprogressFreeContainer
+    && !node.nfprogressNote
+    && !node.nfprogressReadOnly
+    && !node.nfprogressStageId
+  );
+}
+
+function canAttachFreeBranch(node) {
+  return Boolean(
+    node?.nfprogressFreeRoot
+    && !node.nfprogressNote
+    && !node.nfprogressReadOnly
+  );
+}
+
+function closeContextMenu() {
+  const contextMenu = mind?.container.querySelector('.context-menu');
+  if (contextMenu) contextMenu.hidden = true;
+}
+
+function branchPosition(topic) {
+  const wrapperBounds = topic.closest('me-wrapper').getBoundingClientRect();
+  const nodesBounds = mind.nodes.getBoundingClientRect();
+  return {
+    x: (wrapperBounds.left - nodesBounds.left) / mind.scaleVal,
+    y: (wrapperBounds.top - nodesBounds.top) / mind.scaleVal,
+  };
+}
+
+function updateSummariesAfterDetach(node, parent, detachedIndex) {
+  for (const summary of mind.summaries || []) {
+    if (summary.parent !== parent.id) continue;
+    if (summary.start === detachedIndex && summary.end === detachedIndex) {
+      summary.parent = node.id;
+      summary.start = 0;
+      summary.end = 0;
+      summary.nfprogressFreeSelf = true;
+    } else if (detachedIndex < summary.start) {
+      summary.start -= 1;
+      summary.end -= 1;
+    } else if (detachedIndex <= summary.end) {
+      summary.end -= 1;
+    }
+  }
+}
+
+function detachSelectedBranch() {
+  const topic = mind?.currentNode;
+  const node = topic?.nodeObj;
+  if (!canDetachBranch(node)) return;
+  const parent = node.parent;
+  const detachedIndex = parent.children.indexOf(node);
+  if (detachedIndex < 0) return;
+
+  const position = branchPosition(topic);
+  parent.children.splice(detachedIndex, 1);
+  node.position = position;
+  node.nfprogressFreeRoot = true;
+  updateSummariesAfterDetach(node, parent, detachedIndex);
+  mind.freeNodes.push(node);
+  closeContextMenu();
+  mind.refresh();
+  const detachedTopic = mind.findEle(node.id);
+  if (detachedTopic) mind.selectNode(detachedTopic, true);
+  mind.bus.fire('operation', { name: 'detachBranch', obj: node });
+}
+
+function attachFreeBranch(source, target) {
+  if (
+    !canAttachFreeBranch(source)
+    || !target
+    || target.nfprogressFreeRoot
+    || target.nfprogressNote
+    || target.nfprogressReadOnly
+  ) return false;
+
+  const sourceIndex = mind.freeNodes.indexOf(source);
+  if (sourceIndex < 0) return false;
+  const targetIndex = target.children?.length || 0;
+  mind.freeNodes.splice(sourceIndex, 1);
+  target.children = target.children || [];
+  target.children.push(source);
+  delete source.position;
+  delete source.nfprogressFreeRoot;
+  for (const summary of mind.summaries || []) {
+    if (summary.parent === source.id && summary.nfprogressFreeSelf) {
+      summary.parent = target.id;
+      summary.start = targetIndex;
+      summary.end = targetIndex;
+      delete summary.nfprogressFreeSelf;
+    }
+  }
+  mind.refresh();
+  const attachedTopic = mind.findEle(source.id);
+  if (attachedTopic) mind.selectNode(attachedTopic, true);
+  mind.bus.fire('operation', { name: 'attachBranch', obj: source });
+  return true;
+}
+
+function beginAttachFreeBranch(targetPrompt) {
+  const source = mind?.currentNode?.nodeObj;
+  if (!canAttachFreeBranch(source)) return;
+  closeContextMenu();
+  const tips = document.createElement('div');
+  tips.className = 'tips';
+  tips.textContent = targetPrompt;
+  mind.container.appendChild(tips);
+  mind.map.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    tips.remove();
+    const targetTopic = event.target.closest?.('me-tpc');
+    if (targetTopic) attachFreeBranch(source, targetTopic.nodeObj);
+  }, { once: true });
+}
+
+function installBranchTransferBehavior() {
+  const detachItem = document.getElementById('nfprogress-detach-branch');
+  const attachItem = document.getElementById('nfprogress-attach-branch');
+  mind.bus.addListener('showContextMenu', () => {
+    const node = mind.currentNode?.nodeObj;
+    detachItem?.classList.toggle('disabled', !canDetachBranch(node));
+    attachItem?.classList.toggle('disabled', !canAttachFreeBranch(node));
+  });
+}
+
 function collectSearchResults(node, query, results) {
   if (!node) return;
   const text = String(node.topic || '');
@@ -661,10 +790,27 @@ function initialize(payload) {
   floatingNodeName = payload.floatingNodeName;
   floatingNoteName = payload.floatingNoteName;
   const locale = localePacks[payload.locale] || en;
+  const contextMenu = readOnly ? false : {
+    focus: true,
+    link: true,
+    locale,
+    extend: [
+      {
+        id: 'nfprogress-detach-branch',
+        name: payload.detachBranchLabel,
+        onclick: detachSelectedBranch,
+      },
+      {
+        id: 'nfprogress-attach-branch',
+        name: payload.attachBranchLabel,
+        onclick: () => beginAttachFreeBranch(payload.attachTargetPrompt),
+      },
+    ],
+  };
   const options = {
     el: '#map',
     direction: MindElixir.SIDE,
-    contextMenu: readOnly ? false : { focus: true, link: true, locale },
+    contextMenu,
     toolBar: true,
     keypress: !readOnly,
     draggable: !readOnly,
@@ -680,6 +826,7 @@ function initialize(payload) {
   );
   mind.init(initialData);
   installNativeFreeBehavior();
+  installBranchTransferBehavior();
   installFloatingItemControls(payload);
   installBranchFocusControl(locale, payload.emptyStageMapText);
   installSearchControl(payload);

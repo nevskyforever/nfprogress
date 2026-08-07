@@ -843,6 +843,11 @@ def test_free_nodes_use_native_branches_summaries_arrows_and_shortcuts():
             remove: !document.querySelector('#cm-remove_child').classList.contains('disabled'),
             link: Boolean(document.querySelector('#cm-link')),
             summary: Boolean(document.querySelector('#cm-summary')),
+            noteStylePreserved: [...document.querySelectorAll('me-tpc')].some(
+              element => element.nodeObj.nfprogressNote
+                && element.classList.contains('nfprogress-note')
+                && element.classList.contains('selected')
+            ),
           });
         })()
         """,
@@ -853,6 +858,7 @@ def test_free_nodes_use_native_branches_summaries_arrows_and_shortcuts():
         'remove': True,
         'link': True,
         'summary': True,
+        'noteStylePreserved': True,
     }
     created_summary = json.loads(_run_javascript(
         app,
@@ -929,6 +935,170 @@ def test_free_nodes_use_native_branches_summaries_arrows_and_shortcuts():
     assert serialized['summaries'][0]['nfprogressFreeSelf'] is True
     assert 'nfprogressFloatingItems' not in serialized
     assert 'nfprogressFloatingLinks' not in serialized
+    assert dialog._bridge.last_error == ''
+
+    _process_events_for(app, 0.5)
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+@requires_native_webview
+def test_branch_can_detach_to_free_node_and_attach_back_to_map():
+    app = QApplication.instance() or QApplication([])
+    map_data = {
+        'nodeData': {
+            'id': 'root-node',
+            'topic': 'Book',
+            'children': [
+                {
+                    'id': 'movable-branch',
+                    'topic': 'Movable branch',
+                    'children': [{
+                        'id': 'nested-node',
+                        'topic': 'Nested node',
+                        'children': [],
+                    }],
+                },
+                {
+                    'id': 'target-node',
+                    'topic': 'Target node',
+                    'children': [],
+                },
+            ],
+        },
+        'arrows': [{
+            'id': 'branch-arrow',
+            'from': 'movable-branch',
+            'to': 'target-node',
+            'label': '',
+        }],
+        'summaries': [{
+            'id': 'branch-summary',
+            'parent': 'root-node',
+            'start': 0,
+            'end': 0,
+            'label': 'Branch summary',
+        }],
+    }
+    dialog = MindMapDialog('Book', map_data, lambda data: None)
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'movable-branch'
+          );
+          branch.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true,
+            button: 2,
+            clientX: 300,
+            clientY: 220,
+          }));
+          return Boolean(branch);
+        })()
+        """,
+    )
+    _process_events_for(app, 0.25)
+    detach_menu_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const detach = document.querySelector('#nfprogress-detach-branch');
+          const attach = document.querySelector('#nfprogress-attach-branch');
+          const state = {
+            detachAvailable: !detach.classList.contains('disabled'),
+            attachHidden: attach.classList.contains('disabled'),
+          };
+          detach.click();
+          return JSON.stringify(state);
+        })()
+        """,
+    ))
+    assert detach_menu_state == {
+        'detachAvailable': True,
+        'attachHidden': True,
+    }
+    detached = json.loads(_run_javascript(
+        app,
+        dialog,
+        'window.nfprogressMindMap.getDataString()',
+    ))
+    assert [node['id'] for node in detached['nodeData']['children']] == [
+        'target-node',
+    ]
+    assert detached['freeNodes'][0]['id'] == 'movable-branch'
+    assert detached['freeNodes'][0]['children'][0]['id'] == 'nested-node'
+    assert detached['summaries'][0]['parent'] == 'movable-branch'
+    assert detached['summaries'][0]['nfprogressFreeSelf'] is True
+    assert detached['arrows'][0]['id'] == 'branch-arrow'
+    assert dialog._bridge.last_error == ''
+
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'movable-branch'
+          );
+          branch.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true,
+            button: 2,
+            clientX: 360,
+            clientY: 260,
+          }));
+          return branch.nodeObj.nfprogressFreeRoot === true;
+        })()
+        """,
+    )
+    _process_events_for(app, 0.25)
+    attach_menu_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const detach = document.querySelector('#nfprogress-detach-branch');
+          const attach = document.querySelector('#nfprogress-attach-branch');
+          const state = {
+            detachHidden: detach.classList.contains('disabled'),
+            attachAvailable: !attach.classList.contains('disabled'),
+          };
+          attach.click();
+          const target = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'target-node'
+          );
+          target.click();
+          return JSON.stringify(state);
+        })()
+        """,
+    ))
+    assert attach_menu_state == {
+        'detachHidden': True,
+        'attachAvailable': True,
+    }
+    attached = json.loads(_run_javascript(
+        app,
+        dialog,
+        'window.nfprogressMindMap.getDataString()',
+    ))
+    assert attached.get('freeNodes') == []
+    target = attached['nodeData']['children'][0]
+    assert target['id'] == 'target-node'
+    assert target['children'][0]['id'] == 'movable-branch'
+    assert target['children'][0]['children'][0]['id'] == 'nested-node'
+    assert 'position' not in target['children'][0]
+    assert attached['summaries'][0]['parent'] == 'target-node'
+    assert attached['summaries'][0]['start'] == 0
+    assert 'nfprogressFreeSelf' not in attached['summaries'][0]
+    assert attached['arrows'][0]['id'] == 'branch-arrow'
     assert dialog._bridge.last_error == ''
 
     _process_events_for(app, 0.5)
