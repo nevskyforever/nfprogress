@@ -110,17 +110,26 @@
 
     .nfprogress-search-panel {
       position: absolute;
-      top: 52px;
-      left: 20px;
+      top: 20px;
+      left: 52px;
       z-index: 40;
       width: min(330px, calc(100vw - 40px));
       padding: 7px;
       border-radius: 6px;
       background: var(--panel-bgcolor, #fff);
       box-shadow: 0 4px 14px #0003;
+      opacity: 0;
+      transform: translateX(-12px);
+      visibility: hidden;
+      transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
     }
 
-    .nfprogress-search-panel[hidden] { display: none; }
+    .nfprogress-search-panel.open {
+      opacity: 1;
+      transform: translateX(0);
+      visibility: visible;
+      transition-delay: 0s;
+    }
     .nfprogress-search-input { width: 100%; padding: 7px; }
     .nfprogress-search-results { max-height: 230px; overflow-y: auto; }
     .nfprogress-search-result {

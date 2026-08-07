@@ -309,7 +309,11 @@ function renderFloatingItems() {
     content.addEventListener('dblclick', () => beginFloatingEdit(content, item));
     element.addEventListener('click', () => {
       selectedFloatingItemId = item.id;
-      renderFloatingItems();
+      for (const selected of floatingItemsElement.querySelectorAll('.floating-item.selected')) {
+        selected.classList.remove('selected');
+      }
+      element.classList.add('selected');
+      element.focus();
     });
     element.appendChild(content);
     element.addEventListener('pointerdown', (event) => startFloatingDrag(event, item));
@@ -318,6 +322,9 @@ function renderFloatingItems() {
       if (event.key === 'Tab' && item.kind === 'node') {
         event.preventDefault();
         addFloatingNode(item.id, item.x + 8, item.y + 10);
+      } else if (event.key === 'Tab' && item.kind === 'note') {
+        event.preventDefault();
+        addFloatingItem('note', item.x + 12, item.y);
       } else if (event.key === 'Enter' && item.kind === 'node') {
         event.preventDefault();
         addFloatingNode(item.parentId, item.x + 12, item.y);
@@ -344,6 +351,12 @@ function renderFloatingItems() {
     });
     floatingItemsElement.appendChild(element);
   }
+}
+
+function focusSelectedFloatingItem() {
+  window.requestAnimationFrame(() => {
+    floatingItemsElement.querySelector('.floating-item.selected')?.focus();
+  });
 }
 
 function beginFloatingEdit(content, item) {
@@ -388,19 +401,20 @@ function startFloatingDrag(event, item) {
   document.addEventListener('pointerup', finish, { once: true });
 }
 
-function addFloatingItem(kind) {
+function addFloatingItem(kind, x = 50, y = 50) {
   if (readOnly || (kind !== 'node' && kind !== 'note')) return;
   const item = {
     id: `nfprogress-floating-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     kind,
     text: kind === 'note' ? floatingNoteName : floatingNodeName,
-    x: 50,
-    y: 50,
+    x: Math.max(0, Math.min(100, x)),
+    y: Math.max(0, Math.min(100, y)),
     parentId: null,
   };
   floatingItems.push(item);
   selectedFloatingItemId = item.id;
   renderFloatingItems();
+  focusSelectedFloatingItem();
   scheduleSave();
 }
 
@@ -416,6 +430,7 @@ function addFloatingNode(parentId, x, y) {
   floatingItems.push(item);
   selectedFloatingItemId = item.id;
   renderFloatingItems();
+  focusSelectedFloatingItem();
   scheduleSave();
 }
 
@@ -512,7 +527,6 @@ function installSearchControl(payload) {
   control.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
   const panel = document.createElement('div');
   panel.className = 'nfprogress-search-panel';
-  panel.hidden = true;
   const input = document.createElement('input');
   input.className = 'nfprogress-search-input';
   input.type = 'search';
@@ -551,14 +565,14 @@ function installSearchControl(payload) {
       button.addEventListener('click', () => {
         if (result.type === 'node') revealMapNode(result.id);
         else revealFloatingItem(result.id);
-        panel.hidden = true;
+        panel.classList.remove('open');
       });
       resultsElement.appendChild(button);
     }
   };
   const toggle = () => {
-    panel.hidden = !panel.hidden;
-    if (!panel.hidden) input.focus();
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) input.focus();
   };
   control.addEventListener('click', toggle);
   control.addEventListener('keydown', (event) => {
@@ -569,6 +583,18 @@ function installSearchControl(payload) {
   });
   input.addEventListener('input', updateResults);
   toolbar.appendChild(control);
+  document.addEventListener('pointerdown', (event) => {
+    if (!panel.contains(event.target) && !control.contains(event.target)) {
+      panel.classList.remove('open');
+    }
+  });
+  mind.container.addEventListener('keydown', (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'f') {
+      event.preventDefault();
+      if (!panel.classList.contains('open')) panel.classList.add('open');
+      input.focus();
+    }
+  });
 }
 
 function persistMap(finishEditing = false) {
