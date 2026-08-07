@@ -107,6 +107,28 @@
     .mind-elixir-toolbar span.nfprogress-floating-control + span {
       margin-left: 10px;
     }
+
+    .nfprogress-search-panel {
+      position: absolute;
+      top: 52px;
+      left: 20px;
+      z-index: 40;
+      width: min(330px, calc(100vw - 40px));
+      padding: 7px;
+      border-radius: 6px;
+      background: var(--panel-bgcolor, #fff);
+      box-shadow: 0 4px 14px #0003;
+    }
+
+    .nfprogress-search-panel[hidden] { display: none; }
+    .nfprogress-search-input { width: 100%; padding: 7px; }
+    .nfprogress-search-results { max-height: 230px; overflow-y: auto; }
+    .nfprogress-search-result {
+      width: 100%; padding: 7px; border: 0; background: transparent;
+      text-align: left; cursor: pointer;
+    }
+    .nfprogress-search-result:hover { background: #4f8cff20; }
+    .nfprogress-search-empty { padding: 7px; color: #666; }
   </style>
 </head>
 <body>

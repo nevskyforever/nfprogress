@@ -53,6 +53,26 @@ def test_normalize_mindmap_data_keeps_valid_floating_items():
     assert engine.mindmap_has_content(map_data, 'Роман')
 
 
+def test_combined_map_excludes_floating_items_from_stages():
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data('Book')
+    project.mindmap_data['nfprogressFloatingItems'] = [
+        {'id': 'project-note', 'kind': 'note', 'text': 'Project', 'x': 10, 'y': 10},
+    ]
+    stage = engine.Stage(name='Draft', goal=500, parent_project_name='Book')
+    stage.mindmap_data = _map_data('Draft')
+    stage.mindmap_data['nfprogressFloatingItems'] = [
+        {'id': 'stage-note', 'kind': 'note', 'text': 'Stage', 'x': 20, 'y': 20},
+    ]
+    project.enable_stages = True
+    project.stages = [stage]
+
+    combined = engine.compose_project_mindmap(project)
+
+    assert combined['nfprogressFloatingItems'] == project.mindmap_data['nfprogressFloatingItems']
+    assert stage.mindmap_data['nfprogressFloatingItems'][0]['id'] == 'stage-note'
+
+
 def _wait_until(app, condition, timeout=10):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:

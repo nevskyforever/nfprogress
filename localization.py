@@ -135,6 +135,7 @@ MINDMAP_HELP_SOURCE = """<html><body>
 <li>Кнопки «Свободный узел» и «Заметка» добавляют независимые карточки поверх карты. Свободные узлы образуют отдельное дерево: Tab добавляет дочерний узел, Enter — соседний. Карточки можно перетаскивать за рамку, редактировать двойным щелчком или F2, а Delete удаляет выбранную карточку с её потомками.</li>
 <li>Узлы можно перетаскивать. Контекстное меню добавляет, связывает, перемещает и группирует узлы, а встроенная панель управляет масштабом и центрированием.</li>
 <li>Кнопка режима фокуса на нижней панели показывает выбранную ветвь первого уровня отдельно. Повторное нажатие возвращает общую карту.</li>
+<li>Значок поиска в верхней панели ищет по обычным и свободным узлам, а также по заметкам. Выберите результат, чтобы развернуть нужную ветвь, выделить элемент и показать его в центре карты.</li>
 <li>Изменения сохраняются автоматически вместе с данными проекта. Кнопка «Сохранить» и закрытие окна также записывают актуальное состояние карты.</li>
 <li>Кнопка «Экспорт» сохраняет текущую карту в PNG, SVG или JSON. PNG и SVG подходят для просмотра и публикации, а JSON хранит редактируемую структуру карты.</li>
 <li>В окне изменения проекта с этапами можно включить «Объединять карты этапов в карте проекта». Тогда каждый этап показывается в общей карте отдельной ветвью первого уровня под своим актуальным именем.</li>
@@ -207,6 +208,7 @@ TRANSLATION_OVERRIDES = {
 <li>The “Free node” and “Note” buttons add independent cards on top of the map. Drag a card by its border and edit its text directly; Delete removes the selected card.</li>
 <li>Nodes can be dragged. The context menu adds, links, moves, and groups nodes, while the built-in toolbar controls zoom and centering.</li>
 <li>The focus mode button on the bottom toolbar displays the selected first-level branch separately. Press it again to return to the combined map.</li>
+<li>The search icon on the top toolbar searches regular and free nodes as well as notes. Select a result to expand its branch, select the item, and center it on the map.</li>
 <li>Changes are saved automatically with the project data. The “Save” button and closing the window also store the map’s current state.</li>
 <li>The Export button saves the current map as PNG, SVG or JSON. PNG and SVG are suitable for viewing and sharing, while JSON stores the editable map structure.</li>
 <li>In the edit window for a staged project, you can enable “Combine stage maps in the project map”. Each stage will then appear in the combined map as a separate first-level branch under its current name.</li>
@@ -329,6 +331,7 @@ TRANSLATION_OVERRIDES = {
 <li>Los botones «Nodo libre» y «Nota» añaden tarjetas independientes sobre el mapa. Arrastre una tarjeta por su borde y edite el texto directamente; Supr elimina la tarjeta seleccionada.</li>
 <li>Los nodos se pueden arrastrar. El menú contextual permite añadir, vincular, mover y agrupar nodos, mientras que la barra integrada controla el zoom y el centrado.</li>
 <li>El botón de modo de enfoque de la barra inferior muestra por separado la rama de primer nivel seleccionada. Púlselo de nuevo para volver al mapa combinado.</li>
+<li>El icono de búsqueda de la barra superior busca nodos normales y libres, así como notas. Elija un resultado para desplegar su rama, seleccionar el elemento y centrarlo en el mapa.</li>
 <li>Los cambios se guardan automáticamente con los datos del proyecto. El botón «Guardar» y el cierre de la ventana también almacenan el estado actual del mapa.</li>
 <li>El botón Exportar guarda el mapa actual como PNG, SVG o JSON. PNG y SVG son adecuados para ver y compartir, mientras que JSON almacena la estructura del mapa editable.</li>
 <li>En la ventana de edición de un proyecto con etapas puede activar «Combinar mapas de etapas». Cada etapa aparecerá en el mapa combinado como una rama independiente de primer nivel con su nombre actual.</li>
@@ -451,6 +454,7 @@ TRANSLATION_OVERRIDES = {
 <li>Die Schaltflächen „Freier Knoten“ und „Notiz“ fügen unabhängige Karten über der Karte hinzu. Ziehen Sie eine Karte am Rand und bearbeiten Sie ihren Text direkt; Entf löscht die ausgewählte Karte.</li>
 <li>Knoten können gezogen werden. Über das Kontextmenü lassen sich Knoten hinzufügen, verknüpfen, verschieben und gruppieren; die integrierte Werkzeugleiste steuert Zoom und Zentrierung.</li>
 <li>Die Schaltfläche für den Fokusmodus in der unteren Werkzeugleiste zeigt den ausgewählten Zweig der ersten Ebene separat an. Ein erneuter Klick kehrt zur Gesamtkarte zurück.</li>
+<li>Das Suchsymbol in der oberen Werkzeugleiste durchsucht normale und freie Knoten sowie Notizen. Wählen Sie ein Ergebnis, um den Zweig zu öffnen, das Element auszuwählen und es in der Karte zu zentrieren.</li>
 <li>Änderungen werden automatisch mit den Projektdaten gespeichert. Auch die Schaltfläche „Speichern“ und das Schließen des Fensters sichern den aktuellen Stand der Karte.</li>
 <li>Die Schaltfläche „Exportieren“ speichert die aktuelle Karte als PNG, SVG oder JSON. PNG und SVG eignen sich zum Anzeigen und Teilen, während JSON die bearbeitbare Kartenstruktur speichert.</li>
 <li>Im Bearbeitungsfenster eines Etappenprojekts können Sie „Etappenkarten zusammenführen“ aktivieren. Jede Etappe erscheint dann in der Gesamtkarte als eigener Zweig der ersten Ebene unter ihrem aktuellen Namen.</li>
@@ -573,6 +577,7 @@ TRANSLATION_OVERRIDES = {
 <li>Les boutons « Nœud libre » et « Note » ajoutent des cartes indépendantes au-dessus de la carte. Faites glisser une carte par son bord et modifiez son texte directement ; Suppr supprime la carte sélectionnée.</li>
 <li>Les nœuds peuvent être déplacés. Le menu contextuel permet d’ajouter, de relier, de déplacer et de regrouper les nœuds, tandis que la barre intégrée contrôle le zoom et le centrage.</li>
 <li>Le bouton du mode focus dans la barre inférieure affiche séparément la branche de premier niveau sélectionnée. Appuyez à nouveau dessus pour revenir à la carte globale.</li>
+<li>L’icône de recherche de la barre supérieure recherche les nœuds ordinaires et libres ainsi que les notes. Choisissez un résultat pour développer sa branche, sélectionner l’élément et le centrer dans la carte.</li>
 <li>Les modifications sont enregistrées automatiquement avec les données du projet. Le bouton « Enregistrer » et la fermeture de la fenêtre sauvegardent également l’état actuel de la carte.</li>
 <li>Le bouton Exporter enregistre la carte actuelle au format PNG, SVG ou JSON. PNG et SVG conviennent à la visualisation et au partage, tandis que JSON stocke la structure de la carte modifiable.</li>
 <li>Dans la fenêtre de modification d’un projet à étapes, vous pouvez activer « Regrouper les cartes des étapes ». Chaque étape apparaît alors dans la carte globale sous la forme d’une branche distincte de premier niveau portant son nom actuel.</li>
@@ -695,6 +700,7 @@ TRANSLATION_OVERRIDES = {
 <li>Os botões «Nó livre» e «Nota» adicionam cartões independentes sobre o mapa. Arraste um cartão pela borda e edite o texto diretamente; Delete exclui o cartão selecionado.</li>
 <li>Os nós podem ser arrastados. O menu de contexto permite adicionar, vincular, mover e agrupar nós, enquanto a barra integrada controla o zoom e a centralização.</li>
 <li>O botão do modo de foco na barra inferior exibe separadamente a ramificação de primeiro nível selecionada. Pressione-o novamente para voltar ao mapa combinado.</li>
+<li>O ícone de pesquisa na barra superior pesquisa nós regulares e livres, além de notas. Selecione um resultado para expandir a ramificação, selecionar o item e centralizá-lo no mapa.</li>
 <li>As alterações são salvas automaticamente com os dados do projeto. O botão “Salvar” e o fechamento da janela também armazenam o estado atual do mapa.</li>
 <li>O botão Exportar salva o mapa atual como PNG, SVG ou JSON. PNG e SVG são adequados para visualização e compartilhamento, enquanto JSON armazena a estrutura editável do mapa.</li>
 <li>Na janela de edição de um projeto com etapas, você pode ativar “Combinar mapas das etapas”. Cada etapa será exibida no mapa combinado como uma ramificação separada de primeiro nível com seu nome atual.</li>

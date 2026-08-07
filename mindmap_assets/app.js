@@ -455,6 +455,122 @@ function installFloatingItemControls(payload) {
   }
 }
 
+function collectSearchResults(node, query, results) {
+  if (!node) return;
+  const text = String(node.topic || '');
+  if (text.toLocaleLowerCase().includes(query)) {
+    results.push({ type: 'node', id: node.id, text });
+  }
+  for (const child of node.children || []) collectSearchResults(child, query, results);
+}
+
+function revealMapNode(nodeId) {
+  const targetData = findNodeData(mind.nodeData, nodeId);
+  if (!targetData) return;
+  const ancestors = [];
+  for (let parent = targetData.parent; parent; parent = parent.parent) ancestors.push(parent);
+  for (const ancestor of ancestors.reverse()) {
+    const element = mind.findEle(ancestor.id);
+    if (element && ancestor.expanded === false) mind.expandNode(element, true);
+  }
+  const element = mind.findEle(nodeId);
+  if (element) {
+    mind.selectNode(element);
+    mind.scrollIntoView(element, true);
+  }
+}
+
+function findNodeData(node, nodeId) {
+  if (!node) return null;
+  if (node.id === nodeId) return node;
+  for (const child of node.children || []) {
+    const found = findNodeData(child, nodeId);
+    if (found) return found;
+  }
+  return null;
+}
+
+function revealFloatingItem(itemId) {
+  const item = floatingItemById(itemId);
+  if (!item) return;
+  item.x = 50;
+  item.y = 50;
+  selectedFloatingItemId = itemId;
+  renderFloatingItems();
+  scheduleSave();
+}
+
+function installSearchControl(payload) {
+  const toolbar = mind?.el?.querySelector('.mind-elixir-toolbar.lt');
+  if (!toolbar) return;
+  const control = document.createElement('span');
+  control.className = 'nfprogress-floating-control';
+  control.tabIndex = 0;
+  control.title = payload.searchMapLabel;
+  control.setAttribute('aria-label', payload.searchMapLabel);
+  control.setAttribute('role', 'button');
+  control.innerHTML = '<svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="m16 16 5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>';
+  const panel = document.createElement('div');
+  panel.className = 'nfprogress-search-panel';
+  panel.hidden = true;
+  const input = document.createElement('input');
+  input.className = 'nfprogress-search-input';
+  input.type = 'search';
+  input.placeholder = payload.searchPlaceholder;
+  input.setAttribute('aria-label', payload.searchPlaceholder);
+  const resultsElement = document.createElement('div');
+  resultsElement.className = 'nfprogress-search-results';
+  panel.append(input, resultsElement);
+  mind.el.appendChild(panel);
+
+  const updateResults = () => {
+    const query = input.value.trim().toLocaleLowerCase();
+    resultsElement.replaceChildren();
+    if (!query) return;
+    const results = [];
+    collectSearchResults(mind.nodeData, query, results);
+    for (const item of floatingItems) {
+      if (item.text.toLocaleLowerCase().includes(query)) {
+        results.push({ type: 'floating', id: item.id, text: item.text, kind: item.kind });
+      }
+    }
+    if (!results.length) {
+      const empty = document.createElement('div');
+      empty.className = 'nfprogress-search-empty';
+      empty.textContent = payload.nothingFoundText;
+      resultsElement.appendChild(empty);
+      return;
+    }
+    for (const result of results) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'nfprogress-search-result';
+      button.textContent = result.type === 'floating'
+        ? `${result.kind === 'note' ? '📝 ' : '◉ '}${result.text}`
+        : result.text;
+      button.addEventListener('click', () => {
+        if (result.type === 'node') revealMapNode(result.id);
+        else revealFloatingItem(result.id);
+        panel.hidden = true;
+      });
+      resultsElement.appendChild(button);
+    }
+  };
+  const toggle = () => {
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) input.focus();
+  };
+  control.addEventListener('click', toggle);
+  control.addEventListener('keydown', (event) => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggle();
+    }
+  });
+  input.addEventListener('input', updateResults);
+  toolbar.appendChild(control);
+}
+
 function persistMap(finishEditing = false) {
   if (!mind || readOnly) {
     return;
@@ -542,6 +658,7 @@ function initialize(payload) {
   renderFloatingItems();
   installFloatingItemControls(payload);
   installBranchFocusControl(locale, payload.emptyStageMapText);
+  installSearchControl(payload);
   protectReadOnlyStageNodeMutations();
   protectReadOnlyStageConnections();
   markReadOnlyStageNodes();
