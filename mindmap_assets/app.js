@@ -25,6 +25,12 @@ const bridge = {
   showStatus(message) {
     nativeEvents.push({ type: 'status', message: String(message) });
   },
+  exportFile(format, data) {
+    nativeEvents.push({ type: 'export', format, data });
+  },
+  exportError(details) {
+    nativeEvents.push({ type: 'exportError', details: String(details) });
+  },
 };
 
 function nodeObject(value) {
@@ -255,6 +261,36 @@ function scheduleSave(operation) {
   saveTimer = window.setTimeout(() => persistMap(false), 400);
 }
 
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function requestExport(format) {
+  if (!mind) {
+    bridge.exportError('Mind Elixir is not initialized.');
+    return;
+  }
+  try {
+    finishActiveEdit();
+    if (format === 'json') {
+      bridge.exportFile(format, mind.getDataString());
+      return;
+    }
+    const blob = format === 'png'
+      ? await mind.exportPng()
+      : mind.exportSvg();
+    bridge.exportFile(format, await blobToDataUrl(blob));
+  } catch (error) {
+    reportError(error);
+    bridge.exportError(errorText(error));
+  }
+}
+
 function initialize(payload) {
   readOnly = Boolean(payload.readOnly);
   document.documentElement.lang = payload.locale.replace('_', '-');
@@ -301,6 +337,7 @@ window.nfprogressMindMap = {
   getDataString() {
     return serializeMap(true);
   },
+  requestExport,
   saveNow() {
     persistMap(true);
   },

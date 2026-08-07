@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication
 
 import engine
 import main_UI
+import mindmap
 from main_UI import EditProject, MainWindow
 from mindmap import MindMapBridge, MindMapDialog
 
@@ -604,6 +605,44 @@ def test_mindmap_dialog_displays_empty_stage_message_in_status_area():
     assert _wait_until(app, lambda: dialog._ready)
     assert dialog.save_status_label.text() == message
     assert dialog._bridge.last_error == ''
+
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+@requires_native_webview
+def test_mindmap_dialog_exports_png_svg_and_json(monkeypatch, tmp_path):
+    app = QApplication.instance() or QApplication([])
+    exported_paths = iter((
+        tmp_path / 'map.svg',
+        tmp_path / 'map.json',
+        tmp_path / 'map.png',
+    ))
+    monkeypatch.setattr(
+        mindmap.QFileDialog,
+        'getSaveFileName',
+        lambda *args, **kwargs: (str(next(exported_paths)), ''),
+    )
+    dialog = MindMapDialog('Export test', _map_data('Export root'), lambda data: None)
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    for export_format, path in (
+            ('svg', tmp_path / 'map.svg'),
+            ('json', tmp_path / 'map.json'),
+            ('png', tmp_path / 'map.png'),
+    ):
+        dialog._request_export(export_format)
+        assert _wait_until(app, path.is_file)
+
+    assert (tmp_path / 'map.svg').read_text(encoding='utf-8').startswith('<?xml')
+    assert json.loads((tmp_path / 'map.json').read_text(encoding='utf-8'))[
+        'nodeData'
+    ]['topic'] == 'Export root'
+    assert (tmp_path / 'map.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
 
     dialog._allow_close = True
     dialog.close()

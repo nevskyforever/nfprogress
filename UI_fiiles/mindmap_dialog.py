@@ -81,6 +81,11 @@ class Ui_mindmap_dialog(object):
 
         self.buttons_layout.addWidget(self.save_button)
 
+        self.export_button = QPushButton(mindmap_dialog)
+        self.export_button.setObjectName(u"export_button")
+
+        self.buttons_layout.addWidget(self.export_button)
+
         self.close_button = QPushButton(mindmap_dialog)
         self.close_button.setObjectName(u"close_button")
 
@@ -89,7 +94,8 @@ class Ui_mindmap_dialog(object):
 
         self.verticalLayout.addLayout(self.buttons_layout)
 
-        QWidget.setTabOrder(self.save_button, self.close_button)
+        QWidget.setTabOrder(self.save_button, self.export_button)
+        QWidget.setTabOrder(self.export_button, self.close_button)
 
         self.retranslateUi(mindmap_dialog)
 
@@ -110,6 +116,10 @@ class Ui_mindmap_dialog(object):
         self.save_button.setText(QCoreApplication.translate("mindmap_dialog", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c", None))
 #if QT_CONFIG(accessibility)
         self.save_button.setAccessibleName(QCoreApplication.translate("mindmap_dialog", u"\u0421\u043e\u0445\u0440\u0430\u043d\u0438\u0442\u044c \u043a\u0430\u0440\u0442\u0443", None))
+#endif // QT_CONFIG(accessibility)
+        self.export_button.setText(QCoreApplication.translate("mindmap_dialog", u"\u042d\u043a\u0441\u043f\u043e\u0440\u0442", None))
+#if QT_CONFIG(accessibility)
+        self.export_button.setAccessibleName(QCoreApplication.translate("mindmap_dialog", u"\u042d\u043a\u0441\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u0442\u044c \u043a\u0430\u0440\u0442\u0443", None))
 #endif // QT_CONFIG(accessibility)
         self.close_button.setText(QCoreApplication.translate("mindmap_dialog", u"\u0417\u0430\u043a\u0440\u044b\u0442\u044c", None))
 #if QT_CONFIG(accessibility)

@@ -133,6 +133,16 @@
       </widget>
      </item>
      <item>
+      <widget class="QPushButton" name="export_button">
+       <property name="text">
+        <string>Экспорт</string>
+       </property>
+       <property name="accessibleName">
+        <string>Экспортировать карту</string>
+       </property>
+      </widget>
+     </item>
+     <item>
       <widget class="QPushButton" name="close_button">
        <property name="text">
         <string>Закрыть</string>
@@ -147,7 +157,8 @@
   </layout>
  </widget>
  <tabstops>
-  <tabstop>save_button</tabstop>
+ <tabstop>save_button</tabstop>
+  <tabstop>export_button</tabstop>
   <tabstop>close_button</tabstop>
  </tabstops>
  <resources/>
