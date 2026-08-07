@@ -13,6 +13,7 @@ let selectedFloatingItemId = null;
 let floatingNodeName = 'Свободный узел';
 let floatingNoteName = 'Новая заметка';
 const floatingItemsElement = document.getElementById('floating-items');
+const floatingLinksElement = document.getElementById('floating-links');
 
 const bridge = {
   changed() {
@@ -258,11 +259,34 @@ function normalizedFloatingItems(value) {
     text: item.text,
     x: Math.max(0, Math.min(100, item.x)),
     y: Math.max(0, Math.min(100, item.y)),
+    parentId: typeof item.parentId === 'string' ? item.parentId : null,
   }));
+}
+
+function floatingItemById(itemId) {
+  return floatingItems.find((item) => item.id === itemId) || null;
+}
+
+function drawFloatingLinks() {
+  floatingLinksElement.replaceChildren();
+  for (const item of floatingItems) {
+    if (!item.parentId) continue;
+    const parent = floatingItemById(item.parentId);
+    if (!parent) continue;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', `${parent.x}%`);
+    line.setAttribute('y1', `${parent.y}%`);
+    line.setAttribute('x2', `${item.x}%`);
+    line.setAttribute('y2', `${item.y}%`);
+    line.setAttribute('stroke', '#4f8cff');
+    line.setAttribute('stroke-width', '2');
+    floatingLinksElement.appendChild(line);
+  }
 }
 
 function renderFloatingItems() {
   floatingItemsElement.replaceChildren();
+  drawFloatingLinks();
   for (const item of floatingItems) {
     const element = document.createElement('div');
     element.className = `floating-item ${item.kind}`;
@@ -276,18 +300,43 @@ function renderFloatingItems() {
     const content = document.createElement('span');
     content.className = 'floating-item-content';
     content.textContent = item.text;
-    content.contentEditable = String(!readOnly);
+    content.contentEditable = 'false';
     content.spellcheck = true;
     content.addEventListener('input', () => {
       item.text = content.textContent;
       scheduleSave();
     });
-    content.addEventListener('pointerdown', (event) => event.stopPropagation());
+    content.addEventListener('dblclick', () => beginFloatingEdit(content, item));
+    element.addEventListener('click', () => {
+      selectedFloatingItemId = item.id;
+      renderFloatingItems();
+    });
     element.appendChild(content);
     element.addEventListener('pointerdown', (event) => startFloatingDrag(event, item));
     element.addEventListener('keydown', (event) => {
-      if (!readOnly && event.key === 'Delete' && document.activeElement !== content) {
-        floatingItems = floatingItems.filter((value) => value.id !== item.id);
+      if (readOnly || document.activeElement === content) return;
+      if (event.key === 'Tab' && item.kind === 'node') {
+        event.preventDefault();
+        addFloatingNode(item.id, item.x + 8, item.y + 10);
+      } else if (event.key === 'Enter' && item.kind === 'node') {
+        event.preventDefault();
+        addFloatingNode(item.parentId, item.x + 12, item.y);
+      } else if (event.key === 'F2') {
+        event.preventDefault();
+        beginFloatingEdit(content, item);
+      } else if (event.key === 'Delete') {
+        const removedIds = new Set([item.id]);
+        let foundChild = true;
+        while (foundChild) {
+          foundChild = false;
+          for (const value of floatingItems) {
+            if (removedIds.has(value.parentId) && !removedIds.has(value.id)) {
+              removedIds.add(value.id);
+              foundChild = true;
+            }
+          }
+        }
+        floatingItems = floatingItems.filter((value) => !removedIds.has(value.id));
         selectedFloatingItemId = null;
         renderFloatingItems();
         scheduleSave();
@@ -295,6 +344,29 @@ function renderFloatingItems() {
     });
     floatingItemsElement.appendChild(element);
   }
+}
+
+function beginFloatingEdit(content, item) {
+  if (readOnly) return;
+  content.contentEditable = 'true';
+  content.focus();
+  const selection = window.getSelection();
+  selection.selectAllChildren(content);
+  selection.collapseToEnd();
+  const finish = () => {
+    item.text = content.textContent;
+    content.contentEditable = 'false';
+    content.removeEventListener('keydown', onKeyDown);
+    scheduleSave();
+  };
+  const onKeyDown = (event) => {
+    if (event.key === 'Enter' && !event.shiftKey) {
+      event.preventDefault();
+      content.blur();
+    }
+  };
+  content.addEventListener('blur', finish, { once: true });
+  content.addEventListener('keydown', onKeyDown);
 }
 
 function startFloatingDrag(event, item) {
@@ -324,6 +396,22 @@ function addFloatingItem(kind) {
     text: kind === 'note' ? floatingNoteName : floatingNodeName,
     x: 50,
     y: 50,
+    parentId: null,
+  };
+  floatingItems.push(item);
+  selectedFloatingItemId = item.id;
+  renderFloatingItems();
+  scheduleSave();
+}
+
+function addFloatingNode(parentId, x, y) {
+  const item = {
+    id: `nfprogress-floating-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    kind: 'node',
+    text: floatingNodeName,
+    x: Math.max(0, Math.min(100, x)),
+    y: Math.max(0, Math.min(100, y)),
+    parentId: parentId || null,
   };
   floatingItems.push(item);
   selectedFloatingItemId = item.id;

@@ -180,13 +180,14 @@ def normalize_mindmap_data(value):
         if not isinstance(floating_items, list):
             normalized.pop('nfprogressFloatingItems', None)
         else:
-            normalized['nfprogressFloatingItems'] = [
+            normalized_items = [
                 {
                     'id': item['id'],
                     'kind': item['kind'],
                     'text': item['text'],
                     'x': min(100, max(0, item['x'])),
                     'y': min(100, max(0, item['y'])),
+                    'parentId': item.get('parentId'),
                 }
                 for item in floating_items
                 if (
@@ -201,6 +202,16 @@ def normalize_mindmap_data(value):
                     and not isinstance(item['y'], bool)
                 )
             ]
+            item_ids = {item['id'] for item in normalized_items}
+            for item in normalized_items:
+                if (
+                    item['kind'] != 'node'
+                    or not isinstance(item['parentId'], str)
+                    or item['parentId'] not in item_ids
+                    or item['parentId'] == item['id']
+                ):
+                    item.pop('parentId')
+            normalized['nfprogressFloatingItems'] = normalized_items
     return normalized
 
 
