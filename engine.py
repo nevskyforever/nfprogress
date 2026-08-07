@@ -175,6 +175,16 @@ def normalize_mindmap_data(value):
     except (TypeError, ValueError):
         return None
     normalized = json.loads(serialized)
+    free_nodes = normalized.get('freeNodes')
+    if free_nodes is not None:
+        if not isinstance(free_nodes, list):
+            normalized.pop('freeNodes', None)
+        else:
+            normalized['freeNodes'] = [
+                node
+                for item in free_nodes
+                if (node := _normalize_free_mindmap_node(item)) is not None
+            ]
     floating_items = normalized.get('nfprogressFloatingItems')
     if floating_items is not None:
         if not isinstance(floating_items, list):
@@ -245,6 +255,44 @@ def normalize_mindmap_data(value):
     return normalized
 
 
+def _normalize_free_mindmap_node(value, *, is_root=True):
+    if (
+        not isinstance(value, dict)
+        or not isinstance(value.get('id'), str)
+        or not value['id']
+        or not isinstance(value.get('topic'), str)
+    ):
+        return None
+
+    node = deepcopy(value)
+    children = value.get('children', [])
+    if not isinstance(children, list):
+        children = []
+    node['children'] = [
+        child
+        for item in children
+        if (child := _normalize_free_mindmap_node(item, is_root=False)) is not None
+    ]
+    if is_root:
+        position = value.get('position')
+        if not isinstance(position, dict):
+            position = {}
+        x = position.get('x', 320)
+        y = position.get('y', 240)
+        node['position'] = {
+            'x': x if isinstance(x, (int, float)) and not isinstance(x, bool) else 320,
+            'y': y if isinstance(y, (int, float)) and not isinstance(y, bool) else 240,
+        }
+        node['nfprogressFreeRoot'] = True
+    else:
+        node.pop('position', None)
+        node.pop('nfprogressFreeRoot', None)
+    if not isinstance(node.get('nfprogressNote'), bool):
+        node.pop('nfprogressNote', None)
+    node.pop('parent', None)
+    return node
+
+
 _MINDMAP_STAGE_ID_KEY = 'nfprogressStageId'
 _MINDMAP_STAGE_ROOT_KEY = 'nfprogressStageRoot'
 _MINDMAP_SOURCE_ID_KEY = 'nfprogressSourceId'
@@ -275,6 +323,7 @@ def mindmap_has_content(value, root_topic):
     if (
         normalized.get('nfprogressFloatingItems')
         or normalized.get('nfprogressFloatingLinks')
+        or normalized.get('freeNodes')
     ):
         return True
 

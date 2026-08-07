@@ -297,6 +297,27 @@ const $ = {
     e.direction === 2 ? l.direction === 0 ? o.appendChild(c) : s.appendChild(c) : e.direction === 0 ? o.appendChild(c) : s.appendChild(c);
   }
   e.nodes.appendChild(o), e.nodes.appendChild(n), e.nodes.appendChild(s), e.nodes.appendChild(e.lines), e.nodes.appendChild(e.labelContainer);
+}, nr = function() {
+  B(this.nodeData);
+  this.freeNodeRoot = {
+    id: "nfprogress-free-root",
+    nfprogressFreeContainer: !0,
+    children: this.freeNodes || []
+  };
+  B(this.freeNodeRoot);
+}, or = function() {
+  this.nodes.querySelectorAll(":scope > me-main.nfprogress-free-main").forEach((e) => e.remove());
+  for (const e of this.freeNodes || []) {
+    e.nfprogressFreeRoot = !0;
+    e.position || (e.position = { x: 320, y: 240 });
+    const t = document.createElement("me-main");
+    t.className = "rhs nfprogress-free-main";
+    t.dataset.freeNodeId = e.id;
+    t.style.left = `${e.position.x}px`;
+    t.style.top = `${e.position.y}px`;
+    t.appendChild(this.createWrapper(e).grp);
+    this.nodes.appendChild(t);
+  }
 }, _t = function(e, t) {
   const n = document.createElement("me-children");
   for (let o = 0; o < t.length; o++) {
@@ -362,7 +383,7 @@ const $ = {
   return t.append(...e), t;
 }, Mt = function(e) {
   const t = document.createElement("me-tpc");
-  return t.nodeObj = e, t.dataset.nodeid = "me" + e.id, t;
+  return t.nodeObj = e, t.dataset.nodeid = "me" + e.id, e.nfprogressNote && t.classList.add("nfprogress-note"), t;
 };
 function Qe(e) {
   const t = document.createRange();
@@ -493,7 +514,7 @@ const Rt = function({ map: e, direction: t }, n) {
   const o = t.nodeObj;
   o.expanded === !1 && (e.expandNode(t, !0), t = e.findEle(o.id));
   const s = n || e.generateNewObj();
-  o.children ? o.children.push(s) : o.children = [s], B(e.nodeData);
+  o.children ? o.children.push(s) : o.children = [s], e.rebuildParents();
   const { grp: i, top: l } = e.createWrapper(s);
   return tt(e, t, i), { newTop: l, newNodeObj: s };
 }, Yt = function(e, t, n) {
@@ -517,7 +538,7 @@ const Rt = function({ map: e, direction: t }, n) {
     const a = o.closest("me-main").className === $.LHS ? 0 : 1;
     i.direction = a;
   }
-  Ht(i, e, s), B(this.nodeData);
+  Ht(i, e, s), this.rebuildParents();
   const l = o.parentElement, { grp: c, top: r } = this.createWrapper(i);
   l.parentElement.insertAdjacentElement(nt[e], c), this.linkDiv(c.offsetParent), n || this.editTopic(r.firstChild), this.bus.fire("operation", {
     name: "insertSibling",
@@ -532,7 +553,7 @@ const Rt = function({ map: e, direction: t }, n) {
   if (!o.parent)
     return;
   const s = t || this.generateNewObj();
-  jt(o, s), B(this.nodeData);
+  jt(o, s), this.rebuildParents();
   const i = n.parentElement.parentElement, { grp: l, top: c } = this.createWrapper(s, !0);
   c.appendChild(xe(!0)), i.insertAdjacentElement("afterend", l);
   const r = this.createChildren([i]);
@@ -598,10 +619,12 @@ const Rt = function({ map: e, direction: t }, n) {
   if (e = ye(e), e.length === 0) return;
   for (const n of e) {
     const o = n.nodeObj, s = et(o);
-    Bt(n, s);
+    o.nfprogressFreeRoot ? n.closest("me-main.nfprogress-free-main")?.remove() : Bt(n, s);
   }
   const t = e[e.length - 1];
-  this.selectNode(this.findEle(t.nodeObj.parent.id)), this.linkDiv(), this.bus.fire("operation", {
+  this.rebuildParents();
+  const n = t.nodeObj.parent && !t.nodeObj.parent.nfprogressFreeContainer ? this.findEle(t.nodeObj.parent.id) : null;
+  n && this.selectNode(n), this.linkDiv(), this.bus.fire("operation", {
     name: "removeNodes",
     objs: e.map((n) => n.nodeObj)
   });
@@ -612,7 +635,7 @@ const Rt = function({ map: e, direction: t }, n) {
   const i = [];
   for (const c of e) {
     const r = c.nodeObj;
-    if (It(t, r, s), B(o.nodeData), t === "in") {
+    if (It(t, r, s), o.rebuildParents(), t === "in") {
       const a = c.parentElement;
       tt(o, n, a.parentElement);
     } else {
@@ -662,6 +685,7 @@ const Rt = function({ map: e, direction: t }, n) {
 function tn(e) {
   return {
     nodeData: e.isFocusMode ? e.nodeDataBackup : e.nodeData,
+    freeNodes: e.isFocusMode && e.freeNodesBackup ? e.freeNodesBackup : e.freeNodes || [],
     arrows: e.arrows,
     summaries: e.summaries,
     direction: e.direction,
@@ -741,9 +765,9 @@ const nn = function(e, t = !1) {
 }, mn = function(e) {
   e(this);
 }, yn = function(e) {
-  e.nodeObj.parent && (this.clearSelection(), this.tempDirection === null && (this.tempDirection = this.direction), this.isFocusMode || (this.nodeDataBackup = this.nodeData, this.isFocusMode = !0), this.nodeData = e.nodeObj, this.initRight(), this.toCenter());
+  e.nodeObj.parent && (this.clearSelection(), this.tempDirection === null && (this.tempDirection = this.direction), this.isFocusMode || (this.nodeDataBackup = this.nodeData, this.freeNodesBackup = this.freeNodes, this.isFocusMode = !0), e.nodeObj.nfprogressFreeRoot && (this.freeNodes = this.freeNodes.filter((t) => t !== e.nodeObj)), this.nodeData = e.nodeObj, this.initRight(), this.toCenter());
 }, bn = function() {
-  this.isFocusMode = !1, this.tempDirection !== null && (this.nodeData = this.nodeDataBackup, this.direction = this.tempDirection, this.tempDirection = null, this.refresh(), this.toCenter());
+  this.isFocusMode = !1, this.tempDirection !== null && (this.nodeData = this.nodeDataBackup, this.freeNodes = this.freeNodesBackup || this.freeNodes, this.freeNodesBackup = null, this.direction = this.tempDirection, this.tempDirection = null, this.refresh(), this.toCenter());
 }, vn = function() {
   this.direction = 0, this.refresh(), this.toCenter(), this.bus.fire("changeDirection", this.direction);
 }, xn = function() {
@@ -782,7 +806,7 @@ const nn = function(e, t = !1) {
   }, c = s.x - l.x, r = s.y - l.y;
   this.move(c, r);
 }, Sn = function(e) {
-  this.clearSelection(), e && (e = JSON.parse(JSON.stringify(e)), this.nodeData = e.nodeData, this.arrows = e.arrows || [], this.summaries = e.summaries || [], e.meta && (this.meta = e.meta), e.theme && this.changeTheme(e.theme)), B(this.nodeData), this.layout(), this.linkDiv();
+  this.clearSelection(), e && (e = JSON.parse(JSON.stringify(e)), this.nodeData = e.nodeData, this.freeNodes = e.freeNodes || [], this.arrows = e.arrows || [], this.summaries = e.summaries || [], e.meta && (this.meta = e.meta), e.theme && this.changeTheme(e.theme)), this.rebuildParents(), this.layout(), this.renderFreeNodes(), this.linkDiv();
 }, Nn = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
   cancelFocus: bn,
@@ -798,6 +822,8 @@ const nn = function(e, t = !1) {
   initRight: xn,
   initSide: wn,
   install: mn,
+  rebuildParents: nr,
+  renderFreeNodes: or,
   move: pn,
   refresh: Sn,
   scale: fn,
@@ -1267,8 +1293,12 @@ const M = "http://www.w3.org/2000/svg", le = function(e) {
   const t = this.map.querySelector("me-root"), n = t.offsetTop, o = t.offsetLeft, s = t.offsetWidth, i = t.offsetHeight, l = this.map.querySelectorAll("me-main > me-wrapper");
   this.lines.innerHTML = "";
   for (let c = 0; c < l.length; c++) {
-    const r = l[c], a = r.querySelector("me-tpc"), { offsetLeft: d, offsetTop: h } = A(this.nodes, a), u = a.offsetWidth, p = a.offsetHeight, v = r.parentNode.className, m = this.generateMainBranch({ pT: n, pL: o, pW: s, pH: i, cT: h, cL: d, cW: u, cH: p, direction: v, containerHeight: this.nodes.offsetHeight }), y = this.theme.palette, g = a.nodeObj.branchColor || y[c % y.length];
-    if (a.style.borderColor = g, this.lines.appendChild(it(m, g, "3")), e && e !== r)
+    const r = l[c], a = r.querySelector("me-tpc"), { offsetLeft: d, offsetTop: h } = A(this.nodes, a), u = a.offsetWidth, p = a.offsetHeight, v = r.parentNode.className, y = this.theme.palette, g = a.nodeObj.branchColor || y[c % y.length];
+    if (a.style.borderColor = g, !r.parentNode.classList.contains("nfprogress-free-main")) {
+      const m = this.generateMainBranch({ pT: n, pL: o, pW: s, pH: i, cT: h, cL: d, cW: u, cH: p, direction: v, containerHeight: this.nodes.offsetHeight });
+      this.lines.appendChild(it(m, g, "3"));
+    }
+    if (e && e !== r)
       continue;
     const x = q("subLines"), E = r.lastChild;
     E.tagName === "svg" && E.remove(), r.appendChild(x), lt(this, x, g, r, v, !0);
@@ -2292,7 +2322,8 @@ function wo(e) {
   ce(this), e && e.labelEl && rt(this, e.labelEl, e.arrowObj);
 }
 function Eo() {
-  this.arrows = this.arrows.filter((e) => oe(e.from, this.nodeData) && oe(e.to, this.nodeData));
+  const e = (t) => oe(t, this.nodeData) || (this.freeNodes || []).some((n) => oe(t, n));
+  this.arrows = this.arrows.filter((t) => e(t.from) && e(t.to));
 }
 const Co = function(e, t) {
   const n = ie(e);
@@ -2334,6 +2365,13 @@ const Co = function(e, t) {
   if (e.length === 1) {
     const r = e[0].nodeObj, a = e[0].nodeObj.parent;
     if (!a) throw new Error("Can not select root node.");
+    if (a.nfprogressFreeContainer)
+      return {
+        parent: r.id,
+        start: 0,
+        end: 0,
+        nfprogressFreeSelf: !0
+      };
     const d = a.children.findIndex((h) => r === h);
     return {
       parent: a.id,
@@ -2384,6 +2422,10 @@ const Co = function(e, t) {
   return s.parent ? i = o.closest("me-main").className : i = e.findEle(s.children[n].id).closest("me-main").className, i;
 }, Te = function(e, t) {
   const { id: n, label: o, parent: s, start: i, end: l, style: c } = t, { nodes: r, theme: a, summarySvg: d } = e, u = e.findEle(s).nodeObj, p = _o(e, t);
+  if (t.nfprogressFreeSelf) {
+    const G = ko(e.findEle(s)), { offsetLeft: ke, offsetTop: J } = A(r, G), Z = J + 10, _e = J + G.offsetHeight - 10, De = (_e + Z) / 2, tt = c?.stroke || a.cssVar["--color"], nt = c?.labelColor || a.cssVar["--color"], et = "s-" + n, rt = e.markdown ? e.markdown(o, t) : o, ot = ze(`M ${ke + G.offsetWidth - 10} ${Z} c 5 0 10 5 10 10 L ${ke + G.offsetWidth} ${_e - 10} c 0 5 -5 10 -10 10 M ${ke + G.offsetWidth} ${De} h 10`, tt), st = he(rt, ke + G.offsetWidth + 20, De, { anchor: "start", color: nt, dataType: "summary", svgId: et }), it = To(et);
+    return it.appendChild(ot), e.labelContainer.appendChild(st), le(st), it.summaryObj = t, it.labelEl = st, d.appendChild(it), it;
+  }
   let v = 1 / 0, m = 0, y = 0, g = 0;
   for (let G = i; G <= l; G++) {
     const ke = u.children?.[G];
@@ -2399,7 +2441,9 @@ const Co = function(e, t) {
   return L.appendChild(x), e.labelContainer.appendChild(E), le(E), L.summaryObj = t, L.labelEl = E, d.appendChild(L), L;
 }, Do = function(e = {}) {
   if (!this.currentNodes) return;
-  const { currentNodes: t, summaries: n, bus: o } = this, { parent: s, start: i, end: l } = No(t), c = { id: W(), parent: s, start: i, end: l, label: "summary", style: e.style }, r = Te(this, c);
+  const { currentNodes: t, summaries: n, bus: o } = this, { parent: s, start: i, end: l, nfprogressFreeSelf: a } = No(t), c = { id: W(), parent: s, start: i, end: l, label: "summary", style: e.style };
+  a && (c.nfprogressFreeSelf = !0);
+  const r = Te(this, c);
   n.push(c), this.editSummary(r), o.fire("operation", {
     name: "createSummary",
     obj: c
@@ -2630,10 +2674,10 @@ const Zo = {
   ...Uo,
   init(e) {
     if (e = JSON.parse(JSON.stringify(e)), !e || !e.nodeData) return new Error("MindElixir: `data` is required");
-    e.direction !== void 0 && (this.direction = e.direction), e.compact !== void 0 && (this.compact = e.compact), this.changeTheme(e.theme || this.theme, !1), e.meta && (this.meta = e.meta), this.nodeData = e.nodeData, B(this.nodeData), this.arrows = e.arrows || [], this.summaries = e.summaries || [], this.tidyArrow(), this.toolBar && eo(this), this.keypress && $n(this, this.keypress), lo(this), this.disposable.push(Nt()), this.contextMenu && this.disposable.push(Wn(this, this.contextMenu)), this.allowUndo && this.disposable.push(Xn(this)), this.layout(), this.linkDiv(), this.toCenter();
+    e.direction !== void 0 && (this.direction = e.direction), e.compact !== void 0 && (this.compact = e.compact), this.changeTheme(e.theme || this.theme, !1), e.meta && (this.meta = e.meta), this.nodeData = e.nodeData, this.freeNodes = e.freeNodes || [], this.rebuildParents(), this.arrows = e.arrows || [], this.summaries = e.summaries || [], this.tidyArrow(), this.toolBar && eo(this), this.keypress && $n(this, this.keypress), lo(this), this.disposable.push(Nt()), this.contextMenu && this.disposable.push(Wn(this, this.contextMenu)), this.allowUndo && this.disposable.push(Xn(this)), this.layout(), this.renderFreeNodes(), this.linkDiv(), this.toCenter();
   },
   destroy() {
-    this.disposable.forEach((e) => e()), this.el && (this.el.innerHTML = ""), this.el = void 0, this.nodeData = void 0, this.arrows = void 0, this.summaries = void 0, this.currentArrow = void 0, this.currentNodes = void 0, this.currentSummary = void 0, this.theme = void 0, this.direction = void 0, this.bus = void 0, this.container = void 0, this.map = void 0, this.lines = void 0, this.linkController = void 0, this.arrowSvg = void 0, this.P2 = void 0, this.P3 = void 0, this.line1 = void 0, this.line2 = void 0, this.nodes = void 0, this.selection?.destroy(), this.selection = void 0;
+    this.disposable.forEach((e) => e()), this.el && (this.el.innerHTML = ""), this.el = void 0, this.nodeData = void 0, this.freeNodes = void 0, this.freeNodeRoot = void 0, this.arrows = void 0, this.summaries = void 0, this.currentArrow = void 0, this.currentNodes = void 0, this.currentSummary = void 0, this.theme = void 0, this.direction = void 0, this.bus = void 0, this.container = void 0, this.map = void 0, this.lines = void 0, this.linkController = void 0, this.arrowSvg = void 0, this.P2 = void 0, this.P3 = void 0, this.line1 = void 0, this.line2 = void 0, this.nodes = void 0, this.selection?.destroy(), this.selection = void 0;
   },
   /**
    * @public

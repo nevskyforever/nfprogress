@@ -43,89 +43,32 @@
       color: #4f8cff;
     }
 
-    #floating-items {
+    me-main.nfprogress-free-main {
       position: absolute;
-      inset: 0;
-      z-index: 30;
-      pointer-events: none;
+      z-index: 12;
+      margin: 0;
     }
 
-    #floating-links {
-      position: absolute;
-      inset: 0;
-      z-index: 29;
-      width: 100%;
-      height: 100%;
-      pointer-events: none;
+    me-main.nfprogress-free-main > me-wrapper {
+      margin: 0;
     }
 
-    #floating-links .nfprogress-floating-link {
-      pointer-events: stroke;
-      cursor: pointer;
-      outline: none;
-    }
-
-    #floating-links .nfprogress-floating-link.selected {
-      stroke: #2f80ff;
-      stroke-width: 4;
-    }
-
-    .floating-item {
-      position: absolute;
-      min-width: 130px;
-      max-width: 260px;
-      padding: 8px 10px;
-      border: 1px solid #4f8cff;
-      border-radius: 7px;
+    me-tpc.nfprogress-note {
+      border: 1px solid #d1a320 !important;
+      border-radius: 7px !important;
+      color: #594300 !important;
+      background: #fff8cf !important;
       box-shadow: 0 2px 8px #0002;
-      color: #1f3554;
-      background: #edf4ff;
-      cursor: grab;
-      pointer-events: auto;
-      user-select: none;
     }
 
-    .floating-item.note {
-      border-color: #d1a320;
-      background: #fff8cf;
-      color: #594300;
-    }
-
-    .floating-item.node.root {
-      border-color: #ef3b2d;
-      color: #fff;
-      background: #ef3124;
-      font-weight: 600;
-    }
-
-    .floating-item.node:not(.root) {
-      border-color: #aaa;
-      color: #333;
-      background: #d8d8d8;
-      box-shadow: none;
-    }
-
-    .floating-item.selected {
-      outline: 2px solid #276fce;
-      outline-offset: 2px;
-    }
-
-    #floating-items.linking .floating-item,
-    #map:has(+ #floating-links + #floating-items.linking) me-tpc {
-      cursor: crosshair;
-    }
-
-    .floating-item-content {
-      display: block;
-      min-width: 90px;
-      white-space: pre-wrap;
-      user-select: text;
-      cursor: text;
-      outline: none;
-    }
-
-    .floating-item.note .floating-item-content::before {
+    me-tpc.nfprogress-note .text::before {
       content: '📝 ';
+    }
+
+    .map-container .topiclinks,
+    .map-container .summary,
+    .map-container .label-container {
+      overflow: visible;
     }
 
     .mind-elixir-toolbar span.nfprogress-floating-control {
@@ -179,44 +122,10 @@
     .nfprogress-search-result:hover { background: #4f8cff20; }
     .nfprogress-search-empty { padding: 7px; color: #666; }
 
-    .nfprogress-floating-menu {
-      position: fixed;
-      z-index: 80;
-      min-width: 210px;
-      overflow: hidden;
-      border-radius: 5px;
-      color: var(--panel-color, #222);
-      background: var(--panel-bgcolor, #fff);
-      box-shadow: 0 8px 20px #0004;
-    }
-
-    .nfprogress-floating-menu button {
-      display: block;
-      width: 100%;
-      padding: 7px 11px;
-      border: 0;
-      border-bottom: 1px solid var(--panel-border-color, #ddd);
-      color: inherit;
-      background: transparent;
-      text-align: left;
-      cursor: pointer;
-    }
-
-    .nfprogress-floating-menu button:hover { filter: brightness(.94); }
-    .nfprogress-floating-menu button:last-child { border-bottom: 0; }
   </style>
 </head>
 <body>
   <div id="map" aria-label="Редактор карты"></div>
-  <svg id="floating-links" aria-hidden="true">
-    <defs>
-      <marker id="nfprogress-arrowhead" markerWidth="8" markerHeight="8"
-        refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
-        <path d="M0,0 L8,4 L0,8 z" fill="#7c8da8"></path>
-      </marker>
-    </defs>
-  </svg>
-  <div id="floating-items" aria-label="Свободные элементы карты"></div>
   <div id="loading" aria-live="polite">Загрузка карты…</div>
   <script type="module" src="app.js"></script>
 </body>
