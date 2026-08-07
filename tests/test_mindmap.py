@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication
 
 import engine
 import main_UI
+import mindmap
 from main_UI import EditProject, MainWindow
 from mindmap import MindMapBridge, MindMapDialog
 
@@ -29,6 +30,126 @@ def _map_data(topic='Роман'):
             'children': [],
         },
     }
+
+
+def test_normalize_mindmap_data_keeps_valid_floating_items():
+    map_data = _map_data()
+    map_data['nfprogressFloatingItems'] = [
+        {'id': 'free-1', 'kind': 'node', 'text': 'Идея', 'x': 120, 'y': -5},
+        {
+            'id': 'note-1', 'kind': 'node', 'text': 'Проверить',
+            'x': 40, 'y': 60, 'parentId': 'free-1',
+        },
+        {'id': 'broken', 'kind': 'note', 'text': 'Нет координат'},
+    ]
+
+    assert engine.normalize_mindmap_data(map_data)['nfprogressFloatingItems'] == [
+        {'id': 'free-1', 'kind': 'node', 'text': 'Идея', 'x': 100, 'y': 0},
+        {
+            'id': 'note-1', 'kind': 'node', 'text': 'Проверить',
+            'x': 40, 'y': 60, 'parentId': 'free-1',
+        },
+    ]
+    assert engine.mindmap_has_content(map_data, 'Роман')
+
+
+def test_normalize_mindmap_data_keeps_valid_floating_links():
+    map_data = _map_data()
+    map_data['nfprogressFloatingLinks'] = [
+        {
+            'id': 'link-1', 'fromType': 'floating', 'from': 'note-1',
+            'toType': 'node', 'to': 'root-node',
+        },
+        {
+            'id': 'self-link', 'fromType': 'node', 'from': 'root-node',
+            'toType': 'node', 'to': 'root-node',
+        },
+        {'id': 'broken'},
+    ]
+
+    assert engine.normalize_mindmap_data(map_data)['nfprogressFloatingLinks'] == [
+        {
+            'id': 'link-1', 'fromType': 'floating', 'from': 'note-1',
+            'toType': 'node', 'to': 'root-node',
+        },
+    ]
+
+
+def test_normalize_mindmap_data_keeps_native_free_node_trees():
+    map_data = _map_data()
+    map_data['freeNodes'] = [
+        {
+            'id': 'free-root',
+            'topic': 'Свободная ветвь',
+            'position': {'x': 410, 'y': 220},
+            'children': [
+                {
+                    'id': 'free-child',
+                    'topic': 'Дочерний узел',
+                    'children': [],
+                    'position': {'x': 1, 'y': 2},
+                },
+            ],
+        },
+        {'id': '', 'topic': 'Повреждённый'},
+    ]
+
+    normalized = engine.normalize_mindmap_data(map_data)
+
+    assert normalized['freeNodes'] == [
+        {
+            'id': 'free-root',
+            'topic': 'Свободная ветвь',
+            'position': {'x': 410, 'y': 220},
+            'children': [
+                {
+                    'id': 'free-child',
+                    'topic': 'Дочерний узел',
+                    'children': [],
+                },
+            ],
+            'nfprogressFreeRoot': True,
+        },
+    ]
+    assert engine.mindmap_has_content(normalized, 'Роман')
+
+def test_combined_map_excludes_floating_items_from_stages():
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data('Book')
+    project.mindmap_data['freeNodes'] = [
+        {
+            'id': 'project-note', 'topic': 'Project', 'children': [],
+            'position': {'x': 100, 'y': 100}, 'nfprogressNote': True,
+        },
+    ]
+    stage = engine.Stage(name='Draft', goal=500, parent_project_name='Book')
+    stage.mindmap_data = _map_data('Draft')
+    stage.mindmap_data['freeNodes'] = [
+        {
+            'id': 'stage-note', 'topic': 'Stage', 'children': [],
+            'position': {'x': 200, 'y': 200}, 'nfprogressNote': True,
+        },
+    ]
+    stage.mindmap_data['arrows'] = [
+        {
+            'id': 'stage-link', 'label': '', 'from': 'stage-note', 'to': 'root-node',
+        },
+    ]
+    stage.mindmap_data['summaries'] = [
+        {
+            'id': 'stage-summary', 'label': 'summary', 'parent': 'stage-note',
+            'start': 0, 'end': 0, 'nfprogressFreeSelf': True,
+        },
+    ]
+    project.enable_stages = True
+    project.stages = [stage]
+
+    combined = engine.compose_project_mindmap(project)
+
+    assert combined['freeNodes'][0]['id'] == 'project-note'
+    assert all(item.get('id') != 'stage-link' for item in combined.get('arrows', []))
+    assert all(item.get('id') != 'stage-summary' for item in combined.get('summaries', []))
+    assert stage.mindmap_data['freeNodes'][0]['id'] == 'stage-note'
 
 
 def _wait_until(app, condition, timeout=10):
@@ -590,6 +711,665 @@ def test_mindmap_dialog_loads_local_editor_and_creates_default_map():
 
 
 @requires_native_webview
+def test_free_nodes_use_native_branches_summaries_arrows_and_shortcuts():
+    app = QApplication.instance() or QApplication([])
+    map_data = _map_data('Book')
+    map_data.update({
+        'freeNodes': [{
+            'id': 'free-root',
+            'topic': 'Independent idea',
+            'position': {'x': 420, 'y': 220},
+            'children': [{
+                'id': 'free-child',
+                'topic': 'Detail',
+                'children': [],
+            }],
+        }],
+        'arrows': [{
+            'id': 'free-arrow',
+            'from': 'free-root',
+            'to': 'root-node',
+            'label': 'Reference',
+        }],
+        'summaries': [{
+            'id': 'free-summary',
+            'parent': 'free-root',
+            'start': 0,
+            'end': 0,
+            'label': 'Summary',
+            'nfprogressFreeSelf': True,
+        }],
+    })
+    dialog = MindMapDialog('Book', map_data, lambda data: None)
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    initial_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const freeMain = document.querySelector(
+            'me-main.nfprogress-free-main[data-free-node-id="free-root"]'
+          );
+          const root = [...freeMain.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'free-root'
+          );
+          const child = [...freeMain.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'free-child'
+          );
+          return JSON.stringify({
+            freeMain: Boolean(freeMain),
+            rootIsNativeTopic: Boolean(root),
+            childIsNativeTopic: Boolean(child),
+            summaryRendered: Boolean(document.querySelector('#s-free-summary')),
+            arrowRendered: Boolean(document.querySelector('#a-free-arrow')),
+          });
+        })()
+        """,
+    ))
+    assert initial_state == {
+        'freeMain': True,
+        'rootIsNativeTopic': True,
+        'childIsNativeTopic': True,
+        'summaryRendered': True,
+        'arrowRendered': True,
+    }
+
+    child_count = _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const root = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'free-root'
+          );
+          root.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            pointerType: 'mouse',
+          }));
+          root.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 1,
+            pointerType: 'mouse',
+          }));
+          document.querySelector('.map-container').dispatchEvent(
+            new KeyboardEvent('keydown', {bubbles: true, key: 'Tab'})
+          );
+          const editor = document.querySelector('#input-box');
+          editor?.focus();
+          editor?.blur();
+          const data = JSON.parse(window.nfprogressMindMap.getDataString());
+          return data.freeNodes[0].children.length;
+        })()
+        """,
+    )
+    assert child_count == 2
+
+    edit_shortcuts = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const root = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'free-root'
+          );
+          root.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 3,
+            pointerType: 'mouse',
+          }));
+          root.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 3,
+            pointerType: 'mouse',
+          }));
+          const container = document.querySelector('.map-container');
+          container.dispatchEvent(new KeyboardEvent('keydown', {
+            bubbles: true,
+            key: ' ',
+            code: 'Space',
+          }));
+          const spaceOpensEditor = Boolean(document.querySelector('#input-box'));
+          const editor = document.querySelector('#input-box');
+          editor?.focus();
+          editor?.blur();
+          container.dispatchEvent(new KeyboardEvent('keydown', {
+            bubbles: true,
+            key: 'F2',
+            code: 'F2',
+          }));
+          return JSON.stringify({
+            spaceOpensEditor,
+            editorClosed: !document.querySelector('#input-box'),
+            f2OpensEditor: Boolean(document.querySelector('#input-box')),
+          });
+        })()
+        """,
+    ))
+    assert edit_shortcuts == {
+        'spaceOpensEditor': True,
+        'editorClosed': True,
+        'f2OpensEditor': False,
+    }
+
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const controls = document.querySelectorAll(
+            '.mind-elixir-toolbar.rb .nfprogress-floating-control'
+          );
+          controls[controls.length - 1].click();
+          document.querySelector('#input-box')?.blur();
+          const note = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.nfprogressNote
+          );
+          note.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true,
+            button: 2,
+            clientX: 200,
+            clientY: 150,
+          }));
+          return Boolean(note);
+        })()
+        """,
+    )
+    _process_events_for(app, 0.25)
+    context_actions = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const menu = document.querySelector('.context-menu');
+          return JSON.stringify({
+            visible: !menu.hidden,
+            add: !document.querySelector('#cm-add_child').classList.contains('disabled'),
+            remove: !document.querySelector('#cm-remove_child').classList.contains('disabled'),
+            link: Boolean(document.querySelector('#cm-link')),
+            summary: Boolean(document.querySelector('#cm-summary')),
+            noteStylePreserved: [...document.querySelectorAll('me-tpc')].some(
+              element => element.nodeObj.nfprogressNote
+                && element.classList.contains('nfprogress-note')
+                && element.classList.contains('selected')
+            ),
+          });
+        })()
+        """,
+    ))
+    assert context_actions == {
+        'visible': True,
+        'add': True,
+        'remove': True,
+        'link': True,
+        'summary': True,
+        'noteStylePreserved': True,
+    }
+    created_summary = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          document.querySelector('#cm-summary').click();
+          const editor = document.querySelector('#input-box');
+          editor.textContent = 'Note summary';
+          editor.blur();
+          const data = JSON.parse(window.nfprogressMindMap.getDataString());
+          const summary = data.summaries.find(
+            item => item.parent !== 'free-root'
+          );
+          return JSON.stringify({
+            created: Boolean(summary),
+            nativeFreeSummary: summary?.nfprogressFreeSelf === true,
+          });
+        })()
+        """,
+    ))
+    assert created_summary == {
+        'created': True,
+        'nativeFreeSummary': True,
+    }, dialog._bridge.last_error
+    note_counts = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          document.querySelector('.context-menu').hidden = true;
+          const note = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.nfprogressNote
+          );
+          note.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 2,
+            pointerType: 'mouse',
+          }));
+          note.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 2,
+            pointerType: 'mouse',
+          }));
+          const container = document.querySelector('.map-container');
+          container.dispatchEvent(
+            new KeyboardEvent('keydown', {bubbles: true, key: 'Tab'})
+          );
+          document.querySelector('#input-box')?.blur();
+          const afterTab = JSON.parse(
+            window.nfprogressMindMap.getDataString()
+          ).freeNodes.filter(node => node.nfprogressNote).length;
+          container.dispatchEvent(
+            new KeyboardEvent('keydown', {bubbles: true, key: 'Delete'})
+          );
+          const afterDelete = JSON.parse(
+            window.nfprogressMindMap.getDataString()
+          ).freeNodes.filter(node => node.nfprogressNote).length;
+          return JSON.stringify({afterTab, afterDelete});
+        })()
+        """,
+    ))
+    assert note_counts == {'afterTab': 2, 'afterDelete': 1}
+
+    serialized = json.loads(_run_javascript(
+        app,
+        dialog,
+        'window.nfprogressMindMap.getDataString()',
+    ))
+    assert serialized['freeNodes'][0]['position'] == {'x': 420, 'y': 220}
+    assert serialized['arrows'][0]['id'] == 'free-arrow'
+    assert serialized['summaries'][0]['nfprogressFreeSelf'] is True
+    assert 'nfprogressFloatingItems' not in serialized
+    assert 'nfprogressFloatingLinks' not in serialized
+    assert dialog._bridge.last_error == ''
+
+    _process_events_for(app, 0.5)
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+@requires_native_webview
+def test_branch_can_detach_to_free_node_and_attach_back_to_map():
+    app = QApplication.instance() or QApplication([])
+    map_data = {
+        'nodeData': {
+            'id': 'root-node',
+            'topic': 'Book',
+            'children': [
+                {
+                    'id': 'movable-branch',
+                    'topic': 'Movable branch',
+                    'children': [{
+                        'id': 'nested-node',
+                        'topic': 'Nested node',
+                        'children': [],
+                    }],
+                },
+                {
+                    'id': 'target-node',
+                    'topic': 'Target node',
+                    'children': [],
+                },
+            ],
+        },
+        'arrows': [{
+            'id': 'branch-arrow',
+            'from': 'movable-branch',
+            'to': 'target-node',
+            'label': '',
+        }],
+        'summaries': [{
+            'id': 'branch-summary',
+            'parent': 'root-node',
+            'start': 0,
+            'end': 0,
+            'label': 'Branch summary',
+        }],
+    }
+    dialog = MindMapDialog('Book', map_data, lambda data: None)
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'movable-branch'
+          );
+          branch.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true,
+            button: 2,
+            clientX: 300,
+            clientY: 220,
+          }));
+          return Boolean(branch);
+        })()
+        """,
+    )
+    _process_events_for(app, 0.25)
+    detach_menu_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const detach = document.querySelector('#nfprogress-detach-branch');
+          const attach = document.querySelector('#nfprogress-attach-branch');
+          const state = {
+            detachAvailable: !detach.classList.contains('disabled'),
+            attachHidden: attach.classList.contains('disabled'),
+          };
+          detach.click();
+          return JSON.stringify(state);
+        })()
+        """,
+    ))
+    assert detach_menu_state == {
+        'detachAvailable': True,
+        'attachHidden': True,
+    }
+    detached = json.loads(_run_javascript(
+        app,
+        dialog,
+        'window.nfprogressMindMap.getDataString()',
+    ))
+    assert [node['id'] for node in detached['nodeData']['children']] == [
+        'target-node',
+    ]
+    assert detached['freeNodes'][0]['id'] == 'movable-branch'
+    assert detached['freeNodes'][0]['children'][0]['id'] == 'nested-node'
+    assert detached['summaries'][0]['parent'] == 'movable-branch'
+    assert detached['summaries'][0]['nfprogressFreeSelf'] is True
+    assert detached['arrows'][0]['id'] == 'branch-arrow'
+    assert dialog._bridge.last_error == ''
+
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'movable-branch'
+          );
+          branch.dispatchEvent(new MouseEvent('contextmenu', {
+            bubbles: true,
+            button: 2,
+            clientX: 360,
+            clientY: 260,
+          }));
+          return branch.nodeObj.nfprogressFreeRoot === true;
+        })()
+        """,
+    )
+    _process_events_for(app, 0.25)
+    attach_menu_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const detach = document.querySelector('#nfprogress-detach-branch');
+          const attach = document.querySelector('#nfprogress-attach-branch');
+          const state = {
+            detachHidden: detach.classList.contains('disabled'),
+            attachAvailable: !attach.classList.contains('disabled'),
+          };
+          attach.click();
+          const target = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'target-node'
+          );
+          target.click();
+          return JSON.stringify(state);
+        })()
+        """,
+    ))
+    assert attach_menu_state == {
+        'detachHidden': True,
+        'attachAvailable': True,
+    }
+    attached = json.loads(_run_javascript(
+        app,
+        dialog,
+        'window.nfprogressMindMap.getDataString()',
+    ))
+    assert attached.get('freeNodes') == []
+    target = attached['nodeData']['children'][0]
+    assert target['id'] == 'target-node'
+    assert target['children'][0]['id'] == 'movable-branch'
+    assert target['children'][0]['children'][0]['id'] == 'nested-node'
+    assert 'position' not in target['children'][0]
+    assert attached['summaries'][0]['parent'] == 'target-node'
+    assert attached['summaries'][0]['start'] == 0
+    assert 'nfprogressFreeSelf' not in attached['summaries'][0]
+    assert attached['arrows'][0]['id'] == 'branch-arrow'
+    assert dialog._bridge.last_error == ''
+
+    drag_detached = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'movable-branch'
+          );
+          const container = document.querySelector('.map-container');
+          const branchBounds = branch.getBoundingClientRect();
+          const containerBounds = container.getBoundingClientRect();
+          const startX = branchBounds.left + branchBounds.width / 2;
+          const startY = branchBounds.top + branchBounds.height / 2;
+          const dropX = containerBounds.right - 90;
+          const dropY = containerBounds.top + containerBounds.height / 2;
+          branch.setPointerCapture = () => {};
+          branch.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 21,
+            pointerType: 'mouse',
+            clientX: startX,
+            clientY: startY,
+          }));
+          container.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            button: 0,
+            pointerId: 21,
+            pointerType: 'mouse',
+            clientX: dropX,
+            clientY: dropY,
+          }));
+          container.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 21,
+            pointerType: 'mouse',
+            clientX: dropX,
+            clientY: dropY,
+          }));
+          return window.nfprogressMindMap.getDataString();
+        })()
+        """,
+    ))
+    assert drag_detached['freeNodes'][0]['id'] == 'movable-branch'
+    assert drag_detached['freeNodes'][0]['children'][0]['id'] == 'nested-node'
+    assert dialog._bridge.last_error == ''
+
+    drag_attached = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'movable-branch'
+          );
+          const target = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'target-node'
+          );
+          const branchBounds = branch.getBoundingClientRect();
+          const startX = branchBounds.left + branchBounds.width / 2;
+          const startY = branchBounds.top + branchBounds.height / 2;
+          branch.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 22,
+            pointerType: 'mouse',
+            clientX: startX,
+            clientY: startY,
+          }));
+          const targetBounds = target.getBoundingClientRect();
+          const dropX = targetBounds.left + targetBounds.width / 2;
+          const dropY = targetBounds.top + targetBounds.height / 2;
+          target.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            button: 0,
+            pointerId: 22,
+            pointerType: 'mouse',
+            clientX: dropX,
+            clientY: dropY,
+          }));
+          const targetMarked = target.classList.contains(
+            'nfprogress-drop-target'
+          );
+          target.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 22,
+            pointerType: 'mouse',
+            clientX: dropX,
+            clientY: dropY,
+          }));
+          return JSON.stringify({
+            targetMarked,
+            data: JSON.parse(window.nfprogressMindMap.getDataString()),
+          });
+        })()
+        """,
+    ))
+    assert drag_attached['targetMarked'] is True
+    drag_attached_data = drag_attached['data']
+    assert drag_attached_data.get('freeNodes') == []
+    target = drag_attached_data['nodeData']['children'][0]
+    assert target['children'][0]['id'] == 'movable-branch'
+    assert target['children'][0]['children'][0]['id'] == 'nested-node'
+    assert dialog._bridge.last_error == ''
+
+    _process_events_for(app, 0.5)
+    dialog._allow_close = True
+    dialog.close()
+
+
+@requires_native_webview
+def test_mindmap_search_opens_right_of_control_and_reveals_free_node():
+    app = QApplication.instance() or QApplication([])
+    map_data = _map_data('Book')
+    map_data['freeNodes'] = [{
+        'id': 'free-search-result',
+        'topic': 'Hidden independent idea',
+        'position': {'x': 600, 'y': 400},
+        'children': [],
+    }]
+    dialog = MindMapDialog('Book', map_data, lambda data: None)
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    assert _run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          document.dispatchEvent(new KeyboardEvent('keydown', {
+            bubbles: true,
+            key: 'f',
+            metaKey: true,
+          }));
+          return document.querySelector('.nfprogress-search-panel')
+            .classList.contains('open');
+        })()
+        """,
+    )
+    _process_events_for(app, 0.2)
+    search_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const control = document.querySelector(
+            '.mind-elixir-toolbar.lt .nfprogress-floating-control'
+          );
+          const panel = document.querySelector('.nfprogress-search-panel');
+          const input = panel.querySelector('input');
+          input.value = 'independent';
+          input.dispatchEvent(new InputEvent('input', {bubbles: true}));
+          const result = panel.querySelector('.nfprogress-search-result');
+          const isRight = panel.getBoundingClientRect().left
+            > control.getBoundingClientRect().right;
+          result.click();
+          const selected = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'free-search-result'
+          );
+          return JSON.stringify({
+            isRight,
+            resultText: result.textContent,
+            selected: selected.classList.contains('selected'),
+            closedAfterSelection: !panel.classList.contains('open'),
+          });
+        })()
+        """,
+    ))
+    assert search_state == {
+        'isRight': True,
+        'resultText': 'Hidden independent idea',
+        'selected': True,
+        'closedAfterSelection': True,
+    }
+    close_state = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const control = document.querySelector(
+            '.mind-elixir-toolbar.lt .nfprogress-floating-control'
+          );
+          const panel = document.querySelector('.nfprogress-search-panel');
+          control.click();
+          const openedByIcon = panel.classList.contains('open');
+          control.click();
+          const closedByIcon = !panel.classList.contains('open');
+          control.click();
+          document.body.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerType: 'mouse',
+          }));
+          return JSON.stringify({
+            openedByIcon,
+            closedByIcon,
+            closedOutside: !panel.classList.contains('open'),
+          });
+        })()
+        """,
+    ))
+    assert close_state == {
+        'openedByIcon': True,
+        'closedByIcon': True,
+        'closedOutside': True,
+    }
+    assert dialog._bridge.last_error == ''
+
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+@requires_native_webview
 def test_mindmap_dialog_displays_empty_stage_message_in_status_area():
     app = QApplication.instance() or QApplication([])
     message = 'Карта не была создана при работе над этапом.'
@@ -604,6 +1384,44 @@ def test_mindmap_dialog_displays_empty_stage_message_in_status_area():
     assert _wait_until(app, lambda: dialog._ready)
     assert dialog.save_status_label.text() == message
     assert dialog._bridge.last_error == ''
+
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    app.processEvents()
+
+
+@requires_native_webview
+def test_mindmap_dialog_exports_png_svg_and_json(monkeypatch, tmp_path):
+    app = QApplication.instance() or QApplication([])
+    exported_paths = iter((
+        tmp_path / 'map.svg',
+        tmp_path / 'map.json',
+        tmp_path / 'map.png',
+    ))
+    monkeypatch.setattr(
+        mindmap.QFileDialog,
+        'getSaveFileName',
+        lambda *args, **kwargs: (str(next(exported_paths)), ''),
+    )
+    dialog = MindMapDialog('Export test', _map_data('Export root'), lambda data: None)
+    dialog.show()
+
+    assert _wait_until(app, lambda: dialog._ready)
+    for export_format, path in (
+            ('svg', tmp_path / 'map.svg'),
+            ('json', tmp_path / 'map.json'),
+            ('png', tmp_path / 'map.png'),
+    ):
+        dialog._request_export(export_format)
+        assert _wait_until(app, path.is_file)
+
+    assert (tmp_path / 'map.svg').read_text(encoding='utf-8').startswith('<?xml')
+    assert json.loads((tmp_path / 'map.json').read_text(encoding='utf-8'))[
+        'nodeData'
+    ]['topic'] == 'Export root'
+    assert (tmp_path / 'map.png').read_bytes().startswith(b'\x89PNG\r\n\x1a\n')
 
     dialog._allow_close = True
     dialog.close()

@@ -131,10 +131,13 @@ MINDMAP_HELP_SOURCE = """<html><body>
 <h2>Карты проектов и этапов</h2>
 <p>У каждого проекта и каждого этапа есть собственная независимая карта идей. Выберите нужную сущность на вкладке «Проекты» и нажмите «Карта» в панели действий. Редактор откроется в отдельном окне; при первом открытии корневой узел получит название проекта или этапа.</p>
 <ul>
-<li>Дважды щёлкните узел или нажмите F2, чтобы изменить текст. Tab добавляет дочерний узел, Enter — соседний, Delete удаляет выбранный узел.</li>
+<li>Дважды щёлкните узел или нажмите Space, чтобы изменить текст. Tab добавляет дочерний узел, Enter — соседний, Delete удаляет выбранный узел.</li>
+<li>«Свободный узел» — узел первого уровня вне автоматической раскладки; его дети выглядят как второй уровень. Для него действуют шорткаты, меню, ссылки и «Описание». Через меню или перетаскиванием можно отсоединить обычную ветвь со всеми детьми либо прикрепить свободную к узлу карты. Заметка поддерживает редактирование, удаление, ссылки и Tab для новой заметки рядом.</li>
 <li>Узлы можно перетаскивать. Контекстное меню добавляет, связывает, перемещает и группирует узлы, а встроенная панель управляет масштабом и центрированием.</li>
 <li>Кнопка режима фокуса на нижней панели показывает выбранную ветвь первого уровня отдельно. Повторное нажатие возвращает общую карту.</li>
+<li>Значок поиска в верхней панели или Ctrl+F (Command+F на macOS) ищет по обычным и свободным узлам и заметкам. Выберите результат, чтобы развернуть нужную ветвь, выделить элемент и показать его в центре карты.</li>
 <li>Изменения сохраняются автоматически вместе с данными проекта. Кнопка «Сохранить» и закрытие окна также записывают актуальное состояние карты.</li>
+<li>Кнопка «Экспорт» сохраняет текущую карту в PNG, SVG или JSON. PNG и SVG подходят для просмотра и публикации, а JSON хранит редактируемую структуру карты.</li>
 <li>В окне изменения проекта с этапами можно включить «Объединять карты этапов в карте проекта». Тогда каждый этап показывается в общей карте отдельной ветвью первого уровня под своим актуальным именем.</li>
 <li>Содержимое ветвей синхронизируется в обе стороны: изменения в общей карте сохраняются в отдельных картах этапов, а изменения отдельной карты появляются при следующем открытии общей карты. Собственные узлы проекта при этом сохраняются.</li>
 <li>Переименование, добавление, удаление и изменение порядка этапов автоматически отражаются в общей карте. Отключение объединения скрывает только собранные ветви и не удаляет карты этапов.</li>
@@ -197,14 +200,20 @@ TRANSLATION_OVERRIDES = {
         "Карта проекта или этапа": "Project or Stage Map",
         "Карты проектов и этапов": "Project and Stage Maps",
         "Объединять карты этапов в карте проекта": "Combine stage maps in the project map",
+        "Отсоединить ветвь": "Detach branch",
+        "Прикрепить к узлу карты": "Attach to map node",
+        "Выберите родительский узел карты": "Select the parent map node",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Project and Stage Maps</h2>
 <p>Every project and stage has its own independent idea map. Select the project or stage on the “Projects” tab and click “Map” in the action panel. The editor opens in a separate window; the root node is named after the project or stage when the map is first opened.</p>
 <ul>
-<li>Double-click a node or press F2 to edit its text. Tab adds a child node, Enter adds a sibling, and Delete removes the selected node.</li>
+<li>Double-click a node or press Space to edit its text. Tab adds a child node, Enter adds a sibling, and Delete removes the selected node.</li>
+<li>“Free node” creates a first-level node outside automatic layout; its children look like second-level nodes. Regular shortcuts, the context menu, links, and Summary all work. The context menu or drag-and-drop can detach a regular branch with all its children or attach a free branch to a map node. Notes also support editing, deletion, links, and Tab for a nearby note.</li>
 <li>Nodes can be dragged. The context menu adds, links, moves, and groups nodes, while the built-in toolbar controls zoom and centering.</li>
 <li>The focus mode button on the bottom toolbar displays the selected first-level branch separately. Press it again to return to the combined map.</li>
+<li>The search icon on the top toolbar or Ctrl+F (Command+F on macOS) searches regular and free nodes as well as notes. Select a result to expand its branch, select the item, and center it on the map.</li>
 <li>Changes are saved automatically with the project data. The “Save” button and closing the window also store the map’s current state.</li>
+<li>The Export button saves the current map as PNG, SVG or JSON. PNG and SVG are suitable for viewing and sharing, while JSON stores the editable map structure.</li>
 <li>In the edit window for a staged project, you can enable “Combine stage maps in the project map”. Each stage will then appear in the combined map as a separate first-level branch under its current name.</li>
 <li>Branch content is synchronized both ways: changes in the combined map are saved to the individual stage maps, and changes to an individual map appear the next time the combined map is opened. The project’s own nodes are preserved.</li>
 <li>Renaming, adding, deleting, and reordering stages is automatically reflected in the combined map. Turning off combining only hides the generated branches and does not delete stage maps.</li>
@@ -317,14 +326,20 @@ TRANSLATION_OVERRIDES = {
         "Карта проекта или этапа": "Mapa del proyecto o de la etapa",
         "Карты проектов и этапов": "Mapas de proyectos y etapas",
         "Объединять карты этапов в карте проекта": "Combinar mapas de etapas",
+        "Отсоединить ветвь": "Separar rama",
+        "Прикрепить к узлу карты": "Adjuntar al nodo del mapa",
+        "Выберите родительский узел карты": "Seleccione el nodo principal del mapa",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Mapas de proyectos y etapas</h2>
 <p>Cada proyecto y cada etapa tiene su propio mapa de ideas independiente. Seleccione el proyecto o la etapa en la pestaña «Proyectos» y pulse «Mapa» en el panel de acciones. El editor se abre en una ventana separada; al abrir el mapa por primera vez, el nodo raíz recibe el nombre del proyecto o de la etapa.</p>
 <ul>
-<li>Haga doble clic en un nodo o pulse F2 para editar el texto. Tab añade un nodo hijo, Intro añade un nodo hermano y Supr elimina el nodo seleccionado.</li>
+<li>Haga doble clic en un nodo o pulse la barra espaciadora para editar el texto. Tab añade un nodo hijo, Intro añade un nodo hermano y Supr elimina el nodo seleccionado.</li>
+<li>«Nodo libre» crea un nodo de primer nivel fuera de la distribución automática; sus hijos parecen nodos de segundo nivel. Funcionan los atajos, el menú contextual, los enlaces y Resumen. El menú contextual o arrastrar y soltar permite separar una rama con sus hijos o adjuntar una rama libre a un nodo del mapa. Las notas admiten edición, eliminación, enlaces y Tab para crear otra cercana.</li>
 <li>Los nodos se pueden arrastrar. El menú contextual permite añadir, vincular, mover y agrupar nodos, mientras que la barra integrada controla el zoom y el centrado.</li>
 <li>El botón de modo de enfoque de la barra inferior muestra por separado la rama de primer nivel seleccionada. Púlselo de nuevo para volver al mapa combinado.</li>
+<li>El icono de búsqueda o Ctrl+F (Command+F en macOS) busca nodos normales y libres, así como notas. Elija un resultado para desplegar su rama, seleccionar el elemento y centrarlo en el mapa.</li>
 <li>Los cambios se guardan automáticamente con los datos del proyecto. El botón «Guardar» y el cierre de la ventana también almacenan el estado actual del mapa.</li>
+<li>El botón Exportar guarda el mapa actual como PNG, SVG o JSON. PNG y SVG son adecuados para ver y compartir, mientras que JSON almacena la estructura del mapa editable.</li>
 <li>En la ventana de edición de un proyecto con etapas puede activar «Combinar mapas de etapas». Cada etapa aparecerá en el mapa combinado como una rama independiente de primer nivel con su nombre actual.</li>
 <li>El contenido de las ramas se sincroniza en ambos sentidos: los cambios del mapa combinado se guardan en los mapas individuales de las etapas, y los cambios de un mapa individual aparecen la próxima vez que se abre el mapa combinado. Los nodos propios del proyecto se conservan.</li>
 <li>Los cambios de nombre, la adición, la eliminación y la reordenación de las etapas se reflejan automáticamente en el mapa combinado. Desactivar la combinación solo oculta las ramas generadas y no elimina los mapas de las etapas.</li>
@@ -437,14 +452,20 @@ TRANSLATION_OVERRIDES = {
         "Карта проекта или этапа": "Projekt- oder Etappenkarte",
         "Карты проектов и этапов": "Projekt- und Etappenkarten",
         "Объединять карты этапов в карте проекта": "Etappenkarten zusammenführen",
+        "Отсоединить ветвь": "Zweig abtrennen",
+        "Прикрепить к узлу карты": "An Kartenknoten anhängen",
+        "Выберите родительский узел карты": "Übergeordneten Kartenknoten auswählen",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Projekt- und Etappenkarten</h2>
 <p>Jedes Projekt und jede Etappe besitzt eine eigene Ideenkarte. Wählen Sie das Projekt oder die Etappe auf der Registerkarte „Projekte“ aus und klicken Sie im Aktionsbereich auf „Karte“. Der Editor wird in einem separaten Fenster geöffnet; beim ersten Öffnen erhält der Wurzelknoten den Namen des Projekts oder der Etappe.</p>
 <ul>
-<li>Doppelklicken Sie auf einen Knoten oder drücken Sie F2, um den Text zu bearbeiten. Tab fügt einen untergeordneten Knoten hinzu, die Eingabetaste einen gleichgeordneten Knoten und Entf löscht den ausgewählten Knoten.</li>
+<li>Doppelklicken Sie auf einen Knoten oder drücken Sie die Leertaste, um den Text zu bearbeiten. Tab fügt einen untergeordneten Knoten hinzu, die Eingabetaste einen gleichgeordneten Knoten und Entf löscht den ausgewählten Knoten.</li>
+<li>„Freier Knoten“ erstellt einen Knoten erster Ebene außerhalb der automatischen Anordnung; seine Kinder sehen wie Knoten zweiter Ebene aus. Kürzel, Kontextmenü, Verknüpfungen und Zusammenfassung funktionieren wie gewohnt. Per Kontextmenü oder Drag-and-drop lässt sich ein Zweig samt Kindern abtrennen oder ein freier Zweig an einen Kartenknoten anhängen. Notizen unterstützen ebenfalls Bearbeitung, Löschen, Verknüpfungen und Tab.</li>
 <li>Knoten können gezogen werden. Über das Kontextmenü lassen sich Knoten hinzufügen, verknüpfen, verschieben und gruppieren; die integrierte Werkzeugleiste steuert Zoom und Zentrierung.</li>
 <li>Die Schaltfläche für den Fokusmodus in der unteren Werkzeugleiste zeigt den ausgewählten Zweig der ersten Ebene separat an. Ein erneuter Klick kehrt zur Gesamtkarte zurück.</li>
+<li>Das Suchsymbol oder Strg+F (Command+F unter macOS) durchsucht normale und freie Knoten sowie Notizen. Wählen Sie ein Ergebnis, um den Zweig zu öffnen, das Element auszuwählen und es in der Karte zu zentrieren.</li>
 <li>Änderungen werden automatisch mit den Projektdaten gespeichert. Auch die Schaltfläche „Speichern“ und das Schließen des Fensters sichern den aktuellen Stand der Karte.</li>
+<li>Die Schaltfläche „Exportieren“ speichert die aktuelle Karte als PNG, SVG oder JSON. PNG und SVG eignen sich zum Anzeigen und Teilen, während JSON die bearbeitbare Kartenstruktur speichert.</li>
 <li>Im Bearbeitungsfenster eines Etappenprojekts können Sie „Etappenkarten zusammenführen“ aktivieren. Jede Etappe erscheint dann in der Gesamtkarte als eigener Zweig der ersten Ebene unter ihrem aktuellen Namen.</li>
 <li>Der Inhalt der Zweige wird in beide Richtungen synchronisiert: Änderungen in der Gesamtkarte werden in den einzelnen Etappenkarten gespeichert, und Änderungen an einer einzelnen Karte erscheinen beim nächsten Öffnen der Gesamtkarte. Projekteigene Knoten bleiben erhalten.</li>
 <li>Das Umbenennen, Hinzufügen, Löschen und Neuanordnen von Etappen wird automatisch in der Gesamtkarte berücksichtigt. Wenn die Zusammenführung deaktiviert wird, werden nur die erzeugten Zweige ausgeblendet; die Etappenkarten werden nicht gelöscht.</li>
@@ -557,14 +578,20 @@ TRANSLATION_OVERRIDES = {
         "Карта проекта или этапа": "Carte du projet ou de l’étape",
         "Карты проектов и этапов": "Cartes des projets et des étapes",
         "Объединять карты этапов в карте проекта": "Regrouper les cartes des étapes",
+        "Отсоединить ветвь": "Détacher la branche",
+        "Прикрепить к узлу карты": "Rattacher au nœud de la carte",
+        "Выберите родительский узел карты": "Sélectionnez le nœud parent de la carte",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Cartes des projets et des étapes</h2>
 <p>Chaque projet et chaque étape possède sa propre carte d’idées indépendante. Sélectionnez le projet ou l’étape dans l’onglet « Projets », puis cliquez sur « Carte » dans le panneau d’actions. L’éditeur s’ouvre dans une fenêtre séparée ; lors de la première ouverture, le nœud racine reçoit le nom du projet ou de l’étape.</p>
 <ul>
-<li>Double-cliquez sur un nœud ou appuyez sur F2 pour modifier son texte. Tab ajoute un nœud enfant, Entrée ajoute un nœud voisin et Suppr efface le nœud sélectionné.</li>
+<li>Double-cliquez sur un nœud ou appuyez sur la barre d’espace pour modifier son texte. Tab ajoute un nœud enfant, Entrée ajoute un nœud voisin et Suppr efface le nœud sélectionné.</li>
+<li>« Nœud libre » crée un nœud de premier niveau hors de la disposition automatique ; ses enfants ressemblent aux nœuds de second niveau. Les raccourcis, le menu contextuel, les liens et le résumé fonctionnent normalement. Le menu contextuel ou le glisser-déposer permet de détacher une branche avec ses enfants ou de rattacher une branche libre à un nœud de la carte. Les notes acceptent aussi édition, suppression, liens et Tab.</li>
 <li>Les nœuds peuvent être déplacés. Le menu contextuel permet d’ajouter, de relier, de déplacer et de regrouper les nœuds, tandis que la barre intégrée contrôle le zoom et le centrage.</li>
 <li>Le bouton du mode focus dans la barre inférieure affiche séparément la branche de premier niveau sélectionnée. Appuyez à nouveau dessus pour revenir à la carte globale.</li>
+<li>L’icône de recherche ou Ctrl+F (Command+F sous macOS) recherche les nœuds ordinaires et libres ainsi que les notes. Choisissez un résultat pour développer sa branche, sélectionner l’élément et le centrer dans la carte.</li>
 <li>Les modifications sont enregistrées automatiquement avec les données du projet. Le bouton « Enregistrer » et la fermeture de la fenêtre sauvegardent également l’état actuel de la carte.</li>
+<li>Le bouton Exporter enregistre la carte actuelle au format PNG, SVG ou JSON. PNG et SVG conviennent à la visualisation et au partage, tandis que JSON stocke la structure de la carte modifiable.</li>
 <li>Dans la fenêtre de modification d’un projet à étapes, vous pouvez activer « Regrouper les cartes des étapes ». Chaque étape apparaît alors dans la carte globale sous la forme d’une branche distincte de premier niveau portant son nom actuel.</li>
 <li>Le contenu des branches est synchronisé dans les deux sens : les modifications de la carte globale sont enregistrées dans les cartes individuelles des étapes, et celles d’une carte individuelle apparaissent à la prochaine ouverture de la carte globale. Les nœuds propres au projet sont conservés.</li>
 <li>Le renommage, l’ajout, la suppression et la réorganisation des étapes sont automatiquement répercutés dans la carte globale. La désactivation du regroupement masque uniquement les branches générées et ne supprime pas les cartes des étapes.</li>
@@ -677,14 +704,20 @@ TRANSLATION_OVERRIDES = {
         "Карта проекта или этапа": "Mapa do projeto ou da etapa",
         "Карты проектов и этапов": "Mapas de projetos e etapas",
         "Объединять карты этапов в карте проекта": "Combinar mapas das etapas",
+        "Отсоединить ветвь": "Desanexar ramificação",
+        "Прикрепить к узлу карты": "Anexar ao nó do mapa",
+        "Выберите родительский узел карты": "Selecione o nó pai do mapa",
         MINDMAP_HELP_SOURCE: """<html><body>
 <h2>Mapas de projetos e etapas</h2>
 <p>Cada projeto e cada etapa possui seu próprio mapa de ideias independente. Selecione o projeto ou a etapa na aba “Projetos” e clique em “Mapa” no painel de ações. O editor abre em uma janela separada; na primeira abertura, o nó raiz recebe o nome do projeto ou da etapa.</p>
 <ul>
-<li>Clique duas vezes em um nó ou pressione F2 para editar o texto. Tab adiciona um nó filho, Enter adiciona um nó irmão e Delete exclui o nó selecionado.</li>
+<li>Clique duas vezes em um nó ou pressione a barra de espaço para editar o texto. Tab adiciona um nó filho, Enter adiciona um nó irmão e Delete exclui o nó selecionado.</li>
+<li>“Nó livre” cria um nó de primeiro nível fora do layout automático; seus filhos parecem nós de segundo nível. Atalhos, menu de contexto, links e Resumo funcionam normalmente. O menu de contexto ou arrastar e soltar permite desanexar uma ramificação com os filhos ou anexar uma ramificação livre a um nó do mapa. As notas também aceitam edição, exclusão, links e Tab.</li>
 <li>Os nós podem ser arrastados. O menu de contexto permite adicionar, vincular, mover e agrupar nós, enquanto a barra integrada controla o zoom e a centralização.</li>
 <li>O botão do modo de foco na barra inferior exibe separadamente a ramificação de primeiro nível selecionada. Pressione-o novamente para voltar ao mapa combinado.</li>
+<li>O ícone de pesquisa ou Ctrl+F (Command+F no macOS) pesquisa nós regulares e livres, além de notas. Selecione um resultado para expandir a ramificação, selecionar o item e centralizá-lo no mapa.</li>
 <li>As alterações são salvas automaticamente com os dados do projeto. O botão “Salvar” e o fechamento da janela também armazenam o estado atual do mapa.</li>
+<li>O botão Exportar salva o mapa atual como PNG, SVG ou JSON. PNG e SVG são adequados para visualização e compartilhamento, enquanto JSON armazena a estrutura editável do mapa.</li>
 <li>Na janela de edição de um projeto com etapas, você pode ativar “Combinar mapas das etapas”. Cada etapa será exibida no mapa combinado como uma ramificação separada de primeiro nível com seu nome atual.</li>
 <li>O conteúdo das ramificações é sincronizado nos dois sentidos: as alterações no mapa combinado são salvas nos mapas individuais das etapas, e as alterações em um mapa individual aparecem na próxima vez que o mapa combinado for aberto. Os nós próprios do projeto são preservados.</li>
 <li>Renomear, adicionar, excluir e reordenar etapas é refletido automaticamente no mapa combinado. Desativar a combinação apenas oculta as ramificações geradas e não exclui os mapas das etapas.</li>

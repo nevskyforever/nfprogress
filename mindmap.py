@@ -1,5 +1,6 @@
 """Mind Elixir editor embedded in a native Qt WebView dialog."""
 
+import base64
 import json
 from pathlib import Path
 
@@ -7,7 +8,7 @@ from PySide6.QtCore import Q_ARG, QMetaObject, QObject, QTimer, QUrl, Signal, Sl
 from PySide6.QtGui import QCloseEvent
 from PySide6.QtQuick import QQuickView
 from PySide6.QtWebView import QtWebView
-from PySide6.QtWidgets import QDialog, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDialog, QFileDialog, QMenu, QVBoxLayout, QWidget
 
 import engine
 from UI_fiiles.mindmap_dialog import Ui_mindmap_dialog
@@ -100,6 +101,16 @@ class MindMapBridge(QObject):
                 'emptyStageMapText': tr(
                     'Карта не была создана при работе над этапом.'
                 ),
+                'floatingNodeName': tr('Свободный узел'),
+                'floatingNoteName': tr('Новая заметка'),
+                'addFloatingNodeLabel': tr('Добавить свободный узел'),
+                'addFloatingNoteLabel': tr('Добавить плавающую заметку'),
+                'searchMapLabel': tr('Поиск по карте'),
+                'searchPlaceholder': tr('Поиск узлов и заметок'),
+                'nothingFoundText': tr('Ничего не найдено'),
+                'detachBranchLabel': tr('Отсоединить ветвь'),
+                'attachBranchLabel': tr('Прикрепить к узлу карты'),
+                'attachTargetPrompt': tr('Выберите родительский узел карты'),
                 'locale': current_language(),
                 'loadingText': tr('Загрузка карты…'),
                 'newTopicName': tr('Новая тема'),
@@ -224,6 +235,27 @@ class NativeWebView(QWidget):
 
 
 class MindMapDialog(QDialog, Ui_mindmap_dialog):
+    EXPORT_FORMATS = {
+        'png': (
+            'Экспорт в PNG',
+            'Экспортировать в PNG',
+            'Изображение PNG (*.png)',
+            '.png',
+        ),
+        'svg': (
+            'Экспорт в SVG',
+            'Экспортировать в SVG',
+            'Векторное изображение SVG (*.svg)',
+            '.svg',
+        ),
+        'json': (
+            'Экспорт в JSON',
+            'Экспортировать в JSON',
+            'Карта Mind Elixir (*.json)',
+            '.json',
+        ),
+    }
+
     def __init__(
             self,
             entity_name,
@@ -242,16 +274,25 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
         self._closing_after_save = False
         self._allow_close = False
         self._poll_in_flight = False
+        self._export_in_progress = False
 
         self.setWindowTitle(f"{tr('Карта')} — {entity_name}")
         self.map_title_label.setText(f"{tr('Карта')}: {entity_name}")
-        if self.read_only:
-            self.instructions_label.setText(
-                tr('Завершённый проект или этап: карта доступна только для просмотра.')
-            )
 
         self.save_button.setEnabled(False)
         self.save_button.clicked.connect(self._request_explicit_save)
+        self.export_button.setEnabled(False)
+        self._export_menu = QMenu(self)
+        for export_format, export_details in self.EXPORT_FORMATS.items():
+            action = self._export_menu.addAction(
+                tr(export_details[0]),
+            )
+            action.triggered.connect(
+                lambda checked=False, format_name=export_format: self._request_export(
+                    format_name,
+                ),
+            )
+        self.export_button.setMenu(self._export_menu)
         self.close_button.clicked.connect(self.close)
 
         qml_path = Path(engine.resource_path('mindmap_assets/WebViewHost.qml'))
@@ -345,10 +386,21 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
                 self._bridge.reportError(event.get('details', ''))
             elif event_type == 'status':
                 self._bridge.showStatus(event.get('message', ''))
+            elif event_type == 'export':
+                self._finish_export(
+                    event.get('format'),
+                    event.get('data'),
+                )
+            elif event_type == 'exportError':
+                self._finish_export_error(event.get('details', ''))
 
     def _on_editor_ready(self):
         self._ready = True
         self.save_button.setEnabled(not self.read_only)
+        self.export_button.setEnabled(True)
+        self._show_ready_status()
+
+    def _show_ready_status(self):
         self.save_status_label.setToolTip('')
         if self.status_message:
             self.save_status_label.setText(tr(self.status_message))
@@ -387,9 +439,73 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
             return
         self._bridge.persist_payload(payload)
 
+    def _request_export(self, export_format):
+        if (
+            not self._ready
+            or self._export_in_progress
+            or export_format not in self.EXPORT_FORMATS
+        ):
+            return
+        self._export_in_progress = True
+        self.export_button.setEnabled(False)
+        self.save_status_label.setText(tr('Подготовка экспорта…'))
+        self._page.runJavaScript(
+            f'window.nfprogressMindMap.requestExport({json.dumps(export_format)})',
+        )
+
+    def _finish_export(self, export_format, data):
+        if not self._export_in_progress:
+            return
+        self._export_in_progress = False
+        self.export_button.setEnabled(self._ready)
+        export_details = self.EXPORT_FORMATS.get(export_format)
+        if export_details is None or not isinstance(data, str):
+            self._finish_export_error('Invalid export payload.')
+            return
+
+        _, title, file_filter, suffix = export_details
+        file_name, _ = QFileDialog.getSaveFileName(
+            self,
+            tr(title),
+            f'{self.windowTitle()}{suffix}',
+            tr(file_filter),
+        )
+        if not file_name:
+            self._show_ready_status()
+            return
+
+        target_path = Path(file_name)
+        if target_path.suffix.lower() != suffix:
+            target_path = target_path.with_suffix(suffix)
+        try:
+            if export_format == 'json':
+                exported_data = json.loads(data)
+                target_path.write_text(
+                    json.dumps(exported_data, ensure_ascii=False, indent=2),
+                    encoding='utf-8',
+                )
+            else:
+                _, separator, encoded = data.partition(',')
+                if not separator:
+                    raise ValueError('Missing image data URL.')
+                target_path.write_bytes(base64.b64decode(encoded, validate=True))
+        except (OSError, ValueError, json.JSONDecodeError) as error:
+            self._finish_export_error(str(error))
+            return
+
+        self.save_status_label.setText(tr('Карта экспортирована.'))
+        self.save_status_label.setToolTip('')
+
+    def _finish_export_error(self, details):
+        self._export_in_progress = False
+        self.export_button.setEnabled(self._ready)
+        self.save_status_label.setText(tr('Не удалось экспортировать карту.'))
+        self.save_status_label.setToolTip(str(details))
+
     def _request_close_save(self):
         self._closing_after_save = True
         self.save_button.setEnabled(False)
+        self.export_button.setEnabled(False)
         self.save_status_label.setText(tr('Сохранение карты…'))
         self._page.runJavaScript(
             'window.nfprogressMindMap.getDataString()',
@@ -405,6 +521,7 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
 
         self._closing_after_save = False
         self.save_button.setEnabled(not self.read_only and self._ready)
+        self.export_button.setEnabled(self._ready)
         answer = QMessageBox.question(
             self,
             'Ошибка',

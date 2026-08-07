@@ -42,6 +42,95 @@
     #focusBranch.nfprogress-focus-active {
       color: #4f8cff;
     }
+
+    me-main.nfprogress-free-main {
+      position: absolute;
+      z-index: 12;
+      margin: 0;
+    }
+
+    me-main.nfprogress-free-main > me-wrapper {
+      margin: 0;
+    }
+
+    me-tpc.nfprogress-note {
+      border: 1px solid #d1a320 !important;
+      border-radius: 7px !important;
+      color: #594300 !important;
+      background: #fff8cf !important;
+      box-shadow: 0 2px 8px #0002;
+    }
+
+    me-tpc.nfprogress-note .text::before {
+      content: '📝 ';
+    }
+
+    me-tpc.nfprogress-drop-target {
+      outline: 3px solid var(--selected, #4dc4ff) !important;
+      outline-offset: 4px;
+    }
+
+    .map-container.nfprogress-detach-drop {
+      box-shadow: inset 0 0 0 3px var(--selected, #4dc4ff);
+    }
+
+    .map-container .topiclinks,
+    .map-container .summary,
+    .map-container .label-container {
+      overflow: visible;
+    }
+
+    .mind-elixir-toolbar span.nfprogress-floating-control {
+      width: 22px;
+      height: 22px;
+      cursor: pointer;
+    }
+
+    .mind-elixir-toolbar span.nfprogress-floating-control + span {
+      margin-left: 10px;
+    }
+
+    .nfprogress-search-panel {
+      position: absolute;
+      top: 20px;
+      left: 52px;
+      z-index: 40;
+      width: min(330px, calc(100vw - 40px));
+      padding: 7px;
+      border-radius: 6px;
+      background: var(--panel-bgcolor, #fff);
+      box-shadow: 0 4px 14px #0003;
+      opacity: 0;
+      transform: translateX(-12px);
+      visibility: hidden;
+      transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
+    }
+
+    .nfprogress-search-panel.open {
+      opacity: 1;
+      transform: translateX(0);
+      visibility: visible;
+      transition-delay: 0s;
+    }
+    .nfprogress-search-input { width: 100%; padding: 7px; }
+    .nfprogress-search-panel::before {
+      content: '⌕';
+      position: absolute;
+      top: 12px;
+      left: 16px;
+      color: #667085;
+      font-size: 18px;
+      pointer-events: none;
+    }
+    .nfprogress-search-input { padding-left: 34px; }
+    .nfprogress-search-results { max-height: 230px; overflow-y: auto; }
+    .nfprogress-search-result {
+      width: 100%; padding: 7px; border: 0; background: transparent;
+      text-align: left; cursor: pointer;
+    }
+    .nfprogress-search-result:hover { background: #4f8cff20; }
+    .nfprogress-search-empty { padding: 7px; color: #666; }
+
   </style>
 </head>
 <body>
