@@ -799,13 +799,59 @@ def test_free_nodes_use_native_branches_summaries_arrows_and_shortcuts():
           document.querySelector('.map-container').dispatchEvent(
             new KeyboardEvent('keydown', {bubbles: true, key: 'Tab'})
           );
-          document.querySelector('#input-box')?.blur();
+          document.querySelector('#input-box')?.dispatchEvent(
+            new FocusEvent('blur')
+          );
           const data = JSON.parse(window.nfprogressMindMap.getDataString());
           return data.freeNodes[0].children.length;
         })()
         """,
     )
     assert child_count == 2
+
+    edit_shortcuts = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const root = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'free-root'
+          );
+          root.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 3,
+            pointerType: 'mouse',
+          }));
+          root.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 3,
+            pointerType: 'mouse',
+          }));
+          const container = document.querySelector('.map-container');
+          container.dispatchEvent(new KeyboardEvent('keydown', {
+            bubbles: true,
+            key: ' ',
+            code: 'Space',
+          }));
+          const spaceOpensEditor = Boolean(document.querySelector('#input-box'));
+          document.querySelector('#input-box')?.dispatchEvent(
+            new FocusEvent('blur')
+          );
+          container.dispatchEvent(new KeyboardEvent('keydown', {
+            bubbles: true,
+            key: 'F2',
+            code: 'F2',
+          }));
+          return JSON.stringify({
+            spaceOpensEditor,
+            f2OpensEditor: Boolean(document.querySelector('#input-box')),
+          });
+        })()
+        """,
+    ))
+    assert edit_shortcuts == {'spaceOpensEditor': True, 'f2OpensEditor': False}
 
     assert _run_javascript(
         app,

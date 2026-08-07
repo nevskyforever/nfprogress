@@ -278,20 +278,6 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
 
         self.setWindowTitle(f"{tr('Карта')} — {entity_name}")
         self.map_title_label.setText(f"{tr('Карта')}: {entity_name}")
-        if self.read_only:
-            self.instructions_label.setText(
-                tr('Завершённый проект или этап: карта доступна только для просмотра.')
-            )
-        else:
-            self.instructions_label.setText(
-                tr(
-                    'Выберите узел: Tab — дочерний, Enter — соседний, F2 — изменить, '
-                    'Delete — удалить. Свободные узлы и заметки добавляются кнопками, '
-                    'перетаскиваются за карточку и редактируются двойным щелчком или F2. '
-                    'Для свободного узла Tab добавляет дочерний узел, Enter — соседний. '
-                    'Карта сохраняется автоматически.'
-                )
-            )
 
         self.save_button.setEnabled(False)
         self.save_button.clicked.connect(self._request_explicit_save)

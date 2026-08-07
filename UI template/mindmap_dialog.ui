@@ -52,19 +52,6 @@
     </widget>
    </item>
    <item>
-    <widget class="QLabel" name="instructions_label">
-     <property name="text">
-      <string>Выберите узел: Tab — дочерний, Enter — соседний, F2 — изменить, Delete — удалить. Карта сохраняется автоматически.</string>
-     </property>
-     <property name="alignment">
-      <set>Qt::AlignmentFlag::AlignCenter</set>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
-    </widget>
-   </item>
-   <item>
     <widget class="QWidget" name="mindmap_container" native="true">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Expanding" vsizetype="Expanding">

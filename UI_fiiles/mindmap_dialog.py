@@ -43,13 +43,6 @@ class Ui_mindmap_dialog(object):
 
         self.verticalLayout.addWidget(self.map_title_label)
 
-        self.instructions_label = QLabel(mindmap_dialog)
-        self.instructions_label.setObjectName(u"instructions_label")
-        self.instructions_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.instructions_label.setWordWrap(True)
-
-        self.verticalLayout.addWidget(self.instructions_label)
-
         self.mindmap_container = QWidget(mindmap_dialog)
         self.mindmap_container.setObjectName(u"mindmap_container")
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
@@ -108,7 +101,6 @@ class Ui_mindmap_dialog(object):
         mindmap_dialog.setAccessibleName(QCoreApplication.translate("mindmap_dialog", u"\u041a\u0430\u0440\u0442\u0430 \u043f\u0440\u043e\u0435\u043a\u0442\u0430 \u0438\u043b\u0438 \u044d\u0442\u0430\u043f\u0430", None))
 #endif // QT_CONFIG(accessibility)
         self.map_title_label.setText(QCoreApplication.translate("mindmap_dialog", u"\u041a\u0430\u0440\u0442\u0430 \u043f\u0440\u043e\u0435\u043a\u0442\u0430 \u0438\u043b\u0438 \u044d\u0442\u0430\u043f\u0430", None))
-        self.instructions_label.setText(QCoreApplication.translate("mindmap_dialog", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u0443\u0437\u0435\u043b: Tab \u2014 \u0434\u043e\u0447\u0435\u0440\u043d\u0438\u0439, Enter \u2014 \u0441\u043e\u0441\u0435\u0434\u043d\u0438\u0439, F2 \u2014 \u0438\u0437\u043c\u0435\u043d\u0438\u0442\u044c, Delete \u2014 \u0443\u0434\u0430\u043b\u0438\u0442\u044c. \u041a\u0430\u0440\u0442\u0430 \u0441\u043e\u0445\u0440\u0430\u043d\u044f\u0435\u0442\u0441\u044f \u0430\u0432\u0442\u043e\u043c\u0430\u0442\u0438\u0447\u0435\u0441\u043a\u0438.", None))
 #if QT_CONFIG(accessibility)
         self.mindmap_container.setAccessibleName(QCoreApplication.translate("mindmap_dialog", u"\u0420\u0435\u0434\u0430\u043a\u0442\u043e\u0440 \u043a\u0430\u0440\u0442\u044b", None))
 #endif // QT_CONFIG(accessibility)

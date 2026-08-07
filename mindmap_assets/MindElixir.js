@@ -906,7 +906,7 @@ function $n(e, t) {
     F1: () => {
       e.toCenter();
     },
-    F2: () => {
+    Space: () => {
       e.currentSummary ? e.editSummary(e.currentSummary) : e.currentArrow ? e.editArrowLabel(e.currentArrow) : e.beginEdit();
     },
     ArrowUp: (r) => {
@@ -1166,7 +1166,7 @@ function Hn(e) {
     if (f.shiftKey) return e.move(-f.deltaY, 0);
     e.move(-f.deltaX, -f.deltaY);
   }, x = (f) => {
-    f.code === "Space" && (e.spacePressed = !0, e.container.classList.add("space-pressed"));
+    f.code === "Space" && e.currentNodes.length === 0 && (e.spacePressed = !0, e.container.classList.add("space-pressed"));
   }, E = (f) => {
     f.code === "Space" && (e.spacePressed = !1, e.container.classList.remove("space-pressed"));
   };

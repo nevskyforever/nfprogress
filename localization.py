@@ -131,7 +131,7 @@ MINDMAP_HELP_SOURCE = """<html><body>
 <h2>Карты проектов и этапов</h2>
 <p>У каждого проекта и каждого этапа есть собственная независимая карта идей. Выберите нужную сущность на вкладке «Проекты» и нажмите «Карта» в панели действий. Редактор откроется в отдельном окне; при первом открытии корневой узел получит название проекта или этапа.</p>
 <ul>
-<li>Дважды щёлкните узел или нажмите F2, чтобы изменить текст. Tab добавляет дочерний узел, Enter — соседний, Delete удаляет выбранный узел.</li>
+<li>Дважды щёлкните узел или нажмите Space, чтобы изменить текст. Tab добавляет дочерний узел, Enter — соседний, Delete удаляет выбранный узел.</li>
 <li>«Свободный узел» — узел первого уровня вне автоматической раскладки; его дети выглядят как второй уровень. Для него действуют шорткаты, меню, ссылки и «Описание». Через меню или перетаскиванием можно отсоединить обычную ветвь со всеми детьми либо прикрепить свободную к узлу карты. Заметка поддерживает редактирование, удаление, ссылки и Tab для новой заметки рядом.</li>
 <li>Узлы можно перетаскивать. Контекстное меню добавляет, связывает, перемещает и группирует узлы, а встроенная панель управляет масштабом и центрированием.</li>
 <li>Кнопка режима фокуса на нижней панели показывает выбранную ветвь первого уровня отдельно. Повторное нажатие возвращает общую карту.</li>
@@ -207,7 +207,7 @@ TRANSLATION_OVERRIDES = {
 <h2>Project and Stage Maps</h2>
 <p>Every project and stage has its own independent idea map. Select the project or stage on the “Projects” tab and click “Map” in the action panel. The editor opens in a separate window; the root node is named after the project or stage when the map is first opened.</p>
 <ul>
-<li>Double-click a node or press F2 to edit its text. Tab adds a child node, Enter adds a sibling, and Delete removes the selected node.</li>
+<li>Double-click a node or press Space to edit its text. Tab adds a child node, Enter adds a sibling, and Delete removes the selected node.</li>
 <li>“Free node” creates a first-level node outside automatic layout; its children look like second-level nodes. Regular shortcuts, the context menu, links, and Summary all work. The context menu or drag-and-drop can detach a regular branch with all its children or attach a free branch to a map node. Notes also support editing, deletion, links, and Tab for a nearby note.</li>
 <li>Nodes can be dragged. The context menu adds, links, moves, and groups nodes, while the built-in toolbar controls zoom and centering.</li>
 <li>The focus mode button on the bottom toolbar displays the selected first-level branch separately. Press it again to return to the combined map.</li>
@@ -333,7 +333,7 @@ TRANSLATION_OVERRIDES = {
 <h2>Mapas de proyectos y etapas</h2>
 <p>Cada proyecto y cada etapa tiene su propio mapa de ideas independiente. Seleccione el proyecto o la etapa en la pestaña «Proyectos» y pulse «Mapa» en el panel de acciones. El editor se abre en una ventana separada; al abrir el mapa por primera vez, el nodo raíz recibe el nombre del proyecto o de la etapa.</p>
 <ul>
-<li>Haga doble clic en un nodo o pulse F2 para editar el texto. Tab añade un nodo hijo, Intro añade un nodo hermano y Supr elimina el nodo seleccionado.</li>
+<li>Haga doble clic en un nodo o pulse la barra espaciadora para editar el texto. Tab añade un nodo hijo, Intro añade un nodo hermano y Supr elimina el nodo seleccionado.</li>
 <li>«Nodo libre» crea un nodo de primer nivel fuera de la distribución automática; sus hijos parecen nodos de segundo nivel. Funcionan los atajos, el menú contextual, los enlaces y Resumen. El menú contextual o arrastrar y soltar permite separar una rama con sus hijos o adjuntar una rama libre a un nodo del mapa. Las notas admiten edición, eliminación, enlaces y Tab para crear otra cercana.</li>
 <li>Los nodos se pueden arrastrar. El menú contextual permite añadir, vincular, mover y agrupar nodos, mientras que la barra integrada controla el zoom y el centrado.</li>
 <li>El botón de modo de enfoque de la barra inferior muestra por separado la rama de primer nivel seleccionada. Púlselo de nuevo para volver al mapa combinado.</li>
@@ -459,7 +459,7 @@ TRANSLATION_OVERRIDES = {
 <h2>Projekt- und Etappenkarten</h2>
 <p>Jedes Projekt und jede Etappe besitzt eine eigene Ideenkarte. Wählen Sie das Projekt oder die Etappe auf der Registerkarte „Projekte“ aus und klicken Sie im Aktionsbereich auf „Karte“. Der Editor wird in einem separaten Fenster geöffnet; beim ersten Öffnen erhält der Wurzelknoten den Namen des Projekts oder der Etappe.</p>
 <ul>
-<li>Doppelklicken Sie auf einen Knoten oder drücken Sie F2, um den Text zu bearbeiten. Tab fügt einen untergeordneten Knoten hinzu, die Eingabetaste einen gleichgeordneten Knoten und Entf löscht den ausgewählten Knoten.</li>
+<li>Doppelklicken Sie auf einen Knoten oder drücken Sie die Leertaste, um den Text zu bearbeiten. Tab fügt einen untergeordneten Knoten hinzu, die Eingabetaste einen gleichgeordneten Knoten und Entf löscht den ausgewählten Knoten.</li>
 <li>„Freier Knoten“ erstellt einen Knoten erster Ebene außerhalb der automatischen Anordnung; seine Kinder sehen wie Knoten zweiter Ebene aus. Kürzel, Kontextmenü, Verknüpfungen und Zusammenfassung funktionieren wie gewohnt. Per Kontextmenü oder Drag-and-drop lässt sich ein Zweig samt Kindern abtrennen oder ein freier Zweig an einen Kartenknoten anhängen. Notizen unterstützen ebenfalls Bearbeitung, Löschen, Verknüpfungen und Tab.</li>
 <li>Knoten können gezogen werden. Über das Kontextmenü lassen sich Knoten hinzufügen, verknüpfen, verschieben und gruppieren; die integrierte Werkzeugleiste steuert Zoom und Zentrierung.</li>
 <li>Die Schaltfläche für den Fokusmodus in der unteren Werkzeugleiste zeigt den ausgewählten Zweig der ersten Ebene separat an. Ein erneuter Klick kehrt zur Gesamtkarte zurück.</li>
@@ -585,7 +585,7 @@ TRANSLATION_OVERRIDES = {
 <h2>Cartes des projets et des étapes</h2>
 <p>Chaque projet et chaque étape possède sa propre carte d’idées indépendante. Sélectionnez le projet ou l’étape dans l’onglet « Projets », puis cliquez sur « Carte » dans le panneau d’actions. L’éditeur s’ouvre dans une fenêtre séparée ; lors de la première ouverture, le nœud racine reçoit le nom du projet ou de l’étape.</p>
 <ul>
-<li>Double-cliquez sur un nœud ou appuyez sur F2 pour modifier son texte. Tab ajoute un nœud enfant, Entrée ajoute un nœud voisin et Suppr efface le nœud sélectionné.</li>
+<li>Double-cliquez sur un nœud ou appuyez sur la barre d’espace pour modifier son texte. Tab ajoute un nœud enfant, Entrée ajoute un nœud voisin et Suppr efface le nœud sélectionné.</li>
 <li>« Nœud libre » crée un nœud de premier niveau hors de la disposition automatique ; ses enfants ressemblent aux nœuds de second niveau. Les raccourcis, le menu contextuel, les liens et le résumé fonctionnent normalement. Le menu contextuel ou le glisser-déposer permet de détacher une branche avec ses enfants ou de rattacher une branche libre à un nœud de la carte. Les notes acceptent aussi édition, suppression, liens et Tab.</li>
 <li>Les nœuds peuvent être déplacés. Le menu contextuel permet d’ajouter, de relier, de déplacer et de regrouper les nœuds, tandis que la barre intégrée contrôle le zoom et le centrage.</li>
 <li>Le bouton du mode focus dans la barre inférieure affiche séparément la branche de premier niveau sélectionnée. Appuyez à nouveau dessus pour revenir à la carte globale.</li>
@@ -711,7 +711,7 @@ TRANSLATION_OVERRIDES = {
 <h2>Mapas de projetos e etapas</h2>
 <p>Cada projeto e cada etapa possui seu próprio mapa de ideias independente. Selecione o projeto ou a etapa na aba “Projetos” e clique em “Mapa” no painel de ações. O editor abre em uma janela separada; na primeira abertura, o nó raiz recebe o nome do projeto ou da etapa.</p>
 <ul>
-<li>Clique duas vezes em um nó ou pressione F2 para editar o texto. Tab adiciona um nó filho, Enter adiciona um nó irmão e Delete exclui o nó selecionado.</li>
+<li>Clique duas vezes em um nó ou pressione a barra de espaço para editar o texto. Tab adiciona um nó filho, Enter adiciona um nó irmão e Delete exclui o nó selecionado.</li>
 <li>“Nó livre” cria um nó de primeiro nível fora do layout automático; seus filhos parecem nós de segundo nível. Atalhos, menu de contexto, links e Resumo funcionam normalmente. O menu de contexto ou arrastar e soltar permite desanexar uma ramificação com os filhos ou anexar uma ramificação livre a um nó do mapa. As notas também aceitam edição, exclusão, links e Tab.</li>
 <li>Os nós podem ser arrastados. O menu de contexto permite adicionar, vincular, mover e agrupar nós, enquanto a barra integrada controla o zoom e a centralização.</li>
 <li>O botão do modo de foco na barra inferior exibe separadamente a ramificação de primeiro nível selecionada. Pressione-o novamente para voltar ao mapa combinado.</li>
