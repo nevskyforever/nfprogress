@@ -1101,12 +1101,116 @@ def test_branch_can_detach_to_free_node_and_attach_back_to_map():
     assert attached['arrows'][0]['id'] == 'branch-arrow'
     assert dialog._bridge.last_error == ''
 
+    drag_detached = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'movable-branch'
+          );
+          const container = document.querySelector('.map-container');
+          const branchBounds = branch.getBoundingClientRect();
+          const containerBounds = container.getBoundingClientRect();
+          const startX = branchBounds.left + branchBounds.width / 2;
+          const startY = branchBounds.top + branchBounds.height / 2;
+          const dropX = containerBounds.right - 90;
+          const dropY = containerBounds.top + containerBounds.height / 2;
+          branch.setPointerCapture = () => {};
+          branch.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 21,
+            pointerType: 'mouse',
+            clientX: startX,
+            clientY: startY,
+          }));
+          container.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            button: 0,
+            pointerId: 21,
+            pointerType: 'mouse',
+            clientX: dropX,
+            clientY: dropY,
+          }));
+          container.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 21,
+            pointerType: 'mouse',
+            clientX: dropX,
+            clientY: dropY,
+          }));
+          return window.nfprogressMindMap.getDataString();
+        })()
+        """,
+    ))
+    assert drag_detached['freeNodes'][0]['id'] == 'movable-branch'
+    assert drag_detached['freeNodes'][0]['children'][0]['id'] == 'nested-node'
+    assert dialog._bridge.last_error == ''
+
+    drag_attached = json.loads(_run_javascript(
+        app,
+        dialog,
+        """
+        (() => {
+          const branch = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'movable-branch'
+          );
+          const target = [...document.querySelectorAll('me-tpc')].find(
+            element => element.nodeObj.id === 'target-node'
+          );
+          const branchBounds = branch.getBoundingClientRect();
+          const startX = branchBounds.left + branchBounds.width / 2;
+          const startY = branchBounds.top + branchBounds.height / 2;
+          branch.dispatchEvent(new PointerEvent('pointerdown', {
+            bubbles: true,
+            button: 0,
+            pointerId: 22,
+            pointerType: 'mouse',
+            clientX: startX,
+            clientY: startY,
+          }));
+          const targetBounds = target.getBoundingClientRect();
+          const dropX = targetBounds.left + targetBounds.width / 2;
+          const dropY = targetBounds.top + targetBounds.height / 2;
+          target.dispatchEvent(new PointerEvent('pointermove', {
+            bubbles: true,
+            button: 0,
+            pointerId: 22,
+            pointerType: 'mouse',
+            clientX: dropX,
+            clientY: dropY,
+          }));
+          const targetMarked = target.classList.contains(
+            'nfprogress-drop-target'
+          );
+          target.dispatchEvent(new PointerEvent('pointerup', {
+            bubbles: true,
+            button: 0,
+            pointerId: 22,
+            pointerType: 'mouse',
+            clientX: dropX,
+            clientY: dropY,
+          }));
+          return JSON.stringify({
+            targetMarked,
+            data: JSON.parse(window.nfprogressMindMap.getDataString()),
+          });
+        })()
+        """,
+    ))
+    assert drag_attached['targetMarked'] is True
+    drag_attached_data = drag_attached['data']
+    assert drag_attached_data.get('freeNodes') == []
+    target = drag_attached_data['nodeData']['children'][0]
+    assert target['children'][0]['id'] == 'movable-branch'
+    assert target['children'][0]['children'][0]['id'] == 'nested-node'
+    assert dialog._bridge.last_error == ''
+
     _process_events_for(app, 0.5)
     dialog._allow_close = True
     dialog.close()
-    dialog.deleteLater()
-    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
-    app.processEvents()
 
 
 @requires_native_webview

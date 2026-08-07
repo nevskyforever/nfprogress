@@ -440,6 +440,11 @@ function installNativeFreeBehavior() {
     const start = { x: event.clientX, y: event.clientY };
     const origin = { ...node.position };
     let moved = false;
+    let dropTarget = null;
+    const clearDropTarget = () => {
+      dropTarget?.classList.remove('nfprogress-drop-target');
+      dropTarget = null;
+    };
     const move = (moveEvent) => {
       const dx = (moveEvent.clientX - start.x) / mind.scaleVal;
       const dy = (moveEvent.clientY - start.y) / mind.scaleVal;
@@ -447,11 +452,31 @@ function installNativeFreeBehavior() {
       node.position = { x: origin.x + dx, y: origin.y + dy };
       main.style.left = `${node.position.x}px`;
       main.style.top = `${node.position.y}px`;
+      clearDropTarget();
+      main.style.visibility = 'hidden';
+      const hit = document.elementFromPoint(moveEvent.clientX, moveEvent.clientY);
+      main.style.visibility = '';
+      const eventTarget = moveEvent.target.closest?.('me-tpc');
+      const target = eventTarget?.nodeObj !== node
+        ? eventTarget
+        : hit?.closest?.('me-tpc');
+      if (
+        target
+        && !target.nodeObj.nfprogressFreeRoot
+        && !target.nodeObj.nfprogressNote
+        && !target.nodeObj.nfprogressReadOnly
+      ) {
+        dropTarget = target;
+        dropTarget.classList.add('nfprogress-drop-target');
+      }
       mind.linkDiv();
     };
-    const finish = () => {
+    const finish = (upEvent) => {
       document.removeEventListener('pointermove', move);
       document.removeEventListener('pointerup', finish);
+      const target = dropTarget?.nodeObj;
+      clearDropTarget();
+      if (moved && target && attachFreeBranch(node, target)) return;
       if (moved) mind.bus.fire('operation', { name: 'moveFreeNode', obj: node });
     };
     document.addEventListener('pointermove', move);
@@ -508,17 +533,16 @@ function updateSummariesAfterDetach(node, parent, detachedIndex) {
   }
 }
 
-function detachSelectedBranch() {
-  const topic = mind?.currentNode;
+function detachBranch(topic, position = null) {
   const node = topic?.nodeObj;
   if (!canDetachBranch(node)) return;
   const parent = node.parent;
   const detachedIndex = parent.children.indexOf(node);
   if (detachedIndex < 0) return;
 
-  const position = branchPosition(topic);
+  const freePosition = position || branchPosition(topic);
   parent.children.splice(detachedIndex, 1);
-  node.position = position;
+  node.position = freePosition;
   node.nfprogressFreeRoot = true;
   updateSummariesAfterDetach(node, parent, detachedIndex);
   mind.freeNodes.push(node);
@@ -527,6 +551,10 @@ function detachSelectedBranch() {
   const detachedTopic = mind.findEle(node.id);
   if (detachedTopic) mind.selectNode(detachedTopic, true);
   mind.bus.fire('operation', { name: 'detachBranch', obj: node });
+}
+
+function detachSelectedBranch() {
+  detachBranch(mind?.currentNode);
 }
 
 function attachFreeBranch(source, target) {
@@ -586,6 +614,97 @@ function installBranchTransferBehavior() {
     detachItem?.classList.toggle('disabled', !canDetachBranch(node));
     attachItem?.classList.toggle('disabled', !canAttachFreeBranch(node));
   });
+}
+
+function dropPosition(event, topic) {
+  const nodesBounds = mind.nodes.getBoundingClientRect();
+  const wrapperBounds = topic.closest('me-wrapper').getBoundingClientRect();
+  return {
+    x: (event.clientX - nodesBounds.left - wrapperBounds.width / 2) / mind.scaleVal,
+    y: (event.clientY - nodesBounds.top - wrapperBounds.height / 2) / mind.scaleVal,
+  };
+}
+
+function installBranchDragTransferBehavior() {
+  let draggedTopic = null;
+  let pointerId = null;
+  let start = null;
+  let moved = false;
+
+  const clear = () => {
+    mind.container.classList.remove('nfprogress-detach-drop');
+    draggedTopic = null;
+    pointerId = null;
+    start = null;
+    moved = false;
+  };
+  const move = (event) => {
+    if (!draggedTopic || event.pointerId !== pointerId) return;
+    const distance = Math.hypot(
+      event.clientX - start.x,
+      event.clientY - start.y,
+    );
+    moved = moved || distance > 5;
+    if (!moved) return;
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    const targetTopic = hit?.closest?.('me-tpc');
+    const containerBounds = mind.container.getBoundingClientRect();
+    const insideContainer = (
+      event.clientX >= containerBounds.left
+      && event.clientX <= containerBounds.right
+      && event.clientY >= containerBounds.top
+      && event.clientY <= containerBounds.bottom
+    );
+    const overControls = Boolean(hit?.closest?.(
+      '.mind-elixir-toolbar, .context-menu, .nfprogress-search-panel',
+    ));
+    mind.container.classList.toggle(
+      'nfprogress-detach-drop',
+      insideContainer && !targetTopic && !overControls,
+    );
+  };
+  const finish = (event) => {
+    if (!draggedTopic || event.pointerId !== pointerId) return;
+    const topic = draggedTopic;
+    const hit = document.elementFromPoint(event.clientX, event.clientY);
+    const containerBounds = mind.container.getBoundingClientRect();
+    const insideContainer = (
+      event.clientX >= containerBounds.left
+      && event.clientX <= containerBounds.right
+      && event.clientY >= containerBounds.top
+      && event.clientY <= containerBounds.bottom
+    );
+    const shouldDetach = Boolean(
+      moved
+      && insideContainer
+      && !hit?.closest?.('me-tpc')
+      && !hit?.closest?.(
+        '.mind-elixir-toolbar, .context-menu, .nfprogress-search-panel',
+      )
+    );
+    const position = shouldDetach ? dropPosition(event, topic) : null;
+    document.removeEventListener('pointermove', move);
+    document.removeEventListener('pointerup', finish);
+    clear();
+    if (shouldDetach) detachBranch(topic, position);
+  };
+
+  mind.container.addEventListener('pointerdown', (event) => {
+    if (
+      readOnly || event.button !== 0 || pointerId !== null
+      || event.ctrlKey || event.metaKey
+    ) return;
+    const topic = event.target.closest?.('me-tpc');
+    if (!topic || !canDetachBranch(topic.nodeObj)) return;
+    if ((mind.currentNodes || []).length > 1 && mind.currentNodes.includes(topic)) {
+      return;
+    }
+    draggedTopic = topic;
+    pointerId = event.pointerId;
+    start = { x: event.clientX, y: event.clientY };
+    document.addEventListener('pointermove', move);
+    document.addEventListener('pointerup', finish);
+  }, true);
 }
 
 function collectSearchResults(node, query, results) {
@@ -827,6 +946,7 @@ function initialize(payload) {
   mind.init(initialData);
   installNativeFreeBehavior();
   installBranchTransferBehavior();
+  installBranchDragTransferBehavior();
   installFloatingItemControls(payload);
   installBranchFocusControl(locale, payload.emptyStageMapText);
   installSearchControl(payload);
