@@ -13,7 +13,7 @@ from pathlib import Path
 from collections import defaultdict
 from docx import Document
 
-# Режим разработчика
+# Режим разработчика.
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
