@@ -799,9 +799,9 @@ def test_free_nodes_use_native_branches_summaries_arrows_and_shortcuts():
           document.querySelector('.map-container').dispatchEvent(
             new KeyboardEvent('keydown', {bubbles: true, key: 'Tab'})
           );
-          document.querySelector('#input-box')?.dispatchEvent(
-            new FocusEvent('blur')
-          );
+          const editor = document.querySelector('#input-box');
+          editor?.focus();
+          editor?.blur();
           const data = JSON.parse(window.nfprogressMindMap.getDataString());
           return data.freeNodes[0].children.length;
         })()
@@ -836,9 +836,9 @@ def test_free_nodes_use_native_branches_summaries_arrows_and_shortcuts():
             code: 'Space',
           }));
           const spaceOpensEditor = Boolean(document.querySelector('#input-box'));
-          document.querySelector('#input-box')?.dispatchEvent(
-            new FocusEvent('blur')
-          );
+          const editor = document.querySelector('#input-box');
+          editor?.focus();
+          editor?.blur();
           container.dispatchEvent(new KeyboardEvent('keydown', {
             bubbles: true,
             key: 'F2',
@@ -846,12 +846,17 @@ def test_free_nodes_use_native_branches_summaries_arrows_and_shortcuts():
           }));
           return JSON.stringify({
             spaceOpensEditor,
+            editorClosed: !document.querySelector('#input-box'),
             f2OpensEditor: Boolean(document.querySelector('#input-box')),
           });
         })()
         """,
     ))
-    assert edit_shortcuts == {'spaceOpensEditor': True, 'f2OpensEditor': False}
+    assert edit_shortcuts == {
+        'spaceOpensEditor': True,
+        'editorClosed': True,
+        'f2OpensEditor': False,
+    }
 
     assert _run_javascript(
         app,

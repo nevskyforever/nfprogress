@@ -906,7 +906,7 @@ function $n(e, t) {
     F1: () => {
       e.toCenter();
     },
-    Space: () => {
+    " ": () => {
       e.currentSummary ? e.editSummary(e.currentSummary) : e.currentArrow ? e.editArrowLabel(e.currentArrow) : e.beginEdit();
     },
     ArrowUp: (r) => {
