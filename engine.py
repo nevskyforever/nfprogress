@@ -13,11 +13,11 @@ from pathlib import Path
 from collections import defaultdict
 from docx import Document
 
-# Режим разработчика
+# Режим разработчика.
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
-version = '4.12.1'
+version = '4.13'
 
 # Определяем систему
 
@@ -174,7 +174,123 @@ def normalize_mindmap_data(value):
         serialized = json.dumps(value, ensure_ascii=False, allow_nan=False)
     except (TypeError, ValueError):
         return None
-    return json.loads(serialized)
+    normalized = json.loads(serialized)
+    free_nodes = normalized.get('freeNodes')
+    if free_nodes is not None:
+        if not isinstance(free_nodes, list):
+            normalized.pop('freeNodes', None)
+        else:
+            normalized['freeNodes'] = [
+                node
+                for item in free_nodes
+                if (node := _normalize_free_mindmap_node(item)) is not None
+            ]
+    floating_items = normalized.get('nfprogressFloatingItems')
+    if floating_items is not None:
+        if not isinstance(floating_items, list):
+            normalized.pop('nfprogressFloatingItems', None)
+        else:
+            normalized_items = [
+                {
+                    'id': item['id'],
+                    'kind': item['kind'],
+                    'text': item['text'],
+                    'x': min(100, max(0, item['x'])),
+                    'y': min(100, max(0, item['y'])),
+                    'parentId': item.get('parentId'),
+                }
+                for item in floating_items
+                if (
+                    isinstance(item, dict)
+                    and isinstance(item.get('id'), str)
+                    and item['id']
+                    and item.get('kind') in {'node', 'note'}
+                    and isinstance(item.get('text'), str)
+                    and isinstance(item.get('x'), (int, float))
+                    and not isinstance(item['x'], bool)
+                    and isinstance(item.get('y'), (int, float))
+                    and not isinstance(item['y'], bool)
+                )
+            ]
+            item_ids = {item['id'] for item in normalized_items}
+            for item in normalized_items:
+                if (
+                    item['kind'] != 'node'
+                    or not isinstance(item['parentId'], str)
+                    or item['parentId'] not in item_ids
+                    or item['parentId'] == item['id']
+                ):
+                    item.pop('parentId')
+            normalized['nfprogressFloatingItems'] = normalized_items
+    floating_links = normalized.get('nfprogressFloatingLinks')
+    if floating_links is not None:
+        if not isinstance(floating_links, list):
+            normalized.pop('nfprogressFloatingLinks', None)
+        else:
+            normalized['nfprogressFloatingLinks'] = [
+                {
+                    'id': link['id'],
+                    'fromType': link['fromType'],
+                    'from': link['from'],
+                    'toType': link['toType'],
+                    'to': link['to'],
+                }
+                for link in floating_links
+                if (
+                    isinstance(link, dict)
+                    and isinstance(link.get('id'), str)
+                    and link['id']
+                    and link.get('fromType') in {'floating', 'node'}
+                    and isinstance(link.get('from'), str)
+                    and link['from']
+                    and link.get('toType') in {'floating', 'node'}
+                    and isinstance(link.get('to'), str)
+                    and link['to']
+                    and not (
+                        link['fromType'] == link['toType']
+                        and link['from'] == link['to']
+                    )
+                )
+            ]
+    return normalized
+
+
+def _normalize_free_mindmap_node(value, *, is_root=True):
+    if (
+        not isinstance(value, dict)
+        or not isinstance(value.get('id'), str)
+        or not value['id']
+        or not isinstance(value.get('topic'), str)
+    ):
+        return None
+
+    node = deepcopy(value)
+    children = value.get('children', [])
+    if not isinstance(children, list):
+        children = []
+    node['children'] = [
+        child
+        for item in children
+        if (child := _normalize_free_mindmap_node(item, is_root=False)) is not None
+    ]
+    if is_root:
+        position = value.get('position')
+        if not isinstance(position, dict):
+            position = {}
+        x = position.get('x', 320)
+        y = position.get('y', 240)
+        node['position'] = {
+            'x': x if isinstance(x, (int, float)) and not isinstance(x, bool) else 320,
+            'y': y if isinstance(y, (int, float)) and not isinstance(y, bool) else 240,
+        }
+        node['nfprogressFreeRoot'] = True
+    else:
+        node.pop('position', None)
+        node.pop('nfprogressFreeRoot', None)
+    if not isinstance(node.get('nfprogressNote'), bool):
+        node.pop('nfprogressNote', None)
+    node.pop('parent', None)
+    return node
 
 
 _MINDMAP_STAGE_ID_KEY = 'nfprogressStageId'
@@ -203,6 +319,12 @@ def mindmap_has_content(value, root_topic):
     if root.get('children'):
         return True
     if normalized.get('arrows') or normalized.get('summaries'):
+        return True
+    if (
+        normalized.get('nfprogressFloatingItems')
+        or normalized.get('nfprogressFloatingLinks')
+        or normalized.get('freeNodes')
+    ):
         return True
 
     default_root_keys = {
