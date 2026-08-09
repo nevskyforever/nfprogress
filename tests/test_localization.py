@@ -13,6 +13,7 @@ from localization import (
     normalize_language,
     tr,
 )
+from scripts.generate_translations import source_strings
 from translations_catalog import AGREEMENT_SOURCE, TRANSLATIONS
 
 
@@ -30,6 +31,11 @@ def test_all_catalogs_cover_the_same_sources():
     assert russian_sources
     for language in TARGET_LANGUAGES:
         assert set(TRANSLATIONS[language]) == russian_sources
+
+
+def test_catalog_covers_current_application_sources():
+    current_sources, _ = source_strings()
+    assert set(current_sources) <= set(TRANSLATIONS["ru"])
 
 
 def test_interface_translations_do_not_retain_cyrillic():
@@ -96,6 +102,12 @@ def test_mindmap_terms_are_localized():
             tr('Объединять карты этапов в карте проекта', language)
             != 'Объединять карты этапов в карте проекта'
         )
+        assert tr('Свободный узел', language) not in {
+            'Свободный узел',
+            'Nœud gratuit',
+            'Nó grátis',
+        }
+        assert 'Mind Elixir' in tr('Карта Mind Elixir (*.json)', language)
 
 
 def test_cabinet_relic_cards_are_localized():
