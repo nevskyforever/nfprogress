@@ -299,8 +299,9 @@
 
   function installPasteAsPlainText(element) {
     element.addEventListener('paste', event => {
+      if (!event.clipboardData) return;
       event.preventDefault();
-      const text = event.clipboardData?.getData('text/plain') || '';
+      const text = event.clipboardData.getData('text/plain') || '';
       document.execCommand('insertText', false, text);
     });
     element.addEventListener('dragover', event => event.preventDefault());
@@ -312,23 +313,84 @@
     });
   }
 
-  function formatButton(label, icon, command, contentElement, readOnly = false) {
+  function applyEditorCommand(command, contentElement) {
+    contentElement.focus();
+    if (command === 'createLink') {
+      let href = window.prompt(state.labels.linkPrompt, 'https://');
+      if (!href) return false;
+      if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) href = `https://${href}`;
+      if (!safeHref(href)) return false;
+      document.execCommand(command, false, href);
+    } else {
+      document.execCommand(command, false, null);
+    }
+    contentElement.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
+  }
+
+  function selectEditableContents(contentElement) {
+    contentElement.focus();
+    const selection = window.getSelection();
+    const range = document.createRange();
+    range.selectNodeContents(contentElement);
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  function installEditorShortcuts(contentElement) {
+    contentElement.addEventListener('keydown', event => {
+      if (event.defaultPrevented || event.isComposing) return;
+      const key = event.key.toLocaleLowerCase();
+      const primary = event.ctrlKey || event.metaKey;
+      const eventCode = event.code || '';
+      const digit = eventCode.startsWith('Digit') ? eventCode.slice(5) : '';
+      const shortcutKey = eventCode.startsWith('Key')
+        ? eventCode.slice(3).toLocaleLowerCase()
+        : key;
+      let command = null;
+
+      if (primary && !event.altKey) {
+        if (!event.shiftKey && shortcutKey === 'a') command = 'selectAll';
+        else if (!event.shiftKey && shortcutKey === 'b') command = 'bold';
+        else if (!event.shiftKey && shortcutKey === 'i') command = 'italic';
+        else if (!event.shiftKey && shortcutKey === 'u') command = 'underline';
+        else if (!event.shiftKey && shortcutKey === 'k') command = 'createLink';
+        else if (!event.shiftKey && shortcutKey === 'z') command = 'undo';
+        else if (
+          (!event.shiftKey && shortcutKey === 'y')
+          || (event.shiftKey && shortcutKey === 'z')
+        ) {
+          command = 'redo';
+        } else if (event.shiftKey && shortcutKey === 'x') command = 'strikeThrough';
+        else if (event.shiftKey && (key === '7' || digit === '7')) {
+          command = 'insertOrderedList';
+        } else if (event.shiftKey && (key === '8' || digit === '8')) {
+          command = 'insertUnorderedList';
+        }
+      } else if (event.altKey && event.shiftKey && (key === '5' || digit === '5')) {
+        command = 'strikeThrough';
+      }
+
+      if (!command) return;
+      event.preventDefault();
+      if (command === 'selectAll') selectEditableContents(contentElement);
+      else applyEditorCommand(command, contentElement);
+    });
+  }
+
+  function formatButton(
+    label,
+    icon,
+    command,
+    contentElement,
+    readOnly = false,
+    ariaShortcuts = '',
+  ) {
     const button = makeButton('format-button', label, icon);
     button.disabled = readOnly;
+    if (ariaShortcuts) button.setAttribute('aria-keyshortcuts', ariaShortcuts);
     button.addEventListener('pointerdown', event => event.preventDefault());
-    button.addEventListener('click', () => {
-      contentElement.focus();
-      if (command === 'createLink') {
-        let href = window.prompt(state.labels.linkPrompt, 'https://');
-        if (!href) return;
-        if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) href = `https://${href}`;
-        if (!safeHref(href)) return;
-        document.execCommand(command, false, href);
-      } else {
-        document.execCommand(command, false, null);
-      }
-      contentElement.dispatchEvent(new Event('input', { bubbles: true }));
-    });
+    button.addEventListener('click', () => applyEditorCommand(command, contentElement));
     return button;
   }
 
@@ -675,6 +737,7 @@
         content.setAttribute('aria-label', state.labels.contentPlaceholder);
         content.innerHTML = note.content || '';
         installPasteAsPlainText(content);
+        installEditorShortcuts(content);
         content.addEventListener('input', () => {
           const clean = sanitizedEditableHtml(content);
           note.content = clean;
@@ -697,12 +760,30 @@
         toolbar.setAttribute('role', 'toolbar');
         toolbar.setAttribute('aria-label', state.labels.contentPlaceholder);
         toolbar.append(
-          formatButton(state.labels.bold, '<strong>B</strong>', 'bold', content, noteReadOnly),
-          formatButton(state.labels.italic, '<em>I</em>', 'italic', content, noteReadOnly),
-          formatButton(state.labels.strike, '<s>S</s>', 'strikeThrough', content, noteReadOnly),
-          formatButton(state.labels.unorderedList, icons.list, 'insertUnorderedList', content, noteReadOnly),
-          formatButton(state.labels.orderedList, icons.ordered, 'insertOrderedList', content, noteReadOnly),
-          formatButton(state.labels.link, icons.link, 'createLink', content, noteReadOnly),
+          formatButton(
+            state.labels.bold, '<strong>B</strong>', 'bold', content, noteReadOnly,
+            'Control+B Meta+B',
+          ),
+          formatButton(
+            state.labels.italic, '<em>I</em>', 'italic', content, noteReadOnly,
+            'Control+I Meta+I',
+          ),
+          formatButton(
+            state.labels.strike, '<s>S</s>', 'strikeThrough', content, noteReadOnly,
+            'Control+Shift+X Meta+Shift+X Alt+Shift+5',
+          ),
+          formatButton(
+            state.labels.unorderedList, icons.list, 'insertUnorderedList', content,
+            noteReadOnly, 'Control+Shift+8 Meta+Shift+8',
+          ),
+          formatButton(
+            state.labels.orderedList, icons.ordered, 'insertOrderedList', content,
+            noteReadOnly, 'Control+Shift+7 Meta+Shift+7',
+          ),
+          formatButton(
+            state.labels.link, icons.link, 'createLink', content, noteReadOnly,
+            'Control+K Meta+K',
+          ),
         );
         const checklistToggle = makeButton(
           'format-button', state.labels.checklist, icons.checklist,

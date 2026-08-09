@@ -547,6 +547,8 @@ def test_ui_resources_are_local_and_packaged():
     assert 'Content-Security-Policy' in notes_html
     assert 'worker-src blob:' in notes_html
     assert 'note-editor-layer' in notes_html
+    assert notes_html.count('class="toolbar-icon"') >= 2
+    assert '▦' not in notes_html and '▣' not in notes_html
     assert 'new Muuri' in notes_js
     assert 'dragHandle' in notes_js
     assert 'color-select' not in notes_js
@@ -559,6 +561,7 @@ def test_ui_resources_are_local_and_packaged():
     assert "useDragContainer: false" in notes_js
     assert '.color-swatch' in notes_css
     assert 'border-radius: 50%' in notes_css
+    assert '.toolbar-icon' in notes_css
     assert 'suppressExternalSync' in (
         PROJECT_ROOT / 'mindmap_assets' / 'app.js'
     ).read_text()
@@ -735,6 +738,56 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
     ))
     assert created_state['editorOpen'] is True
     assert created_state['activeNoteId'] is not None
+    shortcut_state = json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const content = document.querySelector('.note-editor-item .note-content');
+          content.textContent = 'Горячие клавиши';
+          const range = document.createRange();
+          range.setStart(content.firstChild, 0);
+          range.setEnd(content.firstChild, 7);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          const boldEvent = new KeyboardEvent('keydown', {
+            bubbles: true, cancelable: true, key: 'и', code: 'KeyB', metaKey: true
+          });
+          content.dispatchEvent(boldEvent);
+          const selectEvent = new KeyboardEvent('keydown', {
+            bubbles: true, cancelable: true, key: 'ф', code: 'KeyA', metaKey: true
+          });
+          content.dispatchEvent(selectEvent);
+          const copyEvent = new KeyboardEvent('keydown', {
+            bubbles: true, cancelable: true, key: 'с', code: 'KeyC', metaKey: true
+          });
+          content.dispatchEvent(copyEvent);
+          const pasteWithoutData = new Event('paste', {
+            bubbles: true, cancelable: true
+          });
+          content.dispatchEvent(pasteWithoutData);
+          return JSON.stringify({
+            boldPrevented: boldEvent.defaultPrevented,
+            boldApplied: Boolean(content.querySelector('b, strong')),
+            selectedText: selection.toString(),
+            nativeCopyAllowed: !copyEvent.defaultPrevented,
+            nativePasteAllowed: !pasteWithoutData.defaultPrevented,
+            boldShortcuts: document.querySelector(
+              '.rich-toolbar [aria-keyshortcuts*="Meta+B"]'
+            ) !== null
+          });
+        })()
+        """,
+    ))
+    assert shortcut_state == {
+        'boldPrevented': True,
+        'boldApplied': True,
+        'selectedText': 'Горячие клавиши',
+        'nativeCopyAllowed': True,
+        'nativePasteAllowed': True,
+        'boldShortcuts': True,
+    }
     _run_javascript(
         application,
         dialog,
@@ -1102,6 +1155,22 @@ def test_staged_project_dialog_displays_and_searches_stage_notes(monkeypatch):
         dialog,
         "document.getElementById('stage-notes-toggle').hidden",
     )) is False
+    assert json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const iconSize = selector => {
+            const rect = document.querySelector(selector).getBoundingClientRect();
+            return [Math.round(rect.width), Math.round(rect.height)];
+          };
+          return JSON.stringify({
+            stages: iconSize('#stage-notes-toggle .toolbar-icon'),
+            archive: iconSize('#archive-toggle .toolbar-icon')
+          });
+        })()
+        """,
+    )) == {'stages': [20, 20], 'archive': [20, 20]}
 
     _run_javascript(
         application,
