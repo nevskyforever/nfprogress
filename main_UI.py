@@ -164,6 +164,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self._macos_help_search = None
         self._project_note_services = {}
         self._project_notes_dialogs = {}
+        self._pending_project_notes_sync = set()
         self.btn_project_notes.setIcon(
             QIcon(en.resource_path('notes_assets/note.svg'))
         )
@@ -2211,10 +2212,46 @@ class MainWindow(QMainWindow, main_window_ui):
         service = self._project_note_services.get(key)
         if service is None:
             service = ProjectNotesService(project, self)
+            service.storage_changed.connect(
+                lambda origin, source=service: self._schedule_related_notes_refresh(
+                    source,
+                    origin,
+                )
+            )
             self._project_note_services[key] = service
         else:
             service.bound_entity = project
         return service
+
+    def _schedule_related_notes_refresh(self, source_service, origin):
+        """Keep parent and stage note windows in the same project in sync."""
+        if origin == 'database':
+            return
+        try:
+            scope_id = source_service.project_scope_id()
+        except (OSError, ValueError):
+            return
+        if not scope_id or scope_id in self._pending_project_notes_sync:
+            return
+        self._pending_project_notes_sync.add(scope_id)
+        QTimer.singleShot(
+            0,
+            lambda: self._refresh_related_notes_services(
+                source_service,
+                scope_id,
+            ),
+        )
+
+    def _refresh_related_notes_services(self, source_service, scope_id):
+        self._pending_project_notes_sync.discard(scope_id)
+        for service in tuple(self._project_note_services.values()):
+            if service is source_service:
+                continue
+            try:
+                if service.project_scope_id() == scope_id:
+                    service.refresh_from_storage('database')
+            except (OSError, ValueError):
+                continue
 
     def open_project_notes(self, project):
         """Open the standalone modeless notes workspace for an entity."""
@@ -2230,8 +2267,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
         dialog = ProjectNotesDialog(
             service,
-            lambda node_id, selected=project: self.open_mindmap(
-                selected,
+            lambda map_owner, node_id: self.open_mindmap(
+                map_owner,
                 focus_node_id=node_id,
             ),
             self,

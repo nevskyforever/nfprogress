@@ -369,6 +369,7 @@ class ProjectNotesService(QObject):
 
     event_emitted = Signal(str, object, str, int)
     map_command = Signal(str, str, str)
+    storage_changed = Signal(str)
 
     def __init__(self, entity, parent=None):
         super().__init__(parent)
@@ -390,10 +391,56 @@ class ProjectNotesService(QObject):
             raise ValueError(tr('Проект больше не существует.'))
         return data, parent, entity
 
+    def project_scope_id(self) -> str | None:
+        """Return the parent project id shared by project and stage views."""
+        _, parent, entity = self._load()
+        return getattr(parent or entity, 'project_id', None)
+
+    def _is_aggregate_view(self, entity) -> bool:
+        return (
+            self.reference.get('kind') == 'project'
+            and bool(getattr(entity, 'has_stages', lambda: False)())
+        )
+
+    def _view_entities(self, entity) -> list[tuple[object, str | None]]:
+        owners = [(entity, None)]
+        if self._is_aggregate_view(entity):
+            owners.extend(
+                (stage, stage.name)
+                for stage in getattr(entity, 'stages', [])
+            )
+        return owners
+
+    @staticmethod
+    def _owner_identity(entity) -> tuple[str, str | None]:
+        if isinstance(entity, engine.Stage) or getattr(entity, 'is_stage', False):
+            return 'stage', getattr(entity, 'stage_id', None)
+        return 'project', getattr(entity, 'project_id', None)
+
+    def _view_note_id(self, entity, record_id: str, aggregate: bool) -> str:
+        if not aggregate:
+            return record_id
+        owner_type, owner_id = self._owner_identity(entity)
+        return f'{owner_type}:{owner_id}:{record_id}'
+
+    @staticmethod
+    def _copy_note_state(source, target) -> None:
+        target.project_notes = deepcopy(source.project_notes)
+        target.mindmap_data = deepcopy(source.mindmap_data)
+        target.project_id = source.project_id
+
     def _copy_to_bound_entity(self, entity) -> None:
-        self.bound_entity.project_notes = deepcopy(entity.project_notes)
-        self.bound_entity.mindmap_data = deepcopy(entity.mindmap_data)
-        self.bound_entity.project_id = entity.project_id
+        self._copy_note_state(entity, self.bound_entity)
+        if not self._is_aggregate_view(entity):
+            return
+        bound_stages = {
+            getattr(stage, 'stage_id', None): stage
+            for stage in getattr(self.bound_entity, 'stages', [])
+        }
+        for stage in getattr(entity, 'stages', []):
+            bound_stage = bound_stages.get(getattr(stage, 'stage_id', None))
+            if bound_stage is not None:
+                self._copy_note_state(stage, bound_stage)
 
     def _save(self, data: dict, entity) -> None:
         engine.save_data(data)
@@ -433,7 +480,7 @@ class ProjectNotesService(QObject):
             'revision': 0,
         }
 
-    def _reconcile(self, entity) -> bool:
+    def _reconcile(self, entity, aggregate: bool = False) -> bool:
         records = engine.normalize_project_note_records(
             getattr(entity, 'project_notes', []),
         )
@@ -460,7 +507,9 @@ class ProjectNotesService(QObject):
             if record.get('source_map_id') != map_id:
                 record['source_map_id'] = map_id
                 changed = True
-            cached = self._cache.get(record['id'])
+            cached = self._cache.get(
+                self._view_note_id(entity, record['id'], aggregate)
+            )
             if cached is not None and cached.get('content') != text:
                 record['updated_at'] = _now_iso()
                 record['revision'] += 1
@@ -476,13 +525,29 @@ class ProjectNotesService(QObject):
         entity.project_notes = reconciled
         return changed
 
+    def _reconcile_view(self, entity) -> bool:
+        aggregate = self._is_aggregate_view(entity)
+        changed = False
+        for owner, _stage_name in self._view_entities(entity):
+            if self._reconcile(owner, aggregate):
+                changed = True
+        return changed
+
     def _project_note(
             self,
             entity,
             record: dict,
             map_notes: dict[str, str] | None = None,
+            *,
+            aggregate: bool = False,
+            stage_name: str | None = None,
     ) -> dict:
         result = deepcopy(record)
+        result['id'] = self._view_note_id(entity, record['id'], aggregate)
+        owner_type, owner_id = self._owner_identity(entity)
+        result['owner_type'] = owner_type
+        result['owner_id'] = owner_id
+        result['stage_name'] = stage_name if aggregate else None
         if record['source_type'] == 'mindmap':
             if map_notes is None:
                 map_notes = {
@@ -500,30 +565,45 @@ class ProjectNotesService(QObject):
         return result
 
     def _project_all(self, entity) -> list[dict]:
-        map_notes = {}
-        if any(
-                record['source_type'] == 'mindmap'
-                for record in entity.project_notes
+        aggregate = self._is_aggregate_view(entity)
+        projected = []
+        for owner_index, (owner, stage_name) in enumerate(
+                self._view_entities(entity)
         ):
-            map_notes = {
-                note['id']: note['text']
-                for note in extract_mindmap_notes(entity.mindmap_data)
-            }
-        return [
-            self._project_note(entity, record, map_notes)
-            for record in sorted(
-                entity.project_notes,
-                key=lambda record: (
-                    record['archived'],
-                    not record['pinned'],
-                    record['sort_order'],
-                    record['created_at'],
-                ),
+            map_notes = {}
+            if any(
+                    record['source_type'] == 'mindmap'
+                    for record in owner.project_notes
+            ):
+                map_notes = {
+                    note['id']: note['text']
+                    for note in extract_mindmap_notes(owner.mindmap_data)
+                }
+            projected.extend(
+                (
+                    owner_index,
+                    self._project_note(
+                        owner,
+                        record,
+                        map_notes,
+                        aggregate=aggregate,
+                        stage_name=stage_name,
+                    ),
+                )
+                for record in owner.project_notes
             )
-        ]
+        projected.sort(key=lambda item: (
+            item[1]['archived'],
+            not item[1]['pinned'],
+            item[1]['sort_order'],
+            item[0],
+            item[1]['created_at'],
+        ))
+        return [note for _owner_index, note in projected]
 
-    def _emit_diff(self, notes: list[dict], origin: str) -> None:
+    def _emit_diff(self, notes: list[dict], origin: str) -> bool:
         current = {note['id']: note for note in notes}
+        changed = current != self._cache
         for note_id in self._cache.keys() - current.keys():
             self._event_revision += 1
             self.event_emitted.emit('noteDeleted', note_id, origin, self._event_revision)
@@ -539,42 +619,72 @@ class ProjectNotesService(QObject):
                     'noteUpdated', current[note_id], origin, self._event_revision,
                 )
         self._cache = deepcopy(current)
+        return changed
 
     def _emit_entity(self, entity, origin: str) -> list[dict]:
         notes = self._project_all(entity)
-        self._emit_diff(notes, origin)
+        changed = self._emit_diff(notes, origin)
+        if changed and origin in {'mindmap', 'notes'}:
+            self.storage_changed.emit(origin)
         return notes
 
     def load_notes(self) -> tuple[list[dict], bool]:
         data, _, entity = self._load()
-        if self._reconcile(entity):
+        if self._reconcile_view(entity):
             self._save(data, entity)
+        else:
+            self._copy_to_bound_entity(entity)
         notes = self._project_all(entity)
         self._cache = {note['id']: deepcopy(note) for note in notes}
         return notes, self._is_read_only(entity)
 
     def refresh_from_storage(self, origin: str = 'database') -> list[dict]:
         data, _, entity = self._load()
-        if self._reconcile(entity):
+        if self._reconcile_view(entity):
             self._save(data, entity)
+        else:
+            self._copy_to_bound_entity(entity)
         notes = self._project_all(entity)
-        self._emit_diff(notes, origin)
+        changed = self._emit_diff(notes, origin)
+        if changed and origin in {'mindmap', 'notes'}:
+            self.storage_changed.emit(origin)
         return notes
+
+    def _find_record(self, entity, note_id: str):
+        aggregate = self._is_aggregate_view(entity)
+        for owner, stage_name in self._view_entities(entity):
+            for record in owner.project_notes:
+                if self._view_note_id(owner, record['id'], aggregate) == note_id:
+                    return owner, record, stage_name
+        return None, None, None
 
     def get_note(self, note_id: str) -> dict | None:
         data, _, entity = self._load()
-        if self._reconcile(entity):
+        if self._reconcile_view(entity):
             self._save(data, entity)
-        record = next(
-            (item for item in entity.project_notes if item['id'] == note_id),
-            None,
+        owner, record, stage_name = self._find_record(entity, note_id)
+        if record is None:
+            return None
+        return self._project_note(
+            owner,
+            record,
+            aggregate=self._is_aggregate_view(entity),
+            stage_name=stage_name,
         )
-        return self._project_note(entity, record) if record is not None else None
+
+    def get_map_target(self, note_id: str):
+        data, _, entity = self._load()
+        if self._reconcile_view(entity):
+            self._save(data, entity)
+        owner, record, _stage_name = self._find_record(entity, note_id)
+        if record is None or record['source_type'] != 'mindmap':
+            return None
+        return owner, record['source_node_id']
 
     def create_note(self) -> dict:
         data, _, entity = self._load()
         self._require_writable(entity)
-        self._reconcile(entity)
+        self._reconcile_view(entity)
         now = _now_iso()
         record = {
             'id': uuid.uuid4().hex,
@@ -586,7 +696,11 @@ class ProjectNotesService(QObject):
             'pinned': False,
             'archived': False,
             'sort_order': max(
-                (item['sort_order'] for item in entity.project_notes),
+                (
+                    item['sort_order']
+                    for owner, _stage_name in self._view_entities(entity)
+                    for item in owner.project_notes
+                ),
                 default=-1,
             ) + 1,
             'tags': [],
@@ -598,22 +712,24 @@ class ProjectNotesService(QObject):
             'revision': 0,
         }
         entity.project_notes.append(record)
+        view_id = self._view_note_id(
+            entity,
+            record['id'],
+            self._is_aggregate_view(entity),
+        )
         self._save(data, entity)
         notes = self._emit_entity(entity, 'notes')
-        return next(note for note in notes if note['id'] == record['id'])
+        return next(note for note in notes if note['id'] == view_id)
 
     def update_note(self, note_id: str, patch: object) -> dict:
         if not isinstance(patch, dict):
             raise ValueError(tr('Некорректные данные заметки.'))
         data, _, entity = self._load()
-        self._require_writable(entity)
-        self._reconcile(entity)
-        record = next(
-            (item for item in entity.project_notes if item['id'] == note_id),
-            None,
-        )
+        self._reconcile_view(entity)
+        owner, record, stage_name = self._find_record(entity, note_id)
         if record is None:
             raise ValueError(tr('Заметка больше не существует.'))
+        self._require_writable(owner)
 
         changed = False
         map_text_changed = False
@@ -650,7 +766,7 @@ class ProjectNotesService(QObject):
                 text = str(patch.get('content') or '').replace('\x00', '')[:MAX_CONTENT_LENGTH]
                 current = next(
                     (
-                        note['text'] for note in extract_mindmap_notes(entity.mindmap_data)
+                        note['text'] for note in extract_mindmap_notes(owner.mindmap_data)
                         if note['id'] == record['source_node_id']
                     ),
                     None,
@@ -661,13 +777,13 @@ class ProjectNotesService(QObject):
                     ))
                 if text != current:
                     updated_map = set_mindmap_note_text(
-                        entity.mindmap_data,
+                        owner.mindmap_data,
                         record['source_node_id'],
                         text,
                     )
                     if updated_map is None:
                         raise ValueError(tr('Не удалось обновить заметку карты.'))
-                    entity.mindmap_data = updated_map
+                    owner.mindmap_data = updated_map
                     map_text_changed = True
                     changed = True
         else:
@@ -691,34 +807,36 @@ class ProjectNotesService(QObject):
                     'update',
                     record['source_node_id'],
                     next(
-                        note['text'] for note in extract_mindmap_notes(entity.mindmap_data)
+                        note['text'] for note in extract_mindmap_notes(owner.mindmap_data)
                         if note['id'] == record['source_node_id']
                     ),
                 )
             notes = self._emit_entity(entity, 'notes')
             return next(note for note in notes if note['id'] == note_id)
-        return self._project_note(entity, record)
+        return self._project_note(
+            owner,
+            record,
+            aggregate=self._is_aggregate_view(entity),
+            stage_name=stage_name,
+        )
 
     def delete_note(self, note_id: str) -> None:
         data, _, entity = self._load()
-        self._require_writable(entity)
-        self._reconcile(entity)
-        record = next(
-            (item for item in entity.project_notes if item['id'] == note_id),
-            None,
-        )
+        self._reconcile_view(entity)
+        owner, record, _stage_name = self._find_record(entity, note_id)
         if record is None:
             return
+        self._require_writable(owner)
         source_node_id = record['source_node_id']
         if record['source_type'] == 'mindmap':
-            updated_map = remove_mindmap_note(entity.mindmap_data, source_node_id)
+            updated_map = remove_mindmap_note(owner.mindmap_data, source_node_id)
             if updated_map is None:
                 raise ValueError(tr(
                     'Связанная заметка карты больше не существует.'
                 ))
-            entity.mindmap_data = updated_map
-        entity.project_notes = [
-            item for item in entity.project_notes if item['id'] != note_id
+            owner.mindmap_data = updated_map
+        owner.project_notes = [
+            item for item in owner.project_notes if item['id'] != record['id']
         ]
         self._save(data, entity)
         if source_node_id:
@@ -730,22 +848,27 @@ class ProjectNotesService(QObject):
             return
         data, _, entity = self._load()
         self._require_writable(entity)
-        self._reconcile(entity)
+        self._reconcile_view(entity)
         order_by_id = {
             note_id: index
             for index, note_id in enumerate(note_ids)
             if isinstance(note_id, str)
         }
+        aggregate = self._is_aggregate_view(entity)
         changed = False
-        for record in entity.project_notes:
-            if record['id'] not in order_by_id:
+        for owner, _stage_name in self._view_entities(entity):
+            if self._is_read_only(owner):
                 continue
-            order = order_by_id[record['id']]
-            if record['sort_order'] != order:
-                record['sort_order'] = order
-                record['updated_at'] = _now_iso()
-                record['revision'] += 1
-                changed = True
+            for record in owner.project_notes:
+                view_id = self._view_note_id(owner, record['id'], aggregate)
+                if view_id not in order_by_id:
+                    continue
+                order = order_by_id[view_id]
+                if record['sort_order'] != order:
+                    record['sort_order'] = order
+                    record['updated_at'] = _now_iso()
+                    record['revision'] += 1
+                    changed = True
         if changed:
             self._save(data, entity)
             self._emit_entity(entity, 'notes')
@@ -872,6 +995,7 @@ class ProjectNotesDialog(QDialog, Ui_project_notes_dialog):
             'addChecklistItem': tr('Добавить пункт'),
             'removeChecklistItem': tr('Удалить пункт'),
             'tagsPlaceholder': tr('Теги через запятую'),
+            'stage': tr('Этап'),
             'mapTag': '#карта',
             'allTags': tr('Все теги'),
             'plainMapNote': tr(
@@ -1004,9 +1128,9 @@ class ProjectNotesDialog(QDialog, Ui_project_notes_dialog):
         elif event_type == 'updateOrder':
             self.service.update_order(event.get('ids'))
         elif event_type == 'openMindMapNode':
-            note = self.service.get_note(event.get('id'))
-            if note and note['source_type'] == 'mindmap':
-                self.open_map_callback(note['source_node_id'])
+            target = self.service.get_map_target(event.get('id'))
+            if target is not None:
+                self.open_map_callback(*target)
         elif event_type == 'openExternalLink':
             safe_url = _safe_external_url(event.get('url'))
             if safe_url is not None:

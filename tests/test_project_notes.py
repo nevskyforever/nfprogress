@@ -377,6 +377,91 @@ def test_completed_stage_notes_are_read_only(monkeypatch):
         service.create_note()
 
 
+def test_staged_project_aggregates_and_routes_stage_notes(monkeypatch):
+    draft = engine.Stage(
+        name='Черновик',
+        goal=1000,
+        parent_project_name='Book',
+    )
+    draft.mindmap_data = _map_data(
+        note_id='shared-map-note',
+        text='Идея из черновика',
+    )
+    editing = engine.Stage(
+        name='Редактура',
+        goal=1000,
+        status='завершен',
+        parent_project_name='Book',
+    )
+    editing.mindmap_data = _map_data(
+        note_id='shared-map-note',
+        text='Идея из редактуры',
+    )
+    project = engine.Project(name='Book', goal=2000)
+    project.enable_stages = True
+    project.stages = [draft, editing]
+    outside = engine.Project(name='Outside', goal=1000)
+    outside.project_notes = engine.normalize_project_note_records([{
+        'id': 'outside-note',
+        'title': 'Чужая заметка',
+        'content': 'Не должна отображаться',
+    }])
+    data = {'projects': {'Book': project, 'Outside': outside}}
+    monkeypatch.setattr(engine, 'load_data', lambda: data)
+    monkeypatch.setattr(engine, 'save_data', lambda _data: None)
+
+    draft_service = ProjectNotesService(draft)
+    draft_note = draft_service.create_note()
+    draft_service.update_note(draft_note['id'], {
+        'title': 'План первой главы',
+        'content': '<p>Сцена у реки</p>',
+    })
+    service = ProjectNotesService(project)
+
+    notes, read_only = service.load_notes()
+
+    assert read_only is False
+    assert len(notes) == 3
+    assert len({note['id'] for note in notes}) == 3
+    assert {note['stage_name'] for note in notes} == {'Черновик', 'Редактура'}
+    assert all(note['id'].startswith('stage:') for note in notes)
+    assert all(note['title'] != 'Чужая заметка' for note in notes)
+
+    draft_card = next(note for note in notes if note['title'] == 'План первой главы')
+    updated = service.update_note(draft_card['id'], {'title': 'Новый план'})
+    assert updated['stage_name'] == 'Черновик'
+    assert next(
+        note for note in draft.project_notes if note['source_type'] == 'project'
+    )['title'] == 'Новый план'
+    assert outside.project_notes[0]['title'] == 'Чужая заметка'
+
+    draft_map_card = next(
+        note for note in notes
+        if note['stage_name'] == 'Черновик' and note['source_type'] == 'mindmap'
+    )
+    editing_map_card = next(
+        note for note in notes
+        if note['stage_name'] == 'Редактура' and note['source_type'] == 'mindmap'
+    )
+    service.update_note(draft_map_card['id'], {'content': 'Обновлено из проекта'})
+    assert extract_mindmap_notes(draft.mindmap_data)[0]['text'] == 'Обновлено из проекта'
+    assert extract_mindmap_notes(editing.mindmap_data)[0]['text'] == 'Идея из редактуры'
+    map_owner, node_id = service.get_map_target(draft_map_card['id'])
+    assert map_owner.stage_id == draft.stage_id
+    assert node_id == 'shared-map-note'
+    assert editing_map_card['read_only'] is True
+    with pytest.raises(PermissionError):
+        service.update_note(editing_map_card['id'], {'title': 'Нельзя изменить'})
+    service.delete_note(draft_map_card['id'])
+    assert extract_mindmap_notes(draft.mindmap_data) == []
+    assert extract_mindmap_notes(editing.mindmap_data)[0]['text'] == 'Идея из редактуры'
+
+    project_note = service.create_note()
+    assert project_note['owner_type'] == 'project'
+    assert project_note['stage_name'] is None
+    assert project_note['id'].startswith('project:')
+
+
 def test_drag_order_is_persisted(monkeypatch):
     project = engine.Project(name='Book', goal=1000)
     service, _, _ = _service(monkeypatch, project)
@@ -439,11 +524,18 @@ def test_ui_resources_are_local_and_packaged():
 
     notes_html = (PROJECT_ROOT / 'notes_assets' / 'index.html').read_text()
     notes_js = (PROJECT_ROOT / 'notes_assets' / 'app.js').read_text()
+    notes_css = (PROJECT_ROOT / 'notes_assets' / 'styles.css').read_text()
     notice = (PROJECT_ROOT / 'notes_assets' / 'NOTICE.txt').read_text()
     assert 'http://' not in notes_html and 'https://' not in notes_html
     assert 'Content-Security-Policy' in notes_html
     assert 'new Muuri' in notes_js
     assert 'dragHandle' in notes_js
+    assert 'color-select' not in notes_js
+    assert 'color-swatch' in notes_js
+    assert 'aria-pressed' in notes_js
+    assert 'note.stage_name' in notes_js
+    assert '.color-swatch' in notes_css
+    assert 'border-radius: 50%' in notes_css
     assert 'suppressExternalSync' in (
         PROJECT_ROOT / 'mindmap_assets' / 'app.js'
     ).read_text()
@@ -524,7 +616,10 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
     project.mindmap_data = _map_data(text='До изменения')
     service, _, _ = _service(monkeypatch, project)
     opened_nodes = []
-    dialog = ProjectNotesDialog(service, opened_nodes.append)
+    dialog = ProjectNotesDialog(
+        service,
+        lambda _map_owner, node_id: opened_nodes.append(node_id),
+    )
     dialog.show()
 
     assert _wait_until(application, lambda: dialog._ready)
@@ -615,7 +710,7 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         ) == 0,
     )
 
-    _run_javascript(
+    palette_state = json.loads(_run_javascript(
         application,
         dialog,
         """
@@ -624,19 +719,43 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
           const title = card.querySelector('.note-title');
           const content = card.querySelector('.note-content');
           const tags = card.querySelector('.tag-input');
-          const color = card.querySelector('.color-select');
           title.value = 'Обычная заметка';
           title.dispatchEvent(new Event('input', { bubbles: true }));
           content.innerHTML = '<strong>Жирный текст</strong><script>bad()</script>';
           content.dispatchEvent(new Event('input', { bubbles: true }));
           tags.value = 'сюжет, идея, #карта';
           tags.dispatchEvent(new Event('input', { bubbles: true }));
-          color.value = 'blue';
-          color.dispatchEvent(new Event('change', { bubbles: true }));
-          return true;
+          const toggle = card.querySelector('.color-palette-toggle');
+          toggle.click();
+          const palette = card.querySelector('.color-palette');
+          const swatches = [...palette.querySelectorAll('.color-swatch')];
+          const paletteWasVisible = !palette.hidden;
+          const distinctColors = new Set(swatches.map(
+            swatch => getComputedStyle(swatch).backgroundColor
+          )).size;
+          const blue = palette.querySelector('[data-note-color="blue"]');
+          const blueStyle = getComputedStyle(blue);
+          blue.click();
+          return JSON.stringify({
+            paletteWasVisible,
+            swatchCount: swatches.length,
+            distinctColors,
+            circleBorderRadius: blueStyle.borderRadius,
+            selectedBlue: blue.getAttribute('aria-pressed') === 'true',
+            currentColor: toggle.querySelector('.color-current-swatch')
+              .dataset.noteColor,
+            paletteClosed: palette.hidden
+          });
         })()
         """,
-    )
+    ))
+    assert palette_state['paletteWasVisible'] is True
+    assert palette_state['swatchCount'] == len(engine.PROJECT_NOTE_COLORS)
+    assert palette_state['distinctColors'] == len(engine.PROJECT_NOTE_COLORS)
+    assert palette_state['circleBorderRadius'] == '50%'
+    assert palette_state['selectedBlue'] is True
+    assert palette_state['currentColor'] == 'blue'
+    assert palette_state['paletteClosed'] is True
     assert _wait_until(
         application,
         lambda: any(
@@ -860,6 +979,124 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
             for note in project.project_notes
         ),
     )
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    application.processEvents()
+
+
+@requires_native_webview
+def test_staged_project_dialog_displays_and_searches_stage_notes(monkeypatch):
+    application = QApplication.instance() or QApplication([])
+    draft = engine.Stage(
+        name='Черновик',
+        goal=1000,
+        parent_project_name='Staged Notes',
+    )
+    editing = engine.Stage(
+        name='Редактура',
+        goal=1000,
+        status='завершен',
+        parent_project_name='Staged Notes',
+    )
+    draft.project_notes = engine.normalize_project_note_records([{
+        'id': 'draft-note',
+        'title': 'Первая глава',
+        'content': '<p>Начальная сцена</p>',
+    }])
+    editing.project_notes = engine.normalize_project_note_records([{
+        'id': 'editing-note',
+        'title': 'Проверка текста',
+        'content': '<p>Финальная вычитка</p>',
+    }])
+    project = engine.Project(name='Staged Notes', goal=2000)
+    project.enable_stages = True
+    project.stages = [draft, editing]
+    service, _, _ = _service(monkeypatch, project)
+    dialog = ProjectNotesDialog(service, lambda _owner, _node_id: None)
+    dialog.show()
+
+    assert _wait_until(application, lambda: dialog._ready)
+    badges = json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        JSON.stringify([...document.querySelectorAll('.stage-badge')]
+          .map(element => element.textContent))
+        """,
+    ))
+    assert badges == ['Этап: Черновик', 'Этап: Редактура']
+    assert bool(_run_javascript(
+        application,
+        dialog,
+        f'document.querySelector("[data-stage-id=\\"{editing.stage_id}\\"] .note-title").disabled',
+    )) is True
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const input = document.getElementById('search-input');
+          input.value = 'Финальная вычитка';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: len(json.loads(_run_javascript(
+            application,
+            dialog,
+            'window.nfprogressNotes.getState()',
+        ))['visibleIds']) == 1,
+    )
+    assert _run_javascript(
+        application,
+        dialog,
+        "document.querySelector('.stage-badge').textContent",
+    ) == 'Этап: Редактура'
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const search = document.getElementById('search-input');
+          search.value = '';
+          search.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: len(json.loads(_run_javascript(
+            application,
+            dialog,
+            'window.nfprogressNotes.getState()',
+        ))['visibleIds']) == 2,
+    )
+    _run_javascript(
+        application,
+        dialog,
+        f"""
+        (() => {{
+          const title = document.querySelector(
+            '[data-stage-id="{draft.stage_id}"] .note-title'
+          );
+          title.value = 'Новая первая глава';
+          title.dispatchEvent(new Event('input', {{ bubbles: true }}));
+          return true;
+        }})()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: draft.project_notes[0]['title'] == 'Новая первая глава',
+    )
+    dialog.close()
+    assert _wait_until(application, lambda: not dialog.isVisible())
     dialog.deleteLater()
     QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
     application.processEvents()

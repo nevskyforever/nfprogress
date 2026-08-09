@@ -182,6 +182,7 @@
       checklistText,
       ...(note.tags || []).map(tag => `#${tag}`),
       ...(note.system_tags || []).map(tag => `#${tag}`),
+      note.stage_name || '',
       note.source_type === 'mindmap' ? '#карта карта' : '',
     ].join(' ').toLocaleLowerCase();
     return searchable.includes(query);
@@ -267,9 +268,9 @@
     });
   }
 
-  function formatButton(label, icon, command, contentElement) {
+  function formatButton(label, icon, command, contentElement, readOnly = false) {
     const button = makeButton('format-button', label, icon);
-    button.disabled = state.readOnly;
+    button.disabled = readOnly;
     button.addEventListener('pointerdown', event => event.preventDefault());
     button.addEventListener('click', () => {
       contentElement.focus();
@@ -287,7 +288,7 @@
     return button;
   }
 
-  function createChecklist(note, container) {
+  function createChecklist(note, container, readOnly = false) {
     const checklist = document.createElement('div');
     checklist.className = 'checklist';
     const saveChecklist = () => {
@@ -301,7 +302,7 @@
       const checkbox = document.createElement('input');
       checkbox.type = 'checkbox';
       checkbox.checked = Boolean(item.checked);
-      checkbox.disabled = state.readOnly;
+      checkbox.disabled = readOnly;
       checkbox.setAttribute('aria-label', item.text || state.labels.checklist);
       checkbox.addEventListener('change', () => {
         item.checked = checkbox.checked;
@@ -312,14 +313,14 @@
       input.type = 'text';
       input.className = 'checklist-text';
       input.value = item.text || '';
-      input.disabled = state.readOnly;
+      input.disabled = readOnly;
       input.setAttribute('aria-label', state.labels.checklist);
       input.addEventListener('input', () => {
         item.text = input.value.slice(0, 2000);
         saveChecklist();
       });
       const remove = makeButton('checklist-remove', state.labels.removeChecklistItem, '×');
-      remove.disabled = state.readOnly;
+      remove.disabled = readOnly;
       remove.addEventListener('click', () => {
         note.checklist = note.checklist.filter(candidate => candidate.id !== item.id);
         renderAll();
@@ -332,7 +333,7 @@
     add.type = 'button';
     add.className = 'add-checklist-item';
     add.textContent = `＋ ${state.labels.addChecklistItem}`;
-    add.disabled = state.readOnly;
+    add.disabled = readOnly;
     add.addEventListener('click', () => {
       note.checklist = [...(note.checklist || []), {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -352,7 +353,7 @@
     container.appendChild(checklist);
   }
 
-  function createTagArea(note, container) {
+  function createTagArea(note, container, readOnly = false) {
     const tagArea = document.createElement('div');
     tagArea.className = 'tag-area';
     const tagList = document.createElement('div');
@@ -380,7 +381,7 @@
     tagInput.value = (note.tags || []).join(', ');
     tagInput.placeholder = state.labels.tagsPlaceholder;
     tagInput.setAttribute('aria-label', state.labels.tagsPlaceholder);
-    tagInput.disabled = state.readOnly;
+    tagInput.disabled = readOnly;
     tagInput.addEventListener('input', () => {
       const tags = normalizedTags(tagInput.value.split(','));
       updateLocalNote(note.id, { tags });
@@ -390,7 +391,100 @@
     container.appendChild(tagArea);
   }
 
+  function closeColorPalettes(except = null, restoreFocus = false) {
+    let changed = false;
+    for (const palette of document.querySelectorAll('.color-palette:not([hidden])')) {
+      if (palette === except) continue;
+      palette.hidden = true;
+      palette._toggleButton?.setAttribute('aria-expanded', 'false');
+      if (restoreFocus) palette._toggleButton?.focus();
+      changed = true;
+    }
+    if (changed) scheduleLayout();
+  }
+
+  function createColorPalette(note, item, readOnly = false) {
+    const palette = document.createElement('div');
+    palette.className = 'color-palette';
+    palette.hidden = true;
+    palette.id = `color-palette-${Math.random().toString(16).slice(2)}`;
+    palette.setAttribute('role', 'group');
+    palette.setAttribute('aria-label', state.labels.color);
+
+    const toggle = makeButton('color-palette-toggle', state.labels.color);
+    toggle.setAttribute('aria-haspopup', 'true');
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-controls', palette.id);
+    toggle.disabled = readOnly;
+    const updateToggleLabel = value => {
+      const colorLabel = state.labels.colors?.[value] || value;
+      const label = `${state.labels.color}: ${colorLabel}`;
+      toggle.title = label;
+      toggle.setAttribute('aria-label', label);
+    };
+    updateToggleLabel(note.color || 'default');
+    const currentSwatch = document.createElement('span');
+    currentSwatch.className = 'color-current-swatch';
+    currentSwatch.dataset.noteColor = note.color || 'default';
+    currentSwatch.setAttribute('aria-hidden', 'true');
+    toggle.appendChild(currentSwatch);
+    palette._toggleButton = toggle;
+
+    for (const [value, label] of Object.entries(state.labels.colors || {})) {
+      const swatch = makeButton(
+        'color-swatch',
+        `${state.labels.color}: ${label}`,
+      );
+      swatch.dataset.noteColor = value;
+      swatch.setAttribute('aria-pressed', String(value === note.color));
+      swatch.disabled = readOnly;
+      swatch.addEventListener('click', () => {
+        note.color = value;
+        item.dataset.color = value;
+        currentSwatch.dataset.noteColor = value;
+        updateToggleLabel(value);
+        for (const candidate of palette.querySelectorAll('.color-swatch')) {
+          candidate.setAttribute(
+            'aria-pressed',
+            String(candidate === swatch),
+          );
+        }
+        closeColorPalettes();
+        queuePatch(note.id, { color: value }, true);
+        toggle.focus();
+      });
+      palette.appendChild(swatch);
+    }
+
+    toggle.addEventListener('click', () => {
+      const shouldOpen = palette.hidden;
+      closeColorPalettes(palette);
+      palette.hidden = !shouldOpen;
+      toggle.setAttribute('aria-expanded', String(shouldOpen));
+      scheduleLayout();
+      if (shouldOpen) {
+        window.requestAnimationFrame(() => {
+          palette.querySelector('.color-swatch[aria-pressed="true"]')?.focus();
+        });
+      }
+    });
+    palette.addEventListener('keydown', event => {
+      const swatches = [...palette.querySelectorAll('.color-swatch')];
+      const index = swatches.indexOf(document.activeElement);
+      let targetIndex = index;
+      if (['ArrowRight', 'ArrowDown'].includes(event.key)) targetIndex = index + 1;
+      if (['ArrowLeft', 'ArrowUp'].includes(event.key)) targetIndex = index - 1;
+      if (event.key === 'Home') targetIndex = 0;
+      if (event.key === 'End') targetIndex = swatches.length - 1;
+      if (targetIndex === index || targetIndex < 0 || !swatches.length) return;
+      event.preventDefault();
+      swatches[(targetIndex + swatches.length) % swatches.length].focus();
+    });
+    return { palette, toggle };
+  }
+
   function createNoteItem(note) {
+    const noteReadOnly = state.readOnly || Boolean(note.read_only);
     const item = document.createElement('div');
     item.className = 'note-item';
     item.style.setProperty(
@@ -402,22 +496,24 @@
     item.dataset.color = note.color || 'default';
     item.dataset.source = note.source_type;
     item.dataset.order = String(note.sort_order || 0);
+    if (note.stage_name) item.dataset.stageId = note.owner_id || '';
 
     const card = document.createElement('article');
     card.className = 'note-card';
+    card.classList.toggle('read-only-note', noteReadOnly);
     card.setAttribute('aria-label', note.display_title || state.labels.titlePlaceholder);
 
     const header = document.createElement('div');
     header.className = 'card-header';
     const drag = makeButton('drag-handle', state.labels.drag, icons.drag);
-    drag.disabled = state.readOnly || Boolean(state.query || state.selectedTag);
+    drag.disabled = noteReadOnly || Boolean(state.query || state.selectedTag);
     const title = document.createElement('input');
     title.type = 'text';
     title.className = 'note-title';
     title.value = note.title || '';
     title.placeholder = note.display_title || state.labels.titlePlaceholder;
     title.maxLength = 500;
-    title.disabled = state.readOnly;
+    title.disabled = noteReadOnly;
     title.setAttribute('aria-label', state.labels.titlePlaceholder);
     title.addEventListener('input', () => {
       note.title = title.value;
@@ -429,7 +525,7 @@
       icons.pin,
     );
     pin.setAttribute('aria-pressed', String(Boolean(note.pinned)));
-    pin.disabled = state.readOnly;
+    pin.disabled = noteReadOnly;
     pin.addEventListener('click', () => {
       note.pinned = !note.pinned;
       renderAll();
@@ -438,13 +534,21 @@
     header.append(drag, title, pin);
     card.appendChild(header);
 
+    if (note.stage_name) {
+      const stageBadge = document.createElement('div');
+      stageBadge.className = 'stage-badge';
+      stageBadge.textContent = `${state.labels.stage}: ${note.stage_name}`;
+      stageBadge.title = stageBadge.textContent;
+      card.appendChild(stageBadge);
+    }
+
     if (note.source_type === 'mindmap') {
       const textarea = document.createElement('textarea');
       textarea.className = 'map-note-content';
       textarea.value = note.content || '';
       textarea.placeholder = state.labels.contentPlaceholder;
       textarea.setAttribute('aria-label', state.labels.contentPlaceholder);
-      textarea.disabled = state.readOnly;
+      textarea.disabled = noteReadOnly;
       textarea.addEventListener('input', () => {
         note.content = textarea.value;
         if (!note.title) {
@@ -467,7 +571,7 @@
     } else {
       const content = document.createElement('div');
       content.className = 'note-content';
-      content.contentEditable = state.readOnly ? 'false' : 'true';
+      content.contentEditable = noteReadOnly ? 'false' : 'true';
       content.spellcheck = true;
       content.dataset.placeholder = state.labels.contentPlaceholder;
       content.setAttribute('role', 'textbox');
@@ -498,17 +602,17 @@
       toolbar.setAttribute('role', 'toolbar');
       toolbar.setAttribute('aria-label', state.labels.contentPlaceholder);
       toolbar.append(
-        formatButton(state.labels.bold, '<strong>B</strong>', 'bold', content),
-        formatButton(state.labels.italic, '<em>I</em>', 'italic', content),
-        formatButton(state.labels.strike, '<s>S</s>', 'strikeThrough', content),
-        formatButton(state.labels.unorderedList, icons.list, 'insertUnorderedList', content),
-        formatButton(state.labels.orderedList, icons.ordered, 'insertOrderedList', content),
-        formatButton(state.labels.link, icons.link, 'createLink', content),
+        formatButton(state.labels.bold, '<strong>B</strong>', 'bold', content, noteReadOnly),
+        formatButton(state.labels.italic, '<em>I</em>', 'italic', content, noteReadOnly),
+        formatButton(state.labels.strike, '<s>S</s>', 'strikeThrough', content, noteReadOnly),
+        formatButton(state.labels.unorderedList, icons.list, 'insertUnorderedList', content, noteReadOnly),
+        formatButton(state.labels.orderedList, icons.ordered, 'insertOrderedList', content, noteReadOnly),
+        formatButton(state.labels.link, icons.link, 'createLink', content, noteReadOnly),
       );
       const checklistToggle = makeButton(
         'format-button', state.labels.checklist, icons.checklist,
       );
-      checklistToggle.disabled = state.readOnly;
+      checklistToggle.disabled = noteReadOnly;
       checklistToggle.addEventListener('click', () => {
         if (!(note.checklist || []).length) {
           note.checklist = [{
@@ -522,10 +626,12 @@
       });
       toolbar.appendChild(checklistToggle);
       card.append(toolbar, content);
-      if ((note.checklist || []).length) createChecklist(note, card);
+      if ((note.checklist || []).length) {
+        createChecklist(note, card, noteReadOnly);
+      }
     }
 
-    createTagArea(note, card);
+    createTagArea(note, card, noteReadOnly);
 
     const footer = document.createElement('div');
     footer.className = 'card-footer';
@@ -544,31 +650,15 @@
     spacer.className = 'spacer';
     footer.appendChild(spacer);
 
-    const color = document.createElement('select');
-    color.className = 'color-select';
-    color.title = state.labels.color;
-    color.setAttribute('aria-label', state.labels.color);
-    color.disabled = state.readOnly;
-    for (const [value, label] of Object.entries(state.labels.colors || {})) {
-      const option = document.createElement('option');
-      option.value = value;
-      option.textContent = label;
-      option.selected = value === note.color;
-      color.appendChild(option);
-    }
-    color.addEventListener('change', () => {
-      note.color = color.value;
-      item.dataset.color = color.value;
-      queuePatch(note.id, { color: color.value }, true);
-    });
-    footer.appendChild(color);
+    const colorPalette = createColorPalette(note, item, noteReadOnly);
+    footer.appendChild(colorPalette.toggle);
 
     const archive = makeButton(
       'card-action',
       note.archived ? state.labels.restore : state.labels.archiveAction,
       note.archived ? icons.restore : icons.archive,
     );
-    archive.disabled = state.readOnly;
+    archive.disabled = noteReadOnly;
     archive.addEventListener('click', () => {
       note.archived = !note.archived;
       renderAll();
@@ -577,13 +667,13 @@
     footer.appendChild(archive);
 
     const remove = makeButton('card-action', state.labels.delete, icons.trash);
-    remove.disabled = state.readOnly;
+    remove.disabled = noteReadOnly;
     remove.addEventListener('click', () => {
       flushPendingPatch(note.id);
       emit('deleteNote', { id: note.id });
     });
     footer.appendChild(remove);
-    card.appendChild(footer);
+    card.append(colorPalette.palette, footer);
     item.appendChild(card);
     return item;
   }
@@ -856,8 +946,15 @@
         tagFilterMenu.hidden = true;
         tagFilterButton.setAttribute('aria-expanded', 'false');
       }
+      if (!event.target.closest?.('.color-palette, .color-palette-toggle')) {
+        closeColorPalettes();
+      }
     });
     document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && document.querySelector('.color-palette:not([hidden])')) {
+        event.preventDefault();
+        closeColorPalettes(null, true);
+      }
       if (event.key === 'Escape' && !tagFilterMenu.hidden) {
         tagFilterMenu.hidden = true;
         tagFilterButton.setAttribute('aria-expanded', 'false');
