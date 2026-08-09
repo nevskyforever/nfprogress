@@ -11,7 +11,7 @@ from copy import deepcopy
 from datetime import datetime, timedelta, date, date as date_type, time
 from pathlib import Path
 from collections import defaultdict
-from docx import Document
+
 
 # Режим разработчика.
 dev_mode = "__compiled__" not in globals()
@@ -2873,6 +2873,10 @@ def count_symbols_in_docx(filepath):
     Возвращает общее количество символов (с пробелами) в тексте документа .docx.
     Учитываются абзацы и текст в таблицах.
     """
+
+    # python-docx loads lxml and several megabytes of parser state. Word
+    # synchronization is optional, so keep it out of the normal startup path.
+    from docx import Document
 
     doc = Document(filepath)
     total = 0

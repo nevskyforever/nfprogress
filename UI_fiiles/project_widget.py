@@ -3,7 +3,6 @@ from PySide6.QtGui import (QColor, QFont, QFontMetrics, QPainter,
                            QPen)
 from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
                                QSizePolicy, QVBoxLayout, QWidget, QPushButton, QHBoxLayout)
-from PySide6.scripts.pyside_tool import project
 from engine import streak_length as get_streak_length
 from localization import tr
 
@@ -382,6 +381,12 @@ class ProjectWidget(QWidget, Ui_Form):
         """
         self.circular_progress.stopAnimation()
 
+    def release_resources(self):
+        """Drop project graphs before Qt disposes a replaced list widget."""
+        self.stop_animations()
+        self.project = None
+        self.toggle_callback = None
+
     def update_display(self):
         """Обновляет отображение виджета проекта."""
         display_name = self.display_name or tr(self.project.name)
@@ -500,6 +505,12 @@ class StageRowWidget(QWidget):
 
     def stop_animations(self):
         self.circular_progress.stopAnimation()
+
+    def release_resources(self):
+        """Drop project graphs before Qt disposes a replaced list widget."""
+        self.stop_animations()
+        self.project = None
+        self.parent_project = None
 
     def update_display(self):
         self.name.setText(tr(self._get_display_name()))

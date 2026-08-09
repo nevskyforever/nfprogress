@@ -5,7 +5,7 @@ import os
 import sys
 import threading
 
-from PySide6.QtCore import QObject, QDate, QTime, QTimer, Qt, QCborKnownTags, QThread, Signal, Slot, QRectF, QSize
+from PySide6.QtCore import QObject, QDate, QTime, QTimer, Qt, QThread, Signal, Slot, QRectF, QSize
 from PySide6.QtGui import QAction, QKeySequence, QImage, QPainter, QColor, QPen, QFont, QFontMetrics, QIcon, QShortcut, QTextDocument
 from PySide6.QtWidgets import QApplication, QAbstractItemView
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
@@ -41,10 +41,31 @@ from localization import (
     system_language,
     tr,
 )
-from mindmap import MindMapDialog
-from project_notes import ProjectNotesDialog, ProjectNotesService
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
-from update_checker import UpdateChecker
+
+
+def __getattr__(name):
+    """Preserve optional class exports without importing their native stacks."""
+    if name == 'MindMapDialog':
+        from mindmap import MindMapDialog
+
+        value = MindMapDialog
+    elif name in {'ProjectNotesDialog', 'ProjectNotesService'}:
+        from project_notes import ProjectNotesDialog, ProjectNotesService
+
+        value = {
+            'ProjectNotesDialog': ProjectNotesDialog,
+            'ProjectNotesService': ProjectNotesService,
+        }[name]
+    elif name == 'UpdateChecker':
+        from update_checker import UpdateChecker
+
+        value = UpdateChecker
+    else:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    globals()[name] = value
+    return value
 
 
 def _build_help_search_item(
@@ -187,7 +208,10 @@ class MainWindow(QMainWindow, main_window_ui):
         self.create_stage_action.setEnabled(False)
 
         # Применяем настройки
-        self.applying_settings()
+        # The project list is built once below, after background synchronization
+        # has been scheduled. Rebuilding it here as well briefly retained two
+        # complete sets of project widgets and project data during startup.
+        self.applying_settings(refresh_projects=False)
         self.global_streak_mode = en.load_settings().get('global_streak', False)
         self.filter_project_box.setCurrentIndex(
             max(0, self.filter_project_box.findData(en.load_settings().get('project_filter', 'Активен')))
@@ -559,7 +583,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.view_project()
         self.notifications.show_success(f'Источник синхронизации "{name}" добавлен!', position="bottom-left")
 
-    def applying_settings(self):
+    def applying_settings(self, refresh_projects=True):
         settings = en.load_settings()
 
         # 1. СНАЧАЛА находим индекс игровой вкладки (если она есть)
@@ -633,8 +657,9 @@ class MainWindow(QMainWindow, main_window_ui):
             save_data(data)
 
         self.global_streak_status.setVisible(settings.get('global_streak', False))
-        self.refresh_projects()
-        self.view_project()
+        if refresh_projects:
+            self.refresh_projects()
+            self.view_project()
         if settings.get('show_written_today_in_all_projects'):
             self.written_today_in_all_projects_label.setVisible(True)
             self.written_today_in_all_projects()
@@ -2207,6 +2232,10 @@ class MainWindow(QMainWindow, main_window_ui):
             key = ('project', getattr(project, 'project_id', None))
         service = self._project_note_services.get(key)
         if service is None:
+            # Project notes pull in Qt Quick/WebView through the mind-map bridge.
+            # Keep that native stack unloaded until notes are actually opened.
+            from project_notes import ProjectNotesService
+
             service = ProjectNotesService(project, self)
             service.storage_changed.connect(
                 lambda origin, source=service: self._schedule_related_notes_refresh(
@@ -2251,6 +2280,8 @@ class MainWindow(QMainWindow, main_window_ui):
 
     def open_project_notes(self, project):
         """Open the standalone modeless notes workspace for an entity."""
+        from project_notes import ProjectNotesDialog
+
         service = self._notes_service_for(project)
         key = service.entity_key
         existing = self._project_notes_dialogs.get(key)
@@ -2347,7 +2378,14 @@ class MainWindow(QMainWindow, main_window_ui):
                     stage_service.bound_entity = stage
                     stage_service.refresh_from_storage('mindmap')
 
-        dialog = MindMapDialog(
+        # Importing the editor initializes QtWebView. Delay it until a map can
+        # actually be shown instead of paying that cost for every application
+        # launch.
+        mindmap_dialog_class = globals().get('MindMapDialog')
+        if mindmap_dialog_class is None:
+            mindmap_dialog_class = __getattr__('MindMapDialog')
+
+        dialog = mindmap_dialog_class(
             project.name,
             mindmap_data,
             save_map_and_refresh_notes,
@@ -2778,7 +2816,9 @@ class MainWindow(QMainWindow, main_window_ui):
         # иначе после clear() они продолжают тикать на уже удалённых объектах
         for i in range(list_p.count()):
             old_widget = list_p.itemWidget(list_p.item(i))
-            if old_widget is not None and hasattr(old_widget, 'stop_animations'):
+            if old_widget is not None and hasattr(old_widget, 'release_resources'):
+                old_widget.release_resources()
+            elif old_widget is not None and hasattr(old_widget, 'stop_animations'):
                 old_widget.stop_animations()
 
         list_p.clear()
@@ -5053,6 +5093,25 @@ def _suppress_invalid_object_stderr_spam():
     threading.Thread(target=_pump, daemon=True).start()
 
 
+def _start_update_checker(window):
+    """Initialize the updater after the first main-window paint."""
+    if window.update_checker is not None:
+        return
+
+    from update_checker import UpdateChecker
+
+    window.update_checker = UpdateChecker(window)
+    window.update_checker.check_for_updates(window)
+
+    update_timer = QTimer(window)
+    update_timer.setInterval(60 * 60 * 1000)
+    update_timer.timeout.connect(
+        lambda: window.update_checker.check_for_updates(window)
+    )
+    update_timer.start()
+    window._update_timer = update_timer
+
+
 if __name__ == "__main__":
     if "--smoke-test" in sys.argv:
         print(f"nfprogress {en.version}: smoke test passed")
@@ -5071,10 +5130,9 @@ if __name__ == "__main__":
 
     window = MainWindow()
     window.show()
-    window.update_checker = UpdateChecker(window)
-    QTimer.singleShot(1500, lambda: window.update_checker.check_for_updates(window))
-    update_timer = QTimer(window)
-    update_timer.setInterval(60 * 60 * 1000)
-    update_timer.timeout.connect(lambda: window.update_checker.check_for_updates(window))
-    update_timer.start()
+    update_start_timer = QTimer(window)
+    update_start_timer.setSingleShot(True)
+    update_start_timer.timeout.connect(lambda: _start_update_checker(window))
+    update_start_timer.start(1500)
+    window._update_start_timer = update_start_timer
     sys.exit(app.exec())

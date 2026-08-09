@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import ast
+import base64
 import json
 import re
 import runpy
@@ -15,6 +16,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+import zlib
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
@@ -240,10 +242,44 @@ def translate_language(language: str, strings: list[str]) -> dict[str, str]:
 
 
 def write_catalog(catalog: dict[str, dict[str, str]], agreement: str) -> None:
+    encoded_catalog = {
+        language: base64.b85encode(
+            zlib.compress(
+                json.dumps(
+                    language_catalog,
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                    sort_keys=True,
+                ).encode("utf-8"),
+                level=9,
+            )
+        ).decode("ascii")
+        for language, language_catalog in catalog.items()
+    }
     payload = (
         '"""Generated localization catalog. Do not edit by hand."""\n\n'
+        "import base64\n"
+        "import json\n"
+        "import zlib\n"
+        "from collections.abc import Mapping\n"
+        "from functools import lru_cache\n\n"
         f"AGREEMENT_SOURCE = {agreement!r}\n"
-        f"TRANSLATIONS = {catalog!r}\n"
+        f"_COMPRESSED_TRANSLATIONS = {encoded_catalog!r}\n\n"
+        "@lru_cache(maxsize=1)\n"
+        "def _load_language_catalog(language):\n"
+        "    try:\n"
+        "        payload = _COMPRESSED_TRANSLATIONS[language]\n"
+        "    except KeyError:\n"
+        "        raise KeyError(language) from None\n"
+        "    return json.loads(zlib.decompress(base64.b85decode(payload)))\n\n"
+        "class _LazyTranslations(Mapping):\n"
+        "    def __getitem__(self, language):\n"
+        "        return _load_language_catalog(language)\n\n"
+        "    def __iter__(self):\n"
+        "        return iter(_COMPRESSED_TRANSLATIONS)\n\n"
+        "    def __len__(self):\n"
+        "        return len(_COMPRESSED_TRANSLATIONS)\n\n"
+        "TRANSLATIONS = _LazyTranslations()\n"
     )
     (PROJECT_ROOT / "translations_catalog.py").write_text(
         payload, encoding="utf-8"

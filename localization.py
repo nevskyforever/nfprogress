@@ -1051,7 +1051,7 @@ def _template_regex(template: str) -> tuple[re.Pattern[str], list[str]] | None:
     return re.compile("^" + "".join(parts) + "$", re.DOTALL), placeholders
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=2)
 def _template_entries(language: str, reverse: bool = False):
     entries = []
     language_catalog = dict(TRANSLATIONS.get(language, {}))
@@ -1066,7 +1066,7 @@ def _template_entries(language: str, reverse: bool = False):
     return entries
 
 
-@lru_cache(maxsize=None)
+@lru_cache(maxsize=1)
 def _reverse_exact(language: str) -> dict[str, str]:
     return {
         translated: source
