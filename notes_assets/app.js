@@ -313,17 +313,135 @@
     });
   }
 
-  function applyEditorCommand(command, contentElement) {
+  function normalizedLinkHref(value) {
+    let href = String(value || '').trim();
+    if (!href) return null;
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) href = `https://${href}`;
+    return safeHref(href);
+  }
+
+  function editorSelectionRange(contentElement) {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount) return null;
+    const range = selection.getRangeAt(0);
+    return contentElement.contains(range.commonAncestorContainer)
+      ? range.cloneRange()
+      : null;
+  }
+
+  function restoreEditorSelection(contentElement, range) {
     contentElement.focus();
-    if (command === 'createLink') {
-      let href = window.prompt(state.labels.linkPrompt, 'https://');
-      if (!href) return false;
-      if (!/^[a-z][a-z0-9+.-]*:/i.test(href)) href = `https://${href}`;
-      if (!safeHref(href)) return false;
-      document.execCommand(command, false, href);
-    } else {
-      document.execCommand(command, false, null);
+    if (!range) return;
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }
+
+  function closestEditorLink(node, contentElement) {
+    const element = node?.nodeType === Node.ELEMENT_NODE ? node : node?.parentElement;
+    const link = element?.closest?.('a');
+    return link && contentElement.contains(link) ? link : null;
+  }
+
+  function insertLinkFallback(contentElement, href, range) {
+    const targetRange = range?.cloneRange() || document.createRange();
+    if (!range) {
+      targetRange.selectNodeContents(contentElement);
+      targetRange.collapse(false);
     }
+    const link = document.createElement('a');
+    link.href = href;
+    link.rel = 'noopener noreferrer';
+    if (targetRange.collapsed) {
+      link.textContent = href;
+    } else {
+      link.appendChild(targetRange.extractContents());
+    }
+    targetRange.insertNode(link);
+    const selection = window.getSelection();
+    const cursor = document.createRange();
+    cursor.setStartAfter(link);
+    cursor.collapse(true);
+    selection?.removeAllRanges();
+    selection?.addRange(cursor);
+  }
+
+  function insertEditorLink(contentElement, href, savedRange) {
+    const range = savedRange || editorSelectionRange(contentElement);
+    restoreEditorSelection(contentElement, range);
+    const existingLink = range?.collapsed
+      ? closestEditorLink(range.startContainer, contentElement)
+      : null;
+    if (existingLink) {
+      existingLink.href = href;
+      existingLink.rel = 'noopener noreferrer';
+    } else if (range?.collapsed || !range) {
+      insertLinkFallback(contentElement, href, range);
+    } else if (!document.execCommand('createLink', false, href)) {
+      insertLinkFallback(contentElement, href, range);
+    }
+    contentElement.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function openLinkEditor(contentElement) {
+    const card = contentElement.parentElement;
+    if (!card) return false;
+    const existing = card.querySelector('.link-editor');
+    if (existing) {
+      existing.querySelector('.link-url-input')?.focus();
+      return true;
+    }
+
+    const savedRange = editorSelectionRange(contentElement);
+    const form = document.createElement('form');
+    form.className = 'link-editor';
+    form.setAttribute('aria-label', state.labels.link);
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'link-url-input';
+    input.placeholder = 'https://example.com';
+    input.autocomplete = 'url';
+    input.spellcheck = false;
+    input.setAttribute('aria-label', state.labels.linkPrompt);
+    const apply = document.createElement('button');
+    apply.type = 'submit';
+    apply.className = 'link-editor-apply';
+    apply.textContent = state.labels.done;
+    const cancel = makeButton(
+      'link-editor-cancel', state.labels.cancelLink, '×',
+    );
+    cancel.addEventListener('click', () => {
+      form.remove();
+      restoreEditorSelection(contentElement, savedRange);
+    });
+    input.addEventListener('input', () => input.removeAttribute('aria-invalid'));
+    input.addEventListener('keydown', event => {
+      if (event.key !== 'Escape') return;
+      event.preventDefault();
+      event.stopPropagation();
+      cancel.click();
+    });
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      const href = normalizedLinkHref(input.value);
+      if (!href) {
+        input.setAttribute('aria-invalid', 'true');
+        input.focus();
+        return;
+      }
+      form.remove();
+      insertEditorLink(contentElement, href, savedRange);
+    });
+    form.append(input, apply, cancel);
+    contentElement.before(form);
+    window.requestAnimationFrame(() => input.focus());
+    return true;
+  }
+
+  function applyEditorCommand(command, contentElement) {
+    if (command === 'createLink') return openLinkEditor(contentElement);
+    contentElement.focus();
+    document.execCommand(command, false, null);
     contentElement.dispatchEvent(new Event('input', { bubbles: true }));
     return true;
   }

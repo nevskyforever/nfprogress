@@ -555,6 +555,8 @@ def test_ui_resources_are_local_and_packaged():
     assert 'color-select' not in notes_js
     assert 'color-swatch' in notes_js
     assert 'aria-pressed' in notes_js
+    assert 'window.prompt' not in notes_js
+    assert 'link-editor' in notes_js
     assert 'pinFilled' in notes_js
     assert 'editable-tag-chip' in notes_js
     assert 'note.stage_name' in notes_js
@@ -910,6 +912,55 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
             and note['tags'] == ['сюжет', 'идея']
             and '<strong>Жирный текст</strong>' in note['content']
             and '<script>' not in note['content']
+            for note in project.project_notes
+        ),
+    )
+
+    link_state = json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const card = document.querySelector(
+            '.note-editor-item[data-source="project"]'
+          );
+          const content = card.querySelector('.note-content');
+          const text = content.querySelector('strong')?.firstChild;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          const linkButton = [...card.querySelectorAll('.rich-toolbar .format-button')]
+            .find(button => button.getAttribute('aria-keyshortcuts')?.includes('Control+K'));
+          linkButton.click();
+          const editor = card.querySelector('.link-editor');
+          const input = editor.querySelector('.link-url-input');
+          input.value = 'example.com/note';
+          editor.dispatchEvent(new Event('submit', {
+            bubbles: true, cancelable: true
+          }));
+          const link = content.querySelector('a');
+          return JSON.stringify({
+            editorOpened: Boolean(editor),
+            editorClosed: !card.querySelector('.link-editor'),
+            href: link?.getAttribute('href'),
+            text: link?.textContent
+          });
+        })()
+        """,
+    ))
+    assert link_state == {
+        'editorOpened': True,
+        'editorClosed': True,
+        'href': 'https://example.com/note',
+        'text': 'Жирный текст',
+    }
+    assert _wait_until(
+        application,
+        lambda: any(
+            note['source_type'] == 'project'
+            and '<a href="https://example.com/note"' in note['content']
             for note in project.project_notes
         ),
     )

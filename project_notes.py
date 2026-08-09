@@ -1018,6 +1018,7 @@ class ProjectNotesDialog(QDialog, Ui_project_notes_dialog):
             'orderedList': tr('Нумерованный список'),
             'link': tr('Добавить ссылку'),
             'linkPrompt': tr('Введите адрес ссылки'),
+            'cancelLink': tr('Отменить добавление ссылки'),
             'checklist': tr('Чек-лист'),
             'addChecklistItem': tr('Добавить пункт'),
             'removeChecklistItem': tr('Удалить пункт'),
