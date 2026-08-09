@@ -607,11 +607,6 @@
       toggle.setAttribute('aria-label', label);
     };
     updateToggleLabel(note.color || 'default');
-    const currentSwatch = document.createElement('span');
-    currentSwatch.className = 'color-current-swatch';
-    currentSwatch.dataset.noteColor = note.color || 'default';
-    currentSwatch.setAttribute('aria-hidden', 'true');
-    toggle.appendChild(currentSwatch);
     palette._toggleButton = toggle;
 
     for (const [value, label] of Object.entries(state.labels.colors || {})) {
@@ -625,7 +620,6 @@
       swatch.addEventListener('click', () => {
         note.color = value;
         item.dataset.color = value;
-        currentSwatch.dataset.noteColor = value;
         updateToggleLabel(value);
         for (const candidate of palette.querySelectorAll('.color-swatch')) {
           candidate.setAttribute(

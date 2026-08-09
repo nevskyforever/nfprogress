@@ -864,8 +864,9 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
             distinctColors,
             circleBorderRadius: blueStyle.borderRadius,
             selectedBlue: blue.getAttribute('aria-pressed') === 'true',
-            currentColor: toggle.querySelector('.color-current-swatch')
-              .dataset.noteColor,
+            hasColorIndicator: Boolean(
+              toggle.querySelector('.color-current-swatch')
+            ),
             paletteClosed: palette.hidden,
             doneInsideFooter: done?.parentElement === footer,
             doneAligned: Math.abs(
@@ -892,7 +893,7 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
     assert palette_state['distinctColors'] == len(engine.PROJECT_NOTE_COLORS)
     assert palette_state['circleBorderRadius'] == '50%'
     assert palette_state['selectedBlue'] is True
-    assert palette_state['currentColor'] == 'blue'
+    assert palette_state['hasColorIndicator'] is False
     assert palette_state['paletteClosed'] is True
     assert palette_state['doneInsideFooter'] is True
     assert palette_state['doneAligned'] is True

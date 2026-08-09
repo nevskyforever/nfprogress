@@ -703,22 +703,11 @@ button:disabled { cursor: default; opacity: .55; }
 
 .color-palette-toggle:hover { background: rgba(255, 255, 255, .28); }
 
-.color-current-swatch,
 .color-swatch {
   --swatch-color: var(--card-default);
   border: 1px solid rgba(32, 33, 36, .48);
   border-radius: 50%;
   background: var(--swatch-color);
-}
-
-.color-current-swatch {
-  position: absolute;
-  right: 3px;
-  bottom: 2px;
-  width: 12px;
-  height: 12px;
-  pointer-events: none;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, .18);
 }
 
 .color-palette {
