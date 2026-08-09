@@ -19,7 +19,7 @@ dev_mode = "__compiled__" not in globals()
 # Версия приложения
 version = '4.14.1'
 
-# Определяем систему.
+# Определяем систему
 
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 
