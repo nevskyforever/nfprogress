@@ -176,6 +176,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self._sync_threads = {}
         self._background_sync_batches = {}
         self._expanded_stage_projects = set()
+        self._selected_project_reference = None
         self.update_checker = None
         self.create_stage_action = self.project_menu.addAction(tr('Создать этап'))
         self.create_stage_action.triggered.connect(self.create_stage)
@@ -760,6 +761,16 @@ class MainWindow(QMainWindow, main_window_ui):
         current_item = self.list_projects.currentItem()
 
         if current_item is None:
+            project = self._get_saved_selected_project()
+            if project is not None:
+                self.show_project_info(project)
+                self.setup_project_buttons(project)
+                self.project_info.setVisible(True)
+                self.note_widget.setVisible(True)
+                self.change_project_widget.setVisible(True)
+                self.name_selected_project.setText(tr(project.name))
+                return
+
             # Если ничего не выбрано, скрываем панели
             self.project_info.setVisible(False)
             self.note_widget.setVisible(False)
@@ -778,6 +789,7 @@ class MainWindow(QMainWindow, main_window_ui):
 
         # Получаем проект из виджета
         project = widget.project
+        self._remember_selected_project(project)
 
         # Отображаем информацию о проекте
         self.show_project_info(project)
@@ -790,11 +802,6 @@ class MainWindow(QMainWindow, main_window_ui):
         self.note_widget.setVisible(True)
         self.change_project_widget.setVisible(True)
         self.name_selected_project.setText(tr(project.name))
-
-        # Сохраняем последний выбранный проект
-        settings = en.load_settings()
-        settings['last_project'] = project.name
-        save_settings(settings)
 
     def show_project_info(self, project: en.Project):
         """Заполняет виджеты информацией о проекте."""
@@ -956,9 +963,57 @@ class MainWindow(QMainWindow, main_window_ui):
         self.manuscript_journey_label.setVisible(True)
 
 
-    def show_last_project(self, project_name):
-        self.select_project_by_name(project_name)
+    def show_last_project(self, project_reference):
+        """Restore the last selected project or stage."""
+        self._selected_project_reference = project_reference
+        if isinstance(project_reference, dict):
+            parent_name = project_reference.get('project_name')
+            stage_id = project_reference.get('stage_id')
+            if isinstance(parent_name, str) and isinstance(stage_id, str):
+                self._expanded_stage_projects.add(parent_name)
+                self.refresh_projects()
+                self.select_stage_by_id(parent_name, stage_id)
+        elif isinstance(project_reference, str):
+            self.select_project_by_name(project_reference)
         self.view_project()
+
+    def _selection_reference(self, project):
+        if self._is_stage(project):
+            parent_name = getattr(project, 'parent_project_name', None)
+            stage_id = getattr(project, 'stage_id', None)
+            if parent_name and stage_id:
+                return {'project_name': parent_name, 'stage_id': stage_id}
+        return project.name
+
+    def _get_saved_selected_project(self, data=None):
+        """Return the selected entity, including one hidden by a filter."""
+        reference = self._selected_project_reference
+        if data is None:
+            data = en.load_data()
+        projects = data.get('projects', {})
+
+        if isinstance(reference, str):
+            return projects.get(reference)
+        if not isinstance(reference, dict):
+            return None
+
+        parent_name = reference.get('project_name')
+        stage_id = reference.get('stage_id')
+        parent = projects.get(parent_name)
+        if parent is None or not isinstance(stage_id, str):
+            return None
+        for stage in getattr(parent, 'stages', []):
+            if getattr(stage, 'stage_id', None) == stage_id:
+                stage.parent_project_name = parent.name
+                return stage
+        return None
+
+    def _remember_selected_project(self, project):
+        reference = self._selection_reference(project)
+        self._selected_project_reference = reference
+        settings = en.load_settings()
+        settings['last_project'] = reference
+        save_settings(settings)
 
     def show_project_stats(self):
         """Открывает окно статистики для текущего выбранного проекта"""
@@ -998,6 +1053,7 @@ class MainWindow(QMainWindow, main_window_ui):
             widget = self.list_projects.itemWidget(item)
             if widget and hasattr(widget, 'project') and widget.project.name == project_name:
                 self.list_projects.setCurrentItem(item)
+                self._remember_selected_project(widget.project)
                 # Обновляем отображение информации, используя проект из виджета
                 self.show_project_info(widget.project)
                 self.setup_project_buttons(widget.project)
@@ -1015,6 +1071,7 @@ class MainWindow(QMainWindow, main_window_ui):
                     getattr(widget.project, 'stage_id', None) == stage_id
             ):
                 self.list_projects.setCurrentItem(item)
+                self._remember_selected_project(widget.project)
                 self.show_project_info(widget.project)
                 self.setup_project_buttons(widget.project)
                 self.name_selected_project.setText(tr(widget.project.name))
@@ -2575,18 +2632,15 @@ class MainWindow(QMainWindow, main_window_ui):
         if scroll_value is None:
             scroll_value = list_p.verticalScrollBar().value()
 
-        # Сохраняем текущий выбранный проект (если есть)
-        current_project_name = None
-        current_stage_id = None
+        # Сохраняем текущий выбор. Он может быть скрыт новым фильтром, но
+        # панель информации в этом случае должна остаться привязанной к нему.
+        selection_reference = self._selected_project_reference
         current_item = self.list_projects.currentItem()
         if current_item:
             widget = self.list_projects.itemWidget(current_item)
             if widget and hasattr(widget, 'project'):
-                if self._is_stage(widget.project):
-                    current_stage_id = getattr(widget.project, 'stage_id', None)
-                    current_project_name = getattr(widget.project, 'parent_project_name', None)
-                else:
-                    current_project_name = widget.project.name
+                selection_reference = self._selection_reference(widget.project)
+        self._selected_project_reference = selection_reference
 
         # Сбрасываем текущее выделение перед clear(): нативная (macOS) анимация
         # смены выделенного элемента продолжает тикать на уже уничтоженном
@@ -2643,7 +2697,10 @@ class MainWindow(QMainWindow, main_window_ui):
             list_p.setItemWidget(item, widget)
             self._resize_project_list_item(item, widget)
 
-            if current_project_name and project.name == current_project_name:
+            if (
+                    isinstance(selection_reference, str)
+                    and project.name == selection_reference
+            ):
                 list_p.setCurrentItem(item)
 
             if (
@@ -2658,21 +2715,24 @@ class MainWindow(QMainWindow, main_window_ui):
                     list_p.addItem(stage_item)
                     list_p.setItemWidget(stage_item, stage_widget)
                     self._resize_project_list_item(stage_item, stage_widget)
-                    if current_stage_id and getattr(stage, 'stage_id', None) == current_stage_id:
+                    if (
+                            isinstance(selection_reference, dict)
+                            and project.name == selection_reference.get('project_name')
+                            and getattr(stage, 'stage_id', None) == selection_reference.get('stage_id')
+                    ):
                         list_p.setCurrentItem(stage_item)
 
-        # Если после фильтрации текущий проект не найден, скрываем панели информации
-        if current_project_name and not list_p.currentItem():
-            self.project_info.setVisible(False)
-            self.note_widget.setVisible(False)
-            self.change_project_widget.setVisible(False)
-            self.name_selected_project.setText(tr("Выберите проект"))
-
-        if current_project_name:
-            if current_stage_id:
-                self.select_stage_by_id(current_project_name, current_stage_id)
-            else:
-                self.select_project_by_name(current_project_name)
+        if list_p.currentItem() is not None:
+            self.view_project()
+        elif selection_reference:
+            selected_project = self._get_saved_selected_project(data)
+            if selected_project is not None:
+                self.show_project_info(selected_project)
+                self.setup_project_buttons(selected_project)
+                self.project_info.setVisible(True)
+                self.note_widget.setVisible(True)
+                self.change_project_widget.setVisible(True)
+                self.name_selected_project.setText(tr(selected_project.name))
         # Показываем, сколько написано сегодня в символах
         self.written_today_in_all_projects()
         if data_changed:
@@ -3107,7 +3167,7 @@ class MainWindow(QMainWindow, main_window_ui):
             widget = self.list_projects.itemWidget(current_item)
             if widget and hasattr(widget, 'project'):
                 return widget.project
-        return None
+        return self._get_saved_selected_project()
 
     def on_sync_menu_triggered(self):
         """Обработчик меню 'Синхронизация'."""
