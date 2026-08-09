@@ -52,11 +52,11 @@
   const noteEditorLayer = document.getElementById('note-editor-layer');
   const noteEditorDialog = document.getElementById('note-editor-dialog');
   const noteEditorHost = document.getElementById('note-editor-host');
-  const noteEditorDone = document.getElementById('note-editor-done');
 
   const icons = {
     drag: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="17" r="1" fill="currentColor" stroke="none"/></svg>',
     pin: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 3 8 0-1 6 3 3v2H6v-2l3-3zM12 14v7"/></svg>',
+    pinFilled: '<svg viewBox="0 0 24 24" aria-hidden="true"><path class="pin-fill" d="M8 3h8l-1 6 3 3v2H6v-2l3-3-1-6Z" fill="currentColor"/><path d="M12 14v7"/></svg>',
     archive: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM3 3h18v4H3zM9 11h6"/></svg>',
     restore: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16v13H4zM3 3h18v4H3zM12 17V10M8.5 13.5 12 10l3.5 3.5"/></svg>',
     trash: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M7 7l1 14h8l1-14M10 11v6M14 11v6"/></svg>',
@@ -461,42 +461,114 @@
 
   function createTagArea(note, container, readOnly = false, editable = true) {
     const tagArea = document.createElement('div');
-    tagArea.className = 'tag-area';
+    tagArea.className = `tag-area${editable ? ' is-editing' : ''}`;
     const tagList = document.createElement('div');
     tagList.className = 'tag-list';
-    for (const systemTag of note.system_tags || []) {
+
+    const activateTagFilter = tag => {
+      if (editable) {
+        flushPendingPatch(note.id);
+        state.activeNoteId = null;
+      }
+      selectTag(tag);
+    };
+
+    const createFilterChip = (tag, system = false) => {
       const chip = document.createElement('button');
       chip.type = 'button';
-      chip.className = 'tag-chip system-tag';
-      chip.textContent = `#${systemTag}`;
-      chip.addEventListener('click', () => selectTag(systemTag));
-      tagList.appendChild(chip);
-    }
-    for (const tag of note.tags || []) {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'tag-chip';
+      chip.className = `tag-chip${system ? ' system-tag' : ''}`;
       chip.textContent = `#${tag}`;
-      chip.addEventListener('click', () => selectTag(tag));
-      tagList.appendChild(chip);
-    }
+      chip.addEventListener('click', () => activateTagFilter(tag));
+      return chip;
+    };
+
+    const saveTags = tags => {
+      const normalized = normalizedTags(tags);
+      if (JSON.stringify(normalized) === JSON.stringify(note.tags || [])) return;
+      note.tags = normalized;
+      updateLocalNote(note.id, { tags: normalized });
+      queuePatch(note.id, { tags: normalized });
+      renderTagList();
+      rebuildTagMenu();
+    };
+
+    const renderTagList = () => {
+      tagList.replaceChildren();
+      for (const systemTag of note.system_tags || []) {
+        tagList.appendChild(createFilterChip(systemTag, true));
+      }
+      for (const tag of note.tags || []) {
+        if (!editable || readOnly) {
+          tagList.appendChild(createFilterChip(tag));
+          continue;
+        }
+        const editableChip = document.createElement('span');
+        editableChip.className = 'editable-tag-chip';
+        editableChip.appendChild(createFilterChip(tag));
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'tag-remove';
+        remove.textContent = '×';
+        remove.title = `${state.labels.removeTag}: #${tag}`;
+        remove.setAttribute('aria-label', `${state.labels.removeTag}: #${tag}`);
+        remove.addEventListener('click', event => {
+          event.stopPropagation();
+          saveTags((note.tags || []).filter(candidate => candidate !== tag));
+        });
+        editableChip.appendChild(remove);
+        tagList.appendChild(editableChip);
+      }
+    };
+
+    renderTagList();
     tagArea.appendChild(tagList);
-    if (!editable) {
+    if (!editable || readOnly) {
       if (tagList.childElementCount) container.appendChild(tagArea);
       return;
     }
+
     const tagInput = document.createElement('input');
     tagInput.type = 'text';
     tagInput.className = 'tag-input';
-    tagInput.value = (note.tags || []).join(', ');
     tagInput.placeholder = state.labels.tagsPlaceholder;
     tagInput.setAttribute('aria-label', state.labels.tagsPlaceholder);
-    tagInput.disabled = readOnly;
+    const resizeInput = () => {
+      const measured = tagInput.value || tagInput.placeholder || '';
+      const characters = Math.max(10, Math.min(36, measured.length + 2));
+      tagInput.style.width = `${characters}ch`;
+    };
+    const addTags = rawTags => {
+      saveTags([...(note.tags || []), ...rawTags]);
+    };
+    const commitInput = () => {
+      if (tagInput.value.trim()) addTags(tagInput.value.split(','));
+      tagInput.value = '';
+      resizeInput();
+    };
     tagInput.addEventListener('input', () => {
-      const tags = normalizedTags(tagInput.value.split(','));
-      updateLocalNote(note.id, { tags });
-      queuePatch(note.id, { tags });
+      const parts = tagInput.value.split(',');
+      if (parts.length > 1) {
+        const remainder = parts.pop();
+        addTags(parts);
+        tagInput.value = remainder.replace(/^\s+/, '');
+      }
+      resizeInput();
     });
+    tagInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        commitInput();
+      } else if (
+        event.key === 'Backspace'
+        && !tagInput.value
+        && (note.tags || []).length
+      ) {
+        event.preventDefault();
+        saveTags((note.tags || []).slice(0, -1));
+      }
+    });
+    tagInput.addEventListener('blur', commitInput);
+    resizeInput();
     tagArea.appendChild(tagInput);
     container.appendChild(tagArea);
   }
@@ -671,11 +743,12 @@
       header.appendChild(title);
     }
     const pin = makeButton(
-      'card-action',
+      'card-action pin-action',
       note.pinned ? state.labels.unpin : state.labels.pin,
-      icons.pin,
+      note.pinned ? icons.pinFilled : icons.pin,
     );
     pin.setAttribute('aria-pressed', String(Boolean(note.pinned)));
+    pin.classList.toggle('is-pinned', Boolean(note.pinned));
     pin.disabled = noteReadOnly;
     pin.addEventListener('click', () => {
       note.pinned = !note.pinned;
@@ -866,6 +939,15 @@
       emit('deleteNote', { id: note.id });
     });
     footer.appendChild(remove);
+    if (editing) {
+      const done = document.createElement('button');
+      done.id = 'note-editor-done';
+      done.type = 'button';
+      done.textContent = state.labels.done || '';
+      done.setAttribute('aria-label', state.labels.closeEditor || '');
+      done.addEventListener('click', () => closeEditor());
+      footer.appendChild(done);
+    }
     card.append(colorPalette.palette, footer);
     item.appendChild(card);
     if (!editing) {
@@ -1063,8 +1145,6 @@
     readOnlyBanner.textContent = state.labels.readOnly || '';
     readOnlyBanner.hidden = !state.readOnly;
     newNoteButton.disabled = state.readOnly || state.creatingNote;
-    noteEditorDone.textContent = state.labels.done || '';
-    noteEditorDone.setAttribute('aria-label', state.labels.closeEditor || '');
   }
 
   function rebuildTagMenu() {
@@ -1223,17 +1303,28 @@
     }
     if (!payload || typeof payload.id !== 'string') return;
     const previous = state.notes.get(payload.id);
-    state.notes.set(payload.id, payload);
     if (event.type === 'noteCreated') {
+      state.notes.set(payload.id, payload);
       if (event.origin === 'notes') {
         state.creatingNote = false;
         state.activeNoteId = payload.id;
       }
       renderAll(event.origin === 'notes' ? payload.id : null);
-    } else if (event.origin === 'notes') {
-      // The local card already contains this edit. Keeping it avoids losing focus.
+    } else if (event.origin === 'notes' && previous) {
+      // Keep the object captured by the open editor's handlers. Replacing it here
+      // would make the next local action mutate a detached, stale note object.
+      const pending = state.pendingPatches.get(payload.id) || {};
+      const openChecklist = state.activeNoteId === payload.id
+        ? previous.checklist
+        : null;
+      Object.assign(previous, payload, pending);
+      // Checklist row handlers also retain their item objects until the editor is
+      // rerendered, so keep that array alive while acknowledging local saves.
+      if (openChecklist) previous.checklist = openChecklist;
+      state.notes.set(payload.id, previous);
       rebuildTagMenu();
     } else {
+      state.notes.set(payload.id, payload);
       replaceOneExternalNote(payload, previous);
     }
     setLiveStatus(state.labels.saved);
@@ -1324,7 +1415,6 @@
       state.archiveMode = !state.archiveMode;
       renderAll();
     });
-    noteEditorDone.addEventListener('click', () => closeEditor());
     noteEditorLayer.addEventListener('pointerdown', event => {
       if (event.target === noteEditorLayer) closeEditor();
     });

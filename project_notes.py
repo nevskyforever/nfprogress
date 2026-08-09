@@ -1022,6 +1022,7 @@ class ProjectNotesDialog(QDialog, Ui_project_notes_dialog):
             'addChecklistItem': tr('Добавить пункт'),
             'removeChecklistItem': tr('Удалить пункт'),
             'tagsPlaceholder': tr('Теги через запятую'),
+            'removeTag': tr('Удалить тег'),
             'stage': tr('Этап'),
             'mapTag': '#карта',
             'allTags': tr('Все теги'),

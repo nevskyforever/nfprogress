@@ -547,6 +547,7 @@ def test_ui_resources_are_local_and_packaged():
     assert 'Content-Security-Policy' in notes_html
     assert 'worker-src blob:' in notes_html
     assert 'note-editor-layer' in notes_html
+    assert 'note-editor-actions' not in notes_html
     assert notes_html.count('class="toolbar-icon"') >= 2
     assert '▦' not in notes_html and '▣' not in notes_html
     assert 'new Muuri' in notes_js
@@ -554,6 +555,8 @@ def test_ui_resources_are_local_and_packaged():
     assert 'color-select' not in notes_js
     assert 'color-swatch' in notes_js
     assert 'aria-pressed' in notes_js
+    assert 'pinFilled' in notes_js
+    assert 'editable-tag-chip' in notes_js
     assert 'note.stage_name' in notes_js
     assert 'stage-notes-toggle' in notes_html
     assert 'stage-filter-button' in notes_html
@@ -830,6 +833,9 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
           content.dispatchEvent(new Event('input', { bubbles: true }));
           tags.value = 'сюжет, идея, #карта';
           tags.dispatchEvent(new Event('input', { bubbles: true }));
+          tags.dispatchEvent(new KeyboardEvent('keydown', {
+            bubbles: true, cancelable: true, key: 'Enter'
+          }));
           const toggle = card.querySelector('.color-palette-toggle');
           const paletteIcon = toggle.querySelector('svg');
           toggle.click();
@@ -842,6 +848,15 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
           const blue = palette.querySelector('[data-note-color="blue"]');
           const blueStyle = getComputedStyle(blue);
           blue.click();
+          const noteCard = card.querySelector('.note-card');
+          const footer = card.querySelector('.card-footer');
+          const done = card.querySelector('#note-editor-done');
+          const archive = footer.querySelector('.card-action');
+          const colorProbe = document.createElement('span');
+          colorProbe.style.color = 'var(--card-blue)';
+          noteCard.appendChild(colorProbe);
+          const expectedBlue = getComputedStyle(colorProbe).color;
+          colorProbe.remove();
           return JSON.stringify({
             paletteWasVisible,
             paletteIconVisible: paletteIcon.getBoundingClientRect().width >= 20,
@@ -851,7 +866,22 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
             selectedBlue: blue.getAttribute('aria-pressed') === 'true',
             currentColor: toggle.querySelector('.color-current-swatch')
               .dataset.noteColor,
-            paletteClosed: palette.hidden
+            paletteClosed: palette.hidden,
+            doneInsideFooter: done?.parentElement === footer,
+            doneAligned: Math.abs(
+              done.getBoundingClientRect().top - archive.getBoundingClientRect().top
+            ) < 2,
+            editorUsesSelectedColor:
+              getComputedStyle(noteCard).backgroundColor === expectedBlue,
+            dialogIsTransparent:
+              getComputedStyle(document.getElementById('note-editor-dialog'))
+                .backgroundColor === 'rgba(0, 0, 0, 0)',
+            clickableTags: card.querySelectorAll(
+              '.editable-tag-chip .tag-chip'
+            ).length,
+            adaptiveTagInput:
+              tags.getBoundingClientRect().width
+                < card.querySelector('.tag-area').getBoundingClientRect().width
           });
         })()
         """,
@@ -864,6 +894,12 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
     assert palette_state['selectedBlue'] is True
     assert palette_state['currentColor'] == 'blue'
     assert palette_state['paletteClosed'] is True
+    assert palette_state['doneInsideFooter'] is True
+    assert palette_state['doneAligned'] is True
+    assert palette_state['editorUsesSelectedColor'] is True
+    assert palette_state['dialogIsTransparent'] is True
+    assert palette_state['clickableTags'] == 2
+    assert palette_state['adaptiveTagInput'] is True
     assert _wait_until(
         application,
         lambda: any(
@@ -877,22 +913,45 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         ),
     )
 
-    _run_javascript(
+    pin_state = json.loads(_run_javascript(
         application,
         dialog,
         """
         (() => {
-          document.querySelector(
-            '.note-editor-item[data-source="project"] .card-header .card-action'
-          ).click();
+          const pin = document.querySelector(
+            '.note-editor-item[data-source="project"] .pin-action'
+          );
+          const emptyBefore = !pin.querySelector('.pin-fill');
+          const disabledBefore = pin.disabled;
+          pin.click();
+          const activePin = document.querySelector(
+            '.note-editor-item[data-source="project"] .pin-action'
+          );
+          const filledImmediately = Boolean(activePin.querySelector('.pin-fill'));
+          const pressedImmediately = activePin.getAttribute('aria-pressed') === 'true';
           const buttons = document.querySelectorAll(
             '.note-editor-item[data-source="project"] .rich-toolbar .format-button'
           );
           buttons[buttons.length - 1].click();
-          return true;
+          return JSON.stringify({
+            emptyBefore,
+            disabledBefore,
+            filledImmediately,
+            pressedImmediately,
+            filledAfter: Boolean(activePin.querySelector('.pin-fill')),
+            pressedAfter: activePin.getAttribute('aria-pressed') === 'true'
+          });
         })()
         """,
-    )
+    ))
+    assert pin_state == {
+        'emptyBefore': True,
+        'disabledBefore': False,
+        'filledImmediately': True,
+        'pressedImmediately': True,
+        'filledAfter': True,
+        'pressedAfter': True,
+    }
     assert _wait_until(
         application,
         lambda: any(
@@ -970,6 +1029,43 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
             note['source_type'] == 'project' and not note['archived']
             for note in project.project_notes
         ),
+    )
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const tag = [...document.querySelectorAll(
+            '.notes-grid [data-source="project"] .tag-chip'
+          )].find(candidate => candidate.textContent === '#сюжет');
+          tag.click();
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: (
+            (state := json.loads(_run_javascript(
+                application,
+                dialog,
+                'window.nfprogressNotes.getState()',
+            )))['selectedTag'] == 'сюжет'
+            and len(state['visibleIds']) == 1
+        ),
+    )
+    _run_javascript(
+        application,
+        dialog,
+        "document.querySelector('#tag-filter-menu button').click(); true",
+    )
+    assert _wait_until(
+        application,
+        lambda: json.loads(_run_javascript(
+            application,
+            dialog,
+            'window.nfprogressNotes.getState()',
+        ))['selectedTag'] is None,
     )
 
     _run_javascript(
@@ -1082,7 +1178,6 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         dialog,
         """
         (() => {
-          document.getElementById('note-editor-done').click();
           document.querySelector(
             '.notes-grid [data-source="project"] .note-card'
           ).click();
