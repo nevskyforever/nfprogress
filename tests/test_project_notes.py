@@ -965,6 +965,50 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         ),
     )
 
+    dismissed_link_state = json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const card = document.querySelector(
+            '.note-editor-item[data-source="project"]'
+          );
+          const content = card.querySelector('.note-content');
+          const text = content.querySelector('a')?.firstChild;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          const buttons = [...card.querySelectorAll('.rich-toolbar .format-button')];
+          const linkButton = buttons.find(
+            button => button.getAttribute('aria-keyshortcuts')?.includes('Control+K')
+          );
+          const boldButton = buttons.find(
+            button => button.getAttribute('aria-keyshortcuts')?.includes('Control+B')
+          );
+          linkButton.click();
+          const editor = card.querySelector('.link-editor');
+          editor.querySelector('.link-url-input').value = 'discard.example';
+          boldButton.dispatchEvent(new MouseEvent('pointerdown', {
+            bubbles: true, cancelable: true
+          }));
+          return JSON.stringify({
+            editorOpened: Boolean(editor),
+            editorClosed: !card.querySelector('.link-editor'),
+            selectionRestored: selection.toString() === 'Жирный текст',
+            linkCount: content.querySelectorAll('a').length
+          });
+        })()
+        """,
+    ))
+    assert dismissed_link_state == {
+        'editorOpened': True,
+        'editorClosed': True,
+        'selectionRestored': True,
+        'linkCount': 1,
+    }
+
     pin_state = json.loads(_run_javascript(
         application,
         dialog,

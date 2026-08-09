@@ -383,6 +383,20 @@
     contentElement.dispatchEvent(new Event('input', { bubbles: true }));
   }
 
+  function dismissLinkEditor(form) {
+    if (!form?.isConnected) return;
+    const contentElement = form._contentElement;
+    const savedRange = form._savedRange;
+    form.remove();
+    restoreEditorSelection(contentElement, savedRange);
+  }
+
+  function dismissOpenLinkEditors(target) {
+    for (const form of document.querySelectorAll('.link-editor')) {
+      if (!form.contains(target)) dismissLinkEditor(form);
+    }
+  }
+
   function openLinkEditor(contentElement) {
     const card = contentElement.parentElement;
     if (!card) return false;
@@ -395,6 +409,8 @@
     const savedRange = editorSelectionRange(contentElement);
     const form = document.createElement('form');
     form.className = 'link-editor';
+    form._contentElement = contentElement;
+    form._savedRange = savedRange;
     form.setAttribute('aria-label', state.labels.link);
     const input = document.createElement('input');
     input.type = 'text';
@@ -410,10 +426,7 @@
     const cancel = makeButton(
       'link-editor-cancel', state.labels.cancelLink, '×',
     );
-    cancel.addEventListener('click', () => {
-      form.remove();
-      restoreEditorSelection(contentElement, savedRange);
-    });
+    cancel.addEventListener('click', () => dismissLinkEditor(form));
     input.addEventListener('input', () => input.removeAttribute('aria-invalid'));
     input.addEventListener('keydown', event => {
       if (event.key !== 'Escape') return;
@@ -1528,9 +1541,13 @@
       renderAll();
     });
     noteEditorLayer.addEventListener('pointerdown', event => {
-      if (event.target === noteEditorLayer) closeEditor();
+      if (event.target === noteEditorLayer) {
+        dismissOpenLinkEditors(event.target);
+        closeEditor();
+      }
     });
     document.addEventListener('pointerdown', event => {
+      dismissOpenLinkEditors(event.target);
       if (!tagFilterMenu.contains(event.target) && !tagFilterButton.contains(event.target)) {
         tagFilterMenu.hidden = true;
         tagFilterButton.setAttribute('aria-expanded', 'false');
