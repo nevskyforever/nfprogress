@@ -1,28 +1,28 @@
 {
-  "version": "4.13",
-  "notes": "В окно интеллект-карт добавлена возможность экспортировать карту в PNG, SVG, JSON.",
+  "version": "4.13.1",
+  "notes": "Приложение теперь открывает не только последний проект, но и этап, который был выбран.\n\nИсправление багов\n\nИсправление ошибок перевода",
   "windows": {
-    "version": "4.12.1",
-    "url": "https://nfproject.ru/app/nfprogress-windows-4.12.1.zip",
-    "sha256": "26e7c8a6aa2245e334f099ee8d4806c57f0269a0a8f917a8bdd858f4214e537f",
-    "size": 189304534,
+    "version": "4.13",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.13.zip",
+    "sha256": "932d0c7bab86216fcd9685edfe6b9780d56a4f6c2fea7896ea7bc6ddc5c6ced6",
+    "size": 189355296,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.12.1.exe",
-    "installer_sha256": "e869bc7556e966becadfe98b427721a9a47ec4c8a47cec32f8df57a5cb198f81",
-    "installer_size": 122650749
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.13.exe",
+    "installer_sha256": "6526d20511eece24c24cbe611b9f6505781ad450fbfe8e1d1692fc12c2daa5f4",
+    "installer_size": 122662477
   },
   "macos_arm": {
-    "version": "4.13",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.13.zip"
+    "version": "4.13.1",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.13.1.zip"
   },
   "macos_intel": {
-    "version": "4.13",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.13.zip"
+    "version": "4.13.1",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.13.1.zip"
   },
-  "windows_version": "4.12.1",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.12.1.zip",
-  "macos_arm_version": "4.13",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.13.zip",
-  "macos_intel_version": "4.13",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.13.zip"
+  "windows_version": "4.13",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.13.zip",
+  "macos_arm_version": "4.13.1",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.13.1.zip",
+  "macos_intel_version": "4.13.1",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.13.1.zip"
 }
