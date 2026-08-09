@@ -343,20 +343,21 @@
     return link && contentElement.contains(link) ? link : null;
   }
 
-  function insertLinkFallback(contentElement, href, range) {
-    const targetRange = range?.cloneRange() || document.createRange();
-    if (!range) {
-      targetRange.selectNodeContents(contentElement);
-      targetRange.collapse(false);
-    }
+  function hasEditorLinkTarget(contentElement, range) {
+    return Boolean(
+      range && (
+        (!range.collapsed && range.toString().trim())
+        || closestEditorLink(range.startContainer, contentElement)
+      )
+    );
+  }
+
+  function insertLinkFallback(href, range) {
+    const targetRange = range.cloneRange();
     const link = document.createElement('a');
     link.href = href;
     link.rel = 'noopener noreferrer';
-    if (targetRange.collapsed) {
-      link.textContent = href;
-    } else {
-      link.appendChild(targetRange.extractContents());
-    }
+    link.appendChild(targetRange.extractContents());
     targetRange.insertNode(link);
     const selection = window.getSelection();
     const cursor = document.createRange();
@@ -368,6 +369,7 @@
 
   function insertEditorLink(contentElement, href, savedRange) {
     const range = savedRange || editorSelectionRange(contentElement);
+    if (!hasEditorLinkTarget(contentElement, range)) return false;
     restoreEditorSelection(contentElement, range);
     const existingLink = range?.collapsed
       ? closestEditorLink(range.startContainer, contentElement)
@@ -375,16 +377,36 @@
     if (existingLink) {
       existingLink.href = href;
       existingLink.rel = 'noopener noreferrer';
-    } else if (range?.collapsed || !range) {
-      insertLinkFallback(contentElement, href, range);
     } else if (!document.execCommand('createLink', false, href)) {
-      insertLinkFallback(contentElement, href, range);
+      insertLinkFallback(href, range);
     }
     contentElement.dispatchEvent(new Event('input', { bubbles: true }));
+    return true;
   }
 
-  function dismissLinkEditor(form) {
+  function commitLinkEditor(form, keepOpenOnError = true) {
+    if (!form?.isConnected) return false;
+    const input = form.querySelector('.link-url-input');
+    const href = normalizedLinkHref(input?.value);
+    const inserted = href && insertEditorLink(
+      form._contentElement,
+      href,
+      form._savedRange,
+    );
+    if (inserted) {
+      form.remove();
+      return true;
+    }
+    if (keepOpenOnError) {
+      input?.setAttribute('aria-invalid', 'true');
+      input?.focus();
+    }
+    return false;
+  }
+
+  function dismissLinkEditor(form, saveLink = false) {
     if (!form?.isConnected) return;
+    if (saveLink && commitLinkEditor(form, false)) return;
     const contentElement = form._contentElement;
     const savedRange = form._savedRange;
     form.remove();
@@ -393,7 +415,7 @@
 
   function dismissOpenLinkEditors(target) {
     for (const form of document.querySelectorAll('.link-editor')) {
-      if (!form.contains(target)) dismissLinkEditor(form);
+      if (!form.contains(target)) dismissLinkEditor(form, true);
     }
   }
 
@@ -407,6 +429,10 @@
     }
 
     const savedRange = editorSelectionRange(contentElement);
+    if (!hasEditorLinkTarget(contentElement, savedRange)) {
+      showError({ message: state.labels.selectTextForLink });
+      return false;
+    }
     const form = document.createElement('form');
     form.className = 'link-editor';
     form._contentElement = contentElement;
@@ -436,14 +462,7 @@
     });
     form.addEventListener('submit', event => {
       event.preventDefault();
-      const href = normalizedLinkHref(input.value);
-      if (!href) {
-        input.setAttribute('aria-invalid', 'true');
-        input.focus();
-        return;
-      }
-      form.remove();
-      insertEditorLink(contentElement, href, savedRange);
+      commitLinkEditor(form);
     });
     form.append(input, apply, cancel);
     contentElement.before(form);

@@ -1019,6 +1019,7 @@ class ProjectNotesDialog(QDialog, Ui_project_notes_dialog):
             'link': tr('Добавить ссылку'),
             'linkPrompt': tr('Введите адрес ссылки'),
             'cancelLink': tr('Отменить добавление ссылки'),
+            'selectTextForLink': tr('Сначала выделите текст для ссылки.'),
             'checklist': tr('Чек-лист'),
             'addChecklistItem': tr('Добавить пункт'),
             'removeChecklistItem': tr('Удалить пункт'),

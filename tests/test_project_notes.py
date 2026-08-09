@@ -831,7 +831,7 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
           const tags = card.querySelector('.tag-input');
           title.value = 'Обычная заметка';
           title.dispatchEvent(new Event('input', { bubbles: true }));
-          content.innerHTML = '<strong>Жирный текст</strong><script>bad()</script>';
+          content.innerHTML = '<strong>Жирный текст</strong> и продолжение<script>bad()</script>';
           content.dispatchEvent(new Event('input', { bubbles: true }));
           tags.value = 'сюжет, идея, #карта';
           tags.dispatchEvent(new Event('input', { bubbles: true }));
@@ -974,9 +974,14 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
             '.note-editor-item[data-source="project"]'
           );
           const content = card.querySelector('.note-content');
-          const text = content.querySelector('a')?.firstChild;
+          const text = [...content.childNodes].find(
+            node => node.nodeType === Node.TEXT_NODE
+              && node.textContent.includes('продолжение')
+          );
           const range = document.createRange();
-          range.selectNodeContents(text);
+          const start = text.textContent.indexOf('продолжение');
+          range.setStart(text, start);
+          range.setEnd(text, start + 'продолжение'.length);
           const selection = window.getSelection();
           selection.removeAllRanges();
           selection.addRange(range);
@@ -989,15 +994,17 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
           );
           linkButton.click();
           const editor = card.querySelector('.link-editor');
-          editor.querySelector('.link-url-input').value = 'discard.example';
+          editor.querySelector('.link-url-input').value = 'outside.example';
           boldButton.dispatchEvent(new MouseEvent('pointerdown', {
             bubbles: true, cancelable: true
           }));
+          const links = [...content.querySelectorAll('a')];
           return JSON.stringify({
             editorOpened: Boolean(editor),
             editorClosed: !card.querySelector('.link-editor'),
-            selectionRestored: selection.toString() === 'Жирный текст',
-            linkCount: content.querySelectorAll('a').length
+            secondLinkText: links[1]?.textContent,
+            secondLinkHref: links[1]?.getAttribute('href'),
+            linkCount: links.length
           });
         })()
         """,
@@ -1005,8 +1012,47 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
     assert dismissed_link_state == {
         'editorOpened': True,
         'editorClosed': True,
-        'selectionRestored': True,
-        'linkCount': 1,
+        'secondLinkText': 'продолжение',
+        'secondLinkHref': 'https://outside.example/',
+        'linkCount': 2,
+    }
+    assert _wait_until(
+        application,
+        lambda: any(
+            note['source_type'] == 'project'
+            and 'href="https://outside.example/"' in note['content']
+            and '>продолжение</a>' in note['content']
+            for note in project.project_notes
+        ),
+    )
+    no_selection_link_state = json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const card = document.querySelector(
+            '.note-editor-item[data-source="project"]'
+          );
+          const content = card.querySelector('.note-content');
+          const range = document.createRange();
+          range.selectNodeContents(content);
+          range.collapse(false);
+          const selection = window.getSelection();
+          selection.removeAllRanges();
+          selection.addRange(range);
+          const linkButton = [...card.querySelectorAll('.rich-toolbar .format-button')]
+            .find(button => button.getAttribute('aria-keyshortcuts')?.includes('Control+K'));
+          linkButton.click();
+          return JSON.stringify({
+            editorOpened: Boolean(card.querySelector('.link-editor')),
+            linkCount: content.querySelectorAll('a').length
+          });
+        })()
+        """,
+    ))
+    assert no_selection_link_state == {
+        'editorOpened': False,
+        'linkCount': 2,
     }
 
     pin_state = json.loads(_run_javascript(
