@@ -346,6 +346,10 @@ button:disabled { cursor: default; opacity: .55; }
   grid-template-columns: minmax(0, 1fr) 38px;
 }
 
+.card-header:not(.editor-header) > .card-action:last-child {
+  grid-column: 3;
+}
+
 .note-preview-title {
   min-width: 0;
   margin: 0;

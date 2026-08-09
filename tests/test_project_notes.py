@@ -315,6 +315,8 @@ def test_normal_notes_features_and_project_isolation(monkeypatch):
     service, _, _ = _service(monkeypatch, first, second)
 
     created = service.create_note()
+    assert created['title'] == ''
+    assert created['display_title'] == ''
     updated = service.update_note(
         created['id'],
         {
@@ -1273,7 +1275,7 @@ def test_notes_cards_follow_addition_order_and_snap_to_grid(monkeypatch):
     project.project_notes = engine.normalize_project_note_records([
         {
             'id': f'grid-{index}',
-            'title': f'Заметка {index + 1}',
+            'title': '' if index == 4 else f'Заметка {index + 1}',
             'content': f'<p>Текст карточки {index + 1}</p>',
             'sort_order': index,
             'created_at': f'2026-01-01T00:00:0{index}+00:00',
@@ -1345,6 +1347,19 @@ def test_notes_cards_follow_addition_order_and_snap_to_grid(monkeypatch):
         })
         """,
     )) == {'toolbars': 0, 'editables': 0}
+    assert json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const card = document.querySelector('[data-note-id="grid-4"] .note-card');
+          return JSON.stringify({
+            titleVisible: Boolean(card.querySelector('.note-preview-title')),
+            content: card.querySelector('.note-content-preview')?.textContent || ''
+          });
+        })()
+        """,
+    )) == {'titleVisible': False, 'content': 'Текст карточки 5'}
 
     _run_javascript(
         application,

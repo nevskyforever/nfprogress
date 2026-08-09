@@ -576,7 +576,7 @@ class ProjectNotesService(QObject):
             result['system_tags'] = [SYSTEM_MAP_TAG]
         else:
             result['content'] = sanitize_note_html(record['content'])
-            result['display_title'] = record['title'] or tr('Без заголовка')
+            result['display_title'] = record['title']
             result['system_tags'] = []
         result['read_only'] = self._is_read_only(entity)
         return result

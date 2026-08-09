@@ -554,6 +554,9 @@
 
   function createNoteItem(note, editing = false) {
     const noteReadOnly = state.readOnly || Boolean(note.read_only);
+    const visibleTitle = String(
+      note.title || (note.source_type === 'mindmap' ? note.display_title : '') || '',
+    ).trim();
     const item = document.createElement('div');
     item.className = `note-item${editing ? ' note-editor-item' : ''}`;
     item.dataset.noteId = note.id;
@@ -567,7 +570,10 @@
     const card = document.createElement('article');
     card.className = `note-card ${editing ? 'is-editor' : 'is-preview'}`;
     card.classList.toggle('read-only-note', noteReadOnly);
-    card.setAttribute('aria-label', note.display_title || state.labels.titlePlaceholder);
+    card.setAttribute(
+      'aria-label',
+      visibleTitle || plainContent(note).trim().slice(0, 100) || state.labels.contentPlaceholder,
+    );
     if (!editing) card.tabIndex = 0;
 
     const header = document.createElement('div');
@@ -585,7 +591,9 @@
       titleInput.type = 'text';
       titleInput.className = 'note-title';
       titleInput.value = note.title || '';
-      titleInput.placeholder = note.display_title || state.labels.titlePlaceholder;
+      titleInput.placeholder = note.source_type === 'mindmap'
+        ? (note.display_title || state.labels.titlePlaceholder)
+        : state.labels.titlePlaceholder;
       titleInput.maxLength = 500;
       titleInput.disabled = noteReadOnly;
       titleInput.setAttribute('aria-label', state.labels.titlePlaceholder);
@@ -594,10 +602,10 @@
         queuePatch(note.id, { title: titleInput.value });
       });
       header.appendChild(titleInput);
-    } else {
+    } else if (visibleTitle) {
       const title = document.createElement('h3');
       title.className = 'note-preview-title';
-      title.textContent = note.title || note.display_title || state.labels.titlePlaceholder;
+      title.textContent = visibleTitle;
       header.appendChild(title);
     }
     const pin = makeButton(
