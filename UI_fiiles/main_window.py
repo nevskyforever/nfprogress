@@ -235,7 +235,6 @@ class Ui_main_window(object):
 
         self.btn_project_notes = QPushButton(self.change_project_widget)
         self.btn_project_notes.setObjectName(u"btn_project_notes")
-        self.btn_project_notes.setMinimumSize(QSize(100, 36))
         self.btn_project_notes.setFont(font1)
 
         self.gridLayout_29.addWidget(self.btn_project_notes, 0, 6, 1, 1)

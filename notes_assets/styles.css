@@ -36,6 +36,7 @@ html, body {
 }
 
 body { overflow-y: auto; }
+body.editor-open { overflow: hidden; }
 
 button, input, select, textarea, [contenteditable="true"] {
   font: inherit;
@@ -283,6 +284,11 @@ button:disabled { cursor: default; opacity: .55; }
   box-shadow: var(--shadow);
 }
 
+.note-card.is-preview {
+  min-height: 0;
+  cursor: pointer;
+}
+
 .note-card:hover,
 .note-card:focus-within {
   border-color: color-mix(in srgb, var(--border) 55%, var(--text));
@@ -334,6 +340,19 @@ button:disabled { cursor: default; opacity: .55; }
   align-items: start;
   gap: 4px;
   padding: 8px 8px 3px;
+}
+
+.card-header.editor-header {
+  grid-template-columns: minmax(0, 1fr) 38px;
+}
+
+.note-preview-title {
+  min-width: 0;
+  margin: 0;
+  padding: 8px 4px;
+  overflow-wrap: anywhere;
+  font-size: 1.03rem;
+  line-height: 1.35;
 }
 
 .drag-handle,
@@ -430,6 +449,37 @@ button:disabled { cursor: default; opacity: .55; }
   line-height: 1.4;
   resize: vertical;
   user-select: text;
+}
+
+.note-content-preview {
+  margin: 5px 12px 10px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+  user-select: text;
+}
+
+.note-content-preview > :first-child { margin-top: 0; }
+.note-content-preview > :last-child { margin-bottom: 0; }
+.map-content-preview { white-space: pre-wrap; }
+.note-content-preview a { color: #174ea6; text-decoration: underline; }
+
+.checklist-preview {
+  display: grid;
+  gap: 5px;
+  margin: 5px 12px 10px;
+}
+
+.checklist-preview-row {
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  gap: 5px;
+  overflow-wrap: anywhere;
+}
+
+.checklist-preview-row.checked {
+  color: #646a70;
+  text-decoration: line-through;
 }
 
 .note-content:empty::before {
@@ -660,6 +710,65 @@ button:disabled { cursor: default; opacity: .55; }
   text-align: center;
 }
 
+.note-editor-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: start center;
+  padding: max(54px, 8vh) 18px 24px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, .48);
+}
+
+.note-editor-dialog {
+  width: min(620px, 100%);
+  max-height: calc(100vh - max(78px, 12vh));
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, .35);
+}
+
+.note-editor-item {
+  position: relative !important;
+  left: auto !important;
+  top: auto !important;
+  width: 100% !important;
+  padding: 0;
+  transform: none !important;
+}
+
+.note-editor-item .note-card {
+  min-height: 250px;
+  border: 0;
+  border-radius: 11px 11px 0 0;
+  box-shadow: none;
+}
+
+.note-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding: 7px 10px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+#note-editor-done {
+  min-width: 88px;
+  min-height: 38px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#note-editor-done:hover { background: var(--surface-alt); }
+
 .error-toast {
   position: fixed;
   right: 18px;
@@ -693,14 +802,15 @@ button:disabled { cursor: default; opacity: .55; }
   .button-label { display: inline; }
   #notes-main { padding-right: 6px; padding-left: 6px; }
   .quick-note-wrap { padding-right: 10px; padding-left: 10px; }
+  .note-editor-layer { padding: 12px; }
+  .note-editor-dialog { max-height: calc(100vh - 24px); }
 }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     scroll-behavior: auto !important;
-    animation-duration: .01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: .01ms !important;
+    animation: none !important;
+    transition: none !important;
   }
 }
 

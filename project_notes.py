@@ -980,6 +980,9 @@ class ProjectNotesDialog(QDialog, Ui_project_notes_dialog):
     def _labels(self) -> dict:
         return {
             'newNote': tr('Новая заметка'),
+            'editNote': tr('Редактирование заметки'),
+            'done': tr('Готово'),
+            'closeEditor': tr('Закрыть редактор заметки'),
             'documentTitle': tr('Заметки проекта'),
             'skipToNotes': tr('К заметкам'),
             'notesActions': tr('Действия с заметками'),

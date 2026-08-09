@@ -375,12 +375,6 @@
               </item>
               <item row="0" column="6">
                <widget class="QPushButton" name="btn_project_notes">
-                <property name="minimumSize">
-                 <size>
-                  <width>100</width>
-                  <height>36</height>
-                 </size>
-                </property>
                 <property name="font">
                  <font>
                   <family>Arial</family>

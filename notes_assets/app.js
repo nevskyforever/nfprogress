@@ -16,6 +16,7 @@
     selectedStageId: null,
     sortByStage: false,
     creatingNote: false,
+    activeNoteId: null,
     grids: [],
     saveTimers: new Map(),
     pendingPatches: new Map(),
@@ -48,6 +49,10 @@
   const emptyState = document.getElementById('empty-state');
   const liveStatus = document.getElementById('live-status');
   const errorToast = document.getElementById('error-toast');
+  const noteEditorLayer = document.getElementById('note-editor-layer');
+  const noteEditorDialog = document.getElementById('note-editor-dialog');
+  const noteEditorHost = document.getElementById('note-editor-host');
+  const noteEditorDone = document.getElementById('note-editor-done');
 
   const icons = {
     drag: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="7" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="17" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="17" r="1" fill="currentColor" stroke="none"/></svg>',
@@ -271,7 +276,10 @@
       const containerWidth = gridElement.clientWidth || 0;
       const columns = responsiveColumnCount(containerWidth);
       for (const item of gridElement.querySelectorAll('.note-item')) {
-        item.style.setProperty('width', `${100 / columns}%`, 'important');
+        const itemWidth = containerWidth > 0
+          ? `${Math.floor(containerWidth / columns)}px`
+          : '100%';
+        item.style.setProperty('width', itemWidth, 'important');
       }
     }
   }
@@ -379,7 +387,7 @@
       renderAll();
       queuePatch(note.id, { checklist: note.checklist }, true);
       window.requestAnimationFrame(() => {
-        const noteElement = [...document.querySelectorAll('.note-item')]
+        const noteElement = [...document.querySelectorAll('.note-editor-item')]
           .find(candidate => candidate.dataset.noteId === note.id);
         const inputs = noteElement?.querySelectorAll('.checklist-text') || [];
         inputs[inputs.length - 1]?.focus();
@@ -389,7 +397,7 @@
     container.appendChild(checklist);
   }
 
-  function createTagArea(note, container, readOnly = false) {
+  function createTagArea(note, container, readOnly = false, editable = true) {
     const tagArea = document.createElement('div');
     tagArea.className = 'tag-area';
     const tagList = document.createElement('div');
@@ -411,6 +419,10 @@
       tagList.appendChild(chip);
     }
     tagArea.appendChild(tagList);
+    if (!editable) {
+      if (tagList.childElementCount) container.appendChild(tagArea);
+      return;
+    }
     const tagInput = document.createElement('input');
     tagInput.type = 'text';
     tagInput.className = 'tag-input';
@@ -521,10 +533,29 @@
     return { palette, toggle };
   }
 
-  function createNoteItem(note) {
+  function createChecklistPreview(note, container) {
+    if (!(note.checklist || []).length) return;
+    const checklist = document.createElement('div');
+    checklist.className = 'checklist-preview';
+    for (const checklistItem of note.checklist) {
+      const row = document.createElement('div');
+      row.className = `checklist-preview-row${checklistItem.checked ? ' checked' : ''}`;
+      const marker = document.createElement('span');
+      marker.className = 'checklist-preview-marker';
+      marker.textContent = checklistItem.checked ? '☑' : '☐';
+      marker.setAttribute('aria-hidden', 'true');
+      const text = document.createElement('span');
+      text.textContent = checklistItem.text || '';
+      row.append(marker, text);
+      checklist.appendChild(row);
+    }
+    container.appendChild(checklist);
+  }
+
+  function createNoteItem(note, editing = false) {
     const noteReadOnly = state.readOnly || Boolean(note.read_only);
     const item = document.createElement('div');
-    item.className = 'note-item';
+    item.className = `note-item${editing ? ' note-editor-item' : ''}`;
     item.dataset.noteId = note.id;
     item.dataset.color = note.color || 'default';
     item.dataset.source = note.source_type;
@@ -534,28 +565,41 @@
     if (note.stage_name) item.dataset.stageId = note.owner_id || '';
 
     const card = document.createElement('article');
-    card.className = 'note-card';
+    card.className = `note-card ${editing ? 'is-editor' : 'is-preview'}`;
     card.classList.toggle('read-only-note', noteReadOnly);
     card.setAttribute('aria-label', note.display_title || state.labels.titlePlaceholder);
+    if (!editing) card.tabIndex = 0;
 
     const header = document.createElement('div');
-    header.className = 'card-header';
-    const drag = makeButton('drag-handle', state.labels.drag, icons.drag);
-    drag.disabled = noteReadOnly || Boolean(
-      state.query || state.selectedTag || state.selectedStageId || state.sortByStage,
-    );
-    const title = document.createElement('input');
-    title.type = 'text';
-    title.className = 'note-title';
-    title.value = note.title || '';
-    title.placeholder = note.display_title || state.labels.titlePlaceholder;
-    title.maxLength = 500;
-    title.disabled = noteReadOnly;
-    title.setAttribute('aria-label', state.labels.titlePlaceholder);
-    title.addEventListener('input', () => {
-      note.title = title.value;
-      queuePatch(note.id, { title: title.value });
-    });
+    header.className = `card-header${editing ? ' editor-header' : ''}`;
+    if (!editing) {
+      const drag = makeButton('drag-handle', state.labels.drag, icons.drag);
+      drag.disabled = noteReadOnly || Boolean(
+        state.query || state.selectedTag || state.selectedStageId || state.sortByStage,
+      );
+      header.appendChild(drag);
+    }
+    let titleInput = null;
+    if (editing) {
+      titleInput = document.createElement('input');
+      titleInput.type = 'text';
+      titleInput.className = 'note-title';
+      titleInput.value = note.title || '';
+      titleInput.placeholder = note.display_title || state.labels.titlePlaceholder;
+      titleInput.maxLength = 500;
+      titleInput.disabled = noteReadOnly;
+      titleInput.setAttribute('aria-label', state.labels.titlePlaceholder);
+      titleInput.addEventListener('input', () => {
+        note.title = titleInput.value;
+        queuePatch(note.id, { title: titleInput.value });
+      });
+      header.appendChild(titleInput);
+    } else {
+      const title = document.createElement('h3');
+      title.className = 'note-preview-title';
+      title.textContent = note.title || note.display_title || state.labels.titlePlaceholder;
+      header.appendChild(title);
+    }
     const pin = makeButton(
       'card-action',
       note.pinned ? state.labels.unpin : state.labels.pin,
@@ -568,7 +612,7 @@
       renderAll();
       queuePatch(note.id, { pinned: note.pinned }, true);
     });
-    header.append(drag, title, pin);
+    header.appendChild(pin);
     card.appendChild(header);
 
     if (note.stage_name) {
@@ -580,95 +624,117 @@
     }
 
     if (note.source_type === 'mindmap') {
-      const textarea = document.createElement('textarea');
-      textarea.className = 'map-note-content';
-      textarea.value = note.content || '';
-      textarea.placeholder = state.labels.contentPlaceholder;
-      textarea.setAttribute('aria-label', state.labels.contentPlaceholder);
-      textarea.disabled = noteReadOnly;
-      textarea.addEventListener('input', () => {
-        note.content = textarea.value;
-        if (!note.title) {
-          note.display_title = textarea.value
-            .split(/\r?\n/)
-            .map(line => line.trim())
-            .find(Boolean)
-            ?.slice(0, 100) || state.labels.mapNote;
-          title.placeholder = note.display_title;
-          card.setAttribute('aria-label', note.display_title);
-        }
-        queuePatch(note.id, { content: textarea.value });
-        scheduleLayout();
-      });
-      card.appendChild(textarea);
-      const plainInfo = document.createElement('div');
-      plainInfo.className = 'map-format-note';
-      plainInfo.textContent = state.labels.plainMapNote;
-      card.appendChild(plainInfo);
+      if (editing) {
+        const textarea = document.createElement('textarea');
+        textarea.className = 'map-note-content';
+        textarea.value = note.content || '';
+        textarea.placeholder = state.labels.contentPlaceholder;
+        textarea.setAttribute('aria-label', state.labels.contentPlaceholder);
+        textarea.disabled = noteReadOnly;
+        textarea.addEventListener('input', () => {
+          note.content = textarea.value;
+          if (!note.title) {
+            note.display_title = textarea.value
+              .split(/\r?\n/)
+              .map(line => line.trim())
+              .find(Boolean)
+              ?.slice(0, 100) || state.labels.mapNote;
+            titleInput.placeholder = note.display_title;
+            card.setAttribute('aria-label', note.display_title);
+          }
+          queuePatch(note.id, { content: textarea.value });
+        });
+        card.appendChild(textarea);
+        const plainInfo = document.createElement('div');
+        plainInfo.className = 'map-format-note';
+        plainInfo.textContent = state.labels.plainMapNote;
+        card.appendChild(plainInfo);
+      } else if (note.content) {
+        const preview = document.createElement('div');
+        preview.className = 'note-content-preview map-content-preview';
+        preview.textContent = note.content;
+        card.appendChild(preview);
+      }
     } else {
-      const content = document.createElement('div');
-      content.className = 'note-content';
-      content.contentEditable = noteReadOnly ? 'false' : 'true';
-      content.spellcheck = true;
-      content.dataset.placeholder = state.labels.contentPlaceholder;
-      content.setAttribute('role', 'textbox');
-      content.setAttribute('aria-multiline', 'true');
-      content.setAttribute('aria-label', state.labels.contentPlaceholder);
-      content.innerHTML = note.content || '';
-      installPasteAsPlainText(content);
-      content.addEventListener('input', () => {
-        const clean = sanitizedEditableHtml(content);
-        note.content = clean;
-        queuePatch(note.id, { content: clean });
-        scheduleLayout();
-      });
-      content.addEventListener('blur', () => {
-        const clean = sanitizedEditableHtml(content);
-        if (content.innerHTML !== clean) content.innerHTML = clean;
-      });
-      content.addEventListener('click', event => {
-        const link = event.target.closest?.('a');
-        if (!link) return;
-        event.preventDefault();
-        const href = safeHref(link.href);
-        if (href) emit('openExternalLink', { url: href });
-      });
+      if (editing) {
+        const content = document.createElement('div');
+        content.className = 'note-content';
+        content.contentEditable = noteReadOnly ? 'false' : 'true';
+        content.spellcheck = true;
+        content.dataset.placeholder = state.labels.contentPlaceholder;
+        content.setAttribute('role', 'textbox');
+        content.setAttribute('aria-multiline', 'true');
+        content.setAttribute('aria-label', state.labels.contentPlaceholder);
+        content.innerHTML = note.content || '';
+        installPasteAsPlainText(content);
+        content.addEventListener('input', () => {
+          const clean = sanitizedEditableHtml(content);
+          note.content = clean;
+          queuePatch(note.id, { content: clean });
+        });
+        content.addEventListener('blur', () => {
+          const clean = sanitizedEditableHtml(content);
+          if (content.innerHTML !== clean) content.innerHTML = clean;
+        });
+        content.addEventListener('click', event => {
+          const link = event.target.closest?.('a');
+          if (!link) return;
+          event.preventDefault();
+          const href = safeHref(link.href);
+          if (href) emit('openExternalLink', { url: href });
+        });
 
-      const toolbar = document.createElement('div');
-      toolbar.className = 'rich-toolbar';
-      toolbar.setAttribute('role', 'toolbar');
-      toolbar.setAttribute('aria-label', state.labels.contentPlaceholder);
-      toolbar.append(
-        formatButton(state.labels.bold, '<strong>B</strong>', 'bold', content, noteReadOnly),
-        formatButton(state.labels.italic, '<em>I</em>', 'italic', content, noteReadOnly),
-        formatButton(state.labels.strike, '<s>S</s>', 'strikeThrough', content, noteReadOnly),
-        formatButton(state.labels.unorderedList, icons.list, 'insertUnorderedList', content, noteReadOnly),
-        formatButton(state.labels.orderedList, icons.ordered, 'insertOrderedList', content, noteReadOnly),
-        formatButton(state.labels.link, icons.link, 'createLink', content, noteReadOnly),
-      );
-      const checklistToggle = makeButton(
-        'format-button', state.labels.checklist, icons.checklist,
-      );
-      checklistToggle.disabled = noteReadOnly;
-      checklistToggle.addEventListener('click', () => {
-        if (!(note.checklist || []).length) {
-          note.checklist = [{
-            id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-            text: '',
-            checked: false,
-          }];
+        const toolbar = document.createElement('div');
+        toolbar.className = 'rich-toolbar';
+        toolbar.setAttribute('role', 'toolbar');
+        toolbar.setAttribute('aria-label', state.labels.contentPlaceholder);
+        toolbar.append(
+          formatButton(state.labels.bold, '<strong>B</strong>', 'bold', content, noteReadOnly),
+          formatButton(state.labels.italic, '<em>I</em>', 'italic', content, noteReadOnly),
+          formatButton(state.labels.strike, '<s>S</s>', 'strikeThrough', content, noteReadOnly),
+          formatButton(state.labels.unorderedList, icons.list, 'insertUnorderedList', content, noteReadOnly),
+          formatButton(state.labels.orderedList, icons.ordered, 'insertOrderedList', content, noteReadOnly),
+          formatButton(state.labels.link, icons.link, 'createLink', content, noteReadOnly),
+        );
+        const checklistToggle = makeButton(
+          'format-button', state.labels.checklist, icons.checklist,
+        );
+        checklistToggle.disabled = noteReadOnly;
+        checklistToggle.addEventListener('click', () => {
+          if (!(note.checklist || []).length) {
+            note.checklist = [{
+              id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+              text: '',
+              checked: false,
+            }];
+          }
+          renderAll();
+          queuePatch(note.id, { checklist: note.checklist }, true);
+        });
+        toolbar.appendChild(checklistToggle);
+        card.append(toolbar, content);
+        if ((note.checklist || []).length) {
+          createChecklist(note, card, noteReadOnly);
         }
-        renderAll();
-        queuePatch(note.id, { checklist: note.checklist }, true);
-      });
-      toolbar.appendChild(checklistToggle);
-      card.append(toolbar, content);
-      if ((note.checklist || []).length) {
-        createChecklist(note, card, noteReadOnly);
+      } else {
+        if (note.content) {
+          const preview = document.createElement('div');
+          preview.className = 'note-content-preview';
+          preview.innerHTML = note.content;
+          preview.addEventListener('click', event => {
+            const link = event.target.closest?.('a');
+            if (!link) return;
+            event.preventDefault();
+            const href = safeHref(link.href);
+            if (href) emit('openExternalLink', { url: href });
+          });
+          card.appendChild(preview);
+        }
+        createChecklistPreview(note, card);
       }
     }
 
-    createTagArea(note, card, noteReadOnly);
+    createTagArea(note, card, noteReadOnly, editing);
 
     const footer = document.createElement('div');
     footer.className = 'card-footer';
@@ -698,6 +764,7 @@
     archive.disabled = noteReadOnly;
     archive.addEventListener('click', () => {
       note.archived = !note.archived;
+      if (editing) state.activeNoteId = null;
       renderAll();
       queuePatch(note.id, { archived: note.archived }, true);
     });
@@ -712,7 +779,72 @@
     footer.appendChild(remove);
     card.append(colorPalette.palette, footer);
     item.appendChild(card);
+    if (!editing) {
+      const openEditor = event => {
+        if (event.target.closest?.('button, input, textarea, a')) return;
+        state.activeNoteId = note.id;
+        renderEditor(true);
+      };
+      card.addEventListener('click', openEditor);
+      card.addEventListener('keydown', event => {
+        if (event.target !== card || !['Enter', ' '].includes(event.key)) return;
+        event.preventDefault();
+        state.activeNoteId = note.id;
+        renderEditor(true);
+      });
+    }
     return item;
+  }
+
+  function focusEditorContent() {
+    const editor = noteEditorHost.querySelector('.note-content, .map-note-content');
+    editor?.focus();
+    if (editor?.isContentEditable) {
+      const selection = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(editor);
+      range.collapse(false);
+      selection?.removeAllRanges();
+      selection?.addRange(range);
+    }
+  }
+
+  function renderEditor(shouldFocus = false) {
+    const note = state.activeNoteId
+      ? state.notes.get(state.activeNoteId)
+      : null;
+    if (!note) {
+      noteEditorLayer.hidden = true;
+      noteEditorHost.replaceChildren();
+      document.body.classList.remove('editor-open');
+      return;
+    }
+    noteEditorHost.replaceChildren(createNoteItem(note, true));
+    const editorTitle = note.display_title || state.labels.titlePlaceholder || '';
+    noteEditorDialog.setAttribute(
+      'aria-label', `${state.labels.editNote || ''}: ${editorTitle}`,
+    );
+    noteEditorLayer.hidden = false;
+    document.body.classList.add('editor-open');
+    if (shouldFocus) {
+      focusEditorContent();
+      window.setTimeout(focusEditorContent, 0);
+    }
+  }
+
+  function closeEditor(restoreFocus = true) {
+    const closedNoteId = state.activeNoteId;
+    if (closedNoteId) flushPendingPatch(closedNoteId);
+    state.activeNoteId = null;
+    renderAll();
+    if (restoreFocus && closedNoteId) {
+      window.requestAnimationFrame(() => {
+        [...document.querySelectorAll('.notes-grid .note-item')]
+          .find(item => item.dataset.noteId === closedNoteId)
+          ?.querySelector('.note-card')
+          ?.focus();
+      });
+    }
   }
 
   function destroyGrids() {
@@ -732,6 +864,7 @@
 
   function createGrid(element) {
     applyResponsiveItemWidths();
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const dragEnabled = !state.readOnly
       && !state.query
       && !state.selectedTag
@@ -750,9 +883,13 @@
         alignBottom: false,
         rounding: true,
       },
-      layoutDuration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180,
+      layoutDuration: reducedMotion ? 1 : 180,
       layoutEasing: 'ease-out',
-      dragRelease: { duration: 160, easing: 'ease-out', useDragContainer: false },
+      dragRelease: {
+        duration: reducedMotion ? 1 : 160,
+        easing: 'ease-out',
+        useDragContainer: false,
+      },
     });
     if (dragEnabled) {
       grid.on('dragEnd', () => {
@@ -780,6 +917,7 @@
       }
     }
     state.grids.push(grid);
+    grid.refreshItems().layout(reducedMotion);
     return grid;
   }
 
@@ -836,6 +974,8 @@
     readOnlyBanner.textContent = state.labels.readOnly || '';
     readOnlyBanner.hidden = !state.readOnly;
     newNoteButton.disabled = state.readOnly || state.creatingNote;
+    noteEditorDone.textContent = state.labels.done || '';
+    noteEditorDone.setAttribute('aria-label', state.labels.closeEditor || '');
   }
 
   function rebuildTagMenu() {
@@ -928,24 +1068,9 @@
     rebuildStageMenu();
     if (pinned.length) createGrid(pinnedGridElement);
     if (others.length) createGrid(otherGridElement);
+    if (focusNoteId) state.activeNoteId = focusNoteId;
+    renderEditor(Boolean(focusNoteId));
     observeGridCards();
-    if (focusNoteId) {
-      window.requestAnimationFrame(() => {
-        const element = [...document.querySelectorAll('.note-item')]
-          .find(item => item.dataset.noteId === focusNoteId);
-        const editor = element?.querySelector('.note-content, .map-note-content');
-        editor?.focus();
-        if (editor?.isContentEditable) {
-          const selection = window.getSelection();
-          const range = document.createRange();
-          range.selectNodeContents(editor);
-          range.collapse(false);
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-        }
-        element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-      });
-    }
   }
 
   function selectTag(tag) {
@@ -987,6 +1112,7 @@
       state.notes.get(itemB.getElement().dataset.noteId),
     ), { layout: true });
     state.resizeObserver?.observe(element.querySelector('.note-card'));
+    if (state.activeNoteId === note.id) renderEditor(false);
   }
 
   function applyEvent(event) {
@@ -1001,6 +1127,7 @@
       state.saveTimers.delete(noteId);
       state.pendingPatches.delete(noteId);
       state.notes.delete(noteId);
+      if (state.activeNoteId === noteId) state.activeNoteId = null;
       renderAll();
       setLiveStatus(state.labels.saved);
       return;
@@ -1009,7 +1136,10 @@
     const previous = state.notes.get(payload.id);
     state.notes.set(payload.id, payload);
     if (event.type === 'noteCreated') {
-      if (event.origin === 'notes') state.creatingNote = false;
+      if (event.origin === 'notes') {
+        state.creatingNote = false;
+        state.activeNoteId = payload.id;
+      }
       renderAll(event.origin === 'notes' ? payload.id : null);
     } else if (event.origin === 'notes') {
       // The local card already contains this edit. Keeping it avoids losing focus.
@@ -1105,6 +1235,10 @@
       state.archiveMode = !state.archiveMode;
       renderAll();
     });
+    noteEditorDone.addEventListener('click', () => closeEditor());
+    noteEditorLayer.addEventListener('pointerdown', event => {
+      if (event.target === noteEditorLayer) closeEditor();
+    });
     document.addEventListener('pointerdown', event => {
       if (!tagFilterMenu.contains(event.target) && !tagFilterButton.contains(event.target)) {
         tagFilterMenu.hidden = true;
@@ -1125,16 +1259,40 @@
       if (event.key === 'Escape' && document.querySelector('.color-palette:not([hidden])')) {
         event.preventDefault();
         closeColorPalettes(null, true);
+        return;
       }
       if (event.key === 'Escape' && !tagFilterMenu.hidden) {
         tagFilterMenu.hidden = true;
         tagFilterButton.setAttribute('aria-expanded', 'false');
         tagFilterButton.focus();
+        return;
       }
       if (event.key === 'Escape' && !stageFilterMenu.hidden) {
         stageFilterMenu.hidden = true;
         stageFilterButton.setAttribute('aria-expanded', 'false');
         stageFilterButton.focus();
+        return;
+      }
+      if (event.key === 'Escape' && !noteEditorLayer.hidden) {
+        event.preventDefault();
+        closeEditor();
+        return;
+      }
+      if (event.key === 'Tab' && !noteEditorLayer.hidden) {
+        const focusable = [...noteEditorDialog.querySelectorAll(
+          'button:not(:disabled), input:not(:disabled), textarea:not(:disabled), '
+          + '[contenteditable="true"], [tabindex]:not([tabindex="-1"])',
+        )];
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'f') {
         event.preventDefault();
@@ -1190,6 +1348,8 @@
         selectedStageId: state.selectedStageId,
         sortByStage: state.sortByStage,
         creatingNote: state.creatingNote,
+        activeNoteId: state.activeNoteId,
+        editorOpen: !noteEditorLayer.hidden,
         visibleIds: visibleOrderedIds(),
       });
     },

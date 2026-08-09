@@ -531,6 +531,11 @@ def test_ui_resources_are_local_and_packaged():
     assert button is not None
     assert button.find("property[@name='text']/string").text == 'Заметки'
     assert button.find("property[@name='accessibleName']/string").text
+    assert button.find("property[@name='icon']") is None
+    assert button.find("property[@name='minimumSize']") is None
+    assert 'self.btn_project_notes.setIcon(' not in (
+        PROJECT_ROOT / 'main_UI.py'
+    ).read_text()
 
     notes_html = (PROJECT_ROOT / 'notes_assets' / 'index.html').read_text()
     notes_js = (PROJECT_ROOT / 'notes_assets' / 'app.js').read_text()
@@ -538,6 +543,8 @@ def test_ui_resources_are_local_and_packaged():
     notice = (PROJECT_ROOT / 'notes_assets' / 'NOTICE.txt').read_text()
     assert 'http://' not in notes_html and 'https://' not in notes_html
     assert 'Content-Security-Policy' in notes_html
+    assert 'worker-src blob:' in notes_html
+    assert 'note-editor-layer' in notes_html
     assert 'new Muuri' in notes_js
     assert 'dragHandle' in notes_js
     assert 'color-select' not in notes_js
@@ -644,6 +651,18 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         'window.nfprogressNotes.getState()',
     ))
     assert initial_state['noteCount'] == 1
+    assert json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        JSON.stringify({
+          editors: document.querySelectorAll('.notes-grid .rich-toolbar').length,
+          editable: document.querySelectorAll(
+            '.notes-grid [contenteditable="true"], .notes-grid textarea'
+          ).length
+        })
+        """,
+    )) == {'editors': 0, 'editable': 0}
 
     theme_state = json.loads(_run_javascript(
         application,
@@ -707,6 +726,13 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
             "document.activeElement?.classList.contains('note-content') || false",
         ),
     )
+    created_state = json.loads(_run_javascript(
+        application,
+        dialog,
+        'window.nfprogressNotes.getState()',
+    ))
+    assert created_state['editorOpen'] is True
+    assert created_state['activeNoteId'] is not None
     _run_javascript(
         application,
         dialog,
@@ -737,7 +763,9 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         dialog,
         """
         (() => {
-          const card = document.querySelector('[data-source="project"]');
+          const card = document.querySelector(
+            '.note-editor-item[data-source="project"]'
+          );
           const title = card.querySelector('.note-title');
           const content = card.querySelector('.note-content');
           const tags = card.querySelector('.tag-input');
@@ -799,9 +827,11 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         dialog,
         """
         (() => {
-          document.querySelector('[data-source="project"] .card-header .card-action').click();
+          document.querySelector(
+            '.note-editor-item[data-source="project"] .card-header .card-action'
+          ).click();
           const buttons = document.querySelectorAll(
-            '[data-source="project"] .rich-toolbar .format-button'
+            '.note-editor-item[data-source="project"] .rich-toolbar .format-button'
           );
           buttons[buttons.length - 1].click();
           return true;
@@ -822,7 +852,9 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         dialog,
         """
         (() => {
-          const card = document.querySelector('[data-source="project"]');
+          const card = document.querySelector(
+            '.note-editor-item[data-source="project"]'
+          );
           const text = card.querySelector('.checklist-text');
           const checkbox = card.querySelector('.checklist-row input[type="checkbox"]');
           text.value = 'Проверить хронологию';
@@ -848,7 +880,9 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         dialog,
         """
         (() => {
-          const card = document.querySelector('[data-source="project"]');
+          const card = document.querySelector(
+            '.note-editor-item[data-source="project"]'
+          );
           const actions = card.querySelectorAll('.card-footer .card-action');
           actions[0].click();
           return true;
@@ -888,7 +922,12 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         dialog,
         """
         (() => {
-          const editor = document.querySelector('[data-source="mindmap"] textarea');
+          document.querySelector(
+            '.notes-grid [data-source="mindmap"] .note-card'
+          ).click();
+          const editor = document.querySelector(
+            '.note-editor-item[data-source="mindmap"] textarea'
+          );
           editor.value = 'После изменения';
           editor.dispatchEvent(new Event('input', { bubbles: true }));
           return true;
@@ -903,7 +942,7 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
     assert _run_javascript(
         application,
         dialog,
-        "document.querySelector('[data-source=\"mindmap\"] .note-title').placeholder",
+        "document.querySelector('.note-editor-item[data-source=\"mindmap\"] .note-title').placeholder",
     ) == 'После изменения'
 
     _run_javascript(
@@ -988,7 +1027,13 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         dialog,
         """
         (() => {
-          const title = document.querySelector('[data-source="project"] .note-title');
+          document.getElementById('note-editor-done').click();
+          document.querySelector(
+            '.notes-grid [data-source="project"] .note-card'
+          ).click();
+          const title = document.querySelector(
+            '.note-editor-item[data-source="project"] .note-title'
+          );
           title.value = 'Сохранить при закрытии';
           title.dispatchEvent(new Event('input', { bubbles: true }));
           return true;
@@ -1081,11 +1126,25 @@ def test_staged_project_dialog_displays_and_searches_stage_notes(monkeypatch):
         """,
     ))
     assert badges == ['Этап: Черновик', 'Этап: Редактура']
+    _run_javascript(
+        application,
+        dialog,
+        f"""
+        document.querySelector(
+          '.notes-grid [data-stage-id="{editing.stage_id}"] .note-card'
+        ).click(); true
+        """,
+    )
     assert bool(_run_javascript(
         application,
         dialog,
-        f'document.querySelector("[data-stage-id=\\"{editing.stage_id}\\"] .note-title").disabled',
+        "document.querySelector('.note-editor-item .note-title').disabled",
     )) is True
+    _run_javascript(
+        application,
+        dialog,
+        "document.getElementById('note-editor-done').click(); true",
+    )
 
     _run_javascript(
         application,
@@ -1184,8 +1243,11 @@ def test_staged_project_dialog_displays_and_searches_stage_notes(monkeypatch):
         dialog,
         f"""
         (() => {{
+          document.querySelector(
+            '.notes-grid [data-stage-id="{draft.stage_id}"] .note-card'
+          ).click();
           const title = document.querySelector(
-            '[data-stage-id="{draft.stage_id}"] .note-title'
+            '.note-editor-item[data-stage-id="{draft.stage_id}"] .note-title'
           );
           title.value = 'Новая первая глава';
           title.dispatchEvent(new Event('input', {{ bubbles: true }}));
@@ -1245,7 +1307,8 @@ def test_notes_cards_follow_addition_order_and_snap_to_grid(monkeypatch):
                 id: item.dataset.noteId,
                 left: rect.left - grid.left,
                 top: rect.top - grid.top,
-                width: rect.width
+                width: rect.width,
+                height: rect.height
               };
             });
           return JSON.stringify(items);
@@ -1254,10 +1317,76 @@ def test_notes_cards_follow_addition_order_and_snap_to_grid(monkeypatch):
     ))
     assert [item['id'] for item in layout] == [f'grid-{index}' for index in range(5)]
     first_row = [item for item in layout if abs(item['top'] - layout[0]['top']) < 2]
-    assert len(first_row) >= 3
+    assert len(first_row) == 4
+    assert len({round(item['left']) for item in first_row}) == 4
     for item in layout:
         column = item['left'] / item['width']
         assert abs(column - round(column)) < 0.03
+    for index, item in enumerate(layout):
+        for other in layout[index + 1:]:
+            horizontal_overlap = (
+                item['left'] < other['left'] + other['width'] - 1
+                and other['left'] < item['left'] + item['width'] - 1
+            )
+            vertical_overlap = (
+                item['top'] < other['top'] + other['height'] - 1
+                and other['top'] < item['top'] + item['height'] - 1
+            )
+            assert not (horizontal_overlap and vertical_overlap)
+    assert json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        JSON.stringify({
+          toolbars: document.querySelectorAll('.notes-grid .rich-toolbar').length,
+          editables: document.querySelectorAll(
+            '.notes-grid [contenteditable="true"], .notes-grid textarea'
+          ).length
+        })
+        """,
+    )) == {'toolbars': 0, 'editables': 0}
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        document.querySelector(
+          '.notes-grid [data-note-id="grid-2"] .note-card'
+        ).click(); true
+        """,
+    )
+    editor_state = json.loads(_run_javascript(
+        application,
+        dialog,
+        'window.nfprogressNotes.getState()',
+    ))
+    assert editor_state['editorOpen'] is True
+    assert editor_state['activeNoteId'] == 'grid-2'
+    assert _run_javascript(
+        application,
+        dialog,
+        "document.querySelectorAll('.note-editor-item .rich-toolbar').length",
+    ) == 1
+    _run_javascript(
+        application,
+        dialog,
+        "document.getElementById('note-editor-done').click(); true",
+    )
+    assert _wait_until(
+        application,
+        lambda: _run_javascript(
+            application,
+            dialog,
+            """
+            (() => {
+              const grid = document.getElementById('other-grid');
+              const item = grid.querySelector('.note-item');
+              return grid.getBoundingClientRect().height
+                > item.getBoundingClientRect().height;
+            })()
+            """,
+        ),
+    )
 
     _run_javascript(
         application,

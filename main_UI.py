@@ -165,10 +165,6 @@ class MainWindow(QMainWindow, main_window_ui):
         self._project_note_services = {}
         self._project_notes_dialogs = {}
         self._pending_project_notes_sync = set()
-        self.btn_project_notes.setIcon(
-            QIcon(en.resource_path('notes_assets/note.svg'))
-        )
-        self.btn_project_notes.setIconSize(QSize(20, 20))
 
         self.unit_to_display = {
             'symbols': 'Символы',

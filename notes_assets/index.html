@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; worker-src blob:; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title></title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -62,6 +62,14 @@
       </section>
       <div id="empty-state" class="empty-state" role="status" hidden></div>
     </main>
+  </div>
+  <div id="note-editor-layer" class="note-editor-layer" hidden>
+    <div id="note-editor-dialog" class="note-editor-dialog" role="dialog" aria-modal="true">
+      <div id="note-editor-host"></div>
+      <div class="note-editor-actions">
+        <button id="note-editor-done" type="button"></button>
+      </div>
+    </div>
   </div>
   <div id="live-status" class="sr-only" aria-live="polite"></div>
   <div id="error-toast" class="error-toast" role="alert" hidden></div>
