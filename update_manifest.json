@@ -1,28 +1,28 @@
 {
-  "version": "4.13.1",
+  "version": "4.14",
   "notes": "Приложение теперь открывает не только последний проект, но и этап, который был выбран.\n\nИсправление багов\n\nИсправление ошибок перевода",
   "windows": {
-    "version": "4.13",
-    "url": "https://nfproject.ru/app/nfprogress-windows-4.13.zip",
-    "sha256": "932d0c7bab86216fcd9685edfe6b9780d56a4f6c2fea7896ea7bc6ddc5c6ced6",
-    "size": 189355296,
+    "version": "4.13.1",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.13.1.zip",
+    "sha256": "60836f553cee4703a7668956c3b91ad81dd19f83b7a3cc5ef7c9e0238fa0c0fe",
+    "size": 189350871,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.13.exe",
-    "installer_sha256": "6526d20511eece24c24cbe611b9f6505781ad450fbfe8e1d1692fc12c2daa5f4",
-    "installer_size": 122662477
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.13.1.exe",
+    "installer_sha256": "7b34ba37021440d4bb7583c8d069b57ff415e11739b356aa7c24fd3b2383fea9",
+    "installer_size": 122656907
   },
   "macos_arm": {
-    "version": "4.13.1",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.13.1.zip"
+    "version": "4.14",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.14.zip"
   },
   "macos_intel": {
-    "version": "4.13.1",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.13.1.zip"
+    "version": "4.14",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.14.zip"
   },
-  "windows_version": "4.13",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.13.zip",
-  "macos_arm_version": "4.13.1",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.13.1.zip",
-  "macos_intel_version": "4.13.1",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.13.1.zip"
+  "windows_version": "4.13.1",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.13.1.zip",
+  "macos_arm_version": "4.14",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.14.zip",
+  "macos_intel_version": "4.14",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.14.zip"
 }
