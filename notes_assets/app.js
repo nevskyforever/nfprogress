@@ -10,6 +10,12 @@
     archiveMode: false,
     query: '',
     selectedTag: null,
+    hasStages: false,
+    stages: [],
+    includeStageNotes: false,
+    selectedStageId: null,
+    sortByStage: false,
+    creatingNote: false,
     grids: [],
     saveTimers: new Map(),
     pendingPatches: new Map(),
@@ -26,6 +32,11 @@
   const searchInput = document.getElementById('search-input');
   const tagFilterButton = document.getElementById('tag-filter-button');
   const tagFilterMenu = document.getElementById('tag-filter-menu');
+  const stageNotesToggle = document.getElementById('stage-notes-toggle');
+  const stageFilterWrap = document.getElementById('stage-filter-wrap');
+  const stageFilterButton = document.getElementById('stage-filter-button');
+  const stageFilterMenu = document.getElementById('stage-filter-menu');
+  const stageSortToggle = document.getElementById('stage-sort-toggle');
   const archiveToggle = document.getElementById('archive-toggle');
   const readOnlyBanner = document.getElementById('read-only-banner');
   const pinnedSection = document.getElementById('pinned-section');
@@ -49,6 +60,7 @@
     ordered: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6h12M9 12h12M9 18h12M3 5h2v3M3 11h2l-2 3h2M3 17h2v3H3"/></svg>',
     link: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1"/></svg>',
     map: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2.5"/><circle cx="18" cy="6" r="2.5"/><circle cx="18" cy="18" r="2.5"/><path d="m7.5 11 8-4M7.5 13l8 4"/></svg>',
+    palette: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 0 18h1.5a2 2 0 0 0 0-4H12a1.8 1.8 0 0 1 0-3.6h2.7A6.3 6.3 0 0 0 21 7.1 4.1 4.1 0 0 0 16.9 3z"/><circle cx="7.5" cy="9" r="1" fill="currentColor" stroke="none"/><circle cx="10.5" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>',
   };
 
   function emit(type, values = {}) {
@@ -164,7 +176,17 @@
     return container.textContent || '';
   }
 
+  function noteInStageScope(note) {
+    const isStageNote = Boolean(note.stage_name);
+    if (isStageNote && !state.includeStageNotes) return false;
+    if (state.selectedStageId) {
+      return isStageNote && note.owner_id === state.selectedStageId;
+    }
+    return true;
+  }
+
   function noteMatches(note) {
+    if (!noteInStageScope(note)) return false;
     if (Boolean(note.archived) !== state.archiveMode) return false;
     if (state.selectedTag) {
       const selected = state.selectedTag.toLocaleLowerCase();
@@ -186,6 +208,22 @@
       note.source_type === 'mindmap' ? '#карта карта' : '',
     ].join(' ').toLocaleLowerCase();
     return searchable.includes(query);
+  }
+
+  function compareNotes(left, right) {
+    if (state.sortByStage) {
+      const stageOrder = Number(left.owner_order || 0) - Number(right.owner_order || 0);
+      if (stageOrder) return stageOrder;
+    }
+    const manualOrder = Number(left.sort_order || 0) - Number(right.sort_order || 0);
+    if (manualOrder) return manualOrder;
+    const createdOrder = String(left.created_at || '').localeCompare(
+      String(right.created_at || ''),
+    );
+    if (createdOrder) return createdOrder;
+    const ownerOrder = Number(left.owner_order || 0) - Number(right.owner_order || 0);
+    if (ownerOrder) return ownerOrder;
+    return String(left.id).localeCompare(String(right.id));
   }
 
   function updateLocalNote(noteId, patch) {
@@ -223,20 +261,18 @@
     }
   }
 
-  function responsiveColumnCount() {
-    if (window.innerWidth <= 620) return 1;
-    if (window.innerWidth <= 900) return 2;
-    return 3;
+  function responsiveColumnCount(containerWidth) {
+    if (!containerWidth || containerWidth < 620) return 1;
+    return Math.max(1, Math.floor(containerWidth / 270));
   }
 
   function applyResponsiveItemWidths() {
-    for (const item of document.querySelectorAll('.note-item')) {
-      const containerWidth = item.parentElement?.clientWidth || 0;
-      const columns = responsiveColumnCount();
-      const width = containerWidth > 0
-        ? `${containerWidth / columns}px`
-        : `${100 / columns}%`;
-      item.style.setProperty('width', width, 'important');
+    for (const gridElement of [pinnedGridElement, otherGridElement]) {
+      const containerWidth = gridElement.clientWidth || 0;
+      const columns = responsiveColumnCount(containerWidth);
+      for (const item of gridElement.querySelectorAll('.note-item')) {
+        item.style.setProperty('width', `${100 / columns}%`, 'important');
+      }
     }
   }
 
@@ -411,7 +447,9 @@
     palette.setAttribute('role', 'group');
     palette.setAttribute('aria-label', state.labels.color);
 
-    const toggle = makeButton('color-palette-toggle', state.labels.color);
+    const toggle = makeButton(
+      'color-palette-toggle', state.labels.color, icons.palette,
+    );
     toggle.setAttribute('aria-haspopup', 'true');
     toggle.setAttribute('aria-expanded', 'false');
     toggle.setAttribute('aria-controls', palette.id);
@@ -487,15 +525,12 @@
     const noteReadOnly = state.readOnly || Boolean(note.read_only);
     const item = document.createElement('div');
     item.className = 'note-item';
-    item.style.setProperty(
-      'width',
-      `${100 / responsiveColumnCount()}%`,
-      'important',
-    );
     item.dataset.noteId = note.id;
     item.dataset.color = note.color || 'default';
     item.dataset.source = note.source_type;
     item.dataset.order = String(note.sort_order || 0);
+    item.dataset.ownerOrder = String(note.owner_order || 0);
+    item.dataset.createdAt = note.created_at || '';
     if (note.stage_name) item.dataset.stageId = note.owner_id || '';
 
     const card = document.createElement('article');
@@ -506,7 +541,9 @@
     const header = document.createElement('div');
     header.className = 'card-header';
     const drag = makeButton('drag-handle', state.labels.drag, icons.drag);
-    drag.disabled = noteReadOnly || Boolean(state.query || state.selectedTag);
+    drag.disabled = noteReadOnly || Boolean(
+      state.query || state.selectedTag || state.selectedStageId || state.sortByStage,
+    );
     const title = document.createElement('input');
     title.type = 'text';
     title.className = 'note-title';
@@ -695,20 +732,35 @@
 
   function createGrid(element) {
     applyResponsiveItemWidths();
-    const dragEnabled = !state.readOnly && !state.query && !state.selectedTag;
+    const dragEnabled = !state.readOnly
+      && !state.query
+      && !state.selectedTag
+      && !state.selectedStageId
+      && !state.sortByStage;
     const grid = new Muuri(element, {
       items: '.note-item',
       dragEnabled,
       dragHandle: '.drag-handle',
       dragStartPredicate: { distance: 7, delay: 100 },
+      dragSortPredicate: { threshold: 50, action: 'move' },
+      layout: {
+        fillGaps: false,
+        horizontal: false,
+        alignRight: false,
+        alignBottom: false,
+        rounding: true,
+      },
       layoutDuration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 180,
       layoutEasing: 'ease-out',
-      dragRelease: { duration: 160, easing: 'ease-out', useDragContainer: true },
+      dragRelease: { duration: 160, easing: 'ease-out', useDragContainer: false },
     });
     if (dragEnabled) {
       grid.on('dragEnd', () => {
+        grid.synchronize();
+        grid.refreshItems().layout();
         window.setTimeout(() => emit('updateOrder', { ids: visibleOrderedIds() }), 0);
       });
+      grid.on('dragReleaseEnd', () => grid.refreshItems().layout());
       for (const item of grid.getItems()) {
         const handle = item.getElement().querySelector('.drag-handle');
         handle?.addEventListener('keydown', event => {
@@ -750,6 +802,29 @@
     tagFilterButton.querySelector('.button-label').textContent = state.selectedTag
       ? `#${state.selectedTag}`
       : (state.labels.tags || '');
+    stageNotesToggle.hidden = !state.hasStages;
+    stageNotesToggle.querySelector('.button-label').textContent = state.labels.stageNotes || '';
+    stageNotesToggle.setAttribute('aria-pressed', String(state.includeStageNotes));
+    stageNotesToggle.title = state.labels.stageNotes || '';
+    stageNotesToggle.setAttribute('aria-label', state.labels.stageNotes || '');
+    const showStageControls = state.hasStages && state.includeStageNotes;
+    stageFilterWrap.hidden = !showStageControls;
+    stageSortToggle.hidden = !showStageControls;
+    const selectedStage = state.stages.find(
+      stage => stage.id === state.selectedStageId,
+    );
+    stageFilterButton.querySelector('.button-label').textContent = selectedStage?.name
+      || state.labels.allStages
+      || '';
+    stageFilterButton.title = state.labels.filterByStage || '';
+    stageFilterButton.setAttribute('aria-label', state.labels.filterByStage || '');
+    stageSortToggle.querySelector('.button-label').textContent = state.labels.byStages || '';
+    stageSortToggle.setAttribute('aria-pressed', String(state.sortByStage));
+    const sortLabel = state.sortByStage
+      ? state.labels.sortByAdded
+      : state.labels.sortByStage;
+    stageSortToggle.title = sortLabel || '';
+    stageSortToggle.setAttribute('aria-label', sortLabel || '');
     archiveToggle.querySelector('.button-label').textContent = state.archiveMode
       ? (state.labels.activeNotes || '')
       : (state.labels.archive || '');
@@ -760,13 +835,14 @@
       : (state.labels.others || '');
     readOnlyBanner.textContent = state.labels.readOnly || '';
     readOnlyBanner.hidden = !state.readOnly;
-    newNoteButton.disabled = state.readOnly;
+    newNoteButton.disabled = state.readOnly || state.creatingNote;
   }
 
   function rebuildTagMenu() {
     const tags = new Map();
-    tags.set('карта', '#карта');
     for (const note of state.notes.values()) {
+      if (!noteInStageScope(note)) continue;
+      if (note.source_type === 'mindmap') tags.set('карта', '#карта');
       for (const tag of note.tags || []) {
         const key = String(tag).toLocaleLowerCase();
         if (!tags.has(key)) tags.set(key, `#${tag}`);
@@ -794,6 +870,33 @@
     }
   }
 
+  function selectStage(stageId) {
+    state.selectedStageId = stageId || null;
+    stageFilterMenu.hidden = true;
+    stageFilterButton.setAttribute('aria-expanded', 'false');
+    renderAll();
+  }
+
+  function rebuildStageMenu() {
+    stageFilterMenu.replaceChildren();
+    const all = document.createElement('button');
+    all.type = 'button';
+    all.role = 'menuitemradio';
+    all.textContent = state.labels.allStages || '';
+    all.setAttribute('aria-checked', String(state.selectedStageId === null));
+    all.addEventListener('click', () => selectStage(null));
+    stageFilterMenu.appendChild(all);
+    for (const stage of state.stages) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.role = 'menuitemradio';
+      button.textContent = stage.name;
+      button.setAttribute('aria-checked', String(state.selectedStageId === stage.id));
+      button.addEventListener('click', () => selectStage(stage.id));
+      stageFilterMenu.appendChild(button);
+    }
+  }
+
   function observeGridCards() {
     if (typeof ResizeObserver !== 'function') return;
     state.resizeObserver = new ResizeObserver(scheduleLayout);
@@ -808,7 +911,7 @@
     otherGridElement.replaceChildren();
     const notes = [...state.notes.values()]
       .filter(noteMatches)
-      .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+      .sort(compareNotes);
     const pinned = notes.filter(note => note.pinned);
     const others = notes.filter(note => !note.pinned);
     for (const note of pinned) pinnedGridElement.appendChild(createNoteItem(note));
@@ -822,6 +925,7 @@
       : state.labels.empty;
     updateStaticLabels();
     rebuildTagMenu();
+    rebuildStageMenu();
     if (pinned.length) createGrid(pinnedGridElement);
     if (others.length) createGrid(otherGridElement);
     observeGridCards();
@@ -829,7 +933,16 @@
       window.requestAnimationFrame(() => {
         const element = [...document.querySelectorAll('.note-item')]
           .find(item => item.dataset.noteId === focusNoteId);
-        element?.querySelector('.note-title')?.focus();
+        const editor = element?.querySelector('.note-content, .map-note-content');
+        editor?.focus();
+        if (editor?.isContentEditable) {
+          const selection = window.getSelection();
+          const range = document.createRange();
+          range.selectNodeContents(editor);
+          range.collapse(false);
+          selection?.removeAllRanges();
+          selection?.addRange(range);
+        }
         element?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
       });
     }
@@ -869,9 +982,9 @@
     const element = createNoteItem(note);
     grid.remove([oldItem], { removeElements: true, layout: false });
     grid.add(element, { layout: false });
-    grid.sort((itemA, itemB) => (
-      Number(itemA.getElement().dataset.order)
-      - Number(itemB.getElement().dataset.order)
+    grid.sort((itemA, itemB) => compareNotes(
+      state.notes.get(itemA.getElement().dataset.noteId),
+      state.notes.get(itemB.getElement().dataset.noteId),
     ), { layout: true });
     state.resizeObserver?.observe(element.querySelector('.note-card'));
   }
@@ -896,6 +1009,7 @@
     const previous = state.notes.get(payload.id);
     state.notes.set(payload.id, payload);
     if (event.type === 'noteCreated') {
+      if (event.origin === 'notes') state.creatingNote = false;
       renderAll(event.origin === 'notes' ? payload.id : null);
     } else if (event.origin === 'notes') {
       // The local card already contains this edit. Keeping it avoids losing focus.
@@ -907,6 +1021,8 @@
   }
 
   function showError(value) {
+    state.creatingNote = false;
+    updateStaticLabels();
     const message = typeof value === 'string' ? value : value?.message;
     errorToast.textContent = message || state.labels.error || '';
     errorToast.hidden = false;
@@ -922,9 +1038,38 @@
     renderAll();
   }
 
+  function updateViewContext(view) {
+    const stages = Array.isArray(view?.stages) ? view.stages : [];
+    state.hasStages = Boolean(view?.hasStages && stages.length);
+    state.stages = stages
+      .filter(stage => stage && typeof stage.id === 'string')
+      .map(stage => ({ id: stage.id, name: String(stage.name || '') }));
+    if (!state.hasStages) {
+      state.includeStageNotes = false;
+      state.selectedStageId = null;
+      state.sortByStage = false;
+    } else if (
+      state.selectedStageId
+      && !state.stages.some(stage => stage.id === state.selectedStageId)
+    ) {
+      state.selectedStageId = null;
+    }
+    renderAll();
+  }
+
   let searchTimer = null;
   function bindStaticControls() {
-    newNoteButton.addEventListener('click', () => emit('createNote'));
+    newNoteButton.addEventListener('click', () => {
+      if (state.readOnly || state.creatingNote) return;
+      state.archiveMode = false;
+      state.query = '';
+      state.selectedTag = null;
+      state.selectedStageId = null;
+      searchInput.value = '';
+      state.creatingNote = true;
+      renderAll();
+      emit('createNote');
+    });
     searchInput.addEventListener('input', () => {
       window.clearTimeout(searchTimer);
       searchTimer = window.setTimeout(() => {
@@ -937,6 +1082,25 @@
       tagFilterButton.setAttribute('aria-expanded', String(!tagFilterMenu.hidden));
       if (!tagFilterMenu.hidden) tagFilterMenu.querySelector('button')?.focus();
     });
+    stageNotesToggle.addEventListener('click', () => {
+      state.includeStageNotes = !state.includeStageNotes;
+      if (!state.includeStageNotes) {
+        state.selectedStageId = null;
+        state.sortByStage = false;
+      }
+      renderAll();
+    });
+    stageFilterButton.addEventListener('click', () => {
+      stageFilterMenu.hidden = !stageFilterMenu.hidden;
+      stageFilterButton.setAttribute(
+        'aria-expanded', String(!stageFilterMenu.hidden),
+      );
+      if (!stageFilterMenu.hidden) stageFilterMenu.querySelector('button')?.focus();
+    });
+    stageSortToggle.addEventListener('click', () => {
+      state.sortByStage = !state.sortByStage;
+      renderAll();
+    });
     archiveToggle.addEventListener('click', () => {
       state.archiveMode = !state.archiveMode;
       renderAll();
@@ -945,6 +1109,13 @@
       if (!tagFilterMenu.contains(event.target) && !tagFilterButton.contains(event.target)) {
         tagFilterMenu.hidden = true;
         tagFilterButton.setAttribute('aria-expanded', 'false');
+      }
+      if (
+        !stageFilterMenu.contains(event.target)
+        && !stageFilterButton.contains(event.target)
+      ) {
+        stageFilterMenu.hidden = true;
+        stageFilterButton.setAttribute('aria-expanded', 'false');
       }
       if (!event.target.closest?.('.color-palette, .color-palette-toggle')) {
         closeColorPalettes();
@@ -959,6 +1130,11 @@
         tagFilterMenu.hidden = true;
         tagFilterButton.setAttribute('aria-expanded', 'false');
         tagFilterButton.focus();
+      }
+      if (event.key === 'Escape' && !stageFilterMenu.hidden) {
+        stageFilterMenu.hidden = true;
+        stageFilterButton.setAttribute('aria-expanded', 'false');
+        stageFilterButton.focus();
       }
       if ((event.ctrlKey || event.metaKey) && event.key.toLocaleLowerCase() === 'f') {
         event.preventDefault();
@@ -976,6 +1152,11 @@
     state.locale = payload.locale || 'ru';
     state.readOnly = Boolean(payload.readOnly);
     state.notes = new Map((payload.notes || []).map(note => [note.id, note]));
+    const stages = Array.isArray(payload.view?.stages) ? payload.view.stages : [];
+    state.hasStages = Boolean(payload.view?.hasStages && stages.length);
+    state.stages = stages
+      .filter(stage => stage && typeof stage.id === 'string')
+      .map(stage => ({ id: stage.id, name: String(stage.name || '') }));
     document.documentElement.lang = state.locale.replace('_', '-');
     applyTheme(payload.theme);
     bindStaticControls();
@@ -989,6 +1170,7 @@
     applyEvent,
     showError,
     updateTranslations,
+    updateViewContext,
     themeChanged: applyTheme,
     viewportChanged: rebuildResponsiveGrids,
     flushAndTakeEvents() {
@@ -1003,6 +1185,11 @@
         noteCount: state.notes.size,
         archiveMode: state.archiveMode,
         selectedTag: state.selectedTag,
+        hasStages: state.hasStages,
+        includeStageNotes: state.includeStageNotes,
+        selectedStageId: state.selectedStageId,
+        sortByStage: state.sortByStage,
+        creatingNote: state.creatingNote,
         visibleIds: visibleOrderedIds(),
       });
     },

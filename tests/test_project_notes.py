@@ -426,6 +426,16 @@ def test_staged_project_aggregates_and_routes_stage_notes(monkeypatch):
     assert {note['stage_name'] for note in notes} == {'Черновик', 'Редактура'}
     assert all(note['id'].startswith('stage:') for note in notes)
     assert all(note['title'] != 'Чужая заметка' for note in notes)
+    assert service.view_context() == {
+        'hasStages': True,
+        'stages': [
+            {'id': draft.stage_id, 'name': 'Черновик'},
+            {'id': editing.stage_id, 'name': 'Редактура'},
+        ],
+    }
+    assert {
+        note['stage_name']: note['owner_order'] for note in notes
+    } == {'Черновик': 1, 'Редактура': 2}
 
     draft_card = next(note for note in notes if note['title'] == 'План первой главы')
     updated = service.update_note(draft_card['id'], {'title': 'Новый план'})
@@ -534,6 +544,10 @@ def test_ui_resources_are_local_and_packaged():
     assert 'color-swatch' in notes_js
     assert 'aria-pressed' in notes_js
     assert 'note.stage_name' in notes_js
+    assert 'stage-notes-toggle' in notes_html
+    assert 'stage-filter-button' in notes_html
+    assert 'quick-note-button' in notes_html
+    assert "useDragContainer: false" in notes_js
     assert '.color-swatch' in notes_css
     assert 'border-radius: 50%' in notes_css
     assert 'suppressExternalSync' in (
@@ -685,6 +699,14 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         application,
         lambda: len(project.project_notes) == 2,
     )
+    assert _wait_until(
+        application,
+        lambda: _run_javascript(
+            application,
+            dialog,
+            "document.activeElement?.classList.contains('note-content') || false",
+        ),
+    )
     _run_javascript(
         application,
         dialog,
@@ -726,6 +748,7 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
           tags.value = 'сюжет, идея, #карта';
           tags.dispatchEvent(new Event('input', { bubbles: true }));
           const toggle = card.querySelector('.color-palette-toggle');
+          const paletteIcon = toggle.querySelector('svg');
           toggle.click();
           const palette = card.querySelector('.color-palette');
           const swatches = [...palette.querySelectorAll('.color-swatch')];
@@ -738,6 +761,7 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
           blue.click();
           return JSON.stringify({
             paletteWasVisible,
+            paletteIconVisible: paletteIcon.getBoundingClientRect().width >= 20,
             swatchCount: swatches.length,
             distinctColors,
             circleBorderRadius: blueStyle.borderRadius,
@@ -750,6 +774,7 @@ def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
         """,
     ))
     assert palette_state['paletteWasVisible'] is True
+    assert palette_state['paletteIconVisible'] is True
     assert palette_state['swatchCount'] == len(engine.PROJECT_NOTE_COLORS)
     assert palette_state['distinctColors'] == len(engine.PROJECT_NOTE_COLORS)
     assert palette_state['circleBorderRadius'] == '50%'
@@ -1016,6 +1041,37 @@ def test_staged_project_dialog_displays_and_searches_stage_notes(monkeypatch):
     dialog.show()
 
     assert _wait_until(application, lambda: dialog._ready)
+    initial_state = json.loads(_run_javascript(
+        application,
+        dialog,
+        'window.nfprogressNotes.getState()',
+    ))
+    assert initial_state['noteCount'] == 2
+    assert initial_state['hasStages'] is True
+    assert initial_state['includeStageNotes'] is False
+    assert initial_state['visibleIds'] == []
+    assert bool(_run_javascript(
+        application,
+        dialog,
+        "document.getElementById('stage-notes-toggle').hidden",
+    )) is False
+
+    _run_javascript(
+        application,
+        dialog,
+        "document.getElementById('stage-notes-toggle').click(); true",
+    )
+    assert _wait_until(
+        application,
+        lambda: (
+            (state := json.loads(_run_javascript(
+                application,
+                dialog,
+                'window.nfprogressNotes.getState()',
+            )))['includeStageNotes'] is True
+            and len(state['visibleIds']) == 2
+        ),
+    )
     badges = json.loads(_run_javascript(
         application,
         dialog,
@@ -1030,6 +1086,52 @@ def test_staged_project_dialog_displays_and_searches_stage_notes(monkeypatch):
         dialog,
         f'document.querySelector("[data-stage-id=\\"{editing.stage_id}\\"] .note-title").disabled',
     )) is True
+
+    _run_javascript(
+        application,
+        dialog,
+        f"""
+        (() => {{
+          const buttons = [...document.querySelectorAll('#stage-filter-menu button')];
+          buttons.find(button => button.textContent === 'Редактура').click();
+          return true;
+        }})()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: (
+            (state := json.loads(_run_javascript(
+                application,
+                dialog,
+                'window.nfprogressNotes.getState()',
+            )))['selectedStageId'] == editing.stage_id
+            and len(state['visibleIds']) == 1
+        ),
+    )
+    assert _run_javascript(
+        application,
+        dialog,
+        "document.querySelector('.stage-badge').textContent",
+    ) == 'Этап: Редактура'
+    _run_javascript(
+        application,
+        dialog,
+        "document.querySelector('#stage-filter-menu button').click(); true",
+    )
+    _run_javascript(
+        application,
+        dialog,
+        "document.getElementById('stage-sort-toggle').click(); true",
+    )
+    assert _wait_until(
+        application,
+        lambda: json.loads(_run_javascript(
+            application,
+            dialog,
+            'window.nfprogressNotes.getState()',
+        ))['sortByStage'] is True,
+    )
 
     _run_javascript(
         application,
@@ -1095,6 +1197,98 @@ def test_staged_project_dialog_displays_and_searches_stage_notes(monkeypatch):
         application,
         lambda: draft.project_notes[0]['title'] == 'Новая первая глава',
     )
+    dialog.close()
+    assert _wait_until(application, lambda: not dialog.isVisible())
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    application.processEvents()
+
+
+@requires_native_webview
+def test_notes_cards_follow_addition_order_and_snap_to_grid(monkeypatch):
+    application = QApplication.instance() or QApplication([])
+    project = engine.Project(name='Grid Notes', goal=1000)
+    project.project_notes = engine.normalize_project_note_records([
+        {
+            'id': f'grid-{index}',
+            'title': f'Заметка {index + 1}',
+            'content': f'<p>Текст карточки {index + 1}</p>',
+            'sort_order': index,
+            'created_at': f'2026-01-01T00:00:0{index}+00:00',
+        }
+        for index in range(5)
+    ])
+    service, _, _ = _service(monkeypatch, project)
+    dialog = ProjectNotesDialog(service, lambda _owner, _node_id: None)
+    dialog.resize(1280, 760)
+    dialog.show()
+
+    assert _wait_until(application, lambda: dialog._ready)
+    assert _wait_until(
+        application,
+        lambda: len(json.loads(_run_javascript(
+            application,
+            dialog,
+            'window.nfprogressNotes.getState()',
+        ))['visibleIds']) == 5,
+    )
+    layout = json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const grid = document.getElementById('other-grid').getBoundingClientRect();
+          const items = [...document.querySelectorAll('#other-grid .note-item')]
+            .map(item => {
+              const rect = item.getBoundingClientRect();
+              return {
+                id: item.dataset.noteId,
+                left: rect.left - grid.left,
+                top: rect.top - grid.top,
+                width: rect.width
+              };
+            });
+          return JSON.stringify(items);
+        })()
+        """,
+    ))
+    assert [item['id'] for item in layout] == [f'grid-{index}' for index in range(5)]
+    first_row = [item for item in layout if abs(item['top'] - layout[0]['top']) < 2]
+    assert len(first_row) >= 3
+    for item in layout:
+        column = item['left'] / item['width']
+        assert abs(column - round(column)) < 0.03
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const handle = document.querySelector('[data-note-id="grid-0"] .drag-handle');
+          handle.dispatchEvent(new KeyboardEvent('keydown', {
+            bubbles: true,
+            key: 'ArrowRight'
+          }));
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: json.loads(_run_javascript(
+            application,
+            dialog,
+            'window.nfprogressNotes.getState()',
+        ))['visibleIds'][:2] == ['grid-1', 'grid-0'],
+    )
+    assert _wait_until(
+        application,
+        lambda: next(
+            note['sort_order'] for note in project.project_notes
+            if note['id'] == 'grid-1'
+        ) == 0,
+    )
+
     dialog.close()
     assert _wait_until(application, lambda: not dialog.isVisible())
     dialog.deleteLater()

@@ -411,6 +411,21 @@ class ProjectNotesService(QObject):
             )
         return owners
 
+    def view_context(self) -> dict:
+        """Describe optional stage controls without changing note ownership."""
+        _, _, entity = self._load()
+        if not self._is_aggregate_view(entity):
+            return {'hasStages': False, 'stages': []}
+        stages = [
+            {
+                'id': str(stage.stage_id),
+                'name': str(stage.name),
+            }
+            for stage in getattr(entity, 'stages', [])
+            if getattr(stage, 'stage_id', None)
+        ]
+        return {'hasStages': bool(stages), 'stages': stages}
+
     @staticmethod
     def _owner_identity(entity) -> tuple[str, str | None]:
         if isinstance(entity, engine.Stage) or getattr(entity, 'is_stage', False):
@@ -541,12 +556,14 @@ class ProjectNotesService(QObject):
             *,
             aggregate: bool = False,
             stage_name: str | None = None,
+            owner_order: int = 0,
     ) -> dict:
         result = deepcopy(record)
         result['id'] = self._view_note_id(entity, record['id'], aggregate)
         owner_type, owner_id = self._owner_identity(entity)
         result['owner_type'] = owner_type
         result['owner_id'] = owner_id
+        result['owner_order'] = owner_order
         result['stage_name'] = stage_name if aggregate else None
         if record['source_type'] == 'mindmap':
             if map_notes is None:
@@ -588,6 +605,7 @@ class ProjectNotesService(QObject):
                         map_notes,
                         aggregate=aggregate,
                         stage_name=stage_name,
+                        owner_order=owner_index,
                     ),
                 )
                 for record in owner.project_notes
@@ -596,8 +614,8 @@ class ProjectNotesService(QObject):
             item[1]['archived'],
             not item[1]['pinned'],
             item[1]['sort_order'],
-            item[0],
             item[1]['created_at'],
+            item[0],
         ))
         return [note for _owner_index, note in projected]
 
@@ -967,6 +985,12 @@ class ProjectNotesDialog(QDialog, Ui_project_notes_dialog):
             'notesActions': tr('Действия с заметками'),
             'searchPlaceholder': tr('Поиск по заметкам'),
             'tags': tr('Теги'),
+            'stageNotes': tr('Заметки этапов'),
+            'allStages': tr('Все этапы'),
+            'filterByStage': tr('Фильтр по этапам'),
+            'byStages': tr('По этапам'),
+            'sortByStage': tr('Сортировать по этапам'),
+            'sortByAdded': tr('Сортировать по порядку добавления'),
             'archive': tr('Архив'),
             'activeNotes': tr('Активные заметки'),
             'pinned': tr('Закреплённые'),
@@ -1029,6 +1053,7 @@ class ProjectNotesDialog(QDialog, Ui_project_notes_dialog):
                 'locale': current_language(),
                 'readOnly': read_only,
                 'theme': _palette_payload(self),
+                'view': self.service.view_context(),
             },
             ensure_ascii=False,
         )
@@ -1182,6 +1207,13 @@ class ProjectNotesDialog(QDialog, Ui_project_notes_dialog):
 
     def refresh_from_storage(self, origin: str = 'database') -> None:
         self.service.refresh_from_storage(origin)
+        if self._ready:
+            payload = json.dumps(
+                self.service.view_context(), ensure_ascii=True,
+            )
+            self.web_view.runJavaScript(
+                f'window.nfprogressNotes.updateViewContext({payload})',
+            )
 
     def event(self, event: QEvent) -> bool:
         result = super().event(event)

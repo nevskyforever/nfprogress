@@ -11,10 +11,6 @@
   <a id="skip-link" class="skip-link" href="#notes-main"></a>
   <div id="app" aria-busy="true">
     <header id="notes-actions" class="topbar" role="toolbar" aria-label="">
-      <button id="new-note" class="primary-button" type="button">
-        <span aria-hidden="true">＋</span>
-        <span class="button-label"></span>
-      </button>
       <label class="search-box" for="search-input">
         <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
         <input id="search-input" type="search" autocomplete="off">
@@ -26,6 +22,21 @@
         </button>
         <div id="tag-filter-menu" class="tag-filter-menu" role="menu" hidden></div>
       </div>
+      <button id="stage-notes-toggle" class="toolbar-button" type="button" aria-pressed="false" hidden>
+        <span aria-hidden="true">▦</span>
+        <span class="button-label"></span>
+      </button>
+      <div id="stage-filter-wrap" class="tag-filter-wrap" hidden>
+        <button id="stage-filter-button" class="toolbar-button" type="button" aria-haspopup="true" aria-expanded="false">
+          <span aria-hidden="true">⌄</span>
+          <span class="button-label"></span>
+        </button>
+        <div id="stage-filter-menu" class="tag-filter-menu" role="menu" hidden></div>
+      </div>
+      <button id="stage-sort-toggle" class="toolbar-button" type="button" aria-pressed="false" hidden>
+        <span aria-hidden="true">⇅</span>
+        <span class="button-label"></span>
+      </button>
       <button id="archive-toggle" class="toolbar-button" type="button" aria-pressed="false">
         <span aria-hidden="true">▣</span>
         <span class="button-label"></span>
@@ -33,6 +44,13 @@
     </header>
 
     <div id="read-only-banner" class="read-only-banner" role="note" hidden></div>
+    <div class="quick-note-wrap">
+      <button id="new-note" class="quick-note-button" type="button">
+        <span aria-hidden="true">＋</span>
+        <span class="button-label"></span>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 7 2 2 3-4M11 7h10M3 15l2 2 3-4M11 15h10"/></svg>
+      </button>
+    </div>
     <main id="notes-main" tabindex="-1">
       <section id="pinned-section" class="notes-section" aria-labelledby="pinned-heading">
         <h2 id="pinned-heading"></h2>
