@@ -349,7 +349,7 @@
                 </property>
                </widget>
               </item>
-              <item row="0" column="6">
+              <item row="0" column="7">
                <widget class="QPushButton" name="share_progress">
                 <property name="font">
                  <font>
@@ -370,6 +370,30 @@
                 </property>
                 <property name="text">
                  <string>Карта</string>
+                </property>
+               </widget>
+              </item>
+              <item row="0" column="6">
+               <widget class="QPushButton" name="btn_project_notes">
+                <property name="minimumSize">
+                 <size>
+                  <width>100</width>
+                  <height>36</height>
+                 </size>
+                </property>
+                <property name="font">
+                 <font>
+                  <family>Arial</family>
+                 </font>
+                </property>
+                <property name="toolTip">
+                 <string>Открыть заметки проекта</string>
+                </property>
+                <property name="accessibleName">
+                 <string>Открыть заметки проекта</string>
+                </property>
+                <property name="text">
+                 <string>Заметки</string>
                 </property>
                </widget>
               </item>

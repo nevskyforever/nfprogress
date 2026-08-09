@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title></title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <a id="skip-link" class="skip-link" href="#notes-main"></a>
+  <div id="app" aria-busy="true">
+    <header id="notes-actions" class="topbar" role="toolbar" aria-label="">
+      <button id="new-note" class="primary-button" type="button">
+        <span aria-hidden="true">＋</span>
+        <span class="button-label"></span>
+      </button>
+      <label class="search-box" for="search-input">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></svg>
+        <input id="search-input" type="search" autocomplete="off">
+      </label>
+      <div class="tag-filter-wrap">
+        <button id="tag-filter-button" class="toolbar-button" type="button" aria-haspopup="true" aria-expanded="false">
+          <span aria-hidden="true">#</span>
+          <span class="button-label"></span>
+        </button>
+        <div id="tag-filter-menu" class="tag-filter-menu" role="menu" hidden></div>
+      </div>
+      <button id="archive-toggle" class="toolbar-button" type="button" aria-pressed="false">
+        <span aria-hidden="true">▣</span>
+        <span class="button-label"></span>
+      </button>
+    </header>
+
+    <div id="read-only-banner" class="read-only-banner" role="note" hidden></div>
+    <main id="notes-main" tabindex="-1">
+      <section id="pinned-section" class="notes-section" aria-labelledby="pinned-heading">
+        <h2 id="pinned-heading"></h2>
+        <div id="pinned-grid" class="notes-grid"></div>
+      </section>
+      <section id="other-section" class="notes-section" aria-labelledby="other-heading">
+        <h2 id="other-heading"></h2>
+        <div id="other-grid" class="notes-grid"></div>
+      </section>
+      <div id="empty-state" class="empty-state" role="status" hidden></div>
+    </main>
+  </div>
+  <div id="live-status" class="sr-only" aria-live="polite"></div>
+  <div id="error-toast" class="error-toast" role="alert" hidden></div>
+  <script src="vendor/muuri.min.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

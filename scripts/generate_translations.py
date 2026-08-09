@@ -29,6 +29,7 @@ PYTHON_SOURCES = (
     "help_content.py",
     "main_UI.py",
     "mindmap.py",
+    "project_notes.py",
     "scrivener_parser.py",
     "update_checker.py",
     "updater_core.py",

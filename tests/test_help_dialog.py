@@ -10,7 +10,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import QApplication, QMainWindow, QMenu
 
 from UI_fiiles.main_window import Ui_main_window
-from help_content import HELP_SECTIONS
+from help_content import HELP_SECTIONS, render_help_content
 from localization import MINDMAP_HELP_SOURCE, set_language, tr
 from macos_help_search import (
     HelpSearchItem,
@@ -64,6 +64,16 @@ def test_help_content_is_localized_in_every_supported_language():
             assert re.findall(r"<[^>]+>", translated_content) == re.findall(
                 r"<[^>]+>", section["content"]
             )
+
+
+def test_project_notes_help_preserves_the_canonical_system_tag():
+    section = next(
+        section for section in flatten_sections(HELP_SECTIONS)
+        if section['key'] == 'project_notes'
+    )
+    for language in ('ru', 'en', 'es', 'de', 'fr', 'pt_BR'):
+        rendered = render_help_content(tr(section['content'], language))
+        assert rendered.count('#карта') == 4
 
 
 def test_help_action_is_in_menu_bar_with_required_shortcut():

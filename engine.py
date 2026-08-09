@@ -307,6 +307,137 @@ _MINDMAP_INTERNAL_KEYS = {
 }
 
 
+PROJECT_NOTE_COLORS = {
+    'default',
+    'coral',
+    'orange',
+    'yellow',
+    'green',
+    'teal',
+    'blue',
+    'purple',
+    'pink',
+    'brown',
+    'gray',
+}
+
+
+def normalize_project_note_records(value):
+    """Return save-compatible project-note records and discard malformed rows."""
+    if not isinstance(value, list):
+        return []
+
+    normalized = []
+    seen_ids = set()
+    seen_sources = set()
+    for index, raw_record in enumerate(value):
+        if not isinstance(raw_record, dict):
+            continue
+        note_id = raw_record.get('id')
+        if not isinstance(note_id, str) or not note_id or note_id in seen_ids:
+            continue
+
+        source_type = raw_record.get('source_type', 'project')
+        if source_type not in {'project', 'mindmap'}:
+            source_type = 'project'
+        source_node_id = raw_record.get('source_node_id')
+        source_map_id = raw_record.get('source_map_id')
+        if source_type == 'mindmap':
+            if not isinstance(source_node_id, str) or not source_node_id:
+                continue
+            if source_node_id in seen_sources:
+                continue
+            seen_sources.add(source_node_id)
+            if not isinstance(source_map_id, str) or not source_map_id:
+                source_map_id = None
+        else:
+            source_node_id = None
+            source_map_id = None
+
+        title = raw_record.get('title', '')
+        content = raw_record.get('content', '')
+        created_at = raw_record.get('created_at', '')
+        updated_at = raw_record.get('updated_at', created_at)
+        color = raw_record.get('color', 'default')
+        sort_order = raw_record.get('sort_order', index)
+        revision = raw_record.get('revision', 0)
+        if not isinstance(title, str):
+            title = str(title) if title is not None else ''
+        if not isinstance(content, str):
+            content = str(content) if content is not None else ''
+        title = title.replace('\x00', '')
+        content = content.replace('\x00', '')
+        if not isinstance(created_at, str):
+            created_at = ''
+        if not isinstance(updated_at, str):
+            updated_at = created_at
+        if color not in PROJECT_NOTE_COLORS:
+            color = 'default'
+        if not isinstance(sort_order, int) or isinstance(sort_order, bool):
+            sort_order = index
+        if not isinstance(revision, int) or isinstance(revision, bool) or revision < 0:
+            revision = 0
+
+        tags = []
+        seen_tags = set()
+        raw_tags = raw_record.get('tags', [])
+        for raw_tag in raw_tags if isinstance(raw_tags, list) else []:
+            if not isinstance(raw_tag, str):
+                continue
+            tag = raw_tag.replace('\x00', '').strip().lstrip('#').strip()[:64]
+            tag_key = tag.casefold()
+            if not tag or tag_key == 'карта' or tag_key in seen_tags:
+                continue
+            seen_tags.add(tag_key)
+            tags.append(tag)
+
+        checklist = []
+        seen_checklist_ids = set()
+        if source_type == 'project':
+            raw_checklist = raw_record.get('checklist', [])
+            for raw_item in raw_checklist if isinstance(raw_checklist, list) else []:
+                if not isinstance(raw_item, dict):
+                    continue
+                item_id = raw_item.get('id')
+                item_text = raw_item.get('text')
+                if (
+                        not isinstance(item_id, str)
+                        or not item_id
+                        or item_id in seen_checklist_ids
+                ):
+                    continue
+                if not isinstance(item_text, str):
+                    item_text = str(item_text) if item_text is not None else ''
+                checklist.append({
+                    'id': item_id,
+                    'text': item_text.replace('\x00', '')[:2000],
+                    'checked': bool(raw_item.get('checked', False)),
+                })
+                seen_checklist_ids.add(item_id)
+
+        normalized.append({
+            'id': note_id,
+            'title': title[:500],
+            # Mind-map text remains canonical in mindmap_data; do not duplicate it.
+            'content': content[:300_000] if source_type == 'project' else '',
+            'content_format': 'html' if source_type == 'project' else 'plain',
+            'checklist': checklist,
+            'color': color,
+            'pinned': bool(raw_record.get('pinned', False)),
+            'archived': bool(raw_record.get('archived', False)),
+            'sort_order': max(0, sort_order),
+            'tags': tags,
+            'source_type': source_type,
+            'source_map_id': source_map_id,
+            'source_node_id': source_node_id,
+            'created_at': created_at,
+            'updated_at': updated_at,
+            'revision': revision,
+        })
+        seen_ids.add(note_id)
+    return normalized
+
+
 def mindmap_has_content(value, root_topic):
     """Return whether a map contains more than its untouched default root."""
     normalized = normalize_mindmap_data(value)
@@ -957,6 +1088,7 @@ class Project:
                  auto_freeze=True):
 
         self._name = name
+        self.project_id = uuid.uuid4().hex
         self._goal = goal  # хранится в выбранной единице
         self.create_date = create_date if create_date else today_for_test()
         self.edit_date = create_date if create_date else today_for_test()
@@ -984,6 +1116,7 @@ class Project:
         self.is_stage = False
         self.mindmap_data = None
         self.combine_stage_mindmaps = False
+        self.project_notes = []
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -993,6 +1126,10 @@ class Project:
             delattr(self, 'streak_enabled')
         defaults = {
             '_name': 'Без имени',
+            'project_id': uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f'nfprogress-project:{getattr(self, "_name", "Без имени")}',
+            ).hex,
             '_goal': None,
             'create_date': today_for_test(),
             'edit_date': today_for_test(),
@@ -1019,13 +1156,18 @@ class Project:
             'is_stage': False,
             'mindmap_data': None,
             'combine_stage_mindmaps': False,
+            'project_notes': [],
         }
 
         for attr, default_value in defaults.items():
             if not hasattr(self, attr):
                 setattr(self, attr, default_value)
-            elif attr in ('notes', 'streaks', 'stages') and not isinstance(getattr(self, attr), list):
+            elif attr in ('notes', 'streaks', 'stages', 'project_notes') and not isinstance(getattr(self, attr), list):
                 setattr(self, attr, [])
+
+        if not isinstance(self.project_id, str) or not self.project_id:
+            self.project_id = uuid.uuid4().hex
+        self.project_notes = normalize_project_note_records(self.project_notes)
 
         # --- Вычисляем динамические данные ПОСЛЕ того, как базовые атрибуты созданы ---
         if not hasattr(self, 'personal_goal_for_the_day'):
@@ -1076,6 +1218,9 @@ class Project:
                 converted_stage.last_synch = getattr(stage, 'last_synch', None)
                 converted_stage.mindmap_data = normalize_mindmap_data(
                     getattr(stage, 'mindmap_data', None)
+                )
+                converted_stage.project_notes = normalize_project_note_records(
+                    getattr(stage, 'project_notes', [])
                 )
                 self.stages[index] = converted_stage
                 stage = converted_stage

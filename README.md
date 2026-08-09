@@ -8,6 +8,8 @@ for writers who prefer extra motivation.
 ## Features
 
 - Track multiple writing projects and their stages.
+- Organize project notes in a card workspace, with two-way synchronization
+  for notes linked to Mind Elixir maps.
 - Set project goals, daily targets, and deadlines.
 - Record progress in characters, A4 pages, author's sheets, or Ficbook pages.
 - Review project statistics, productive days, and writing streaks.

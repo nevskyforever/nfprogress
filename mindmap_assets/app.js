@@ -7,6 +7,7 @@ const loadingElement = document.getElementById('loading');
 let mind = null;
 let readOnly = false;
 let saveTimer = null;
+let suppressExternalSync = false;
 const nativeEvents = [];
 let floatingNodeName = 'Свободный узел';
 let floatingNoteName = 'Новая заметка';
@@ -858,7 +859,7 @@ function persistMap(finishEditing = false) {
 }
 
 function scheduleSave(operation) {
-  if (readOnly) {
+  if (readOnly || suppressExternalSync) {
     return;
   }
   bridge.changed();
@@ -869,6 +870,36 @@ function scheduleSave(operation) {
     window.clearTimeout(saveTimer);
   }
   saveTimer = window.setTimeout(() => persistMap(false), 400);
+}
+
+function updateNodeNote(nodeId, text) {
+  if (!mind || typeof nodeId !== 'string' || typeof text !== 'string') return false;
+  const node = findAnyNodeData(nodeId);
+  if (!node?.nfprogressNote) return false;
+  suppressExternalSync = true;
+  try {
+    node.topic = text;
+    const element = mind.findEle(nodeId);
+    if (element?.text) element.text.textContent = text;
+    mind.linkDiv();
+    return true;
+  } finally {
+    suppressExternalSync = false;
+  }
+}
+
+function removeNodeNote(nodeId) {
+  if (!mind || typeof nodeId !== 'string') return false;
+  const node = findAnyNodeData(nodeId);
+  const element = mind.findEle(nodeId);
+  if (!node?.nfprogressNote || !element) return false;
+  suppressExternalSync = true;
+  try {
+    mind.removeNodes([element]);
+    return true;
+  } finally {
+    suppressExternalSync = false;
+  }
 }
 
 function blobToDataUrl(blob) {
@@ -978,6 +1009,13 @@ window.nfprogressMindMap = {
     return addNativeFreeElement(kind);
   },
   requestExport,
+  focusNode(nodeId) {
+    if (!mind || typeof nodeId !== 'string') return false;
+    revealMapNode(nodeId);
+    return Boolean(findAnyNodeData(nodeId));
+  },
+  updateNodeNote,
+  removeNodeNote,
   saveNow() {
     persistMap(true);
   },

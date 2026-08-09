@@ -1,0 +1,7 @@
+Muuri 0.9.5
+Source: https://github.com/haltu/muuri/tree/0.9.5
+License: MIT (see vendor/MUURI-LICENSE.md)
+
+Vendored for offline use by the nfprogress project-notes editor.
+The project-notes HTML, CSS, JavaScript, and note icon are part of nfprogress
+and are distributed under the repository's GNU GPL version 3 license.

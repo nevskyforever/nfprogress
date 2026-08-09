@@ -152,6 +152,7 @@ jobs:
             --include-data-file=Icon.svg=Icon.svg `
             --include-data-file=Icon-256.png=Icon-256.png `
             --include-data-dir=mindmap_assets=mindmap_assets `
+            --include-data-dir=notes_assets=notes_assets `
             --include-data-dir="$env:RUNNER_TEMP/translations=PySide6/translations" `
             --output-dir=build\main `
             --output-filename=nfprogress.exe `

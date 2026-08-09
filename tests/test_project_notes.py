@@ -1,0 +1,919 @@
+import json
+import os
+import pickle
+import time
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+os.environ.setdefault('QT_QPA_PLATFORM', 'offscreen')
+
+import pytest
+from PySide6.QtCore import QCoreApplication, QEvent, Qt
+from PySide6.QtWidgets import QApplication
+
+import engine
+from mindmap import MindMapDialog
+from project_notes import (
+    ProjectNotesService,
+    ProjectNotesDialog,
+    extract_mindmap_notes,
+    note_html_to_plain_text,
+    remove_mindmap_note,
+    sanitize_note_html,
+    set_mindmap_note_text,
+)
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+requires_native_webview = pytest.mark.skipif(
+    os.environ.get('QT_QPA_PLATFORM') == 'offscreen',
+    reason='Qt WebView requires a native windowing platform.',
+)
+
+
+@pytest.fixture(scope='module', autouse=True)
+def qt_application():
+    return QApplication.instance() or QApplication([])
+
+
+def _map_data(note_id='map-note', text='Текст карты'):
+    return {
+        'nodeData': {
+            'id': 'root-node',
+            'topic': 'Роман',
+            'children': [
+                {'id': 'scene-node', 'topic': 'Сцена', 'children': []},
+            ],
+        },
+        'freeNodes': [
+            {
+                'id': note_id,
+                'topic': text,
+                'children': [],
+                'position': {'x': 320, 'y': 180},
+                'nfprogressFreeRoot': True,
+                'nfprogressNote': True,
+            },
+        ],
+        'arrows': [
+            {'id': 'note-link', 'from': note_id, 'to': 'scene-node', 'label': ''},
+        ],
+        'summaries': [],
+    }
+
+
+def _service(monkeypatch, project, *other_projects):
+    data = {
+        'projects': {
+            item.name: item for item in (project, *other_projects)
+        },
+    }
+    saves = []
+    monkeypatch.setattr(engine, 'load_data', lambda: data)
+    monkeypatch.setattr(engine, 'save_data', lambda saved: saves.append(saved))
+    return ProjectNotesService(project), data, saves
+
+
+def test_project_migration_adds_stable_note_fields_and_repairs_rows():
+    project = engine.Project(name='Book', goal=1000)
+    del project.project_id
+    del project.project_notes
+    project.migrate()
+    first_id = project.project_id
+
+    project.project_notes = [
+        {
+            'id': 'normal',
+            'source_type': 'project',
+            'title': 12,
+            'content': '<b>ok</b>',
+            'tags': ['Сюжет', '#карта', 'сюжет'],
+        },
+        {'id': 'broken-map', 'source_type': 'mindmap'},
+    ]
+    project.migrate()
+
+    assert project.project_id == first_id
+    assert project.project_notes[0]['title'] == '12'
+    assert project.project_notes[0]['tags'] == ['Сюжет']
+    assert len(project.project_notes) == 1
+
+
+def test_existing_native_map_notes_are_indexed_idempotently(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data()
+    service, _, saves = _service(monkeypatch, project)
+
+    notes, _ = service.load_notes()
+    assert len(notes) == 1
+    note = notes[0]
+    assert note['content'] == 'Текст карты'
+    assert note['source_type'] == 'mindmap'
+    assert note['source_map_id'] == 'root-node'
+    assert note['source_node_id'] == 'map-note'
+    assert note['system_tags'] == ['карта']
+    assert project.project_notes[0]['content'] == ''
+    first_record_id = note['id']
+
+    notes_again, _ = service.load_notes()
+    assert [item['id'] for item in notes_again] == [first_record_id]
+    assert len(project.project_notes) == 1
+    assert len(saves) == 1
+
+
+def test_legacy_floating_notes_migrate_without_duplicates(monkeypatch):
+    project = engine.Project(name='Legacy', goal=1000)
+    project.mindmap_data = {
+        'nodeData': {'id': 'legacy-root', 'topic': 'Legacy', 'children': []},
+        'nfprogressFloatingItems': [
+            {
+                'id': 'legacy-note',
+                'kind': 'note',
+                'text': 'Старая заметка',
+                'x': 40,
+                'y': 60,
+            },
+        ],
+    }
+    service, _, _ = _service(monkeypatch, project)
+
+    first, _ = service.load_notes()
+    second, _ = service.load_notes()
+
+    assert first[0]['content'] == 'Старая заметка'
+    assert first[0]['source_node_id'] == 'legacy-note'
+    assert [note['id'] for note in first] == [note['id'] for note in second]
+    assert len(project.project_notes) == 1
+    assert project.mindmap_data['nfprogressFloatingItems'][0]['text'] == 'Старая заметка'
+
+
+def test_mindmap_refresh_emits_only_changed_card(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data()
+    service, _, _ = _service(monkeypatch, project)
+    service.load_notes()
+    events = []
+    service.event_emitted.connect(
+        lambda event_type, payload, origin, revision: events.append(
+            (event_type, payload, origin, revision),
+        )
+    )
+
+    project.mindmap_data['freeNodes'][0]['topic'] = 'Обновлено на карте'
+    service.refresh_from_storage('mindmap')
+
+    assert len(events) == 1
+    assert events[0][0] == 'noteUpdated'
+    assert events[0][1]['content'] == 'Обновлено на карте'
+    assert events[0][2] == 'mindmap'
+
+
+def test_notes_edit_updates_same_map_entity_and_emits_silent_command(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data()
+    service, _, saves = _service(monkeypatch, project)
+    notes, _ = service.load_notes()
+    note_id = notes[0]['id']
+    commands = []
+    service.map_command.connect(
+        lambda command, node_id, text: commands.append((command, node_id, text))
+    )
+
+    updated = service.update_note(note_id, {'content': 'Из общей карточки'})
+
+    assert extract_mindmap_notes(project.mindmap_data) == [
+        {'id': 'map-note', 'text': 'Из общей карточки'},
+    ]
+    assert updated['content'] == 'Из общей карточки'
+    assert commands == [('update', 'map-note', 'Из общей карточки')]
+    assert project.project_notes[0]['content'] == ''
+    assert project.project_notes[0]['revision'] == 1
+    assert len(saves) == 2
+
+
+def test_map_card_title_never_renames_mind_elixir_item(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data(text='Исходный текст')
+    service, _, _ = _service(monkeypatch, project)
+    notes, _ = service.load_notes()
+
+    updated = service.update_note(notes[0]['id'], {'title': 'Карточный заголовок'})
+
+    assert updated['title'] == 'Карточный заголовок'
+    assert extract_mindmap_notes(project.mindmap_data)[0]['text'] == 'Исходный текст'
+    assert project.mindmap_data['nodeData']['children'][0]['topic'] == 'Сцена'
+
+
+def test_deleting_map_card_removes_note_and_keeps_other_nodes(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data()
+    service, _, _ = _service(monkeypatch, project)
+    notes, _ = service.load_notes()
+    commands = []
+    service.map_command.connect(
+        lambda command, node_id, text: commands.append((command, node_id, text))
+    )
+
+    service.delete_note(notes[0]['id'])
+
+    assert extract_mindmap_notes(project.mindmap_data) == []
+    assert project.mindmap_data['nodeData']['id'] == 'root-node'
+    assert project.mindmap_data['nodeData']['children'] == [
+        {'id': 'scene-node', 'topic': 'Сцена', 'children': []},
+    ]
+    assert project.mindmap_data['arrows'] == []
+    assert project.project_notes == []
+    assert commands == [('delete', 'map-note', '')]
+
+
+def test_deleting_note_on_map_removes_orphan_record(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data()
+    service, _, _ = _service(monkeypatch, project)
+    notes, _ = service.load_notes()
+    deleted_id = notes[0]['id']
+    events = []
+    service.event_emitted.connect(
+        lambda event_type, payload, origin, revision: events.append(
+            (event_type, payload, origin),
+        )
+    )
+
+    project.mindmap_data['freeNodes'] = []
+    project.mindmap_data['arrows'] = []
+    service.refresh_from_storage('mindmap')
+
+    assert project.project_notes == []
+    assert events == [('noteDeleted', deleted_id, 'mindmap')]
+
+
+def test_node_move_and_regular_node_rename_do_not_break_link(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data()
+    service, _, _ = _service(monkeypatch, project)
+    first, _ = service.load_notes()
+
+    project.mindmap_data['freeNodes'][0]['position'] = {'x': 900, 'y': 420}
+    project.mindmap_data['nodeData']['children'][0]['topic'] = 'Новое имя сцены'
+    second = service.refresh_from_storage('mindmap')
+
+    assert second[0]['id'] == first[0]['id']
+    assert second[0]['source_node_id'] == 'map-note'
+    assert second[0]['content'] == 'Текст карты'
+
+
+def test_copied_map_note_gets_a_distinct_card(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data()
+    service, _, _ = _service(monkeypatch, project)
+    first, _ = service.load_notes()
+    copied = dict(project.mindmap_data['freeNodes'][0])
+    copied.update({
+        'id': 'copied-map-note',
+        'topic': 'Копия заметки',
+        'position': {'x': 460, 'y': 260},
+    })
+    project.mindmap_data['freeNodes'].append(copied)
+
+    notes = service.refresh_from_storage('mindmap')
+
+    assert {note['source_node_id'] for note in notes} == {
+        'map-note', 'copied-map-note',
+    }
+    assert len({note['id'] for note in notes}) == 2
+    assert first[0]['id'] in {note['id'] for note in notes}
+
+
+def test_link_and_metadata_survive_a_pickle_restart(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = _map_data()
+    service, data, _ = _service(monkeypatch, project)
+    notes, _ = service.load_notes()
+    service.update_note(notes[0]['id'], {
+        'title': 'Отдельный заголовок',
+        'pinned': True,
+        'color': 'yellow',
+    })
+
+    restored_data = pickle.loads(pickle.dumps(data))
+    restored_project = restored_data['projects']['Book']
+    monkeypatch.setattr(engine, 'load_data', lambda: restored_data)
+    monkeypatch.setattr(engine, 'save_data', lambda _data: None)
+    restored_notes, _ = ProjectNotesService(restored_project).load_notes()
+
+    assert restored_notes[0]['id'] == notes[0]['id']
+    assert restored_notes[0]['source_node_id'] == 'map-note'
+    assert restored_notes[0]['content'] == 'Текст карты'
+    assert restored_notes[0]['title'] == 'Отдельный заголовок'
+    assert restored_notes[0]['pinned'] is True
+    assert restored_notes[0]['color'] == 'yellow'
+
+
+def test_normal_notes_features_and_project_isolation(monkeypatch):
+    first = engine.Project(name='First', goal=1000)
+    second = engine.Project(name='Second', goal=1000)
+    service, _, _ = _service(monkeypatch, first, second)
+
+    created = service.create_note()
+    updated = service.update_note(
+        created['id'],
+        {
+            'title': 'План',
+            'content': '<b>Текст</b><script>alert(1)</script>',
+            'color': 'blue',
+            'pinned': True,
+            'archived': True,
+            'tags': ['сюжет', '#карта'],
+            'checklist': [
+                {'id': 'check-1', 'text': 'Проверить', 'checked': True},
+            ],
+        },
+    )
+
+    assert updated['title'] == 'План'
+    assert updated['content'] == '<b>Текст</b>alert(1)'
+    assert updated['color'] == 'blue'
+    assert updated['pinned'] is True
+    assert updated['archived'] is True
+    assert updated['tags'] == ['сюжет']
+    assert updated['checklist'][0]['checked'] is True
+    assert second.project_notes == []
+
+
+def test_recreated_project_with_same_name_does_not_reuse_old_notes_service(
+    monkeypatch,
+):
+    original = engine.Project(name='Book', goal=1000)
+    service, data, _ = _service(monkeypatch, original)
+    replacement = engine.Project(name='Book', goal=1000)
+    data['projects']['Book'] = replacement
+
+    with pytest.raises(ValueError):
+        service.create_note()
+
+    assert replacement.project_notes == []
+
+
+def test_completed_stage_notes_are_read_only(monkeypatch):
+    stage = engine.Stage(
+        name='Editing',
+        goal=1000,
+        status='завершен',
+        parent_project_name='Book',
+    )
+    parent = engine.Project(name='Book', goal=1000)
+    parent.enable_stages = True
+    parent.stages = [stage]
+    data = {'projects': {'Book': parent}}
+    monkeypatch.setattr(engine, 'load_data', lambda: data)
+    monkeypatch.setattr(engine, 'save_data', lambda _data: None)
+    service = ProjectNotesService(stage)
+
+    notes, read_only = service.load_notes()
+
+    assert notes == []
+    assert read_only is True
+    with pytest.raises(PermissionError):
+        service.create_note()
+
+
+def test_drag_order_is_persisted(monkeypatch):
+    project = engine.Project(name='Book', goal=1000)
+    service, _, _ = _service(monkeypatch, project)
+    first = service.create_note()
+    second = service.create_note()
+
+    service.update_order([second['id'], first['id']])
+    by_id = {note['id']: note for note in project.project_notes}
+
+    assert by_id[second['id']]['sort_order'] == 0
+    assert by_id[first['id']]['sort_order'] == 1
+
+
+def test_map_helpers_support_legacy_update_and_safe_removal():
+    legacy = {
+        'nodeData': {'id': 'root', 'topic': 'Book', 'children': []},
+        'nfprogressFloatingItems': [
+            {'id': 'old', 'kind': 'note', 'text': 'Old', 'x': 20, 'y': 30},
+        ],
+        'nfprogressFloatingLinks': [
+            {
+                'id': 'link', 'fromType': 'floating', 'from': 'old',
+                'toType': 'node', 'to': 'root',
+            },
+        ],
+    }
+
+    updated = set_mindmap_note_text(legacy, 'old', 'New')
+    removed = remove_mindmap_note(updated, 'old')
+
+    assert extract_mindmap_notes(updated) == [{'id': 'old', 'text': 'New'}]
+    assert extract_mindmap_notes(removed) == []
+    assert removed['nodeData']['id'] == 'root'
+    assert removed['nfprogressFloatingLinks'] == []
+
+
+def test_rich_text_sanitizer_rejects_active_content_and_unsafe_links():
+    source = (
+        '<p onclick="bad()">Safe <strong>text</strong>'
+        '<img src=x onerror=bad()>'
+        '<a href="javascript:bad()">bad link</a>'
+        '<a href="https://example.com">good link</a></p>'
+    )
+    sanitized = sanitize_note_html(source)
+
+    assert 'onclick' not in sanitized
+    assert '<img' not in sanitized
+    assert 'javascript:' not in sanitized
+    assert '<strong>text</strong>' in sanitized
+    assert 'href="https://example.com"' in sanitized
+    assert note_html_to_plain_text(sanitized) == 'Safe textbad linkgood link'
+
+
+def test_ui_resources_are_local_and_packaged():
+    main_ui = ET.parse(PROJECT_ROOT / 'UI template' / 'main_window.ui').getroot()
+    button = main_ui.find(".//widget[@name='btn_project_notes']")
+    assert button is not None
+    assert button.find("property[@name='text']/string").text == 'Заметки'
+    assert button.find("property[@name='accessibleName']/string").text
+
+    notes_html = (PROJECT_ROOT / 'notes_assets' / 'index.html').read_text()
+    notes_js = (PROJECT_ROOT / 'notes_assets' / 'app.js').read_text()
+    notice = (PROJECT_ROOT / 'notes_assets' / 'NOTICE.txt').read_text()
+    assert 'http://' not in notes_html and 'https://' not in notes_html
+    assert 'Content-Security-Policy' in notes_html
+    assert 'new Muuri' in notes_js
+    assert 'dragHandle' in notes_js
+    assert 'suppressExternalSync' in (
+        PROJECT_ROOT / 'mindmap_assets' / 'app.js'
+    ).read_text()
+    assert 'License: MIT' in notice
+    assert (PROJECT_ROOT / 'notes_assets' / 'vendor' / 'muuri.min.js').is_file()
+    assert (PROJECT_ROOT / 'notes_assets' / 'vendor' / 'MUURI-LICENSE.md').is_file()
+
+    for build_file in (
+        PROJECT_ROOT / 'build-mac-arm.sh',
+        PROJECT_ROOT / 'build-mac-intel.sh',
+        PROJECT_ROOT / '.github' / 'workflows' / 'build.yml',
+    ):
+        assert 'notes_assets' in build_file.read_text()
+
+
+def test_notes_frontend_exposes_incremental_bridge_api():
+    source = (PROJECT_ROOT / 'notes_assets' / 'app.js').read_text()
+    mindmap_source = (PROJECT_ROOT / 'mindmap_assets' / 'app.js').read_text()
+
+    for event_name in (
+        'createNote', 'updateNote', 'deleteNote', 'updateOrder',
+        'openMindMapNode',
+    ):
+        assert event_name in source
+    for method_name in ('applyEvent', 'themeChanged', 'updateTranslations'):
+        assert method_name in source
+    for method_name in ('focusNode', 'updateNodeNote', 'removeNodeNote'):
+        assert method_name in mindmap_source
+
+
+def test_mindmap_note_records_do_not_duplicate_text():
+    map_data = _map_data(text='Единственный источник текста')
+    project = engine.Project(name='Book', goal=1000)
+    project.mindmap_data = map_data
+    map_record = {
+        'id': 'record',
+        'title': '',
+        'content': 'stale duplicate',
+        'source_type': 'mindmap',
+        'source_map_id': 'root-node',
+        'source_node_id': 'map-note',
+    }
+
+    normalized = engine.normalize_project_note_records([map_record])
+
+    assert normalized[0]['content'] == ''
+    assert json.dumps(map_data, ensure_ascii=False).count('Единственный источник текста') == 1
+
+
+def _wait_until(application, condition, timeout=10):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        application.processEvents()
+        if condition():
+            return True
+        time.sleep(0.01)
+    return False
+
+
+def _run_javascript(application, dialog, source):
+    results = []
+    dialog.web_view.runJavaScript(source, results.append)
+    assert _wait_until(application, lambda: bool(results))
+    return results[0]
+
+
+def _process_events_for(application, duration=0.2):
+    deadline = time.monotonic() + duration
+    while time.monotonic() < deadline:
+        application.processEvents()
+        time.sleep(0.01)
+
+
+@requires_native_webview
+def test_project_notes_dialog_loads_and_syncs_incrementally(monkeypatch):
+    application = QApplication.instance() or QApplication([])
+    project = engine.Project(name='Native Notes', goal=1000)
+    project.mindmap_data = _map_data(text='До изменения')
+    service, _, _ = _service(monkeypatch, project)
+    opened_nodes = []
+    dialog = ProjectNotesDialog(service, opened_nodes.append)
+    dialog.show()
+
+    assert _wait_until(application, lambda: dialog._ready)
+    assert dialog.web_view.focusPolicy() == Qt.FocusPolicy.StrongFocus
+    initial_state = json.loads(_run_javascript(
+        application,
+        dialog,
+        'window.nfprogressNotes.getState()',
+    ))
+    assert initial_state['noteCount'] == 1
+
+    theme_state = json.loads(_run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          window.nfprogressNotes.themeChanged({
+            window: '#101214', surface: '#181b1f', surfaceAlt: '#22262b',
+            text: '#f3f4f6', muted: '#aeb4bd', border: '#58606b',
+            accent: '#8ca2ff', accentText: '#111318', dark: true
+          });
+          return JSON.stringify({
+            windowColor: getComputedStyle(document.documentElement)
+              .getPropertyValue('--window').trim(),
+            dark: document.body.classList.contains('dark-theme')
+          });
+        })()
+        """,
+    ))
+    assert theme_state == {'windowColor': '#101214', 'dark': True}
+
+    dialog.resize(560, 650)
+    assert _wait_until(
+        application,
+        lambda: _run_javascript(application, dialog, 'window.innerWidth') <= 520,
+    )
+    assert _wait_until(
+        application,
+        lambda: _run_javascript(
+            application,
+            dialog,
+            """
+            (() => {
+              const item = document.querySelector('.note-item');
+              return item.getBoundingClientRect().width
+                / item.parentElement.getBoundingClientRect().width;
+            })()
+            """,
+        ) > 0.9,
+    )
+    dialog.resize(1180, 760)
+    assert _wait_until(
+        application,
+        lambda: _run_javascript(application, dialog, 'window.innerWidth') > 900,
+    )
+
+    _run_javascript(
+        application,
+        dialog,
+        "document.getElementById('new-note').click(); true",
+    )
+    assert _wait_until(
+        application,
+        lambda: len(project.project_notes) == 2,
+    )
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const handle = document.querySelector(
+            '[data-source="project"] .drag-handle'
+          );
+          handle.dispatchEvent(new KeyboardEvent('keydown', {
+            bubbles: true,
+            key: 'ArrowUp'
+          }));
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: next(
+            note['sort_order']
+            for note in project.project_notes
+            if note['source_type'] == 'project'
+        ) == 0,
+    )
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const card = document.querySelector('[data-source="project"]');
+          const title = card.querySelector('.note-title');
+          const content = card.querySelector('.note-content');
+          const tags = card.querySelector('.tag-input');
+          const color = card.querySelector('.color-select');
+          title.value = 'Обычная заметка';
+          title.dispatchEvent(new Event('input', { bubbles: true }));
+          content.innerHTML = '<strong>Жирный текст</strong><script>bad()</script>';
+          content.dispatchEvent(new Event('input', { bubbles: true }));
+          tags.value = 'сюжет, идея, #карта';
+          tags.dispatchEvent(new Event('input', { bubbles: true }));
+          color.value = 'blue';
+          color.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: any(
+            note['source_type'] == 'project'
+            and note['title'] == 'Обычная заметка'
+            and note['color'] == 'blue'
+            and note['tags'] == ['сюжет', 'идея']
+            and '<strong>Жирный текст</strong>' in note['content']
+            and '<script>' not in note['content']
+            for note in project.project_notes
+        ),
+    )
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          document.querySelector('[data-source="project"] .card-header .card-action').click();
+          const buttons = document.querySelectorAll(
+            '[data-source="project"] .rich-toolbar .format-button'
+          );
+          buttons[buttons.length - 1].click();
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: any(
+            note['source_type'] == 'project'
+            and note['pinned']
+            and len(note['checklist']) == 1
+            for note in project.project_notes
+        ),
+    )
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const card = document.querySelector('[data-source="project"]');
+          const text = card.querySelector('.checklist-text');
+          const checkbox = card.querySelector('.checklist-row input[type="checkbox"]');
+          text.value = 'Проверить хронологию';
+          text.dispatchEvent(new Event('input', { bubbles: true }));
+          checkbox.checked = true;
+          checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: any(
+            note['source_type'] == 'project'
+            and note['checklist'][0]['text'] == 'Проверить хронологию'
+            and note['checklist'][0]['checked'] is True
+            for note in project.project_notes
+        ),
+    )
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const card = document.querySelector('[data-source="project"]');
+          const actions = card.querySelectorAll('.card-footer .card-action');
+          actions[0].click();
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: any(
+            note['source_type'] == 'project' and note['archived']
+            for note in project.project_notes
+        ),
+    )
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          document.getElementById('archive-toggle').click();
+          const card = document.querySelector('[data-source="project"]');
+          card.querySelector('.card-footer .card-action').click();
+          document.getElementById('archive-toggle').click();
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: any(
+            note['source_type'] == 'project' and not note['archived']
+            for note in project.project_notes
+        ),
+    )
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const editor = document.querySelector('[data-source="mindmap"] textarea');
+          editor.value = 'После изменения';
+          editor.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: extract_mindmap_notes(project.mindmap_data)[0]['text']
+        == 'После изменения',
+    )
+    assert _run_javascript(
+        application,
+        dialog,
+        "document.querySelector('[data-source=\"mindmap\"] .note-title').placeholder",
+    ) == 'После изменения'
+
+    _run_javascript(
+        application,
+        dialog,
+        "document.querySelector('[data-source=\"mindmap\"] .system-tag').click(); true",
+    )
+    assert _wait_until(
+        application,
+        lambda: (
+            (state := json.loads(_run_javascript(
+                application,
+                dialog,
+                'window.nfprogressNotes.getState()',
+            )))['selectedTag'] == 'карта'
+            and len(state['visibleIds']) == 1
+        ),
+    )
+    _run_javascript(
+        application,
+        dialog,
+        "document.querySelector('#tag-filter-menu button').click(); true",
+    )
+    assert _wait_until(
+        application,
+        lambda: json.loads(_run_javascript(
+            application,
+            dialog,
+            'window.nfprogressNotes.getState()',
+        ))['selectedTag'] is None,
+    )
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const input = document.getElementById('search-input');
+          input.value = '#карта';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: len(json.loads(_run_javascript(
+            application,
+            dialog,
+            'window.nfprogressNotes.getState()',
+        ))['visibleIds']) == 1,
+    )
+    _run_javascript(
+        application,
+        dialog,
+        "document.querySelector('.open-map-action').click(); true",
+    )
+    assert _wait_until(application, lambda: opened_nodes == ['map-note'])
+
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const input = document.getElementById('search-input');
+          input.value = '';
+          input.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        })()
+        """,
+    )
+    assert _wait_until(
+        application,
+        lambda: len(json.loads(_run_javascript(
+            application,
+            dialog,
+            'window.nfprogressNotes.getState()',
+        ))['visibleIds']) == 2,
+    )
+    _run_javascript(
+        application,
+        dialog,
+        """
+        (() => {
+          const title = document.querySelector('[data-source="project"] .note-title');
+          title.value = 'Сохранить при закрытии';
+          title.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        })()
+        """,
+    )
+    dialog.close()
+    assert _wait_until(
+        application,
+        lambda: any(
+            note['source_type'] == 'project'
+            and note['title'] == 'Сохранить при закрытии'
+            for note in project.project_notes
+        ),
+    )
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    application.processEvents()
+
+
+@requires_native_webview
+def test_mindmap_dialog_applies_silent_notes_commands_to_the_linked_node():
+    application = QApplication.instance() or QApplication([])
+    saved = []
+    dialog = MindMapDialog(
+        'Native Map',
+        _map_data(),
+        saved.append,
+        focus_node_id='map-note',
+    )
+    dialog.show()
+
+    assert _wait_until(application, lambda: dialog._ready)
+    _process_events_for(application)
+    assert bool(_run_javascript(
+        application,
+        dialog,
+        """
+        [...document.querySelectorAll('me-tpc')].some(
+          element => element.nodeObj.id === 'map-note'
+            && element.classList.contains('selected')
+        )
+        """,
+    )) is True
+
+    dialog.apply_notes_command('update', 'map-note', 'Из карточки')
+    _process_events_for(application)
+    updated = json.loads(_run_javascript(
+        application,
+        dialog,
+        'window.nfprogressMindMap.getDataString()',
+    ))
+    assert updated['freeNodes'][0]['topic'] == 'Из карточки'
+    assert saved == []
+
+    dialog.apply_notes_command('delete', 'map-note')
+    _process_events_for(application)
+    remaining = json.loads(_run_javascript(
+        application,
+        dialog,
+        'window.nfprogressMindMap.getDataString()',
+    ))
+    assert remaining['freeNodes'] == []
+    assert remaining['nodeData']['id'] == 'root-node'
+    assert remaining['nodeData']['children'][0]['id'] == 'scene-node'
+    assert saved == []
+
+    dialog._allow_close = True
+    dialog.close()
+    dialog.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+    application.processEvents()

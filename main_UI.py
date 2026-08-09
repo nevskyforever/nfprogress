@@ -27,7 +27,7 @@ from UI_fiiles.user_agreement import Ui_user_agreement as user_agreement_ui
 from UI_fiiles.project_stats import Ui_project_stats as project_stats_ui
 from engine import save_data, save_settings, load_settings
 from game_UI import GameMenuController
-from help_content import HELP_SECTIONS
+from help_content import HELP_SECTIONS, render_help_content
 from macos_help_search import (
     HelpSearchItem,
     create_macos_help_search,
@@ -42,6 +42,7 @@ from localization import (
     tr,
 )
 from mindmap import MindMapDialog
+from project_notes import ProjectNotesDialog, ProjectNotesService
 from scrivener_parser import find_scrivener_xml, parse_scrivener_items, count_symbols_in_scrivener_item
 from update_checker import UpdateChecker
 
@@ -54,9 +55,9 @@ def _build_help_search_item(
     document,
 ):
     """Builds one shared search entry from localized and Russian help text."""
-    document.setHtml(translated_content)
+    document.setHtml(render_help_content(translated_content))
     translated_plain_text = document.toPlainText()
-    document.setHtml(section["content"])
+    document.setHtml(render_help_content(section["content"]))
     source_plain_text = document.toPlainText()
     return HelpSearchItem.create(
         key=section["key"],
@@ -161,6 +162,12 @@ class MainWindow(QMainWindow, main_window_ui):
         self._help_topic_actions = []
         self._help_search_items = ()
         self._macos_help_search = None
+        self._project_note_services = {}
+        self._project_notes_dialogs = {}
+        self.btn_project_notes.setIcon(
+            QIcon(en.resource_path('notes_assets/note.svg'))
+        )
+        self.btn_project_notes.setIconSize(QSize(20, 20))
 
         self.unit_to_display = {
             'symbols': 'Символы',
@@ -744,6 +751,8 @@ class MainWindow(QMainWindow, main_window_ui):
             self.developer_mode_action.setText(tr('Режим разработчика'))
         if self._help_dialog is not None:
             self._help_dialog.refresh_translations()
+        for dialog in tuple(self._project_notes_dialogs.values()):
+            dialog.refresh_translations()
 
         self.filter_project_box.setCurrentIndex(
             max(0, self.filter_project_box.findData(settings.get('project_filter', 'Активен')))
@@ -1088,6 +1097,7 @@ class MainWindow(QMainWindow, main_window_ui):
             self.btn_archived_project.clicked.disconnect()
             self.btn_delete_project.clicked.disconnect()
             self.btn_mindmap.clicked.disconnect()
+            self.btn_project_notes.clicked.disconnect()
             self.pb_save_flash_note.clicked.disconnect()
             self.delete_note.clicked.disconnect()
             self.btn_synch_project.clicked.disconnect()
@@ -1104,6 +1114,9 @@ class MainWindow(QMainWindow, main_window_ui):
         self.btn_archived_project.clicked.connect(lambda: self.archive_project(project))
         self.btn_delete_project.clicked.connect(lambda: self.delete_project(project))
         self.btn_mindmap.clicked.connect(lambda: self.open_mindmap(project))
+        self.btn_project_notes.clicked.connect(
+            lambda: self.open_project_notes(project)
+        )
         self.pb_save_flash_note.clicked.connect(lambda: self.add_note(project))
         self.pb_save_flash_note.clicked.connect(lambda: self.refresh_global_streak_status())
         self.delete_note.clicked.connect(lambda: self.delete_selected_note(project))
@@ -1123,6 +1136,7 @@ class MainWindow(QMainWindow, main_window_ui):
         self.btn_change_project.setVisible(True)
         self.btn_change_project.setText(tr('Изменить'))
         self.btn_mindmap.setEnabled(True)
+        self.btn_project_notes.setEnabled(True)
         self.flash_note.setEnabled(True)
         self.synch_action.setEnabled(True)
         self.change_project_action.setEnabled(True)
@@ -2189,7 +2203,52 @@ class MainWindow(QMainWindow, main_window_ui):
                 stage.parent_project_name = project.name
         return True
 
-    def open_mindmap(self, project):
+    def _notes_service_for(self, project):
+        if self._is_stage(project):
+            key = ('stage', getattr(project, 'stage_id', None))
+        else:
+            key = ('project', getattr(project, 'project_id', None))
+        service = self._project_note_services.get(key)
+        if service is None:
+            service = ProjectNotesService(project, self)
+            self._project_note_services[key] = service
+        else:
+            service.bound_entity = project
+        return service
+
+    def open_project_notes(self, project):
+        """Open the standalone modeless notes workspace for an entity."""
+        service = self._notes_service_for(project)
+        key = service.entity_key
+        existing = self._project_notes_dialogs.get(key)
+        if existing is not None:
+            existing.refresh_from_storage('database')
+            existing.show()
+            existing.raise_()
+            existing.activateWindow()
+            return
+
+        dialog = ProjectNotesDialog(
+            service,
+            lambda node_id, selected=project: self.open_mindmap(
+                selected,
+                focus_node_id=node_id,
+            ),
+            self,
+        )
+        dialog.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self._project_notes_dialogs[key] = dialog
+        dialog.destroyed.connect(
+            lambda _object=None, dialog_key=key: self._project_notes_dialogs.pop(
+                dialog_key,
+                None,
+            )
+        )
+        dialog.show()
+        dialog.raise_()
+        dialog.activateWindow()
+
+    def open_mindmap(self, project, focus_node_id=None):
         """Open the map owned by the selected project or stage."""
         is_stage = self._is_stage(project)
         if (
@@ -2228,14 +2287,37 @@ class MainWindow(QMainWindow, main_window_ui):
             if combined_stage_maps
             else getattr(project, 'mindmap_data', None)
         )
-        dialog = MindMapDialog(
-            project.name,
-            mindmap_data,
-            lambda saved_map: self._save_mindmap_data(
+        notes_service = (
+            self._notes_service_for(project)
+            if hasattr(self, '_notes_service_for')
+            and hasattr(self, '_project_note_services')
+            else None
+        )
+        if notes_service is not None:
+            notes_service.load_notes()
+
+        def save_map_and_refresh_notes(saved_map):
+            self._save_mindmap_data(
                 project,
                 saved_map,
                 combined_stage_maps=combined_stage_maps,
-            ),
+            )
+            if notes_service is not None:
+                notes_service.refresh_from_storage('mindmap')
+            if combined_stage_maps:
+                for stage in project.stages:
+                    stage_service = self._project_note_services.get(
+                        ('stage', getattr(stage, 'stage_id', None))
+                    )
+                    if stage_service is None:
+                        continue
+                    stage_service.bound_entity = stage
+                    stage_service.refresh_from_storage('mindmap')
+
+        dialog = MindMapDialog(
+            project.name,
+            mindmap_data,
+            save_map_and_refresh_notes,
             read_only=(
                 project.status == 'завершен'
                 and (is_stage or not en.dev_mode)
@@ -2245,9 +2327,19 @@ class MainWindow(QMainWindow, main_window_ui):
                 if has_empty_completed_stage_map
                 else None
             ),
+            focus_node_id=focus_node_id,
             parent=self,
         )
-        dialog.exec()
+        if notes_service is not None and hasattr(dialog, 'apply_notes_command'):
+            notes_service.map_command.connect(dialog.apply_notes_command)
+        try:
+            dialog.exec()
+        finally:
+            if notes_service is not None and hasattr(dialog, 'apply_notes_command'):
+                try:
+                    notes_service.map_command.disconnect(dialog.apply_notes_command)
+                except RuntimeError:
+                    pass
 
     def _save_mindmap_data(
             self,
@@ -4526,7 +4618,7 @@ class HelpDialog(QDialog, help_dialog_ui):
             else:
                 parent_item.addChild(item)
 
-            translated_content = tr(section["content"])
+            translated_content = render_help_content(tr(section["content"]))
             heading_start = translated_content.find("<h2>")
             heading_end = translated_content.find("</h2>", heading_start)
             if heading_start >= 0 and heading_end >= 0:

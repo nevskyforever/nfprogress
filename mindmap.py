@@ -264,12 +264,14 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
             *,
             read_only=False,
             status_message=None,
+            focus_node_id=None,
             parent=None,
     ):
         super().__init__(parent)
         self.setupUi(self)
         self.read_only = bool(read_only)
         self.status_message = status_message
+        self.focus_node_id = focus_node_id
         self._ready = False
         self._closing_after_save = False
         self._allow_close = False
@@ -357,6 +359,37 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
         self._event_timer.start()
         self._poll_editor_events()
 
+    def _focus_initial_node(self):
+        if not self._ready or not self.focus_node_id:
+            return
+        self._page.runJavaScript(
+            'window.nfprogressMindMap.focusNode('
+            f'{json.dumps(self.focus_node_id)})',
+        )
+
+    def apply_notes_command(self, command, node_id, text=''):
+        """Apply a NotesService update without sending it back through persistence."""
+        if not self._ready or not isinstance(node_id, str):
+            return
+        if command == 'update':
+            script = (
+                'window.nfprogressMindMap.updateNodeNote('
+                f'{json.dumps(node_id)}, {json.dumps(text)})'
+            )
+        elif command == 'delete':
+            script = (
+                'window.nfprogressMindMap.removeNodeNote('
+                f'{json.dumps(node_id)})'
+            )
+        elif command == 'focus':
+            script = (
+                'window.nfprogressMindMap.focusNode('
+                f'{json.dumps(node_id)})'
+            )
+        else:
+            return
+        self._page.runJavaScript(script)
+
     def _poll_editor_events(self):
         if self._poll_in_flight:
             return
@@ -399,6 +432,8 @@ class MindMapDialog(QDialog, Ui_mindmap_dialog):
         self.save_button.setEnabled(not self.read_only)
         self.export_button.setEnabled(True)
         self._show_ready_status()
+        if self.focus_node_id:
+            QTimer.singleShot(0, self._focus_initial_node)
 
     def _show_ready_status(self):
         self.save_status_label.setToolTip('')

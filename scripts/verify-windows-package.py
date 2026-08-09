@@ -16,6 +16,15 @@ MINDMAP_ASSETS = (
     "i18n.js",
     "index.html",
 )
+NOTES_ASSETS = (
+    "NOTICE.txt",
+    "app.js",
+    "index.html",
+    "note.svg",
+    "styles.css",
+    "vendor/MUURI-LICENSE.md",
+    "vendor/muuri.min.js",
+)
 
 
 def sha256(path: Path) -> str:
@@ -115,6 +124,16 @@ def main() -> int:
             f"Package is missing mind map assets: {missing_mindmap_assets}"
         )
 
+    missing_notes_assets = [
+        str(args.package_dir / "notes_assets" / filename)
+        for filename in NOTES_ASSETS
+        if not (args.package_dir / "notes_assets" / filename).is_file()
+    ]
+    if missing_notes_assets:
+        raise SystemExit(
+            f"Package is missing project notes assets: {missing_notes_assets}"
+        )
+
     pe_results = [inspect_pe(executable) for executable in (main_exe, updater_exe, runtime_updater)]
     if args.installer is not None:
         pe_results.append(inspect_pe(args.installer, allow_large_overlay=True))
@@ -139,6 +158,10 @@ def main() -> int:
         required.update(
             f"nfprogress/mindmap_assets/{filename}"
             for filename in MINDMAP_ASSETS
+        )
+        required.update(
+            f"nfprogress/notes_assets/{filename}"
+            for filename in NOTES_ASSETS
         )
         missing = required - names
         if missing:

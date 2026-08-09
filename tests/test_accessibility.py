@@ -113,6 +113,7 @@ def test_generated_forms_receive_runtime_accessible_names(app):
     from UI_fiiles.freeze_project import Ui_freeze_projrct
     from UI_fiiles.main_window import Ui_main_window
     from UI_fiiles.mindmap_dialog import Ui_mindmap_dialog
+    from UI_fiiles.project_notes_dialog import Ui_project_notes_dialog
     from UI_fiiles.new_bank_product import Ui_Dialog as Ui_NewBankProduct
     from UI_fiiles.project_stats import Ui_project_stats
     from UI_fiiles.settings import Ui_Dialog as Ui_Settings
@@ -128,6 +129,7 @@ def test_generated_forms_receive_runtime_accessible_names(app):
         (QDialog, Ui_freeze_projrct),
         (QMainWindow, Ui_main_window),
         (QDialog, Ui_mindmap_dialog),
+        (QDialog, Ui_project_notes_dialog),
         (QDialog, Ui_NewBankProduct),
         (QDialog, Ui_project_stats),
         (QDialog, Ui_Settings),

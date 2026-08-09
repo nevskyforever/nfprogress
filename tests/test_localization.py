@@ -110,6 +110,22 @@ def test_mindmap_terms_are_localized():
         assert 'Mind Elixir' in tr('Карта Mind Elixir (*.json)', language)
 
 
+def test_project_notes_terms_are_localized_and_system_tag_is_stable():
+    expected_titles = {
+        'en': 'Project Notes',
+        'es': 'Notas del proyecto',
+        'de': 'Projektnotizen',
+        'fr': 'Notes du projet',
+        'pt_BR': 'Notas do projeto',
+    }
+    for language, expected_title in expected_titles.items():
+        assert tr('Заметки проекта', language) == expected_title
+        assert tr('Поиск по заметкам', language) != 'Поиск по заметкам'
+        assert tr('Заметка карты', language) != 'Заметка карты'
+        assert tr('Открыть на карте', language) != 'Открыть на карте'
+        assert tr('#карта', language) == '#карта'
+
+
 def test_cabinet_relic_cards_are_localized():
     cyrillic = re.compile(r"[А-Яа-яЁё]")
     for language in TARGET_LANGUAGES:

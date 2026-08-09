@@ -69,6 +69,7 @@ python3 -m nuitka --standalone \
        --output-dir=build-intel \
        --include-data-dir="$TRANSLATIONS_TMP=PySide6/Qt/translations" \
        --include-data-dir=mindmap_assets=mindmap_assets \
+       --include-data-dir=notes_assets=notes_assets \
        --include-data-files=Icon.svg=Icon.svg \
        --lto=yes \
        --disable-ccache \
@@ -93,6 +94,10 @@ for QT_LANGUAGE in "${QT_TRANSLATION_LANGUAGES[@]}"; do
 done
 if ! find build-intel -type f -path "*/mindmap_assets/MindElixir.js" -print -quit | grep -q .; then
   echo "❌ Редактор карт не попал в Intel-сборку!"
+  exit 1
+fi
+if ! find build-intel -type f -path "*/notes_assets/vendor/muuri.min.js" -print -quit | grep -q .; then
+  echo "❌ Редактор заметок не попал в Intel-сборку!"
   exit 1
 fi
 
