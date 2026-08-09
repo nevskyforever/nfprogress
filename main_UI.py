@@ -245,6 +245,10 @@ class MainWindow(QMainWindow, main_window_ui):
         self.list_projects.itemClicked.connect(self.view_project)
         self.list_projects.itemClicked.connect(self.clear_project_search)
         self.list_projects.itemDoubleClicked.connect(self.open_search_result)
+        self.list_projects.currentItemChanged.connect(
+            self._sync_project_widget_selection
+        )
+        self._sync_project_widget_selection(self.list_projects.currentItem(), None)
         self.list_projects.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.list_projects.setDefaultDropAction(Qt.DropAction.MoveAction)
         self.list_projects.model().rowsMoved.connect(self._save_reordered_stages)
@@ -833,6 +837,15 @@ class MainWindow(QMainWindow, main_window_ui):
         self.note_widget.setVisible(True)
         self.change_project_widget.setVisible(True)
         self.name_selected_project.setText(tr(project.name))
+
+    def _sync_project_widget_selection(self, current_item, _previous_item):
+        """Передаёт встроенным карточкам актуальное состояние выделения."""
+        for index in range(self.list_projects.count()):
+            item = self.list_projects.item(index)
+            widget = self.list_projects.itemWidget(item)
+            set_selected = getattr(widget, 'set_selected', None)
+            if callable(set_selected):
+                set_selected(item is current_item)
 
     def show_project_info(self, project: en.Project):
         """Заполняет виджеты информацией о проекте."""

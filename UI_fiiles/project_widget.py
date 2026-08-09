@@ -1,6 +1,6 @@
-from PySide6.QtCore import (QCoreApplication, QMetaObject, QSize, Qt, QRect, QRectF, QEasingCurve, QVariantAnimation)
+from PySide6.QtCore import (QCoreApplication, QEvent, QMetaObject, QSize, Qt, QRect, QRectF, QEasingCurve, QVariantAnimation)
 from PySide6.QtGui import (QColor, QFont, QFontMetrics, QPainter,
-                           QPen)
+                           QPalette, QPen)
 from PySide6.QtWidgets import (QGridLayout, QLabel, QProgressBar,
                                QSizePolicy, QVBoxLayout, QWidget, QPushButton, QHBoxLayout)
 from engine import streak_length as get_streak_length
@@ -30,6 +30,42 @@ def _stage_completion_counts(project):
     stages = getattr(project, 'stages', [])
     completed_count = sum(stage.status == 'завершен' for stage in stages)
     return completed_count, len(stages)
+
+
+def _blend_colors(first: QColor, second: QColor, ratio: float) -> QColor:
+    """Возвращает цвет между двумя цветами без привязки к конкретной теме."""
+    ratio = max(0.0, min(1.0, ratio))
+    return QColor(
+        round(first.red() + (second.red() - first.red()) * ratio),
+        round(first.green() + (second.green() - first.green()) * ratio),
+        round(first.blue() + (second.blue() - first.blue()) * ratio),
+    )
+
+
+def _apply_row_text_palette(
+    labels: tuple[QLabel, ...],
+    palette: QPalette,
+    selected: bool,
+) -> None:
+    """Синхронизирует текст встроенных виджетов со статусом выделения."""
+    text_role = (
+        QPalette.ColorRole.HighlightedText
+        if selected
+        else QPalette.ColorRole.WindowText
+    )
+    color_groups = (
+        QPalette.ColorGroup.Active,
+        QPalette.ColorGroup.Inactive,
+        QPalette.ColorGroup.Disabled,
+    )
+
+    for label in labels:
+        label_palette = QPalette(palette)
+        for color_group in color_groups:
+            color = palette.color(color_group, text_role)
+            label_palette.setColor(color_group, QPalette.ColorRole.WindowText, color)
+            label_palette.setColor(color_group, QPalette.ColorRole.Text, color)
+        label.setPalette(label_palette)
 
 
 # =============================================================================
@@ -145,6 +181,32 @@ class CircularProgressBar(QWidget):
     def setEndColor(self, color):
         """Устанавливает конечный цвет градиента (для 100%)"""
         self._end_color = QColor(color)
+        self.update()
+
+    def apply_palette(self, palette: QPalette, selected: bool = False) -> None:
+        """Подбирает цвета кольца для текущей темы и состояния строки."""
+        color_group = QPalette.ColorGroup.Active
+        if selected:
+            highlight = palette.color(color_group, QPalette.ColorRole.Highlight)
+            highlighted_text = palette.color(
+                color_group,
+                QPalette.ColorRole.HighlightedText,
+            )
+            # Контрастное кольцо не сливается с фоном выбранной строки.
+            self._background_color = _blend_colors(highlight, highlighted_text, 0.22)
+            self._start_color = _blend_colors(highlight, highlighted_text, 0.55)
+            self._end_color = highlighted_text
+            self._text_color = highlighted_text
+        else:
+            base = palette.color(color_group, QPalette.ColorRole.Base)
+            mid = palette.color(color_group, QPalette.ColorRole.Mid)
+            highlight = palette.color(color_group, QPalette.ColorRole.Highlight)
+            self._background_color = _blend_colors(base, mid, 0.60)
+            self._start_color = _blend_colors(mid, highlight, 0.15)
+            self._end_color = highlight
+            self._text_color = palette.color(color_group, QPalette.ColorRole.WindowText)
+
+        self._progress_color = self._end_color
         self.update()
 
     def _get_color_for_progress(self, progress):
@@ -270,6 +332,7 @@ class ProjectWidget(QWidget, Ui_Form):
     def __init__(self, project, global_streak_mode, expanded=False, toggle_callback=None,
                  display_name=None):
         super().__init__()
+        self._is_selected = False
         self.setupUi(self)
         # Загружаем настройки
         self.global_streak_mode = global_streak_mode
@@ -367,6 +430,33 @@ class ProjectWidget(QWidget, Ui_Form):
         }
 
         self.update_display()
+        self._apply_theme()
+
+    def set_selected(self, selected: bool) -> None:
+        """Обновляет вложенные элементы после смены текущего элемента списка."""
+        self._is_selected = selected
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        if not hasattr(self, 'circular_progress'):
+            return
+
+        palette = self.palette()
+        _apply_row_text_palette(
+            (self.name, self.symbols, self.deadline, self.streak, self.streak_status),
+            palette,
+            self._is_selected,
+        )
+        self.circular_progress.apply_palette(palette, self._is_selected)
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() in {
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.PaletteChange,
+            QEvent.Type.StyleChange,
+        }:
+            self._apply_theme()
 
     def _toggle_stages(self):
         if self.toggle_callback is not None:
@@ -455,6 +545,7 @@ class StageRowWidget(QWidget):
 
     def __init__(self, stage, parent_project, global_streak_mode=False):
         super().__init__()
+        self._is_selected = False
         self.project = stage
         self.parent_project = parent_project
         self.global_streak_mode = global_streak_mode
@@ -502,6 +593,30 @@ class StageRowWidget(QWidget):
         layout.addLayout(text_layout, 1)
         self.text_layout = text_layout
         self.update_display()
+        self._apply_theme()
+
+    def set_selected(self, selected: bool) -> None:
+        """Обновляет цвета строки этапа после смены выделения."""
+        self._is_selected = selected
+        self._apply_theme()
+
+    def _apply_theme(self) -> None:
+        palette = self.palette()
+        _apply_row_text_palette(
+            (self.name, self.total, self.deadline, self.streak),
+            palette,
+            self._is_selected,
+        )
+        self.circular_progress.apply_palette(palette, self._is_selected)
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() in {
+            QEvent.Type.ApplicationPaletteChange,
+            QEvent.Type.PaletteChange,
+            QEvent.Type.StyleChange,
+        }:
+            self._apply_theme()
 
     def stop_animations(self):
         self.circular_progress.stopAnimation()
