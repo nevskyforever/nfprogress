@@ -1,28 +1,28 @@
 {
-  "version": "4.14",
-  "notes": "Приложение теперь открывает не только последний проект, но и этап, который был выбран.\n\nИсправление багов\n\nИсправление ошибок перевода",
+  "version": "4.14.1",
+  "notes": "Улучшено отображение проектов в списке.\n\nИсправлены баги интерфейса при смене системной темы.",
   "windows": {
-    "version": "4.13.1",
-    "url": "https://nfproject.ru/app/nfprogress-windows-4.13.1.zip",
-    "sha256": "60836f553cee4703a7668956c3b91ad81dd19f83b7a3cc5ef7c9e0238fa0c0fe",
-    "size": 189350871,
+    "version": "4.14",
+    "url": "https://nfproject.ru/app/nfprogress-windows-4.14.zip",
+    "sha256": "ac1bc32f0c5642585cccc0bc8c011ca4abb2f6fc41c9842f134c29dea1f25967",
+    "size": 189588957,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.13.1.exe",
-    "installer_sha256": "7b34ba37021440d4bb7583c8d069b57ff415e11739b356aa7c24fd3b2383fea9",
-    "installer_size": 122656907
+    "installer_url": "https://nfproject.ru/app/nfprogress-setup-4.14.exe",
+    "installer_sha256": "5053f37c0f4f5b154cc7cf0fd4ca29907ec44a0088652d11ae4268678eed95dd",
+    "installer_size": 123235281
   },
   "macos_arm": {
-    "version": "4.14",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.14.zip"
+    "version": "4.14.1",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-4.14.1.zip"
   },
   "macos_intel": {
-    "version": "4.14",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.14.zip"
+    "version": "4.14.1",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-4.14.1.zip"
   },
-  "windows_version": "4.13.1",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.13.1.zip",
-  "macos_arm_version": "4.14",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.14.zip",
-  "macos_intel_version": "4.14",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.14.zip"
+  "windows_version": "4.14",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-4.14.zip",
+  "macos_arm_version": "4.14.1",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-4.14.1.zip",
+  "macos_intel_version": "4.14.1",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-4.14.1.zip"
 }
