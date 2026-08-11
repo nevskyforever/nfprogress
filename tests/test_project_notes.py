@@ -575,8 +575,7 @@ def test_ui_resources_are_local_and_packaged():
     assert (PROJECT_ROOT / 'notes_assets' / 'vendor' / 'MUURI-LICENSE.md').is_file()
 
     for build_file in (
-        PROJECT_ROOT / 'build-mac-arm.sh',
-        PROJECT_ROOT / 'build-mac-intel.sh',
+        PROJECT_ROOT / 'scripts' / 'build-macos-local.sh',
         PROJECT_ROOT / '.github' / 'workflows' / 'build.yml',
     ):
         assert 'notes_assets' in build_file.read_text()
