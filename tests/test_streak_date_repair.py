@@ -352,6 +352,49 @@ def test_real_date_auto_freeze_spends_inventory_after_date_bug_repair_window(mon
     assert gamer.saved is True
 
 
+def test_main_window_recovers_all_missed_global_streak_days(monkeypatch):
+    from main_UI import MainWindow
+
+    today = date(2026, 8, 11)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    monkeypatch.setattr(
+        engine,
+        'load_settings',
+        lambda: {'game_mode': True, 'global_streak': True},
+    )
+    monkeypatch.setattr(engine, 'save_data', lambda data: None)
+    gamer = DummyGamer(freeze_count=2)
+
+    import game
+    monkeypatch.setattr(game, 'load_game', lambda: gamer)
+
+    data = {
+        'projects': {},
+        'global_streaks': [today - timedelta(days=3)],
+        'global_streak_status': 'Active',
+        'notifications': {'new': [], 'read': []},
+    }
+    ui = type('Ui', (), {'notifications': None})()
+
+    changed = MainWindow._refresh_project_streak_statuses(
+        ui,
+        data,
+        show_auto_freeze_toasts=False,
+    )
+
+    assert changed is True
+    assert data['global_streaks'] == [
+        today - timedelta(days=3),
+        engine.STREAK_FREEZE_MARKER,
+        engine.STREAK_FREEZE_MARKER,
+    ]
+    assert gamer.items['Предметы']['Заморозка'] == 0
+    assert gamer.saved is True
+    assert [notification.text for notification in data['notifications']['new']] == [
+        'Глобальный стрик автоматически заморожен.'
+    ]
+
+
 def test_game_controller_uses_ui_auto_freeze_notifications():
     import game_UI
 
