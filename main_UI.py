@@ -2729,10 +2729,24 @@ class MainWindow(QMainWindow, main_window_ui):
 
             data['projects'][project_name] = project
 
-        # Не расходуем предмет в день активного глобального стрика: автозаморозка
-        # обрабатывает только вчерашний пропуск, как и автозаморозка проектов.
+        # Не расходуем предмет в день активного глобального стрика. Если
+        # приложение не запускалось несколько дней, восстанавливаем каждый
+        # непрерывный пропуск до вчерашнего дня — иначе попытка заморозить
+        # только вчера невозможна из-за более раннего последнего дня стрика.
         missed_day = en.today_for_test() - datetime.timedelta(days=1)
-        if en.apply_global_streak_freeze(data, missed_day):
+        applied_global_freezes = []
+        last_global_streak_day = en.streak_last_day(global_streaks)
+        while (
+                last_global_streak_day is not None
+                and last_global_streak_day < missed_day
+        ):
+            freeze_day = last_global_streak_day + datetime.timedelta(days=1)
+            if not en.apply_global_streak_freeze(data, freeze_day):
+                break
+            applied_global_freezes.append(freeze_day)
+            last_global_streak_day = en.streak_last_day(global_streaks)
+
+        if applied_global_freezes:
             changed = True
             message = 'Глобальный стрик автоматически заморожен.'
             notifications['new'].append(en.Notification(message, tag='streak'))
