@@ -1423,10 +1423,18 @@ class Project:
             stage_daily_goals = [
                 stage.get_today_goal_value()
                 for stage in self.stages
-                if stage.deadline != 'Нет' or getattr(stage, 'personal_goal_for_the_day', 0)
+                if (
+                    stage.status == 'активен'
+                    and (
+                        stage.deadline != 'Нет'
+                        or getattr(stage, 'personal_goal_for_the_day', 0)
+                    )
+                )
             ]
             if stage_daily_goals:
                 return sum(stage_daily_goals)
+            if not getattr(self, 'personal_goal_for_the_day', 0):
+                return 0
 
         if getattr(self, 'project_plan', None) is None:
             self.project_plan = {}
@@ -1604,12 +1612,21 @@ class Project:
     def get_today_display_goal_value(self):
         """Возвращает накопительную цель для отображения родительского проекта."""
         if self.has_stages() and self.deadline == 'Нет':
-            has_stage_daily_goal = any(
-                stage.deadline != 'Нет' or getattr(stage, 'personal_goal_for_the_day', 0)
+            stages_with_daily_goals = [
+                stage
                 for stage in self.stages
-            )
-            if has_stage_daily_goal:
-                return sum(stage.get_today_goal_value() for stage in self.stages)
+                if (
+                    stage.status == 'активен'
+                    and (
+                        stage.deadline != 'Нет'
+                        or getattr(stage, 'personal_goal_for_the_day', 0)
+                    )
+                )
+            ]
+            if stages_with_daily_goals:
+                return sum(stage.get_today_goal_value() for stage in stages_with_daily_goals)
+            if not getattr(self, 'personal_goal_for_the_day', 0):
+                return 0
         return self.get_today_goal_value()
 
     def get_today_display_goal_in_unit(self):

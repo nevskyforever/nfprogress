@@ -324,6 +324,55 @@ def test_parent_daily_goal_uses_original_plan_when_stages_have_no_deadlines():
     assert project.get_today_goal_value() == 190
 
 
+def test_parent_display_goal_ignores_completed_stages_with_daily_plans(monkeypatch):
+    today = datetime.date(2026, 8, 8)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = engine.Project(name='Book', deadline='Нет', unit='symbols')
+    completed_stage = engine.Stage(
+        name='Finished',
+        goal=1000,
+        total_symbols=1000,
+        deadline=today,
+        personal_goal_for_the_day=100,
+        status='завершен',
+        parent_project_name='Book',
+    )
+    active_stage = engine.Stage(
+        name='Draft',
+        goal=500,
+        parent_project_name='Book',
+    )
+    project.enable_stages = True
+    project.stages = [completed_stage, active_stage]
+
+    assert project.get_today_goal_value() == 0
+    assert project.get_today_display_goal_value() == 0
+
+
+def test_parent_display_goal_excludes_active_stages_without_daily_plans(monkeypatch):
+    today = datetime.date(2026, 8, 8)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = engine.Project(name='Book', deadline='Нет', unit='symbols')
+    planned_stage = engine.Stage(
+        name='Draft',
+        goal=1000,
+        total_symbols=200,
+        deadline=today + datetime.timedelta(days=7),
+        personal_goal_for_the_day=100,
+        parent_project_name='Book',
+    )
+    unplanned_stage = engine.Stage(
+        name='Notes',
+        goal=500,
+        total_symbols=50,
+        parent_project_name='Book',
+    )
+    project.enable_stages = True
+    project.stages = [planned_stage, unplanned_stage]
+
+    assert project.get_today_display_goal_value() == 300
+
+
 def test_stage_can_have_streak_status():
     stage = engine.Stage(
         name='Draft',
