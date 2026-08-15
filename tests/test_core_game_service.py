@@ -204,6 +204,72 @@ def test_registry_buy_sell_and_use_are_repository_atomic(game_context):
     assert unchanged.session_grade_boosts == 1
 
 
+def test_streak_freeze_uses_stable_project_id_and_shared_inventory(
+        game_context, monkeypatch,
+):
+    repository, service, project, _stage = game_context
+    today = date(2026, 8, 15)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    data = repository.read_projects()
+    saved_project = data['projects'][project.name]
+    saved_project.enable_stages = False
+    saved_project.personal_goal_for_the_day = 100
+    saved_project.project_plan = {}
+    saved_project.streaks = [today - timedelta(days=1)]
+    saved_project.streak_status = 'Active'
+    data['global_streaks'] = [today - timedelta(days=1)]
+    repository.write_projects(data)
+    gamer = repository.read_gamer()
+    gamer.items.setdefault('Предметы', {})['Заморозка'] = 2
+    repository.write_gamer(gamer)
+
+    state = service.get_state()
+    assert state['streak_freezes']['global_available'] is False
+    assert state['streak_freezes']['inventory_count'] == 2
+    assert state['streak_freezes']['projects'][0]['project_id'] == project.project_id
+
+    frozen = service.apply_streak_freeze(
+        'project', project_id=project.project_id,
+    )
+    assert frozen['result']['source_count'] == 1
+    assert frozen['state']['streak_freezes']['inventory_count'] == 1
+    saved = repository.read_projects()
+    assert engine.streak_is_freeze_for_day(
+        saved['projects'][project.name].streaks, today,
+    )
+    assert engine.streak_is_freeze_for_day(saved['global_streaks'], today)
+
+    saved_project = saved['projects'][project.name]
+    saved_project.streaks = []
+    saved_project.streak_status = 'No'
+    saved['global_streaks'] = [today - timedelta(days=1)]
+    saved['global_streak_status'] = 'Active'
+    repository.write_projects(saved)
+
+    global_state = service.get_state()
+    assert global_state['streak_freezes']['global_available'] is True
+    globally_frozen = service.apply_streak_freeze('global')
+    assert globally_frozen['state']['streak_freezes']['inventory_count'] == 0
+    global_data = repository.read_projects()
+    assert engine.streak_is_freeze_for_day(global_data['global_streaks'], today)
+    assert global_data['global_streak_status'] == 'Freeze'
+
+
+def test_streak_freeze_rejects_missing_inventory_without_writes(
+        game_context, monkeypatch,
+):
+    repository, service, project, _stage = game_context
+    today = date(2026, 8, 15)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    before = repository.read_projects()
+
+    with pytest.raises(ConflictError) as error:
+        service.apply_streak_freeze('project', project_id=project.project_id)
+
+    assert error.value.code == 'streak_freeze_not_in_inventory'
+    assert repository.read_projects()['global_streaks'] == before['global_streaks']
+
+
 def test_legacy_manuscript_names_migrate_to_stable_ids_without_reward(game_context):
     repository, service, project, stage = game_context
     gamer = repository.read_gamer()

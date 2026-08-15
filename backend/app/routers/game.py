@@ -21,6 +21,7 @@ from ..schemas import (
     MoneyCommand,
     SkillIncrease,
     SpecializationSelect,
+    StreakFreezeApply,
     WeeklyChallengeStart,
     WritingSessionStart,
 )
@@ -159,6 +160,17 @@ def use_item(
         services: Annotated[Services, Depends(get_services)],
 ):
     return services.game.use_item(payload.category, payload.item_id, payload.count)
+
+
+@router.post('/streak-freezes/apply', response_model=GameCommandResponse)
+def apply_streak_freeze(
+        payload: StreakFreezeApply,
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.game.apply_streak_freeze(
+        payload.target,
+        project_id=payload.project_id,
+    )
 
 
 @router.post('/custom-awards', response_model=GameCommandResponse)

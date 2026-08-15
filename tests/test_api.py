@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+from datetime import date, timedelta
 from io import BytesIO
 
 import pytest
 from docx import Document
 from fastapi.testclient import TestClient
 
+import engine
 from backend.app.config import RuntimeConfig
 from backend.app import __main__ as backend_cli
 from backend.app.__main__ import main as backend_main
@@ -240,6 +242,38 @@ def test_game_state_and_writing_session_are_server_authoritative(client):
     cancelled = client.post('/api/game/writing-sessions/cancel')
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()['state']['writing_session']['active'] is None
+
+
+def test_streak_freeze_api_uses_server_project_state(client, monkeypatch):
+    today = date(2026, 8, 15)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    client.patch('/api/settings', json={'values': {'game_mode': True}})
+    project_payload = _create_project(client, 'Серия')
+    repository = client.app.state.services.repository
+    data = repository.read_projects()
+    project = data['projects']['Серия']
+    project.personal_goal_for_the_day = 100
+    project.project_plan = {}
+    project.streaks = [today - timedelta(days=1)]
+    project.streak_status = 'Active'
+    data['global_streaks'] = [today - timedelta(days=1)]
+    repository.write_projects(data)
+    gamer = repository.read_gamer()
+    gamer.items.setdefault('Предметы', {})['Заморозка'] = 1
+    repository.write_gamer(gamer)
+
+    state = client.get('/api/game/state')
+    assert state.status_code == 200, state.text
+    option = state.json()['streak_freezes']['projects'][0]
+    assert option['project_id'] == project_payload['id']
+
+    response = client.post('/api/game/streak-freezes/apply', json={
+        'target': 'project',
+        'project_id': project_payload['id'],
+    })
+    assert response.status_code == 200, response.text
+    assert response.json()['result']['project_id'] == project_payload['id']
+    assert response.json()['state']['streak_freezes']['inventory_count'] == 0
 
 
 def test_custom_awards_and_bank_commands_use_server_state(client):

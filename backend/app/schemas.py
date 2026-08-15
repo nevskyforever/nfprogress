@@ -174,6 +174,11 @@ class InventoryCommand(StrictModel):
     count: int = Field(default=1, ge=1, le=1000)
 
 
+class StreakFreezeApply(StrictModel):
+    target: Literal['global', 'project']
+    project_id: str | None = None
+
+
 class SkillIncrease(StrictModel):
     points: int = Field(default=1, ge=1, le=1000)
 

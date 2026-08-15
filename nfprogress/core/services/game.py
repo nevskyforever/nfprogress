@@ -27,6 +27,8 @@ from nfprogress.core.errors import ConflictError, NotFoundError, ValidationError
 JSONDict = dict[str, Any]
 _LEGACY_GAME_LOCK = RLock()
 _MAX_ITEM_COMMAND_COUNT = 10_000
+_FREEZE_CATEGORY = 'Предметы'
+_FREEZE_ITEM_KEY = 'Заморозка'
 
 
 def _iso(value: Any) -> str | None:
@@ -245,6 +247,65 @@ def serialize_inventory(gamer: legacy_game.Gamer) -> JSONDict:
             item_payloads.append(payload)
         categories.append({'key': category, 'name': category, 'items': item_payloads})
     return {'categories': categories}
+
+
+def _freeze_inventory_count(gamer: legacy_game.Gamer) -> int:
+    category_items = gamer.items.get(_FREEZE_CATEGORY, {})
+    if not isinstance(category_items, Mapping):
+        return 0
+    try:
+        return max(0, int(category_items.get(_FREEZE_ITEM_KEY, 0)))
+    except (TypeError, ValueError):
+        return 0
+
+
+def serialize_streak_freezes(
+        gamer: legacy_game.Gamer,
+        projects: JSONDict,
+) -> JSONDict:
+    """Describe the freeze targets without exposing legacy project objects."""
+    today = engine.today_for_test()
+    inventory_count = _freeze_inventory_count(gamer)
+    project_options: list[JSONDict] = []
+    raw_projects = projects.get('projects', {})
+    if isinstance(raw_projects, Mapping):
+        for stored_name, project in raw_projects.items():
+            if not isinstance(project, engine.Project):
+                continue
+            project_id = getattr(project, 'project_id', None)
+            if not project_id:
+                continue
+            sources = engine.get_project_freeze_sources(project, today)
+            if not sources:
+                continue
+            source_payloads = []
+            for source in sources:
+                is_stage = isinstance(source, engine.Stage)
+                source_id = getattr(source, 'stage_id', None) if is_stage else project_id
+                source_payloads.append({
+                    'id': str(source_id),
+                    'name': str(getattr(source, 'name', '')),
+                    'is_stage': is_stage,
+                    'streak_length': int(engine.streak_length(source.streaks)),
+                })
+            project_options.append({
+                'project_id': str(project_id),
+                'name': str(getattr(project, 'name', stored_name)),
+                'source_count': len(source_payloads),
+                'max_streak': max(
+                    source['streak_length'] for source in source_payloads
+                ),
+                'sources': source_payloads,
+            })
+    return {
+        'date': today.isoformat(),
+        'inventory_count': inventory_count,
+        'global_available': bool(
+            inventory_count > 0
+            and engine.can_freeze_global_streak(projects, today)
+        ),
+        'projects': project_options if inventory_count > 0 else [],
+    }
 
 
 def serialize_quest(quest: legacy_game.Quest) -> JSONDict:
@@ -1053,6 +1114,100 @@ class GameService:
     buy_item = buy_registry_item
     sell_item = sell_registry_item
     use_item = use_registry_item
+
+    def apply_streak_freeze(
+            self,
+            target: str,
+            *,
+            project_id: str | None = None,
+    ) -> JSONDict:
+        target = str(target).strip().casefold()
+        if target not in {'global', 'project'}:
+            raise ValidationError(
+                'streak_freeze_target_invalid',
+                'Неизвестная цель заморозки серии.',
+            )
+        normalized_project_id = (
+            str(project_id).strip() if project_id is not None else None
+        )
+        if target == 'project' and not normalized_project_id:
+            raise ValidationError(
+                'streak_freeze_project_required',
+                'Выберите проект для заморозки.',
+            )
+        if target == 'global' and normalized_project_id:
+            raise ValidationError(
+                'streak_freeze_project_unexpected',
+                'Для глобальной серии проект не указывается.',
+            )
+
+        def mutate(gamer: legacy_game.Gamer, projects: JSONDict) -> JSONDict:
+            if _freeze_inventory_count(gamer) <= 0:
+                raise ConflictError(
+                    'streak_freeze_not_in_inventory',
+                    'В инвентаре нет заморозки.',
+                )
+            today = engine.today_for_test()
+            if target == 'global':
+                if not engine.can_freeze_global_streak(projects, today):
+                    raise ConflictError(
+                        'global_streak_freeze_unavailable',
+                        'Глобальную серию сейчас нельзя заморозить.',
+                    )
+                if not engine.apply_global_streak_freeze(
+                        projects, today, gamer=gamer, save_gamer=False,
+                ):
+                    raise ConflictError(
+                        'global_streak_freeze_failed',
+                        'Не удалось применить заморозку.',
+                    )
+                return {
+                    'message': 'Глобальный стрик заморожен!',
+                    'result': {'target': 'global', 'date': today.isoformat()},
+                    '_projects_changed': True,
+                }
+
+            project, is_stage = self._resolve_project_entity(
+                projects, f'project:{normalized_project_id}',
+            )
+            if is_stage:
+                raise ValidationError(
+                    'streak_freeze_project_invalid',
+                    'Заморозка выбирается для проекта целиком.',
+                )
+            freeze_sources = engine.get_project_freeze_sources(project, today)
+            if not freeze_sources:
+                raise ConflictError(
+                    'project_streak_freeze_unavailable',
+                    'Серию этого проекта сейчас нельзя заморозить.',
+                )
+            if not engine.apply_project_freeze_group(
+                    project, today, gamer=gamer, save_gamer=False,
+            ):
+                raise ConflictError(
+                    'project_streak_freeze_failed',
+                    'Не удалось применить заморозку.',
+                )
+            global_streaks = projects.get('global_streaks')
+            if not isinstance(global_streaks, list):
+                global_streaks = []
+                projects['global_streaks'] = global_streaks
+            if engine.streak_last_day(global_streaks) == today - timedelta(days=1):
+                global_streaks.append(engine.STREAK_FREEZE_MARKER)
+            projects['global_streak_status'] = 'Freeze'
+            project_name = str(getattr(project, 'name', ''))
+            return {
+                'message': f'Проект "{project_name}" заморожен!',
+                'result': {
+                    'target': 'project',
+                    'project_id': normalized_project_id,
+                    'date': today.isoformat(),
+                    'source_count': len(freeze_sources),
+                },
+                '_projects_changed': True,
+            }
+
+        return self._command(mutate)
 
     def create_custom_award(self, name: str, price: Any) -> JSONDict:
         name = self._custom_award_name(name)
@@ -1921,6 +2076,7 @@ class GameService:
             'skills': serialize_skills(gamer),
             'buffs': serialize_buffs(gamer),
             'inventory': serialize_inventory(gamer),
+            'streak_freezes': serialize_streak_freezes(gamer, projects),
             'quests': serialize_quests(gamer),
             'daily_challenge': serialize_daily_challenge(gamer),
             'weekly_challenge': serialize_weekly_challenge(gamer),
