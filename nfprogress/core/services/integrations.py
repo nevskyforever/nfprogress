@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import math
 import os
 import tempfile
 import zipfile
+from contextlib import nullcontext
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
@@ -155,6 +157,54 @@ class DocumentIntegrationService:
             raise ValidationError('Не удалось прочитать документ .docx.') from error
         finally:
             Path(temporary_path).unlink(missing_ok=True)
+
+    def apply_uploaded_docx(
+            self,
+            project_id: str,
+            content: bytes,
+            filename: str,
+            *,
+            stage_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Apply an explicitly uploaded document through normal progress rules."""
+        symbols = self.count_uploaded_docx(content, filename)
+        locked = getattr(self.repository, 'locked', None)
+        transaction = locked() if callable(locked) else nullcontext()
+        with transaction:
+            data = self.repository.read_projects()
+            project = self.project_service._find_project(data, project_id)
+            entity = (
+                self.project_service._find_stage(project, stage_id)
+                if stage_id else project
+            )
+            self.project_service._require_editable(entity)
+            if entity.has_stages():
+                raise ValidationError('Записывайте прогресс в конкретный этап.')
+            total = self.project_service._round_for_unit(
+                engine.unit_converter('symbols', symbols, entity.unit),
+                entity.unit,
+            )
+            self.project_service._ensure_convertible(
+                total, entity.unit, 'Новое общее значение',
+            )
+            if not math.isclose(
+                    float(total), float(entity.total_units), abs_tol=0.009,
+            ):
+                progress = self.project_service.record_progress(
+                    project_id, stage_id=stage_id, new_total=total,
+                )
+                return {
+                    'changed': True,
+                    'symbols': symbols,
+                    'project': progress['project'],
+                    'progress': progress,
+                }
+            return {
+                'changed': False,
+                'symbols': symbols,
+                'project': self.project_service.get_project(project_id),
+                'progress': None,
+            }
 
     def _mark_synced(self, project_id: str, stage_id: str | None) -> dict[str, Any]:
         def mutate(data):

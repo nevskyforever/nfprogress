@@ -219,6 +219,21 @@ def test_settings_help_locales_and_word_upload(client):
     assert upload.status_code == 200, upload.text
     assert upload.json() == {'symbols': 10}
 
+    project = _create_project(client, 'Импорт Word')
+    applied = client.post(
+        f"/api/projects/{project['id']}/imports/word",
+        files={
+            'file': (
+                'chapter.docx', _docx_bytes('1234567890'),
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            ),
+        },
+    )
+    assert applied.status_code == 200, applied.text
+    assert applied.json()['changed'] is True
+    assert applied.json()['project']['total'] == 10
+    assert applied.json()['progress']['added_symbols'] == 10
+
 
 def test_game_state_and_writing_session_are_server_authoritative(client):
     enabled = client.patch('/api/settings', json={

@@ -29,6 +29,29 @@ def test_uploaded_word_document_must_be_a_bounded_zip_container():
         DocumentIntegrationService.count_uploaded_docx(b'not-a-zip', 'book.docx')
 
 
+def test_uploaded_word_document_routes_progress_through_project_service(tmp_path):
+    repository = PickleRepository(tmp_path)
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book', 'goal': 100, 'unit': 'symbols',
+    })
+    service = DocumentIntegrationService(repository, projects)
+
+    imported = service.apply_uploaded_docx(
+        project['id'], _docx_bytes('1234567890'), 'book.docx',
+    )
+
+    assert imported['changed'] is True
+    assert imported['symbols'] == 10
+    assert imported['progress']['added_symbols'] == 10
+    assert imported['project']['total'] == 10
+    repeated = service.apply_uploaded_docx(
+        project['id'], _docx_bytes('1234567890'), 'book.docx',
+    )
+    assert repeated['changed'] is False
+    assert repeated['progress'] is None
+
+
 def test_local_file_configuration_is_desktop_only(tmp_path):
     repository = PickleRepository(tmp_path)
     projects = ProjectService(repository)

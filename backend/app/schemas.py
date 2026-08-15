@@ -234,3 +234,14 @@ class SyncConfigure(StrictModel):
 
 class SyncStageQuery(StrictModel):
     stage_id: str | None = None
+
+
+class WordCountResponse(BaseModel):
+    symbols: int
+
+
+class WordImportResponse(BaseModel):
+    changed: bool
+    symbols: int
+    project: ProjectResponse
+    progress: ProgressResult | None = None

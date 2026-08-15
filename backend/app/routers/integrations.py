@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, File, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from ..dependencies import Services, get_services
-from ..schemas import SyncConfigure
+from ..schemas import SyncConfigure, WordCountResponse, WordImportResponse
 
 
 router = APIRouter(tags=['integrations'])
@@ -62,7 +62,7 @@ def scrivener_items(
     return services.integrations.inspect_scrivener(path)
 
 
-@router.post('/integrations/word/count', response_model=dict[str, int])
+@router.post('/integrations/word/count', response_model=WordCountResponse)
 async def count_word_upload(
         services: Annotated[Services, Depends(get_services)],
         file: UploadFile = File(...),
@@ -74,3 +74,23 @@ async def count_word_upload(
         file.filename or 'document.docx',
     )
     return {'symbols': symbols}
+
+
+@router.post(
+    '/projects/{project_id}/imports/word',
+    response_model=WordImportResponse,
+)
+async def apply_word_upload(
+        project_id: str,
+        services: Annotated[Services, Depends(get_services)],
+        file: UploadFile = File(...),
+        stage_id: str | None = None,
+):
+    content = await file.read(100 * 1024 * 1024 + 1)
+    return await run_in_threadpool(
+        services.integrations.apply_uploaded_docx,
+        project_id,
+        content,
+        file.filename or 'document.docx',
+        stage_id=stage_id,
+    )
