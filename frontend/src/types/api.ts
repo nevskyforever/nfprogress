@@ -116,13 +116,20 @@ export interface StatisticsMetrics {
   average_symbols_per_entry: number
   average_entries_per_active_day: number
   freezes_used: number
-  best_day: string
-  best_weekday: string
+  best_day: {
+    date: string
+    symbols: number
+    value: number
+  } | null
+  best_weekday: {
+    weekday: number
+    symbols: number
+  } | null
   current_streak: number
   max_streak: number
   days_since_start: number
   active_days: number
-  active_days_percent: string
+  active_days_percent: number
 }
 
 export interface LanguageOption {

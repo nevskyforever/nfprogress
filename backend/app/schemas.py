@@ -104,11 +104,44 @@ class ProgressResult(BaseModel):
     warning: str | None = None
 
 
+class BestDayStatistic(BaseModel):
+    date: str
+    symbols: float
+    value: float
+
+
+class BestWeekdayStatistic(BaseModel):
+    weekday: int = Field(ge=0, le=6)
+    symbols: float
+
+
+class StatisticsMetrics(BaseModel):
+    entries_count: int
+    total: float
+    average_symbols_per_active_day: float
+    average_symbols_per_entry: float
+    average_entries_per_active_day: float
+    freezes_used: int
+    best_day: BestDayStatistic | None
+    best_weekday: BestWeekdayStatistic | None
+    current_streak: int
+    max_streak: int
+    days_since_start: int
+    active_days: int
+    active_days_percent: float
+
+
+class StatisticsTimelinePoint(BaseModel):
+    date: str
+    symbols: float
+    value: float
+
+
 class StatisticsResponse(BaseModel):
     entity_id: str
     unit: UnitCode
-    metrics: dict[str, Any]
-    timeline: list[dict[str, Any]]
+    metrics: StatisticsMetrics
+    timeline: list[StatisticsTimelinePoint]
 
 
 class ArchiveCommand(StrictModel):

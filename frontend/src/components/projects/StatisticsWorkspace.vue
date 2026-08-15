@@ -39,10 +39,28 @@ const metricDefinitions: Array<{ key: MetricKey; label: string }> = [
 const maxTimelineValue = computed(() =>
   Math.max(1, ...(props.statistics?.timeline.map((item) => Math.abs(item.value)) ?? [])),
 )
-function formatMetric(key: MetricKey, value: StatisticsMetrics[MetricKey]): string {
-  if (typeof value === 'string') return value
+function formatMetric(key: MetricKey): string {
+  const metrics = props.statistics?.metrics
+  if (!metrics) return '—'
+  if (key === 'best_day') {
+    const value = metrics.best_day
+    if (!value) return '—'
+    const unit = t('Символы').toLocaleLowerCase(locale.localeTag)
+    return `${locale.formatDate(value.date)} · ${locale.formatNumber(value.symbols, 0)} ${unit}`
+  }
+  if (key === 'best_weekday') {
+    const value = metrics.best_weekday
+    if (!value) return '—'
+    const referenceMonday = new Date(2024, 0, 1 + value.weekday)
+    return new Intl.DateTimeFormat(locale.localeTag, { weekday: 'long' }).format(referenceMonday)
+  }
+  const value = metrics[key]
+  if (typeof value !== 'number') return '—'
   if (key === 'total') return formatValue(value, props.statistics?.unit ?? 'symbols')
-  if (key === 'average_entries_per_active_day') return locale.formatNumber(value, 1)
+  if (key === 'average_entries_per_active_day' || key === 'active_days_percent') {
+    const formatted = locale.formatNumber(value, 1)
+    return key === 'active_days_percent' ? `${formatted}%` : formatted
+  }
   return locale.formatNumber(value, 0)
 }
 
@@ -82,7 +100,7 @@ function barWidth(value: number): string {
       <dl class="metric-grid">
         <div v-for="metric in metricDefinitions" :key="metric.key" class="metric-card">
           <dt>{{ t(metric.label) }}</dt>
-          <dd>{{ formatMetric(metric.key, statistics.metrics[metric.key]) }}</dd>
+          <dd>{{ formatMetric(metric.key) }}</dd>
         </div>
       </dl>
 

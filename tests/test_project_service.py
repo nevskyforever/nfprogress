@@ -37,6 +37,9 @@ def test_project_stage_progress_and_statistics_round_trip(service):
     assert result['project']['stages'][0]['total'] == 1_250
     assert result['entry']['id']
     assert stats['metrics']['entries_count'] == 1
+    assert stats['metrics']['best_day']['date'] == engine.today_for_test().isoformat()
+    assert stats['metrics']['best_weekday']['weekday'] == engine.today_for_test().weekday()
+    assert isinstance(stats['metrics']['active_days_percent'], float)
     assert stats['timeline'][0]['symbols'] == 1_250
 
 

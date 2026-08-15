@@ -550,6 +550,16 @@ class ProjectService:
         symbols_by_day: dict[date, float] = defaultdict(float)
         for _stage_name, note in entity.get_notes_with_stage_names():
             symbols_by_day[note.get_date_create()] += note.get_added_symbols()
+        best_day = max(symbols_by_day, key=symbols_by_day.get) if symbols_by_day else None
+        symbols_by_weekday: dict[int, float] = defaultdict(float)
+        for day, symbols in symbols_by_day.items():
+            symbols_by_weekday[day.weekday()] += symbols
+        best_weekday = (
+            max(symbols_by_weekday, key=symbols_by_weekday.get)
+            if symbols_by_weekday else None
+        )
+        active_days = int(legacy['Активных дней'])
+        days_since_start = int(legacy['Дней с начала проекта'])
         return {
             'entity_id': stage_id or project_id,
             'unit': entity.unit,
@@ -560,13 +570,30 @@ class ProjectService:
                 'average_symbols_per_entry': legacy['Среднее кол-во символов в записи'],
                 'average_entries_per_active_day': legacy['Среднее кол-во записей в день'],
                 'freezes_used': legacy['Использовано заморозок'],
-                'best_day': legacy['Лучший день'],
-                'best_weekday': legacy['Самый продуктивный день недели'],
+                'best_day': (
+                    {
+                        'date': best_day.isoformat(),
+                        'symbols': symbols_by_day[best_day],
+                        'value': engine.unit_converter(
+                            'symbols', symbols_by_day[best_day], entity.unit,
+                        ),
+                    }
+                    if best_day is not None else None
+                ),
+                'best_weekday': (
+                    {
+                        'weekday': best_weekday,
+                        'symbols': symbols_by_weekday[best_weekday],
+                    }
+                    if best_weekday is not None else None
+                ),
                 'current_streak': legacy['Текущий стрик (дней)'],
                 'max_streak': legacy['Максимальный стрик'],
-                'days_since_start': legacy['Дней с начала проекта'],
-                'active_days': legacy['Активных дней'],
-                'active_days_percent': legacy['Процент активных дней'],
+                'days_since_start': days_since_start,
+                'active_days': active_days,
+                'active_days_percent': round(
+                    active_days / days_since_start * 100, 1,
+                ) if days_since_start > 0 else 0,
             },
             'timeline': [
                 {
