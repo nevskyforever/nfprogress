@@ -269,6 +269,50 @@ class SyncStageQuery(StrictModel):
     stage_id: str | None = None
 
 
+class SyncSummaryResponse(BaseModel):
+    project_id: str
+    stage_id: str | None
+    configured: bool
+    type: Literal['word', 'scrivener'] | None
+    path: str | None
+    item_id: str | None
+    last_synced_at: str | None
+    desktop_only: bool = True
+
+
+class SyncRunResponse(BaseModel):
+    changed: bool
+    symbols: int
+    sync: SyncSummaryResponse
+    progress: ProgressResult | None = None
+
+
+class ScrivenerItemResponse(BaseModel):
+    id: str
+    title: str
+
+
+class SyncErrorResponse(BaseModel):
+    code: str
+    message: str
+
+
+class SyncBatchItemResponse(BaseModel):
+    project_id: str
+    stage_id: str | None
+    ok: bool
+    changed: bool
+    symbols: int | None
+    error: SyncErrorResponse | None
+
+
+class SyncBatchResponse(BaseModel):
+    checked: int
+    changed: int
+    failed: int
+    items: list[SyncBatchItemResponse]
+
+
 class WordCountResponse(BaseModel):
     symbols: int
 

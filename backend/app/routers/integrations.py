@@ -1,18 +1,26 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, UploadFile
 from starlette.concurrency import run_in_threadpool
 
 from ..dependencies import Services, get_services
-from ..schemas import SyncConfigure, WordCountResponse, WordImportResponse
+from ..schemas import (
+    ScrivenerItemResponse,
+    SyncBatchResponse,
+    SyncConfigure,
+    SyncRunResponse,
+    SyncSummaryResponse,
+    WordCountResponse,
+    WordImportResponse,
+)
 
 
 router = APIRouter(tags=['integrations'])
 
 
-@router.get('/projects/{project_id}/sync', response_model=dict[str, Any])
+@router.get('/projects/{project_id}/sync', response_model=SyncSummaryResponse)
 def get_sync(
         project_id: str,
         services: Annotated[Services, Depends(get_services)],
@@ -21,7 +29,7 @@ def get_sync(
     return services.integrations.get_sync(project_id, stage_id=stage_id)
 
 
-@router.put('/projects/{project_id}/sync', response_model=dict[str, Any])
+@router.put('/projects/{project_id}/sync', response_model=SyncSummaryResponse)
 def configure_sync(
         project_id: str,
         payload: SyncConfigure,
@@ -36,7 +44,7 @@ def configure_sync(
     )
 
 
-@router.delete('/projects/{project_id}/sync', response_model=dict[str, Any])
+@router.delete('/projects/{project_id}/sync', response_model=SyncSummaryResponse)
 def remove_sync(
         project_id: str,
         services: Annotated[Services, Depends(get_services)],
@@ -45,7 +53,7 @@ def remove_sync(
     return services.integrations.remove_sync(project_id, stage_id=stage_id)
 
 
-@router.post('/projects/{project_id}/sync/run', response_model=dict[str, Any])
+@router.post('/projects/{project_id}/sync/run', response_model=SyncRunResponse)
 def run_sync(
         project_id: str,
         services: Annotated[Services, Depends(get_services)],
@@ -54,7 +62,15 @@ def run_sync(
     return services.integrations.run_sync(project_id, stage_id=stage_id)
 
 
-@router.get('/integrations/scrivener/items', response_model=list[dict[str, str]])
+@router.post('/integrations/sync/run-all', response_model=SyncBatchResponse)
+def run_all_sync(services: Annotated[Services, Depends(get_services)]):
+    return services.integrations.sync_all_configured()
+
+
+@router.get(
+    '/integrations/scrivener/items',
+    response_model=list[ScrivenerItemResponse],
+)
 def scrivener_items(
         path: str,
         services: Annotated[Services, Depends(get_services)],

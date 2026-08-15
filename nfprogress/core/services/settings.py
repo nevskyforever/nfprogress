@@ -22,7 +22,6 @@ GENERAL_KEYS = frozenset({
 })
 DESKTOP_KEYS = frozenset({
     'background_synch',
-    'check_updates',
 })
 UI_STATE_KEYS = frozenset({
     'inventory_filter',
@@ -35,7 +34,6 @@ BOOLEAN_KEYS = frozenset({
     'global_streak',
     'show_written_today_in_all_projects',
     'background_synch',
-    'check_updates',
 })
 PROJECT_FILTERS = frozenset({'Активен', 'В архиве', 'Завершен'})
 PROJECT_SORTS = frozenset({'Название', 'Дедлайн', 'Прогресс'})
@@ -48,13 +46,17 @@ class SettingsService:
 
     def get(self) -> dict[str, Any]:
         values = self.repository.read_settings()
+        if self.platform == 'desktop':
+            values.setdefault('background_synch', True)
         return {
             'values': to_json_safe(values),
             'platform': self.platform,
             'capabilities': {
                 'local_file_sync': self.platform == 'desktop',
                 'background_file_sync': self.platform == 'desktop',
-                'native_updates': self.platform == 'desktop',
+                # Legacy packages use a Qt-specific updater and release format.
+                # Tauri updates stay disabled until signed Tauri artifacts exist.
+                'native_updates': False,
                 'remote_api': self.platform in {'web', 'ios', 'android'},
             },
             'editable_keys': sorted(

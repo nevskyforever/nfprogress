@@ -19,7 +19,7 @@ from scrivener_parser import (
     parse_scrivener_items,
 )
 
-from nfprogress.core.errors import NotFoundError, ValidationError
+from nfprogress.core.errors import DomainError, NotFoundError, ValidationError
 
 
 class DocumentIntegrationService:
@@ -114,6 +114,78 @@ class DocumentIntegrationService:
             'symbols': symbols,
             'sync': self._mark_synced(project_id, stage_id),
             'progress': progress,
+        }
+
+    def sync_all_configured(self) -> dict[str, Any]:
+        """Synchronize every active desktop source without stopping on one failure."""
+        self._require_local_files()
+        data = self.repository.read_projects()
+        targets: list[tuple[str, str | None]] = []
+        projects = data.get('projects', {})
+        if isinstance(projects, dict):
+            for project in projects.values():
+                project_id = getattr(project, 'project_id', None)
+                if not project_id:
+                    continue
+                if getattr(project, 'has_stages', lambda: False)():
+                    targets.extend(
+                        (str(project_id), str(stage.stage_id))
+                        for stage in getattr(project, 'stages', [])
+                        if (
+                            getattr(stage, 'stage_id', None)
+                            and getattr(stage, 'status', None) == 'активен'
+                            and getattr(stage, 'synch', None) is not None
+                        )
+                    )
+                elif (
+                        getattr(project, 'status', None) == 'активен'
+                        and getattr(project, 'synch', None) is not None
+                ):
+                    targets.append((str(project_id), None))
+
+        items: list[dict[str, Any]] = []
+        changed_count = 0
+        for project_id, stage_id in targets:
+            try:
+                result = self.run_sync(project_id, stage_id=stage_id)
+            except DomainError as error:
+                items.append({
+                    'project_id': project_id,
+                    'stage_id': stage_id,
+                    'ok': False,
+                    'changed': False,
+                    'symbols': None,
+                    'error': error.as_dict(),
+                })
+                continue
+            except Exception:
+                items.append({
+                    'project_id': project_id,
+                    'stage_id': stage_id,
+                    'ok': False,
+                    'changed': False,
+                    'symbols': None,
+                    'error': {
+                        'code': 'sync_failed',
+                        'message': 'Не удалось прочитать источник синхронизации.',
+                    },
+                })
+                continue
+            changed = bool(result['changed'])
+            changed_count += int(changed)
+            items.append({
+                'project_id': project_id,
+                'stage_id': stage_id,
+                'ok': True,
+                'changed': changed,
+                'symbols': int(result['symbols']),
+                'error': None,
+            })
+        return {
+            'checked': len(targets),
+            'changed': changed_count,
+            'failed': sum(not item['ok'] for item in items),
+            'items': items,
         }
 
     def inspect_scrivener(self, path: str) -> list[dict[str, str]]:

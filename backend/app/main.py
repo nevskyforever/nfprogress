@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +22,39 @@ from nfprogress.core.services.settings import SettingsService
 from .config import RuntimeConfig
 from .dependencies import Services, require_session
 from .routers import content, game, integrations, notes, projects
+
+
+_LOGGER = logging.getLogger(__name__)
+
+
+def _desktop_sync_state(services: Services) -> tuple[bool, object]:
+    repository = services.repository
+    locked = getattr(repository, 'locked', None)
+    if callable(locked):
+        with locked():
+            settings = engine.load_settings()
+            return bool(settings.get('background_synch', True)), engine.today_for_test()
+    settings = repository.read_settings()
+    return bool(settings.get('background_synch', True)), engine.today_for_test()
+
+
+async def _desktop_sync_loop(services: Services) -> None:
+    previous_day = None
+    was_enabled = False
+    while True:
+        try:
+            enabled, current_day = await asyncio.to_thread(
+                _desktop_sync_state, services,
+            )
+            if enabled and (not was_enabled or current_day != previous_day):
+                await asyncio.to_thread(services.integrations.sync_all_configured)
+            previous_day = current_day
+            was_enabled = enabled
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            _LOGGER.exception('Desktop background synchronization failed.')
+        await asyncio.sleep(60)
 
 
 def create_app(config: RuntimeConfig | None = None) -> FastAPI:
@@ -45,10 +82,26 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
         ),
     )
 
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI):
+        sync_task = None
+        if runtime_config.platform == 'desktop':
+            sync_task = asyncio.create_task(_desktop_sync_loop(services))
+        try:
+            yield
+        finally:
+            if sync_task is not None:
+                sync_task.cancel()
+                try:
+                    await sync_task
+                except asyncio.CancelledError:
+                    pass
+
     app = FastAPI(
         title='nfprogress API',
         version=engine.version,
         description='Shared API for nfprogress Web, Tauri, and Capacitor clients.',
+        lifespan=lifespan,
     )
     app.state.runtime_config = runtime_config
     app.state.services = services
