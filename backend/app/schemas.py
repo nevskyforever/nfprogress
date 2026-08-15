@@ -290,6 +290,7 @@ class SyncRunResponse(BaseModel):
 class ScrivenerItemResponse(BaseModel):
     id: str
     title: str
+    children: list['ScrivenerItemResponse'] = Field(default_factory=list)
 
 
 class SyncErrorResponse(BaseModel):

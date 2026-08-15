@@ -188,17 +188,29 @@ class DocumentIntegrationService:
             'items': items,
         }
 
-    def inspect_scrivener(self, path: str) -> list[dict[str, str]]:
+    def inspect_scrivener(self, path: str) -> list[dict[str, Any]]:
         self._require_local_files()
         project_path = Path(path).expanduser().resolve()
         xml_path = find_scrivener_xml(str(project_path))
         if not xml_path:
             raise ValidationError('Не найден файл проекта Scrivener.')
         items = parse_scrivener_items(xml_path)
-        return [
-            {'id': str(item_id), 'title': str(title)}
-            for item_id, title in items
-        ]
+        return [self._scrivener_item(item) for item in items]
+
+    @classmethod
+    def _scrivener_item(cls, value: Any) -> dict[str, Any]:
+        if not isinstance(value, dict):
+            raise ValidationError('Структура проекта Scrivener повреждена.')
+        item_id = value.get('id')
+        title = value.get('title')
+        children = value.get('children', [])
+        if not item_id or not isinstance(children, list):
+            raise ValidationError('Структура проекта Scrivener повреждена.')
+        return {
+            'id': str(item_id),
+            'title': str(title or 'Без названия'),
+            'children': [cls._scrivener_item(child) for child in children],
+        }
 
     @staticmethod
     def count_uploaded_docx(content: bytes, filename: str) -> int:

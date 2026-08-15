@@ -60,7 +60,9 @@ def parse_scrivener_items(xml_path):
         # Ищем дочерние элементы
         children = []
         # В разных версиях дети могут быть в <Children> или <SubDocuments>
-        children_container = (elem.find('Children') or elem.find('SubDocuments'))
+        children_container = elem.find('Children')
+        if children_container is None:
+            children_container = elem.find('SubDocuments')
         if children_container is not None:
             for child in children_container.findall('BinderItem'):
                 parsed = parse_element(child)

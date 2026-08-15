@@ -124,3 +124,33 @@ def test_desktop_capabilities_match_background_runtime(tmp_path):
     assert desktop['capabilities']['background_file_sync'] is True
     assert desktop['capabilities']['native_updates'] is False
     assert 'check_updates' not in desktop['editable_keys']
+
+
+def test_scrivener_inspection_preserves_nested_binder_tree(tmp_path):
+    project_path = tmp_path / 'book.scriv'
+    project_path.mkdir()
+    (project_path / 'project.scrivx').write_text(
+        '''<?xml version="1.0" encoding="UTF-8"?>
+        <ScrivenerProject><Binder>
+          <BinderItem UUID="draft"><Title>Черновик</Title><Children>
+            <BinderItem UUID="chapter"><Title>Глава 1</Title></BinderItem>
+          </Children></BinderItem>
+        </Binder></ScrivenerProject>''',
+        encoding='utf-8',
+    )
+    repository = PickleRepository(tmp_path / 'data')
+    service = DocumentIntegrationService(
+        repository, ProjectService(repository), allow_local_files=True,
+    )
+
+    items = service.inspect_scrivener(str(project_path))
+
+    assert items == [{
+        'id': 'draft',
+        'title': 'Черновик',
+        'children': [{
+            'id': 'chapter',
+            'title': 'Глава 1',
+            'children': [],
+        }],
+    }]
