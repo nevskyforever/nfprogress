@@ -1,0 +1,452 @@
+<script setup lang="ts">
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { IonContent, IonIcon, IonPage } from '@ionic/vue'
+import {
+  addOutline,
+  alertCircleOutline,
+  closeCircleOutline,
+  folderOpenOutline,
+  searchOutline,
+} from 'ionicons/icons'
+
+import ProjectCard from '@/components/projects/ProjectCard.vue'
+import ProjectCreateDialog from '@/components/projects/ProjectCreateDialog.vue'
+import StatePanel from '@/components/ui/StatePanel.vue'
+import { useLocaleStore } from '@/stores/locale'
+import { useProjectsStore } from '@/stores/projects'
+import type { ProjectCreate, ProjectSort, ProjectStatus } from '@/types/api'
+
+type StatusFilter = 'all' | ProjectStatus
+
+const route = useRoute()
+const router = useRouter()
+const store = useProjectsStore()
+const locale = useLocaleStore()
+const t = locale.translate
+
+function queryValue(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function initialStatus(): StatusFilter {
+  const value = queryValue(route.query.status)
+  return value === 'активен' || value === 'в архиве' || value === 'завершен' ? value : 'all'
+}
+
+function initialSort(): ProjectSort {
+  const value = queryValue(route.query.sort)
+  return value === 'name' || value === 'deadline' || value === 'updated' ? value : 'progress'
+}
+
+const search = ref(queryValue(route.query.search))
+const debouncedSearch = ref(search.value)
+const status = ref<StatusFilter>(initialStatus())
+const sort = ref<ProjectSort>(initialSort())
+const createDialogOpen = ref(false)
+let debounceTimer: ReturnType<typeof setTimeout> | undefined
+
+const hasFilters = computed(
+  () => search.value.trim().length > 0 || status.value !== 'all',
+)
+
+const resultSummary = computed(() => {
+  if (store.loading || store.error) return ''
+  return t('Найдено проектов: {count}', { count: store.projectCount })
+})
+
+function currentListQuery() {
+  return {
+    search: debouncedSearch.value,
+    sort: sort.value,
+    status: status.value === 'all' ? undefined : status.value,
+  }
+}
+
+function loadProjects(): void {
+  void store.load(currentListQuery())
+}
+
+function clearFilters(): void {
+  search.value = ''
+  debouncedSearch.value = ''
+  status.value = 'all'
+}
+
+function openCreateDialog(): void {
+  store.clearCreateError()
+  createDialogOpen.value = true
+}
+
+function closeCreateDialog(): void {
+  createDialogOpen.value = false
+  store.clearCreateError()
+}
+
+async function createProject(payload: ProjectCreate): Promise<void> {
+  const project = await store.create(payload)
+  if (!project) return
+  createDialogOpen.value = false
+  await router.push({ name: 'project-detail', params: { projectId: project.id } })
+}
+
+watch(search, (value) => {
+  clearTimeout(debounceTimer)
+  debounceTimer = setTimeout(() => {
+    debouncedSearch.value = value
+  }, 250)
+})
+
+watch(
+  [debouncedSearch, status, sort],
+  () => {
+    const query: Record<string, string> = {}
+    if (debouncedSearch.value.trim()) query.search = debouncedSearch.value.trim()
+    if (status.value !== 'all') query.status = status.value
+    if (sort.value !== 'progress') query.sort = sort.value
+    void router.replace({ query })
+    loadProjects()
+  },
+  { immediate: true },
+)
+
+onBeforeUnmount(() => {
+  clearTimeout(debounceTimer)
+  store.cancelList()
+})
+</script>
+
+<template>
+  <IonPage>
+    <IonContent :fullscreen="true" class="projects-content">
+      <div class="projects-workspace">
+        <header class="page-header">
+          <div>
+            <p class="page-eyebrow">{{ t('Рабочее пространство') }}</p>
+            <h1>{{ t('Проекты') }}</h1>
+            <p class="page-introduction">
+              {{ t('Следите за рукописями, целями и ритмом работы в одном месте.') }}
+            </p>
+          </div>
+          <button class="nf-button create-project-button" type="button" @click="openCreateDialog">
+            <IonIcon :icon="addOutline" aria-hidden="true" />
+            {{ t('Новый проект') }}
+          </button>
+        </header>
+
+        <section class="project-toolbar" :aria-label="t('Поиск и фильтры проектов')">
+          <label class="search-field" for="project-search">
+            <span class="visually-hidden">{{ t('Поиск проектов') }}</span>
+            <IonIcon :icon="searchOutline" aria-hidden="true" />
+            <input
+              id="project-search"
+              v-model="search"
+              type="search"
+              :placeholder="t('Поиск по проектам и этапам')"
+              autocomplete="off"
+            />
+            <button
+              v-if="search"
+              class="clear-search"
+              type="button"
+              :aria-label="t('Очистить поиск')"
+              @click="search = ''"
+            >
+              <IonIcon :icon="closeCircleOutline" aria-hidden="true" />
+            </button>
+          </label>
+
+          <label class="toolbar-select" for="project-status-filter">
+            <span>{{ t('Статус') }}</span>
+            <select id="project-status-filter" v-model="status">
+              <option value="all">{{ t('Все проекты') }}</option>
+              <option value="активен">{{ t('Активные') }}</option>
+              <option value="в архиве">{{ t('В архиве') }}</option>
+              <option value="завершен">{{ t('Завершённые') }}</option>
+            </select>
+          </label>
+
+          <label class="toolbar-select" for="project-sort">
+            <span>{{ t('Сортировка') }}</span>
+            <select id="project-sort" v-model="sort">
+              <option value="progress">{{ t('По прогрессу') }}</option>
+              <option value="updated">{{ t('Недавно изменённые') }}</option>
+              <option value="deadline">{{ t('По сроку') }}</option>
+              <option value="name">{{ t('По названию') }}</option>
+            </select>
+          </label>
+        </section>
+
+        <p class="results-summary" aria-live="polite">{{ resultSummary }}</p>
+
+        <StatePanel
+          v-if="store.loading && store.projects.length === 0"
+          :title="t('Загружаем проекты')"
+          :message="t('Собираем актуальные данные вашего рабочего пространства.')"
+          loading
+        />
+
+        <StatePanel
+          v-else-if="store.error"
+          :title="t('Не удалось загрузить проекты')"
+          :message="store.error"
+          :icon="alertCircleOutline"
+        >
+          <button class="nf-button" type="button" @click="loadProjects">
+            {{ t('Повторить') }}
+          </button>
+        </StatePanel>
+
+        <StatePanel
+          v-else-if="store.projects.length === 0 && hasFilters"
+          :title="t('Ничего не найдено')"
+          :message="t('Попробуйте изменить запрос или сбросить фильтры.')"
+          :icon="searchOutline"
+        >
+          <button class="nf-button nf-button--secondary" type="button" @click="clearFilters">
+            {{ t('Сбросить фильтры') }}
+          </button>
+        </StatePanel>
+
+        <StatePanel
+          v-else-if="store.projects.length === 0"
+          :title="t('Здесь появятся ваши истории')"
+          :message="t('Создайте первый проект, задайте цель и начните фиксировать прогресс.')"
+          :icon="folderOpenOutline"
+        >
+          <button class="nf-button" type="button" @click="openCreateDialog">
+            <IonIcon :icon="addOutline" aria-hidden="true" />
+            {{ t('Создать первый проект') }}
+          </button>
+        </StatePanel>
+
+        <section
+          v-else
+          class="project-grid"
+          :class="{ 'project-grid--updating': store.loading }"
+          :aria-busy="store.loading"
+          :aria-label="t('Список проектов')"
+        >
+          <ProjectCard v-for="project in store.projects" :key="project.id" :project="project" />
+        </section>
+      </div>
+    </IonContent>
+
+    <ProjectCreateDialog
+      :open="createDialogOpen"
+      :submitting="store.creating"
+      :api-error="store.createError"
+      @close="closeCreateDialog"
+      @submit="createProject"
+    />
+  </IonPage>
+</template>
+
+<style scoped>
+.projects-content {
+  --background: var(--nf-color-canvas);
+}
+
+.projects-workspace {
+  width: min(100%, 91rem);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: calc(var(--nf-space-7) + env(safe-area-inset-top)) clamp(1rem, 3vw, 3.5rem)
+    var(--nf-space-7);
+}
+
+.page-header {
+  display: flex;
+  gap: var(--nf-space-6);
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.page-eyebrow {
+  margin: 0 0 var(--nf-space-2);
+  color: var(--nf-color-accent);
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.page-header h1 {
+  margin: 0;
+  color: var(--nf-color-text);
+  font-family: var(--nf-font-serif);
+  font-size: clamp(2.25rem, 6vw, 4rem);
+  font-weight: 650;
+  letter-spacing: -0.04em;
+  line-height: 0.98;
+}
+
+.page-introduction {
+  max-width: 38rem;
+  margin: var(--nf-space-3) 0 0;
+  color: var(--nf-color-text-muted);
+  font-size: clamp(0.95rem, 1.5vw, 1.08rem);
+  line-height: 1.55;
+}
+
+.create-project-button {
+  min-width: max-content;
+}
+
+.create-project-button ion-icon {
+  font-size: 1.15rem;
+}
+
+.project-toolbar {
+  display: grid;
+  grid-template-columns: minmax(14rem, 1fr) auto auto;
+  gap: var(--nf-space-3);
+  align-items: end;
+  margin-top: var(--nf-space-7);
+  padding: var(--nf-space-3);
+  border: 1px solid var(--nf-color-border);
+  border-radius: var(--nf-radius-md);
+  background: var(--nf-color-surface);
+}
+
+.search-field {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: var(--nf-space-2);
+  align-items: center;
+  min-height: 3rem;
+  padding: 0 var(--nf-space-3);
+  border: 1px solid transparent;
+  border-radius: var(--nf-radius-sm);
+  background: var(--nf-color-surface-muted);
+  color: var(--nf-color-text-muted);
+}
+
+.search-field:focus-within {
+  border-color: var(--nf-color-focus);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--nf-color-focus) 25%, transparent);
+}
+
+.search-field input {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--nf-color-text);
+}
+
+.search-field input::placeholder {
+  color: var(--nf-color-text-muted);
+}
+
+.clear-search {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: var(--nf-radius-pill);
+  background: transparent;
+  color: var(--nf-color-text-muted);
+  cursor: pointer;
+}
+
+.clear-search ion-icon {
+  font-size: 1.25rem;
+}
+
+.toolbar-select {
+  display: grid;
+  gap: var(--nf-space-1);
+  min-width: 10rem;
+}
+
+.toolbar-select span {
+  padding-left: var(--nf-space-2);
+  color: var(--nf-color-text-muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.toolbar-select select {
+  min-height: 3rem;
+  padding: 0 var(--nf-space-3);
+  border: 1px solid var(--nf-color-border);
+  border-radius: var(--nf-radius-sm);
+  background: var(--nf-color-surface-raised);
+  color: var(--nf-color-text);
+}
+
+.results-summary {
+  min-height: 1.25rem;
+  margin: var(--nf-space-4) var(--nf-space-1) var(--nf-space-3);
+  color: var(--nf-color-text-muted);
+  font-size: 0.8rem;
+}
+
+.project-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: var(--nf-space-4);
+  transition: opacity 120ms ease;
+}
+
+.project-grid--updating {
+  opacity: 0.58;
+  pointer-events: none;
+}
+
+@media (min-width: 100rem) {
+  .project-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 48rem) {
+  .projects-workspace {
+    padding-top: calc(var(--nf-space-6) + env(safe-area-inset-top));
+    padding-bottom: var(--nf-space-6);
+  }
+
+  .page-header {
+    align-items: flex-start;
+  }
+
+  .create-project-button {
+    width: 3rem;
+    min-width: 3rem;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .create-project-button ion-icon {
+    font-size: 1.35rem;
+  }
+
+  .project-toolbar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .search-field {
+    grid-column: 1 / -1;
+  }
+
+  .toolbar-select {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 28rem) {
+  .project-toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .search-field {
+    grid-column: auto;
+  }
+}
+</style>

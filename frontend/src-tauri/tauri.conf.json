@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "nfprogress",
+  "version": "4.14.2",
+  "identifier": "app.nfprogress.tracker",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:5173",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "nfprogress",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 820,
+        "minHeight": 600,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:5173 ws://localhost:5173; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "copyright": "Copyright nfprogress contributors",
+    "shortDescription": "Трекер прогресса для писателей",
+    "longDescription": "nfprogress помогает писателям планировать проекты, записывать прогресс и сохранять творческий ритм.",
+    "externalBin": [
+      "binaries/nfprogress-backend"
+    ],
+    "icon": [
+      "../../Icon-256.png",
+      "../../appicon.icns",
+      "../../icon.ico"
+    ]
+  }
+}

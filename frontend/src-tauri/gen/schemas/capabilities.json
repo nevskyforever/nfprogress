@@ -1,0 +1,1 @@
+{"main-window":{"identifier":"main-window","description":"Minimal desktop permissions for the nfprogress main window.","local":true,"windows":["main"],"permissions":["core:default","dialog:allow-open","opener:allow-open-url"]}}

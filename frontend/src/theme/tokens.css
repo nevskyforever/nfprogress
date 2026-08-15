@@ -1,0 +1,72 @@
+:root {
+  --nf-font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --nf-font-serif: Iowan Old Style, Charter, "Bitstream Charter", "Sitka Text", Georgia, serif;
+
+  --nf-space-1: 0.25rem;
+  --nf-space-2: 0.5rem;
+  --nf-space-3: 0.75rem;
+  --nf-space-4: 1rem;
+  --nf-space-5: 1.5rem;
+  --nf-space-6: 2rem;
+  --nf-space-7: 3rem;
+
+  --nf-radius-sm: 0.65rem;
+  --nf-radius-md: 1rem;
+  --nf-radius-lg: 1.4rem;
+  --nf-radius-pill: 999px;
+
+  --nf-color-canvas: #f7f5ef;
+  --nf-color-surface: #fffdf8;
+  --nf-color-surface-raised: #ffffff;
+  --nf-color-surface-muted: #eeece5;
+  --nf-color-text: #1e2925;
+  --nf-color-text-muted: #66726d;
+  --nf-color-border: #dcded7;
+  --nf-color-primary: #41665a;
+  --nf-color-primary-hover: #315449;
+  --nf-color-primary-soft: #e1ece7;
+  --nf-color-accent: #bb704f;
+  --nf-color-success: #2f765b;
+  --nf-color-warning: #9a6222;
+  --nf-color-danger: #a43f3f;
+  --nf-color-focus: #136fba;
+  --nf-shadow-card: 0 12px 35px rgb(43 55 50 / 8%);
+
+  --ion-font-family: var(--nf-font-sans);
+  --ion-background-color: var(--nf-color-canvas);
+  --ion-text-color: var(--nf-color-text);
+  --ion-color-primary: #41665a;
+  --ion-color-primary-rgb: 65, 102, 90;
+  --ion-color-primary-contrast: #ffffff;
+  --ion-color-primary-contrast-rgb: 255, 255, 255;
+  --ion-color-primary-shade: #395a4f;
+  --ion-color-primary-tint: #547568;
+}
+
+:root[data-theme='dark'] {
+  --nf-color-canvas: #171b1a;
+  --nf-color-surface: #1e2422;
+  --nf-color-surface-raised: #252c29;
+  --nf-color-surface-muted: #2c3431;
+  --nf-color-text: #edf2ef;
+  --nf-color-text-muted: #aebbb6;
+  --nf-color-border: #3b4541;
+  --nf-color-primary: #83b6a4;
+  --nf-color-primary-hover: #9fc9ba;
+  --nf-color-primary-soft: #2a443b;
+  --nf-color-accent: #e39a76;
+  --nf-color-success: #7fc1a4;
+  --nf-color-warning: #e1b16e;
+  --nf-color-danger: #f19494;
+  --nf-color-focus: #77b9f1;
+  --nf-shadow-card: 0 16px 40px rgb(0 0 0 / 20%);
+
+  --ion-background-color: var(--nf-color-canvas);
+  --ion-text-color: var(--nf-color-text);
+  --ion-color-primary: #83b6a4;
+  --ion-color-primary-rgb: 131, 182, 164;
+  --ion-color-primary-contrast: #14201c;
+  --ion-color-primary-contrast-rgb: 20, 32, 28;
+  --ion-color-primary-shade: #74a090;
+  --ion-color-primary-tint: #90bdad;
+}

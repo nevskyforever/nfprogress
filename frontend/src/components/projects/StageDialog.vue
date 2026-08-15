@@ -1,0 +1,221 @@
+<script setup lang="ts">
+import { computed, nextTick, reactive, ref, watch } from 'vue'
+import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue'
+import { closeOutline } from 'ionicons/icons'
+
+import { useLocaleStore } from '@/stores/locale'
+import type { EntityUpdate, Project, StageCreate, UnitCode } from '@/types/api'
+
+const props = withDefaults(
+  defineProps<{
+    open: boolean
+    projectUnit: UnitCode
+    stage?: Project | null
+    submitting?: boolean
+    apiError?: string | null
+  }>(),
+  { stage: null, submitting: false, apiError: null },
+)
+
+const emit = defineEmits<{
+  close: []
+  submit: [payload: StageCreate | EntityUpdate]
+}>()
+
+const locale = useLocaleStore()
+const t = locale.translate
+const validationErrors = ref<string[]>([])
+const errorSummary = ref<HTMLElement | null>(null)
+const projectUnitLabel = computed(() => t({
+  symbols: 'символы',
+  A4: 'листы A4',
+  author_list: 'авторские листы',
+  ficbook_pages: 'страницы Ficbook',
+}[props.projectUnit]))
+const form = reactive({
+  name: '',
+  goal: '10000',
+  deadline: '',
+  personalGoal: '0',
+  infinite: false,
+  streakEnabled: false,
+  autoFreeze: true,
+})
+
+function fill(): void {
+  form.name = props.stage?.name ?? ''
+  form.goal = props.stage?.goal === null ? '10000' : String(props.stage?.goal ?? 10000)
+  form.deadline = props.stage?.deadline?.slice(0, 10) ?? ''
+  form.personalGoal = String(props.stage?.personal_goal ?? 0)
+  form.infinite = props.stage?.infinite ?? false
+  form.streakEnabled = props.stage?.streak_enabled ?? false
+  form.autoFreeze = props.stage?.auto_freeze ?? true
+  validationErrors.value = []
+}
+
+function numberFrom(value: string): number {
+  return Number(value.replace(',', '.'))
+}
+
+async function submit(): Promise<void> {
+  const errors: string[] = []
+  const name = form.name.trim()
+  const goal = numberFrom(form.goal)
+  const personalGoal = numberFrom(form.personalGoal)
+  if (!name) errors.push(t('Введите название этапа.'))
+  if (!form.infinite && (!Number.isFinite(goal) || goal <= 0)) {
+    errors.push(t('Цель должна быть больше нуля.'))
+  }
+  if (!Number.isFinite(personalGoal) || personalGoal < 0) {
+    errors.push(t('Цель на день не может быть отрицательной.'))
+  }
+  validationErrors.value = errors
+  if (errors.length) {
+    await nextTick()
+    errorSummary.value?.focus()
+    return
+  }
+
+  const commonPayload = {
+    name,
+    infinite: form.infinite,
+    deadline: form.deadline || null,
+    personal_goal: personalGoal,
+    streak_enabled: form.streakEnabled,
+    auto_freeze: form.autoFreeze,
+  }
+  const finiteGoal = form.infinite ? {} : { goal }
+  const payload: StageCreate | EntityUpdate = props.stage
+    ? { ...commonPayload, ...finiteGoal, recalculate_plan: true }
+    : { ...commonPayload, ...finiteGoal, total: 0 }
+  emit('submit', payload)
+}
+
+function requestClose(): void {
+  if (!props.submitting) emit('close')
+}
+
+watch(
+  [() => props.open, () => props.stage?.id],
+  ([open]) => {
+    if (open) fill()
+  },
+  { immediate: true },
+)
+</script>
+
+<template>
+  <IonModal
+    :is-open="open"
+    css-class="workspace-dialog-modal workspace-stage-modal"
+    :backdrop-dismiss="!submitting"
+    :keyboard-close="!submitting"
+    @did-dismiss="requestClose"
+  >
+    <IonHeader class="workspace-dialog-header ion-no-border">
+      <div>
+        <p>{{ t('Структура рукописи') }}</p>
+        <h2>{{ stage ? t('Редактировать этап') : t('Новый этап') }}</h2>
+      </div>
+      <button
+        class="workspace-dialog-close"
+        type="button"
+        :aria-label="t('Закрыть')"
+        :disabled="submitting"
+        @click="requestClose"
+      >
+        <IonIcon :icon="closeOutline" aria-hidden="true" />
+      </button>
+    </IonHeader>
+
+    <IonContent class="workspace-dialog-content">
+      <form class="workspace-form" novalidate @submit.prevent="submit">
+        <div
+          v-if="validationErrors.length"
+          ref="errorSummary"
+          class="workspace-form-error"
+          role="alert"
+          tabindex="-1"
+        >
+          <strong>{{ t('Проверьте форму') }}</strong>
+          <ul><li v-for="error in validationErrors" :key="error">{{ error }}</li></ul>
+        </div>
+        <div v-if="apiError" class="workspace-form-error" role="alert">
+          <strong>{{ t('Не удалось сохранить этап') }}</strong>
+          <p>{{ apiError }}</p>
+        </div>
+
+        <label class="workspace-field workspace-field--wide" for="stage-name">
+          <span>{{ t('Название') }}</span>
+          <input id="stage-name" v-model="form.name" maxlength="300" autocomplete="off" />
+        </label>
+        <label class="workspace-field" for="stage-goal">
+          <span>{{ t('Цель') }}</span>
+          <input
+            id="stage-goal"
+            v-model="form.goal"
+            type="number"
+            min="0"
+            step="any"
+            inputmode="decimal"
+            :disabled="form.infinite"
+          />
+        </label>
+        <label class="workspace-field" for="stage-deadline">
+          <span>{{ t('Срок') }}</span>
+          <input id="stage-deadline" v-model="form.deadline" type="date" />
+        </label>
+        <label class="workspace-field" for="stage-personal-goal">
+          <span>{{ t('Цель на день') }}</span>
+          <input
+            id="stage-personal-goal"
+            v-model="form.personalGoal"
+            type="number"
+            min="0"
+            step="any"
+            inputmode="decimal"
+          />
+        </label>
+        <p class="stage-unit-note">
+          {{ t('Единица этапа совпадает с проектом') }}: <strong>{{ projectUnitLabel }}</strong>
+        </p>
+
+        <div class="workspace-options workspace-field--wide">
+          <label class="workspace-check">
+            <input v-model="form.infinite" type="checkbox" />
+            <span><strong>{{ t('Этап без конечной цели') }}</strong></span>
+          </label>
+          <label class="workspace-check">
+            <input v-model="form.streakEnabled" type="checkbox" />
+            <span><strong>{{ t('Отслеживать серию') }}</strong></span>
+          </label>
+          <label v-if="form.streakEnabled" class="workspace-check">
+            <input v-model="form.autoFreeze" type="checkbox" />
+            <span><strong>{{ t('Использовать заморозку автоматически') }}</strong></span>
+          </label>
+        </div>
+
+        <footer class="workspace-form-actions workspace-field--wide">
+          <button class="nf-button nf-button--secondary" type="button" :disabled="submitting" @click="requestClose">
+            {{ t('Отмена') }}
+          </button>
+          <button class="nf-button" type="submit" :disabled="submitting">
+            <IonSpinner v-if="submitting" name="crescent" aria-hidden="true" />
+            {{ submitting ? t('Сохраняем…') : t('Сохранить') }}
+          </button>
+        </footer>
+      </form>
+    </IonContent>
+  </IonModal>
+</template>
+
+<style>
+.workspace-stage-modal { --height: min(43rem, calc(100dvh - 2rem)); }
+.stage-unit-note {
+  align-self: end;
+  margin: 0;
+  padding: 0.85rem;
+  color: var(--nf-color-text-muted);
+  font-size: 0.82rem;
+}
+</style>

@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">nfprogress</string>
+    <string name="title_activity_main">nfprogress</string>
+    <string name="package_name">app.nfprogress.tracker</string>
+    <string name="custom_url_scheme">app.nfprogress.tracker</string>
+</resources>

@@ -132,7 +132,9 @@ Tauri starts a bundled Nuitka Python sidecar on `127.0.0.1` using an available
 ephemeral port. It generates an in-memory session token, passes it to the
 sidecar through the child environment, waits for `/health`, and exposes the
 connection details to the webview through one command. The child is terminated
-when the application exits. The token is not persisted or built into Vite.
+when the application exits. The sidecar also watches the owning Tauri PID and
+exits if the native process crashes, so a Nuitka onefile child cannot remain
+orphaned. The token is not persisted or built into Vite.
 
 The API accepts only explicitly configured origins and requires the session
 header when a desktop token is configured. Tauri capabilities are kept to the

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from io import BytesIO
 
 import pytest
@@ -7,6 +8,7 @@ from docx import Document
 from fastapi.testclient import TestClient
 
 from backend.app.config import RuntimeConfig
+from backend.app import __main__ as backend_cli
 from backend.app.__main__ import main as backend_main
 from backend.app.main import create_app
 
@@ -66,6 +68,30 @@ def test_backend_cli_requires_explicit_remote_bind(monkeypatch):
 
     with pytest.raises(SystemExit, match='--allow-remote'):
         backend_main(['--host', '0.0.0.0'])
+
+
+def test_parent_process_watchdog_observes_owner_lifecycle(monkeypatch):
+    assert backend_cli._process_is_running(os.getpid()) is True
+    states = iter((True, False))
+    exits = []
+    monkeypatch.setattr(backend_cli, '_process_is_running', lambda _pid: next(states))
+    monkeypatch.setattr(backend_cli.time, 'sleep', lambda _interval: None)
+
+    backend_cli._watch_parent_process(123, exit_process=exits.append)
+
+    assert exits == [0]
+
+
+def test_backend_cli_starts_parent_watchdog(monkeypatch, tmp_path):
+    started = []
+    monkeypatch.setattr(backend_cli, '_start_parent_watchdog', started.append)
+    monkeypatch.setattr(backend_cli.uvicorn, 'run', lambda *args, **kwargs: None)
+
+    assert backend_main([
+        '--data-dir', str(tmp_path),
+        '--parent-pid', str(os.getpid()),
+    ]) == 0
+    assert started == [os.getpid()]
 
 
 def test_project_stage_progress_statistics_and_status_workflow(client):
