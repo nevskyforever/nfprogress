@@ -3,7 +3,7 @@ import pickle
 import sys
 import math
 import random
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import engine
@@ -582,6 +582,7 @@ class Gamer:
         self.bank_account = game_data.BankAccount()
         self.last_lose_global_streak_damage = None
         self.last_bonus_dates = {}
+        self.api_streak_reward_days = {}
         self.complete_bonus_projects = []
         self.buffs = []
         self.debuffs = []
@@ -1029,6 +1030,23 @@ class Gamer:
             )
         except (TypeError, ValueError):
             self.manuscript_reward_bonus = 0.0
+
+        raw_streak_reward_days = getattr(self, 'api_streak_reward_days', {})
+        normalized_streak_reward_days = {}
+        if isinstance(raw_streak_reward_days, dict):
+            for key, value in raw_streak_reward_days.items():
+                if not isinstance(key, str) or not key:
+                    continue
+                if isinstance(value, datetime):
+                    value = value.date()
+                elif isinstance(value, str):
+                    try:
+                        value = date.fromisoformat(value)
+                    except ValueError:
+                        continue
+                if isinstance(value, date):
+                    normalized_streak_reward_days[key] = value
+        self.api_streak_reward_days = normalized_streak_reward_days
 
         today = engine.today_for_test()
         if self.daily_challenge and self.daily_challenge.get('date') != today.isoformat():
@@ -2546,6 +2564,7 @@ class Gamer:
             'bank_account': None,
             'last_lose_global_streak_damage': None,
             'last_bonus_dates': {},
+            'api_streak_reward_days': {},
             'complete_bonus_projects': [],
             'inflation': 1,
             'buffs': [],

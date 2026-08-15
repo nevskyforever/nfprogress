@@ -99,9 +99,18 @@ verified.
 
 The first production API continues to read and atomically write `data.pkl`,
 `settings.pkl`, and `gamer.pkl`. Repository operations are serialized by a
-process-local re-entrant lock. Tests and sidecar smoke checks use an explicit
-temporary data directory through a context-local override, so real user data
-is not touched.
+shared process lock and a cross-platform advisory lock scoped to the explicit
+data directory. Streak rewards keep an idempotency marker in `gamer.pkl`; this
+allows a later request to repair the compatibility marker in `data.pkl` without
+issuing the reward twice if a process stops between the two atomic replaces.
+Tests and sidecar smoke checks use an explicit temporary data directory through
+a context-local override, so real user data is not touched.
+
+The unmodified legacy UI still performs some direct read-modify-write sequences
+outside the repository transaction. Until those callers are moved behind the
+shared service, the legacy executable and the new sidecar must not edit the
+same data directory concurrently. The packaged Tauri runtime enforces a single
+backend owner; this restriction is also documented for development runs.
 
 Any future durable JSON/SQLite migration must be a separate, versioned change:
 create a timestamped backup first, write to a new destination, validate the

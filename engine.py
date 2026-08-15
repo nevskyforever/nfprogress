@@ -7,6 +7,8 @@ import shutil
 import sys
 import tempfile
 import uuid
+from contextlib import contextmanager
+from contextvars import ContextVar
 from copy import deepcopy
 from datetime import datetime, timedelta, date, date as date_type, time
 from pathlib import Path
@@ -22,6 +24,26 @@ version = '4.14.2'
 # Определяем систему
 
 SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
+
+
+_explicit_data_dir = ContextVar('nfprogress_explicit_data_dir', default=None)
+
+
+@contextmanager
+def data_directory_context(base_dir):
+    """Temporarily route persistence to an explicit directory.
+
+    The override is local to the current execution context, so a backend request
+    can safely use isolated storage without changing the desktop application's
+    process-wide default data directory.
+    """
+    data_dir = Path(base_dir)
+    data_dir.mkdir(parents=True, exist_ok=True)
+    token = _explicit_data_dir.set(data_dir)
+    try:
+        yield data_dir
+    finally:
+        _explicit_data_dir.reset(token)
 
 
 def _copy_missing_user_data(source_dir, destination_dir):
@@ -134,6 +156,9 @@ def get_data_file_path(name):
 
     В режиме разработчика файлы читаются и пишутся из папки test_data.
     """
+    explicit_data_dir = _explicit_data_dir.get()
+    if explicit_data_dir is not None:
+        return explicit_data_dir / f'{name}.pkl'
     if dev_mode:
         return get_test_data_dir() / f'{name}.pkl'
     return get_app_data_dir() / f'{name}.pkl'
@@ -1166,7 +1191,10 @@ class Project:
                 setattr(self, attr, [])
 
         if not isinstance(self.project_id, str) or not self.project_id:
-            self.project_id = uuid.uuid4().hex
+            # ``load_data()`` intentionally does not save on a read.  A random
+            # migration value would therefore change between two API requests.
+            self.project_id = defaults['project_id']
+        self._ensure_progress_entry_ids()
         self.project_notes = normalize_project_note_records(self.project_notes)
 
         # --- Вычисляем динамические данные ПОСЛЕ того, как базовые атрибуты созданы ---
@@ -1224,10 +1252,40 @@ class Project:
                 )
                 self.stages[index] = converted_stage
                 stage = converted_stage
+            had_stable_stage_id = bool(
+                isinstance(getattr(stage, 'stage_id', None), str)
+                and stage.stage_id
+            )
             stage.parent_project_name = self.name
             stage.migrate()
+            if not had_stable_stage_id:
+                stage.stage_id = uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    (
+                        f'nfprogress-stage:{self.project_id}:{index}:'
+                        f'{stage.name}:{getattr(stage, "create_date", None)}'
+                    ),
+                ).hex
         if not self.has_stages():
             self.combine_stage_mindmaps = False
+
+    def _ensure_progress_entry_ids(self):
+        """Give legacy progress rows stable API identifiers without changing values."""
+        for index, note in enumerate(self.notes):
+            entry_id = getattr(note, 'entry_id', None)
+            if isinstance(entry_id, str) and entry_id:
+                continue
+            created_at = getattr(note, 'date_create', None)
+            if isinstance(created_at, datetime):
+                created_key = created_at.isoformat()
+            else:
+                created_key = repr(created_at)
+            seed = (
+                f'nfprogress-progress:{self.project_id}:{created_key}:'
+                f'{getattr(note, "new_total", None)}:'
+                f'{getattr(note, "added_symbols", None)}:{index}'
+            )
+            note.entry_id = uuid.uuid5(uuid.NAMESPACE_URL, seed).hex
 
     @property
     def name(self):
@@ -2160,7 +2218,13 @@ class Stage(Project):
         self.stages = []
         self.combine_stage_mindmaps = False
         if not hasattr(self, 'stage_id') or not self.stage_id:
-            self.stage_id = uuid.uuid4().hex
+            self.stage_id = uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                (
+                    f'nfprogress-stage:{self.project_id}:{self.name}:'
+                    f'{getattr(self, "create_date", None)}'
+                ),
+            ).hex
         if not hasattr(self, 'parent_project_name'):
             self.parent_project_name = None
 
@@ -2175,7 +2239,9 @@ def get_completion_entities(project):
 
 class Note:
 
-    def __init__(self, new_total, added_symbols, added_progress, date_create=None):
+    def __init__(
+            self, new_total, added_symbols, added_progress, date_create=None,
+            entry_id=None):
         if date_create is None:
             now = datetime.now()
             today = today_for_test()
@@ -2192,6 +2258,7 @@ class Note:
         self.new_total = new_total
         self.added_symbols = added_symbols
         self.added_progress = added_progress
+        self.entry_id = entry_id or uuid.uuid4().hex
 
     def get_new_total(self):
         return self.new_total
