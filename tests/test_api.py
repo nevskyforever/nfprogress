@@ -214,3 +214,37 @@ def test_game_state_and_writing_session_are_server_authoritative(client):
     cancelled = client.post('/api/game/writing-sessions/cancel')
     assert cancelled.status_code == 200, cancelled.text
     assert cancelled.json()['state']['writing_session']['active'] is None
+
+
+def test_custom_awards_and_bank_commands_use_server_state(client):
+    client.patch('/api/settings', json={'values': {'game_mode': True}})
+    repository = client.app.state.services.repository
+    gamer = repository.read_gamer()
+    gamer.level = 3
+    gamer.coins = 5_000
+    repository.write_gamer(gamer)
+
+    created = client.post('/api/game/custom-awards', json={
+        'name': 'Выходной',
+        'price': 250,
+    })
+    assert created.status_code == 200, created.text
+    award = created.json()['result']['award']
+    assert award['id']
+
+    bought = client.post(
+        f"/api/game/custom-awards/{award['id']}/buy",
+        json={'count': 2},
+    )
+    assert bought.status_code == 200, bought.text
+    custom_items = bought.json()['state']['shop']['custom_awards']['items']
+    assert custom_items[0]['count'] == 2
+
+    preview = client.post('/api/game/bank/preview', json={
+        'product_type': 'deposit',
+        'amount': 500,
+        'days': 10,
+        'allow_interest_withdrawal': False,
+    })
+    assert preview.status_code == 200, preview.text
+    assert preview.json()['result']['amount'] == 500

@@ -178,6 +178,48 @@ class SkillIncrease(StrictModel):
     points: int = Field(default=1, ge=1, le=1000)
 
 
+class CountCommand(StrictModel):
+    count: int = Field(default=1, ge=1, le=1000)
+
+
+class CustomAwardCreate(StrictModel):
+    name: str = Field(min_length=1, max_length=300)
+    price: float = Field(gt=0)
+
+
+class CustomAwardUpdate(StrictModel):
+    name: str | None = Field(default=None, min_length=1, max_length=300)
+    price: float | None = Field(default=None, gt=0)
+
+
+class BankProductPreview(StrictModel):
+    product_type: Literal['credit', 'deposit']
+    amount: float = Field(gt=0)
+    days: int = Field(gt=0, le=3650)
+    allow_interest_withdrawal: bool = False
+
+
+class BankCreditOpen(StrictModel):
+    amount: float = Field(gt=0)
+    days: int = Field(gt=0, le=3650)
+
+
+class BankDepositOpen(BankCreditOpen):
+    allow_interest_withdrawal: bool = False
+
+
+class MoneyCommand(StrictModel):
+    amount: float = Field(gt=0)
+
+
+class BankEventsCommand(StrictModel):
+    auto_pay: bool = True
+
+
+class BankDepositWithdraw(StrictModel):
+    allow_early: bool = False
+
+
 class SyncConfigure(StrictModel):
     type: Literal['word', 'scrivener']
     path: str
