@@ -99,4 +99,46 @@ describe('GamePage', () => {
     expect(gameApi.state).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('Заморозка применена.')
   })
+
+  it('shows active bank products beside coins instead of inflation', async () => {
+    vi.mocked(gameApi.state).mockResolvedValue(gameStateFixture({
+      bank: {
+        ...gameStateFixture().bank,
+        credit: {
+          principal: 500,
+          interest_rate: 3,
+          interest: 15,
+          total: 515,
+          remaining: 400,
+          daily_payment: 50,
+          status: 'Активен',
+          opened_at: null,
+          return_date: null,
+          paid_amount: 115,
+          overdue_days: 0,
+        },
+        deposit: {
+          principal: 700,
+          interest_rate: 2,
+          interest: 14,
+          total: 714,
+          available_interest: 14,
+          allow_interest_withdrawal: true,
+          status: 'Активен',
+          opened_at: null,
+          return_date: null,
+        },
+      },
+    }))
+    const wrapper = mount(GamePage, {
+      global: { plugins: [createPinia()], stubs: { IonIcon: true } },
+    })
+    await flushPromises()
+
+    const overview = wrapper.get('.overview')
+    expect(overview.text()).toContain('Кредит: 400')
+    expect(overview.text()).toContain('Вклад: 714')
+    expect(overview.text()).not.toContain('Инфляция')
+    wrapper.unmount()
+  })
 })

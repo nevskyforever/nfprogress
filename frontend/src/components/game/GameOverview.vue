@@ -2,10 +2,11 @@
 import { computed, ref } from 'vue'
 
 import { useLocaleStore } from '@/stores/locale'
-import type { GameBuffs, GameProfile, StreakFreezesState } from '@/types/game'
+import type { BankState, GameBuffs, GameProfile, StreakFreezesState } from '@/types/game'
 
 const props = defineProps<{
   profile: GameProfile
+  bank: BankState
   buffs: GameBuffs
   streakFreezes: StreakFreezesState
   busy: boolean
@@ -65,7 +66,12 @@ function bonusName(key: string): string {
       <article class="resource-card">
         <p>{{ t('Монеты') }}</p>
         <strong>{{ locale.formatNumber(profile.coins) }}</strong>
-        <small>{{ t('Инфляция') }}: {{ locale.formatNumber(profile.inflation * 100) }}%</small>
+        <small v-if="bank.credit">
+          {{ t('Кредит') }}: {{ locale.formatNumber(bank.credit.remaining) }}
+        </small>
+        <small v-if="bank.deposit">
+          {{ t('Вклад') }}: {{ locale.formatNumber(bank.deposit.total) }}
+        </small>
       </article>
 
       <article class="resource-card">
@@ -120,7 +126,7 @@ function bonusName(key: string): string {
       </div>
       <label>
         <span>{{ t('Серия') }}</span>
-        <select v-model="freezeTarget">
+        <select v-model="freezeTarget" class="freeze-target-select">
           <option value="global">{{ t('Общая серия') }}</option>
           <option
             v-for="project in streakFreezes.projects"
@@ -222,13 +228,17 @@ function bonusName(key: string): string {
   font-weight: 700;
 }
 
-.freeze-panel select {
+.freeze-target-select {
+  box-sizing: border-box;
+  width: 100%;
   min-height: 2.75rem;
   padding: 0.6rem 0.7rem;
   border: 1px solid var(--nf-color-border);
   border-radius: var(--nf-radius-sm);
   background: var(--nf-color-surface-raised);
   color: var(--nf-color-text);
+  font: inherit;
+  font-weight: 700;
 }
 
 .resource-card {

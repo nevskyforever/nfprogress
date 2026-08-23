@@ -264,6 +264,7 @@ onBeforeUnmount(() => {
             <GameOverview
               v-if="tab === 'overview'"
               :profile="state.profile"
+              :bank="state.bank"
               :buffs="state.buffs"
               :streak-freezes="state.streak_freezes"
               :busy="busy"
