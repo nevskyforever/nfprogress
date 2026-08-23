@@ -315,6 +315,21 @@ jobs:
           name: tauri-windows-${{ needs.build_windows.outputs.version }}
           path: release-assets
 
+      - name: Download macOS release files from hosting
+        shell: bash
+        env:
+          APP_VERSION: ${{ needs.build_windows.outputs.version }}
+        run: |
+          set -euo pipefail
+          base_url="https://nfproject.ru/app"
+          for arch in arm intel; do
+            file="nfprogress-mac-${arch}-${APP_VERSION}.zip"
+            curl --fail --location --retry 3 \
+              --output "release-assets/${file}" \
+              "${base_url}/${file}"
+            unzip -t "release-assets/${file}"
+          done
+
       - name: Validate release assets
         shell: bash
         run: |
