@@ -83,6 +83,7 @@ class ProjectResponse(BaseModel):
     updated_at: str | None = None
     completed_at: str | None = None
     personal_goal: float = 0
+    today_goal: float | None = None
     streak_enabled: bool = False
     streak_status: str | None = None
     streak_length: int = 0

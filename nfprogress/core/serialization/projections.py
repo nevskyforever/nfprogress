@@ -110,6 +110,7 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
     )
     mindmap = engine.normalize_mindmap_data(getattr(entity, 'mindmap_data', None))
     stages = getattr(entity, 'stages', []) if kind == 'project' else []
+    today_goal = _today_goal_for_display(entity, kind=kind, infinite=infinite)
 
     payload = {
         'id': entity_id,
@@ -127,6 +128,7 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
         'personal_goal': to_json_safe(
             getattr(entity, 'personal_goal_for_the_day', 0),
         ),
+        'today_goal': to_json_safe(today_goal),
         'streak_enabled': getattr(entity, 'streak_status', 'No') != 'Off',
         'streak_status': str(getattr(entity, 'streak_status', 'No')),
         'streak_length': engine.streak_length(
@@ -158,3 +160,18 @@ def _serialize_deadline(value: Any) -> Any:
     if value in (None, '', 'Нет'):
         return None
     return to_json_safe(value)
+
+
+def _today_goal_for_display(entity: Any, *, kind: str, infinite: bool) -> float | None:
+    """Expose the same cumulative today target shown by the legacy workspace."""
+    if infinite:
+        return None
+
+    deadline = getattr(entity, 'deadline', 'Нет')
+    if kind == 'project':
+        value = entity.get_today_display_goal_in_unit()
+        has_stage_goal = bool(getattr(entity, 'has_stages', lambda: False)()) and value > 0
+        return value if deadline != 'Нет' or has_stage_goal else None
+
+    # A legacy stage uses its own daily target when it has a deadline.
+    return entity.get_today_goal_in_unit() if deadline != 'Нет' else None

@@ -15,6 +15,7 @@ export function projectFixture(overrides: Partial<Project> = {}): Project {
     updated_at: '2026-08-15',
     completed_at: null,
     personal_goal: 1_000,
+    today_goal: 26_000,
     streak_enabled: true,
     streak_status: null,
     streak_length: 0,

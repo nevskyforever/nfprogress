@@ -485,7 +485,7 @@ onBeforeUnmount(() => store.cancelDetail())
           <section class="detail-facts" :aria-label="t('Сведения о проекте')">
             <div class="fact-card"><IonIcon :icon="calendarClearOutline" aria-hidden="true" /><span>{{ t('Срок') }}</span><strong>{{ locale.formatDate(detailEntity.deadline) }}</strong></div>
             <div class="fact-card"><IonIcon :icon="documentTextOutline" aria-hidden="true" /><span>{{ t('Записей прогресса') }}</span><strong>{{ locale.formatNumber(detailEntity.progress_entries.length, 0) }}</strong></div>
-            <div class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на день') }}</span><strong>{{ numberForProject(detailEntity.personal_goal) }} {{ presentation.unitLabel }}</strong></div>
+            <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ presentation.unitLabel }}</strong></div>
           </section>
 
           <StageWorkspace

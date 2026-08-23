@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import pickle
 from concurrent.futures import ThreadPoolExecutor
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 
 import engine
 import game
@@ -209,3 +209,28 @@ def test_project_stage_and_progress_projections_are_json_safe(tmp_path):
     assert entry_payload['id'] == entry.entry_id
     assert entry_payload['new_total_symbols'] == 500
     json.dumps(project_payload, ensure_ascii=False, allow_nan=False)
+
+
+def test_project_projection_uses_legacy_cumulative_today_goal(monkeypatch):
+    today = date(2026, 8, 25)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = engine.Project(name='Роман', goal=5_000, total_symbols=2_000)
+    stage = engine.Stage(
+        name='Глава',
+        goal=5_000,
+        total_symbols=2_153,
+        deadline=today + timedelta(days=2),
+        personal_goal_for_the_day=500,
+        parent_project_name=project.name,
+    )
+    project.enable_stages = True
+    project.stages = [stage]
+
+    project_payload = serialize_project(project)
+    stage_payload = serialize_stage(stage)
+
+    # Legacy displays the cumulative target (current value at day start + plan),
+    # not the configured daily increment stored in personal_goal.
+    assert stage_payload['personal_goal'] == 500
+    assert stage_payload['today_goal'] == 2_653
+    assert project_payload['today_goal'] == 2_653

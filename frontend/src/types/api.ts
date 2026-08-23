@@ -30,6 +30,7 @@ export interface Project {
   updated_at: string | null
   completed_at: string | null
   personal_goal: number
+  today_goal: number | null
   streak_enabled: boolean
   streak_status: string | null
   streak_length: number
