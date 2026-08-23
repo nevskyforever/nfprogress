@@ -208,6 +208,25 @@ cd ..
 npm run tauri:build
 ```
 
+`Build Tauri ARM.sh`, `Build Tauri Intel.sh`, and `Build Tauri All.sh`
+mirror the legacy macOS build entry points. They build the target-matched Nuitka
+sidecar, Tauri app, verified plain DMG, and a local ZIP containing the DMG,
+license, and source-code notice:
+
+```bash
+bash "Build Tauri ARM.sh"
+bash "Build Tauri Intel.sh"
+bash "Build Tauri All.sh"
+```
+
+The artifacts are written to `build-tauri-arm/` and `build-tauri-intel/`.
+On Apple Silicon, the Intel script requires an x86_64 Python virtual environment
+with the backend dependencies; it explains the required
+`NFPROGRESS_TAURI_PYTHON` and `NFPROGRESS_TAURI_PYTHON_ARCH` values if the
+active interpreter has the wrong architecture. The matching `Release Tauri
+*.sh` wrappers prepare the same local archive but do not upload it or change
+the legacy updater manifest unless `NFPROGRESS_TAURI_RELEASE_UPLOAD=1` is set.
+
 `npm run tauri:build` also creates a Finder-styled DMG. In a headless macOS
 environment, use `npx tauri build --bundles app` to verify the production app
 bundle without requiring Finder AppleScript automation. To produce a normal

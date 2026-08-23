@@ -181,6 +181,27 @@ cd frontend
 npm run tauri:build
 ```
 
+Для локальных macOS-архивов есть те же ARM/Intel/All-скрипты, что и для
+legacy PySide6-версии:
+
+```bash
+bash "Build Tauri ARM.sh"
+bash "Build Tauri Intel.sh"
+bash "Build Tauri All.sh"
+```
+
+Они собирают подходящий Nuitka sidecar, Tauri `.app`, проверенный DMG и ZIP с
+DMG, лицензией и сведениями об исходном коде. Результаты лежат в
+`build-tauri-arm/` или `build-tauri-intel/`. На Apple Silicon Intel-сборка
+требует x86_64 virtualenv с зависимостями backend; скрипт остановится с точной
+командой, если вместо него выбран arm64 Python.
+
+Скрипты `Release Tauri ARM.sh`, `Release Tauri Intel.sh` и
+`Release Tauri All.sh` также существуют, но по умолчанию готовят только
+локальный архив. Загрузка требует явного `NFPROGRESS_TAURI_RELEASE_UPLOAD=1`
+и никогда не меняет legacy update manifest: подписанный Tauri release-канал
+ещё не введён.
+
 На macOS для обычного DMG без Finder/AppleScript-оформления используйте после
 сборки соответствующего sidecar:
 
