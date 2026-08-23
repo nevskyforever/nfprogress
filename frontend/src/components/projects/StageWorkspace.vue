@@ -140,7 +140,6 @@ function move(index: number, offset: -1 | 1): void {
               <IonIcon :icon="arrowDownOutline" aria-hidden="true" />
             </button>
             <ProgressShareMenu
-              button-class="stage-action-button"
               :label="t('Поделиться прогрессом «{name}»', { name: stage.name })"
               :title="stage.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined"
               :disabled="busy || sharing || sharedProject || stage.infinite"

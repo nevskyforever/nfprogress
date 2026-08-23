@@ -14,7 +14,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   disabled: false,
   busy: false,
-  buttonClass: 'nf-button nf-button--secondary',
+  buttonClass: '',
   title: undefined,
 })
 
@@ -72,6 +72,7 @@ onBeforeUnmount(() => {
 <template>
   <div ref="root" class="progress-share-menu">
     <button
+      class="progress-share-menu__trigger"
       :class="buttonClass"
       type="button"
       :aria-label="label"
@@ -83,7 +84,6 @@ onBeforeUnmount(() => {
       @click="toggle"
     >
       <IonIcon :icon="shareSocialOutline" aria-hidden="true" />
-      <span>{{ t('Поделиться') }}</span>
       <IonIcon class="progress-share-menu__chevron" :icon="chevronDownOutline" aria-hidden="true" />
     </button>
 
@@ -116,8 +116,50 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .progress-share-menu { position: relative; display: inline-flex; }
-.progress-share-menu__chevron { margin-left: -0.2rem; font-size: 1rem; }
-.progress-share-menu__list { position: absolute; z-index: 8; top: calc(100% + var(--nf-space-2)); right: 0; display: flex; gap: var(--nf-space-2); padding: var(--nf-space-2); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface); box-shadow: var(--nf-shadow-card); }
-.progress-share-menu__item { display: grid; width: 2.75rem; height: 2.75rem; padding: 0; place-items: center; border: 0; border-radius: var(--nf-radius-sm); background: transparent; color: var(--nf-color-text-muted); cursor: pointer; }
+.progress-share-menu__trigger {
+  display: inline-grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--nf-color-border);
+  border-radius: var(--nf-radius-sm);
+  background: var(--nf-color-surface-raised);
+  color: var(--nf-color-text-muted);
+  cursor: pointer;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+}
+.progress-share-menu__trigger > :first-child { font-size: 1.05rem; }
+.progress-share-menu__trigger:hover:not(:disabled),
+.progress-share-menu__trigger[aria-expanded="true"] {
+  border-color: var(--nf-color-primary);
+  background: var(--nf-color-primary-soft);
+  color: var(--nf-color-primary);
+}
+.progress-share-menu__trigger:disabled { opacity: 0.45; cursor: not-allowed; }
+.progress-share-menu__trigger:focus-visible,
+.progress-share-menu__item:focus-visible { outline: 3px solid var(--nf-color-primary-soft); outline-offset: 2px; }
+.progress-share-menu__chevron { position: absolute; right: 0.16rem; bottom: 0.16rem; padding: 0.02rem; border-radius: 50%; background: var(--nf-color-surface-raised); font-size: 0.56rem; }
+.progress-share-menu__list {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + var(--nf-space-2));
+  right: 0;
+  display: flex;
+  gap: 0.2rem;
+  padding: 0.3rem;
+  border: 1px solid var(--nf-color-border);
+  border-radius: calc(var(--nf-radius-sm) + 0.2rem);
+  background: var(--nf-color-surface);
+  box-shadow: var(--nf-shadow-card);
+  animation: progress-share-menu-in 140ms ease-out;
+}
+.progress-share-menu__item { display: grid; width: 2.45rem; height: 2.45rem; padding: 0; place-items: center; border: 0; border-radius: var(--nf-radius-sm); background: transparent; color: var(--nf-color-text-muted); cursor: pointer; }
 .progress-share-menu__item:hover { background: var(--nf-color-primary-soft); color: var(--nf-color-primary); }
+@keyframes progress-share-menu-in { from { opacity: 0; transform: translateY(-0.2rem); } to { opacity: 1; transform: translateY(0); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-share-menu__trigger { transition: none; }
+  .progress-share-menu__list { animation: none; }
+}
 </style>
