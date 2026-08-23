@@ -282,8 +282,8 @@ function targetName(key: string): string {
 
 .freeze-target-select {
   box-sizing: border-box;
-  width: 100%;
-  min-height: 2.75rem;
+  width: 13rem;
+  height: 2.75rem;
   padding: 0.6rem 0.7rem;
   border: 1px solid var(--nf-color-border);
   border-radius: var(--nf-radius-sm);
@@ -291,6 +291,11 @@ function targetName(key: string): string {
   color: var(--nf-color-text);
   font: inherit;
   font-weight: 700;
+}
+
+.freeze-panel > .nf-button {
+  width: 13rem;
+  height: 2.75rem;
 }
 
 .resource-card {
@@ -446,6 +451,10 @@ progress {
   }
 
   .freeze-panel .nf-button {
+    width: 100%;
+  }
+
+  .freeze-target-select {
     width: 100%;
   }
 }
