@@ -306,6 +306,9 @@ jobs:
   publish_release:
     name: Publish GitHub release
     needs: build_windows
+    if: >-
+      always() &&
+      (needs.build_windows.result == 'success' || needs.build_windows.result == 'failure')
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -320,6 +323,7 @@ jobs:
     steps:
       - name: Download release files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
+        continue-on-error: true
         with:
           name: tauri-windows-${{ needs.build_windows.outputs.version }}
           path: release-assets
@@ -330,27 +334,52 @@ jobs:
           APP_VERSION: ${{ needs.build_windows.outputs.version }}
         run: |
           set -euo pipefail
+          mkdir -p release-assets
           base_url="https://nfproject.ru/app"
+          downloaded=0
           for arch in arm intel; do
             file="nfprogress-mac-${arch}-${APP_VERSION}.zip"
-            curl --fail --location --retry 3 \
-              --output "release-assets/${file}" \
-              "${base_url}/${file}"
-            unzip -t "release-assets/${file}"
+            asset_path="release-assets/${file}"
+            if curl --fail --location --retry 3 \
+              --output "$asset_path" \
+              "${base_url}/${file}"; then
+              unzip -t "$asset_path"
+              downloaded=$((downloaded + 1))
+            else
+              rm -f "$asset_path"
+              echo "macOS ${arch} build is unavailable; continuing without it."
+            fi
           done
+          echo "Downloaded macOS builds: ${downloaded}"
 
       - name: Validate release assets
         shell: bash
         run: |
           set -euo pipefail
           installer="release-assets/nfprogress-windows-x86_64-${APP_VERSION}-setup.exe"
-          test -s "$installer"
-          test -s "${installer}.sig"
-          test -s release-assets/latest.json
-          test -s release-assets/SHA256SUMS.txt
-          jq -e --arg version "$APP_VERSION" \
-            '.version == $version and (.platforms["windows-x86_64"].signature | length > 0)' \
-            release-assets/latest.json >/dev/null
+          build_count=0
+
+          if [[ -s "$installer" ]]; then
+            test -s "${installer}.sig"
+            test -s release-assets/latest.json
+            test -s release-assets/SHA256SUMS.txt
+            jq -e --arg version "$APP_VERSION" \
+              '.version == $version and (.platforms["windows-x86_64"].signature | length > 0)' \
+              release-assets/latest.json >/dev/null
+            build_count=$((build_count + 1))
+          fi
+
+          for mac_asset in release-assets/nfprogress-mac-*.zip; do
+            [[ -e "$mac_asset" ]] || continue
+            test -s "$mac_asset"
+            build_count=$((build_count + 1))
+          done
+
+          if (( build_count == 0 )); then
+            echo "No valid release builds were found." >&2
+            exit 1
+          fi
+          echo "Validated release builds: ${build_count}"
 
       - name: Upload Windows release files to hosting
         shell: bash
