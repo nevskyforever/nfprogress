@@ -8,6 +8,8 @@ from functools import lru_cache
 from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from nfprogress.core.agreement import ENGLISH_AGREEMENT_HTML
+
 try:
     from translations_catalog import AGREEMENT_SOURCE, TRANSLATIONS
 except ImportError:
@@ -64,69 +66,6 @@ UNIT_NAMES = {
     },
 }
 
-ENGLISH_AGREEMENT_HTML = """
-<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-body { color: #ffffff; font-family: Arial; font-size: 13pt; }
-h1 { font-size: xx-large; } h2 { font-size: x-large; }
-p, li { white-space: pre-wrap; }
-</style></head><body>
-<h1>ADDITIONAL TERMS OF USE FOR NFPROGRESS</h1>
-<p>Samara<br>23 July 2026</p>
-<h2>1. General Provisions</h2>
-<p>1.1. The nfprogress computer program is distributed under the GNU General
-Public License version 3 (GPLv3).</p>
-<p>1.2. This document neither modifies nor restricts the rights granted to the
-User under GPLv3. It governs only matters not covered by that license.</p>
-<p>1.3. If this document conflicts with GPLv3, the GPLv3 terms prevail.</p>
-<h2>2. Intellectual Property</h2>
-<p>2.1. The exclusive rights to the program belong to Roman Ruslanovich
-Kishochkin.</p>
-<p>2.2. The program is distributed under GPLv3, including the User's right to:</p>
-<ul>
-<li>use the program;</li>
-<li>study how it works;</li>
-<li>modify the source code;</li>
-<li>distribute original and modified versions of the program in compliance
-with GPLv3.</li>
-</ul>
-<h2>3. Personal Data</h2>
-<p>3.1. The program does not require user registration and does not collect
-names, email addresses, or other identifying information.</p>
-<p>3.2. While the program is running, technical information required for
-update checks and error diagnostics may be transmitted automatically,
-including:</p>
-<ul>
-<li>the program version;</li>
-<li>the operating system version;</li>
-<li>information about errors that occurred.</li>
-</ul>
-<p>3.3. This information is used solely to ensure that the program functions
-correctly and is not used to identify the User.</p>
-<h2>4. Disclaimer of Warranties</h2>
-<p>4.1. The program is provided “AS IS”.</p>
-<p>4.2. To the maximum extent permitted by applicable law, the Copyright
-Holder makes no warranties regarding the program, including warranties of
-fitness for a particular purpose, uninterrupted operation, or freedom from
-errors.</p>
-<p>4.3. The User independently decides whether to use the program and assumes
-all associated risks.</p>
-<h2>5. Limitation of Liability</h2>
-<p>5.1. To the extent permitted by the laws of the Russian Federation, the
-Copyright Holder shall not be liable for any losses arising from the use of,
-or inability to use, the program.</p>
-<p>5.2. This clause does not apply where liability cannot be limited by law.</p>
-<h2>6. Governing Law</h2>
-<p>6.1. Matters not governed by GPLv3 are governed by the laws of the Russian
-Federation.</p>
-<p>6.2. Before applying to a court, the parties shall seek to resolve any
-dispute through negotiation.</p>
-<h2>7. Contact Details</h2>
-<p>Copyright Holder:<br>Roman Ruslanovich Kishochkin</p>
-<p>Email: <b>app@nfpr.ru</b></p>
-</body></html>
-"""
-
 MINDMAP_HELP_SOURCE = """<html><body>
 <h2>Карты проектов и этапов</h2>
 <p>У каждого проекта и каждого этапа есть собственная независимая карта идей. Выберите нужную сущность на вкладке «Проекты» и нажмите «Карта» в панели действий. Редактор откроется в отдельном окне; при первом открытии корневой узел получит название проекта или этапа.</p>
@@ -149,6 +88,10 @@ MINDMAP_HELP_SOURCE = """<html><body>
 
 TRANSLATION_OVERRIDES = {
     "en": {
+        "Условия использования изменились. Перезагрузите соглашение.": "The terms of use have changed. Reload the agreement.",
+        "Не удалось прочитать проект Scrivener.": "The Scrivener project could not be read.",
+        "Документ Scrivener не найден в проекте.": "The Scrivener document was not found in the project.",
+        "Документ Scrivener больше не существует в проекте.": "The Scrivener document no longer exists in the project.",
         "#карта": "#карта",
         "Заметки": "Notes",
         "Заметки проекта": "Project Notes",
@@ -191,6 +134,43 @@ TRANSLATION_OVERRIDES = {
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Could not apply the freeze: check the inventory and global streak status.",
         "Глобальный стрик заморожен!": "Global streak frozen!",
         "Глобальный стрик автоматически заморожен.": "Global streak automatically frozen.",
+        "Неизвестная цель заморозки серии.": "Unknown streak freeze target.",
+        "Выберите проект для заморозки.": "Select a project whose streak you want to freeze.",
+        "Для глобальной серии проект не указывается.": "Do not select a project for the global streak.",
+        "В инвентаре нет заморозки.": "There is no streak freeze in the inventory.",
+        "Глобальную серию сейчас нельзя заморозить.": "The global streak cannot be frozen right now.",
+        "Не удалось применить заморозку.": "Could not apply the streak freeze.",
+        "Заморозка выбирается для проекта целиком.": "A streak freeze applies to the whole project.",
+        "Серию этого проекта сейчас нельзя заморозить.": "This project's streak cannot be frozen right now.",
+        'Проект "{0}" заморожен!': 'Project "{0}" streak frozen!',
+        "Word и Scrivener": "Word and Scrivener",
+        "Импорт Word": "Import from Word",
+        "Документ Scrivener": "Scrivener document",
+        "Выберите элемент Scrivener": "Select a Scrivener item",
+        "Показать документы Scrivener": "Show Scrivener documents",
+        "Обновление nfprogress": "nfprogress update",
+        "Структура проекта Scrivener повреждена.": "The Scrivener project structure is corrupted.",
+        "Специализация": "Specialization",
+        "Навыки": "Skills",
+        "Задания": "Quests",
+        "Игра": "Game",
+        "Файлы": "Files",
+        "Ещё": "More",
+        "Проверяет активные подключённые источники при запуске и после смены писательского дня.": "Checks active connected sources at startup and after the writing day changes.",
+        "Параметры сохраняются в общем Python Core; здесь показаны только работающие на этой платформе возможности.": "Settings are saved in the shared Python Core; only capabilities available on this platform are shown here.",
+        "Выберите этап. Источник подключается отдельно к каждому этапу проекта.": "Select a stage. A source is connected separately to each project stage.",
+        "Проверено: {checked}. Обновлено: {changed}. Ошибок: {failed}.": "Checked: {checked}. Updated: {changed}. Errors: {failed}.",
+        "Синхронизировать все": "Sync all",
+        "Для автоматического отслеживания подключите локальный путь в Tauri-версии. Удалённый интерфейс не показывает путь и не управляет таким подключением.": "For automatic tracking, connect a local path in the Tauri version. The remote interface neither displays the path nor manages this connection.",
+        "Не удалось прочитать источник синхронизации.": "Could not read the synchronization source.",
+        "Вклад": "Deposit",
+        "Активный вклад": "Active deposit",
+        "Открыть вклад": "Open a deposit",
+        "Забрать в срок": "Withdraw at maturity",
+        "Забрать досрочно": "Withdraw early",
+        "Проценты": "Interest",
+        "Доступные проценты": "Available interest",
+        "Ставка": "Interest rate",
         "Бесконечный проект": "Infinite project",
         "Параметр": "Parameter",
         "Значение за награду": "Value per reward",
@@ -312,6 +292,10 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Editing Pass",
     },
     "es": {
+        "Условия использования изменились. Перезагрузите соглашение.": "Las condiciones de uso han cambiado. Vuelve a cargar el acuerdo.",
+        "Не удалось прочитать проект Scrivener.": "No se pudo leer el proyecto de Scrivener.",
+        "Документ Scrivener не найден в проекте.": "No se encontró el documento de Scrivener en el proyecto.",
+        "Документ Scrivener больше не существует в проекте.": "El documento de Scrivener ya no existe en el proyecto.",
         "#карта": "#карта",
         "Заметки": "Notas",
         "Заметки проекта": "Notas del proyecto",
@@ -355,6 +339,43 @@ TRANSLATION_OVERRIDES = {
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "No se pudo aplicar la congelación: comprueba el inventario y el estado de la racha global.",
         "Глобальный стрик заморожен!": "¡Racha global congelada!",
         "Глобальный стрик автоматически заморожен.": "La racha global se congeló automáticamente.",
+        "Неизвестная цель заморозки серии.": "Objetivo de congelación de racha desconocido.",
+        "Выберите проект для заморозки.": "Selecciona un proyecto cuya racha quieras congelar.",
+        "Для глобальной серии проект не указывается.": "No selecciones un proyecto para la racha global.",
+        "В инвентаре нет заморозки.": "No hay ninguna congelación de racha en el inventario.",
+        "Глобальную серию сейчас нельзя заморозить.": "La racha global no se puede congelar ahora mismo.",
+        "Не удалось применить заморозку.": "No se pudo aplicar la congelación de racha.",
+        "Заморозка выбирается для проекта целиком.": "La congelación de racha se aplica a todo el proyecto.",
+        "Серию этого проекта сейчас нельзя заморозить.": "La racha de este proyecto no se puede congelar ahora mismo.",
+        'Проект "{0}" заморожен!': '¡Se ha congelado la racha del proyecto "{0}"!',
+        "Word и Scrivener": "Word y Scrivener",
+        "Импорт Word": "Importar desde Word",
+        "Документ Scrivener": "Documento de Scrivener",
+        "Выберите элемент Scrivener": "Seleccionar un elemento de Scrivener",
+        "Показать документы Scrivener": "Mostrar documentos de Scrivener",
+        "Обновление nfprogress": "Actualización de nfprogress",
+        "Структура проекта Scrivener повреждена.": "La estructura del proyecto Scrivener está dañada.",
+        "Специализация": "Especialización",
+        "Навыки": "Habilidades",
+        "Задания": "Misiones",
+        "Игра": "Juego",
+        "Файлы": "Archivos",
+        "Ещё": "Más",
+        "Проверяет активные подключённые источники при запуске и после смены писательского дня.": "Comprueba las fuentes conectadas activas al iniciar y después del cambio de día de escritura.",
+        "Параметры сохраняются в общем Python Core; здесь показаны только работающие на этой платформе возможности.": "La configuración se guarda en el Python Core compartido; aquí solo se muestran las funciones disponibles en esta plataforma.",
+        "Выберите этап. Источник подключается отдельно к каждому этапу проекта.": "Selecciona una etapa. Cada fuente se conecta por separado a cada etapa del proyecto.",
+        "Проверено: {checked}. Обновлено: {changed}. Ошибок: {failed}.": "Comprobados: {checked}. Actualizados: {changed}. Errores: {failed}.",
+        "Синхронизировать все": "Sincronizar todo",
+        "Для автоматического отслеживания подключите локальный путь в Tauri-версии. Удалённый интерфейс не показывает путь и не управляет таким подключением.": "Para el seguimiento automático, conecta una ruta local en la versión de Tauri. La interfaz remota no muestra la ruta ni administra esta conexión.",
+        "Не удалось прочитать источник синхронизации.": "No se pudo leer la fuente de sincronización.",
+        "Вклад": "Depósito",
+        "Активный вклад": "Depósito activo",
+        "Открыть вклад": "Abrir un depósito",
+        "Забрать в срок": "Retirar al vencimiento",
+        "Забрать досрочно": "Retirar anticipadamente",
+        "Проценты": "Intereses",
+        "Доступные проценты": "Intereses disponibles",
+        "Ставка": "Tasa de interés",
         "Бесконечный проект": "Proyecto infinito",
         "Параметр": "Parámetro",
         "Значение за награду": "Valor por recompensa",
@@ -476,6 +497,10 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Pase de edición",
     },
     "de": {
+        "Условия использования изменились. Перезагрузите соглашение.": "Die Nutzungsbedingungen wurden geändert. Laden Sie die Vereinbarung neu.",
+        "Не удалось прочитать проект Scrivener.": "Das Scrivener-Projekt konnte nicht gelesen werden.",
+        "Документ Scrivener не найден в проекте.": "Das Scrivener-Dokument wurde im Projekt nicht gefunden.",
+        "Документ Scrivener больше не существует в проекте.": "Das Scrivener-Dokument ist im Projekt nicht mehr vorhanden.",
         "#карта": "#карта",
         "Заметки": "Notizen",
         "Заметки проекта": "Projektnotizen",
@@ -520,6 +545,43 @@ TRANSLATION_OVERRIDES = {
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Die Einfrierung konnte nicht angewendet werden: Bitte Inventar und Status der globalen Serie prüfen.",
         "Глобальный стрик заморожен!": "Globale Serie eingefroren!",
         "Глобальный стрик автоматически заморожен.": "Die globale Serie wurde automatisch eingefroren.",
+        "Неизвестная цель заморозки серии.": "Unbekanntes Ziel für das Einfrieren der Serie.",
+        "Выберите проект для заморозки.": "Wählen Sie ein Projekt aus, dessen Serie eingefroren werden soll.",
+        "Для глобальной серии проект не указывается.": "Wählen Sie für die globale Serie kein Projekt aus.",
+        "В инвентаре нет заморозки.": "Im Inventar ist kein Serien-Einfrieren verfügbar.",
+        "Глобальную серию сейчас нельзя заморозить.": "Die globale Serie kann derzeit nicht eingefroren werden.",
+        "Не удалось применить заморозку.": "Die Serie konnte nicht eingefroren werden.",
+        "Заморозка выбирается для проекта целиком.": "Das Einfrieren gilt für das gesamte Projekt.",
+        "Серию этого проекта сейчас нельзя заморозить.": "Die Serie dieses Projekts kann derzeit nicht eingefroren werden.",
+        'Проект "{0}" заморожен!': 'Serie des Projekts „{0}“ eingefroren!',
+        "Word и Scrivener": "Word und Scrivener",
+        "Импорт Word": "Aus Word importieren",
+        "Документ Scrivener": "Scrivener-Dokument",
+        "Выберите элемент Scrivener": "Scrivener-Element auswählen",
+        "Показать документы Scrivener": "Scrivener-Dokumente anzeigen",
+        "Обновление nfprogress": "nfprogress-Update",
+        "Структура проекта Scrivener повреждена.": "Die Scrivener-Projektstruktur ist beschädigt.",
+        "Специализация": "Spezialisierung",
+        "Навыки": "Fähigkeiten",
+        "Задания": "Quests",
+        "Игра": "Spiel",
+        "Файлы": "Dateien",
+        "Ещё": "Mehr",
+        "Проверяет активные подключённые источники при запуске и после смены писательского дня.": "Prüft beim Start und nach dem Wechsel des Schreibertags aktive verbundene Quellen.",
+        "Параметры сохраняются в общем Python Core; здесь показаны только работающие на этой платформе возможности.": "Einstellungen werden im gemeinsamen Python Core gespeichert; hier werden nur die auf dieser Plattform verfügbaren Funktionen angezeigt.",
+        "Выберите этап. Источник подключается отдельно к каждому этапу проекта.": "Wählen Sie eine Etappe aus. Eine Quelle wird für jede Projektetappe separat verbunden.",
+        "Проверено: {checked}. Обновлено: {changed}. Ошибок: {failed}.": "Geprüft: {checked}. Aktualisiert: {changed}. Fehler: {failed}.",
+        "Синхронизировать все": "Alle synchronisieren",
+        "Для автоматического отслеживания подключите локальный путь в Tauri-версии. Удалённый интерфейс не показывает путь и не управляет таким подключением.": "Verbinden Sie für die automatische Verfolgung einen lokalen Pfad in der Tauri-Version. Die Remote-Oberfläche zeigt den Pfad nicht an und verwaltet diese Verbindung nicht.",
+        "Не удалось прочитать источник синхронизации.": "Die Synchronisierungsquelle konnte nicht gelesen werden.",
+        "Вклад": "Einlage",
+        "Активный вклад": "Aktive Einlage",
+        "Открыть вклад": "Einlage eröffnen",
+        "Забрать в срок": "Bei Fälligkeit auszahlen",
+        "Забрать досрочно": "Vorzeitig auszahlen",
+        "Проценты": "Zinsen",
+        "Доступные проценты": "Verfügbare Zinsen",
+        "Ставка": "Zinssatz",
         "Бесконечный проект": "Unbegrenztes Projekt",
         "Параметр": "Parameter",
         "Значение за награду": "Wert pro Belohnung",
@@ -641,6 +703,10 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Überarbeitungsdurchgang",
     },
     "fr": {
+        "Условия использования изменились. Перезагрузите соглашение.": "Les conditions d’utilisation ont changé. Rechargez l’accord.",
+        "Не удалось прочитать проект Scrivener.": "Impossible de lire le projet Scrivener.",
+        "Документ Scrivener не найден в проекте.": "Le document Scrivener est introuvable dans le projet.",
+        "Документ Scrivener больше не существует в проекте.": "Le document Scrivener n’existe plus dans le projet.",
         "#карта": "#карта",
         "Заметки": "Notes",
         "Заметки проекта": "Notes du projet",
@@ -686,6 +752,43 @@ TRANSLATION_OVERRIDES = {
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Impossible d’appliquer le gel : vérifiez l’inventaire et l’état de la série globale.",
         "Глобальный стрик заморожен!": "Série globale gelée !",
         "Глобальный стрик автоматически заморожен.": "La série globale a été gelée automatiquement.",
+        "Неизвестная цель заморозки серии.": "Cible de gel de série inconnue.",
+        "Выберите проект для заморозки.": "Sélectionnez le projet dont vous souhaitez geler la série.",
+        "Для глобальной серии проект не указывается.": "Ne sélectionnez pas de projet pour la série globale.",
+        "В инвентаре нет заморозки.": "Aucun gel de série n’est disponible dans l’inventaire.",
+        "Глобальную серию сейчас нельзя заморозить.": "La série globale ne peut pas être gelée pour le moment.",
+        "Не удалось применить заморозку.": "Impossible d’appliquer le gel de série.",
+        "Заморозка выбирается для проекта целиком.": "Le gel de série s’applique à l’ensemble du projet.",
+        "Серию этого проекта сейчас нельзя заморозить.": "La série de ce projet ne peut pas être gelée pour le moment.",
+        'Проект "{0}" заморожен!': 'Série du projet « {0} » gelée !',
+        "Word и Scrivener": "Word et Scrivener",
+        "Импорт Word": "Importer depuis Word",
+        "Документ Scrivener": "Document Scrivener",
+        "Выберите элемент Scrivener": "Sélectionner un élément Scrivener",
+        "Показать документы Scrivener": "Afficher les documents Scrivener",
+        "Обновление nfprogress": "Mise à jour de nfprogress",
+        "Структура проекта Scrivener повреждена.": "La structure du projet Scrivener est endommagée.",
+        "Специализация": "Spécialisation",
+        "Навыки": "Compétences",
+        "Задания": "Quêtes",
+        "Игра": "Jeu",
+        "Файлы": "Fichiers",
+        "Ещё": "Plus",
+        "Проверяет активные подключённые источники при запуске и после смены писательского дня.": "Vérifie les sources connectées actives au démarrage et après le changement de journée d’écriture.",
+        "Параметры сохраняются в общем Python Core; здесь показаны только работающие на этой платформе возможности.": "Les paramètres sont enregistrés dans le Python Core partagé ; seules les fonctionnalités disponibles sur cette plateforme sont affichées ici.",
+        "Выберите этап. Источник подключается отдельно к каждому этапу проекта.": "Sélectionnez une étape. Une source est connectée séparément à chaque étape du projet.",
+        "Проверено: {checked}. Обновлено: {changed}. Ошибок: {failed}.": "Vérifiés : {checked}. Mis à jour : {changed}. Erreurs : {failed}.",
+        "Синхронизировать все": "Tout synchroniser",
+        "Для автоматического отслеживания подключите локальный путь в Tauri-версии. Удалённый интерфейс не показывает путь и не управляет таким подключением.": "Pour le suivi automatique, connectez un chemin local dans la version Tauri. L’interface distante n’affiche pas le chemin et ne gère pas cette connexion.",
+        "Не удалось прочитать источник синхронизации.": "Impossible de lire la source de synchronisation.",
+        "Вклад": "Dépôt",
+        "Активный вклад": "Dépôt actif",
+        "Открыть вклад": "Ouvrir un dépôt",
+        "Забрать в срок": "Retirer à l’échéance",
+        "Забрать досрочно": "Retirer par anticipation",
+        "Проценты": "Intérêts",
+        "Доступные проценты": "Intérêts disponibles",
+        "Ставка": "Taux d’intérêt",
         "Бесконечный проект": "Projet illimité",
         "Параметр": "Paramètre",
         "Значение за награду": "Valeur par récompense",
@@ -807,6 +910,10 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Passe de révision",
     },
     "pt_BR": {
+        "Условия использования изменились. Перезагрузите соглашение.": "Os termos de uso mudaram. Recarregue o contrato.",
+        "Не удалось прочитать проект Scrivener.": "Não foi possível ler o projeto do Scrivener.",
+        "Документ Scrivener не найден в проекте.": "O documento do Scrivener não foi encontrado no projeto.",
+        "Документ Scrivener больше не существует в проекте.": "O documento do Scrivener não existe mais no projeto.",
         "#карта": "#карта",
         "Заметки": "Notas",
         "Заметки проекта": "Notas do projeto",
@@ -851,6 +958,43 @@ TRANSLATION_OVERRIDES = {
         "Не удалось применить заморозку: проверьте инвентарь и статус глобального стрика.": "Não foi possível aplicar o congelamento: verifique o inventário e o status da sequência global.",
         "Глобальный стрик заморожен!": "Sequência global congelada!",
         "Глобальный стрик автоматически заморожен.": "A sequência global foi congelada automaticamente.",
+        "Неизвестная цель заморозки серии.": "Destino de congelamento de sequência desconhecido.",
+        "Выберите проект для заморозки.": "Selecione o projeto cuja sequência você deseja congelar.",
+        "Для глобальной серии проект не указывается.": "Não selecione um projeto para a sequência global.",
+        "В инвентаре нет заморозки.": "Não há congelamento de sequência no inventário.",
+        "Глобальную серию сейчас нельзя заморозить.": "A sequência global não pode ser congelada agora.",
+        "Не удалось применить заморозку.": "Não foi possível aplicar o congelamento da sequência.",
+        "Заморозка выбирается для проекта целиком.": "O congelamento da sequência se aplica ao projeto inteiro.",
+        "Серию этого проекта сейчас нельзя заморозить.": "A sequência deste projeto não pode ser congelada agora.",
+        'Проект "{0}" заморожен!': 'Sequência do projeto "{0}" congelada!',
+        "Word и Scrivener": "Word e Scrivener",
+        "Импорт Word": "Importar do Word",
+        "Документ Scrivener": "Documento do Scrivener",
+        "Выберите элемент Scrivener": "Selecionar um item do Scrivener",
+        "Показать документы Scrivener": "Mostrar documentos do Scrivener",
+        "Обновление nfprogress": "Atualização do nfprogress",
+        "Структура проекта Scrivener повреждена.": "A estrutura do projeto Scrivener está corrompida.",
+        "Специализация": "Especialização",
+        "Навыки": "Habilidades",
+        "Задания": "Missões",
+        "Игра": "Jogo",
+        "Файлы": "Arquivos",
+        "Ещё": "Mais",
+        "Проверяет активные подключённые источники при запуске и после смены писательского дня.": "Verifica as fontes conectadas ativas na inicialização e após a mudança do dia de escrita.",
+        "Параметры сохраняются в общем Python Core; здесь показаны только работающие на этой платформе возможности.": "As configurações são salvas no Python Core compartilhado; somente os recursos disponíveis nesta plataforma são mostrados aqui.",
+        "Выберите этап. Источник подключается отдельно к каждому этапу проекта.": "Selecione uma etapa. Uma fonte é conectada separadamente a cada etapa do projeto.",
+        "Проверено: {checked}. Обновлено: {changed}. Ошибок: {failed}.": "Verificados: {checked}. Atualizados: {changed}. Erros: {failed}.",
+        "Синхронизировать все": "Sincronizar tudo",
+        "Для автоматического отслеживания подключите локальный путь в Tauri-версии. Удалённый интерфейс не показывает путь и не управляет таким подключением.": "Para o acompanhamento automático, conecte um caminho local na versão Tauri. A interface remota não exibe o caminho nem gerencia essa conexão.",
+        "Не удалось прочитать источник синхронизации.": "Não foi possível ler a fonte de sincronização.",
+        "Вклад": "Depósito",
+        "Активный вклад": "Depósito ativo",
+        "Открыть вклад": "Abrir um depósito",
+        "Забрать в срок": "Resgatar no vencimento",
+        "Забрать досрочно": "Resgatar antecipadamente",
+        "Проценты": "Juros",
+        "Доступные проценты": "Juros disponíveis",
+        "Ставка": "Taxa de juros",
         "Бесконечный проект": "Projeto infinito",
         "Параметр": "Parâmetro",
         "Значение за награду": "Valor por recompensa",

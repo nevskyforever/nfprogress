@@ -16,7 +16,6 @@ if str(PROJECT_ROOT) not in sys.path:
 from help_content import HELP_SECTIONS, render_help_content  # noqa: E402
 from localization import (  # noqa: E402
     SUPPORTED_LANGUAGES,
-    TRANSLATION_OVERRIDES,
     tr,
 )
 from translations_catalog import TRANSLATIONS  # noqa: E402
@@ -26,12 +25,9 @@ DEFAULT_OUTPUT = PROJECT_ROOT / 'frontend' / 'src' / 'i18n' / 'generated'
 
 
 def _source_keys() -> list[str]:
-    keys = set()
-    for catalog in TRANSLATIONS.values():
-        keys.update(catalog)
-    for overrides in TRANSLATION_OVERRIDES.values():
-        keys.update(overrides)
-    return sorted(keys)
+    # JSON locale files are exported build artifacts, not a second catalog.
+    # Manual terminology overrides are baked into this canonical key set.
+    return sorted(TRANSLATIONS['ru'])
 
 
 def _project_help(section: dict, language: str) -> dict:

@@ -13,7 +13,12 @@ from localization import (
     normalize_language,
     tr,
 )
-from scripts.generate_translations import source_strings
+from scripts.generate_translations import (
+    extract_frontend_strings,
+    frontend_source_strings,
+    source_strings,
+    translation_preserves_structure,
+)
 from translations_catalog import AGREEMENT_SOURCE, TRANSLATIONS
 
 
@@ -36,6 +41,84 @@ def test_all_catalogs_cover_the_same_sources():
 def test_catalog_covers_current_application_sources():
     current_sources, _ = source_strings()
     assert set(current_sources) <= set(TRANSLATIONS["ru"])
+
+
+def test_vue_and_qt_free_sources_are_covered_in_every_language():
+    vue_sources = frontend_source_strings()
+    current_sources, _ = source_strings()
+
+    assert vue_sources == sorted(set(vue_sources))
+    assert 'Проекты' in vue_sources
+    assert 'Не удалось применить заморозку.' in current_sources
+    for source in vue_sources:
+        assert TRANSLATIONS['ru'][source] == source
+    for language in TARGET_LANGUAGES:
+        missing = [
+            source for source in current_sources
+            if source not in TRANSLATIONS[language]
+        ]
+        assert not missing, f'{language}: missing {missing[:10]!r}'
+
+
+def test_frontend_extraction_ignores_comments_and_dynamic_user_values(tmp_path):
+    typescript = tmp_path / 'sample.ts'
+    typescript.write_text(
+        """
+        const title = t('Настройки')
+        const count = locale.translate("Проектов: {count}")
+        const dynamic = t(`Удалить проект ${project.name}`)
+        // t('Строка только в комментарии')
+        /* locale.translate('Ещё один комментарий') */
+        """,
+        encoding='utf-8',
+    )
+
+    assert extract_frontend_strings(typescript) == {
+        'Настройки',
+        'Проектов: {count}',
+    }
+
+
+def test_vue_extraction_reads_template_calls_and_script_registries(tmp_path):
+    component = tmp_path / 'Sample.vue'
+    component.write_text(
+        """
+        <script setup lang="ts">
+        const labels = [{ key: 'default', label: 'Обычный' }]
+        const dynamic = `Личное значение ${project.name}`
+        </script>
+        <template>
+          <h1>{{ t('Проекты') }}</h1>
+          <div :aria-label="locale.translate('Список проектов')" />
+          <!-- {{ t('Скрытый комментарий') }} -->
+        </template>
+        """,
+        encoding='utf-8',
+    )
+
+    assert extract_frontend_strings(component) == {
+        'Обычный',
+        'Проекты',
+        'Список проектов',
+    }
+
+
+def test_catalog_preserves_placeholders_and_html_structure():
+    current_sources, _ = source_strings()
+    for language in TARGET_LANGUAGES:
+        malformed = [
+            source for source in current_sources
+            if not translation_preserves_structure(
+                source, TRANSLATIONS[language][source]
+            )
+        ]
+        assert not malformed, f'{language}: malformed {malformed[:5]!r}'
+
+
+def test_manual_terminology_is_baked_for_qt_free_clients():
+    assert TRANSLATIONS['en']['Исследователь'] == 'Explorer'
+    assert TRANSLATIONS['de']['Редактор'] == 'Lektor'
+    assert TRANSLATIONS['pt_BR']['Искра замысла'] == 'Centelha de uma ideia'
 
 
 def test_interface_translations_do_not_retain_cyrillic():

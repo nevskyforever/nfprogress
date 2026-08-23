@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the bundled translation catalog from Python sources and .ui forms."""
+"""Generate the shared translation catalog for Python, Qt, and Vue clients."""
 
 from __future__ import annotations
 
@@ -29,6 +29,7 @@ PYTHON_SOURCES = (
     "game_UI.py",
     "game_data.py",
     "help_content.py",
+    "localization.py",
     "main_UI.py",
     "mindmap.py",
     "project_notes.py",
@@ -38,9 +39,25 @@ PYTHON_SOURCES = (
     "updater_main.py",
     "UI_fiiles/project_widget.py",
 )
+QT_FREE_PYTHON_ROOTS = (
+    "backend",
+    "nfprogress/core",
+)
+FRONTEND_SOURCE_ROOT = "frontend/src"
+FRONTEND_SOURCE_SUFFIXES = frozenset({".js", ".jsx", ".ts", ".tsx", ".vue"})
+FRONTEND_IGNORED_DIRECTORIES = frozenset(
+    {"generated", "node_modules", "test", "tests"}
+)
 TARGET_LANGUAGES = ("en", "es", "de", "fr", "pt")
 CATALOG_LANGUAGE = {"pt": "pt_BR"}
 CYRILLIC = re.compile(r"[А-Яа-яЁё]")
+PLACEHOLDER = re.compile(
+    r"(?<!\{)\{(?:\d+|[A-Za-z_][A-Za-z0-9_.-]*)\}(?!\})"
+)
+HTML_TAG = re.compile(r"<!DOCTYPE[^>]*>|</?[A-Za-z][^>]*>", re.IGNORECASE)
+SCRIPT_BLOCK = re.compile(r"<script\b[^>]*>(.*?)</script>", re.IGNORECASE | re.DOTALL)
+HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
+TRANSLATION_CALL = re.compile(r"(?<![\w$])(?:t|locale\.translate)\s*\(")
 SEPARATOR = "\n[[[NFPROGRESS_7A9C]]]\n"
 TRANSLATE_URL = "https://translate.googleapis.com/translate_a/single"
 
@@ -90,6 +107,206 @@ def extract_python_strings(path: Path) -> set[str]:
     return strings
 
 
+def _decode_javascript_string(value: str) -> str:
+    """Decode escapes used by ordinary JavaScript and TypeScript strings."""
+    decoded = []
+    index = 0
+    simple_escapes = {
+        "b": "\b",
+        "f": "\f",
+        "n": "\n",
+        "r": "\r",
+        "t": "\t",
+        "v": "\v",
+        "0": "\0",
+        "\\": "\\",
+        "'": "'",
+        '"': '"',
+        "`": "`",
+    }
+    while index < len(value):
+        character = value[index]
+        if character != "\\" or index + 1 >= len(value):
+            decoded.append(character)
+            index += 1
+            continue
+
+        escaped = value[index + 1]
+        if escaped in {"\n", "\r"}:
+            index += 2
+            if escaped == "\r" and index < len(value) and value[index] == "\n":
+                index += 1
+            continue
+        if escaped in simple_escapes:
+            decoded.append(simple_escapes[escaped])
+            index += 2
+            continue
+        if escaped == "x" and index + 3 < len(value):
+            try:
+                decoded.append(chr(int(value[index + 2:index + 4], 16)))
+            except ValueError:
+                decoded.append(escaped)
+                index += 2
+            else:
+                index += 4
+            continue
+        if escaped == "u":
+            brace_end = (
+                value.find("}", index + 3)
+                if value[index + 2:index + 3] == "{"
+                else -1
+            )
+            digits = (
+                value[index + 3:brace_end]
+                if brace_end >= 0
+                else value[index + 2:index + 6]
+            )
+            try:
+                decoded.append(chr(int(digits, 16)))
+            except (ValueError, OverflowError):
+                decoded.append(escaped)
+                index += 2
+            else:
+                index = brace_end + 1 if brace_end >= 0 else index + 6
+            continue
+
+        # JavaScript treats an unknown escape as the escaped character.
+        decoded.append(escaped)
+        index += 2
+    return "".join(decoded)
+
+
+def _javascript_string_at(source: str, start: int) -> tuple[str | None, int]:
+    quote = source[start]
+    index = start + 1
+    raw_value = []
+    dynamic_template = False
+    while index < len(source):
+        character = source[index]
+        if character == "\\":
+            raw_value.append(character)
+            if index + 1 < len(source):
+                raw_value.append(source[index + 1])
+                index += 2
+            else:
+                index += 1
+            continue
+        if character == quote:
+            value = (
+                None
+                if dynamic_template
+                else _decode_javascript_string("".join(raw_value))
+            )
+            return value, index + 1
+        if quote == "`" and source.startswith("${", index):
+            dynamic_template = True
+        raw_value.append(character)
+        index += 1
+    return None, len(source)
+
+
+def _static_javascript_strings(source: str) -> set[str]:
+    """Return static string literals while ignoring comments and templates."""
+    strings = set()
+    index = 0
+    while index < len(source):
+        if source.startswith("//", index):
+            newline = source.find("\n", index + 2)
+            index = len(source) if newline < 0 else newline + 1
+            continue
+        if source.startswith("/*", index):
+            comment_end = source.find("*/", index + 2)
+            index = len(source) if comment_end < 0 else comment_end + 2
+            continue
+        if source[index] not in {"'", '"', "`"}:
+            index += 1
+            continue
+        value, index = _javascript_string_at(source, index)
+        if value is not None and CYRILLIC.search(value) and len(value) <= 3000:
+            strings.add(value)
+    return strings
+
+
+def _vue_template_translation_strings(source: str) -> set[str]:
+    """Extract literal first arguments from t()/locale.translate() calls."""
+    strings = set()
+    template_source = SCRIPT_BLOCK.sub("", source)
+    template_source = HTML_COMMENT.sub("", template_source)
+    for match in TRANSLATION_CALL.finditer(template_source):
+        index = match.end()
+        while index < len(template_source) and template_source[index].isspace():
+            index += 1
+        if index >= len(template_source) or template_source[index] not in {
+            "'",
+            '"',
+            "`",
+        }:
+            continue
+        value, _ = _javascript_string_at(template_source, index)
+        if value is not None and CYRILLIC.search(value) and len(value) <= 3000:
+            strings.add(value)
+    return strings
+
+
+def extract_frontend_strings(path: Path) -> set[str]:
+    """Extract canonical literals without evaluating dynamic user values."""
+    source = path.read_text(encoding="utf-8")
+    if path.suffix == ".vue":
+        strings = set()
+        for script in SCRIPT_BLOCK.findall(source):
+            strings.update(_static_javascript_strings(script))
+        strings.update(_vue_template_translation_strings(source))
+        return strings
+    return _static_javascript_strings(source)
+
+
+def frontend_source_paths() -> list[Path]:
+    source_root = PROJECT_ROOT / FRONTEND_SOURCE_ROOT
+    if not source_root.exists():
+        return []
+    paths = []
+    for path in source_root.rglob("*"):
+        if not path.is_file() or path.suffix not in FRONTEND_SOURCE_SUFFIXES:
+            continue
+        relative_parts = path.relative_to(source_root).parts
+        if any(part in FRONTEND_IGNORED_DIRECTORIES for part in relative_parts):
+            continue
+        if ".spec." in path.name or ".test." in path.name:
+            continue
+        paths.append(path)
+    return sorted(paths)
+
+
+def frontend_source_strings() -> list[str]:
+    strings = set()
+    for path in frontend_source_paths():
+        strings.update(extract_frontend_strings(path))
+    return sorted(strings)
+
+
+def extract_placeholders(value: str) -> tuple[str, ...]:
+    return tuple(sorted(PLACEHOLDER.findall(value)))
+
+
+def extract_html_tags(value: str) -> tuple[str, ...]:
+    return tuple(HTML_TAG.findall(value))
+
+
+def is_html_source(value: str) -> bool:
+    lowered = value.lower()
+    return "<html" in lowered or "<!doctype html" in lowered
+
+
+def translation_preserves_structure(source: str, translated: str) -> bool:
+    if not translated.strip():
+        return False
+    if extract_placeholders(source) != extract_placeholders(translated):
+        return False
+    if not is_html_source(source):
+        return True
+    return extract_html_tags(source) == extract_html_tags(translated)
+
+
 def extract_ui_strings(path: Path) -> tuple[set[str], str]:
     strings = set()
     agreement = ""
@@ -113,10 +330,15 @@ def source_strings() -> tuple[list[str], str]:
     agreement = ""
     for relative_path in PYTHON_SOURCES:
         strings.update(extract_python_strings(PROJECT_ROOT / relative_path))
+    for relative_root in QT_FREE_PYTHON_ROOTS:
+        root = PROJECT_ROOT / relative_root
+        for python_path in sorted(root.rglob("*.py")):
+            strings.update(extract_python_strings(python_path))
     for ui_path in sorted((PROJECT_ROOT / "UI template").glob("*.ui")):
         ui_strings, ui_agreement = extract_ui_strings(ui_path)
         strings.update(ui_strings)
         agreement = ui_agreement or agreement
+    strings.update(frontend_source_strings())
     return sorted(strings), agreement
 
 
@@ -136,13 +358,26 @@ def make_batches(strings: list[str], maximum_characters: int = 2500):
 
 
 def translate_batch(language: str, batch: list[str]) -> list[str]:
+    protected_batch = []
+    placeholders_by_source = []
+    for source in batch:
+        matches = list(PLACEHOLDER.finditer(source))
+        protected = source
+        replacements = []
+        for index, match in reversed(list(enumerate(matches))):
+            token = f"__NFPROGRESS_PH_{index}__"
+            protected = protected[:match.start()] + token + protected[match.end():]
+            replacements.append((token, match.group(0)))
+        protected_batch.append(protected)
+        placeholders_by_source.append(replacements)
+
     request_data = urllib.parse.urlencode(
         {
             "client": "gtx",
             "sl": "ru",
             "tl": language,
             "dt": "t",
-            "q": SEPARATOR.join(batch),
+            "q": SEPARATOR.join(protected_batch),
         }
     ).encode("utf-8")
     request = urllib.request.Request(
@@ -169,7 +404,18 @@ def translate_batch(language: str, batch: list[str]) -> list[str]:
         translated = []
         for source in batch:
             translated.extend(translate_batch(language, [source]))
-    return translated
+    restored = []
+    for source, translated_value, replacements in zip(
+        batch, translated, placeholders_by_source
+    ):
+        for token, placeholder in replacements:
+            translated_value = translated_value.replace(token, placeholder)
+        if extract_placeholders(source) != extract_placeholders(translated_value):
+            raise RuntimeError(
+                f"Translation service changed placeholders for {source!r}"
+            )
+        restored.append(translated_value)
+    return restored
 
 
 def translate_html(language: str, source: str) -> str:
@@ -218,7 +464,7 @@ def translate_language(language: str, strings: list[str]) -> dict[str, str]:
     html_strings = [
         source
         for source in strings
-        if "<html" in source.lower() or "<!doctype html" in source.lower()
+        if is_html_source(source)
     ]
     plain_strings = [source for source in strings if source not in html_strings]
     batches = list(make_batches(plain_strings))
@@ -311,9 +557,28 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def load_translation_overrides() -> dict[str, dict[str, str]]:
+    """Load manual terminology only when generating the runtime catalog."""
+    if str(PROJECT_ROOT) not in sys.path:
+        sys.path.insert(0, str(PROJECT_ROOT))
+    from localization import TRANSLATION_OVERRIDES
+
+    return {
+        language: dict(language_overrides)
+        for language, language_overrides in TRANSLATION_OVERRIDES.items()
+    }
+
+
 def main() -> int:
     args = parse_args()
     strings, agreement = source_strings()
+    overrides = load_translation_overrides()
+    override_sources = {
+        source
+        for language_overrides in overrides.values()
+        for source in language_overrides
+    }
+    strings = sorted(set(strings) | override_sources)
     print(f"Extracted {len(strings)} Russian strings", file=sys.stderr)
     catalog = {} if args.full else load_catalog()
     russian_catalog = catalog.setdefault("ru", {})
@@ -322,21 +587,24 @@ def main() -> int:
     for language in TARGET_LANGUAGES:
         output_language = CATALOG_LANGUAGE.get(language, language)
         language_catalog = catalog.setdefault(output_language, {})
-        missing_strings = (
-            strings
-            if args.full
-            else [source for source in strings if source not in language_catalog]
-        )
+        if args.full:
+            language_catalog.clear()
+        language_catalog.update(overrides.get(output_language, {}))
+        missing_strings = [
+            source
+            for source in strings
+            if source not in language_catalog
+            or not translation_preserves_structure(source, language_catalog[source])
+        ]
         print(
             f"{output_language}: {len(missing_strings)} missing strings",
             file=sys.stderr,
         )
-        if args.full:
-            language_catalog.clear()
         if missing_strings:
             language_catalog.update(
                 translate_language(language, missing_strings)
             )
+            language_catalog.update(overrides.get(output_language, {}))
             # Keep completed languages so a temporary translation-service
             # failure can be resumed without repeating successful requests.
             write_catalog(catalog, agreement)
