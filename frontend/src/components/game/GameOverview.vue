@@ -34,12 +34,48 @@ const selectedFreezeProject = computed(() =>
   props.streakFreezes.projects.find((project) => project.project_id === freezeTarget.value),
 )
 
+interface BuffSummary {
+  target: string
+  value: number
+  kind: 'positive' | 'negative'
+}
+
+const buffSummaries = computed<BuffSummary[]>(() => {
+  const totals = new Map<string, { positive: number; negative: number }>()
+  for (const [kind, items] of [
+    ['positive', props.buffs.positive],
+    ['negative', props.buffs.negative],
+  ] as const) {
+    for (const buff of items) {
+      const target = buff.target || 'параметр'
+      const current = totals.get(target) ?? { positive: 0, negative: 0 }
+      const amount = Math.abs(buff.value) * Math.max(1, buff.stacks)
+      current[kind] += amount
+      totals.set(target, current)
+    }
+  }
+  return [...totals.entries()].flatMap(([target, values]) => [
+    ...(values.positive > 0 ? [{ target, value: values.positive, kind: 'positive' as const }] : []),
+    ...(values.negative > 0 ? [{ target, value: values.negative, kind: 'negative' as const }] : []),
+  ])
+})
+
 function bonusName(key: string): string {
   const names: Record<string, string> = {
     writing: 'Запись текста',
     session: 'Писательская сессия',
     challenge: 'Испытание',
     manuscript: 'Рубеж рукописи',
+  }
+  return t(names[key] ?? key)
+}
+
+function targetName(key: string): string {
+  const names: Record<string, string> = {
+    coins: 'Монеты',
+    exp: 'Опыт',
+    health_recovery: 'Восстановление здоровья',
+    inspiration: 'Вдохновение',
   }
   return t(names[key] ?? key)
 }
@@ -156,8 +192,24 @@ function bonusName(key: string): string {
       </button>
     </section>
 
+    <section
+      v-if="buffSummaries.length"
+      class="buff-summary-grid"
+      :aria-label="t('Сводка эффектов')"
+    >
+      <article
+        v-for="summary in buffSummaries"
+        :key="`${summary.kind}:${summary.target}`"
+        class="buff-summary-card"
+        :class="`buff-summary-card--${summary.kind}`"
+      >
+        <strong>{{ summary.kind === 'positive' ? '+' : '−' }}{{ locale.formatNumber(summary.value, 3) }}</strong>
+        <span>{{ t('к параметру') }} {{ targetName(summary.target) }}</span>
+      </article>
+    </section>
+
     <div class="buff-columns">
-      <section class="summary-panel">
+      <section class="summary-panel buff-panel">
         <h2>{{ t('Активные усиления') }}</h2>
         <p v-if="buffs.positive.length === 0" class="empty-copy">
           {{ t('Сейчас активных усилений нет.') }}
@@ -170,7 +222,7 @@ function bonusName(key: string): string {
         </ul>
       </section>
 
-      <section class="summary-panel">
+      <section class="summary-panel buff-panel">
         <h2>{{ t('Активные ограничения') }}</h2>
         <p v-if="buffs.negative.length === 0" class="empty-copy">
           {{ t('Сейчас активных ограничений нет.') }}
@@ -275,6 +327,42 @@ progress {
   padding: var(--nf-space-5);
 }
 
+.buff-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--nf-space-2);
+}
+
+.buff-summary-card {
+  display: flex;
+  min-height: 3.25rem;
+  gap: var(--nf-space-2);
+  align-items: baseline;
+  padding: var(--nf-space-3);
+  border: 1px solid var(--nf-color-border);
+  border-radius: var(--nf-radius-sm);
+  background: var(--nf-color-surface);
+  box-shadow: var(--nf-shadow-card);
+}
+
+.buff-summary-card strong {
+  font-size: 1.05rem;
+  white-space: nowrap;
+}
+
+.buff-summary-card span {
+  color: var(--nf-color-text-muted);
+  font-size: 0.8rem;
+}
+
+.buff-summary-card--positive strong {
+  color: var(--nf-color-success);
+}
+
+.buff-summary-card--negative strong {
+  color: var(--nf-color-danger);
+}
+
 .summary-panel h2 {
   margin: 0 0 var(--nf-space-3);
   font-family: var(--nf-font-serif);
@@ -309,12 +397,27 @@ progress {
 
 .buff-list {
   display: grid;
+  max-height: 13rem;
   gap: var(--nf-space-3);
+  overflow-y: auto;
+  padding-right: var(--nf-space-2);
+}
+
+.buff-panel {
+  min-height: 17rem;
+  padding: var(--nf-space-4);
 }
 
 .buff-list li {
   display: grid;
   gap: var(--nf-space-1);
+  padding-bottom: var(--nf-space-2);
+  border-bottom: 1px solid var(--nf-color-border);
+}
+
+.buff-list li:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 .buff-list span {

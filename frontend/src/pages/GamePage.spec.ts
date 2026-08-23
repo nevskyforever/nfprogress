@@ -141,4 +141,54 @@ describe('GamePage', () => {
     expect(overview.text()).not.toContain('Инфляция')
     wrapper.unmount()
   })
+
+  it('summarizes stacked buffs and keeps the detailed lists scrollable', async () => {
+    vi.mocked(gameApi.state).mockResolvedValue(gameStateFixture({
+      buffs: {
+        server_time: '2026-08-15T12:00:00',
+        positive: [
+          {
+            name: 'Бонус опыта',
+            description: 'Бонус',
+            type: 'positive',
+            target: 'exp',
+            value: 0.02,
+            stacks: 2,
+            duration_minutes: null,
+            started_at: null,
+            expires_at: null,
+            remaining_seconds: null,
+            source: null,
+            stackable: true,
+          },
+        ],
+        negative: [
+          {
+            name: 'Штраф опыта',
+            description: 'Штраф',
+            type: 'negative',
+            target: 'exp',
+            value: 0.01,
+            stacks: 3,
+            duration_minutes: null,
+            started_at: null,
+            expires_at: null,
+            remaining_seconds: null,
+            source: null,
+            stackable: true,
+          },
+        ],
+      },
+    }))
+    const wrapper = mount(GamePage, {
+      global: { plugins: [createPinia()], stubs: { IonIcon: true } },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.buff-summary-card')).toHaveLength(2)
+    expect(wrapper.get('.buff-summary-card--positive').text()).toContain('+0.04')
+    expect(wrapper.get('.buff-summary-card--negative').text()).toContain('−0.03')
+    expect(wrapper.findAll('.buff-panel .buff-list')).toHaveLength(2)
+    wrapper.unmount()
+  })
 })
