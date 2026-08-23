@@ -47,4 +47,20 @@ describe('ProjectCreateDialog', () => {
     expect(wrapper.emitted('submit')).toBeUndefined()
     expect(wrapper.get('[role="alert"]').text()).toContain('Введите название проекта')
   })
+
+  it('can request a data-preserving initial stage conversion', async () => {
+    const wrapper = mount(ProjectCreateDialog, {
+      props: { open: true },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    await wrapper.get('#project-name').setValue('Роман')
+    await wrapper.get('input[name="stages_enabled"]').setValue(true)
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
+      name: 'Роман',
+      stages_enabled: true,
+    })
+  })
 })

@@ -11,10 +11,11 @@ const props = withDefaults(
     open: boolean
     projectUnit: UnitCode
     stage?: Project | null
+    sharedSource?: boolean
     submitting?: boolean
     apiError?: string | null
   }>(),
-  { stage: null, submitting: false, apiError: null },
+  { stage: null, sharedSource: false, submitting: false, apiError: null },
 )
 
 const emit = defineEmits<{
@@ -35,36 +36,52 @@ const projectUnitLabel = computed(() => t({
 const form = reactive({
   name: '',
   goal: '10000',
+  total: '0',
   deadline: '',
   personalGoal: '0',
   infinite: false,
   streakEnabled: false,
   autoFreeze: true,
+  recalculatePlan: false,
+})
+
+const canRecalculatePlan = computed(() => {
+  const personalGoal = numberFrom(form.personalGoal)
+  return Boolean(props.stage && form.deadline)
+    && Number.isFinite(personalGoal)
+    && personalGoal > 0
+    && Math.abs(personalGoal - (props.stage?.personal_goal ?? 0)) < 0.000001
 })
 
 function fill(): void {
   form.name = props.stage?.name ?? ''
   form.goal = props.stage?.goal === null ? '10000' : String(props.stage?.goal ?? 10000)
+  form.total = String(props.sharedSource ? 0 : (props.stage?.total ?? 0))
   form.deadline = props.stage?.deadline?.slice(0, 10) ?? ''
   form.personalGoal = String(props.stage?.personal_goal ?? 0)
-  form.infinite = props.stage?.infinite ?? false
+  form.infinite = props.sharedSource || (props.stage?.infinite ?? false)
   form.streakEnabled = props.stage?.streak_enabled ?? false
   form.autoFreeze = props.stage?.auto_freeze ?? true
+  form.recalculatePlan = false
   validationErrors.value = []
 }
 
-function numberFrom(value: string): number {
-  return Number(value.replace(',', '.'))
+function numberFrom(value: string | number): number {
+  return Number(String(value).replace(',', '.'))
 }
 
 async function submit(): Promise<void> {
   const errors: string[] = []
   const name = form.name.trim()
   const goal = numberFrom(form.goal)
+  const total = numberFrom(form.total)
   const personalGoal = numberFrom(form.personalGoal)
   if (!name) errors.push(t('Введите название этапа.'))
-  if (!form.infinite && (!Number.isFinite(goal) || goal <= 0)) {
+  if (!props.sharedSource && !form.infinite && (!Number.isFinite(goal) || goal <= 0)) {
     errors.push(t('Цель должна быть больше нуля.'))
+  }
+  if (!props.sharedSource && (!Number.isFinite(total) || total < 0)) {
+    errors.push(t('Текущее значение не может быть отрицательным.'))
   }
   if (!Number.isFinite(personalGoal) || personalGoal < 0) {
     errors.push(t('Цель на день не может быть отрицательной.'))
@@ -76,18 +93,36 @@ async function submit(): Promise<void> {
     return
   }
 
-  const commonPayload = {
-    name,
-    infinite: form.infinite,
-    deadline: form.deadline || null,
-    personal_goal: personalGoal,
-    streak_enabled: form.streakEnabled,
-    auto_freeze: form.autoFreeze,
+  let payload: StageCreate | EntityUpdate
+  if (props.stage) {
+    const update: EntityUpdate = {}
+    if (name !== props.stage.name) update.name = name
+    if (form.infinite !== props.stage.infinite) update.infinite = form.infinite
+    if (!form.infinite && (props.stage.goal === null || Math.abs(goal - props.stage.goal) >= 0.000001)) {
+      update.goal = goal
+    }
+    if (Math.abs(total - props.stage.total) >= 0.000001) update.total = total
+    const deadline = form.deadline || null
+    if (deadline !== props.stage.deadline?.slice(0, 10) && !(deadline === null && props.stage.deadline === null)) {
+      update.deadline = deadline
+    }
+    if (Math.abs(personalGoal - props.stage.personal_goal) >= 0.000001) update.personal_goal = personalGoal
+    if (form.streakEnabled !== props.stage.streak_enabled) update.streak_enabled = form.streakEnabled
+    if (form.autoFreeze !== props.stage.auto_freeze) update.auto_freeze = form.autoFreeze
+    if (form.recalculatePlan && canRecalculatePlan.value) update.recalculate_plan = true
+    payload = update
+  } else {
+    payload = {
+      name,
+      infinite: props.sharedSource || form.infinite,
+      deadline: props.sharedSource ? null : (form.deadline || null),
+      personal_goal: props.sharedSource ? 0 : personalGoal,
+      streak_enabled: props.sharedSource ? false : form.streakEnabled,
+      auto_freeze: props.sharedSource ? true : form.autoFreeze,
+      total: props.sharedSource ? 0 : total,
+      ...((props.sharedSource || form.infinite) ? {} : { goal }),
+    }
   }
-  const finiteGoal = form.infinite ? {} : { goal }
-  const payload: StageCreate | EntityUpdate = props.stage
-    ? { ...commonPayload, ...finiteGoal, recalculate_plan: true }
-    : { ...commonPayload, ...finiteGoal, total: 0 }
   emit('submit', payload)
 }
 
@@ -149,7 +184,7 @@ watch(
           <span>{{ t('Название') }}</span>
           <input id="stage-name" v-model="form.name" maxlength="300" autocomplete="off" />
         </label>
-        <label class="workspace-field" for="stage-goal">
+        <label v-if="!sharedSource" class="workspace-field" for="stage-goal">
           <span>{{ t('Цель') }}</span>
           <input
             id="stage-goal"
@@ -161,11 +196,22 @@ watch(
             :disabled="form.infinite"
           />
         </label>
-        <label class="workspace-field" for="stage-deadline">
+        <label v-if="!sharedSource" class="workspace-field" for="stage-total">
+          <span>{{ t('Текущее значение') }}</span>
+          <input
+            id="stage-total"
+            v-model="form.total"
+            type="number"
+            min="0"
+            step="any"
+            inputmode="decimal"
+          />
+        </label>
+        <label v-if="!sharedSource" class="workspace-field" for="stage-deadline">
           <span>{{ t('Срок') }}</span>
           <input id="stage-deadline" v-model="form.deadline" type="date" />
         </label>
-        <label class="workspace-field" for="stage-personal-goal">
+        <label v-if="!sharedSource" class="workspace-field" for="stage-personal-goal">
           <span>{{ t('Цель на день') }}</span>
           <input
             id="stage-personal-goal"
@@ -180,7 +226,7 @@ watch(
           {{ t('Единица этапа совпадает с проектом') }}: <strong>{{ projectUnitLabel }}</strong>
         </p>
 
-        <div class="workspace-options workspace-field--wide">
+        <div v-if="!sharedSource" class="workspace-options workspace-field--wide">
           <label class="workspace-check">
             <input v-model="form.infinite" type="checkbox" />
             <span><strong>{{ t('Этап без конечной цели') }}</strong></span>
@@ -192,6 +238,10 @@ watch(
           <label v-if="form.streakEnabled" class="workspace-check">
             <input v-model="form.autoFreeze" type="checkbox" />
             <span><strong>{{ t('Использовать заморозку автоматически') }}</strong></span>
+          </label>
+          <label v-if="canRecalculatePlan" class="workspace-check">
+            <input v-model="form.recalculatePlan" type="checkbox" />
+            <span><strong>{{ t('Пересчитать цели на день с сегодняшнего дня') }}</strong></span>
           </label>
         </div>
 

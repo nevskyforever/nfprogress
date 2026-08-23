@@ -101,3 +101,15 @@ export async function openExternalUrl(url: string): Promise<void> {
   }
   window.open(parsedUrl.toString(), '_blank', 'noopener,noreferrer')
 }
+
+export async function requestApplicationClose(): Promise<boolean> {
+  if (runtimePlatform !== 'tauri') return false
+  try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window')
+    await getCurrentWindow().close()
+    return true
+  } catch {
+    // A restricted desktop capability must leave the agreement gate in place.
+    return false
+  }
+}

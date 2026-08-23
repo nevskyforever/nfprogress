@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
 import type { Statistics } from '@/types/api'
+import { projectFixture } from '@/test/fixtures'
 
 import StatisticsWorkspace from './StatisticsWorkspace.vue'
 
@@ -41,5 +42,24 @@ describe('StatisticsWorkspace', () => {
     expect(wrapper.get('table caption').text()).toContain('Таблица прогресса по дням')
     expect(wrapper.findAll('tbody tr')).toHaveLength(2)
     expect(wrapper.findAll('th[scope="col"]')).toHaveLength(3)
+  })
+
+  it('offers aggregate project statistics separately from stage statistics', async () => {
+    const stage = projectFixture({ id: 'stage-1', name: 'Черновик' })
+    const wrapper = mount(StatisticsWorkspace, {
+      props: {
+        statistics,
+        project: projectFixture({ stages_enabled: true, stages: [stage] }),
+        entityId: stage.id,
+      },
+      global: { plugins: [createPinia()], stubs: { IonSpinner: true } },
+    })
+
+    const select = wrapper.get('#statistics-entity')
+    expect(select.findAll('option').map((option) => option.text())).toEqual([
+      'Весь проект', 'Черновик',
+    ])
+    await select.setValue('')
+    expect(wrapper.emitted('update:entityId')?.[0]).toEqual([''])
   })
 })

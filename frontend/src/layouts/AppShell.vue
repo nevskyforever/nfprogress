@@ -1,24 +1,49 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
+import { useRoute } from 'vue-router'
 import { IonIcon, IonRouterOutlet } from '@ionic/vue'
 import {
   cloudOfflineOutline,
   contrastOutline,
   folderOpenOutline,
+  helpCircleOutline,
   languageOutline,
+  settingsOutline,
+  sparklesOutline,
+  syncOutline,
 } from 'ionicons/icons'
 
 import { useNetworkStatus } from '@/composables/useNetworkStatus'
-import { SUPPORTED_LANGUAGES, useLocaleStore } from '@/stores/locale'
-import { useThemeStore, type ThemePreference } from '@/stores/theme'
+import { apiErrorMessage } from '@/api/client'
+import { settingsApi } from '@/api/settings'
+import {
+  SUPPORTED_LANGUAGES,
+  isSupportedLanguage,
+  useLocaleStore,
+} from '@/stores/locale'
+import {
+  isThemePreference,
+  useThemeStore,
+  type ThemePreference,
+} from '@/stores/theme'
 import type { SupportedLanguage } from '@/types/api'
 
 const { online } = useNetworkStatus()
+const route = useRoute()
 const theme = useThemeStore()
 const locale = useLocaleStore()
 const t = locale.translate
 const startupError = window.__NFPROGRESS_RUNTIME__?.startupError ?? ''
+const savingPreference = ref(false)
+const preferenceError = ref<string | null>(null)
 const hasBanner = computed(() => !online.value || Boolean(startupError))
+const navigationItems = [
+  { to: '/projects', label: 'Проекты', mobileLabel: 'Проекты', icon: folderOpenOutline },
+  { to: '/game', label: 'Игровой режим', mobileLabel: 'Игра', icon: sparklesOutline },
+  { to: '/integrations', label: 'Синхронизация', mobileLabel: 'Файлы', icon: syncOutline },
+  { to: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
+  { to: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },
+] as const
 
 const themeLabel = computed(() => {
   const labels: Record<ThemePreference, string> = {
@@ -29,13 +54,56 @@ const themeLabel = computed(() => {
   return labels[theme.preference]
 })
 
-function selectTheme(event: Event): void {
-  theme.setPreference((event.target as HTMLSelectElement).value as ThemePreference)
+async function selectTheme(event: Event): Promise<void> {
+  if (savingPreference.value) return
+  const select = event.currentTarget as HTMLSelectElement
+  const requestedTheme = select.value
+  if (!isThemePreference(requestedTheme) || requestedTheme === theme.preference) return
+
+  savingPreference.value = true
+  preferenceError.value = null
+  try {
+    const settings = await settingsApi.update({ frontend_theme: requestedTheme })
+    theme.setPreference(
+      isThemePreference(settings.values.frontend_theme)
+        ? settings.values.frontend_theme
+        : requestedTheme,
+    )
+  } catch (error) {
+    select.value = theme.preference
+    preferenceError.value = t(apiErrorMessage(error))
+  } finally {
+    savingPreference.value = false
+  }
 }
 
-function selectLanguage(event: Event): void {
-  void locale.setLanguage((event.target as HTMLSelectElement).value as SupportedLanguage)
+async function selectLanguage(event: Event): Promise<void> {
+  if (savingPreference.value) return
+  const select = event.currentTarget as HTMLSelectElement
+  const requestedLanguage = select.value as SupportedLanguage
+  if (!isSupportedLanguage(requestedLanguage) || requestedLanguage === locale.language) return
+
+  savingPreference.value = true
+  preferenceError.value = null
+  try {
+    const settings = await settingsApi.update({ language: requestedLanguage })
+    await locale.setLanguage(
+      isSupportedLanguage(settings.values.language)
+        ? settings.values.language
+        : requestedLanguage,
+    )
+  } catch (error) {
+    select.value = locale.language
+    preferenceError.value = t(apiErrorMessage(error))
+  } finally {
+    savingPreference.value = false
+  }
 }
+
+watchEffect(() => {
+  const sourceTitle = typeof route.meta.title === 'string' ? route.meta.title : ''
+  document.title = sourceTitle ? `${t(sourceTitle)} · nfprogress` : 'nfprogress'
+})
 </script>
 
 <template>
@@ -52,9 +120,14 @@ function selectLanguage(event: Event): void {
       </RouterLink>
 
       <nav class="primary-navigation" :aria-label="t('Разделы приложения')">
-        <RouterLink class="navigation-link" to="/projects">
-          <IonIcon :icon="folderOpenOutline" aria-hidden="true" />
-          <span>{{ t('Проекты') }}</span>
+        <RouterLink
+          v-for="item in navigationItems"
+          :key="item.to"
+          class="navigation-link"
+          :to="item.to"
+        >
+          <IonIcon :icon="item.icon" aria-hidden="true" />
+          <span>{{ t(item.label) }}</span>
         </RouterLink>
       </nav>
 
@@ -65,6 +138,8 @@ function selectLanguage(event: Event): void {
           <select
             :value="locale.language"
             :aria-label="t('Язык интерфейса')"
+            :disabled="savingPreference"
+            :aria-busy="savingPreference"
             @change="selectLanguage"
           >
             <option
@@ -83,6 +158,8 @@ function selectLanguage(event: Event): void {
           <select
             :value="theme.preference"
             :aria-label="t('Тема')"
+            :disabled="savingPreference"
+            :aria-busy="savingPreference"
             @change="selectTheme"
           >
             <option value="system">{{ t('Системная') }}</option>
@@ -91,6 +168,9 @@ function selectLanguage(event: Event): void {
           </select>
         </label>
         <p class="theme-summary">{{ themeLabel }}</p>
+        <p v-if="preferenceError" class="preference-error" role="alert">
+          {{ preferenceError }}
+        </p>
       </div>
     </aside>
 
@@ -122,40 +202,25 @@ function selectLanguage(event: Event): void {
     </main>
 
     <nav class="mobile-navigation" :aria-label="t('Основная навигация')">
-      <RouterLink class="mobile-navigation-link" to="/projects">
-        <IonIcon :icon="folderOpenOutline" aria-hidden="true" />
-        <span>{{ t('Проекты') }}</span>
+      <RouterLink
+        v-for="item in navigationItems"
+        :key="item.to"
+        class="mobile-navigation-link"
+        :to="item.to"
+        :aria-label="t(item.label)"
+      >
+        <IonIcon :icon="item.icon" aria-hidden="true" />
+        <span>{{ t(item.mobileLabel) }}</span>
       </RouterLink>
-      <label class="mobile-theme-select">
-        <IonIcon :icon="contrastOutline" aria-hidden="true" />
-        <span class="visually-hidden">{{ t('Тема') }}</span>
-        <select
-          :value="theme.preference"
-          :aria-label="t('Тема')"
-          @change="selectTheme"
-        >
-          <option value="system">{{ t('Системная') }}</option>
-          <option value="light">{{ t('Светлая') }}</option>
-          <option value="dark">{{ t('Тёмная') }}</option>
-        </select>
-      </label>
-      <label class="mobile-theme-select">
-        <IonIcon :icon="languageOutline" aria-hidden="true" />
-        <span class="visually-hidden">{{ t('Язык интерфейса') }}</span>
-        <select
-          :value="locale.language"
-          :aria-label="t('Язык интерфейса')"
-          @change="selectLanguage"
-        >
-          <option
-            v-for="language in SUPPORTED_LANGUAGES"
-            :key="language.code"
-            :value="language.code"
-          >
-            {{ language.displayName }}
-          </option>
-        </select>
-      </label>
     </nav>
   </div>
 </template>
+
+<style scoped>
+.preference-error {
+  margin: var(--nf-space-1) var(--nf-space-2) 0;
+  color: var(--nf-color-danger);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+</style>

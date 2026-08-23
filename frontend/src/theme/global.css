@@ -127,6 +127,8 @@ a {
 }
 
 .primary-navigation {
+  display: grid;
+  gap: var(--nf-space-1);
   margin-top: var(--nf-space-7);
 }
 
@@ -314,7 +316,7 @@ a {
     bottom: 0;
     left: 0;
     display: grid;
-    grid-template-columns: 1fr auto auto;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     min-height: calc(4rem + env(safe-area-inset-bottom));
     padding: var(--nf-space-2) max(var(--nf-space-3), env(safe-area-inset-right))
       calc(var(--nf-space-2) + env(safe-area-inset-bottom))
@@ -324,13 +326,12 @@ a {
     backdrop-filter: blur(16px);
   }
 
-  .mobile-navigation-link,
-  .mobile-theme-select {
+  .mobile-navigation-link {
     display: flex;
     gap: var(--nf-space-1);
     align-items: center;
     justify-content: center;
-    min-width: 4rem;
+    min-width: 0;
     min-height: 3rem;
     border-radius: var(--nf-radius-sm);
     color: var(--nf-color-text-muted);
@@ -339,7 +340,8 @@ a {
 
   .mobile-navigation-link {
     flex-direction: column;
-    font-size: 0.75rem;
+    overflow: hidden;
+    font-size: clamp(0.58rem, 2.7vw, 0.75rem);
     font-weight: 700;
   }
 
@@ -349,24 +351,6 @@ a {
 
   .mobile-navigation-link.router-link-active {
     color: var(--nf-color-primary);
-  }
-
-  .mobile-theme-select {
-    position: relative;
-    width: 4rem;
-  }
-
-  .mobile-theme-select select {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .mobile-theme-select ion-icon {
-    font-size: 1.35rem;
   }
 }
 

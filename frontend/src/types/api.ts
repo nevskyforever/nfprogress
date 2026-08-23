@@ -57,6 +57,7 @@ export interface StageCreate {
 
 export interface ProjectCreate extends StageCreate {
   unit?: UnitCode
+  stages_enabled?: boolean
   stages?: StageCreate[]
   combine_stage_mindmaps?: boolean
 }

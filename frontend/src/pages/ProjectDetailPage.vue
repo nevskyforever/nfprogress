@@ -40,10 +40,12 @@ const t = locale.translate
 const projectId = computed(() => String(route.params.projectId ?? ''))
 const project = computed<Project>(() => store.currentProject as Project)
 const presentation = useProjectPresentation(project)
+const isSharedProject = computed(() => project.value.name === 'Общий проект')
 const editDialogOpen = ref(false)
 const stageDialogOpen = ref(false)
 const editingStage = ref<Project | null>(null)
 const selectedEntityId = ref('')
+const statisticsEntityId = ref('')
 const actionSuccess = ref<string | null>(null)
 const feedbackArea = ref<'global' | 'progress'>('global')
 
@@ -62,6 +64,7 @@ function chooseAvailableEntity(): void {
   if (!store.currentProject) return
   if (!project.value.stages.length) {
     selectedEntityId.value = ''
+    statisticsEntityId.value = ''
     return
   }
   if (!project.value.stages.some((stage) => stage.id === selectedEntityId.value)) {
@@ -69,11 +72,15 @@ function chooseAvailableEntity(): void {
       ?? project.value.stages[0]?.id
       ?? ''
   }
+  if (!project.value.stages.some((stage) => stage.id === statisticsEntityId.value)) {
+    statisticsEntityId.value = ''
+  }
 }
 
 async function loadProject(): Promise<void> {
   if (!projectId.value) return
   actionSuccess.value = null
+  statisticsEntityId.value = ''
   await store.loadOne(projectId.value)
   chooseAvailableEntity()
   refreshStatistics()
@@ -81,7 +88,7 @@ async function loadProject(): Promise<void> {
 
 function refreshStatistics(): void {
   if (!store.currentProject) return
-  void store.loadStatistics(project.value.id, selectedEntityId.value || undefined)
+  void store.loadStatistics(project.value.id, statisticsEntityId.value || undefined)
 }
 
 function openProjectEdit(): void {
@@ -198,7 +205,7 @@ async function deleteProgress(entryId: string, stageId?: string): Promise<void> 
 }
 
 watch(projectId, () => { void loadProject() }, { immediate: true })
-watch(selectedEntityId, () => {
+watch(statisticsEntityId, () => {
   actionSuccess.value = null
   refreshStatistics()
 })
@@ -251,7 +258,7 @@ onBeforeUnmount(() => store.cancelDetail())
               <IonIcon :icon="documentTextOutline" aria-hidden="true" />{{ t('Заметки и карта') }}
             </RouterLink>
             <button
-              v-if="project.status !== 'завершен'"
+              v-if="project.status !== 'завершен' && !isSharedProject"
               class="nf-button nf-button--secondary"
               type="button"
               :disabled="store.detailBusy"
@@ -260,7 +267,7 @@ onBeforeUnmount(() => store.cancelDetail())
               <IonIcon :icon="createOutline" aria-hidden="true" />{{ t('Изменить') }}
             </button>
             <button
-              v-if="project.status !== 'завершен'"
+              v-if="project.status !== 'завершен' && !isSharedProject"
               class="nf-button nf-button--secondary"
               type="button"
               :disabled="store.detailBusy"
@@ -270,7 +277,7 @@ onBeforeUnmount(() => store.cancelDetail())
               {{ project.status === 'в архиве' ? t('Вернуть в активные') : t('В архив') }}
             </button>
             <button
-              v-if="project.status !== 'завершен'"
+              v-if="project.status !== 'завершен' && !isSharedProject"
               class="nf-button"
               type="button"
               :title="!canCompleteProject ? t('Чтобы завершить проект, сначала достигните его цели.') : undefined"
@@ -280,6 +287,7 @@ onBeforeUnmount(() => store.cancelDetail())
               <IonIcon :icon="checkmarkCircleOutline" aria-hidden="true" />{{ t('Завершить') }}
             </button>
             <button
+              v-if="!isSharedProject"
               class="nf-button project-delete-button"
               type="button"
               :disabled="store.detailBusy"
@@ -330,7 +338,9 @@ onBeforeUnmount(() => store.cancelDetail())
             @remove="deleteProgress"
           />
           <StatisticsWorkspace
+            v-model:entity-id="statisticsEntityId"
             :statistics="store.statistics"
+            :project="project"
             :loading="store.statisticsLoading"
             :error="store.statisticsError"
             @retry="refreshStatistics"
@@ -353,6 +363,7 @@ onBeforeUnmount(() => store.cancelDetail())
       :open="stageDialogOpen"
       :project-unit="project.unit"
       :stage="editingStage"
+      :shared-source="isSharedProject && !editingStage"
       :submitting="Boolean(store.detailOperation?.includes('stage'))"
       :api-error="store.detailActionError"
       @close="stageDialogOpen = false"

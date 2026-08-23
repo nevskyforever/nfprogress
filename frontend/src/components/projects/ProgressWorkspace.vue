@@ -33,8 +33,11 @@ const selectedEntity = computed<Project>(() => {
   if (!selectedEntityId.value) return props.project
   return props.project.stages.find((stage) => stage.id === selectedEntityId.value) ?? props.project
 })
+const sharedProject = computed(() => props.project.name === 'Общий проект')
 const readOnly = computed(
-  () => props.project.status === 'завершен' || selectedEntity.value.status === 'завершен',
+  () => sharedProject.value
+    || props.project.status === 'завершен'
+    || selectedEntity.value.status === 'завершен',
 )
 const entries = computed(() => [...selectedEntity.value.progress_entries].reverse())
 const fractionDigits = computed(() => (props.project.unit === 'symbols' ? 0 : 2))
@@ -95,7 +98,9 @@ watch(
     </div>
 
     <p v-if="readOnly" class="read-only-note">
-      {{ t('Завершённый проект или этап доступен только для просмотра.') }}
+      {{ sharedProject
+        ? t('Прогресс Общего проекта обновляется через синхронизацию.')
+        : t('Завершённый проект или этап доступен только для просмотра.') }}
     </p>
 
     <div class="progress-entry-layout">

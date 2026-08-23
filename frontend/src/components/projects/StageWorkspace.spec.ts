@@ -36,4 +36,35 @@ describe('StageWorkspace', () => {
     expect(window.confirm).toHaveBeenCalled()
     expect(wrapper.emitted('remove')?.[0]?.[0]).toEqual(stage)
   })
+
+  it('does not offer completion for an infinite stage', () => {
+    const stage = projectFixture({ id: 'stage-a', infinite: true, goal: null })
+    const wrapper = mount(StageWorkspace, {
+      props: { project: projectFixture({ stages_enabled: true, stages: [stage] }), busy: false },
+      global: { plugins: [createPinia()], stubs: { IonIcon: true } },
+    })
+
+    const completeButton = wrapper.findAll('button').find((button) => button.text().includes('Завершить'))
+    expect(completeButton?.attributes('disabled')).toBeDefined()
+  })
+
+  it('protects shared-project sources from edit and deletion', () => {
+    const stage = projectFixture({ id: 'source-a', infinite: true, goal: null })
+    const wrapper = mount(StageWorkspace, {
+      props: {
+        project: projectFixture({
+          name: 'Общий проект',
+          infinite: true,
+          goal: null,
+          stages_enabled: true,
+          stages: [stage],
+        }),
+        busy: false,
+      },
+      global: { plugins: [createPinia()], stubs: { IonIcon: true } },
+    })
+
+    const protectedButtons = wrapper.findAll('.stage-action-button')
+    expect(protectedButtons.every((button) => button.attributes('disabled') !== undefined)).toBe(true)
+  })
 })

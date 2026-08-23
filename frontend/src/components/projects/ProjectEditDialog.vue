@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue'
 import { closeOutline } from 'ionicons/icons'
 
@@ -29,12 +29,23 @@ const form = reactive({
   name: '',
   unit: 'symbols' as UnitCode,
   goal: '',
+  total: '',
   deadline: '',
   personalGoal: '',
   infinite: false,
+  stagesEnabled: false,
   streakEnabled: false,
   autoFreeze: true,
   combineStageMindmaps: false,
+  recalculatePlan: false,
+})
+
+const canRecalculatePlan = computed(() => {
+  const personalGoal = numberFrom(form.personalGoal)
+  return Boolean(form.deadline)
+    && Number.isFinite(personalGoal)
+    && personalGoal > 0
+    && Math.abs(personalGoal - props.project.personal_goal) < 0.000001
 })
 
 function fill(): void {
@@ -42,27 +53,34 @@ function fill(): void {
   form.name = project.name
   form.unit = project.unit
   form.goal = project.goal === null ? '' : String(project.goal)
+  form.total = String(project.total)
   form.deadline = project.deadline?.slice(0, 10) ?? ''
   form.personalGoal = String(project.personal_goal)
   form.infinite = project.infinite
+  form.stagesEnabled = project.stages_enabled
   form.streakEnabled = project.streak_enabled
   form.autoFreeze = project.auto_freeze
   form.combineStageMindmaps = project.combine_stage_mindmaps
+  form.recalculatePlan = false
   validationErrors.value = []
 }
 
-function numberFrom(value: string): number {
-  return Number(value.replace(',', '.'))
+function numberFrom(value: string | number): number {
+  return Number(String(value).replace(',', '.'))
 }
 
 async function submit(): Promise<void> {
   const errors: string[] = []
   const name = form.name.trim()
   const goal = numberFrom(form.goal)
+  const total = numberFrom(form.total)
   const personalGoal = numberFrom(form.personalGoal)
   if (!name) errors.push(t('Введите название проекта.'))
   if (!props.project.stages.length && !form.infinite && (!Number.isFinite(goal) || goal <= 0)) {
     errors.push(t('Цель должна быть больше нуля.'))
+  }
+  if (!props.project.stages.length && (!Number.isFinite(total) || total < 0)) {
+    errors.push(t('Текущее значение не может быть отрицательным.'))
   }
   if (!Number.isFinite(personalGoal) || personalGoal < 0) {
     errors.push(t('Цель на день не может быть отрицательной.'))
@@ -74,22 +92,43 @@ async function submit(): Promise<void> {
     return
   }
 
-  const payload: ProjectUpdate = {
-    name,
-    unit: form.unit,
-    deadline: form.deadline || null,
-    personal_goal: personalGoal,
-    streak_enabled: form.streakEnabled,
-    auto_freeze: form.autoFreeze,
-    combine_stage_mindmaps: props.project.stages.length
-      ? form.combineStageMindmaps
-      : false,
-    recalculate_plan: true,
+  if (
+    props.project.stages_enabled
+    && !form.stagesEnabled
+    && !window.confirm(t(
+      'Все записи этапов будут перенесены в проект в хронологическом порядке. Цели и прогресс этапов сложатся и будут пересчитаны как записи одного проекта. Карты этапов не объединяются с картой проекта и будут удалены.',
+    ))
+  ) return
+  if (
+    form.unit !== props.project.unit
+    && !window.confirm(t(
+      'Изменение типа отслеживаемого значения приведет к необратимой конвертации текущей цели, прогресса и записей в новый тип (с округлением в большую сторону).\nПродолжить?',
+    ))
+  ) return
+
+  const payload: ProjectUpdate = {}
+  if (name !== props.project.name) payload.name = name
+  if (form.unit !== props.project.unit) payload.unit = form.unit
+  const deadline = form.deadline || null
+  if (deadline !== props.project.deadline?.slice(0, 10) && !(deadline === null && props.project.deadline === null)) {
+    payload.deadline = deadline
   }
+  if (Math.abs(personalGoal - props.project.personal_goal) >= 0.000001) payload.personal_goal = personalGoal
+  if (form.streakEnabled !== props.project.streak_enabled) payload.streak_enabled = form.streakEnabled
+  if (form.autoFreeze !== props.project.auto_freeze) payload.auto_freeze = form.autoFreeze
+  if (form.stagesEnabled !== props.project.stages_enabled) payload.stages_enabled = form.stagesEnabled
+  if (
+    form.stagesEnabled
+    && form.combineStageMindmaps !== props.project.combine_stage_mindmaps
+  ) payload.combine_stage_mindmaps = form.combineStageMindmaps
   if (!props.project.stages.length) {
-    payload.infinite = form.infinite
-    if (!form.infinite) payload.goal = goal
+    if (form.infinite !== props.project.infinite) payload.infinite = form.infinite
+    if (!form.infinite && (props.project.goal === null || Math.abs(goal - props.project.goal) >= 0.000001)) {
+      payload.goal = goal
+    }
+    if (Math.abs(total - props.project.total) >= 0.000001) payload.total = total
   }
+  if (form.recalculatePlan && canRecalculatePlan.value) payload.recalculate_plan = true
   emit('submit', payload)
 }
 
@@ -176,6 +215,17 @@ watch(
             :disabled="form.infinite"
           />
         </label>
+        <label v-if="!project.stages.length" class="workspace-field" for="edit-project-total">
+          <span>{{ t('Текущее значение') }}</span>
+          <input
+            id="edit-project-total"
+            v-model="form.total"
+            type="number"
+            min="0"
+            step="any"
+            inputmode="decimal"
+          />
+        </label>
         <label class="workspace-field" for="edit-project-personal-goal">
           <span>{{ t('Цель на день') }}</span>
           <input
@@ -194,6 +244,10 @@ watch(
             <span><strong>{{ t('Проект без конечной цели') }}</strong></span>
           </label>
           <label class="workspace-check">
+            <input v-model="form.stagesEnabled" type="checkbox" />
+            <span><strong>{{ t('Проект с этапами') }}</strong></span>
+          </label>
+          <label class="workspace-check">
             <input v-model="form.streakEnabled" type="checkbox" />
             <span><strong>{{ t('Отслеживать серию') }}</strong></span>
           </label>
@@ -201,12 +255,16 @@ watch(
             <input v-model="form.autoFreeze" type="checkbox" />
             <span><strong>{{ t('Использовать заморозку автоматически') }}</strong></span>
           </label>
-          <label v-if="project.stages.length" class="workspace-check">
+          <label v-if="form.stagesEnabled" class="workspace-check">
             <input v-model="form.combineStageMindmaps" type="checkbox" />
             <span>
               <strong>{{ t('Объединять карты этапов') }}</strong>
               <small>{{ t('Показывать карты этапов как единую карту проекта') }}</small>
             </span>
+          </label>
+          <label v-if="canRecalculatePlan" class="workspace-check">
+            <input v-model="form.recalculatePlan" type="checkbox" />
+            <span><strong>{{ t('Пересчитать цели на день с сегодняшнего дня') }}</strong></span>
           </label>
         </div>
 

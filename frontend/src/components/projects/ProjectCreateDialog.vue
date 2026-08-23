@@ -36,6 +36,7 @@ const form = reactive({
   deadline: '',
   personalGoal: '0',
   infinite: false,
+  stagesEnabled: false,
   streakEnabled: false,
   autoFreeze: true,
 })
@@ -48,6 +49,7 @@ function reset(): void {
   form.deadline = ''
   form.personalGoal = '0'
   form.infinite = false
+  form.stagesEnabled = false
   form.streakEnabled = false
   form.autoFreeze = true
   validationErrors.value = []
@@ -91,6 +93,7 @@ async function submit(): Promise<void> {
     personal_goal: personalGoal,
     streak_enabled: form.streakEnabled,
     auto_freeze: form.autoFreeze,
+    stages_enabled: form.stagesEnabled,
     stages: [],
     combine_stage_mindmaps: false,
   }
@@ -228,6 +231,13 @@ watch(
             <span>
               <strong>{{ t('Проект без конечной цели') }}</strong>
               <small>{{ t('Для дневников, сериалов и постоянной практики') }}</small>
+            </span>
+          </label>
+          <label class="check-field">
+            <input v-model="form.stagesEnabled" name="stages_enabled" type="checkbox" />
+            <span>
+              <strong>{{ t('Проект с этапами') }}</strong>
+              <small>{{ t('Текущая цель и прогресс перейдут в первый этап') }}</small>
             </span>
           </label>
           <label class="check-field">

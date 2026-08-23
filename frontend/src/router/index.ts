@@ -24,6 +24,30 @@ const router = createRouter({
       props: true,
       meta: { title: 'Заметки проекта' },
     },
+    {
+      path: '/game',
+      name: 'game',
+      component: () => import('@/pages/GamePage.vue'),
+      meta: { title: 'Игровой режим' },
+    },
+    {
+      path: '/integrations',
+      name: 'integrations',
+      component: () => import('@/pages/IntegrationsPage.vue'),
+      meta: { title: 'Синхронизация' },
+    },
+    {
+      path: '/help',
+      name: 'help',
+      component: () => import('@/pages/HelpPage.vue'),
+      meta: { title: 'Помощь' },
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('@/pages/SettingsPage.vue'),
+      meta: { title: 'Настройки' },
+    },
     { path: '/:pathMatch(.*)*', redirect: '/projects' },
   ],
 })

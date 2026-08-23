@@ -7,12 +7,19 @@ export const THEME_PREFERENCES = ['system', 'light', 'dark'] as const
 export type ThemePreference = (typeof THEME_PREFERENCES)[number]
 type ResolvedTheme = Exclude<ThemePreference, 'system'>
 
+export function isThemePreference(value: unknown): value is ThemePreference {
+  return (
+    typeof value === 'string' &&
+    THEME_PREFERENCES.includes(value as ThemePreference)
+  )
+}
+
 const STORAGE_KEY = 'nfprogress.theme'
 
 function savedPreference(): ThemePreference {
   try {
     const value = window.localStorage.getItem(STORAGE_KEY)
-    if (THEME_PREFERENCES.includes(value as ThemePreference)) {
+    if (isThemePreference(value)) {
       return value as ThemePreference
     }
   } catch {

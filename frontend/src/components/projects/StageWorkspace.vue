@@ -29,6 +29,7 @@ const emit = defineEmits<{
 const locale = useLocaleStore()
 const t = locale.translate
 const readOnly = computed(() => props.project.status === 'завершен')
+const sharedProject = computed(() => props.project.name === 'Общий проект')
 const fractionDigits = computed(() => (props.project.unit === 'symbols' ? 0 : 2))
 
 function stageProgress(stage: Project): number {
@@ -37,7 +38,9 @@ function stageProgress(stage: Project): number {
 
 function canComplete(stage: Project): boolean {
   return stage.status !== 'завершен'
-    && (stage.infinite || stage.goal === null || stage.total >= stage.goal)
+    && !stage.infinite
+    && stage.goal !== null
+    && stage.total >= stage.goal
 }
 
 function requestRemove(stage: Project): void {
@@ -128,7 +131,7 @@ function move(index: number, offset: -1 | 1): void {
             <button
               class="stage-action-button"
               type="button"
-              :disabled="busy || readOnly || stage.status === 'завершен'"
+              :disabled="busy || readOnly || sharedProject || stage.status === 'завершен'"
               @click="emit('edit', stage)"
             >
               <IonIcon :icon="createOutline" aria-hidden="true" />
@@ -138,7 +141,7 @@ function move(index: number, offset: -1 | 1): void {
               class="stage-action-button"
               type="button"
               :title="!canComplete(stage) ? t('Чтобы завершить этап, сначала достигните его цели.') : undefined"
-              :disabled="busy || readOnly || !canComplete(stage)"
+              :disabled="busy || readOnly || sharedProject || !canComplete(stage)"
               @click="emit('complete', stage)"
             >
               <IonIcon :icon="checkmarkCircleOutline" aria-hidden="true" />
@@ -147,7 +150,7 @@ function move(index: number, offset: -1 | 1): void {
             <button
               class="stage-action-button stage-action-button--danger"
               type="button"
-              :disabled="busy || readOnly || stage.status === 'завершен'"
+              :disabled="busy || readOnly || sharedProject"
               @click="requestRemove(stage)"
             >
               <IonIcon :icon="trashOutline" aria-hidden="true" />

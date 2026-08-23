@@ -3,18 +3,20 @@ import { computed } from 'vue'
 import { IonSpinner } from '@ionic/vue'
 
 import { useLocaleStore } from '@/stores/locale'
-import type { Statistics, StatisticsMetrics, UnitCode } from '@/types/api'
+import type { Project, Statistics, StatisticsMetrics, UnitCode } from '@/types/api'
 
 const props = withDefaults(
   defineProps<{
     statistics?: Statistics | null
+    project?: Project | null
     loading?: boolean
     error?: string | null
   }>(),
-  { statistics: null, loading: false, error: null },
+  { statistics: null, project: null, loading: false, error: null },
 )
 
 const emit = defineEmits<{ retry: [] }>()
+const selectedEntityId = defineModel<string>('entityId', { default: '' })
 const locale = useLocaleStore()
 const t = locale.translate
 
@@ -80,6 +82,15 @@ function barWidth(value: number): string {
         <p>{{ t('Динамика работы') }}</p>
         <h2 id="statistics-heading">{{ t('Статистика') }}</h2>
       </div>
+      <label v-if="project?.stages.length" class="statistics-entity" for="statistics-entity">
+        <span>{{ t('Статистика по') }}</span>
+        <select id="statistics-entity" v-model="selectedEntityId" :disabled="loading">
+          <option value="">{{ t('Весь проект') }}</option>
+          <option v-for="stage in project.stages" :key="stage.id" :value="stage.id">
+            {{ stage.name }}
+          </option>
+        </select>
+      </label>
       <button
         v-if="error"
         class="nf-button nf-button--secondary"
@@ -152,6 +163,8 @@ function barWidth(value: number): string {
 .statistics-heading { display: flex; gap: var(--nf-space-4); align-items: flex-end; justify-content: space-between; margin-bottom: var(--nf-space-4); }
 .statistics-heading p { margin: 0 0 var(--nf-space-1); color: var(--nf-color-accent); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .statistics-heading h2 { margin: 0; color: var(--nf-color-text); font-family: var(--nf-font-serif); font-size: clamp(1.7rem, 4vw, 2.3rem); }
+.statistics-entity { display: grid; gap: var(--nf-space-1); min-width: min(18rem, 45vw); margin-left: auto; color: var(--nf-color-text-muted); font-size: 0.75rem; font-weight: 700; }
+.statistics-entity select { min-height: 2.75rem; padding: 0.55rem 0.75rem; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface); color: var(--nf-color-text); }
 .statistics-state,
 .statistics-error,
 .statistics-empty { display: flex; gap: var(--nf-space-2); align-items: center; margin: 0; padding: var(--nf-space-5); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); color: var(--nf-color-text-muted); }
@@ -183,6 +196,8 @@ function barWidth(value: number): string {
   .timeline-layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 42rem) {
+  .statistics-heading { align-items: stretch; flex-direction: column; }
+  .statistics-entity { min-width: 0; margin-left: 0; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .timeline-bars { display: none; }
 }

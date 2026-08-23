@@ -22,6 +22,10 @@ const SUPPORTED_CODES = new Set<SupportedLanguage>(
   SUPPORTED_LANGUAGES.map(({ code }) => code),
 )
 
+export function isSupportedLanguage(value: unknown): value is SupportedLanguage {
+  return typeof value === 'string' && SUPPORTED_CODES.has(value as SupportedLanguage)
+}
+
 function normalizeLanguage(value: string | null | undefined): SupportedLanguage | null {
   if (!value) return null
   const normalized = value.replace('-', '_')

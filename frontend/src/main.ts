@@ -12,7 +12,6 @@ import '@ionic/vue/css/display.css'
 import App from './App.vue'
 import { initializePlatformRuntime } from './platform/runtime'
 import router from './router'
-import { useLocaleStore } from './stores/locale'
 import { useThemeStore } from './stores/theme'
 import './theme/tokens.css'
 import './theme/global.css'
@@ -28,12 +27,10 @@ async function bootstrap(): Promise<void> {
   app.use(router)
 
   const theme = useThemeStore(pinia)
-  const locale = useLocaleStore(pinia)
   theme.initialize()
 
   await router.isReady()
   app.mount('#app')
-  void locale.initialize()
 }
 
 void bootstrap()

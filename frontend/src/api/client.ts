@@ -25,6 +25,7 @@ export class ApiError extends Error {
 
 type ApiRequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
   body?: unknown
+  rawBody?: BodyInit
   headers?: HeadersInit
 }
 
@@ -74,7 +75,13 @@ async function errorFromResponse(response: Response): Promise<ApiError> {
 }
 
 export async function apiRequest<T>(path: string, options: ApiRequestOptions = {}): Promise<T> {
-  const headers = new Headers(options.headers)
+  const {
+    body: jsonBody,
+    rawBody,
+    headers: suppliedHeaders,
+    ...requestOptions
+  } = options
+  const headers = new Headers(suppliedHeaders)
   headers.set('Accept', 'application/json')
 
   const token = await discoverSessionToken()
@@ -83,15 +90,20 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   }
 
   let body: BodyInit | undefined
-  if (options.body !== undefined) {
+  if (jsonBody !== undefined && rawBody !== undefined) {
+    throw new TypeError('Укажите только JSON body или rawBody.')
+  }
+  if (rawBody !== undefined) {
+    body = rawBody
+  } else if (jsonBody !== undefined) {
     headers.set('Content-Type', 'application/json')
-    body = JSON.stringify(options.body)
+    body = JSON.stringify(jsonBody)
   }
 
   let response: Response
   try {
     response = await fetch(requestUrl(path), {
-      ...options,
+      ...requestOptions,
       headers,
       body,
     })
