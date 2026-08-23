@@ -9,6 +9,8 @@ from pathlib import Path
 
 import uvicorn
 
+import engine
+
 from .config import RuntimeConfig
 from .main import create_app
 
@@ -75,6 +77,14 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument('--port', default=8000, type=int)
     parser.add_argument('--data-dir', type=Path)
     parser.add_argument(
+        '--dev-data',
+        action='store_true',
+        help=(
+            'Use the same synchronized test_data directory as the source '
+            'PySide6 developer mode.'
+        ),
+    )
+    parser.add_argument(
         '--parent-pid',
         type=_positive_pid,
         help='Exit automatically if the owning Tauri process disappears.',
@@ -96,6 +106,8 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.dev_data and args.data_dir is not None:
+        raise SystemExit('--dev-data cannot be combined with --data-dir.')
     environment = RuntimeConfig.from_env()
     platform = args.platform or environment.platform
     session_token = environment.session_token
@@ -113,8 +125,15 @@ def main(argv: list[str] | None = None) -> int:
                 'A non-loopback bind requires the explicit --allow-remote flag '
                 'and an external HTTPS/authentication layer.',
             )
+    development_data_dir = None
+    if args.dev_data:
+        # Keep the new local clients aligned with ``python main_UI.py``:
+        # refresh the safe developer copy from the real stores, then let all
+        # requests use that copy. The source files are never overwritten.
+        engine.sync_test_data()
+        development_data_dir = engine.get_test_data_dir()
     config = RuntimeConfig(
-        data_dir=args.data_dir or environment.data_dir,
+        data_dir=development_data_dir or args.data_dir or environment.data_dir,
         session_token=session_token,
         allowed_origins=environment.allowed_origins,
         platform=platform,

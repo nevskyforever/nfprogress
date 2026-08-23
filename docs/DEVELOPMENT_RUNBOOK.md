@@ -72,7 +72,11 @@ Vue/Ionic → FastAPI → services ──┘
 
 ## Новый Web-интерфейс
 
-Для Web нужны два одновременно работающих процесса: FastAPI и Vite.
+Для Web нужны два одновременно работающих процесса: FastAPI и Vite. В
+обычном режиме разработки используйте тот же набор данных, что и
+`main_UI.py`: backend перед стартом обновляет `nfprogress/test_data` из более
+новых рабочих `.pkl`, а все записи нового интерфейса идут в эту тестовую
+копию.
 
 ### 1. FastAPI
 
@@ -82,15 +86,18 @@ Vue/Ionic → FastAPI → services ──┘
 - **Parameters:**
 
   ```text
-  --host 127.0.0.1 --port 8000 --platform web --data-dir /tmp/nfprogress-api-dev
+  --host 127.0.0.1 --port 8000 --platform web --dev-data
   ```
 
 - **Working directory:** `$PROJECT_DIR$`
 - **Python interpreter:** `.venv`
 
-`--data-dir` создаёт изолированное тестовое хранилище. Это безопаснее, чем
-проверять новый API на реальных пользовательских данных. После запуска API
-доступен по адресам:
+`--dev-data` включает Python-совместимый режим: вызывается тот же
+`engine.sync_test_data()`, что и при запуске `main_UI.py`, затем backend
+работает с `~/Documents/nfprogress/test_data` (или платформенным каталогом
+данных nfprogress). Исходные рабочие `.pkl` не перезаписываются. Для полностью
+пустых изолированных тестов по-прежнему можно указать `--data-dir` вместо
+`--dev-data`. После запуска API доступен по адресам:
 
 - `http://127.0.0.1:8000/health`
 - `http://127.0.0.1:8000/docs`
@@ -128,13 +135,23 @@ curl http://127.0.0.1:8000/health
 запустите backend из корня репозитория:
 
 ```bash
-python3 -m backend.app --host 127.0.0.1 --port 8000 --platform web --data-dir /tmp/nfprogress-api-dev
+python3 -m backend.app --host 127.0.0.1 --port 8000 --platform web --dev-data
 ```
 
 В PyCharm backend нужно запускать именно как модуль `backend.app`, а не как
 файл `backend/app/main.py`: последний создаёт FastAPI-приложение, но сам
 Uvicorn-сервер не запускает. В активированном виртуальном окружении допустима
 команда `python`, но в текущей macOS-среде доступна команда `python3`.
+
+Для запуска Web без двух отдельных терминалов используйте из корня:
+
+```bash
+bash "Run Web.sh"
+```
+
+Скрипт запускает FastAPI с `--dev-data`, ждёт `/health`, затем запускает Vite.
+При остановке Vite дочерний backend также завершается. Проверка зависимостей без
+запуска выполняется командой `bash "Run Web.sh" --check`.
 
 ## Проверки и Web-сборка
 
@@ -182,9 +199,10 @@ bash "Run Tauri.sh"
 ```
 
 Скрипт выбирает Rust architecture текущего Mac, использует matching sidecar и
-хранит тестовые данные в .nfprogress-dev-data/tauri. Если sidecar был очищен,
-скрипт один раз соберёт только этот локальный Python backend; production
-.app, DMG и ZIP при этом не создаются.
+использует Python-совместимую папку `test_data` и синхронизирует её при старте.
+Если sidecar отсутствует или собран до поддержки dev-режима, скрипт
+пересоберёт только этот локальный Python backend; production `.app`, DMG и ZIP
+при этом не создаются.
 Проверить prerequisites без открытия окна можно так:
 
 ```bash

@@ -118,20 +118,25 @@ python main_UI.py
 ```
 
 The legacy UI and the new backend still share the same pickle persistence.
-Do not run both against the same data directory at the same time. Use
-`--data-dir` or `NFPROGRESS_DATA_DIR` with a temporary development directory
-when exercising both clients.
+In source/developer mode both clients use the Python-compatible
+`nfprogress/test_data` copy; it is refreshed from newer real `.pkl` files and
+the source files are not overwritten. Do not run both clients against that
+same test directory at the same time. Use `--data-dir` or
+`NFPROGRESS_DATA_DIR` only when an entirely isolated empty directory is
+required for a test.
 
 ## Run FastAPI and the Vue frontend
 
 Start the API from the repository root:
 
 ```bash
-python -m backend.app --host 127.0.0.1 --port 8000 --platform web
+python -m backend.app --host 127.0.0.1 --port 8000 --platform web --dev-data
 ```
 
-`/health` reports readiness and `/docs` exposes OpenAPI. To isolate development
-data, append `--data-dir /absolute/path/to/test-data`.
+`/health` reports readiness and `/docs` exposes OpenAPI. The `--dev-data` flag
+uses the same synchronized test-data behavior as `python main_UI.py`. To
+isolate a test completely, replace it with `--data-dir
+/absolute/path/to/test-data`.
 
 In a second terminal:
 
@@ -140,6 +145,15 @@ cd frontend
 npm ci
 npm run dev
 ```
+
+For a one-command local Web run from the repository root, use:
+
+```bash
+bash "Run Web.sh"
+```
+
+It starts the Python backend with `--dev-data`, waits for `/health`, and then
+starts Vite. Stopping Vite also stops that backend.
 
 Vite listens on `127.0.0.1:5173` and proxies `/api` and `/health` to the local
 backend. For a remote Web or Capacitor build, set the public API origin before
@@ -207,8 +221,8 @@ bash "Run Tauri.sh"
 ```
 
 It selects the host target, rebuilds its matching sidecar when that ignored
-local binary is absent, and defaults to the isolated .nfprogress-dev-data/tauri
-directory. Use
+local binary is absent or stale, and uses the Python-compatible synchronized
+`test_data` directory in Tauri debug mode. Use
 bash "Run Tauri.sh" --check to validate prerequisites without opening a window.
 Stop a separately running npm run dev first, because Tauri dev uses port 5173.
 

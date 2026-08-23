@@ -251,6 +251,18 @@ translates stored user-facing event text in the browser.
 Before Vue routes render, bootstrap reads those preferences and presents the
 shared versioned agreement gate when acceptance is missing.
 
+## Developer data parity
+
+Source-mode `main_UI.py` imports `engine` with `dev_mode=True`. The import
+refreshes `get_app_data_dir()/test_data` from newer top-level pickle stores and
+then routes reads and writes to that test copy. The API CLI exposes the same
+behavior through `--dev-data`; it calls `engine.sync_test_data()` and passes
+the resulting directory explicitly to `PickleRepository`. `Run Web.sh` uses
+this flag, while a Tauri debug build adds it to the sidecar arguments. Release
+Tauri bundles do not add the flag and retain their normal per-user app-data
+path. An explicit `--data-dir` remains available for isolated empty test
+fixtures and cannot be combined with `--dev-data`.
+
 The Vue workspace deliberately preserves the legacy application's central
 interaction cues while modernizing layout and responsiveness: projects use
 circular progress indicators, progress entry is presented as a prominent

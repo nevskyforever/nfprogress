@@ -159,7 +159,7 @@ pub fn run() {
                     return Ok(());
                 }
             };
-            let arguments = [
+            let mut arguments = vec![
                 "--host".to_string(),
                 BACKEND_HOST.to_string(),
                 "--port".to_string(),
@@ -171,6 +171,12 @@ pub fn run() {
                 "--log-level".to_string(),
                 "warning".to_string(),
             ];
+            if cfg!(debug_assertions) {
+                // Tauri dev must use the same synchronized test_data copy as
+                // ``python main_UI.py``. Release bundles intentionally keep
+                // their normal per-user app-data behavior.
+                arguments.push("--dev-data".to_string());
+            }
             let spawn_result = command
                 .args(arguments)
                 .env("NFPROGRESS_SESSION_TOKEN", &token)

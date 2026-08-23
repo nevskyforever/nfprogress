@@ -35,9 +35,21 @@ case "$TARGET" in
 esac
 
 SIDECAR_PATH="$ROOT_DIR/frontend/src-tauri/binaries/nfprogress-backend-$TARGET"
+SIDECAR_REBUILD=0
 if [ ! -x "$SIDECAR_PATH" ]; then
+  SIDECAR_REBUILD=1
+else
+  SIDECAR_HELP_FILE="$(mktemp "${TMPDIR:-/tmp}/nfprogress-sidecar-help.XXXXXX")"
+  if ! "$SIDECAR_PATH" --help >"$SIDECAR_HELP_FILE" 2>&1 \
+    || ! grep -q -- '--dev-data' "$SIDECAR_HELP_FILE"; then
+    SIDECAR_REBUILD=1
+  fi
+  rm -f "$SIDECAR_HELP_FILE"
+fi
+
+if [ "$SIDECAR_REBUILD" = "1" ]; then
   if [ "$MODE" = "--check" ]; then
-    echo "Не найден sidecar для $TARGET: $SIDECAR_PATH"
+    echo "Не найден актуальный sidecar для $TARGET: $SIDECAR_PATH"
     echo "Обычный запуск соберёт его автоматически."
     exit 1
   fi
@@ -45,7 +57,7 @@ if [ ! -x "$SIDECAR_PATH" ]; then
     echo "Не найден python3, необходимый для сборки локального sidecar."
     exit 1
   fi
-  echo "Не найден sidecar для $TARGET. Собирается только локальный Python backend..."
+  echo "Sidecar для $TARGET отсутствует или устарел. Собирается локальный Python backend..."
   python3 "$ROOT_DIR/scripts/build-backend-sidecar.py" --target "$TARGET"
   if [ ! -x "$SIDECAR_PATH" ]; then
     echo "Сборка sidecar завершилась без ожидаемого файла: $SIDECAR_PATH"
@@ -58,16 +70,11 @@ if [ ! -d "$ROOT_DIR/frontend/node_modules" ]; then
   (cd "$ROOT_DIR/frontend" && npm ci)
 fi
 
-if [ -z "$NFPROGRESS_DATA_DIR" ]; then
-  export NFPROGRESS_DATA_DIR="$ROOT_DIR/.nfprogress-dev-data/tauri"
-fi
-mkdir -p "$NFPROGRESS_DATA_DIR"
-
 if [ "$MODE" = "--check" ]; then
   echo "Tauri development prerequisites are ready."
   echo "Rust target: $TARGET"
   echo "Sidecar: $SIDECAR_PATH"
-  echo "Development data: $NFPROGRESS_DATA_DIR"
+  echo "Development data: Python-compatible test_data (synchronized at backend startup)"
   exit 0
 fi
 
@@ -77,6 +84,6 @@ if lsof -nP -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then
 fi
 
 echo "Запускается Tauri dev. Это не production-сборка; при первом запуске Cargo может собрать debug-код."
-echo "Данные тестового запуска: $NFPROGRESS_DATA_DIR"
+echo "Данные тестового запуска: Python-compatible test_data (real stores are copied when newer)"
 cd "$ROOT_DIR/frontend"
 exec npm run tauri:dev
