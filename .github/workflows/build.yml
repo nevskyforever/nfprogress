@@ -399,7 +399,8 @@ jobs:
           $env:RELEASE_NOTES = Get-Content $env:RELEASE_NOTES_FILE -Raw
           python scripts\update-release-manifest.py `
             $env:APP_VERSION `
-            windows
+            windows `
+            "release-assets\nfprogress-windows-x86_64-$($env:APP_VERSION)-setup.exe"
           python scripts\create-legacy-manifest.py
           Copy-Item update_manifest.json release-assets\update_manifest.json -Force
           Copy-Item update_manifest_legacy.json release-assets\update_manifest_legacy.json -Force

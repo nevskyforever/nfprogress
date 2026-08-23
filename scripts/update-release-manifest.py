@@ -42,8 +42,13 @@ def main() -> int:
 
     filename, _ = PLATFORMS[platform]
     filename = filename.format(version=version)
-    artifact = Path(sys.argv[3]) if len(sys.argv) >= 4 else None
-    installer = Path(sys.argv[4]) if len(sys.argv) == 5 else None
+    if platform == "windows":
+        # The Tauri Windows release has an NSIS installer, not the legacy ZIP.
+        artifact = None
+        installer = Path(sys.argv[3]) if len(sys.argv) >= 4 else None
+    else:
+        artifact = Path(sys.argv[3]) if len(sys.argv) >= 4 else None
+        installer = Path(sys.argv[4]) if len(sys.argv) == 5 else None
     for path, label in ((artifact, "Artifact"), (installer, "Installer")):
         if path is not None and not path.is_file():
             print(f"{label} not found: {path}", file=sys.stderr)
@@ -57,11 +62,16 @@ def main() -> int:
     else:
         manifest.setdefault("notes", "Исправлены ошибки и улучшена стабильность.")
 
-    # The legacy Windows updater requires a ZIP with a fixed entry point. The
-    # Tauri pipeline produces an NSIS installer instead, so keep its URL in
-    # legacy fields without creating an invalid secure `windows` section.
     url = f"https://nfproject.ru/app/{filename}"
-    if platform == "windows" and artifact is None:
+    if platform == "windows":
+        section = {
+            "version": version,
+            "installer_url": url,
+        }
+        if installer is not None:
+            section["installer_sha256"] = _sha256(installer)
+            section["installer_size"] = installer.stat().st_size
+        manifest["windows"] = section
         manifest["windows_version"] = version
         manifest["windows_url"] = url
     else:
@@ -80,6 +90,10 @@ def main() -> int:
         manifest[f"{platform}_url"] = url
 
     versions = [str(manifest.get("version", ""))]
+    for platform_name in ("windows", "macos_arm", "macos_intel"):
+        section = manifest.get(platform_name)
+        if isinstance(section, dict) and section.get("version"):
+            versions.append(str(section["version"]))
     for key in ("windows_version", "macos_arm_version", "macos_intel_version"):
         if manifest.get(key):
             versions.append(str(manifest[key]))

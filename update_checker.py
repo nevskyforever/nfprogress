@@ -121,7 +121,13 @@ def _platform_release_info(manifest: dict) -> dict:
     common_version = str(manifest.get("version") or "").strip()
     if system == "Windows":
         windows = manifest.get("windows")
-        if isinstance(windows, dict):
+        if (
+            isinstance(windows, dict)
+            and windows.get("url")
+            and windows.get("sha256")
+            and windows.get("size")
+            and windows.get("entry_point")
+        ):
             version = str(windows.get("version") or common_version).strip()
             return {
                 "version": version,
