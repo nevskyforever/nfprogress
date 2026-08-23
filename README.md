@@ -62,7 +62,7 @@ frontend never reads pickle files or imports Qt/Python objects directly. See the
 | --- | --- |
 | Legacy Windows and macOS | Current downloadable PySide6 fallback; preserved during migration |
 | Web | Production Vue build works with a configured FastAPI deployment; HTTPS, authentication/reverse-proxy policy, and SPA route fallback belong to the deployment |
-| Tauri macOS Apple Silicon | Release `.app`, fresh ARM64 Nuitka sidecar, loopback/token health check, and child cleanup verified on the current host; headless DMG styling is a separate environment limitation |
+| Tauri macOS Apple Silicon | Release `.app`, fresh ARM64 Nuitka sidecar, loopback/token health check, and child cleanup verified on the current host; a plain headless DMG is available, while Finder styling remains cosmetic-only |
 | Tauri macOS Intel | Fresh x86_64 sidecar, target `cargo check`, and unsigned production `.app` bundle were built on the ARM host; authenticated sidecar startup was exercised through Rosetta within Tauri's 30-second readiness window. Physical Intel UI/signing verification remains a release-host task |
 | Tauri Windows | Configuration and sidecar builder exist; the MSVC sidecar and bundle must be built and tested on Windows |
 | Capacitor iOS | Native project, plugins, branding, and `cap sync` are present; native compilation is blocked on this host because full Xcode and the iPhoneOS SDK are absent |
@@ -210,7 +210,17 @@ npm run tauri:build
 
 `npm run tauri:build` also creates a Finder-styled DMG. In a headless macOS
 environment, use `npx tauri build --bundles app` to verify the production app
-bundle without requiring Finder AppleScript automation.
+bundle without requiring Finder AppleScript automation. To produce a normal
+drag-to-Applications DMG without Finder styling, use:
+
+```bash
+scripts/build-tauri-dmg.sh aarch64-apple-darwin
+scripts/build-tauri-dmg.sh x86_64-apple-darwin
+```
+
+After the matching Python sidecar has been built, the script builds the matching
+`.app`, then creates and verifies a UDZO DMG with `hdiutil`; it never invokes
+`osascript`.
 
 To target macOS Intel on a macOS builder, build a matching sidecar with
 `python scripts/build-backend-sidecar.py --target x86_64-apple-darwin` and use

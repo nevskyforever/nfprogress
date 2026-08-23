@@ -39,6 +39,7 @@ blocker. The PySide6 application remains the release fallback.
 | Web target | [done] | Production Vue build, remote URL configuration, manifest, responsive routes, platform guards, and backend-unavailable states are verified; deployment HTTPS/auth, SPA fallback, and offline mutation behavior remain operator concerns rather than bundled claims |
 | Tauri lifecycle/security | [done] | Ephemeral loopback port, per-run token, health wait, restricted capabilities, shutdown kill, and parent-PID orphan protection are implemented |
 | Tauri macOS Apple Silicon | [done] | Fresh matching ARM64 Nuitka sidecar, loopback/token `/health` smoke, child cleanup, `cargo check`, and release `.app` bundle were verified on the current Apple Silicon host |
+| Tauri macOS plain DMG | [done] | `scripts/build-tauri-dmg.sh` builds the matching app, creates a drag-to-Applications UDZO image with `hdiutil`, and verifies it without Finder automation; a 41 MB x86_64 smoke DMG was verified on the current host |
 | Tauri macOS DMG styling | [blocked] | The app bundle succeeds, but the optional Finder-styled DMG wrapper invokes `osascript`; Finder AppleScript hangs in this headless in-app environment. `npx tauri build --bundles app` is verified instead |
 | Tauri macOS Intel | [done] | A fresh `x86_64-apple-darwin` Nuitka sidecar, target `cargo check`, and unsigned production `.app` bundle were built on the ARM host; Rosetta authenticated `/health` and token-bound API smoke completed within the 30-second Tauri readiness window. Physical Intel UI/signing verification remains a release-host task |
 | Tauri Windows | [pending] | Windows MSVC target is configured; sidecar builder deliberately requires a Windows host/runner, so bundle/runtime verification remains |
@@ -130,8 +131,9 @@ deletes the user's `.pkl` files.
 ### Tauri Windows/macOS
 
 - Apple Silicon sidecar lifecycle, loopback/token smoke, child cleanup, and
-  release app bundle were exercised. The optional Finder-styled DMG is blocked
-  only by headless AppleScript; an app-only production bundle succeeds.
+  release app bundle were exercised. `scripts/build-tauri-dmg.sh` makes a
+  verified plain DMG with `hdiutil`; only optional Finder styling is blocked
+  by headless AppleScript.
 - Intel macOS now has a fresh x86_64 sidecar, target compile and unsigned app
   bundle. Its bundled backend passed loopback and session-token smoke through
   Rosetta in 25.1 seconds, within Tauri's 30-second readiness window. A native
@@ -178,9 +180,10 @@ Checks completed for the final aggregate migration tree include:
   `npm run build` — all pass; `npm audit --audit-level=high` reports zero
   vulnerabilities;
 - `cargo fmt --check`, ARM64 and x86_64 `cargo check`, app-only Tauri bundles,
-  fresh matching Nuitka sidecars, loopback/token `/health` smoke, and
-  orphan-process checks all pass. The Intel sidecar was exercised through
-  Rosetta in 25.1 seconds, inside the 30-second Tauri readiness limit;
+  a headless `hdiutil`-verified UDZO DMG, fresh matching Nuitka sidecars,
+  loopback/token `/health` smoke, and orphan-process checks all pass. The
+  Intel sidecar was exercised through Rosetta in 25.1 seconds, inside the
+  30-second Tauri readiness limit;
 - `npx cap sync` passes for both generated mobile targets;
 - explicit SDK probes confirm the iOS/Android blockers above.
 
