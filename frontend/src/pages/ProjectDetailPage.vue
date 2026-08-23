@@ -12,6 +12,7 @@ import {
   documentTextOutline,
   layersOutline,
   refreshOutline,
+  shareSocialOutline,
   trashOutline,
 } from 'ionicons/icons'
 
@@ -22,7 +23,9 @@ import StageWorkspace from '@/components/projects/StageWorkspace.vue'
 import StatisticsWorkspace from '@/components/projects/StatisticsWorkspace.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
+import { progressShareTitle, shareProgressImage } from '@/platform/progressShare'
 import { useLocaleStore } from '@/stores/locale'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useProjectsStore } from '@/stores/projects'
 import type {
   EntityUpdate,
@@ -36,6 +39,7 @@ const route = useRoute()
 const router = useRouter()
 const store = useProjectsStore()
 const locale = useLocaleStore()
+const notifications = useNotificationsStore()
 const t = locale.translate
 const projectId = computed(() => String(route.params.projectId ?? ''))
 const project = computed<Project>(() => store.currentProject as Project)
@@ -48,6 +52,7 @@ const selectedEntityId = ref('')
 const statisticsEntityId = ref('')
 const actionSuccess = ref<string | null>(null)
 const feedbackArea = ref<'global' | 'progress'>('global')
+const sharingProgress = ref(false)
 
 const canCompleteProject = computed(() => {
   if (!store.currentProject || project.value.status === 'завершен') return false
@@ -131,6 +136,40 @@ async function deleteProject(): Promise<void> {
   if (await store.removeCurrent(project.value.id)) {
     await router.replace({ name: 'projects' })
   }
+}
+
+async function shareProgress(entity: Project, parentName?: string): Promise<void> {
+  if (entity.infinite) {
+    notifications.warning(t('Для проекта без цели нельзя создать картинку прогресса'))
+    return
+  }
+  if (sharingProgress.value) return
+
+  sharingProgress.value = true
+  try {
+    const result = await shareProgressImage({
+      title: progressShareTitle(entity.name, parentName),
+      progress: entity.progress,
+    })
+    notifications.show(
+      result === 'clipboard'
+        ? t('Картинка прогресса добавлена в буфер обмена')
+        : t('Картинка прогресса скачана в формате PNG'),
+      'info',
+    )
+  } catch {
+    notifications.error(t('Не удалось создать картинку прогресса.'))
+  } finally {
+    sharingProgress.value = false
+  }
+}
+
+function shareProjectProgress(): Promise<void> {
+  return shareProgress(project.value)
+}
+
+function shareStageProgress(stage: Project): Promise<void> {
+  return shareProgress(stage, project.value.name)
 }
 
 function openStageCreate(): void {
@@ -258,6 +297,17 @@ onBeforeUnmount(() => store.cancelDetail())
               <IonIcon :icon="documentTextOutline" aria-hidden="true" />{{ t('Заметки и карта') }}
             </RouterLink>
             <button
+              class="nf-button nf-button--secondary"
+              type="button"
+              :aria-label="t('Поделиться прогрессом «{name}»', { name: project.name })"
+              :aria-busy="sharingProgress"
+              :title="project.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined"
+              :disabled="sharingProgress || project.infinite"
+              @click="shareProjectProgress"
+            >
+              <IonIcon :icon="shareSocialOutline" aria-hidden="true" />{{ t('Поделиться') }}
+            </button>
+            <button
               v-if="project.status !== 'завершен' && !isSharedProject"
               class="nf-button nf-button--secondary"
               type="button"
@@ -321,11 +371,13 @@ onBeforeUnmount(() => store.cancelDetail())
           <StageWorkspace
             :project="project"
             :busy="store.detailBusy"
+            :sharing="sharingProgress"
             @add="openStageCreate"
             @edit="openStageEdit"
             @remove="removeStage"
             @complete="completeStage"
             @reorder="reorderStages"
+            @share="shareStageProgress"
           />
           <ProgressWorkspace
             v-model="selectedEntityId"

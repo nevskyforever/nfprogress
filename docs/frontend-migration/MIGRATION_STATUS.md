@@ -14,7 +14,7 @@ blocker. The PySide6 application remains the release fallback.
 | Repository/dependency audit | [done] | Core, UI, game, storage, integrations, build scripts, and available native SDKs audited |
 | Architecture and migration plan | [done] | Transitional boundaries, data safety, transports, platform capabilities, and debt documented |
 | Legacy PySide6 preservation | [done] | Existing desktop UI and build files remain; no legacy workflow was deleted for the migration |
-| Complete Qt retirement | [pending] | Legacy remains required for the updater, progress-share clipboard image, and native macOS Help search |
+| Complete Qt retirement | [pending] | Legacy remains required for the updater and native macOS Help search |
 | Qt-free application services | [in progress] | Projects, notes/maps, game, settings/content, and integrations are service-backed; proven domain classes still physically live in `engine.py`, `game.py`, and `game_data.py` behind compatibility imports |
 | Storage repository/isolation | [done] | Explicit data roots, in-process and advisory locks, atomic legacy pickle writes, idempotent streak handling, temporary-directory tests, timestamped backups before destructive setting transitions, and a one-time backup before persisted notification IDs are present |
 | JSON-safe exchange contract | [done] | Page-facing project/integration, content/settings, note/map, notification-history, and complete game state/catalog/command envelopes have explicit Pydantic contracts; compatibility JSON remains intentionally extensible only for Mind Elixir, history/results, and unknown legacy metadata |
@@ -28,7 +28,7 @@ blocker. The PySide6 application remains the release fallback.
 | Desktop background sync | [done] | Desktop-only worker runs configured active sources off the event loop on enable/start and writing-day change, isolates per-source failures, and shuts down with FastAPI |
 | FastAPI/OpenAPI | [done] | Health, centralized errors, loopback token, CORS, typed page-facing response contracts, and every router required by the Vue application are implemented; remote HTTPS/auth remains an operator deployment boundary, not an embedded account system |
 | Vue/Ionic shell | [done] | Responsive desktop/mobile navigation, platform guards, network/startup errors, design tokens, focus/reduced-motion support, themes, and locale store are implemented |
-| Projects/stages/progress frontend | [done] | Real API powers project list/search/filter/sort, project and stage editing/lifecycle, all units, deadlines, progress recording, and immediate refresh |
+| Projects/stages/progress frontend | [done] | Real API powers project list/search/filter/sort, project and stage editing/lifecycle, all units, deadlines, progress recording, immediate refresh, and finite project/stage 1080 × 1080 progress-card export with clipboard/download fallback |
 | Statistics frontend | [done] | Structured Python calculations and localized labels are displayed responsively; calculations are not duplicated in TypeScript |
 | Notes/Mind Elixir frontend | [done] | Note cards/autosave and canonical Mind Elixir assets use the real notes/map API and synchronization rules |
 | Game frontend | [done] | Seven responsive panels cover overview, sessions, challenges, items, growth, cabinet, and awards/bank; a global responsive notification center exposes persisted bank/streak history, and every command reloads authoritative backend state |
@@ -45,7 +45,7 @@ blocker. The PySide6 application remains the release fallback.
 | Capacitor shared setup | [done] | iOS and Android projects, app identifier/name, icons/splash assets, safe-area/theme behavior, keyboard/status bar/network/external-link plugins, and `cap sync` are present |
 | Capacitor iOS native build | [blocked] | Host has only Xcode Command Line Tools; full Xcode and the iPhoneOS SDK are unavailable |
 | Capacitor Android native build | [blocked] | Host exposes Java 8, below the current Android toolchain requirement, and has no Android SDK, `adb`, or `sdkmanager` |
-| Automated quality gates | [in progress] | Aggregate migration Python suite: 411 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/70 Vitest tests/build, `cargo fmt --check`/`cargo check`, `cap sync`, sidecar smoke, and audit pass. The retained legacy accessibility test cannot collect because this base branch lacks `accessibility.py`; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
+| Automated quality gates | [in progress] | Aggregate migration Python suite: 411 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/77 Vitest tests/build, `cargo fmt --check`/`cargo check`, `cap sync`, sidecar smoke, and audit pass. The retained legacy accessibility test cannot collect because this base branch lacks `accessibility.py`; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
 | Developer documentation | [done] | README covers legacy/backend/frontend/Web/Tauri/Capacitor commands, data safety, platform limitations, tests, and current target status |
 
 ## Functional parity summary
@@ -53,7 +53,10 @@ blocker. The PySide6 application remains the release fallback.
 ### Migrated through the shared core and API
 
 - Projects, stages, lifecycle, deadlines, all legacy progress units, global and
-  project streak effects, and structured statistics.
+  project streak effects, structured statistics, and local 1080 × 1080
+  progress cards for finite projects and stages. Clipboard writes use the
+  platform browser API and otherwise explicitly download PNG; the card never
+  sends manuscript or note content to a server.
 - Project-note cards, tags, ordering, Mind Elixir data, floating/free nodes, and
   bidirectional `#карта` synchronization.
 - Game profile, XP/levels, health, coins, inspiration, buffs, items, shop,
@@ -157,7 +160,6 @@ have passed in earlier slices.
 - Qt updater/installer and release signing/update metadata.
 - A real Word `.doc` reader, should the obsolete format become a supported
   product workflow again (the current legacy and new flows request `.docx`).
-- Progress-share image rendering and clipboard copy.
 - Native macOS Help-menu search bridge (`NSUserInterfaceItemSearching`).
 - Full Playwright coverage for the project → stage → progress → statistics,
   note ↔ mind-map, and writing-session reward journeys.
@@ -171,7 +173,7 @@ Checks completed for the final aggregate migration tree include:
 - `python3 -m pytest -q --ignore=tests/test_accessibility.py` — 411 passed,
   15 skipped, 2 subtests passed; focused localization/help/export checks add
   44 passing tests;
-- `npm run typecheck`, `npm run lint`, `npm run test` — 70 Vitest tests, and
+- `npm run typecheck`, `npm run lint`, `npm run test` — 77 Vitest tests, and
   `npm run build` — all pass; `npm audit --audit-level=high` reports zero
   vulnerabilities;
 - `cargo fmt --check`, `cargo check`, `npx tauri build --bundles app`, a fresh

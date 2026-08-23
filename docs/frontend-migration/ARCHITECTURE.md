@@ -59,6 +59,7 @@ frontend/
     api/               # the only HTTP transport implementation
     components/        # reusable Vue single-file components
     composables/       # platform, theme, network, and runtime behavior
+    platform/          # guarded local platform capabilities and Canvas export
     layouts/           # adaptive desktop/mobile application shell
     pages/             # projects, notes, game, integrations, help, settings
     router/             # shared Web/Tauri/Capacitor routes
@@ -224,8 +225,13 @@ The adaptive shell exposes these real routes:
 ```
 
 The project workspace covers search, sorting/filtering, project and stage
-lifecycle, all existing progress units, deadlines, structured statistics, and
-the optional core-calculated all-project writing-day summary. Its own filter
+lifecycle, all existing progress units, deadlines, structured statistics,
+browser-native 1080 × 1080 progress-card export, and the optional
+core-calculated all-project writing-day summary. Finite projects and stages use
+the same Canvas renderer; image clipboard writes are attempted only where the
+platform permits them and otherwise fall back to an explicit local PNG download.
+The card is rendered wholly in the client and never sends manuscript or note
+content to the backend. Its own filter
 and sort choices are persisted under explicit frontend UI-state keys, while
 legacy list preferences remain untouched for the PySide6 fallback.
 Notes use autosave and the existing `#карта` synchronization rules. Game
@@ -328,7 +334,6 @@ The following behavior remains intentionally legacy-only or incomplete:
 - a real `.doc` reader, if that obsolete Word format is again made a supported
   product workflow (the current legacy selector asks for `.docx`, as does the
   new API);
-- progress-share image generation and clipboard copying from `main_UI.py`;
 - the native macOS `NSUserInterfaceItemSearching` Help-menu integration (Vue
   has its own localized in-app help search);
 - full browser-driven Playwright coverage of the critical end-to-end flows;

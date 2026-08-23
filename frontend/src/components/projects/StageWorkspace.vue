@@ -7,16 +7,20 @@ import {
   arrowUpOutline,
   checkmarkCircleOutline,
   createOutline,
+  shareSocialOutline,
   trashOutline,
 } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   project: Project
   busy: boolean
-}>()
+  sharing?: boolean
+}>(), {
+  sharing: false,
+})
 
 const emit = defineEmits<{
   add: []
@@ -24,6 +28,7 @@ const emit = defineEmits<{
   remove: [stage: Project]
   complete: [stage: Project]
   reorder: [stageIds: string[]]
+  share: [stage: Project]
 }>()
 
 const locale = useLocaleStore()
@@ -127,6 +132,16 @@ function move(index: number, offset: -1 | 1): void {
               @click="move(index, 1)"
             >
               <IonIcon :icon="arrowDownOutline" aria-hidden="true" />
+            </button>
+            <button
+              class="stage-action-button"
+              type="button"
+              :title="stage.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined"
+              :disabled="busy || sharing || sharedProject || stage.infinite"
+              @click="emit('share', stage)"
+            >
+              <IonIcon :icon="shareSocialOutline" aria-hidden="true" />
+              {{ t('Поделиться') }}
             </button>
             <button
               class="stage-action-button"

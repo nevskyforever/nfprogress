@@ -45,7 +45,22 @@ describe('StageWorkspace', () => {
     })
 
     const completeButton = wrapper.findAll('button').find((button) => button.text().includes('Завершить'))
+    const shareButton = wrapper.findAll('button').find((button) => button.text().includes('Поделиться'))
     expect(completeButton?.attributes('disabled')).toBeDefined()
+    expect(shareButton?.attributes('disabled')).toBeDefined()
+  })
+
+  it('emits a share request for a finite stage without duplicating image logic', async () => {
+    const stage = projectFixture({ id: 'stage-a', name: 'Черновик', goal: 10_000 })
+    const wrapper = mount(StageWorkspace, {
+      props: { project: projectFixture({ stages_enabled: true, stages: [stage] }), busy: false },
+      global: { plugins: [createPinia()], stubs: { IonIcon: true } },
+    })
+
+    const shareButton = wrapper.findAll('.stage-action-button').find((button) => button.text().includes('Поделиться'))
+    await shareButton?.trigger('click')
+
+    expect(wrapper.emitted('share')?.[0]?.[0]).toEqual(stage)
   })
 
   it('protects shared-project sources from edit and deletion', () => {
