@@ -8,6 +8,7 @@ from ..dependencies import Services, get_services
 from ..schemas import (
     ArchiveCommand,
     EntityUpdate,
+    GlobalStreakSummaryResponse,
     ProgressCreate,
     ProgressResult,
     ProjectCreate,
@@ -48,6 +49,13 @@ def today_summary(
         services: Annotated[Services, Depends(get_services)],
 ):
     return services.projects.today_summary()
+
+
+@router.get('/streaks/global', response_model=GlobalStreakSummaryResponse)
+def global_streak_summary(
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.projects.global_streak_summary()
 
 
 @router.get('/{project_id}', response_model=ProjectResponse)

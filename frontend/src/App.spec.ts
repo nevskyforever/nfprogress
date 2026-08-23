@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { contentApi } from '@/api/content'
 import { settingsApi } from '@/api/settings'
 import { useLocaleStore } from '@/stores/locale'
+import { useMotionStore } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore } from '@/stores/theme'
 import type { SettingsResponse } from '@/types/content'
@@ -35,7 +36,7 @@ function settingsResponse(
       native_updates: false,
       remote_api: true,
     },
-    editable_keys: ['language', 'frontend_theme'],
+    editable_keys: ['language', 'frontend_theme', 'frontend_motion'],
   }
 }
 
@@ -70,6 +71,7 @@ describe('App bootstrap', () => {
       settingsResponse({
         language: 'en',
         frontend_theme: 'dark',
+        frontend_motion: 'reduced',
         notification_display_time: 20,
         user_agreement: true,
       }),
@@ -81,7 +83,19 @@ describe('App bootstrap', () => {
     expect(wrapper.find('[data-testid="agreement-gate"]').exists()).toBe(false)
     expect(useLocaleStore(pinia).language).toBe('en')
     expect(useThemeStore(pinia).preference).toBe('dark')
+    expect(useMotionStore(pinia).preference).toBe('reduced')
     expect(useNotificationsStore(pinia).durationSeconds).toBe(20)
+  })
+
+  it('keeps progress motion visible for existing settings without a motion key', async () => {
+    vi.mocked(settingsApi.get).mockResolvedValue(
+      settingsResponse({ language: 'ru', frontend_theme: 'system', user_agreement: true }),
+    )
+    const { pinia } = mountApp()
+    await flushPromises()
+
+    expect(useMotionStore(pinia).preference).toBe('full')
+    expect(document.documentElement.dataset.motion).toBe('full')
   })
 
   it('does not mount router content before an unaccepted agreement', async () => {

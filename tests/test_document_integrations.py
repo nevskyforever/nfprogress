@@ -257,7 +257,9 @@ def test_stale_or_missing_word_source_never_overwrites_progress(tmp_path):
     )
     service.configure_sync(project['id'], sync_type='word', path=str(path))
     service.run_sync(project['id'])
-    projects.record_progress(project['id'], new_total=20)
+    projects.record_synchronized_progress(
+        project['id'], new_total=20, source_modified_at=datetime.now(),
+    )
 
     with pytest.raises(ConflictError) as stale:
         service.run_sync(project['id'])

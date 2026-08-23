@@ -7,6 +7,7 @@ import type {
   ProjectListQuery,
   ProjectUpdate,
   EntityUpdate,
+  GlobalStreakSummary,
   StageCreate,
   Statistics,
   TodaySummary,
@@ -40,6 +41,10 @@ export const projectsApi = {
 
   today(signal?: AbortSignal): Promise<TodaySummary> {
     return apiRequest<TodaySummary>('/api/projects/today', { signal })
+  },
+
+  globalStreak(signal?: AbortSignal): Promise<GlobalStreakSummary> {
+    return apiRequest<GlobalStreakSummary>('/api/projects/streaks/global', { signal })
   },
 
   create(payload: ProjectCreate): Promise<Project> {

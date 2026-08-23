@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { projectsApi } from '@/api/projects'
 import { integrationsApi } from '@/api/integrations'
+import { settingsApi } from '@/api/settings'
 import { copyProgressImage, downloadProgressImage } from '@/platform/progressShare'
 import { useNotificationsStore } from '@/stores/notifications'
 import { projectFixture } from '@/test/fixtures'
@@ -30,6 +31,10 @@ vi.mock('@/api/projects', () => ({
     get: vi.fn(),
     statistics: vi.fn(),
   },
+}))
+
+vi.mock('@/api/settings', () => ({
+  settingsApi: { get: vi.fn() },
 }))
 
 vi.mock('@/platform/progressShare', () => ({
@@ -101,6 +106,7 @@ describe('ProjectDetailPage progress sharing', () => {
     vi.mocked(downloadProgressImage).mockReset()
     vi.mocked(integrationsApi.getProjectSyncs).mockReset()
     vi.mocked(integrationsApi.runProjectSyncs).mockReset()
+    vi.mocked(settingsApi.get).mockReset()
     pushRoute.mockReset()
     const stage = projectFixture({
       id: 'stage-id',
@@ -129,6 +135,17 @@ describe('ProjectDetailPage progress sharing', () => {
         last_synced_at: null,
         desktop_only: true,
       }],
+    })
+    vi.mocked(settingsApi.get).mockResolvedValue({
+      values: { global_streak: true },
+      platform: 'web',
+      capabilities: {
+        local_file_sync: false,
+        background_file_sync: false,
+        native_updates: false,
+        remote_api: true,
+      },
+      editable_keys: ['global_streak'],
     })
   })
 
@@ -170,6 +187,21 @@ describe('ProjectDetailPage progress sharing', () => {
     expect(shareButton.attributes('disabled')).toBeDefined()
     expect(copyProgressImage).not.toHaveBeenCalled()
     expect(downloadProgressImage).not.toHaveBeenCalled()
+  })
+
+  it('renders the project streak in the project facts', async () => {
+    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
+      id: 'project-id',
+      streak_length: 7,
+      max_streak: 11,
+      streak_status: 'Go',
+    }))
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    expect(wrapper.get('.detail-streak').attributes('aria-label')).toContain('Стрик проекта')
+    expect(wrapper.get('.detail-streak').attributes('aria-label')).toContain('7 дн.')
+    expect(wrapper.get('.detail-streak').text()).toContain('Максимум: 11')
   })
 
   it('keeps project sync visible and opens setup for the selected stage', async () => {

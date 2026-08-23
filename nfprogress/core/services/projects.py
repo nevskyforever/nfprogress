@@ -741,6 +741,29 @@ class ProjectService:
             'projects': projects,
         }
 
+    def global_streak_summary(self) -> dict[str, Any]:
+        """Expose the legacy global streak without duplicating its rules in Vue."""
+        enabled = bool(self.repository.read_settings().get('global_streak', False))
+        if not enabled:
+            return {'enabled': False, 'status': 'Off', 'length': 0, 'max_length': 0}
+
+        def summarize(data: dict[str, Any]) -> dict[str, Any]:
+            # global_streak_status preserves legacy day-boundary, recovery and
+            # freeze rules. Running it inside update_projects routes its nested
+            # legacy saves to this repository instead of the process default.
+            status = engine.global_streak_status(data)
+            length = engine.streak_length(data.get('global_streaks', []))
+            return {
+                'enabled': True,
+                'status': str(status or 'No'),
+                'length': length,
+                'max_length': max(
+                    int(data.get('max_global_streak', 0) or 0), length,
+                ),
+            }
+
+        return self.repository.update_projects(summarize)
+
     @staticmethod
     def _find_project(data: dict[str, Any], project_id: str) -> engine.Project:
         for project in data.get('projects', {}).values():

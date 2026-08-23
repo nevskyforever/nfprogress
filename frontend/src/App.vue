@@ -9,6 +9,7 @@ import NotificationCenter from '@/components/ui/NotificationCenter.vue'
 import NotificationStack from '@/components/ui/NotificationStack.vue'
 import AppShell from '@/layouts/AppShell.vue'
 import { isSupportedLanguage, useLocaleStore } from '@/stores/locale'
+import { isMotionPreference, useMotionStore } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
 import { isThemePreference, useThemeStore } from '@/stores/theme'
 import type { SettingsResponse } from '@/types/content'
@@ -17,6 +18,7 @@ type BootstrapState = 'loading' | 'agreement' | 'ready' | 'error'
 
 const locale = useLocaleStore()
 const theme = useThemeStore()
+const motion = useMotionStore()
 const notifications = useNotificationsStore()
 const t = locale.translate
 const appIcon = '/icons/icon-192.webp'
@@ -27,6 +29,11 @@ async function applyBackendPreferences(settings: SettingsResponse): Promise<void
   if (isThemePreference(settings.values.frontend_theme)) {
     theme.setPreference(settings.values.frontend_theme)
   }
+  motion.setPreference(
+    isMotionPreference(settings.values.frontend_motion)
+      ? settings.values.frontend_motion
+      : 'full',
+  )
   const language = isSupportedLanguage(settings.values.language)
     ? settings.values.language
     : locale.language

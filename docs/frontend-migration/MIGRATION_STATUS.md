@@ -27,13 +27,13 @@ blocker. The PySide6 application remains the release fallback.
 | Word/Scrivener service | [done] | Direct desktop `.docx`/Scrivener sync, nested binder inspection, remote `.docx` application, source mtime preservation, stale/missing/future-source protection, typed errors, and atomic detach-all are implemented. Stored legacy `synch` bindings are discovered across all project stages and run with the same grouped semantics as PySide6, without reconnecting sources; `.doc` is unsupported and asks for `.docx` rather than silently changing data |
 | Desktop background sync | [done] | Desktop-only worker runs configured active sources off the event loop on enable/start and writing-day change, isolates per-source failures, and shuts down with FastAPI |
 | FastAPI/OpenAPI | [done] | Health, centralized errors, loopback token, CORS, typed page-facing response contracts, and every router required by the Vue application are implemented; remote HTTPS/auth remains an operator deployment boundary, not an embedded account system |
-| Vue/Ionic shell | [done] | Responsive desktop/mobile navigation, platform guards, network/startup errors, legacy-derived neutral/blue design tokens, Arial/Helvetica typography, focus/reduced-motion support, themes, and locale store are implemented; Web and Tauri developer launchers now use the same synchronized `test_data` semantics as `main_UI.py` |
-| Projects/stages/progress frontend | [done] | Real API powers project list/search/filter/sort, project and stage editing/lifecycle, all units, deadlines, progress recording, immediate refresh, and finite project/stage 1080 × 1080 progress-card export with explicit clipboard/save-PNG choices. Stages are circular-progress tiles that open into their own focused workspace while retaining stable parent/stage IDs; project-local synchronization refreshes in place without replacing the workspace with a loading state. The displayed today target is the legacy cumulative plan, not the editable daily increment |
+| Vue/Ionic shell | [done] | Responsive desktop/mobile navigation, platform guards, network/startup errors, legacy-derived neutral/blue design tokens, Arial/Helvetica typography, focus support, themes, and locale store are implemented. Full/system/reduced motion is an explicit shared setting, so OS reduced-motion no longer silently suppresses requested progress feedback; Web and Tauri developer launchers use the same synchronized `test_data` semantics as `main_UI.py` |
+| Projects/stages/progress frontend | [done] | Real API powers project list/search/filter/sort, project and stage editing/lifecycle, all units, deadlines, progress recording, immediate refresh, and finite project/stage 1080 × 1080 progress-card export with explicit clipboard/save-PNG choices. Circular diagrams and bars tween their value with visible colour/glow feedback; global, project, and eligible stage streaks are displayed from legacy-authoritative state. Stages are circular-progress tiles that open into their own focused workspace while retaining stable parent/stage IDs; project-local synchronization refreshes in place without replacing the workspace with a loading state. The displayed today target is the legacy cumulative plan, not the editable daily increment |
 | Statistics frontend | [done] | Structured Python calculations and localized labels are displayed responsively; calculations are not duplicated in TypeScript |
 | Notes/Mind Elixir frontend | [done] | Legacy pastel full-card note colors and in-card colour palette, a prominent full-width create action, autosave, and canonical Mind Elixir assets use the real notes/map API and synchronization rules; the responsive workspace keeps the recognizable legacy card concept |
 | Game frontend | [done] | Seven responsive panels cover overview, sessions, challenges, items, growth, cabinet, and awards/bank; a global responsive notification center exposes persisted bank/streak history, and every command reloads authoritative backend state |
 | Integrations frontend | [done] | Desktop dialogs, configured project/stage sync and detach, recursive Scrivener selection, manual/all-source runs, and remote `.docx` upload are wired to the real API. The project workspace discovers existing bindings on every stage, runs them together as legacy PySide6 does, or deep-links to setup with its project/stage selected; no client claims unsupported `.doc` access |
-| Settings frontend | [done] | Language, light/dark/system theme, writing-day start, notification duration, game mode, infinite project, global streak, all-project daily total, desktop-only background sync, inventory category, and frontend list preferences are platform-gated and persisted through the settings service |
+| Settings frontend | [done] | Language, light/dark/system theme, full/system/reduced interface motion, writing-day start, notification duration, game mode, infinite project, global streak, all-project daily total, desktop-only background sync, inventory category, and frontend list preferences are platform-gated and persisted through the settings service |
 | Localization pipeline | [done] | Six canonical Python catalogs, deterministic frontend export/drift check, Vue/TypeScript source extraction, HTML/placeholder validation, and the final catalog regression checks pass |
 | Help frontend | [done] | Localized canonical `HELP_SECTIONS`, nested navigation, article rendering, in-window search, and keyboard search shortcut use the real content API |
 | Web target | [done] | Production Vue build, remote URL configuration, manifest, responsive routes, platform guards, and backend-unavailable states are verified; deployment HTTPS/auth, SPA fallback, and offline mutation behavior remain operator concerns rather than bundled claims |
@@ -46,15 +46,15 @@ blocker. The PySide6 application remains the release fallback.
 | Capacitor shared setup | [done] | iOS and Android projects, app identifier/name, icons/splash assets, safe-area/theme behavior, keyboard/status bar/network/external-link plugins, and `cap sync` are present |
 | Capacitor iOS native build | [blocked] | Host has only Xcode Command Line Tools; full Xcode and the iPhoneOS SDK are unavailable |
 | Capacitor Android native build | [blocked] | Host exposes Java 8, below the current Android toolchain requirement, and has no Android SDK, `adb`, or `sdkmanager` |
-| Automated quality gates | [in progress] | Aggregate migration Python suite: 422 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/82 Vitest tests/build, ARM64 and x86_64 `cargo check`, `cap sync`, sidecar smoke, and audit pass. Playwright and managed Chromium are installed for browser journeys; the in-app Browser has no available target, so final responsive screenshot review remains an environment limitation |
+| Automated quality gates | [in progress] | Aggregate migration Python suite: 430 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/93 Vitest tests/build, ARM64 and x86_64 `cargo check`, `cap sync`, sidecar smoke, and audit pass. Playwright and managed Chromium are installed for browser journeys; the in-app Browser has no available target, so final responsive screenshot review remains an environment limitation |
 | Developer documentation | [done] | README covers legacy/backend/frontend/Web/Tauri/Capacitor commands, data safety, platform limitations, tests, and current target status |
 
 ## Functional parity summary
 
 ### Migrated through the shared core and API
 
-- Projects, stages, lifecycle, deadlines, all legacy progress units, global and
-  project streak effects, structured statistics, and local 1080 × 1080
+- Projects, stages, lifecycle, deadlines, all legacy progress units, visible
+  global/project/stage streak state and effects, structured statistics, and local 1080 × 1080
   progress cards for finite projects and stages. Their share menu has separate
   clipboard and PNG-save actions; the card never sends manuscript or note
   content to a server.
@@ -173,10 +173,10 @@ verification task.
 
 Checks completed for the final aggregate migration tree include:
 
-- `python3 -m pytest -q` — 422 passed, 15 skipped, 2 subtests passed,
+- `python3 -m pytest -q` — 430 passed, 15 skipped, 2 subtests passed,
   including the restored legacy accessibility coverage; focused
   localization/help/export checks also pass;
-- `npm run typecheck`, `npm run lint`, `npm run test` — 77 Vitest tests, and
+- `npm run typecheck`, `npm run lint`, `npm run test` — 93 Vitest tests, and
   `npm run build` — all pass; `npm audit --audit-level=high` reports zero
   vulnerabilities;
 - `cargo fmt --check`, ARM64 and x86_64 `cargo check`, app-only Tauri bundles,

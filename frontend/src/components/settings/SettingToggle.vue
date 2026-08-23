@@ -104,10 +104,8 @@ function update(event: Event): void {
   cursor: not-allowed;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .setting-toggle input,
-  .setting-toggle input::before {
-    transition: none;
-  }
+:global(html[data-motion='reduced']) .setting-toggle input,
+:global(html[data-motion='reduced']) .setting-toggle input::before {
+  transition: none;
 }
 </style>

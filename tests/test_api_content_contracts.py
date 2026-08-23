@@ -47,6 +47,8 @@ def test_openapi_exposes_structured_content_settings_and_notes_contracts(tmp_pat
     }
 
     expected_response_models = {
+        ('/api/projects/streaks/global', 'get', '200'):
+            'GlobalStreakSummaryResponse',
         ('/api/projects/{project_id}/notes', 'get', '200'):
             'NotesListResponse',
         ('/api/projects/{project_id}/notes', 'post', '201'):

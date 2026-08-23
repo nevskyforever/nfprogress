@@ -158,8 +158,6 @@ onBeforeUnmount(() => {
 .progress-share-menu__item:hover { background: var(--nf-color-primary-soft); color: var(--nf-color-primary); }
 @keyframes progress-share-menu-in { from { opacity: 0; transform: translateY(-0.2rem); } to { opacity: 1; transform: translateY(0); } }
 
-@media (prefers-reduced-motion: reduce) {
-  .progress-share-menu__trigger { transition: none; }
-  .progress-share-menu__list { animation: none; }
-}
+:global(html[data-motion='reduced']) .progress-share-menu__trigger { transition: none; }
+:global(html[data-motion='reduced']) .progress-share-menu__list { animation: none; }
 </style>

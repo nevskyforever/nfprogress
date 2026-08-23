@@ -12,12 +12,19 @@ import {
 
 import ProjectCard from '@/components/projects/ProjectCard.vue'
 import ProjectCreateDialog from '@/components/projects/ProjectCreateDialog.vue'
+import StreakBadge from '@/components/projects/StreakBadge.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { projectsApi } from '@/api/projects'
 import { settingsApi } from '@/api/settings'
 import { useLocaleStore } from '@/stores/locale'
 import { useProjectsStore } from '@/stores/projects'
-import type { ProjectCreate, ProjectSort, ProjectStatus, TodaySummary } from '@/types/api'
+import type {
+  GlobalStreakSummary,
+  ProjectCreate,
+  ProjectSort,
+  ProjectStatus,
+  TodaySummary,
+} from '@/types/api'
 
 type StatusFilter = 'all' | ProjectStatus
 
@@ -60,6 +67,8 @@ const sort = ref<ProjectSort>(initialSort())
 const createDialogOpen = ref(false)
 const todaySummary = ref<TodaySummary | null>(null)
 const showTodaySummary = ref(false)
+const streaksEnabled = ref(false)
+const globalStreak = ref<GlobalStreakSummary | null>(null)
 const preferencesReady = ref(false)
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 let preferencesController: AbortController | undefined
@@ -148,12 +157,27 @@ async function initializeWorkspace(): Promise<void> {
       ) ?? sort.value
     }
     showTodaySummary.value = settings.values.show_written_today_in_all_projects === true
+    streaksEnabled.value = settings.values.global_streak === true
+    const summaryRequests: Promise<void>[] = []
     if (showTodaySummary.value) {
-      todaySummary.value = await projectsApi.today(controller.signal)
+      summaryRequests.push(
+        projectsApi.today(controller.signal)
+          .then((summary) => { todaySummary.value = summary })
+          .catch(() => { todaySummary.value = null }),
+      )
     }
+    if (streaksEnabled.value) {
+      summaryRequests.push(
+        projectsApi.globalStreak(controller.signal)
+          .then((summary) => { globalStreak.value = summary })
+          .catch(() => { globalStreak.value = null }),
+      )
+    }
+    await Promise.all(summaryRequests)
   } catch (caught) {
     if (caught instanceof DOMException && caught.name === 'AbortError') return
     todaySummary.value = null
+    globalStreak.value = null
   } finally {
     if (controller.signal.aborted || preferencesController !== controller) return
     preferencesReady.value = true
@@ -234,6 +258,20 @@ onBeforeUnmount(() => {
             <h2>{{ t('Написано сегодня') }}</h2>
           </div>
           <strong>{{ locale.formatNumber(todaySummary.symbols, 0) }} {{ t('символов') }}</strong>
+        </section>
+
+        <section v-if="streaksEnabled && globalStreak" class="global-streak-summary">
+          <div>
+            <p>{{ t('Ритм всех проектов') }}</p>
+            <h2>{{ t('Глобальный стрик') }}</h2>
+          </div>
+          <StreakBadge
+            :length="globalStreak.length"
+            :max-length="globalStreak.max_length"
+            :status="globalStreak.status"
+            scope="global"
+            show-max
+          />
         </section>
 
         <section class="project-toolbar" :aria-label="t('Поиск и фильтры проектов')">
@@ -329,7 +367,12 @@ onBeforeUnmount(() => {
           :aria-busy="store.loading"
           :aria-label="t('Список проектов')"
         >
-          <ProjectCard v-for="project in store.projects" :key="project.id" :project="project" />
+          <ProjectCard
+            v-for="project in store.projects"
+            :key="project.id"
+            :project="project"
+            :streaks-enabled="streaksEnabled"
+          />
         </section>
       </div>
     </IonContent>
@@ -418,6 +461,25 @@ onBeforeUnmount(() => {
 .today-summary strong {
   margin: 0;
 }
+
+.global-streak-summary {
+  display: flex;
+  gap: var(--nf-space-4);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--nf-space-3);
+  padding: var(--nf-space-4) var(--nf-space-5);
+  border: 1px solid var(--nf-color-border);
+  border-left: 0.3rem solid var(--nf-color-accent);
+  border-radius: var(--nf-radius-md);
+  background: var(--nf-color-surface);
+  box-shadow: var(--nf-shadow-card);
+}
+
+.global-streak-summary p,
+.global-streak-summary h2 { margin: 0; }
+.global-streak-summary p { color: var(--nf-color-text-muted); font-size: 0.78rem; font-weight: 700; }
+.global-streak-summary h2 { margin-top: var(--nf-space-1); font-family: var(--nf-font-serif); font-size: 1.25rem; }
 
 .today-summary p {
   color: var(--nf-color-text-muted);
@@ -567,7 +629,8 @@ onBeforeUnmount(() => {
     font-size: 1.35rem;
   }
 
-  .today-summary {
+  .today-summary,
+  .global-streak-summary {
     align-items: flex-start;
     flex-direction: column;
   }

@@ -13,14 +13,17 @@ import {
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
+import StreakBadge from './StreakBadge.vue'
 import ProgressShareMenu from './ProgressShareMenu.vue'
 
 const props = withDefaults(defineProps<{
   project: Project
   busy: boolean
   sharing?: boolean
+  streaksEnabled?: boolean
 }>(), {
   sharing: false,
+  streaksEnabled: false,
 })
 
 const emit = defineEmits<{
@@ -49,6 +52,13 @@ function canComplete(stage: Project): boolean {
     && !stage.infinite
     && stage.goal !== null
     && stage.total >= stage.goal
+}
+
+function showStageStreak(stage: Project): boolean {
+  return props.streaksEnabled
+    && props.project.deadline === null
+    && stage.deadline !== null
+    && stage.streak_enabled
 }
 
 function requestRemove(stage: Project): void {
@@ -111,6 +121,14 @@ function move(index: number, offset: -1 | 1): void {
                 {{ locale.formatNumber(stage.total, fractionDigits) }} /
                 {{ stage.infinite || stage.goal === null ? t('Без лимита') : locale.formatNumber(stage.goal, fractionDigits) }}
               </p>
+              <StreakBadge
+                v-if="showStageStreak(stage)"
+                class="stage-streak"
+                :length="stage.streak_length"
+                :status="stage.streak_status"
+                scope="stage"
+                compact
+              />
             </div>
             <ProgressRing
               :value="sharedProject && stage.infinite ? 100 : stageProgress(stage)"
@@ -212,6 +230,7 @@ function move(index: number, offset: -1 | 1): void {
 .stage-title-row h3 { overflow-wrap: anywhere; margin: 0; color: var(--nf-color-text); font-size: 1rem; }
 .stage-title-row p { margin: var(--nf-space-2) 0 0; color: var(--nf-color-text-muted); font-size: 0.78rem; }
 .stage-completed { display: inline-block; margin-top: var(--nf-space-1); color: var(--nf-color-success); font-size: 0.75rem; font-weight: 700; }
+.stage-streak { margin-top: var(--nf-space-3); }
 .stage-actions { display: flex; flex-wrap: wrap; gap: var(--nf-space-2); margin-top: var(--nf-space-4); }
 .stage-icon-button,
 .stage-action-button { display: inline-flex; gap: var(--nf-space-1); align-items: center; justify-content: center; min-height: 2.75rem; padding: 0.55rem 0.75rem; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface-raised); color: var(--nf-color-text); font-size: 0.8rem; font-weight: 700; cursor: pointer; }

@@ -46,16 +46,21 @@ def test_settings_are_platform_aware_and_persisted(tmp_path):
     updated = web.update({
         'language': 'fr',
         'frontend_theme': 'dark',
+        'frontend_motion': 'reduced',
         'frontend_project_filter': 'all',
         'frontend_project_sort': 'updated',
     })
 
     assert updated['values']['language'] == 'fr'
     assert updated['values']['frontend_theme'] == 'dark'
+    assert updated['values']['frontend_motion'] == 'reduced'
     assert updated['values']['frontend_project_filter'] == 'all'
     assert updated['values']['frontend_project_sort'] == 'updated'
     assert updated['capabilities']['local_file_sync'] is False
     assert 'background_synch' not in updated['editable_keys']
+
+    fresh = SettingsService(PickleRepository(tmp_path / 'fresh'), platform='web')
+    assert fresh.get()['values']['frontend_motion'] == 'full'
 
 
 def test_notification_duration_preserves_the_legacy_range(tmp_path):
@@ -88,6 +93,7 @@ def test_agreement_acceptance_keeps_the_legacy_boolean(tmp_path):
     {'start_day_time': 'not-a-time'},
     {'project_sort': 'unknown'},
     {'frontend_project_filter': 'unknown'},
+    {'frontend_motion': 'unknown'},
 ])
 def test_settings_reject_values_that_change_legacy_truthiness(patch, tmp_path):
     service = SettingsService(PickleRepository(tmp_path), platform='web')

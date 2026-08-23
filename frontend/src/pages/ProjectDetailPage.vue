@@ -19,6 +19,7 @@ import ProgressWorkspace from '@/components/projects/ProgressWorkspace.vue'
 import ProjectEditDialog from '@/components/projects/ProjectEditDialog.vue'
 import ProgressShareMenu from '@/components/projects/ProgressShareMenu.vue'
 import StageDialog from '@/components/projects/StageDialog.vue'
+import StreakBadge from '@/components/projects/StreakBadge.vue'
 import StageWorkspace from '@/components/projects/StageWorkspace.vue'
 import StatisticsWorkspace from '@/components/projects/StatisticsWorkspace.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
@@ -26,6 +27,7 @@ import ProgressBar from '@/components/ui/ProgressBar.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { apiErrorMessage } from '@/api/client'
 import { integrationsApi } from '@/api/integrations'
+import { settingsApi } from '@/api/settings'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
 import {
   copyProgressImage,
@@ -62,6 +64,21 @@ const detailEntity = computed<Project>(() => openedStage.value ?? project.value)
 const isStageDetail = computed(() => openedStage.value !== null)
 const presentation = useProjectPresentation(detailEntity)
 const isSharedProject = computed(() => project.value.name === 'Общий проект')
+const streaksEnabled = ref(false)
+const displayedStreakEntity = computed<Project | null>(() => {
+  if (!streaksEnabled.value || !store.currentProject) return null
+  if (isStageDetail.value && project.value.deadline === null) {
+    return detailEntity.value.deadline !== null && detailEntity.value.streak_enabled
+      ? detailEntity.value
+      : null
+  }
+  return project.value.deadline !== null && project.value.streak_enabled
+    ? project.value
+    : null
+})
+const displayedStreakScope = computed<'project' | 'stage'>(() =>
+  displayedStreakEntity.value === openedStage.value ? 'stage' : 'project',
+)
 const editDialogOpen = ref(false)
 const stageDialogOpen = ref(false)
 const editingStage = ref<Project | null>(null)
@@ -122,7 +139,16 @@ async function loadProject(): Promise<void> {
   await store.loadOne(projectId.value)
   chooseAvailableEntity()
   refreshStatistics()
-  await loadSyncSummary()
+  await Promise.all([loadSyncSummary(), loadStreakPreference()])
+}
+
+async function loadStreakPreference(): Promise<void> {
+  try {
+    const settings = await settingsApi.get()
+    streaksEnabled.value = settings.values.global_streak === true
+  } catch {
+    streaksEnabled.value = false
+  }
 }
 
 async function loadSyncSummary(): Promise<void> {
@@ -510,6 +536,15 @@ onBeforeUnmount(() => store.cancelDetail())
             <div class="fact-card"><IonIcon :icon="calendarClearOutline" aria-hidden="true" /><span>{{ t('Срок') }}</span><strong>{{ locale.formatDate(detailEntity.deadline) }}</strong></div>
             <div class="fact-card"><IonIcon :icon="documentTextOutline" aria-hidden="true" /><span>{{ t('Записей прогресса') }}</span><strong>{{ locale.formatNumber(detailEntity.progress_entries.length, 0) }}</strong></div>
             <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ presentation.unitLabel }}</strong></div>
+            <StreakBadge
+              v-if="displayedStreakEntity"
+              class="detail-streak"
+              :length="displayedStreakEntity.streak_length"
+              :max-length="displayedStreakEntity.max_streak"
+              :status="displayedStreakEntity.streak_status"
+              :scope="displayedStreakScope"
+              show-max
+            />
           </section>
 
           <ProgressWorkspace
@@ -529,6 +564,7 @@ onBeforeUnmount(() => store.cancelDetail())
             :project="project"
             :busy="store.detailBusy"
             :sharing="sharingProgress"
+            :streaks-enabled="streaksEnabled"
             @add="openStageCreate"
             @edit="openStageEdit"
             @remove="removeStage"
@@ -600,6 +636,7 @@ onBeforeUnmount(() => store.cancelDetail())
 .fact-card ion-icon { grid-row: 1 / 3; align-self: center; color: var(--nf-color-accent); font-size: 1.35rem; }
 .fact-card span { color: var(--nf-color-text-muted); font-size: 0.75rem; }
 .fact-card strong { overflow: hidden; color: var(--nf-color-text); font-size: 0.92rem; text-overflow: ellipsis; white-space: nowrap; }
+.detail-streak { width: 100%; border-radius: var(--nf-radius-md); }
 
 @media (max-width: 42rem) {
   .detail-header { display: grid; }

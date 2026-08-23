@@ -2,6 +2,7 @@ import type { SupportedLanguage } from './api'
 
 export type BackendPlatform = 'desktop' | 'web' | 'ios' | 'android'
 export type FrontendTheme = 'system' | 'light' | 'dark'
+export type FrontendMotion = 'system' | 'full' | 'reduced'
 
 export type SettingKey =
   | 'game_mode'
@@ -12,6 +13,7 @@ export type SettingKey =
   | 'start_day_time'
   | 'language'
   | 'frontend_theme'
+  | 'frontend_motion'
   | 'frontend_project_filter'
   | 'frontend_project_sort'
   | 'background_synch'
@@ -29,6 +31,7 @@ export interface SettingsValues {
   start_day_time?: string
   language?: SupportedLanguage
   frontend_theme?: FrontendTheme
+  frontend_motion?: FrontendMotion
   frontend_project_filter?: 'all' | 'активен' | 'в архиве' | 'завершен'
   frontend_project_sort?: 'name' | 'deadline' | 'progress' | 'updated'
   background_synch?: boolean

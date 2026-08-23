@@ -126,6 +126,15 @@ def test_project_stage_progress_statistics_and_status_workflow(client):
     assert today.json()['symbols'] == 1_500
     assert today.json()['projects'][0]['id'] == project['id']
 
+    streak_disabled = client.get('/api/projects/streaks/global')
+    assert streak_disabled.status_code == 200, streak_disabled.text
+    assert streak_disabled.json() == {
+        'enabled': False,
+        'status': 'Off',
+        'length': 0,
+        'max_length': 0,
+    }
+
     projects = client.get('/api/projects', params={
         'status': 'активен', 'search': 'черн', 'sort': 'name',
     })

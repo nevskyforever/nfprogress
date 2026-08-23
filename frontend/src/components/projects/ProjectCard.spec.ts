@@ -43,4 +43,20 @@ describe('ProjectCard', () => {
     expect(wrapper.get('[role="img"]').attributes('aria-label')).toContain('100%')
     expect(wrapper.get('.progress-ring').classes()).not.toContain('progress-ring--infinite')
   })
+
+  it('shows the project streak only when the global mode and legacy deadline rule allow it', () => {
+    const wrapper = mount(ProjectCard, {
+      props: {
+        project: projectFixture({ streak_length: 6, streak_status: 'Go' }),
+        streaksEnabled: true,
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: { IonIcon: true, RouterLink: { template: '<a><slot /></a>' } },
+      },
+    })
+
+    expect(wrapper.get('.project-card__streak').attributes('aria-label')).toContain('6 дн.')
+    expect(wrapper.get('.project-card__streak').attributes('aria-label')).toContain('продлён сегодня')
+  })
 })

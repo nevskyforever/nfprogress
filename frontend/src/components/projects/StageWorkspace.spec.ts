@@ -96,4 +96,28 @@ describe('StageWorkspace', () => {
     const protectedButtons = wrapper.findAll('.stage-action-button')
     expect(protectedButtons.every((button) => button.attributes('disabled') !== undefined)).toBe(true)
   })
+
+  it('shows stage streaks only when stages own the legacy streak plan', () => {
+    const stage = projectFixture({
+      id: 'stage-a',
+      deadline: '2027-05-10',
+      streak_length: 3,
+      streak_status: 'Active',
+    })
+    const wrapper = mount(StageWorkspace, {
+      props: {
+        project: projectFixture({
+          deadline: null,
+          stages_enabled: true,
+          stages: [stage],
+        }),
+        busy: false,
+        streaksEnabled: true,
+      },
+      global: { plugins: [createPinia()], stubs: { IonIcon: true } },
+    })
+
+    expect(wrapper.get('.stage-streak').attributes('aria-label')).toContain('Стрик этапа')
+    expect(wrapper.get('.stage-streak').attributes('aria-label')).toContain('3 дн.')
+  })
 })

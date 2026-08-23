@@ -114,6 +114,13 @@ export interface TodaySummary {
   projects: TodayProjectSummary[]
 }
 
+export interface GlobalStreakSummary {
+  enabled: boolean
+  status: string
+  length: number
+  max_length: number
+}
+
 export interface Statistics {
   entity_id: string
   unit: UnitCode

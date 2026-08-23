@@ -414,7 +414,5 @@ onBeforeUnmount(() => controller.abort())
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .agreement-loader { animation: none; }
-}
+:global(html[data-motion='reduced']) .agreement-loader { animation: none; }
 </style>

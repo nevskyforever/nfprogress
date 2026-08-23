@@ -120,6 +120,13 @@ class TodaySummaryResponse(BaseModel):
     projects: list[TodayProjectSummary]
 
 
+class GlobalStreakSummaryResponse(BaseModel):
+    enabled: bool
+    status: str
+    length: int = Field(ge=0)
+    max_length: int = Field(ge=0)
+
+
 class BestDayStatistic(BaseModel):
     date: str
     symbols: float

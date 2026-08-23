@@ -4,11 +4,17 @@ import { IonIcon } from '@ionic/vue'
 import { calendarClearOutline, layersOutline } from 'ionicons/icons'
 
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
+import StreakBadge from '@/components/projects/StreakBadge.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
 
-const props = defineProps<{ project: Project }>()
+const props = withDefaults(defineProps<{
+  project: Project
+  streaksEnabled?: boolean
+}>(), {
+  streaksEnabled: false,
+})
 const locale = useLocaleStore()
 const t = locale.translate
 const presentation = useProjectPresentation(() => props.project)
@@ -22,6 +28,12 @@ const isOverdue = computed(() => {
   if (!props.project.deadline || props.project.status !== 'активен') return false
   return props.project.deadline.slice(0, 10) < new Date().toISOString().slice(0, 10)
 })
+
+const showStreak = computed(() =>
+  props.streaksEnabled
+  && props.project.streak_enabled
+  && props.project.deadline !== null,
+)
 
 const progressAriaLabel = computed(() =>
   t('Прогресс проекта {name}: {progress}', {
@@ -63,6 +75,15 @@ const progressAriaLabel = computed(() =>
           </div>
         </div>
       </div>
+
+      <StreakBadge
+        v-if="showStreak"
+        class="project-card__streak"
+        :length="project.streak_length"
+        :status="project.streak_status"
+        scope="project"
+        compact
+      />
 
       <footer class="project-card__meta">
         <span :class="{ 'project-card__deadline--overdue': isOverdue }">
@@ -132,6 +153,11 @@ const progressAriaLabel = computed(() =>
   display: flex;
   align-items: center;
   justify-content: space-between;
+}
+
+.project-card__streak {
+  align-self: flex-start;
+  margin-top: var(--nf-space-4);
 }
 
 .project-card__header {

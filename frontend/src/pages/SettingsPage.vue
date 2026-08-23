@@ -14,9 +14,11 @@ import { settingsApi } from '@/api/settings'
 import SettingToggle from '@/components/settings/SettingToggle.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { SUPPORTED_LANGUAGES, useLocaleStore } from '@/stores/locale'
+import { useMotionStore, type MotionPreference } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore, type ThemePreference } from '@/stores/theme'
 import type {
+  FrontendMotion,
   FrontendTheme,
   SettingKey,
   SettingsResponse,
@@ -27,6 +29,7 @@ import type { SupportedLanguage } from '@/types/api'
 interface SettingsForm {
   language: SupportedLanguage
   frontend_theme: FrontendTheme
+  frontend_motion: FrontendMotion
   start_day_time: string
   notification_display_time: number
   game_mode: boolean
@@ -39,6 +42,7 @@ interface SettingsForm {
 const GENERAL_KEYS: ReadonlyArray<keyof SettingsForm> = [
   'language',
   'frontend_theme',
+  'frontend_motion',
   'start_day_time',
   'notification_display_time',
   'game_mode',
@@ -50,6 +54,7 @@ const DESKTOP_KEYS: ReadonlyArray<keyof SettingsForm> = ['background_synch']
 
 const locale = useLocaleStore()
 const theme = useThemeStore()
+const motion = useMotionStore()
 const notifications = useNotificationsStore()
 const t = locale.translate
 const response = ref<SettingsResponse | null>(null)
@@ -63,6 +68,7 @@ const controller = new AbortController()
 const form = reactive<SettingsForm>({
   language: locale.language,
   frontend_theme: theme.preference,
+  frontend_motion: motion.preference,
   start_day_time: '00:00',
   notification_display_time: 10,
   game_mode: false,
@@ -114,6 +120,10 @@ function applySettings(settings: SettingsResponse): void {
     values.frontend_theme === 'light' || values.frontend_theme === 'dark'
       ? values.frontend_theme
       : 'system'
+  form.frontend_motion =
+    values.frontend_motion === 'system' || values.frontend_motion === 'reduced'
+      ? values.frontend_motion
+      : 'full'
   form.start_day_time =
     typeof values.start_day_time === 'string' ? values.start_day_time.slice(0, 5) : '00:00'
   form.notification_display_time = notificationDuration(values)
@@ -133,6 +143,7 @@ function applySettings(settings: SettingsResponse): void {
 
 async function synchronizeFrontendPreferences(): Promise<void> {
   theme.setPreference(form.frontend_theme as ThemePreference)
+  motion.setPreference(form.frontend_motion as MotionPreference)
   if (locale.language !== form.language) await locale.setLanguage(form.language)
 }
 
@@ -252,6 +263,14 @@ onBeforeUnmount(() => controller.abort())
                     <option value="system">{{ t('Как в системе') }}</option>
                     <option value="light">{{ t('Светлая') }}</option>
                     <option value="dark">{{ t('Тёмная') }}</option>
+                  </select>
+                </label>
+                <label v-if="editable.has('frontend_motion')" for="settings-motion">
+                  <span>{{ t('Анимация интерфейса') }}</span>
+                  <select id="settings-motion" v-model="form.frontend_motion">
+                    <option value="full">{{ t('Полная') }}</option>
+                    <option value="system">{{ t('Как в системе') }}</option>
+                    <option value="reduced">{{ t('Уменьшенная') }}</option>
                   </select>
                 </label>
                 <label v-if="editable.has('start_day_time')" for="settings-day-start">

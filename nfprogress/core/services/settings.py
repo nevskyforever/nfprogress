@@ -22,6 +22,7 @@ GENERAL_KEYS = frozenset({
     'start_day_time',
     'language',
     'frontend_theme',
+    'frontend_motion',
 })
 DESKTOP_KEYS = frozenset({
     'background_synch',
@@ -53,6 +54,7 @@ class SettingsService:
 
     def get(self) -> dict[str, Any]:
         values = self.repository.read_settings()
+        values.setdefault('frontend_motion', 'full')
         if self.platform == 'desktop':
             values.setdefault('background_synch', True)
         return {
@@ -183,6 +185,10 @@ class SettingsService:
             'system', 'light', 'dark',
         }:
             raise ValidationError('Неизвестная тема интерфейса.')
+        if 'frontend_motion' in patch and patch['frontend_motion'] not in {
+            'system', 'full', 'reduced',
+        }:
+            raise ValidationError('Неизвестный режим анимации интерфейса.')
         if 'start_day_time' in patch:
             raw_time = patch['start_day_time']
             if not isinstance(raw_time, str):

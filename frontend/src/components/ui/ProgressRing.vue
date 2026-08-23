@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
+import { useMotionStore } from '@/stores/motion'
+
 const props = withDefaults(
   defineProps<{
     value: number
@@ -11,6 +13,7 @@ const props = withDefaults(
   }>(),
   { infinite: false, full: false, size: 'small' },
 )
+const motion = useMotionStore()
 
 const normalizedValue = computed(() => Math.min(100, Math.max(0, props.value)))
 const targetValue = computed(() => props.full ? 100 : normalizedValue.value)
@@ -41,20 +44,16 @@ function stopAnimation(): void {
   animating.value = false
 }
 
-function reducedMotion(): boolean {
-  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
-}
-
 function animateTo(target: number): void {
   stopAnimation()
   const from = displayedValue.value
-  if (visualInfinite.value || reducedMotion() || Math.abs(target - from) < 0.01) {
+  if (visualInfinite.value || motion.reduced || Math.abs(target - from) < 0.01) {
     displayedValue.value = target
     return
   }
 
   const startedAt = performance.now()
-  const duration = 680
+  const duration = 900
   animating.value = true
   const tick = (now: number): void => {
     const progress = Math.min(1, (now - startedAt) / duration)
@@ -76,6 +75,15 @@ watch(targetValue, animateTo)
 watch(visualInfinite, (infinite) => {
   if (infinite) stopAnimation()
   else animateTo(targetValue.value)
+})
+watch(() => motion.reduced, (reduced) => {
+  if (reduced) {
+    stopAnimation()
+    displayedValue.value = targetValue.value
+    return
+  }
+  displayedValue.value = 0
+  animateTo(targetValue.value)
 })
 onMounted(() => animateTo(targetValue.value))
 onBeforeUnmount(stopAnimation)
@@ -125,7 +133,7 @@ onBeforeUnmount(stopAnimation)
 }
 
 .progress-ring--animating .progress-ring__svg {
-  animation: progress-ring-pulse 680ms cubic-bezier(0.22, 1, 0.36, 1);
+  animation: progress-ring-pulse 900ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .progress-ring__track,
@@ -138,12 +146,11 @@ onBeforeUnmount(stopAnimation)
 .progress-ring__track { stroke: var(--nf-color-progress-track); }
 .progress-ring__value {
   stroke: var(--nf-color-progress);
+  filter: drop-shadow(0 0 0 transparent);
 }
 .progress-ring__value--infinite { stroke-dasharray: 5 4; }
 
-@media (prefers-reduced-motion: reduce) {
-  .progress-ring--animating .progress-ring__svg { animation: none; }
-}
+:global(html[data-motion='reduced']) .progress-ring--animating .progress-ring__svg { animation: none; }
 
 .progress-ring span {
   color: var(--nf-color-text);
@@ -163,7 +170,7 @@ onBeforeUnmount(stopAnimation)
 
 @keyframes progress-ring-pulse {
   0% { filter: drop-shadow(0 0 0 transparent); transform: rotate(-90deg) scale(1); }
-  45% { filter: drop-shadow(0 0 0.35rem color-mix(in srgb, var(--nf-color-primary) 32%, transparent)); transform: rotate(-90deg) scale(1.035); }
+  38% { filter: drop-shadow(0 0 0.42rem color-mix(in srgb, var(--nf-color-primary) 42%, transparent)); transform: rotate(-90deg) scale(1.045); }
   100% { filter: drop-shadow(0 0 0 transparent); transform: rotate(-90deg) scale(1); }
 }
 

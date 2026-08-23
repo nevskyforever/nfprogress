@@ -18,6 +18,7 @@ const webSettings: SettingsResponse = {
   values: {
     language: 'ru',
     frontend_theme: 'system',
+    frontend_motion: 'full',
     start_day_time: '00:00:00',
     notification_display_time: 10,
     game_mode: false,
@@ -35,6 +36,7 @@ const webSettings: SettingsResponse = {
   editable_keys: [
     'language',
     'frontend_theme',
+    'frontend_motion',
     'start_day_time',
     'notification_display_time',
     'game_mode',
@@ -86,13 +88,16 @@ describe('SettingsPage', () => {
     expect(wrapper.find('#settings-infinite-project').exists()).toBe(true)
     expect(wrapper.find('#settings-written-today').exists()).toBe(true)
     expect(wrapper.find('#settings-notification-time').exists()).toBe(true)
+    expect(wrapper.find('#settings-motion').exists()).toBe(true)
     await wrapper.get('#settings-game-mode').setValue(true)
     await wrapper.get('#settings-notification-time').setValue(20)
+    await wrapper.get('#settings-motion').setValue('reduced')
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
     expect(settingsApi.update).toHaveBeenCalledWith({
       game_mode: true,
+      frontend_motion: 'reduced',
       notification_display_time: 20,
     })
     expect(wrapper.get('[role="status"]').text()).toContain('Настройки сохранены')

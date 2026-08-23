@@ -12,6 +12,7 @@ import '@ionic/vue/css/display.css'
 import App from './App.vue'
 import { initializePlatformRuntime } from './platform/runtime'
 import router from './router'
+import { useMotionStore } from './stores/motion'
 import { useThemeStore } from './stores/theme'
 import './theme/tokens.css'
 import './theme/global.css'
@@ -28,6 +29,8 @@ async function bootstrap(): Promise<void> {
 
   const theme = useThemeStore(pinia)
   theme.initialize()
+  const motion = useMotionStore(pinia)
+  motion.initialize()
 
   await router.isReady()
   app.mount('#app')

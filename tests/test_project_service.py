@@ -69,6 +69,33 @@ def test_today_summary_uses_legacy_project_and_stage_totals(service, monkeypatch
     }
 
 
+def test_global_streak_summary_uses_legacy_status_in_repository_context(
+        service, monkeypatch,
+):
+    today = date(2026, 8, 23)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    service.repository.update_settings(
+        lambda settings: settings.update({'global_streak': True}),
+    )
+
+    def seed_streak(data):
+        data['global_streaks'] = [today]
+        data['global_streak_status'] = 'Go'
+        data['max_global_streak'] = 4
+
+    service.repository.update_projects(seed_streak)
+
+    summary = service.global_streak_summary()
+
+    assert summary == {
+        'enabled': True,
+        'status': 'Active',
+        'length': 1,
+        'max_length': 4,
+    }
+    assert service.repository.read_projects()['global_streak_status'] == 'Active'
+
+
 def test_project_names_are_unique_and_lookup_uses_stable_id(service):
     first = service.create_project({'name': 'A', 'goal': 100, 'unit': 'symbols'})
     with pytest.raises(ConflictError):
