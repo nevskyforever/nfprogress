@@ -30,9 +30,26 @@ fi
 
 echo "Локальный Tauri-архив готов: $ARTIFACT_PATH"
 
+MANIFEST_PATH="$ROOT_DIR/update_manifest.json"
+REMOTE_MANIFEST_PATH="$(mktemp "${TMPDIR:-/tmp}/nfprogress-manifest.XXXXXX")"
+trap 'rm -f -- "$REMOTE_MANIFEST_PATH"' EXIT
+if curl --fail --location --retry 3 --silent --show-error \
+  --output "$REMOTE_MANIFEST_PATH" \
+  "https://nfproject.ru/app/update_manifest.json"; then
+  mv "$REMOTE_MANIFEST_PATH" "$MANIFEST_PATH"
+else
+  echo "Удалённый манифест недоступен; используется локальная копия."
+fi
+
+export RELEASE_NOTES="${RELEASE_NOTES:-}"
+python3 "$ROOT_DIR/scripts/update-release-manifest.py" "$VERSION" "macos_${ARCH}" "$ARTIFACT_PATH"
+python3 "$ROOT_DIR/scripts/create-legacy-manifest.py"
+
 if [ "${NFPROGRESS_TAURI_RELEASE_UPLOAD:-1}" = "1" ]; then
   REMOTE_NAME="nfprogress-mac-${ARCH}-${VERSION}.zip"
   "$ROOT_DIR/scripts/upload-release.sh" "$ARTIFACT_PATH" "$REMOTE_NAME"
+  "$ROOT_DIR/scripts/upload-release.sh" "$MANIFEST_PATH" "update_manifest.json"
+  "$ROOT_DIR/scripts/upload-release.sh" "$ROOT_DIR/update_manifest_legacy.json" "update_manifest_legacy.json"
 else
   echo "Загрузка на хостинг отключена: NFPROGRESS_TAURI_RELEASE_UPLOAD=0"
 fi

@@ -381,6 +381,29 @@ jobs:
           fi
           echo "Validated release builds: ${build_count}"
 
+      - name: Update legacy release manifest
+        shell: pwsh
+        run: |
+          $remoteManifest = Join-Path $env:RUNNER_TEMP "update_manifest.remote.json"
+          try {
+            Invoke-WebRequest `
+              -Uri "https://nfproject.ru/app/update_manifest.json" `
+              -OutFile $remoteManifest `
+              -TimeoutSec 30
+            $parsed = Get-Content $remoteManifest -Raw | ConvertFrom-Json
+            if (-not $parsed) { throw "Remote manifest is empty." }
+            Move-Item $remoteManifest update_manifest.json -Force
+          } catch {
+            Write-Warning "Current remote manifest is unavailable; using the repository copy: $_"
+          }
+          $env:RELEASE_NOTES = Get-Content $env:RELEASE_NOTES_FILE -Raw
+          python scripts\update-release-manifest.py `
+            $env:APP_VERSION `
+            windows
+          python scripts\create-legacy-manifest.py
+          Copy-Item update_manifest.json release-assets\update_manifest.json -Force
+          Copy-Item update_manifest_legacy.json release-assets\update_manifest_legacy.json -Force
+
       - name: Upload Windows release files to hosting
         shell: bash
         env:
