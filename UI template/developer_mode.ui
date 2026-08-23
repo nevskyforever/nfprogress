@@ -18,12 +18,23 @@
   <property name="windowTitle">
    <string>Режим разработчика</string>
   </property>
+  <property name="accessibleName">
+   <string>Режим разработчика</string>
+  </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="7" column="2">
-    <widget class="QLineEdit" name="exp"/>
+    <widget class="QLineEdit" name="exp">
+     <property name="accessibleName">
+      <string>Опыт</string>
+     </property>
+    </widget>
    </item>
    <item row="5" column="2">
-    <widget class="QLineEdit" name="health"/>
+    <widget class="QLineEdit" name="health">
+     <property name="accessibleName">
+      <string>Здоровье</string>
+     </property>
+    </widget>
    </item>
    <item row="4" column="1">
     <widget class="QLabel" name="label">
@@ -70,7 +81,11 @@
     </widget>
    </item>
    <item row="6" column="2">
-    <widget class="QLineEdit" name="coins"/>
+    <widget class="QLineEdit" name="coins">
+     <property name="accessibleName">
+      <string>Монеты</string>
+     </property>
+    </widget>
    </item>
    <item row="6" column="1">
     <widget class="QLabel" name="label_2">
@@ -100,7 +115,11 @@
     </spacer>
    </item>
    <item row="4" column="2">
-    <widget class="QLineEdit" name="level"/>
+    <widget class="QLineEdit" name="level">
+     <property name="accessibleName">
+      <string>Уровень</string>
+     </property>
+    </widget>
    </item>
    <item row="6" column="0">
     <spacer name="horizontalSpacer_2">
@@ -150,6 +169,9 @@
    </item>
    <item row="1" column="2">
     <widget class="QDateTimeEdit" name="test_date">
+     <property name="accessibleName">
+      <string>Дата для теста</string>
+     </property>
      <property name="calendarPopup">
       <bool>true</bool>
      </property>
@@ -157,6 +179,14 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>test_date_cb</tabstop>
+  <tabstop>test_date</tabstop>
+  <tabstop>level</tabstop>
+  <tabstop>health</tabstop>
+  <tabstop>coins</tabstop>
+  <tabstop>exp</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

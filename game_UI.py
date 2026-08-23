@@ -7,6 +7,7 @@ import re
 from PySide6.QtCore import QDate, QSignalBlocker, QTimer, Qt
 from PySide6.QtWidgets import QListWidgetItem, QDialog
 
+from accessibility import set_item_accessible_text
 import engine
 import game
 import game_data
@@ -1400,6 +1401,16 @@ class GameMenuController:
             item = QListWidgetItem(self.get_buff_display_text(buff, stacks))
             item.setData(Qt.ItemDataRole.UserRole, buff)
             item.setData(Qt.ItemDataRole.UserRole + 1, stacks)
+            set_item_accessible_text(
+                item,
+                "\n".join(
+                    (
+                        self.get_buff_display_text(buff, stacks),
+                        localized_game_description(buff.description),
+                        f"{tr('Количество')}: {stacks}",
+                    )
+                ),
+            )
             list_widget.addItem(item)
 
     def update_buffs_list(self, positive=True):

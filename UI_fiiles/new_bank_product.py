@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'new_bank_productVsrtvq.ui'
+## Form generated from reading UI file 'new_bank_product.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -95,6 +95,8 @@ class Ui_Dialog(object):
 
         self.gridLayout.addWidget(self.buttonBox, 1, 0, 1, 1)
 
+        QWidget.setTabOrder(self.lineEdit, self.return_date_dateedit)
+        QWidget.setTabOrder(self.return_date_dateedit, self.withdrawal_of_interest_from_a_deposit)
 
         self.retranslateUi(Dialog)
         self.buttonBox.accepted.connect(Dialog.accept)
@@ -105,9 +107,15 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         Dialog.setWindowTitle(QCoreApplication.translate("Dialog", u"\u041d\u043e\u0432\u044b\u0439 \u043f\u0440\u043e\u0434\u0443\u043a\u0442", None))
+#if QT_CONFIG(accessibility)
+        Dialog.setAccessibleName(QCoreApplication.translate("Dialog", u"\u041d\u043e\u0432\u044b\u0439 \u043f\u0440\u043e\u0434\u0443\u043a\u0442", None))
+#endif // QT_CONFIG(accessibility)
         self.product_description.setText(QCoreApplication.translate("Dialog", u"\u041e\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u043f\u0440\u043e\u0434\u0443\u043a\u0442\u0430", None))
         self.lineEdit.setPlaceholderText(QCoreApplication.translate("Dialog", u"\u0421\u0443\u043c\u043c\u0430 (100.0)", None))
         self.return_date_label.setText(QCoreApplication.translate("Dialog", u"\u0414\u0430\u0442\u0430 \u0432\u043e\u0437\u0432\u0440\u0430\u0442\u0430:", None))
+#if QT_CONFIG(accessibility)
+        self.return_date_dateedit.setAccessibleName(QCoreApplication.translate("Dialog", u"\u0414\u0430\u0442\u0430 \u0432\u043e\u0437\u0432\u0440\u0430\u0442\u0430", None))
+#endif // QT_CONFIG(accessibility)
         self.withdrawal_of_interest_from_a_deposit.setText(QCoreApplication.translate("Dialog", u"\u0421\u043d\u044f\u0442\u0438\u0435 \u043f\u0440\u043e\u0446\u0435\u043d\u0442\u043e\u0432", None))
         self.product_interest_rates.setText(QCoreApplication.translate("Dialog", u"\u041f\u0440\u043e\u0446\u0435\u043d\u0442\u044b", None))
         self.total_amount_to_be_refunded.setText(QCoreApplication.translate("Dialog", u"\u0418\u0442\u043e\u0433\u043e\u0432\u0430\u044f \u0441\u0443\u043c\u043c\u0430 \u043a \u0432\u043e\u0432\u0437\u0440\u0430\u0442\u0443", None))

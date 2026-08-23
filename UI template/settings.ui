@@ -18,6 +18,9 @@
   <property name="windowTitle">
    <string>Настройки</string>
   </property>
+  <property name="accessibleName">
+   <string>Настройки</string>
+  </property>
   <property name="styleSheet">
    <string notr="true">QScrollArea {
     border: none;
@@ -136,6 +139,9 @@
        </item>
        <item row="13" column="0">
         <widget class="QSpinBox" name="notification_display_time_spinBox">
+         <property name="accessibleName">
+          <string>Время показа уведомления</string>
+         </property>
          <property name="sizePolicy">
           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -196,6 +202,9 @@
        </item>
        <item row="15" column="0">
         <widget class="QTimeEdit" name="start_day_time">
+         <property name="accessibleName">
+          <string>Начало дня</string>
+         </property>
          <property name="sizePolicy">
           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -238,6 +247,9 @@
        </item>
        <item row="1" column="0">
         <widget class="QComboBox" name="language_comboBox">
+         <property name="accessibleName">
+          <string>Язык</string>
+         </property>
          <item>
           <property name="text">
            <string>Русский</string>
@@ -291,6 +303,16 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>language_comboBox</tabstop>
+  <tabstop>enable_global_streak_checkBox</tabstop>
+  <tabstop>enable_game_mode_checkBox</tabstop>
+  <tabstop>enable_inf_projects_checkBox</tabstop>
+  <tabstop>written_today_in_all_projects_checkBox</tabstop>
+  <tabstop>notification_display_time_spinBox</tabstop>
+  <tabstop>start_day_time</tabstop>
+  <tabstop>check_uodates</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

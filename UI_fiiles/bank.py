@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'bankVajTLn.ui'
+## Form generated from reading UI file 'bank.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -159,6 +159,14 @@ class Ui_Bamk(object):
 
         self.gridLayout.addWidget(self.widget, 2, 0, 1, 2)
 
+        QWidget.setTabOrder(self.take_credit_btn, self.return_credit_btn)
+        QWidget.setTabOrder(self.return_credit_btn, self.make_a_loan_payment)
+        QWidget.setTabOrder(self.make_a_loan_payment, self.loan_partial_repayment_amount)
+        QWidget.setTabOrder(self.loan_partial_repayment_amount, self.partial_loan_repayment)
+        QWidget.setTabOrder(self.partial_loan_repayment, self.make_deposit_btn)
+        QWidget.setTabOrder(self.make_deposit_btn, self.active_deposit_topup_amount)
+        QWidget.setTabOrder(self.active_deposit_topup_amount, self.return_deposit_btn)
+        QWidget.setTabOrder(self.return_deposit_btn, self.withdraw_interest_from_a_deposit)
 
         self.retranslateUi(Bamk)
 
@@ -167,6 +175,9 @@ class Ui_Bamk(object):
 
     def retranslateUi(self, Bamk):
         Bamk.setWindowTitle(QCoreApplication.translate("Bamk", u"\u0411\u0430\u043d\u043a", None))
+#if QT_CONFIG(accessibility)
+        Bamk.setAccessibleName(QCoreApplication.translate("Bamk", u"\u0411\u0430\u043d\u043a", None))
+#endif // QT_CONFIG(accessibility)
         self.make_a_loan_payment.setText(QCoreApplication.translate("Bamk", u"\u0412\u043d\u0435\u0441\u0442\u0438 \u043f\u043b\u0430\u0442\u0435\u0436", None))
         self.loan_partial_repayment_amount.setPlaceholderText(QCoreApplication.translate("Bamk", u"\u0421\u0443\u043c\u043c\u0430 \u043a \u043f\u043e\u0433\u0430\u0448\u0435\u043d\u0438\u044e (100.0)", None))
         self.make_deposit_btn.setText(QCoreApplication.translate("Bamk", u"\u0412\u043d\u0435\u0441\u0442\u0438 \u0432\u043a\u043b\u0430\u0434", None))

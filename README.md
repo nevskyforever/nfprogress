@@ -273,18 +273,6 @@ Run the Python suite from the repository root:
 python -m pytest -q
 ```
 
-The current `5.0` base retains `tests/test_accessibility.py` but does not
-include its legacy `accessibility.py` module (it exists in an unmerged legacy
-branch). Until that separate legacy feature is merged or restored, the
-migration aggregate Python run is:
-
-```bash
-python -m pytest -q --ignore=tests/test_accessibility.py
-```
-
-This does not affect the FastAPI/Vue/Tauri paths; it is tracked in the
-migration status rather than silently hidden.
-
 The focused migration checks can be run independently:
 
 ```bash

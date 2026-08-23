@@ -24,6 +24,9 @@
   <property name="windowTitle">
    <string>Создание награды</string>
   </property>
+  <property name="accessibleName">
+   <string>Создание награды</string>
+  </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="3">
     <spacer name="horizontalSpacer_2">
@@ -139,6 +142,11 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>award_name_le</tabstop>
+  <tabstop>award_price_le</tabstop>
+  <tabstop>inflation_checkBox</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

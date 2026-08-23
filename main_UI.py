@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QAbstractItemView
 from PySide6.QtWidgets import QMainWindow, QDialog, QListWidgetItem, QFileDialog, QVBoxLayout, QTreeWidget, \
     QTreeWidgetItem, QDialogButtonBox, QLabel, QInputDialog
 
+from accessibility import install_accessibility
 import engine as en
 import game
 import game_data
@@ -5157,6 +5158,7 @@ if __name__ == "__main__":
 
     _suppress_invalid_object_stderr_spam()
     app = QApplication(sys.argv)
+    install_accessibility(app)
 
     settings = en.load_settings()
     language = settings.get('language')

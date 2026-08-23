@@ -1,17 +1,23 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'synch_windowBjaQsP.ui'
+## Form generated from reading UI file 'synch_window.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide6.QtCore import (QCoreApplication, QMetaObject, Qt)
-from PySide6.QtGui import (QFont)
-from PySide6.QtWidgets import (QComboBox, QDialogButtonBox, QGridLayout, QSizePolicy, QSpacerItem,
-                               QTextBrowser)
+from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
+    QFont, QFontDatabase, QGradient, QIcon,
+    QImage, QKeySequence, QLinearGradient, QPainter,
+    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QComboBox, QDialog,
+    QDialogButtonBox, QGridLayout, QSizePolicy, QSpacerItem,
+    QTextBrowser, QWidget)
 
 class Ui_sych_window(object):
     def setupUi(self, sych_window):
@@ -67,9 +73,15 @@ class Ui_sych_window(object):
 
     def retranslateUi(self, sych_window):
         sych_window.setWindowTitle(QCoreApplication.translate("sych_window", u"C\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f", None))
+#if QT_CONFIG(accessibility)
+        sych_window.setAccessibleName(QCoreApplication.translate("sych_window", u"C\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f", None))
+#endif // QT_CONFIG(accessibility)
         self.type_of_sych_cb.setItemText(0, QCoreApplication.translate("sych_window", u"Word", None))
         self.type_of_sych_cb.setItemText(1, QCoreApplication.translate("sych_window", u"Scrivener", None))
 
+#if QT_CONFIG(accessibility)
+        self.type_of_sych_cb.setAccessibleName(QCoreApplication.translate("sych_window", u"C\u0438\u043d\u0445\u0440\u043e\u043d\u0438\u0437\u0430\u0446\u0438\u044f", None))
+#endif // QT_CONFIG(accessibility)
         self.textBrowser.setHtml(QCoreApplication.translate("sych_window", u"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
 "<html><head><meta name=\"qrichtext\" content=\"1\" /><meta charset=\"utf-8\" /><style type=\"text/css\">\n"
 "p, li { white-space: pre-wrap; }\n"

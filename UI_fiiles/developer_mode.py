@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'developer_modeTOYsjn.ui'
+## Form generated from reading UI file 'developer_mode.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -23,7 +23,7 @@ class Ui_developer_node(object):
     def setupUi(self, developer_node):
         if not developer_node.objectName():
             developer_node.setObjectName(u"developer_node")
-        developer_node.resize(428, 300)
+        developer_node.resize(460, 300)
         font = QFont()
         font.setFamilies([u"Arial"])
         developer_node.setFont(font)
@@ -43,12 +43,6 @@ class Ui_developer_node(object):
         self.label.setObjectName(u"label")
 
         self.gridLayout.addWidget(self.label, 4, 1, 1, 1)
-
-        self.test_date = QDateTimeEdit(developer_node)
-        self.test_date.setObjectName(u"test_date")
-        self.test_date.setCalendarPopup(True)
-
-        self.gridLayout.addWidget(self.test_date, 1, 2, 1, 1)
 
         self.verticalSpacer = QSpacerItem(20, 40, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Expanding)
 
@@ -112,6 +106,17 @@ class Ui_developer_node(object):
 
         self.gridLayout.addItem(self.verticalSpacer_2, 0, 2, 1, 1)
 
+        self.test_date = QDateTimeEdit(developer_node)
+        self.test_date.setObjectName(u"test_date")
+        self.test_date.setCalendarPopup(True)
+
+        self.gridLayout.addWidget(self.test_date, 1, 2, 1, 1)
+
+        QWidget.setTabOrder(self.test_date_cb, self.test_date)
+        QWidget.setTabOrder(self.test_date, self.level)
+        QWidget.setTabOrder(self.level, self.health)
+        QWidget.setTabOrder(self.health, self.coins)
+        QWidget.setTabOrder(self.coins, self.exp)
 
         self.retranslateUi(developer_node)
         self.buttonBox.accepted.connect(developer_node.accept)
@@ -122,10 +127,28 @@ class Ui_developer_node(object):
 
     def retranslateUi(self, developer_node):
         developer_node.setWindowTitle(QCoreApplication.translate("developer_node", u"\u0420\u0435\u0436\u0438\u043c \u0440\u0430\u0437\u0440\u0430\u0431\u043e\u0442\u0447\u0438\u043a\u0430", None))
+#if QT_CONFIG(accessibility)
+        developer_node.setAccessibleName(QCoreApplication.translate("developer_node", u"\u0420\u0435\u0436\u0438\u043c \u0440\u0430\u0437\u0440\u0430\u0431\u043e\u0442\u0447\u0438\u043a\u0430", None))
+#endif // QT_CONFIG(accessibility)
+#if QT_CONFIG(accessibility)
+        self.exp.setAccessibleName(QCoreApplication.translate("developer_node", u"\u041e\u043f\u044b\u0442", None))
+#endif // QT_CONFIG(accessibility)
+#if QT_CONFIG(accessibility)
+        self.health.setAccessibleName(QCoreApplication.translate("developer_node", u"\u0417\u0434\u043e\u0440\u043e\u0432\u044c\u0435", None))
+#endif // QT_CONFIG(accessibility)
         self.label.setText(QCoreApplication.translate("developer_node", u"\u0423\u0440\u043e\u0432\u0435\u043d\u044c:", None))
         self.label_3.setText(QCoreApplication.translate("developer_node", u"\u041e\u043f\u044b\u0442:", None))
         self.label_4.setText(QCoreApplication.translate("developer_node", u"\u0417\u0434\u043e\u0440\u043e\u0432\u044c\u0435:", None))
+#if QT_CONFIG(accessibility)
+        self.coins.setAccessibleName(QCoreApplication.translate("developer_node", u"\u041c\u043e\u043d\u0435\u0442\u044b", None))
+#endif // QT_CONFIG(accessibility)
         self.label_2.setText(QCoreApplication.translate("developer_node", u"\u041c\u043e\u043d\u0435\u0442\u044b:", None))
         self.label_5.setText(QCoreApplication.translate("developer_node", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
+#if QT_CONFIG(accessibility)
+        self.level.setAccessibleName(QCoreApplication.translate("developer_node", u"\u0423\u0440\u043e\u0432\u0435\u043d\u044c", None))
+#endif // QT_CONFIG(accessibility)
         self.test_date_cb.setText(QCoreApplication.translate("developer_node", u"\u0414\u0430\u0442\u0430 \u0434\u043b\u044f \u0442\u0435\u0441\u0442\u0430:", None))
+#if QT_CONFIG(accessibility)
+        self.test_date.setAccessibleName(QCoreApplication.translate("developer_node", u"\u0414\u0430\u0442\u0430 \u0434\u043b\u044f \u0442\u0435\u0441\u0442\u0430", None))
+#endif // QT_CONFIG(accessibility)
     # retranslateUi

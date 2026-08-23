@@ -1,17 +1,22 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'confirm_dialogYQJnSF.ui'
+## Form generated from reading UI file 'confirm_dialog.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide6.QtCore import (QCoreApplication, QMetaObject, QSize, Qt)
-from PySide6.QtGui import (QFont)
-from PySide6.QtWidgets import (QDialogButtonBox,
-                               QSizePolicy, QTextBrowser, QVBoxLayout)
+from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
+    QFont, QFontDatabase, QGradient, QIcon,
+    QImage, QKeySequence, QLinearGradient, QPainter,
+    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QDialog, QDialogButtonBox,
+    QSizePolicy, QTextBrowser, QVBoxLayout, QWidget)
 
 class Ui_confirm_dialog(object):
     def setupUi(self, confirm_dialog):
@@ -52,5 +57,8 @@ class Ui_confirm_dialog(object):
 
     def retranslateUi(self, confirm_dialog):
         confirm_dialog.setWindowTitle(QCoreApplication.translate("confirm_dialog", u"\u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u0438\u0435", None))
+#if QT_CONFIG(accessibility)
+        confirm_dialog.setAccessibleName(QCoreApplication.translate("confirm_dialog", u"\u041f\u043e\u0434\u0442\u0432\u0435\u0440\u0436\u0434\u0435\u043d\u0438\u0435", None))
+#endif // QT_CONFIG(accessibility)
     # retranslateUi
 

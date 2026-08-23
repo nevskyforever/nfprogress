@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'project_statsReMPZh.ui'
+## Form generated from reading UI file 'project_stats.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -221,6 +221,9 @@ class Ui_project_stats(object):
 
     def retranslateUi(self, project_stats):
         project_stats.setWindowTitle(QCoreApplication.translate("project_stats", u"\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430 \u043f\u043e \u043f\u0440\u043e\u0435\u043a\u0442\u0443", None))
+#if QT_CONFIG(accessibility)
+        project_stats.setAccessibleName(QCoreApplication.translate("project_stats", u"\u0421\u0442\u0430\u0442\u0438\u0441\u0442\u0438\u043a\u0430 \u043f\u043e \u043f\u0440\u043e\u0435\u043a\u0442\u0443", None))
+#endif // QT_CONFIG(accessibility)
         self.stat_best_day.setText(QCoreApplication.translate("project_stats", u"\u041d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445", None))
         self.stat_current_streak.setText(QCoreApplication.translate("project_stats", u"\u041d\u0435\u0442 \u0434\u0430\u043d\u043d\u044b\u0445", None))
         self.label_3.setText(QCoreApplication.translate("project_stats", u"\u0421\u0440\u0435\u0434\u043d\u0435\u0435 \u043a\u043e\u043b-\u0432\u043e \u0441\u0438\u043c\u0432\u043e\u043b\u043e\u0432 \u0432 \u0437\u0430\u043f\u0438\u0441\u0438:", None))

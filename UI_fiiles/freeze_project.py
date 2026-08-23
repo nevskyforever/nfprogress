@@ -1,17 +1,23 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'freeze_projectLehcMj.ui'
+## Form generated from reading UI file 'freeze_project.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
 ## WARNING! All changes made in this file will be lost when recompiling UI file!
 ################################################################################
 
-from PySide6.QtCore import (QCoreApplication, QMetaObject, Qt)
-from PySide6.QtGui import (QFont)
-from PySide6.QtWidgets import (QDialogButtonBox,
-                               QLabel, QListWidget, QVBoxLayout)
+from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
+    QMetaObject, QObject, QPoint, QRect,
+    QSize, QTime, QUrl, Qt)
+from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
+    QFont, QFontDatabase, QGradient, QIcon,
+    QImage, QKeySequence, QLinearGradient, QPainter,
+    QPalette, QPixmap, QRadialGradient, QTransform)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QDialog, QDialogButtonBox,
+    QLabel, QListWidget, QListWidgetItem, QSizePolicy,
+    QVBoxLayout, QWidget)
 
 class Ui_freeze_projrct(object):
     def setupUi(self, freeze_projrct):
@@ -56,7 +62,13 @@ class Ui_freeze_projrct(object):
 
     def retranslateUi(self, freeze_projrct):
         freeze_projrct.setWindowTitle(QCoreApplication.translate("freeze_projrct", u"\u0417\u0430\u043c\u043e\u0440\u043e\u0437\u043a\u0430 \u043f\u0440\u043e\u0435\u043a\u0442\u0430", None))
+#if QT_CONFIG(accessibility)
+        freeze_projrct.setAccessibleName(QCoreApplication.translate("freeze_projrct", u"\u0417\u0430\u043c\u043e\u0440\u043e\u0437\u043a\u0430 \u043f\u0440\u043e\u0435\u043a\u0442\u0430", None))
+#endif // QT_CONFIG(accessibility)
         self.label.setText(QCoreApplication.translate("freeze_projrct", u"\u0412\u044b\u0431\u0435\u0440\u0438\u0442\u0435 \u043f\u0440\u043e\u0435\u043a\u0442 \u0434\u043b\u044f \u0437\u0430\u043c\u043e\u0440\u043e\u0437\u043a\u0438", None))
+#if QT_CONFIG(accessibility)
+        self.list_projects.setAccessibleName(QCoreApplication.translate("freeze_projrct", u"\u041f\u0440\u043e\u0435\u043a\u0442\u044b", None))
+#endif // QT_CONFIG(accessibility)
         self.label_2.setText(QCoreApplication.translate("freeze_projrct", u"\u0417\u0430\u043c\u043e\u0440\u043e\u0437\u0438\u0442\u044c \u043c\u043e\u0436\u043d\u043e \u0442\u043e\u043b\u044c\u043a\u043e \u043f\u0440\u043e\u0435\u043a\u0442 \u0441 \u0438\u043c\u0435\u044e\u0449\u0438\u043c\u0441\u044f \u0441\u0442\u0440\u0438\u043a\u043e\u043c, \u0435\u0441\u043b\u0438 \u043e\u043d \u043d\u0435 \u043f\u0440\u043e\u0434\u043b\u0435\u043d.", None))
     # retranslateUi
 

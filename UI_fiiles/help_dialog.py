@@ -64,6 +64,7 @@ class Ui_help_dialog(object):
 
         self.verticalLayout.addWidget(self.buttonBox)
 
+        QWidget.setTabOrder(self.help_search, self.help_tree)
 
         self.retranslateUi(help_dialog)
         self.buttonBox.rejected.connect(help_dialog.reject)
@@ -73,7 +74,13 @@ class Ui_help_dialog(object):
 
     def retranslateUi(self, help_dialog):
         help_dialog.setWindowTitle(QCoreApplication.translate("help_dialog", u"\u0421\u043f\u0440\u0430\u0432\u043a\u0430", None))
+#if QT_CONFIG(accessibility)
+        help_dialog.setAccessibleName(QCoreApplication.translate("help_dialog", u"\u0421\u043f\u0440\u0430\u0432\u043a\u0430", None))
+#endif // QT_CONFIG(accessibility)
         self.help_search.setPlaceholderText(QCoreApplication.translate("help_dialog", u"\u041f\u043e\u0438\u0441\u043a \u043f\u043e \u0441\u043f\u0440\u0430\u0432\u043a\u0435\u2026", None))
         ___qtreewidgetitem = self.help_tree.headerItem()
         ___qtreewidgetitem.setText(0, QCoreApplication.translate("help_dialog", u"\u0420\u0430\u0437\u0434\u0435\u043b\u044b \u0441\u043f\u0440\u0430\u0432\u043a\u0438", None));
+#if QT_CONFIG(accessibility)
+        self.help_tree.setAccessibleName(QCoreApplication.translate("help_dialog", u"\u0420\u0430\u0437\u0434\u0435\u043b\u044b \u0441\u043f\u0440\u0430\u0432\u043a\u0438", None))
+#endif // QT_CONFIG(accessibility)
     # retranslateUi

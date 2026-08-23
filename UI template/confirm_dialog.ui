@@ -30,6 +30,9 @@
   <property name="windowTitle">
    <string>Подтверждение</string>
   </property>
+  <property name="accessibleName">
+   <string>Подтверждение</string>
+  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QTextBrowser" name="message"/>

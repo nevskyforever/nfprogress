@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'user_agreementTrXVZX.ui'
+## Form generated from reading UI file 'user_agreement.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -59,6 +59,9 @@ class Ui_user_agreement(object):
 
     def retranslateUi(self, user_agreement):
         user_agreement.setWindowTitle(QCoreApplication.translate("user_agreement", u"\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u043e\u0435 \u0441\u043e\u0433\u043b\u0430\u0448\u0435\u043d\u0438\u0435", None))
+#if QT_CONFIG(accessibility)
+        user_agreement.setAccessibleName(QCoreApplication.translate("user_agreement", u"\u041f\u043e\u043b\u044c\u0437\u043e\u0432\u0430\u0442\u0435\u043b\u044c\u0441\u043a\u043e\u0435 \u0441\u043e\u0433\u043b\u0430\u0448\u0435\u043d\u0438\u0435", None))
+#endif // QT_CONFIG(accessibility)
         self.textBrowser.setHtml(QCoreApplication.translate("user_agreement", u"<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0//EN\" \"http://www.w3.org/TR/REC-html40/strict.dtd\">\n"
 "<html><head><meta name=\"qrichtext\" content=\"1\" /><meta charset=\"utf-8\" /><style type=\"text/css\">\n"
 "p, li { white-space: pre-wrap; }\n"

@@ -36,6 +36,9 @@
   <property name="windowTitle">
    <string>Создание проекта</string>
   </property>
+  <property name="accessibleName">
+   <string>Создание проекта</string>
+  </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
     <widget class="QWidget" name="widget" native="true">
@@ -78,6 +81,9 @@
       </item>
       <item row="0" column="1">
        <widget class="QLineEdit" name="le_name">
+        <property name="accessibleName">
+         <string>Название</string>
+        </property>
         <property name="text">
          <string>Новый проект</string>
         </property>
@@ -124,6 +130,9 @@
       </item>
       <item row="4" column="1">
        <widget class="QLineEdit" name="le_personal_goal_for_the_day">
+        <property name="accessibleName">
+         <string>Личная цель на день</string>
+        </property>
         <property name="text">
          <string>0</string>
         </property>
@@ -134,6 +143,9 @@
       </item>
       <item row="1" column="1">
        <widget class="QLineEdit" name="le_goal">
+        <property name="accessibleName">
+         <string>Цель</string>
+        </property>
         <property name="text">
          <string notr="true">1000</string>
         </property>
@@ -213,6 +225,9 @@
       </item>
       <item row="6" column="1">
        <widget class="QLineEdit" name="le_total_symbols">
+        <property name="accessibleName">
+         <string>Всего написано</string>
+        </property>
         <property name="text">
          <string>0</string>
         </property>
@@ -230,6 +245,9 @@
       </item>
       <item row="7" column="1" colspan="2">
        <widget class="QComboBox" name="cb_unit">
+        <property name="accessibleName">
+         <string>Единица измерения</string>
+        </property>
         <property name="minimumSize">
          <size>
           <width>0</width>
@@ -267,6 +285,9 @@
       </item>
       <item row="2" column="1">
        <widget class="QDateEdit" name="de_deadline">
+        <property name="accessibleName">
+         <string>Дедлайн</string>
+        </property>
         <property name="enabled">
          <bool>true</bool>
         </property>
@@ -337,6 +358,21 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>le_name</tabstop>
+  <tabstop>le_goal</tabstop>
+  <tabstop>de_deadline</tabstop>
+  <tabstop>checkBox</tabstop>
+  <tabstop>le_personal_goal_for_the_day</tabstop>
+  <tabstop>le_total_symbols</tabstop>
+  <tabstop>cb_unit</tabstop>
+  <tabstop>recalculate_plan_checkBox</tabstop>
+  <tabstop>enable_Stages</tabstop>
+  <tabstop>add_Stage</tabstop>
+  <tabstop>combine_stage_mindmaps_checkBox</tabstop>
+  <tabstop>streak_checkBox</tabstop>
+  <tabstop>auto_freeze_checkBox</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

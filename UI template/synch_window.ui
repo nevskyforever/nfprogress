@@ -18,6 +18,9 @@
   <property name="windowTitle">
    <string>Cинхронизация</string>
   </property>
+  <property name="accessibleName">
+   <string>Cинхронизация</string>
+  </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="1" column="2">
     <widget class="QDialogButtonBox" name="buttonBox">
@@ -37,6 +40,9 @@
    </item>
    <item row="1" column="0">
     <widget class="QComboBox" name="type_of_sych_cb">
+     <property name="accessibleName">
+      <string>Cинхронизация</string>
+     </property>
      <property name="sizePolicy">
       <sizepolicy hsizetype="Maximum" vsizetype="Fixed">
        <horstretch>0</horstretch>
@@ -105,6 +111,9 @@ li.checked::marker { content: &quot;\2612&quot;; }
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>type_of_sych_cb</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

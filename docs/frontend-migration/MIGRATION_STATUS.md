@@ -45,7 +45,7 @@ blocker. The PySide6 application remains the release fallback.
 | Capacitor shared setup | [done] | iOS and Android projects, app identifier/name, icons/splash assets, safe-area/theme behavior, keyboard/status bar/network/external-link plugins, and `cap sync` are present |
 | Capacitor iOS native build | [blocked] | Host has only Xcode Command Line Tools; full Xcode and the iPhoneOS SDK are unavailable |
 | Capacitor Android native build | [blocked] | Host exposes Java 8, below the current Android toolchain requirement, and has no Android SDK, `adb`, or `sdkmanager` |
-| Automated quality gates | [in progress] | Aggregate migration Python suite: 411 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/77 Vitest tests/build, `cargo fmt --check`/`cargo check`, `cap sync`, sidecar smoke, and audit pass. The retained legacy accessibility test cannot collect because this base branch lacks `accessibility.py`; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
+| Automated quality gates | [in progress] | Aggregate migration Python suite: 420 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/77 Vitest tests/build, `cargo fmt --check`/`cargo check`, `cap sync`, sidecar smoke, and audit pass. Legacy screen-reader metadata, keyboard order, progress values, and game-list descriptions are now covered; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
 | Developer documentation | [done] | README covers legacy/backend/frontend/Web/Tauri/Capacitor commands, data safety, platform limitations, tests, and current target status |
 
 ## Functional parity summary
@@ -170,9 +170,9 @@ have passed in earlier slices.
 
 Checks completed for the final aggregate migration tree include:
 
-- `python3 -m pytest -q --ignore=tests/test_accessibility.py` — 411 passed,
-  15 skipped, 2 subtests passed; focused localization/help/export checks add
-  44 passing tests;
+- `python3 -m pytest -q` — 420 passed, 15 skipped, 2 subtests passed,
+  including the restored legacy accessibility coverage; focused
+  localization/help/export checks also pass;
 - `npm run typecheck`, `npm run lint`, `npm run test` — 77 Vitest tests, and
   `npm run build` — all pass; `npm audit --audit-level=high` reports zero
   vulnerabilities;
@@ -182,12 +182,10 @@ Checks completed for the final aggregate migration tree include:
 - `npx cap sync` passes for both generated mobile targets;
 - explicit SDK probes confirm the iOS/Android blockers above.
 
-`tests/test_accessibility.py` is retained from the base project but imports an
-`accessibility.py` module absent from this branch (it exists in an unmerged
-legacy branch), so an unfiltered `pytest -q` stops at collection. This is a
-pre-existing legacy test/module mismatch, not a migration service/API/frontend
-failure. Browser-driven visual and Playwright critical-flow QA also remain
-pending because the in-app Browser exposes no target in this environment.
+The legacy desktop accessibility layer is installed with `QApplication` and
+keeps Designer forms, project cards, and game-list entries semantically named
+for screen readers. Browser-driven visual and Playwright critical-flow QA also
+remain pending because the in-app Browser exposes no target in this environment.
 
 ## Main migration commits so far
 

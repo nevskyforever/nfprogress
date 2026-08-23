@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'create_custom_itemFsxnLF.ui'
+## Form generated from reading UI file 'create_custom_item.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -89,6 +89,8 @@ class Ui_create_castom_item(object):
 
         self.gridLayout.addWidget(self.inflation_checkBox, 2, 2, 1, 1)
 
+        QWidget.setTabOrder(self.award_name_le, self.award_price_le)
+        QWidget.setTabOrder(self.award_price_le, self.inflation_checkBox)
 
         self.retranslateUi(create_castom_item)
         self.buttonBox.accepted.connect(create_castom_item.accept)
@@ -99,6 +101,9 @@ class Ui_create_castom_item(object):
 
     def retranslateUi(self, create_castom_item):
         create_castom_item.setWindowTitle(QCoreApplication.translate("create_castom_item", u"\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u043d\u0430\u0433\u0440\u0430\u0434\u044b", None))
+#if QT_CONFIG(accessibility)
+        create_castom_item.setAccessibleName(QCoreApplication.translate("create_castom_item", u"\u0421\u043e\u0437\u0434\u0430\u043d\u0438\u0435 \u043d\u0430\u0433\u0440\u0430\u0434\u044b", None))
+#endif // QT_CONFIG(accessibility)
 #if QT_CONFIG(statustip)
         self.award_name_le.setStatusTip("")
 #endif // QT_CONFIG(statustip)

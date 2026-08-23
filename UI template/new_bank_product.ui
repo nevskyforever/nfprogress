@@ -13,6 +13,9 @@
   <property name="windowTitle">
    <string>Новый продукт</string>
   </property>
+  <property name="accessibleName">
+   <string>Новый продукт</string>
+  </property>
   <layout class="QGridLayout" name="gridLayout">
    <item row="0" column="0">
     <widget class="QScrollArea" name="scrollArea">
@@ -58,6 +61,9 @@
        </item>
        <item>
         <widget class="QDateEdit" name="return_date_dateedit">
+         <property name="accessibleName">
+          <string>Дата возврата</string>
+         </property>
          <property name="sizePolicy">
           <sizepolicy hsizetype="Fixed" vsizetype="Fixed">
            <horstretch>0</horstretch>
@@ -125,6 +131,11 @@
    </item>
   </layout>
  </widget>
+ <tabstops>
+  <tabstop>lineEdit</tabstop>
+  <tabstop>return_date_dateedit</tabstop>
+  <tabstop>withdrawal_of_interest_from_a_deposit</tabstop>
+ </tabstops>
  <resources/>
  <connections>
   <connection>

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'settingsonAhQv.ui'
+## Form generated from reading UI file 'settings.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.10.2
 ##
@@ -15,10 +15,10 @@ from PySide6.QtGui import (QBrush, QColor, QConicalGradient, QCursor,
     QFont, QFontDatabase, QGradient, QIcon,
     QImage, QKeySequence, QLinearGradient, QPainter,
     QPalette, QPixmap, QRadialGradient, QTransform)
-from PySide6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QComboBox, QDialog,
-    QDialogButtonBox, QGridLayout, QLabel, QPushButton,
-    QScrollArea, QSizePolicy, QSpacerItem, QSpinBox,
-    QTimeEdit, QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QAbstractButton, QApplication, QCheckBox, QComboBox,
+    QDialog, QDialogButtonBox, QGridLayout, QLabel,
+    QPushButton, QScrollArea, QSizePolicy, QSpacerItem,
+    QSpinBox, QTimeEdit, QVBoxLayout, QWidget)
 
 class Ui_Dialog(object):
     def setupUi(self, Dialog):
@@ -141,13 +141,13 @@ class Ui_Dialog(object):
         self.gridLayout.addWidget(self.language_label, 0, 0, 1, 1)
 
         self.language_comboBox = QComboBox(self.scrollAreaWidgetContents)
+        self.language_comboBox.addItem("")
+        self.language_comboBox.addItem("")
+        self.language_comboBox.addItem("")
+        self.language_comboBox.addItem("")
+        self.language_comboBox.addItem("")
+        self.language_comboBox.addItem("")
         self.language_comboBox.setObjectName(u"language_comboBox")
-        self.language_comboBox.addItem(u"")
-        self.language_comboBox.addItem(u"")
-        self.language_comboBox.addItem(u"")
-        self.language_comboBox.addItem(u"")
-        self.language_comboBox.addItem(u"")
-        self.language_comboBox.addItem(u"")
 
         self.gridLayout.addWidget(self.language_comboBox, 1, 0, 1, 1)
 
@@ -163,6 +163,13 @@ class Ui_Dialog(object):
 
         self.verticalLayout.addWidget(self.buttonBox)
 
+        QWidget.setTabOrder(self.language_comboBox, self.enable_global_streak_checkBox)
+        QWidget.setTabOrder(self.enable_global_streak_checkBox, self.enable_game_mode_checkBox)
+        QWidget.setTabOrder(self.enable_game_mode_checkBox, self.enable_inf_projects_checkBox)
+        QWidget.setTabOrder(self.enable_inf_projects_checkBox, self.written_today_in_all_projects_checkBox)
+        QWidget.setTabOrder(self.written_today_in_all_projects_checkBox, self.notification_display_time_spinBox)
+        QWidget.setTabOrder(self.notification_display_time_spinBox, self.start_day_time)
+        QWidget.setTabOrder(self.start_day_time, self.check_uodates)
 
         self.retranslateUi(Dialog)
         self.buttonBox.accepted.connect(Dialog.accept)
@@ -173,6 +180,9 @@ class Ui_Dialog(object):
 
     def retranslateUi(self, Dialog):
         Dialog.setWindowTitle(QCoreApplication.translate("Dialog", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
+#if QT_CONFIG(accessibility)
+        Dialog.setAccessibleName(QCoreApplication.translate("Dialog", u"\u041d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438", None))
+#endif // QT_CONFIG(accessibility)
         self.label_3.setText(QCoreApplication.translate("Dialog", u"<html><head/><body><p>\u0410\u043a\u0442\u0438\u0432\u0438\u0440\u0443\u0435\u0442 \u0413\u043b\u043e\u0431\u0430\u043b\u044c\u043d\u044b\u0439 \u0441\u0442\u0440\u0438\u043a \u0438 \u0441\u0442\u0440\u0438\u043a\u0438 \u0432 \u043f\u0440\u043e\u0435\u043a\u0442\u0430\u0445</p><p>\u041f\u0440\u0438 \u0443\u0441\u0442\u0430\u043d\u043e\u0432\u043a\u0435 \u0434\u0435\u0434\u043b\u0430\u0439\u043d\u0430 \u0432 \u043f\u0440\u043e\u0435\u043a\u0442\u0435 \u0443 \u0432\u0430\u0441 \u0431\u0443\u0434\u0435\u0442 \u0435\u0436\u0435\u0434\u043d\u0435\u0432\u043d\u0430\u044f \u0446\u0435\u043b\u044c, \u043f\u0440\u0438 \u0434\u043e\u0441\u0442\u0438\u0436\u0435\u043d\u0438\u0438 \u043a\u043e\u0442\u043e\u0440\u043e\u0439 \u0432\u044b \u043d\u0430\u0447\u043d\u0435\u0442\u0435 \u0438\u043b\u0438 \u043f\u0440\u043e\u0434\u043b\u0438\u0442\u0435 \u0441\u0442\u0440\u0438\u043a.</p><p>\u0421\u0442\u0440\u0438\u043a - \u0434\u0435\u043d\u044c, \u043a\u043e\u0433\u0434\u0430 \u0432\u044b \u0432\u044b\u043f\u043e\u043b\u043d\u0438"
                         "\u043b\u0438 \u0446\u0435\u043b\u044c \u043f\u043e \u043f\u0440\u043e\u0435\u043a\u0442\u0443.<br/>\u0413\u043b\u043e\u0431\u0430\u043b\u044c\u043d\u044b\u0439 \u0441\u0442\u0440\u0438\u043a - \u0434\u0435\u043d\u044c, \u043a\u043e\u0433\u0434\u0430 \u0432\u044b \u0432\u044b\u043f\u043e\u043b\u043d\u0438\u043b\u0438 \u0446\u0435\u043b\u044c \u0445\u043e\u0442\u044f \u0431\u044b \u0432 \u043e\u0434\u043d\u043e\u043c \u043f\u0440\u043e\u0435\u043a\u0442\u0435 \u0441 \u0434\u0435\u0434\u043b\u0430\u0439\u043d\u043e\u043c.</p></body></html>", None))
         self.written_today_in_all_projects_checkBox.setText(QCoreApplication.translate("Dialog", u"\u041f\u043e\u043a\u0430\u0437\u0430\u0442\u044c, \u0441\u043a\u043e\u043b\u044c\u043a\u043e \u043d\u0430\u043f\u0438\u0441\u0430\u043d\u043e \u0441\u0435\u0433\u043e\u0434\u043d\u044f \u0432 \u043f\u0440\u043e\u0435\u043a\u0442\u0430\u0445", None))
@@ -180,12 +190,18 @@ class Ui_Dialog(object):
         self.label_2.setText(QCoreApplication.translate("Dialog", u"<html><head/><body><p>\u041f\u043e\u0437\u0432\u043e\u043b\u044f\u0435\u0442 \u043f\u0440\u0435\u0432\u0440\u0430\u0442\u0438\u0442\u044c \u043f\u0441\u0438\u0430\u0442\u0435\u043b\u044c\u0441\u0442\u0432\u043e \u0432 \u0438\u0433\u0440\u0443, \u0435\u0441\u043b\u0438 \u0432\u0430\u043c \u0441\u043b\u043e\u0436\u043d\u043e \u0441\u0435\u0431\u044f \u043c\u043e\u0442\u0438\u0432\u0438\u0440\u043e\u0432\u0430\u0442\u044c.<br/>\u0412\u044b \u0431\u0443\u0434\u0435\u0442\u0435 \u0440\u0430\u0437\u0432\u0438\u0432\u0430\u0442\u044c \u0438\u0433\u0440\u043e\u0432\u043e\u0433\u043e \u043f\u0435\u0435\u0440\u0441\u043e\u043d\u0430\u0436\u0430, \u043f\u043e\u043b\u0443\u0447\u0430\u044f \u043e\u043f\u044b\u0442 \u0438 \u043c\u043e\u043d\u0435\u0442\u044b \u0437\u0430 \u0440\u0430\u0431\u043e\u0442\u0443 \u043d\u0430\u0434 \u0442\u0435\u043a\u0441\u0442\u0430\u043c\u0438.<br/>\u0410\u043a\u0442\u0438\u0432\u0438\u0440\u0443\u0439\u0442\u0435 \u0440\u0435\u0436\u0438\u043c \u0438 \u043f\u043e\u043f\u0440\u043e\u0431\u0443"
                         "\u0439\u0442\u0435 \u0441\u0430\u043c\u0438! </p></body></html>", None))
         self.label_4.setText(QCoreApplication.translate("Dialog", u"\u041f\u043e\u043a\u0430\u0437\u044b\u0432\u0430\u0435\u0442, \u0441\u043a\u043e\u043b\u044c\u043a\u043e \u0441\u0438\u043c\u0432\u043e\u043b\u043e\u0432 \u0432\u044b \u0441\u0435\u0433\u043e\u0434\u043d\u044f \u043d\u0430\u043f\u0438\u0441\u0430\u043b\u0438 \u0432\u043e \u0432\u0441\u0435\u0445 \u043f\u0440\u043e\u0435\u043a\u0442\u0430\u0445", None))
+#if QT_CONFIG(accessibility)
+        self.notification_display_time_spinBox.setAccessibleName(QCoreApplication.translate("Dialog", u"\u0412\u0440\u0435\u043c\u044f \u043f\u043e\u043a\u0430\u0437\u0430 \u0443\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u044f", None))
+#endif // QT_CONFIG(accessibility)
         self.notification_display_time_spinBox.setSuffix(QCoreApplication.translate("Dialog", u" \u0441\u0435\u043a.", None))
         self.enable_game_mode_checkBox.setText(QCoreApplication.translate("Dialog", u"\u0418\u0433\u0440\u043e\u0432\u043e\u0439 \u0440\u0435\u0436\u0438\u043c", None))
         self.label.setText(QCoreApplication.translate("Dialog", u"<html><head/><body><p>\u0421\u043e\u0437\u0434\u0430\u0435\u0442 \u043f\u0440\u043e\u0435\u043a\u0442 \u0441 \u0431\u0435\u0441\u043a\u043e\u043d\u0435\u0447\u043d\u043e\u0439 \u0446\u0435\u043b\u044c\u044e.</p><p>\u041f\u043e\u043b\u0435\u0437\u043d\u043e, \u0435\u0441\u043b\u0438 \u0432\u044b \u0445\u043e\u0442\u0438\u0438\u0442\u0435 \u043e\u0442\u0441\u043b\u0435\u0436\u0438\u0432\u0430\u0442\u044c \u043d\u0430\u043f\u0438\u0441\u0430\u043d\u0438\u0435 \u0442\u0435\u043a\u0442\u0441\u043e\u0432, \u0434\u043b\u044f \u043a\u043e\u0442\u043e\u0440\u044b\u0445 \u043d\u0435 \u0445\u043e\u0442\u0438\u0442\u0435 \u0441\u043e\u0437\u0434\u0430\u0432\u0430\u0442\u044c \u043e\u0442\u0434\u0435\u043b\u044c\u043d\u044b\u0439 \u043f\u0440\u043e\u0435\u043a\u0442 (\u043f\u043e\u0441\u0442\u044b \u0432 \u0441\u043e\u0446. \u0441\u0435\u0442\u044f\u0445, \u043d\u0430\u043f\u0440\u0438\u043c\u0435\u0440), \u043d\u043e \u0445\u043e\u0442\u0438\u0442\u0435 \u043f\u043e\u043b\u0443\u0447\u0430\u0442\u044c \u043d\u0430\u0433\u0440"
                         "\u0430\u0434\u044b \u0432 \u0438\u0433\u0440\u043e\u0432\u043e\u043c \u0440\u0435\u0436\u0438\u043c\u0435.</p></body></html>", None))
         self.label_5.setText(QCoreApplication.translate("Dialog", u"\u0412\u0440\u0435\u043c\u044f \u043f\u043e\u043a\u0430\u0437\u0430 \u0443\u0432\u0435\u0434\u043e\u043c\u043b\u0435\u043d\u0438\u0439:", None))
         self.label_6.setText(QCoreApplication.translate("Dialog", u"\u0412\u0440\u0435\u043c\u044f \u043d\u0430\u0447\u0430\u043b\u0430 \u0441\u0443\u0442\u043e\u043a:", None))
+#if QT_CONFIG(accessibility)
+        self.start_day_time.setAccessibleName(QCoreApplication.translate("Dialog", u"\u041d\u0430\u0447\u0430\u043b\u043e \u0434\u043d\u044f", None))
+#endif // QT_CONFIG(accessibility)
         self.enable_global_streak_checkBox.setText(QCoreApplication.translate("Dialog", u"\u0421\u0442\u0440\u0438\u043a\u0438", None))
         self.check_uodates.setText(QCoreApplication.translate("Dialog", u"\u041f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c \u043e\u0431\u043d\u043e\u0432\u043b\u0435\u043d\u0438\u044f", None))
         self.language_label.setText(QCoreApplication.translate("Dialog", u"\u042f\u0437\u044b\u043a:", None))
@@ -195,4 +211,8 @@ class Ui_Dialog(object):
         self.language_comboBox.setItemText(3, QCoreApplication.translate("Dialog", u"Deutsch", None))
         self.language_comboBox.setItemText(4, QCoreApplication.translate("Dialog", u"Fran\u00e7ais", None))
         self.language_comboBox.setItemText(5, QCoreApplication.translate("Dialog", u"Portugu\u00eas (Brasil)", None))
+
+#if QT_CONFIG(accessibility)
+        self.language_comboBox.setAccessibleName(QCoreApplication.translate("Dialog", u"\u042f\u0437\u044b\u043a", None))
+#endif // QT_CONFIG(accessibility)
     # retranslateUi
