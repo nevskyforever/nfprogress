@@ -18,7 +18,7 @@ from collections import defaultdict
 # Режим разработчика.
 dev_mode = "__compiled__" not in globals()
 
-# Версия приложения.
+# Версия приложения
 version = '5.0'
 
 # Определяем систему
