@@ -18,6 +18,13 @@ const router = createRouter({
       meta: { title: 'Проект' },
     },
     {
+      path: '/projects/:projectId/stages/:stageId',
+      name: 'stage-detail',
+      component: () => import('@/pages/ProjectDetailPage.vue'),
+      props: true,
+      meta: { title: 'Этапы' },
+    },
+    {
       path: '/projects/:projectId/notes',
       name: 'project-notes',
       component: () => import('@/pages/NotesPage.vue'),

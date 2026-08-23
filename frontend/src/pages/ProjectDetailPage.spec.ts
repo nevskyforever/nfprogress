@@ -154,7 +154,8 @@ describe('ProjectDetailPage progress sharing', () => {
       infinite: true,
       goal: null,
     }))
-    const wrapper = mountWorkspace()
+    const pinia = createPinia()
+    const wrapper = mountWorkspace(pinia)
     await flushPromises()
 
     const shareButton = wrapper.get('button[aria-label*="Поделиться прогрессом"]')
@@ -203,7 +204,8 @@ describe('ProjectDetailPage progress sharing', () => {
         error: null,
       }],
     })
-    const wrapper = mountWorkspace()
+    const pinia = createPinia()
+    const wrapper = mountWorkspace(pinia)
     await flushPromises()
 
     await wrapper.get('.project-sync-button').trigger('click')
@@ -212,5 +214,9 @@ describe('ProjectDetailPage progress sharing', () => {
     expect(integrationsApi.runProjectSyncs).toHaveBeenCalledWith('project-id')
     expect(pushRoute).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('Синхронизация завершена')
+    expect(useNotificationsStore(pinia).notifications).toContainEqual(expect.objectContaining({
+      kind: 'success',
+      message: 'Синхронизация завершена',
+    }))
   })
 })

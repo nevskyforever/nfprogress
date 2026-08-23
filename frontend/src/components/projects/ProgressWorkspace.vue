@@ -11,10 +11,11 @@ const props = withDefaults(
     project: Project
     busy: boolean
     submitting?: boolean
+    fixedStageId?: string | null
     error?: string | null
     success?: string | null
   }>(),
-  { submitting: false, error: null, success: null },
+  { submitting: false, error: null, success: null, fixedStageId: null },
 )
 
 const emit = defineEmits<{
@@ -30,6 +31,9 @@ const validationError = ref<string | null>(null)
 const validationSummary = ref<HTMLElement | null>(null)
 
 const selectedEntity = computed<Project>(() => {
+  if (props.fixedStageId) {
+    return props.project.stages.find((stage) => stage.id === props.fixedStageId) ?? props.project
+  }
   if (!selectedEntityId.value) return props.project
   return props.project.stages.find((stage) => stage.id === selectedEntityId.value) ?? props.project
 })
@@ -87,7 +91,7 @@ watch(
         <p>{{ t('Рабочий ритм') }}</p>
         <h2 id="progress-workspace-heading">{{ t('Запись прогресса') }}</h2>
       </div>
-      <label v-if="project.stages.length" class="entity-select" for="progress-entity">
+      <label v-if="project.stages.length && !fixedStageId" class="entity-select" for="progress-entity">
         <span>{{ t('Этап') }}</span>
         <select id="progress-entity" v-model="selectedEntityId" :disabled="busy">
           <option v-for="stage in project.stages" :key="stage.id" :value="stage.id">

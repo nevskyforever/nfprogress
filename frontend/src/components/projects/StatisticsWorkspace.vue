@@ -11,8 +11,9 @@ const props = withDefaults(
     project?: Project | null
     loading?: boolean
     error?: string | null
+    fixedStageId?: string | null
   }>(),
-  { statistics: null, project: null, loading: false, error: null },
+  { statistics: null, project: null, loading: false, error: null, fixedStageId: null },
 )
 
 const emit = defineEmits<{ retry: [] }>()
@@ -82,7 +83,7 @@ function barWidth(value: number): string {
         <p>{{ t('Динамика работы') }}</p>
         <h2 id="statistics-heading">{{ t('Статистика') }}</h2>
       </div>
-      <label v-if="project?.stages.length" class="statistics-entity" for="statistics-entity">
+      <label v-if="project?.stages.length && !fixedStageId" class="statistics-entity" for="statistics-entity">
         <span>{{ t('Статистика по') }}</span>
         <select id="statistics-entity" v-model="selectedEntityId" :disabled="loading">
           <option value="">{{ t('Весь проект') }}</option>

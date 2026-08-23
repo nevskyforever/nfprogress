@@ -116,6 +116,15 @@ export const useProjectsStore = defineStore('projects', () => {
     }
   }
 
+  async function refreshCurrent(projectId: string): Promise<Project | null> {
+    try {
+      return storeProject(await projectsApi.get(projectId))
+    } catch (refreshError) {
+      detailActionError.value = apiErrorMessage(refreshError)
+      return null
+    }
+  }
+
   async function create(payload: ProjectCreate): Promise<Project | null> {
     creating.value = true
     createError.value = null
@@ -281,6 +290,7 @@ export const useProjectsStore = defineStore('projects', () => {
     projectCount,
     load,
     loadOne,
+    refreshCurrent,
     create,
     clearCreateError,
     clearDetailActionError,

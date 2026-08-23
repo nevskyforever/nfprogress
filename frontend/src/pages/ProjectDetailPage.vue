@@ -46,8 +46,16 @@ const locale = useLocaleStore()
 const notifications = useNotificationsStore()
 const t = locale.translate
 const projectId = computed(() => String(route.params.projectId ?? ''))
+const routeStageId = computed(() => String(route.params.stageId ?? ''))
 const project = computed<Project>(() => store.currentProject as Project)
-const presentation = useProjectPresentation(project)
+const openedStage = computed<Project | null>(() =>
+  routeStageId.value
+    ? project.value?.stages.find((stage) => stage.id === routeStageId.value) ?? null
+    : null,
+)
+const detailEntity = computed<Project>(() => openedStage.value ?? project.value)
+const isStageDetail = computed(() => openedStage.value !== null)
+const presentation = useProjectPresentation(detailEntity)
 const isSharedProject = computed(() => project.value.name === 'Общий проект')
 const editDialogOpen = ref(false)
 const stageDialogOpen = ref(false)
@@ -62,16 +70,17 @@ const syncLoading = ref(false)
 const syncRunning = ref(false)
 let syncRequestSequence = 0
 
-const selectedSyncStageId = computed(() => selectedEntityId.value || null)
+const selectedSyncStageId = computed(() => routeStageId.value || selectedEntityId.value || null)
 const hasConfiguredSync = computed(() =>
   syncSummaries.value.some((summary) => summary.configured),
 )
 
 const canCompleteProject = computed(() => {
   if (!store.currentProject || project.value.status === 'завершен') return false
-  return !project.value.infinite
-    && project.value.goal !== null
-    && project.value.total >= project.value.goal
+  return detailEntity.value.status !== 'завершен'
+    && !detailEntity.value.infinite
+    && detailEntity.value.goal !== null
+    && detailEntity.value.total >= detailEntity.value.goal
 })
 
 function numberForProject(value: number): string {
@@ -80,6 +89,12 @@ function numberForProject(value: number): string {
 
 function chooseAvailableEntity(): void {
   if (!store.currentProject) return
+  if (routeStageId.value) {
+    const stageExists = project.value.stages.some((stage) => stage.id === routeStageId.value)
+    selectedEntityId.value = stageExists ? routeStageId.value : ''
+    statisticsEntityId.value = stageExists ? routeStageId.value : ''
+    return
+  }
   if (!project.value.stages.length) {
     selectedEntityId.value = ''
     statisticsEntityId.value = ''
@@ -98,7 +113,7 @@ function chooseAvailableEntity(): void {
 async function loadProject(): Promise<void> {
   if (!projectId.value) return
   actionSuccess.value = null
-  statisticsEntityId.value = ''
+  if (!routeStageId.value) statisticsEntityId.value = ''
   await store.loadOne(projectId.value)
   chooseAvailableEntity()
   refreshStatistics()
@@ -140,9 +155,9 @@ async function synchronizeProject(): Promise<void> {
       store.detailActionError = t(failed.error?.message ?? t('Синхронизация не настроена.'))
       return
     }
-    actionSuccess.value = t('Синхронизация завершена')
+    announceSuccess(t('Синхронизация завершена'))
     if (failed?.error?.message) notifications.warning(t(failed.error.message))
-    await store.loadOne(project.value.id)
+    await store.refreshCurrent(project.value.id)
     chooseAvailableEntity()
     refreshStatistics()
     await loadSyncSummary()
@@ -151,6 +166,12 @@ async function synchronizeProject(): Promise<void> {
   } finally {
     syncRunning.value = false
   }
+}
+
+function announceSuccess(message: string, area: 'global' | 'progress' = 'global'): void {
+  feedbackArea.value = area
+  actionSuccess.value = message
+  notifications.success(message)
 }
 
 function refreshStatistics(): void {
@@ -170,7 +191,7 @@ async function saveProject(payload: ProjectUpdate): Promise<void> {
   const updated = await store.updateCurrent(project.value.id, payload)
   if (!updated) return
   editDialogOpen.value = false
-  actionSuccess.value = t('Изменения проекта сохранены.')
+  announceSuccess(t('Изменения проекта сохранены.'))
   chooseAvailableEntity()
   refreshStatistics()
 }
@@ -180,21 +201,32 @@ async function toggleArchive(): Promise<void> {
   const archived = project.value.status !== 'в архиве'
   const updated = await store.setArchived(project.value.id, archived)
   if (!updated) return
-  actionSuccess.value = archived ? t('Проект перемещён в архив.') : t('Проект снова активен.')
+  announceSuccess(archived ? t('Проект перемещён в архив.') : t('Проект снова активен.'))
 }
 
 async function completeProject(): Promise<void> {
   feedbackArea.value = 'global'
   if (!window.confirm(t('Завершить проект «{name}»? После этого он будет доступен только для просмотра.', { name: project.value.name }))) return
-  const updated = await store.completeCurrent(project.value.id)
+  const updated = isStageDetail.value
+    ? await store.completeStage(project.value.id, detailEntity.value.id)
+    : await store.completeCurrent(project.value.id)
   if (!updated) return
-  actionSuccess.value = t('Проект завершён.')
+  announceSuccess(isStageDetail.value ? t('Этап завершён.') : t('Проект завершён.'))
   refreshStatistics()
 }
 
 async function deleteProject(): Promise<void> {
   feedbackArea.value = 'global'
-  if (!window.confirm(t('Удалить проект «{name}» и все связанные данные? Это действие нельзя отменить.', { name: project.value.name }))) return
+  const entity = detailEntity.value
+  const confirmation = isStageDetail.value
+    ? t('Удалить этап «{name}» и всю его историю прогресса? Это действие нельзя отменить.', { name: entity.name })
+    : t('Удалить проект «{name}» и все связанные данные? Это действие нельзя отменить.', { name: entity.name })
+  if (!window.confirm(confirmation)) return
+  if (isStageDetail.value) {
+    const updated = await store.removeStage(project.value.id, entity.id)
+    if (updated) await router.replace({ name: 'project-detail', params: { projectId: project.value.id } })
+    return
+  }
   if (await store.removeCurrent(project.value.id)) {
     await router.replace({ name: 'projects' })
   }
@@ -250,6 +282,13 @@ function openStageEdit(stage: Project): void {
   stageDialogOpen.value = true
 }
 
+async function openStage(stage: Project): Promise<void> {
+  await router.push({
+    name: 'stage-detail',
+    params: { projectId: project.value.id, stageId: stage.id },
+  })
+}
+
 async function saveStage(payload: StageCreate | EntityUpdate): Promise<void> {
   feedbackArea.value = 'global'
   const updated = editingStage.value
@@ -257,7 +296,7 @@ async function saveStage(payload: StageCreate | EntityUpdate): Promise<void> {
     : await store.createStage(project.value.id, payload as StageCreate)
   if (!updated) return
   stageDialogOpen.value = false
-  actionSuccess.value = editingStage.value ? t('Этап сохранён.') : t('Этап создан.')
+  announceSuccess(editingStage.value ? t('Этап сохранён.') : t('Этап создан.'))
   editingStage.value = null
   chooseAvailableEntity()
   refreshStatistics()
@@ -267,7 +306,7 @@ async function removeStage(stage: Project): Promise<void> {
   feedbackArea.value = 'global'
   const updated = await store.removeStage(project.value.id, stage.id)
   if (!updated) return
-  actionSuccess.value = t('Этап удалён.')
+  announceSuccess(t('Этап удалён.'))
   chooseAvailableEntity()
   refreshStatistics()
 }
@@ -276,24 +315,23 @@ async function completeStage(stage: Project): Promise<void> {
   feedbackArea.value = 'global'
   const updated = await store.completeStage(project.value.id, stage.id)
   if (!updated) return
-  actionSuccess.value = t('Этап завершён.')
+  announceSuccess(t('Этап завершён.'))
   refreshStatistics()
 }
 
 async function reorderStages(stageIds: string[]): Promise<void> {
   feedbackArea.value = 'global'
   const updated = await store.reorderStages(project.value.id, stageIds)
-  if (updated) actionSuccess.value = t('Порядок этапов сохранён.')
+  if (updated) announceSuccess(t('Порядок этапов сохранён.'))
 }
 
 async function recordProgress(payload: ProgressCreate): Promise<void> {
-  feedbackArea.value = 'progress'
   const result = await store.recordProgress(project.value.id, payload)
   if (!result) return
   const amount = locale.formatNumber(result.added_symbols, 0)
-  actionSuccess.value = result.warning
+  announceSuccess(result.warning
     ? `${t('Прогресс записан')}: ${amount}. ${result.warning}`
-    : `${t('Прогресс записан')}: ${amount}`
+    : `${t('Прогресс записан')}: ${amount}`, 'progress')
   refreshStatistics()
 }
 
@@ -301,11 +339,11 @@ async function deleteProgress(entryId: string, stageId?: string): Promise<void> 
   feedbackArea.value = 'progress'
   const updated = await store.deleteProgress(project.value.id, entryId, stageId)
   if (!updated) return
-  actionSuccess.value = t('Запись прогресса удалена, итог пересчитан.')
+  announceSuccess(t('Запись прогресса удалена, итог пересчитан.'), 'progress')
   refreshStatistics()
 }
 
-watch(projectId, () => { void loadProject() }, { immediate: true })
+watch([projectId, routeStageId], () => { void loadProject() }, { immediate: true })
 watch(statisticsEntityId, () => {
   actionSuccess.value = null
   refreshStatistics()
@@ -318,9 +356,12 @@ onBeforeUnmount(() => store.cancelDetail())
   <IonPage>
     <IonContent :fullscreen="true" class="detail-content">
       <div class="detail-workspace">
-        <RouterLink class="back-link" :to="{ name: 'projects' }">
+        <RouterLink
+          class="back-link"
+          :to="isStageDetail ? { name: 'project-detail', params: { projectId } } : { name: 'projects' }"
+        >
           <IonIcon :icon="arrowBackOutline" aria-hidden="true" />
-          {{ t('Все проекты') }}
+          {{ isStageDetail ? t('Вернуться к проекту') : t('Все проекты') }}
         </RouterLink>
 
         <StatePanel
@@ -342,19 +383,20 @@ onBeforeUnmount(() => store.cancelDetail())
           <header class="detail-header">
             <div>
               <p class="detail-status">{{ presentation.statusLabel }}</p>
-              <h1>{{ project.name }}</h1>
+              <p v-if="isStageDetail" class="detail-parent">{{ project.name }}</p>
+              <h1>{{ detailEntity.name }}</h1>
             </div>
             <ProgressRing
               size="large"
               :value="presentation.progress"
-              :infinite="project.infinite"
+              :infinite="detailEntity.infinite"
               :label="`${t('Прогресс')}: ${presentation.progressLabel}`"
             />
           </header>
 
           <nav class="project-actions" :aria-label="t('Действия проекта')">
             <button
-              v-if="project.status !== 'завершен' && !isSharedProject"
+              v-if="detailEntity.status !== 'завершен' && !isSharedProject"
               class="nf-button project-sync-button"
               type="button"
               :disabled="syncLoading || syncRunning"
@@ -366,32 +408,36 @@ onBeforeUnmount(() => store.cancelDetail())
             </button>
             <RouterLink
               class="nf-button nf-button--secondary"
-              :to="{ name: 'project-notes', params: { projectId: project.id } }"
+              :to="{
+                name: 'project-notes',
+                params: { projectId: project.id },
+                ...(isStageDetail ? { query: { stageId: detailEntity.id } } : {}),
+              }"
             >
               <IonIcon :icon="documentTextOutline" aria-hidden="true" />{{ t('Заметки и карта') }}
             </RouterLink>
             <button
               class="nf-button nf-button--secondary"
               type="button"
-              :aria-label="t('Поделиться прогрессом «{name}»', { name: project.name })"
+              :aria-label="t('Поделиться прогрессом «{name}»', { name: detailEntity.name })"
               :aria-busy="sharingProgress"
-              :title="project.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined"
-              :disabled="sharingProgress || project.infinite"
-              @click="shareProjectProgress"
+              :title="detailEntity.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined"
+              :disabled="sharingProgress || detailEntity.infinite"
+              @click="isStageDetail ? shareStageProgress(detailEntity) : shareProjectProgress()"
             >
               <IonIcon :icon="shareSocialOutline" aria-hidden="true" />{{ t('Поделиться') }}
             </button>
             <button
-              v-if="project.status !== 'завершен' && !isSharedProject"
+              v-if="detailEntity.status !== 'завершен' && !isSharedProject"
               class="nf-button nf-button--secondary"
               type="button"
               :disabled="store.detailBusy"
-              @click="openProjectEdit"
+              @click="isStageDetail ? openStageEdit(detailEntity) : openProjectEdit()"
             >
               <IonIcon :icon="createOutline" aria-hidden="true" />{{ t('Изменить') }}
             </button>
             <button
-              v-if="project.status !== 'завершен' && !isSharedProject"
+              v-if="!isStageDetail && project.status !== 'завершен' && !isSharedProject"
               class="nf-button nf-button--secondary"
               type="button"
               :disabled="store.detailBusy"
@@ -401,7 +447,7 @@ onBeforeUnmount(() => store.cancelDetail())
               {{ project.status === 'в архиве' ? t('Вернуть в активные') : t('В архив') }}
             </button>
             <button
-              v-if="project.status !== 'завершен' && !isSharedProject"
+              v-if="detailEntity.status !== 'завершен' && !isSharedProject"
               class="nf-button"
               type="button"
               :title="!canCompleteProject ? t('Чтобы завершить проект, сначала достигните его цели.') : undefined"
@@ -431,18 +477,19 @@ onBeforeUnmount(() => store.cancelDetail())
           <section class="progress-hero" :aria-label="t('Прогресс проекта')">
             <div><span>{{ t('Написано') }}</span><strong>{{ presentation.totalLabel }} {{ presentation.unitLabel }}</strong></div>
             <div><span>{{ t('Цель') }}</span><strong>{{ presentation.goalLabel }}</strong></div>
-            <progress v-if="!project.infinite" :value="presentation.progress" max="100" :aria-label="`${t('Прогресс')}: ${presentation.progressLabel}`">
+            <progress v-if="!detailEntity.infinite" :value="presentation.progress" max="100" :aria-label="`${t('Прогресс')}: ${presentation.progressLabel}`">
               {{ presentation.progressLabel }}
             </progress>
           </section>
 
           <section class="detail-facts" :aria-label="t('Сведения о проекте')">
-            <div class="fact-card"><IonIcon :icon="calendarClearOutline" aria-hidden="true" /><span>{{ t('Срок') }}</span><strong>{{ locale.formatDate(project.deadline) }}</strong></div>
-            <div class="fact-card"><IonIcon :icon="documentTextOutline" aria-hidden="true" /><span>{{ t('Записей прогресса') }}</span><strong>{{ locale.formatNumber(project.progress_entries.length, 0) }}</strong></div>
-            <div class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на день') }}</span><strong>{{ numberForProject(project.personal_goal) }} {{ presentation.unitLabel }}</strong></div>
+            <div class="fact-card"><IonIcon :icon="calendarClearOutline" aria-hidden="true" /><span>{{ t('Срок') }}</span><strong>{{ locale.formatDate(detailEntity.deadline) }}</strong></div>
+            <div class="fact-card"><IonIcon :icon="documentTextOutline" aria-hidden="true" /><span>{{ t('Записей прогресса') }}</span><strong>{{ locale.formatNumber(detailEntity.progress_entries.length, 0) }}</strong></div>
+            <div class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на день') }}</span><strong>{{ numberForProject(detailEntity.personal_goal) }} {{ presentation.unitLabel }}</strong></div>
           </section>
 
           <StageWorkspace
+            v-if="!isStageDetail"
             :project="project"
             :busy="store.detailBusy"
             :sharing="sharingProgress"
@@ -452,6 +499,7 @@ onBeforeUnmount(() => store.cancelDetail())
             @complete="completeStage"
             @reorder="reorderStages"
             @share="shareStageProgress"
+            @open="openStage"
           />
           <ProgressWorkspace
             v-model="selectedEntityId"
@@ -460,6 +508,7 @@ onBeforeUnmount(() => store.cancelDetail())
             :submitting="store.detailOperation === 'record-progress'"
             :error="feedbackArea === 'progress' ? store.detailActionError : null"
             :success="feedbackArea === 'progress' ? actionSuccess : null"
+            :fixed-stage-id="isStageDetail ? detailEntity.id : null"
             @record="recordProgress"
             @remove="deleteProgress"
           />
@@ -469,6 +518,7 @@ onBeforeUnmount(() => store.cancelDetail())
             :project="project"
             :loading="store.statisticsLoading"
             :error="store.statisticsError"
+            :fixed-stage-id="isStageDetail ? detailEntity.id : null"
             @retry="refreshStatistics"
           />
         </article>
@@ -504,6 +554,7 @@ onBeforeUnmount(() => store.cancelDetail())
 .back-link { display: inline-flex; gap: var(--nf-space-2); align-items: center; min-height: 2.75rem; margin-bottom: var(--nf-space-5); padding: 0 var(--nf-space-2); border-radius: var(--nf-radius-sm); color: var(--nf-color-primary); font-weight: 700; text-decoration: none; }
 .detail-header { display: flex; gap: var(--nf-space-5); align-items: flex-start; justify-content: space-between; }
 .detail-status { display: inline-flex; margin: 0 0 var(--nf-space-3); padding: 0.35rem 0.7rem; border-radius: var(--nf-radius-pill); background: var(--nf-color-primary-soft); color: var(--nf-color-primary); font-size: 0.75rem; font-weight: 800; }
+.detail-parent { margin: 0 0 var(--nf-space-2); color: var(--nf-color-text-muted); font-size: 0.85rem; font-weight: 700; }
 .detail-header h1 { max-width: 50rem; margin: 0; overflow-wrap: anywhere; color: var(--nf-color-text); font-family: var(--nf-font-serif); font-size: clamp(2.2rem, 7vw, 4.5rem); letter-spacing: -0.045em; line-height: 1; }
 .project-actions { display: flex; flex-wrap: wrap; gap: var(--nf-space-2); margin-top: var(--nf-space-5); }
 .project-sync-button { box-shadow: 0 8px 20px color-mix(in srgb, var(--nf-color-primary) 20%, transparent); }
