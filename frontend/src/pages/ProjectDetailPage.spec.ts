@@ -29,6 +29,7 @@ vi.mock('@/api/integrations', () => ({
 vi.mock('@/api/projects', () => ({
   projectsApi: {
     get: vi.fn(),
+    globalStreak: vi.fn(),
     statistics: vi.fn(),
   },
 }))
@@ -101,6 +102,7 @@ function mountWorkspace(pinia = createPinia()) {
 describe('ProjectDetailPage progress sharing', () => {
   beforeEach(() => {
     vi.mocked(projectsApi.get).mockReset()
+    vi.mocked(projectsApi.globalStreak).mockReset()
     vi.mocked(projectsApi.statistics).mockReset()
     vi.mocked(copyProgressImage).mockReset()
     vi.mocked(downloadProgressImage).mockReset()
@@ -121,6 +123,12 @@ describe('ProjectDetailPage progress sharing', () => {
       stages: [stage],
     }))
     vi.mocked(projectsApi.statistics).mockResolvedValue(statisticsFixture)
+    vi.mocked(projectsApi.globalStreak).mockResolvedValue({
+      enabled: true,
+      status: 'Go',
+      length: 7,
+      max_length: 18,
+    })
     vi.mocked(copyProgressImage).mockResolvedValue(undefined)
     vi.mocked(downloadProgressImage).mockResolvedValue(undefined)
     vi.mocked(integrationsApi.getProjectSyncs).mockResolvedValue({
@@ -173,6 +181,22 @@ describe('ProjectDetailPage progress sharing', () => {
     }))
   })
 
+  it('shows the global streak even when the opened project has no deadline', async () => {
+    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
+      id: 'project-id',
+      deadline: null,
+      streak_enabled: false,
+    }))
+
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    expect(projectsApi.globalStreak).toHaveBeenCalledOnce()
+    expect(wrapper.get('.detail-streak--global').text()).toContain('7 дн.')
+    expect(wrapper.get('.detail-streak--global').text()).toContain('Максимум: 18')
+    wrapper.unmount()
+  })
+
   it('does not enable a progress card for a goal-free project', async () => {
     vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
       id: 'project-id',
@@ -199,9 +223,9 @@ describe('ProjectDetailPage progress sharing', () => {
     const wrapper = mountWorkspace()
     await flushPromises()
 
-    expect(wrapper.get('.detail-streak').attributes('aria-label')).toContain('Стрик проекта')
-    expect(wrapper.get('.detail-streak').attributes('aria-label')).toContain('7 дн.')
-    expect(wrapper.get('.detail-streak').text()).toContain('Максимум: 11')
+    expect(wrapper.get('.detail-streak--entity').attributes('aria-label')).toContain('Стрик проекта')
+    expect(wrapper.get('.detail-streak--entity').attributes('aria-label')).toContain('7 дн.')
+    expect(wrapper.get('.detail-streak--entity').text()).toContain('Максимум: 11')
   })
 
   it('keeps project sync visible and opens setup for the selected stage', async () => {

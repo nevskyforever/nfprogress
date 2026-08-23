@@ -27,6 +27,7 @@ import ProgressBar from '@/components/ui/ProgressBar.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { apiErrorMessage } from '@/api/client'
 import { integrationsApi } from '@/api/integrations'
+import { projectsApi } from '@/api/projects'
 import { settingsApi } from '@/api/settings'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
 import {
@@ -39,6 +40,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useProjectsStore } from '@/stores/projects'
 import type {
   EntityUpdate,
+  GlobalStreakSummary,
   ProgressCreate,
   Project,
   ProjectUpdate,
@@ -65,6 +67,7 @@ const isStageDetail = computed(() => openedStage.value !== null)
 const presentation = useProjectPresentation(detailEntity)
 const isSharedProject = computed(() => project.value.name === 'Общий проект')
 const streaksEnabled = ref(false)
+const globalStreak = ref<GlobalStreakSummary | null>(null)
 const displayedStreakEntity = computed<Project | null>(() => {
   if (!streaksEnabled.value || !store.currentProject) return null
   if (isStageDetail.value && project.value.deadline === null) {
@@ -139,15 +142,23 @@ async function loadProject(): Promise<void> {
   await store.loadOne(projectId.value)
   chooseAvailableEntity()
   refreshStatistics()
-  await Promise.all([loadSyncSummary(), loadStreakPreference()])
+  await Promise.all([loadSyncSummary(), loadStreakSummaries()])
 }
 
-async function loadStreakPreference(): Promise<void> {
+function enabledSetting(value: unknown): boolean {
+  return value === true || value === 1 || value === 'true' || value === 'True'
+}
+
+async function loadStreakSummaries(): Promise<void> {
   try {
     const settings = await settingsApi.get()
-    streaksEnabled.value = settings.values.global_streak === true
+    streaksEnabled.value = enabledSetting(settings.values.global_streak)
+    globalStreak.value = streaksEnabled.value
+      ? await projectsApi.globalStreak()
+      : null
   } catch {
     streaksEnabled.value = false
+    globalStreak.value = null
   }
 }
 
@@ -537,8 +548,17 @@ onBeforeUnmount(() => store.cancelDetail())
             <div class="fact-card"><IonIcon :icon="documentTextOutline" aria-hidden="true" /><span>{{ t('Записей прогресса') }}</span><strong>{{ locale.formatNumber(detailEntity.progress_entries.length, 0) }}</strong></div>
             <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ presentation.unitLabel }}</strong></div>
             <StreakBadge
+              v-if="globalStreak?.enabled"
+              class="detail-streak detail-streak--global"
+              :length="globalStreak.length"
+              :max-length="globalStreak.max_length"
+              :status="globalStreak.status"
+              scope="global"
+              show-max
+            />
+            <StreakBadge
               v-if="displayedStreakEntity"
-              class="detail-streak"
+              class="detail-streak detail-streak--entity"
               :length="displayedStreakEntity.streak_length"
               :max-length="displayedStreakEntity.max_streak"
               :status="displayedStreakEntity.streak_status"
