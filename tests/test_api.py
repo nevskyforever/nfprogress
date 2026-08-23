@@ -207,6 +207,17 @@ def test_settings_help_locales_and_word_upload(client):
     assert help_response.json()[0]['key'] == 'quick_start'
     assert client.get('/api/content/locales/pt_BR').status_code == 200
 
+    agreement = client.get('/api/content/agreement', params={'language': 'fr'})
+    assert agreement.status_code == 200, agreement.text
+    assert agreement.json()['language'] == 'fr'
+    assert 'ADDITIONAL TERMS OF USE' in agreement.json()['html']
+    accepted = client.post(
+        '/api/settings/user-agreement/accept',
+        json={'agreement_id': agreement.json()['id']},
+    )
+    assert accepted.status_code == 200, accepted.text
+    assert accepted.json()['values']['user_agreement'] is True
+
     upload = client.post(
         '/api/integrations/word/count',
         files={

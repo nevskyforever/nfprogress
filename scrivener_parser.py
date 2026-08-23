@@ -84,60 +84,52 @@ def parse_scrivener_items(xml_path):
     return items
 
 
-def count_symbols_in_scrivener_item(project_path, item_id):
-    """
-    Подсчитывает количество символов в документе Scrivener по его UUID.
-    Ищет папку с именем, равным UUID, внутри Files/Data или Files/Docs,
-    а внутри неё файл Data.rtf (или любой .rtf).
+def find_scrivener_item_files(project_path, item_id):
+    """Return the RTF files backing a Binder item in deterministic order.
 
-    Все UI-сообщения (QMessageBox) удалены, чтобы не блокировать фоновую синхронизацию
-    и не мешать запуску приложения. Ошибки теперь возвращают 0, а уведомления
-    отображаются через NotificationManager в main_UI.py (в _sync_scrivener).
+    Scrivener projects encountered by nfprogress use either ``Files/Docs`` or
+    ``Files/Data``.  Keeping this lookup separate lets callers distinguish an
+    intentionally empty RTF from a stale Binder link whose content directory
+    has disappeared.
     """
     project_path = Path(project_path)
-
-    # Возможные пути к папкам с документами
-    possible_docs_folders = [
-        project_path / 'Files' / 'Docs',
-        project_path / 'Files' / 'Data',
-    ]
-
-    docs_folder = None
-    for folder in possible_docs_folders:
-        if folder.exists():
-            docs_folder = folder
-            break
-
+    docs_folder = next((
+        folder
+        for folder in (
+            project_path / 'Files' / 'Docs',
+            project_path / 'Files' / 'Data',
+        )
+        if folder.exists()
+    ), None)
     if docs_folder is None:
-        # Папка с документами не найдена — молча возвращаем 0
-        # (уведомление покажет _sync_scrivener, если это не фоновая синхронизация)
-        return 0
+        return []
 
-    # Очищаем item_id от возможных фигурных скобок и приводим к нижнему регистру для сравнения
-    clean_id = item_id.strip('{}').lower()
-
-    # Рекурсивно ищем папку, имя которой (без учёта регистра) совпадает с clean_id
+    clean_id = str(item_id).strip('{}').lower()
     target_dir = None
-    for root, dirs, files in os.walk(docs_folder):
-        for d in dirs:
-            if d.lower() == clean_id:
-                target_dir = Path(root) / d
+    for root, dirs, _files in os.walk(docs_folder):
+        for directory in dirs:
+            if directory.lower() == clean_id:
+                target_dir = Path(root) / directory
                 break
-        if target_dir:
+        if target_dir is not None:
             break
+    if target_dir is None:
+        return []
 
-    if not target_dir:
-        # Папка с UUID не найдена — молча возвращаем 0
-        return 0
+    rtf_files = [
+        path for path in target_dir.iterdir()
+        if path.is_file() and path.suffix.lower() == '.rtf'
+    ]
+    return sorted(rtf_files, key=lambda path: path.name.casefold())
 
-    # Ищем внутри папки RTF-файл (обычно Data.rtf)
-    rtf_files = list(target_dir.glob("*.rtf")) + list(target_dir.glob("*.RTF"))
+
+def read_symbols_from_scrivener_item(project_path, item_id):
+    """Count one Binder item's symbols and raise when its RTF is unreadable."""
+    rtf_files = find_scrivener_item_files(project_path, item_id)
     if not rtf_files:
-        # Документ пустой — молча возвращаем 0
-        # (в ручном режиме _sync_scrivener покажет предупреждение)
-        return 0
+        raise FileNotFoundError('Scrivener item content is missing')
 
-    # Пробуем прочитать первый RTF
+    last_error = None
     for rtf_path in rtf_files:
         try:
             # Пробуем разные кодировки
@@ -149,7 +141,8 @@ def count_symbols_in_scrivener_item(project_path, item_id):
                     return len(text)
                 except UnicodeDecodeError:
                     continue
-                except Exception:
+                except Exception as error:
+                    last_error = error
                     continue
 
             # Бинарный режим
@@ -158,9 +151,24 @@ def count_symbols_in_scrivener_item(project_path, item_id):
             text = rtf_to_text(rtf_content)
             return len(text)
 
-        except Exception:
-            # Ошибка чтения конкретного файла — пробуем следующий RTF
+        except Exception as error:
+            last_error = error
             continue
 
-    # Ни один RTF не удалось прочитать
-    return 0
+    raise ValueError('Scrivener item content is unreadable') from last_error
+
+
+def count_symbols_in_scrivener_item(project_path, item_id):
+    """
+    Подсчитывает количество символов в документе Scrivener по его UUID.
+    Ищет папку с именем, равным UUID, внутри Files/Data или Files/Docs,
+    а внутри неё файл Data.rtf (или любой .rtf).
+
+    Все UI-сообщения (QMessageBox) удалены, чтобы не блокировать фоновую синхронизацию
+    и не мешать запуску приложения. Ошибки теперь возвращают 0, а уведомления
+    отображаются через NotificationManager в main_UI.py (в _sync_scrivener).
+    """
+    try:
+        return read_symbols_from_scrivener_item(project_path, item_id)
+    except (OSError, ValueError):
+        return 0

@@ -821,7 +821,8 @@ def test_convert_project_with_stages_to_single_transfers_longest_stage_streak_an
     assert project.streak_status == 'Go'
     assert project.max_streak == 2
     assert project.deadline == second_deadline
-    assert round(project.get_today_goal_value(), 2) == 136.36
+    assert project.total_units == 300
+    assert round(project.get_today_goal_value(), 2) == 409.09
 
 
 def test_active_project_and_stage_report_goal_completed_by_deadline():

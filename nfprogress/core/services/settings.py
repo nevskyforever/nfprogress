@@ -5,7 +5,10 @@ from __future__ import annotations
 from datetime import time
 from typing import Any
 
+import engine
+
 from nfprogress.core.errors import ValidationError
+from nfprogress.core.agreement import AGREEMENT_ID
 from nfprogress.core.serialization import to_json_safe
 from nfprogress.core.services.content import SUPPORTED_LANGUAGES
 
@@ -79,8 +82,90 @@ class SettingsService:
             )
         patch = self._validated_patch(patch)
 
-        self.repository.update_settings(lambda settings: settings.update(patch))
+        if {'inf_project', 'global_streak'} & patch.keys():
+            self._update_project_settings(patch)
+        else:
+            self.repository.update_settings(lambda settings: settings.update(patch))
         return self.get()
+
+    def accept_user_agreement(self, agreement_id: str) -> dict[str, Any]:
+        """Persist the legacy-compatible acceptance after version validation."""
+        if agreement_id != AGREEMENT_ID:
+            raise ValidationError(
+                'Условия использования изменились. Перезагрузите соглашение.',
+            )
+        self.repository.update_settings(
+            lambda settings: settings.update({'user_agreement': True}),
+        )
+        return self.get()
+
+    def _update_project_settings(self, patch: dict[str, Any]) -> None:
+        """Apply settings whose legacy semantics also mutate project storage."""
+        with self.repository.locked():
+            settings = self.repository.read_settings()
+            data = self.repository.read_projects()
+            projects = data.setdefault('projects', {})
+
+            removes_infinite_project = (
+                patch.get('inf_project') is False
+                and any(key in projects for key in ('Общий проект', 'inf_project'))
+            )
+            clears_streaks = (
+                patch.get('global_streak') is False
+                and self._has_streak_state(data)
+            )
+            if removes_infinite_project or clears_streaks:
+                self.repository.create_backup(('data', 'settings'))
+
+            if 'inf_project' in patch:
+                self._set_infinite_project(data, patch['inf_project'])
+            if patch.get('global_streak') is False:
+                self._clear_streaks(data)
+
+            settings.update(patch)
+            self.repository.write_projects(data)
+            self.repository.write_settings(settings)
+
+    @staticmethod
+    def _set_infinite_project(data: dict[str, Any], enabled: bool) -> None:
+        projects = data.setdefault('projects', {})
+        if enabled:
+            legacy_project = projects.pop('inf_project', None)
+            if legacy_project is not None:
+                legacy_project.name = 'Общий проект'
+                projects['Общий проект'] = legacy_project
+            elif 'Общий проект' not in projects:
+                projects['Общий проект'] = engine.Project(
+                    name='Общий проект', goal=float('inf'), progress=100,
+                )
+            return
+        projects.pop('Общий проект', None)
+        projects.pop('inf_project', None)
+
+    @staticmethod
+    def _has_streak_state(data: dict[str, Any]) -> bool:
+        if data.get('global_streaks') or data.get('last_global_streak_bonus'):
+            return True
+        for project in data.get('projects', {}).values():
+            if getattr(project, 'streaks', None):
+                return True
+            if any(getattr(stage, 'streaks', None) for stage in project.stages):
+                return True
+        return False
+
+    @staticmethod
+    def _clear_streaks(data: dict[str, Any]) -> None:
+        data['global_streaks'] = []
+        data['global_streak_status'] = 'No'
+        data['max_global_streak'] = 0
+        data['last_global_streak_bonus'] = None
+        data['last_global_streak_lost_date'] = None
+        for project in data.get('projects', {}).values():
+            project.streaks = []
+            project.streak_status = 'No'
+            for stage in getattr(project, 'stages', []):
+                stage.streaks = []
+                stage.streak_status = 'No'
 
     @staticmethod
     def _validated_patch(patch: dict[str, Any]) -> dict[str, Any]:

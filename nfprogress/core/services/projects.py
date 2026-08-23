@@ -102,7 +102,10 @@ class ProjectService:
             project.set_streak_state(bool(payload.get('streak_enabled', False)))
             for stage_payload in payload.get('stages', []):
                 project.stages.append(self._new_stage(project, stage_payload))
-            project.enable_stages = bool(project.stages)
+            if project.stages:
+                project.enable_stages = True
+            elif bool(payload.get('stages_enabled', False)):
+                project.convert_to_stages()
             project.combine_stage_mindmaps = bool(
                 project.stages and payload.get('combine_stage_mindmaps', False)
             )
@@ -118,6 +121,8 @@ class ProjectService:
     ) -> dict[str, Any]:
         def mutate(data):
             project = self._find_project(data, project_id)
+            if self._is_shared_project(project):
+                raise ValidationError('Общий проект управляется через настройки.')
             self._require_editable(project)
             projects = data['projects']
             old_name = project.name
@@ -138,9 +143,8 @@ class ProjectService:
                 self._convert_entity_unit(project, old_unit, new_unit)
 
             requested_stages = payload.get('stages_enabled')
-            if requested_stages is True and not project.has_stages():
-                project.convert_to_stages()
-            elif requested_stages is False and project.has_stages():
+            convert_to_stages = requested_stages is True and not project.has_stages()
+            if requested_stages is False and project.has_stages():
                 project.convert_to_single()
 
             if 'infinite' in payload or 'goal' in payload:
@@ -168,6 +172,10 @@ class ProjectService:
                     requested_total, new_unit, 'Текущее значение',
                 )
                 project.total_units = requested_total
+            if convert_to_stages:
+                # Apply explicitly submitted single-project values first so
+                # conversion can preserve them in the initial stage.
+                project.convert_to_stages()
             if 'deadline' in payload:
                 project.deadline = self._validated_deadline(payload['deadline'])
             if 'personal_goal' in payload:
@@ -208,6 +216,8 @@ class ProjectService:
     def delete_project(self, project_id: str) -> None:
         def mutate(data):
             project = self._find_project(data, project_id)
+            if self._is_shared_project(project):
+                raise ValidationError('Общий проект можно отключить только в настройках.')
             del data['projects'][project.name]
             if data.get('last') == project.name:
                 data['last'] = None
@@ -217,6 +227,8 @@ class ProjectService:
     def set_project_archived(self, project_id: str, archived: bool) -> dict[str, Any]:
         def mutate(data):
             project = self._find_project(data, project_id)
+            if self._is_shared_project(project):
+                raise ValidationError('Общий проект нельзя архивировать.')
             if project.status == 'завершен':
                 raise ValidationError('Завершённый проект нельзя архивировать или активировать.')
             if archived:
@@ -280,11 +292,25 @@ class ProjectService:
         def mutate(data):
             project = self._find_project(data, project_id)
             self._require_editable(project)
+            shared_project = self._is_shared_project(project)
             if any(stage.name == str(payload.get('name', '')).strip() for stage in project.stages):
                 raise ConflictError('Этап с таким именем уже существует.')
-            if not project.has_stages() and (project.notes or project.total_units):
+            had_legacy_shared_source = bool(
+                shared_project
+                and not project.has_stages()
+                and (project.notes or project.synch is not None)
+            )
+            if not project.has_stages() and (
+                    project.notes or project.total_units or had_legacy_shared_source
+            ):
                 project.convert_to_stages()
-            stage = self._new_stage(project, payload)
+                if had_legacy_shared_source:
+                    project.stages[0]._name = 'Источник 1'
+            stage_payload = dict(payload)
+            if shared_project:
+                stage_payload['infinite'] = True
+                stage_payload.pop('goal', None)
+            stage = self._new_stage(project, stage_payload)
             project.enable_stages = True
             project.stages.append(stage)
             project.edit_date = engine.today_for_test()
@@ -297,6 +323,8 @@ class ProjectService:
     ) -> dict[str, Any]:
         def mutate(data):
             project = self._find_project(data, project_id)
+            if self._is_shared_project(project):
+                raise ValidationError('Источники Общего проекта не редактируются.')
             stage = self._find_stage(project, stage_id)
             self._require_editable(stage)
             old_unit = stage.unit
@@ -358,6 +386,8 @@ class ProjectService:
     def delete_stage(self, project_id: str, stage_id: str) -> None:
         def mutate(data):
             project = self._find_project(data, project_id)
+            if self._is_shared_project(project):
+                raise ValidationError('Источники Общего проекта удаляются только вместе с ним.')
             stage = self._find_stage(project, stage_id)
             project.stages.remove(stage)
             if not project.stages:
@@ -370,10 +400,12 @@ class ProjectService:
     def reorder_stages(self, project_id: str, stage_ids: list[str]) -> dict[str, Any]:
         def mutate(data):
             project = self._find_project(data, project_id)
+            self._require_editable(project)
             existing = {stage.stage_id: stage for stage in project.stages}
             if set(stage_ids) != set(existing) or len(stage_ids) != len(existing):
                 raise ValidationError('Порядок должен содержать каждый этап ровно один раз.')
             project.stages = [existing[stage_id] for stage_id in stage_ids]
+            project.edit_date = engine.today_for_test()
             return serialize_project(project)
 
         return self.repository.update_projects(mutate)
@@ -394,7 +426,9 @@ class ProjectService:
                     )
                 )
                 return self._serialize_stage_with_parent(project, stage)
-            if stage.goal != float('inf') and stage.total_units < stage.goal:
+            if stage.goal == float('inf'):
+                raise ValidationError('Бесконечный этап нельзя завершить по числовой цели.')
+            if stage.total_units < stage.goal:
                 raise ValidationError('Сначала достигните цели этапа.')
             stage.status = 'завершен'
             stage.complete_date = engine.today_for_test()
@@ -419,6 +453,38 @@ class ProjectService:
             new_total: float,
             stage_id: str | None = None,
     ) -> dict[str, Any]:
+        return self._record_progress(
+            project_id,
+            new_total=new_total,
+            stage_id=stage_id,
+            occurred_at=None,
+        )
+
+    def record_synchronized_progress(
+            self,
+            project_id: str,
+            *,
+            new_total: float,
+            source_modified_at: datetime,
+            stage_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Record external-file progress while preserving its trusted mtime."""
+        occurred_at = self._validated_source_modified_at(source_modified_at)
+        return self._record_progress(
+            project_id,
+            new_total=new_total,
+            stage_id=stage_id,
+            occurred_at=occurred_at,
+        )
+
+    def _record_progress(
+            self,
+            project_id: str,
+            *,
+            new_total: float,
+            stage_id: str | None,
+            occurred_at: datetime | None,
+    ) -> dict[str, Any]:
         event: dict[str, Any] = {}
         settings = self.repository.read_settings()
 
@@ -435,6 +501,17 @@ class ProjectService:
             self._ensure_convertible(total, entity.unit, 'Новое общее значение')
             if math.isclose(float(total), float(entity.total_units), abs_tol=0.009):
                 raise ConflictError('Значение не изменилось.')
+            if occurred_at is not None:
+                existing_dates = [
+                    self._local_naive_datetime(note.date_create)
+                    for note in entity.notes
+                    if isinstance(getattr(note, 'date_create', None), datetime)
+                ]
+                if existing_dates and occurred_at < max(existing_dates):
+                    raise ConflictError(
+                        'sync_source_stale',
+                        'Источник синхронизации устарел и не будет применён.',
+                    )
             new_total_symbols = engine.unit_converter(entity.unit, total, 'symbols')
             added_symbols = new_total_symbols - entity.get_total_symbols()
             goal_symbols = entity.get_goal_symbols()
@@ -442,7 +519,12 @@ class ProjectService:
                 0 if goal_symbols in (0, float('inf'))
                 else added_symbols / goal_symbols * 100
             )
-            note = engine.Note(new_total_symbols, added_symbols, added_progress)
+            note = engine.Note(
+                new_total_symbols,
+                added_symbols,
+                added_progress,
+                date_create=occurred_at,
+            )
             entity.set_new_notes(note)
             entity.edit_date = engine.today_for_test()
             entity.get_streak_status()
@@ -508,6 +590,27 @@ class ProjectService:
             'game': game_result,
             'warning': game_warning,
         }
+
+    @classmethod
+    def _validated_source_modified_at(cls, value: Any) -> datetime:
+        if not isinstance(value, datetime):
+            raise ValidationError(
+                'sync_source_timestamp_invalid',
+                'Дата изменения источника синхронизации некорректна.',
+            )
+        normalized = cls._local_naive_datetime(value)
+        if normalized > datetime.now():
+            raise ValidationError(
+                'sync_source_timestamp_invalid',
+                'Дата изменения источника синхронизации некорректна.',
+            )
+        return normalized
+
+    @staticmethod
+    def _local_naive_datetime(value: datetime) -> datetime:
+        if value.tzinfo is not None:
+            return value.astimezone().replace(tzinfo=None)
+        return value
 
     def delete_progress(
             self,
@@ -618,6 +721,10 @@ class ProjectService:
             if getattr(stage, 'stage_id', None) == stage_id:
                 return stage
         raise NotFoundError('Этап не найден.')
+
+    @staticmethod
+    def _is_shared_project(project: engine.Project) -> bool:
+        return not isinstance(project, engine.Stage) and project.name == 'Общий проект'
 
     @staticmethod
     def _require_editable(entity) -> None:
@@ -744,6 +851,15 @@ class ProjectService:
             entity.goal = converted_goal
             entity.total_units = converted_total
             entity.unit = new_unit
+        personal_goal = engine.unit_converter(
+            old_unit,
+            getattr(entity, 'personal_goal_for_the_day', 0),
+            new_unit,
+        )
+        ProjectService._ensure_convertible(
+            personal_goal, new_unit, 'Цель на день',
+        )
+        entity.personal_goal_for_the_day = personal_goal
 
     @staticmethod
     def _ensure_convertible(value: float, unit: str, label: str) -> None:

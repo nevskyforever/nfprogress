@@ -1,11 +1,18 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Response, status
 
 from nfprogress.core.errors import NotFoundError
 
+from ..content_schemas import (
+    MindMapResponse,
+    MindMapUpdateResponse,
+    NoteOrderResponse,
+    NotesListResponse,
+    ProjectNoteResponse,
+)
 from ..dependencies import Services, get_services
 from ..schemas import MindMapPayload, NoteOrder, NotePatch
 
@@ -21,7 +28,7 @@ def _service(services: Services, project_id: str, stage_id: str | None):
     )
 
 
-@router.get('/notes', response_model=dict[str, Any])
+@router.get('/notes', response_model=NotesListResponse)
 def list_notes(
         project_id: str,
         services: Annotated[Services, Depends(get_services)],
@@ -30,7 +37,11 @@ def list_notes(
     return _service(services, project_id, stage_id).load_notes()
 
 
-@router.post('/notes', response_model=dict[str, Any], status_code=status.HTTP_201_CREATED)
+@router.post(
+    '/notes',
+    response_model=ProjectNoteResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 def create_note(
         project_id: str,
         services: Annotated[Services, Depends(get_services)],
@@ -39,7 +50,7 @@ def create_note(
     return _service(services, project_id, stage_id).create_note()
 
 
-@router.get('/notes/{note_id}', response_model=dict[str, Any])
+@router.get('/notes/{note_id}', response_model=ProjectNoteResponse)
 def get_note(
         project_id: str,
         note_id: str,
@@ -52,7 +63,7 @@ def get_note(
     return note
 
 
-@router.patch('/notes/{note_id}', response_model=dict[str, Any])
+@router.patch('/notes/{note_id}', response_model=ProjectNoteResponse)
 def update_note(
         project_id: str,
         note_id: str,
@@ -76,7 +87,7 @@ def delete_note(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.put('/notes/order', response_model=dict[str, Any])
+@router.put('/notes/order', response_model=NoteOrderResponse)
 def update_note_order(
         project_id: str,
         payload: NoteOrder,
@@ -86,7 +97,7 @@ def update_note_order(
     return _service(services, project_id, stage_id).update_order(payload.note_ids)
 
 
-@router.get('/mindmap', response_model=dict[str, Any])
+@router.get('/mindmap', response_model=MindMapResponse)
 def get_mindmap(
         project_id: str,
         services: Annotated[Services, Depends(get_services)],
@@ -95,7 +106,7 @@ def get_mindmap(
     return _service(services, project_id, stage_id).get_mindmap()
 
 
-@router.put('/mindmap', response_model=dict[str, Any])
+@router.put('/mindmap', response_model=MindMapUpdateResponse)
 def update_mindmap(
         project_id: str,
         payload: MindMapPayload,

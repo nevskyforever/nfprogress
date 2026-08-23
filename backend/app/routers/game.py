@@ -1,10 +1,15 @@
 from __future__ import annotations
 
-from typing import Annotated, Any
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
 from ..dependencies import Services, get_services
+from ..game_schemas import (
+    GameCatalogResponse,
+    GameCommandResponse,
+    GameStateResponse,
+)
 from ..schemas import (
     BankCreditOpen,
     BankDepositOpen,
@@ -16,7 +21,6 @@ from ..schemas import (
     CustomAwardCreate,
     CustomAwardUpdate,
     DailyChallengeSelect,
-    GameCommandResponse,
     InventoryCommand,
     MoneyCommand,
     SkillIncrease,
@@ -30,12 +34,12 @@ from ..schemas import (
 router = APIRouter(prefix='/game', tags=['game'])
 
 
-@router.get('/state', response_model=dict[str, Any])
+@router.get('/state', response_model=GameStateResponse)
 def state(services: Annotated[Services, Depends(get_services)]):
     return services.game.get_state()
 
 
-@router.get('/catalog', response_model=dict[str, Any])
+@router.get('/catalog', response_model=GameCatalogResponse)
 def catalog(services: Annotated[Services, Depends(get_services)]):
     return services.game.get_shop_catalog()
 

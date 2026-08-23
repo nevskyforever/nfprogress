@@ -1,11 +1,16 @@
 from __future__ import annotations
 
+import os
+from datetime import datetime, timedelta
 from io import BytesIO
 
 import pytest
 from docx import Document
+from fastapi.testclient import TestClient
 
-from nfprogress.core.errors import ValidationError
+from backend.app.config import RuntimeConfig
+from backend.app.main import create_app
+from nfprogress.core.errors import ConflictError, NotFoundError, ValidationError
 from nfprogress.core.repositories.storage import PickleRepository
 from nfprogress.core.services.integrations import DocumentIntegrationService
 from nfprogress.core.services.projects import ProjectService
@@ -154,3 +159,317 @@ def test_scrivener_inspection_preserves_nested_binder_tree(tmp_path):
             'children': [],
         }],
     }]
+
+
+def test_scrivener_sync_rejects_unknown_or_stale_binder_item(tmp_path):
+    project_path = tmp_path / 'book.scriv'
+    project_path.mkdir()
+    (project_path / 'project.scrivx').write_text(
+        '''<?xml version="1.0" encoding="UTF-8"?>
+        <ScrivenerProject><Binder>
+          <BinderItem UUID="chapter"><Title>Глава</Title></BinderItem>
+        </Binder></ScrivenerProject>''',
+        encoding='utf-8',
+    )
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book', 'goal': 100, 'total': 10, 'unit': 'symbols',
+    })
+    service = DocumentIntegrationService(
+        repository, projects, allow_local_files=True,
+    )
+
+    with pytest.raises(ValidationError, match='не найден в проекте'):
+        service.configure_sync(
+            project['id'], sync_type='scrivener', path=str(project_path),
+            item_id='invented',
+        )
+
+    data = repository.read_projects()
+    stored = next(iter(data['projects'].values()))
+    stored.synch = {
+        'type': 'scrivener', 'path': str(project_path), 'item_id': 'removed',
+    }
+    repository.write_projects(data)
+
+    with pytest.raises(ConflictError) as stale:
+        service.run_sync(project['id'])
+    assert stale.value.code == 'sync_source_stale'
+    assert projects.get_project(project['id'])['total'] == 10
+
+
+def test_direct_sync_uses_upload_rounding_tolerance(tmp_path):
+    path = tmp_path / 'book.docx'
+    path.write_bytes(_docx_bytes('1234567890'))
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book', 'goal': 100, 'unit': 'symbols',
+    })
+    data = repository.read_projects()
+    stored = next(iter(data['projects'].values()))
+    stored.total_units = 10.005
+    repository.write_projects(data)
+    service = DocumentIntegrationService(
+        repository, projects, allow_local_files=True,
+    )
+    service.configure_sync(project['id'], sync_type='word', path=str(path))
+
+    result = service.run_sync(project['id'])
+
+    assert result['changed'] is False
+    assert result['progress'] is None
+    assert projects.get_project(project['id'])['progress_entries'] == []
+
+
+def test_direct_sync_preserves_source_mtime_on_progress_entry(tmp_path):
+    path = tmp_path / 'book.docx'
+    path.write_bytes(_docx_bytes('1234567890'))
+    source_time = datetime.now() - timedelta(hours=2)
+    os.utime(path, (source_time.timestamp(), source_time.timestamp()))
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book', 'goal': 100, 'unit': 'symbols',
+    })
+    service = DocumentIntegrationService(
+        repository, projects, allow_local_files=True,
+    )
+    service.configure_sync(project['id'], sync_type='word', path=str(path))
+
+    result = service.run_sync(project['id'])
+
+    created_at = datetime.fromisoformat(result['progress']['entry']['created_at'])
+    assert abs((created_at - source_time).total_seconds()) < 0.01
+
+
+def test_stale_or_missing_word_source_never_overwrites_progress(tmp_path):
+    path = tmp_path / 'book.docx'
+    path.write_bytes(_docx_bytes('1234567890'))
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book', 'goal': 100, 'unit': 'symbols',
+    })
+    service = DocumentIntegrationService(
+        repository, projects, allow_local_files=True,
+    )
+    service.configure_sync(project['id'], sync_type='word', path=str(path))
+    service.run_sync(project['id'])
+    projects.record_progress(project['id'], new_total=20)
+
+    with pytest.raises(ConflictError) as stale:
+        service.run_sync(project['id'])
+    assert stale.value.code == 'sync_source_stale'
+    assert projects.get_project(project['id'])['total'] == 20
+
+    path.unlink()
+    with pytest.raises(NotFoundError) as missing:
+        service.run_sync(project['id'])
+    assert missing.value.code == 'sync_source_missing'
+    saved = service.get_sync(project['id'])
+    assert saved['configured'] is True
+    assert projects.get_project(project['id'])['total'] == 20
+
+
+def test_future_source_timestamp_is_rejected_without_a_progress_entry(tmp_path):
+    path = tmp_path / 'book.docx'
+    path.write_bytes(_docx_bytes('1234567890'))
+    future = datetime.now() + timedelta(days=1)
+    os.utime(path, (future.timestamp(), future.timestamp()))
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book', 'goal': 100, 'unit': 'symbols',
+    })
+    service = DocumentIntegrationService(
+        repository, projects, allow_local_files=True,
+    )
+    service.configure_sync(project['id'], sync_type='word', path=str(path))
+
+    with pytest.raises(ValidationError) as invalid:
+        service.run_sync(project['id'])
+
+    assert invalid.value.code == 'sync_source_timestamp_invalid'
+    current = projects.get_project(project['id'])
+    assert current['total'] == 0
+    assert current['progress_entries'] == []
+
+
+def test_synchronized_progress_rejects_invalid_or_out_of_order_timestamp(tmp_path):
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book', 'goal': 100, 'unit': 'symbols',
+    })
+    projects.record_progress(project['id'], new_total=10)
+
+    with pytest.raises(ValidationError) as invalid:
+        projects.record_synchronized_progress(
+            project['id'],
+            new_total=20,
+            source_modified_at='not-a-datetime',
+        )
+    assert invalid.value.code == 'sync_source_timestamp_invalid'
+
+    with pytest.raises(ConflictError) as stale:
+        projects.record_synchronized_progress(
+            project['id'],
+            new_total=20,
+            source_modified_at=datetime.now() - timedelta(days=1),
+        )
+    assert stale.value.code == 'sync_source_stale'
+    current = projects.get_project(project['id'])
+    assert current['total'] == 10
+    assert len(current['progress_entries']) == 1
+
+
+def test_scrivener_binder_item_without_content_cannot_reset_progress(tmp_path):
+    project_path = tmp_path / 'book.scriv'
+    project_path.mkdir()
+    (project_path / 'project.scrivx').write_text(
+        '''<?xml version="1.0" encoding="UTF-8"?>
+        <ScrivenerProject><Binder>
+          <BinderItem UUID="chapter"><Title>Глава</Title></BinderItem>
+        </Binder></ScrivenerProject>''',
+        encoding='utf-8',
+    )
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book', 'goal': 100, 'total': 10, 'unit': 'symbols',
+    })
+    service = DocumentIntegrationService(
+        repository, projects, allow_local_files=True,
+    )
+    service.configure_sync(
+        project['id'], sync_type='scrivener', path=str(project_path),
+        item_id='chapter',
+    )
+
+    with pytest.raises(ConflictError) as stale:
+        service.run_sync(project['id'])
+
+    assert stale.value.code == 'sync_source_stale'
+    assert projects.get_project(project['id'])['total'] == 10
+
+
+def test_scrivener_sync_reads_selected_rtf_and_preserves_mtime(tmp_path):
+    project_path = tmp_path / 'book.scriv'
+    content_path = project_path / 'Files' / 'Data' / 'chapter' / 'Data.rtf'
+    content_path.parent.mkdir(parents=True)
+    content_path.write_text(r'{\rtf1\ansi 1234567890}', encoding='utf-8')
+    xml_path = project_path / 'project.scrivx'
+    xml_path.write_text(
+        '''<?xml version="1.0" encoding="UTF-8"?>
+        <ScrivenerProject><Binder>
+          <BinderItem UUID="chapter"><Title>Глава</Title></BinderItem>
+        </Binder></ScrivenerProject>''',
+        encoding='utf-8',
+    )
+    source_time = datetime.now() - timedelta(hours=2)
+    for path in (content_path, xml_path):
+        os.utime(path, (source_time.timestamp(), source_time.timestamp()))
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book', 'goal': 100, 'unit': 'symbols',
+    })
+    service = DocumentIntegrationService(
+        repository, projects, allow_local_files=True,
+    )
+    service.configure_sync(
+        project['id'], sync_type='scrivener', path=str(project_path),
+        item_id='{CHAPTER}',
+    )
+
+    result = service.run_sync(project['id'])
+
+    assert result['changed'] is True
+    assert result['symbols'] == 10
+    created_at = datetime.fromisoformat(result['progress']['entry']['created_at'])
+    assert abs((created_at - source_time).total_seconds()) < 0.01
+
+
+def test_remove_all_syncs_matches_legacy_stage_workflow(tmp_path):
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book',
+        'goal': 200,
+        'unit': 'symbols',
+        'stages': [
+            {'name': 'One', 'goal': 100},
+            {'name': 'Two', 'goal': 100},
+        ],
+    })
+    data = repository.read_projects()
+    stored = next(iter(data['projects'].values()))
+    for stage in stored.stages:
+        stage.synch = {
+            'type': 'word',
+            'path': str(tmp_path / f'{stage.stage_id}.docx'),
+        }
+        stage.last_synch = datetime.now()
+    repository.write_projects(data)
+    service = DocumentIntegrationService(
+        repository, projects, allow_local_files=True,
+    )
+
+    removed = service.remove_all_syncs(project['id'])
+
+    assert removed['removed'] == 2
+    assert len(removed['syncs']) == 3
+    assert all(not item['configured'] for item in removed['syncs'])
+    saved = repository.read_projects()
+    saved_project = next(iter(saved['projects'].values()))
+    assert all(stage.synch is None for stage in saved_project.stages)
+    assert all(stage.last_synch is None for stage in saved_project.stages)
+
+
+def test_sync_errors_and_detach_all_have_typed_api_contracts(tmp_path):
+    path = tmp_path / 'book.docx'
+    path.write_bytes(_docx_bytes('1234567890'))
+    app = create_app(RuntimeConfig(
+        data_dir=tmp_path / 'data',
+        platform='test',
+        allow_local_files=True,
+    ))
+    with TestClient(app) as client:
+        created = client.post('/api/projects', json={
+            'name': 'Book',
+            'goal': 200,
+            'unit': 'symbols',
+            'stages': [
+                {'name': 'One', 'goal': 100},
+                {'name': 'Two', 'goal': 100},
+            ],
+        }).json()
+        for stage in created['stages']:
+            configured = client.put(
+                f"/api/projects/{created['id']}/sync",
+                json={
+                    'type': 'word',
+                    'path': str(path),
+                    'stage_id': stage['id'],
+                },
+            )
+            assert configured.status_code == 200, configured.text
+
+        path.unlink()
+        failed = client.post(
+            f"/api/projects/{created['id']}/sync/run",
+            params={'stage_id': created['stages'][0]['id']},
+        )
+        assert failed.status_code == 404
+        assert failed.json()['detail']['code'] == 'sync_source_missing'
+
+        detached = client.delete(
+            f"/api/projects/{created['id']}/sync/all",
+        )
+        assert detached.status_code == 200, detached.text
+        assert detached.json()['removed'] == 2
+        assert all(
+            not item['configured'] for item in detached.json()['syncs']
+        )

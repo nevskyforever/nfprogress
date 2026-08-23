@@ -1,5 +1,6 @@
 import pytest
 
+import engine
 from nfprogress.core.errors import ValidationError
 from nfprogress.core.repositories.storage import PickleRepository
 from nfprogress.core.services.content import ContentService
@@ -17,6 +18,27 @@ def test_help_uses_canonical_tree_and_explicit_language():
     assert '<html>' in english[0]['content'].lower()
 
 
+def test_locale_api_uses_the_shared_catalog_terminology():
+    service = ContentService()
+
+    assert service.locale('ru')['Исследователь'] == 'Исследователь'
+    assert service.locale('en')['Исследователь'] == 'Explorer'
+    assert service.locale('de')['Редактор'] == 'Lektor'
+
+
+def test_agreement_uses_russian_source_and_shared_english_version():
+    service = ContentService()
+
+    russian = service.agreement('ru')
+    english = service.agreement('en')
+    french = service.agreement('fr')
+
+    assert russian['id'] == english['id'] == french['id']
+    assert 'ДОПОЛНИТЕЛЬНЫЕ УСЛОВИЯ' in russian['html']
+    assert 'ADDITIONAL TERMS OF USE' in english['html']
+    assert french['html'] == english['html']
+
+
 def test_settings_are_platform_aware_and_persisted(tmp_path):
     repository = PickleRepository(tmp_path)
     web = SettingsService(repository, platform='web')
@@ -29,6 +51,20 @@ def test_settings_are_platform_aware_and_persisted(tmp_path):
     assert 'background_synch' not in updated['editable_keys']
 
 
+def test_agreement_acceptance_keeps_the_legacy_boolean(tmp_path):
+    from nfprogress.core.agreement import AGREEMENT_ID
+
+    repository = PickleRepository(tmp_path)
+    service = SettingsService(repository, platform='web')
+
+    response = service.accept_user_agreement(AGREEMENT_ID)
+
+    assert response['values']['user_agreement'] is True
+    assert repository.read_settings()['user_agreement'] is True
+
+    with pytest.raises(ValidationError):
+        service.accept_user_agreement('stale-agreement')
+
 @pytest.mark.parametrize('patch', [
     {'game_mode': 'false'},
     {'notification_display_time': True},
@@ -40,3 +76,26 @@ def test_settings_reject_values_that_change_legacy_truthiness(patch, tmp_path):
 
     with pytest.raises(ValidationError):
         service.update(patch)
+
+
+def test_project_settings_apply_legacy_side_effects_with_backup(tmp_path):
+    repository = PickleRepository(tmp_path)
+    service = SettingsService(repository, platform='web')
+
+    enabled = service.update({'inf_project': True, 'global_streak': True})
+    assert enabled['values']['inf_project'] is True
+    projects = repository.read_projects()
+    infinite = projects['projects']['Общий проект']
+    infinite.streaks = [engine.today_for_test()]
+    projects['global_streaks'] = [engine.today_for_test()]
+    projects['last_global_streak_bonus'] = engine.today_for_test()
+    repository.write_projects(projects)
+
+    disabled = service.update({'inf_project': False, 'global_streak': False})
+
+    assert disabled['values']['inf_project'] is False
+    saved = repository.read_projects()
+    assert 'Общий проект' not in saved['projects']
+    assert saved['global_streaks'] == []
+    assert saved['last_global_streak_bonus'] is None
+    assert any((tmp_path / 'backups').iterdir())

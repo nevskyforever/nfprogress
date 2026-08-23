@@ -27,6 +27,7 @@ class StageCreate(StrictModel):
 
 class ProjectCreate(StageCreate):
     unit: UnitCode = 'symbols'
+    stages_enabled: bool = False
     stages: list[StageCreate] = Field(default_factory=list)
     combine_stage_mindmaps: bool = False
 
@@ -150,6 +151,16 @@ class ArchiveCommand(StrictModel):
 
 class SettingsPatch(StrictModel):
     values: dict[str, Any]
+
+
+class AgreementAcceptance(StrictModel):
+    agreement_id: str
+
+
+class AgreementResponse(BaseModel):
+    id: str
+    language: str
+    html: str
 
 
 class NotePatch(StrictModel):
@@ -278,6 +289,12 @@ class SyncSummaryResponse(BaseModel):
     item_id: str | None
     last_synced_at: str | None
     desktop_only: bool = True
+
+
+class SyncDetachAllResponse(BaseModel):
+    project_id: str
+    removed: int = Field(ge=0)
+    syncs: list[SyncSummaryResponse]
 
 
 class SyncRunResponse(BaseModel):

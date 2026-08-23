@@ -1987,6 +1987,7 @@ class Project:
         self.transfer_longest_stage_streak(stage_with_longest_streak)
 
         goal_symbols = self.get_goal_symbols()
+        total_symbols = self.get_total_symbols()
         self._goal = (
             float('inf')
             if goal_symbols == float('inf')
@@ -1994,18 +1995,29 @@ class Project:
         )
 
         merged = []
-        running_total_symbols = 0
-        for _, note in self.get_notes_with_stage_names():
+        stage_notes = self.get_notes_with_stage_names()
+        # A stage may start with a non-zero value without a progress record.
+        # Keep that baseline so conversion cannot silently reset the total.
+        running_total_symbols = total_symbols - sum(
+            note.get_added_symbols() for _, note in stage_notes
+        )
+        for _, note in stage_notes:
             added_symbols = note.get_added_symbols()
             running_total_symbols += added_symbols
             if goal_symbols == float('inf') or goal_symbols <= 0:
                 added_progress = 0
             else:
                 added_progress = added_symbols / goal_symbols * 100
-            merged.append(Note(running_total_symbols, added_symbols, added_progress, note.date_create))
+            merged.append(Note(
+                running_total_symbols,
+                added_symbols,
+                added_progress,
+                note.date_create,
+                entry_id=getattr(note, 'entry_id', None),
+            ))
 
         self.notes = merged
-        self._total_symbols = unit_converter('symbols', running_total_symbols, self.unit)
+        self._total_symbols = unit_converter('symbols', total_symbols, self.unit)
         self.synch = next((stage.synch for stage in self.stages if stage.synch is not None), None)
         stage_last_synchs = [stage.last_synch for stage in self.stages if stage.last_synch is not None]
         self.last_synch = max(stage_last_synchs) if stage_last_synchs else None

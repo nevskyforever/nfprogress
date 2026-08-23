@@ -6,6 +6,7 @@ from copy import deepcopy
 from typing import Any
 
 from help_content import HELP_SECTIONS, render_help_content
+from nfprogress.core.agreement import AGREEMENT_ID, agreement_html
 from translations_catalog import TRANSLATIONS
 
 
@@ -45,6 +46,15 @@ class ContentService:
     def help(self, language: str = 'ru') -> list[dict[str, Any]]:
         self._validate_language(language)
         return [self._project_help(section, language) for section in HELP_SECTIONS]
+
+    def agreement(self, language: str = 'ru') -> dict[str, str]:
+        """Project the canonical agreement without importing Qt localization."""
+        self._validate_language(language)
+        return {
+            'id': AGREEMENT_ID,
+            'language': language,
+            'html': agreement_html(language),
+        }
 
     def _project_help(self, section: dict[str, Any], language: str) -> dict[str, Any]:
         result = {

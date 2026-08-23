@@ -10,6 +10,7 @@ from ..schemas import (
     ScrivenerItemResponse,
     SyncBatchResponse,
     SyncConfigure,
+    SyncDetachAllResponse,
     SyncRunResponse,
     SyncSummaryResponse,
     WordCountResponse,
@@ -51,6 +52,17 @@ def remove_sync(
         stage_id: str | None = None,
 ):
     return services.integrations.remove_sync(project_id, stage_id=stage_id)
+
+
+@router.delete(
+    '/projects/{project_id}/sync/all',
+    response_model=SyncDetachAllResponse,
+)
+def remove_all_syncs(
+        project_id: str,
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.integrations.remove_all_syncs(project_id)
 
 
 @router.post('/projects/{project_id}/sync/run', response_model=SyncRunResponse)

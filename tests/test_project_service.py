@@ -90,6 +90,95 @@ def test_stage_order_requires_complete_permutation(service):
         service.reorder_stages(project['id'], [first['id']])
 
 
+def test_stage_conversion_preserves_initial_total_history_and_entry_ids(service):
+    project = service.create_project({
+        'name': 'Book', 'goal': 1_000, 'total': 200, 'unit': 'symbols',
+        'stages_enabled': True,
+    })
+
+    assert project['stages_enabled'] is True
+    assert project['total'] == 200
+    assert project['stages'][0]['total'] == 200
+
+    progress = service.record_progress(
+        project['id'], stage_id=project['stages'][0]['id'], new_total=450,
+    )
+    entry_id = progress['entry']['id']
+    converted = service.update_project(project['id'], {'stages_enabled': False})
+
+    assert converted['stages_enabled'] is False
+    assert converted['total'] == 450
+    assert converted['progress_entries'][0]['id'] == entry_id
+    assert converted['progress_entries'][0]['new_total'] == 450
+
+
+def test_unit_conversion_includes_daily_goals(service):
+    project = service.create_project({
+        'name': 'Book',
+        'goal': 80_000,
+        'total': 40_000,
+        'personal_goal': 4_000,
+        'unit': 'symbols',
+        'stages_enabled': True,
+    })
+
+    converted = service.update_project(project['id'], {'unit': 'author_list'})
+
+    assert converted['personal_goal'] == pytest.approx(0.1)
+    assert converted['stages'][0]['personal_goal'] == pytest.approx(0.1)
+    assert converted['stages'][0]['total'] == pytest.approx(1)
+
+
+def test_infinite_stage_cannot_be_completed_and_completed_project_cannot_reorder(service):
+    project = service.create_project({
+        'name': 'Series',
+        'goal': 100,
+        'unit': 'symbols',
+        'stages': [
+            {'name': 'Done', 'goal': 100, 'total': 100},
+            {'name': 'Open', 'infinite': True},
+        ],
+    })
+    infinite_stage = project['stages'][1]
+
+    with pytest.raises(ValidationError, match='Бесконечный этап'):
+        service.complete_stage(project['id'], infinite_stage['id'])
+
+    finite_project = service.create_project({
+        'name': 'Finite',
+        'goal': 100,
+        'unit': 'symbols',
+        'stages': [
+            {'name': 'One', 'goal': 50, 'total': 50},
+            {'name': 'Two', 'goal': 50, 'total': 50},
+        ],
+    })
+    service.complete_project(finite_project['id'])
+    with pytest.raises(ValidationError, match='только для просмотра'):
+        service.reorder_stages(
+            finite_project['id'],
+            [stage['id'] for stage in reversed(finite_project['stages'])],
+        )
+
+
+def test_shared_project_sources_are_infinite_and_lifecycle_is_protected(service):
+    project = service.create_project({
+        'name': 'Общий проект', 'infinite': True, 'unit': 'symbols',
+    })
+    source = service.create_stage(project['id'], {
+        'name': 'Источник 1', 'goal': 500, 'total': 0,
+    })
+
+    assert source['infinite'] is True
+    assert source['goal'] is None
+    with pytest.raises(ValidationError, match='не редактируются'):
+        service.update_stage(project['id'], source['id'], {'name': 'Other'})
+    with pytest.raises(ValidationError, match='только в настройках'):
+        service.delete_project(project['id'])
+    with pytest.raises(ValidationError, match='нельзя архивировать'):
+        service.set_project_archived(project['id'], True)
+
+
 def test_repository_does_not_touch_default_legacy_location(service, monkeypatch):
     monkeypatch.setattr(engine, 'save_data', lambda _data: pytest.fail('legacy save called'))
     project = service.create_project({'name': 'Isolated', 'goal': 100, 'unit': 'symbols'})
