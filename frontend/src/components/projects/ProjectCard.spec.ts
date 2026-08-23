@@ -24,7 +24,7 @@ describe('ProjectCard', () => {
 
     expect(wrapper.get('h2').text()).toBe('Дом у моря')
     expect(wrapper.get('[role="img"]').attributes('aria-label')).toContain('Дом у моря')
-    expect(wrapper.get('[role="img"]').text()).toContain('25%')
+    expect(wrapper.get('[role="img"]').attributes('aria-label')).toContain('25%')
     expect(wrapper.get('a').attributes('aria-label')).toContain('Открыть проект')
   })
 
@@ -40,7 +40,7 @@ describe('ProjectCard', () => {
       },
     })
 
-    expect(wrapper.get('[role="img"]').text()).toContain('100%')
+    expect(wrapper.get('[role="img"]').attributes('aria-label')).toContain('100%')
     expect(wrapper.get('.progress-ring').classes()).not.toContain('progress-ring--infinite')
   })
 })

@@ -22,6 +22,7 @@ import StageDialog from '@/components/projects/StageDialog.vue'
 import StageWorkspace from '@/components/projects/StageWorkspace.vue'
 import StatisticsWorkspace from '@/components/projects/StatisticsWorkspace.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { apiErrorMessage } from '@/api/client'
 import { integrationsApi } from '@/api/integrations'
@@ -498,9 +499,11 @@ onBeforeUnmount(() => store.cancelDetail())
           <section class="progress-hero" :aria-label="t('Прогресс проекта')">
             <div><span>{{ t('Написано') }}</span><strong>{{ presentation.totalLabel }} {{ presentation.unitLabel }}</strong></div>
             <div><span>{{ t('Цель') }}</span><strong>{{ presentation.goalLabel }}</strong></div>
-            <progress v-if="!detailEntity.infinite" :value="presentation.progress" max="100" :aria-label="`${t('Прогресс')}: ${presentation.progressLabel}`">
-              {{ presentation.progressLabel }}
-            </progress>
+            <ProgressBar
+              v-if="!detailEntity.infinite"
+              :value="presentation.progress"
+              :label="`${t('Прогресс')}: ${presentation.progressLabel}`"
+            />
           </section>
 
           <section class="detail-facts" :aria-label="t('Сведения о проекте')">
@@ -591,10 +594,7 @@ onBeforeUnmount(() => store.cancelDetail())
 .progress-hero > div { display: grid; gap: var(--nf-space-1); }
 .progress-hero span { color: var(--nf-color-text-muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
 .progress-hero strong { color: var(--nf-color-text); font-size: clamp(1.1rem, 2.5vw, 1.35rem); }
-.progress-hero progress { grid-column: 1 / -1; width: 100%; height: 0.75rem; overflow: hidden; border: 0; border-radius: var(--nf-radius-pill); appearance: none; }
-.progress-hero progress::-webkit-progress-bar { background: var(--nf-color-surface-muted); }
-.progress-hero progress::-webkit-progress-value { background: var(--nf-color-primary); }
-.progress-hero progress::-moz-progress-bar { background: var(--nf-color-primary); }
+.progress-hero :deep(.progress-bar) { grid-column: 1 / -1; width: 100%; }
 .detail-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--nf-space-3); margin-top: var(--nf-space-4); }
 .fact-card { display: grid; grid-template-columns: auto 1fr; gap: var(--nf-space-1) var(--nf-space-3); padding: var(--nf-space-4); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
 .fact-card ion-icon { grid-row: 1 / 3; align-self: center; color: var(--nf-color-accent); font-size: 1.35rem; }

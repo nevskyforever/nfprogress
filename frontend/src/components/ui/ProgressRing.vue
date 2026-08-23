@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -16,7 +16,7 @@ const normalizedValue = computed(() => Math.min(100, Math.max(0, props.value)))
 const targetValue = computed(() => props.full ? 100 : normalizedValue.value)
 const visualInfinite = computed(() => props.infinite && !props.full)
 const RING_CIRCUMFERENCE = 2 * Math.PI * 46
-const displayedValue = ref(targetValue.value)
+const displayedValue = ref(0)
 const animating = ref(false)
 let animationFrame: number | undefined
 
@@ -77,6 +77,7 @@ watch(visualInfinite, (infinite) => {
   if (infinite) stopAnimation()
   else animateTo(targetValue.value)
 })
+onMounted(() => animateTo(targetValue.value))
 onBeforeUnmount(stopAnimation)
 </script>
 
