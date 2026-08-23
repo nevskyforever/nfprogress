@@ -118,6 +118,8 @@ def test_desktop_batch_sync_isolates_source_failures(tmp_path):
     assert result['changed'] == 1
     assert result['failed'] == 1
     assert [item['ok'] for item in result['items']] == [True, False]
+    assert result['items'][0]['progress']['added_symbols'] == 10
+    assert result['items'][1]['progress'] is None
 
 
 def test_desktop_capabilities_match_background_runtime(tmp_path):
@@ -465,6 +467,7 @@ def test_project_syncs_preserve_legacy_stage_bindings_and_run_them(tmp_path):
     assert result['checked'] == 1
     assert result['failed'] == 0
     assert result['items'][0]['stage_id'] == synced_stage['id']
+    assert result['items'][0]['progress']['added_symbols'] == 10
 
 
 def test_sync_errors_and_detach_all_have_typed_api_contracts(tmp_path):

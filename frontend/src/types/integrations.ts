@@ -29,7 +29,7 @@ export interface SyncRunResult {
   changed: boolean
   symbols: number
   sync: SyncSummary
-  progress: Record<string, unknown> | null
+  progress: ProgressResult | null
 }
 
 export interface ScrivenerItem {
@@ -49,6 +49,7 @@ export interface SyncBatchItem {
   ok: boolean
   changed: boolean
   symbols: number | null
+  progress?: ProgressResult | null
   error: SyncBatchError | null
 }
 

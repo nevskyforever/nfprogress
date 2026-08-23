@@ -25,7 +25,8 @@ import {
 } from '@/platform/files'
 import { currentPlatform } from '@/platform/runtime'
 import { useLocaleStore } from '@/stores/locale'
-import type { Project } from '@/types/api'
+import { useNotificationsStore } from '@/stores/notifications'
+import type { ProgressResult, Project } from '@/types/api'
 import type { PlatformCapabilities } from '@/types/content'
 import type {
   ScrivenerItem,
@@ -37,6 +38,7 @@ import type {
 
 const route = useRoute()
 const locale = useLocaleStore()
+const notifications = useNotificationsStore()
 const t = locale.translate
 const projects = ref<Project[]>([])
 const capabilities = ref<PlatformCapabilities | null>(null)
@@ -81,6 +83,13 @@ const selectedScrivenerTitle = computed(
   () =>
     flattenedScrivenerItems.value.find(({ id }) => id === selectedScrivenerItem.value)?.title ?? '',
 )
+
+function applyGameFeedback(progress: ProgressResult | null): void {
+  const game = progress?.game
+  if (!game) return
+  notifications.setGameHistory(game.state.notifications)
+  for (const message of game.messages) notifications.success(t(message))
+}
 const canConfigure = computed(
   () =>
     localSyncAvailable.value &&
@@ -289,6 +298,7 @@ async function runSync(): Promise<void> {
       selectedStageId.value || null,
     )
     applySyncSummary(result.sync)
+    applyGameFeedback(result.progress)
     success.value = result.changed
       ? t('Синхронизация завершена. Прочитано символов: {count}', {
           count: locale.formatNumber(result.symbols, 0),
@@ -342,6 +352,7 @@ async function runAllSync(): Promise<void> {
       selectedProjectId.value = projects.value[0]?.id ?? ''
     }
     await loadSync()
+    for (const item of result.items) applyGameFeedback(item.progress ?? null)
     batchResult.value = result
   } catch (batchError) {
     operationError.value = t(apiErrorMessage(batchError))

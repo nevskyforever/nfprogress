@@ -266,6 +266,7 @@ class DocumentIntegrationService:
                     'ok': False,
                     'changed': False,
                     'symbols': None,
+                    'progress': None,
                     'error': error.as_dict(),
                 })
                 continue
@@ -276,6 +277,7 @@ class DocumentIntegrationService:
                     'ok': False,
                     'changed': False,
                     'symbols': None,
+                    'progress': None,
                     'error': {
                         'code': 'sync_failed',
                         'message': 'Не удалось прочитать источник синхронизации.',
@@ -290,6 +292,7 @@ class DocumentIntegrationService:
                 'ok': True,
                 'changed': changed,
                 'symbols': int(result['symbols']),
+                'progress': result.get('progress'),
                 'error': None,
             })
         return {

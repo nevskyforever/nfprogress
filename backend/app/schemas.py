@@ -348,6 +348,7 @@ class SyncBatchItemResponse(BaseModel):
     ok: bool
     changed: bool
     symbols: int | None
+    progress: ProgressResult | None = None
     error: SyncErrorResponse | None
 
 

@@ -42,6 +42,7 @@ import type {
   EntityUpdate,
   GlobalStreakSummary,
   ProgressCreate,
+  ProgressResult,
   Project,
   ProjectUpdate,
   StageCreate,
@@ -199,10 +200,11 @@ async function synchronizeProject(): Promise<void> {
     }
     announceSuccess(t('Синхронизация завершена'))
     if (failed?.error?.message) notifications.warning(t(failed.error.message))
+    for (const item of result.items) applyGameFeedback(item.progress?.game ?? null)
     await store.refreshCurrent(project.value.id)
     chooseAvailableEntity()
     refreshStatistics()
-    await loadSyncSummary()
+    await Promise.all([loadSyncSummary(), loadStreakSummaries()])
   } catch (error) {
     store.detailActionError = t(apiErrorMessage(error))
   } finally {
@@ -214,6 +216,12 @@ function announceSuccess(message: string, area: 'global' | 'progress' = 'global'
   feedbackArea.value = area
   actionSuccess.value = message
   notifications.success(message)
+}
+
+function applyGameFeedback(game: ProgressResult['game']): void {
+  if (!game) return
+  notifications.setGameHistory(game.state.notifications)
+  for (const message of game.messages) notifications.success(t(message))
 }
 
 function refreshStatistics(): void {
@@ -393,6 +401,8 @@ async function recordProgress(payload: ProgressCreate): Promise<void> {
   announceSuccess(result.warning
     ? `${t('Прогресс записан')}: ${amount}. ${result.warning}`
     : `${t('Прогресс записан')}: ${amount}`, 'progress')
+  applyGameFeedback(result.game)
+  await loadStreakSummaries()
   refreshStatistics()
 }
 

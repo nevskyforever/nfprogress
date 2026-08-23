@@ -1,3 +1,5 @@
+import type { GameCommandResponse } from './game'
+
 export const PROJECT_STATUSES = ['активен', 'в архиве', 'завершен'] as const
 export const PROJECT_SORTS = ['name', 'deadline', 'progress', 'updated'] as const
 export const UNIT_CODES = ['symbols', 'A4', 'author_list', 'ficbook_pages'] as const
@@ -96,7 +98,7 @@ export interface ProgressResult {
   project: Project
   entry: ProgressEntry
   added_symbols: number
-  game: Record<string, unknown> | null
+  game: GameCommandResponse | null
   warning: string | null
 }
 

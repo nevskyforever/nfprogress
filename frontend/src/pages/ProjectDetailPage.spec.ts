@@ -7,6 +7,7 @@ import { integrationsApi } from '@/api/integrations'
 import { settingsApi } from '@/api/settings'
 import { copyProgressImage, downloadProgressImage } from '@/platform/progressShare'
 import { useNotificationsStore } from '@/stores/notifications'
+import { gameStateFixture } from '@/test/gameFixtures'
 import { projectFixture } from '@/test/fixtures'
 import type { Statistics } from '@/types/api'
 
@@ -30,6 +31,7 @@ vi.mock('@/api/projects', () => ({
   projectsApi: {
     get: vi.fn(),
     globalStreak: vi.fn(),
+    recordProgress: vi.fn(),
     statistics: vi.fn(),
   },
 }))
@@ -71,7 +73,10 @@ function workspaceStubs() {
     IonIcon: true,
     IonPage: { template: '<div><slot /></div>' },
     IonSpinner: true,
-    ProgressWorkspace: true,
+    ProgressWorkspace: {
+      emits: ['record'],
+      template: '<button class="progress-record" type="button" @click="$emit(\'record\', { new_total: 25100 })">record</button>',
+    },
     ProjectEditDialog: true,
     ProgressShareMenu: {
       props: ['label'],
@@ -103,6 +108,7 @@ describe('ProjectDetailPage progress sharing', () => {
   beforeEach(() => {
     vi.mocked(projectsApi.get).mockReset()
     vi.mocked(projectsApi.globalStreak).mockReset()
+    vi.mocked(projectsApi.recordProgress).mockReset()
     vi.mocked(projectsApi.statistics).mockReset()
     vi.mocked(copyProgressImage).mockReset()
     vi.mocked(downloadProgressImage).mockReset()
@@ -197,6 +203,61 @@ describe('ProjectDetailPage progress sharing', () => {
     wrapper.unmount()
   })
 
+  it('shows game reward messages and refreshes notification history after progress', async () => {
+    const nextProject = projectFixture({ id: 'project-id', total: 25_100 })
+    vi.mocked(projectsApi.recordProgress).mockResolvedValue({
+      project: nextProject,
+      entry: {
+        id: 'entry-id',
+        new_total: 25_100,
+        new_total_symbols: 25_100,
+        added: 100,
+        added_symbols: 100,
+        added_progress: 0.1,
+        created_at: '2026-08-23T18:00:00',
+      },
+      added_symbols: 100,
+      warning: null,
+      game: {
+        ok: true,
+        message: 'Получено 138 монет и 1 258 опыта.',
+        messages: [
+          'Получено 138 монет и 1 258 опыта.',
+          'Глобальный стрик продлён: 7 дней.',
+        ],
+        result: { rewarded: true },
+        state: gameStateFixture({
+          notifications: {
+            unread: [{
+              id: 'game-event',
+              text: 'Доступна новая награда.',
+              tag: 'game',
+              created_at: '2026-08-23T18:00:00',
+              status: 'new',
+            }],
+            read: [],
+            unread_count: 1,
+          },
+        }),
+      },
+    })
+    const pinia = createPinia()
+    const wrapper = mountWorkspace(pinia)
+    await flushPromises()
+
+    await wrapper.get('.progress-record').trigger('click')
+    await flushPromises()
+
+    const notificationStore = useNotificationsStore(pinia)
+    expect(notificationStore.notifications).toEqual(expect.arrayContaining([
+      expect.objectContaining({ message: 'Получено 138 монет и 1 258 опыта.' }),
+      expect.objectContaining({ message: 'Глобальный стрик продлён: 7 дней.' }),
+    ]))
+    expect(notificationStore.gameHistory.unread_count).toBe(1)
+    expect(projectsApi.globalStreak).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
   it('does not enable a progress card for a goal-free project', async () => {
     vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
       id: 'project-id',
@@ -258,14 +319,35 @@ describe('ProjectDetailPage progress sharing', () => {
     })
     vi.mocked(integrationsApi.runProjectSyncs).mockResolvedValue({
       checked: 1,
-      changed: 0,
+      changed: 1,
       failed: 0,
       items: [{
         project_id: 'project-id',
         stage_id: 'stage-id',
         ok: true,
-        changed: false,
+        changed: true,
         symbols: 100,
+        progress: {
+          project: projectFixture({ id: 'project-id' }),
+          entry: {
+            id: 'sync-entry',
+            new_total: 100,
+            new_total_symbols: 100,
+            added: 100,
+            added_symbols: 100,
+            added_progress: 1,
+            created_at: '2026-08-23T18:00:00',
+          },
+          added_symbols: 100,
+          warning: null,
+          game: {
+            ok: true,
+            message: 'Получена игровая награда за синхронизацию.',
+            messages: ['Получена игровая награда за синхронизацию.'],
+            result: { rewarded: true },
+            state: gameStateFixture(),
+          },
+        },
         error: null,
       }],
     })
@@ -282,6 +364,10 @@ describe('ProjectDetailPage progress sharing', () => {
     expect(useNotificationsStore(pinia).notifications).toContainEqual(expect.objectContaining({
       kind: 'success',
       message: 'Синхронизация завершена',
+    }))
+    expect(useNotificationsStore(pinia).notifications).toContainEqual(expect.objectContaining({
+      kind: 'success',
+      message: 'Получена игровая награда за синхронизацию.',
     }))
   })
 })
