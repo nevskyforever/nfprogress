@@ -15,6 +15,7 @@ const emit = defineEmits<{
   buy: [payload: InventoryCommand]
   sell: [payload: InventoryCommand]
   use: [payload: InventoryCommand]
+  freeze: []
   inventoryCategory: [category: string]
 }>()
 
@@ -81,6 +82,16 @@ function payload(item: GameItem): InventoryCommand {
     item_id: item.key,
     count: Math.max(1, Math.min(1_000, Math.floor(count.value || 1))),
   }
+}
+
+function isFreeze(item: GameItem): boolean {
+  return item.key === 'Заморозка' || item.name.includes('Заморозка')
+}
+
+function isUsable(item: GameItem): boolean {
+  // Older desktop saves and API responses may omit the explicit flag while
+  // still carrying the function/effect metadata that makes the item usable.
+  return item.usable || Boolean(item.effect) || Boolean(item.buffs?.length)
 }
 </script>
 
@@ -159,13 +170,22 @@ function payload(item: GameItem): InventoryCommand {
             {{ t('Купить') }}
           </button>
           <button
-            v-if="view === 'inventory' && item.usable"
+            v-if="view === 'inventory' && isUsable(item) && !isFreeze(item)"
             class="nf-button"
             type="button"
             :disabled="busy || count > item.count"
             @click="emit('use', payload(item))"
           >
             {{ t('Использовать') }}
+          </button>
+          <button
+            v-if="view === 'inventory' && isFreeze(item)"
+            class="nf-button"
+            type="button"
+            :disabled="busy || item.count < 1"
+            @click="emit('freeze')"
+          >
+            {{ t('Выбрать серию') }}
           </button>
           <button
             v-if="view === 'inventory' && item.sellable"

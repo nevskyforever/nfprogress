@@ -148,6 +148,10 @@ function applyFreeze(target: 'global' | 'project', projectId?: string): void {
   void runCommand(() => gameApi.applyStreakFreeze(target, projectId))
 }
 
+function openFreezeSelector(): void {
+  tab.value = 'overview'
+}
+
 function startSession(payload: WritingSessionStart): void {
   void runCommand(() => gameApi.startWritingSession(payload))
 }
@@ -294,6 +298,7 @@ onBeforeUnmount(() => {
               @buy="(payload) => inventoryCommand('buy', payload)"
               @sell="(payload) => inventoryCommand('sell', payload)"
               @use="(payload) => inventoryCommand('use', payload)"
+              @freeze="openFreezeSelector"
               @inventory-category="persistInventoryCategory"
             />
 

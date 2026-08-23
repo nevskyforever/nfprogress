@@ -30,7 +30,11 @@ export async function pickDesktopScrivenerProject(title: string): Promise<string
     await open({
       title,
       multiple: false,
-      directory: true,
+      // A .scriv project is a directory package on macOS.  The legacy UI
+      // opens it through a file dialog, which lets the user select the package
+      // itself instead of navigating inside it as a plain folder.
+      directory: false,
+      filters: [{ name: 'Scrivener', extensions: ['scriv'] }],
     }),
   )
 }

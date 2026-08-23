@@ -8,6 +8,33 @@ import InventoryShopPanel from './InventoryShopPanel.vue'
 
 const inventory: GameInventory = {
   categories: [
+    {
+      key: 'Предметы',
+      name: 'Предметы',
+      items: [
+        {
+          id: 'Предметы:Лотерейный билет',
+          key: 'Лотерейный билет',
+          category: 'Предметы',
+          name: '🎟️ Лотерейный билет',
+          description: 'Лотерея',
+          effect: 'Испытать удачу',
+          count: 1,
+          sellable: false,
+          usable: false,
+        },
+        {
+          id: 'Предметы:Заморозка',
+          key: 'Заморозка',
+          category: 'Предметы',
+          name: '❄️ Заморозка',
+          description: 'Сохранить серию',
+          count: 1,
+          sellable: true,
+          usable: true,
+        },
+      ],
+    },
     { key: 'Зелья', name: 'Зелья', items: [] },
     { key: 'Награды', name: 'Награды', items: [] },
   ],
@@ -36,5 +63,19 @@ describe('InventoryShopPanel', () => {
     await category.setValue('Зелья')
 
     expect(wrapper.emitted('inventoryCategory')?.[0]).toEqual(['Зелья'])
+  })
+
+  it('shows use for effect items and routes freeze to the streak selector', async () => {
+    const wrapper = mount(InventoryShopPanel, {
+      props: { inventory, shop, busy: false },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(wrapper.findAll('.item-card')).toHaveLength(2)
+    expect(wrapper.get('.item-card').text()).toContain('Использовать')
+    const freezeCard = wrapper.findAll('.item-card')[1]
+    expect(freezeCard?.text()).toContain('Выбрать серию')
+    await freezeCard?.get('button').trigger('click')
+    expect(wrapper.emitted('freeze')).toHaveLength(1)
   })
 })
