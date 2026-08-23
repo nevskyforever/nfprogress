@@ -234,3 +234,29 @@ def test_project_projection_uses_legacy_cumulative_today_goal(monkeypatch):
     assert stage_payload['personal_goal'] == 500
     assert stage_payload['today_goal'] == 2_653
     assert project_payload['today_goal'] == 2_653
+
+
+def test_staged_project_projection_uses_legacy_stage_totals_and_goals():
+    project = engine.Project(name='Роман', goal=9_999, total_symbols=9_999)
+    first_stage = engine.Stage(
+        name='Часть первая',
+        goal=5_000,
+        total_symbols=1_500,
+        parent_project_name=project.name,
+    )
+    second_stage = engine.Stage(
+        name='Часть вторая',
+        goal=7_000,
+        total_symbols=2_100,
+        parent_project_name=project.name,
+    )
+    project.enable_stages = True
+    project.stages = [first_stage, second_stage]
+
+    payload = serialize_project(project)
+
+    # A staged project's headline must match the legacy parent projection: it
+    # is the sum of its stages, not the parent object's obsolete stored values.
+    assert payload['total'] == 3_600
+    assert payload['goal'] == 12_000
+    assert payload['progress'] == 30

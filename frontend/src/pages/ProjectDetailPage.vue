@@ -555,7 +555,7 @@ onBeforeUnmount(() => store.cancelDetail())
 .detail-header { display: flex; gap: var(--nf-space-5); align-items: flex-start; justify-content: space-between; }
 .detail-status { display: inline-flex; margin: 0 0 var(--nf-space-3); padding: 0.35rem 0.7rem; border-radius: var(--nf-radius-pill); background: var(--nf-color-primary-soft); color: var(--nf-color-primary); font-size: 0.75rem; font-weight: 800; }
 .detail-parent { margin: 0 0 var(--nf-space-2); color: var(--nf-color-text-muted); font-size: 0.85rem; font-weight: 700; }
-.detail-header h1 { max-width: 50rem; margin: 0; overflow-wrap: anywhere; color: var(--nf-color-text); font-family: var(--nf-font-serif); font-size: clamp(2.2rem, 7vw, 4.5rem); letter-spacing: -0.045em; line-height: 1; }
+.detail-header h1 { max-width: 50rem; margin: 0; overflow-wrap: anywhere; color: var(--nf-color-text); font-family: var(--nf-font-serif); font-size: clamp(1.8rem, 3.5vw, 2.75rem); letter-spacing: -0.025em; line-height: 1.15; }
 .project-actions { display: flex; flex-wrap: wrap; gap: var(--nf-space-2); margin-top: var(--nf-space-5); }
 .project-sync-button { box-shadow: 0 8px 20px color-mix(in srgb, var(--nf-color-primary) 20%, transparent); }
 .project-delete-button { margin-left: auto; border-color: color-mix(in srgb, var(--nf-color-danger) 35%, transparent); background: transparent; color: var(--nf-color-danger); }

@@ -383,7 +383,7 @@ onBeforeUnmount(() => {
   margin: 0;
   color: var(--nf-color-text);
   font-family: var(--nf-font-serif);
-  font-size: clamp(2.25rem, 6vw, 4rem);
+  font-size: clamp(1.8rem, 3.5vw, 2.75rem);
   font-weight: 650;
   letter-spacing: -0.04em;
 }

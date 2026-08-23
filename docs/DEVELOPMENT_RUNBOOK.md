@@ -170,6 +170,19 @@ npm run test
 npm run build
 ```
 
+Для browser-проверок установлен Playwright. Один раз на каждой машине загрузите
+управляемый Chromium, затем запускайте будущие browser-сценарии из того же
+каталога:
+
+```bash
+npx playwright install chromium
+npx playwright test
+```
+
+`npm run test` проверяет Vue-компоненты, а Playwright предназначен для
+сквозных сценариев в реальном Chromium. Перед такими сценариями должен быть
+запущен FastAPI backend с изолированными developer-данными.
+
 Готовый Web-frontend появится в `frontend/dist`. Для размещения в интернете
 нужны отдельный FastAPI-сервер, HTTPS и настройка хоста, который отдаёт
 `index.html` для маршрутов Vue Router.

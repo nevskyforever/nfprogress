@@ -4,21 +4,8 @@ import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue
 import { addOutline, closeOutline, trashOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
+import { NOTE_COLORS } from './noteColors'
 import type { NoteChecklistItem, ProjectNote, ProjectNotePatch } from '@/types/notes'
-
-const NOTE_COLORS = [
-  { value: 'default', label: 'Обычный' },
-  { value: 'coral', label: 'Коралловый' },
-  { value: 'orange', label: 'Оранжевый' },
-  { value: 'yellow', label: 'Жёлтый' },
-  { value: 'green', label: 'Зелёный' },
-  { value: 'teal', label: 'Бирюзовый' },
-  { value: 'blue', label: 'Синий' },
-  { value: 'purple', label: 'Фиолетовый' },
-  { value: 'pink', label: 'Розовый' },
-  { value: 'brown', label: 'Коричневый' },
-  { value: 'gray', label: 'Серый' },
-] as const
 
 const props = withDefaults(
   defineProps<{

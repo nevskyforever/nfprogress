@@ -1,6 +1,6 @@
 :root {
-  --nf-font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --nf-font-serif: Iowan Old Style, Charter, "Bitstream Charter", "Sitka Text", Georgia, serif;
+  --nf-font-sans: Arial, "Helvetica Neue", Helvetica, sans-serif;
+  --nf-font-serif: var(--nf-font-sans);
 
   --nf-space-1: 0.25rem;
   --nf-space-2: 0.5rem;
@@ -15,58 +15,62 @@
   --nf-radius-lg: 1.4rem;
   --nf-radius-pill: 999px;
 
-  --nf-color-canvas: #f7f5ef;
-  --nf-color-surface: #fffdf8;
+  --nf-color-canvas: #f5f5f7;
+  --nf-color-surface: #ffffff;
   --nf-color-surface-raised: #ffffff;
-  --nf-color-surface-muted: #eeece5;
-  --nf-color-text: #1e2925;
-  --nf-color-text-muted: #66726d;
-  --nf-color-border: #dcded7;
-  --nf-color-primary: #41665a;
-  --nf-color-primary-hover: #315449;
-  --nf-color-primary-soft: #e1ece7;
-  --nf-color-accent: #bb704f;
-  --nf-color-success: #2f765b;
-  --nf-color-warning: #9a6222;
-  --nf-color-danger: #a43f3f;
-  --nf-color-focus: #136fba;
-  --nf-shadow-card: 0 12px 35px rgb(43 55 50 / 8%);
+  --nf-color-surface-muted: #f0f1f4;
+  --nf-color-text: #202124;
+  --nf-color-text-muted: #687078;
+  --nf-color-border: #c7c9ce;
+  --nf-color-primary: #4263eb;
+  --nf-color-primary-hover: #364fc7;
+  --nf-color-primary-soft: #e8ecff;
+  --nf-color-accent: #4263eb;
+  --nf-color-progress: #2568ac;
+  --nf-color-progress-track: #e6ebef;
+  --nf-color-success: #4caf50;
+  --nf-color-warning: #ff9800;
+  --nf-color-danger: #f44336;
+  --nf-color-focus: #1264d1;
+  --nf-shadow-card: 0 2px 7px rgb(0 0 0 / 15%);
 
   --ion-font-family: var(--nf-font-sans);
   --ion-background-color: var(--nf-color-canvas);
   --ion-text-color: var(--nf-color-text);
-  --ion-color-primary: #41665a;
-  --ion-color-primary-rgb: 65, 102, 90;
+  --ion-color-primary: #4263eb;
+  --ion-color-primary-rgb: 66, 99, 235;
   --ion-color-primary-contrast: #ffffff;
   --ion-color-primary-contrast-rgb: 255, 255, 255;
-  --ion-color-primary-shade: #395a4f;
-  --ion-color-primary-tint: #547568;
+  --ion-color-primary-shade: #3a57ce;
+  --ion-color-primary-tint: #5573ed;
 }
 
 :root[data-theme='dark'] {
-  --nf-color-canvas: #171b1a;
-  --nf-color-surface: #1e2422;
-  --nf-color-surface-raised: #252c29;
-  --nf-color-surface-muted: #2c3431;
-  --nf-color-text: #edf2ef;
-  --nf-color-text-muted: #aebbb6;
-  --nf-color-border: #3b4541;
-  --nf-color-primary: #83b6a4;
-  --nf-color-primary-hover: #9fc9ba;
-  --nf-color-primary-soft: #2a443b;
-  --nf-color-accent: #e39a76;
-  --nf-color-success: #7fc1a4;
-  --nf-color-warning: #e1b16e;
-  --nf-color-danger: #f19494;
-  --nf-color-focus: #77b9f1;
+  --nf-color-canvas: #202124;
+  --nf-color-surface: #292b30;
+  --nf-color-surface-raised: #303238;
+  --nf-color-surface-muted: #383b42;
+  --nf-color-text: #f1f3f4;
+  --nf-color-text-muted: #bdc1c6;
+  --nf-color-border: #5f6368;
+  --nf-color-primary: #8da2fb;
+  --nf-color-primary-hover: #b6c2ff;
+  --nf-color-primary-soft: #303d7d;
+  --nf-color-accent: #aab8ff;
+  --nf-color-progress: #8ab4f8;
+  --nf-color-progress-track: #4a5058;
+  --nf-color-success: #81c995;
+  --nf-color-warning: #fbbc04;
+  --nf-color-danger: #f28b82;
+  --nf-color-focus: #8ab4f8;
   --nf-shadow-card: 0 16px 40px rgb(0 0 0 / 20%);
 
   --ion-background-color: var(--nf-color-canvas);
   --ion-text-color: var(--nf-color-text);
-  --ion-color-primary: #83b6a4;
-  --ion-color-primary-rgb: 131, 182, 164;
-  --ion-color-primary-contrast: #14201c;
-  --ion-color-primary-contrast-rgb: 20, 32, 28;
-  --ion-color-primary-shade: #74a090;
-  --ion-color-primary-tint: #90bdad;
+  --ion-color-primary: #8da2fb;
+  --ion-color-primary-rgb: 141, 162, 251;
+  --ion-color-primary-contrast: #202124;
+  --ion-color-primary-contrast-rgb: 32, 33, 36;
+  --ion-color-primary-shade: #7c8fdd;
+  --ion-color-primary-tint: #9aaefc;
 }

@@ -107,6 +107,10 @@ async function toggleArchive(note: ProjectNote): Promise<void> {
   await workspace.updateNote(note.id, { archived: !note.archived })
 }
 
+async function setNoteColor(note: ProjectNote, color: string): Promise<void> {
+  await workspace.updateNote(note.id, { color })
+}
+
 async function deleteNote(note: ProjectNote): Promise<void> {
   const confirmed = window.confirm(
     t('Удалить заметку «{name}»? Это действие нельзя отменить.', {
@@ -275,6 +279,7 @@ onBeforeUnmount(workspace.invalidate)
               @edit="editingNote = $event"
               @toggle-pin="togglePin"
               @toggle-archive="toggleArchive"
+              @set-color="setNoteColor"
               @delete="deleteNote"
               @move-up="moveNote($event, -1)"
               @move-down="moveNote($event, 1)"
@@ -370,7 +375,7 @@ onBeforeUnmount(workspace.invalidate)
   margin-top: var(--nf-space-2);
   color: var(--nf-color-text);
   font-family: var(--nf-font-serif);
-  font-size: clamp(2.25rem, 6vw, 4.25rem);
+  font-size: clamp(1.8rem, 3.5vw, 2.75rem);
   letter-spacing: -0.04em;
   line-height: 1;
   overflow-wrap: anywhere;

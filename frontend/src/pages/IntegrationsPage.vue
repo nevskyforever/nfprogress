@@ -682,7 +682,7 @@ onMounted(loadPage)
 .integrations-header h1 {
   margin: 0;
   font-family: var(--nf-font-serif);
-  font-size: clamp(2.2rem, 6vw, 3.8rem);
+  font-size: clamp(1.8rem, 3.5vw, 2.75rem);
   letter-spacing: -0.04em;
 }
 

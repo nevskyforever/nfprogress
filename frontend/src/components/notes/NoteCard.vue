@@ -1,17 +1,19 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { IonIcon } from '@ionic/vue'
 import {
   archiveOutline,
   arrowDownOutline,
   arrowUpOutline,
   createOutline,
+  colorPaletteOutline,
   locateOutline,
   pinOutline,
   trashOutline,
 } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
+import { NOTE_COLORS, type NoteColor } from './noteColors'
 import type { ProjectNote } from '@/types/notes'
 
 const props = withDefaults(
@@ -36,10 +38,12 @@ const emit = defineEmits<{
   moveUp: [note: ProjectNote]
   moveDown: [note: ProjectNote]
   openMap: [note: ProjectNote]
+  setColor: [note: ProjectNote, color: NoteColor]
 }>()
 
 const locale = useLocaleStore()
 const t = locale.translate
+const colorPaletteOpen = ref(false)
 
 const preview = computed(() => {
   if (props.note.source_type === 'mindmap' || props.note.content_format === 'plain') {
@@ -53,6 +57,11 @@ const preview = computed(() => {
 const title = computed(
   () => props.note.display_title.trim() || props.note.title.trim() || t('Без названия'),
 )
+
+function selectColor(color: NoteColor): void {
+  colorPaletteOpen.value = false
+  if (color !== props.note.color) emit('setColor', props.note, color)
+}
 </script>
 
 <template>
@@ -103,6 +112,34 @@ const title = computed(
       </time>
 
       <div class="note-card__actions">
+        <div class="note-card__color-control">
+          <button
+            class="icon-button note-card__color-toggle"
+            type="button"
+            :aria-label="t('Цвет заметки')"
+            :aria-expanded="colorPaletteOpen"
+            :disabled="disabled || note.read_only"
+            @click="colorPaletteOpen = !colorPaletteOpen"
+          >
+            <IonIcon :icon="colorPaletteOutline" aria-hidden="true" />
+            <span class="note-card__color-current" :data-color="note.color" aria-hidden="true" />
+          </button>
+          <div v-if="colorPaletteOpen" class="note-card__palette" role="group" :aria-label="t('Цвет заметки')">
+            <button
+              v-for="color in NOTE_COLORS"
+              :key="color.value"
+              class="note-card__swatch"
+              type="button"
+              :class="{ 'is-selected': note.color === color.value }"
+              :data-color="color.value"
+              :aria-label="t(color.label)"
+              :aria-pressed="note.color === color.value"
+              @click="selectColor(color.value)"
+            >
+              <span aria-hidden="true">✓</span>
+            </button>
+          </div>
+        </div>
         <button
           v-if="note.source_type === 'mindmap'"
           class="icon-button"
@@ -164,7 +201,6 @@ const title = computed(
 
 <style scoped>
 .note-card {
-  --note-accent: var(--nf-color-border);
   --note-paper: var(--nf-color-surface);
   position: relative;
   display: grid;
@@ -173,36 +209,26 @@ const title = computed(
   min-height: 18rem;
   overflow: hidden;
   padding: var(--nf-space-5);
-  border: 1px solid color-mix(in srgb, var(--note-accent) 48%, var(--nf-color-border));
-  border-top: 0.38rem solid var(--note-accent);
+  border: 1px solid color-mix(in srgb, var(--nf-color-border) 85%, #0000);
   border-radius: var(--nf-radius-sm);
   background: var(--note-paper);
-  box-shadow: 0 10px 26px rgb(43 55 50 / 10%);
+  box-shadow: var(--nf-shadow-card);
   transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
-.note-card::after {
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 1.5rem;
-  height: 1.5rem;
-  background: linear-gradient(135deg, color-mix(in srgb, var(--note-accent) 18%, transparent) 50%, var(--nf-color-canvas) 51%);
-  content: '';
-}
+.note-card:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgb(0 0 0 / 24%); }
 
-.note-card:hover { transform: translateY(-2px); box-shadow: 0 16px 34px rgb(43 55 50 / 15%); }
-
-.note-card[data-color='coral'] { --note-accent: #d96c60; --note-paper: color-mix(in srgb, #d96c60 9%, var(--nf-color-surface)); }
-.note-card[data-color='orange'] { --note-accent: #d98a48; --note-paper: color-mix(in srgb, #d98a48 10%, var(--nf-color-surface)); }
-.note-card[data-color='yellow'] { --note-accent: #c9a83d; --note-paper: color-mix(in srgb, #f0cd55 20%, var(--nf-color-surface)); }
-.note-card[data-color='green'] { --note-accent: #5b9970; --note-paper: color-mix(in srgb, #5b9970 9%, var(--nf-color-surface)); }
-.note-card[data-color='teal'] { --note-accent: #4c9a98; --note-paper: color-mix(in srgb, #4c9a98 9%, var(--nf-color-surface)); }
-.note-card[data-color='blue'] { --note-accent: #568dcc; --note-paper: color-mix(in srgb, #568dcc 9%, var(--nf-color-surface)); }
-.note-card[data-color='purple'] { --note-accent: #826cb7; --note-paper: color-mix(in srgb, #826cb7 9%, var(--nf-color-surface)); }
-.note-card[data-color='pink'] { --note-accent: #c5729b; --note-paper: color-mix(in srgb, #c5729b 9%, var(--nf-color-surface)); }
-.note-card[data-color='brown'] { --note-accent: #92715b; --note-paper: color-mix(in srgb, #92715b 9%, var(--nf-color-surface)); }
-.note-card[data-color='gray'] { --note-accent: #7d8783; --note-paper: color-mix(in srgb, #7d8783 8%, var(--nf-color-surface)); }
+.note-card[data-color='coral'] { --note-paper: #f6c5bd; }
+.note-card[data-color='orange'] { --note-paper: #f7d2a6; }
+.note-card[data-color='yellow'] { --note-paper: #f7e6a4; }
+.note-card[data-color='green'] { --note-paper: #cde7c6; }
+.note-card[data-color='teal'] { --note-paper: #bde6df; }
+.note-card[data-color='blue'] { --note-paper: #c6ddf2; }
+.note-card[data-color='purple'] { --note-paper: #dccdf0; }
+.note-card[data-color='pink'] { --note-paper: #efcadc; }
+.note-card[data-color='brown'] { --note-paper: #dccdbf; }
+.note-card[data-color='gray'] { --note-paper: #d7d9dd; }
+.note-card:not([data-color='default']) { color: #202124; }
 
 .note-card--archived {
   opacity: 0.78;
@@ -308,6 +334,27 @@ const title = computed(
   flex-wrap: wrap;
   justify-content: flex-end;
 }
+
+.note-card__color-control { position: relative; }
+.note-card__color-toggle { position: relative; }
+.note-card__color-current { position: absolute; right: 0.35rem; bottom: 0.35rem; width: 0.45rem; height: 0.45rem; border: 1px solid rgb(32 33 36 / 48%); border-radius: 50%; background: var(--nf-color-surface); }
+.note-card__color-current[data-color='default'], .note-card__swatch[data-color='default'] { --note-color: var(--nf-color-surface); }
+.note-card__color-current[data-color='coral'], .note-card__swatch[data-color='coral'] { --note-color: #f6c5bd; }
+.note-card__color-current[data-color='orange'], .note-card__swatch[data-color='orange'] { --note-color: #f7d2a6; }
+.note-card__color-current[data-color='yellow'], .note-card__swatch[data-color='yellow'] { --note-color: #f7e6a4; }
+.note-card__color-current[data-color='green'], .note-card__swatch[data-color='green'] { --note-color: #cde7c6; }
+.note-card__color-current[data-color='teal'], .note-card__swatch[data-color='teal'] { --note-color: #bde6df; }
+.note-card__color-current[data-color='blue'], .note-card__swatch[data-color='blue'] { --note-color: #c6ddf2; }
+.note-card__color-current[data-color='purple'], .note-card__swatch[data-color='purple'] { --note-color: #dccdf0; }
+.note-card__color-current[data-color='pink'], .note-card__swatch[data-color='pink'] { --note-color: #efcadc; }
+.note-card__color-current[data-color='brown'], .note-card__swatch[data-color='brown'] { --note-color: #dccdbf; }
+.note-card__color-current[data-color='gray'], .note-card__swatch[data-color='gray'] { --note-color: #d7d9dd; }
+.note-card__color-current, .note-card__swatch { background: var(--note-color); }
+.note-card__palette { position: absolute; z-index: 2; right: 0; bottom: calc(100% + var(--nf-space-2)); display: grid; grid-template-columns: repeat(6, 2rem); gap: 0.4rem; padding: var(--nf-space-3); border: 1px solid rgb(50 50 50 / 12%); border-radius: var(--nf-radius-sm); background: color-mix(in srgb, var(--nf-color-surface) 94%, transparent); box-shadow: var(--nf-shadow-card); }
+.note-card__swatch { display: grid; width: 2rem; height: 2rem; padding: 0; place-items: center; border: 1px solid rgb(32 33 36 / 48%); border-radius: 50%; color: #202124; cursor: pointer; }
+.note-card__swatch span { opacity: 0; font-weight: 800; }
+.note-card__swatch.is-selected { box-shadow: 0 0 0 2px var(--nf-color-focus); }
+.note-card__swatch.is-selected span { opacity: 1; }
 
 .icon-button {
   display: inline-grid;

@@ -53,4 +53,26 @@ describe('NoteCard', () => {
     expect(wrapper.find('button[aria-label="Показать заметку на карте"]').exists()).toBe(true)
     expect(wrapper.text()).toContain('#карта')
   })
+
+  it('uses the legacy note palette and emits a color change from the card', async () => {
+    const wrapper = mount(NoteCard, {
+      props: { note: noteFixture({ color: 'yellow' }) },
+      global: {
+        plugins: [createPinia()],
+        stubs: { IonIcon: true },
+      },
+    })
+
+    await wrapper.get('button[aria-label="Цвет заметки"]').trigger('click')
+
+    const swatches = wrapper.findAll('.note-card__swatch')
+    expect(swatches).toHaveLength(11)
+    expect(wrapper.get('.note-card__swatch[data-color="yellow"]').attributes('aria-pressed')).toBe('true')
+
+    await wrapper.get('.note-card__swatch[data-color="blue"]').trigger('click')
+    expect(wrapper.emitted('setColor')?.[0]).toEqual([
+      expect.objectContaining({ id: 'note-id' }),
+      'blue',
+    ])
+  })
 })
