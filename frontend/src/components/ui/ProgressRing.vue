@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 const props = withDefaults(
   defineProps<{
@@ -13,6 +13,8 @@ const props = withDefaults(
 
 const normalizedValue = computed(() => Math.min(100, Math.max(0, props.value)))
 const RING_CIRCUMFERENCE = 2 * Math.PI * 46
+const displayedValue = ref(normalizedValue.value)
+let animationFrame: number | undefined
 
 function legacyProgressColor(progress: number): string {
   const ratio = Math.min(1, Math.max(0, progress / 100))
@@ -25,9 +27,50 @@ function legacyProgressColor(progress: number): string {
 
 const ringStyle = computed(() => ({
   strokeDasharray: `${RING_CIRCUMFERENCE}`,
-  strokeDashoffset: `${RING_CIRCUMFERENCE * (1 - normalizedValue.value / 100)}`,
-  stroke: legacyProgressColor(normalizedValue.value),
+  strokeDashoffset: `${RING_CIRCUMFERENCE * (1 - displayedValue.value / 100)}`,
+  stroke: legacyProgressColor(displayedValue.value),
 }))
+
+function stopAnimation(): void {
+  if (animationFrame !== undefined) cancelAnimationFrame(animationFrame)
+  animationFrame = undefined
+}
+
+function reducedMotion(): boolean {
+  return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+}
+
+function animateTo(target: number): void {
+  stopAnimation()
+  const from = displayedValue.value
+  if (props.infinite || reducedMotion() || Math.abs(target - from) < 0.01) {
+    displayedValue.value = target
+    return
+  }
+
+  const startedAt = performance.now()
+  const duration = 520
+  const tick = (now: number): void => {
+    const progress = Math.min(1, (now - startedAt) / duration)
+    const eased = 1 - (1 - progress) ** 3
+    displayedValue.value = from + (target - from) * eased
+    if (progress < 1) {
+      animationFrame = requestAnimationFrame(tick)
+    } else {
+      displayedValue.value = target
+      animationFrame = undefined
+    }
+  }
+
+  animationFrame = requestAnimationFrame(tick)
+}
+
+watch(normalizedValue, animateTo)
+watch(() => props.infinite, (infinite) => {
+  if (infinite) stopAnimation()
+  else animateTo(normalizedValue.value)
+})
+onBeforeUnmount(stopAnimation)
 </script>
 
 <template>
@@ -48,14 +91,14 @@ const ringStyle = computed(() => ({
         :style="infinite ? undefined : ringStyle"
       />
     </svg>
-    <span aria-hidden="true">{{ infinite ? '∞' : `${Math.round(normalizedValue)}%` }}</span>
+    <span aria-hidden="true">{{ infinite ? '∞' : `${Math.round(displayedValue)}%` }}</span>
   </div>
 </template>
 
 <style scoped>
 .progress-ring {
   --ring-size: 4.75rem;
-  --ring-stroke: 2.15;
+  --ring-stroke: 4.5;
   display: grid;
   position: relative;
   width: var(--ring-size);
@@ -83,7 +126,6 @@ const ringStyle = computed(() => ({
 .progress-ring__track { stroke: var(--nf-color-progress-track); }
 .progress-ring__value {
   stroke: var(--nf-color-progress);
-  transition: stroke-dashoffset 500ms cubic-bezier(0.22, 1, 0.36, 1), stroke 500ms ease;
 }
 .progress-ring__value--infinite { stroke-dasharray: 5 4; }
 
@@ -100,7 +142,7 @@ const ringStyle = computed(() => ({
 
 .progress-ring--large {
   --ring-size: clamp(6.5rem, 11vw, 8rem);
-  --ring-stroke: 1.9;
+  --ring-stroke: 4;
 }
 
 .progress-ring--large span {

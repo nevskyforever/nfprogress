@@ -508,6 +508,17 @@ onBeforeUnmount(() => store.cancelDetail())
             <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ presentation.unitLabel }}</strong></div>
           </section>
 
+          <ProgressWorkspace
+            v-model="selectedEntityId"
+            :project="project"
+            :busy="store.detailBusy"
+            :submitting="store.detailOperation === 'record-progress'"
+            :error="feedbackArea === 'progress' ? store.detailActionError : null"
+            :success="feedbackArea === 'progress' ? actionSuccess : null"
+            :fixed-stage-id="isStageDetail ? detailEntity.id : null"
+            @record="recordProgress"
+            @remove="deleteProgress"
+          />
           <StageWorkspace
             v-if="!isStageDetail"
             :project="project"
@@ -521,17 +532,6 @@ onBeforeUnmount(() => store.cancelDetail())
             @copy="copyStageProgress"
             @save="downloadStageProgress"
             @open="openStage"
-          />
-          <ProgressWorkspace
-            v-model="selectedEntityId"
-            :project="project"
-            :busy="store.detailBusy"
-            :submitting="store.detailOperation === 'record-progress'"
-            :error="feedbackArea === 'progress' ? store.detailActionError : null"
-            :success="feedbackArea === 'progress' ? actionSuccess : null"
-            :fixed-stage-id="isStageDetail ? detailEntity.id : null"
-            @record="recordProgress"
-            @remove="deleteProgress"
           />
           <StatisticsWorkspace
             v-model:entity-id="statisticsEntityId"
