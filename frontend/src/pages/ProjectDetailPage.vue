@@ -411,9 +411,10 @@ onBeforeUnmount(() => store.cancelDetail())
             </div>
             <ProgressRing
               size="large"
-              :value="presentation.progress"
+              :value="isSharedProject && detailEntity.infinite ? 100 : presentation.progress"
               :infinite="detailEntity.infinite"
-              :label="`${t('Прогресс')}: ${presentation.progressLabel}`"
+              :full="isSharedProject && detailEntity.infinite"
+              :label="`${t('Прогресс')}: ${isSharedProject && detailEntity.infinite ? '100%' : presentation.progressLabel}`"
             />
           </header>
 

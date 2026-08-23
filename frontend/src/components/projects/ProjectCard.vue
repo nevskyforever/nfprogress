@@ -26,7 +26,7 @@ const isOverdue = computed(() => {
 const progressAriaLabel = computed(() =>
   t('Прогресс проекта {name}: {progress}', {
     name: props.project.name,
-    progress: presentation.progressLabel,
+    progress: props.project.name === 'Общий проект' ? '100%' : presentation.progressLabel,
   }),
 )
 </script>
@@ -47,6 +47,7 @@ const progressAriaLabel = computed(() =>
         <ProgressRing
           :value="presentation.progress"
           :infinite="project.infinite"
+          :full="project.name === 'Общий проект'"
           :label="progressAriaLabel"
         />
         <div class="project-card__summary">

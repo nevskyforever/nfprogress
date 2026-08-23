@@ -27,4 +27,20 @@ describe('ProjectCard', () => {
     expect(wrapper.get('[role="img"]').text()).toContain('25%')
     expect(wrapper.get('a').attributes('aria-label')).toContain('Открыть проект')
   })
+
+  it('keeps the shared project ring filled as in the legacy desktop UI', () => {
+    const wrapper = mount(ProjectCard, {
+      props: { project: projectFixture({ name: 'Общий проект', infinite: true, goal: null }) },
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonIcon: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+
+    expect(wrapper.get('[role="img"]').text()).toContain('100%')
+    expect(wrapper.get('.progress-ring').classes()).not.toContain('progress-ring--infinite')
+  })
 })

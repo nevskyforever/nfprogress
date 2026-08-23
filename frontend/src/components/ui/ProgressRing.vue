@@ -6,14 +6,18 @@ const props = withDefaults(
     value: number
     label: string
     infinite?: boolean
+    full?: boolean
     size?: 'small' | 'large'
   }>(),
-  { infinite: false, size: 'small' },
+  { infinite: false, full: false, size: 'small' },
 )
 
 const normalizedValue = computed(() => Math.min(100, Math.max(0, props.value)))
+const targetValue = computed(() => props.full ? 100 : normalizedValue.value)
+const visualInfinite = computed(() => props.infinite && !props.full)
 const RING_CIRCUMFERENCE = 2 * Math.PI * 46
-const displayedValue = ref(normalizedValue.value)
+const displayedValue = ref(targetValue.value)
+const animating = ref(false)
 let animationFrame: number | undefined
 
 function legacyProgressColor(progress: number): string {
@@ -34,6 +38,7 @@ const ringStyle = computed(() => ({
 function stopAnimation(): void {
   if (animationFrame !== undefined) cancelAnimationFrame(animationFrame)
   animationFrame = undefined
+  animating.value = false
 }
 
 function reducedMotion(): boolean {
@@ -43,13 +48,14 @@ function reducedMotion(): boolean {
 function animateTo(target: number): void {
   stopAnimation()
   const from = displayedValue.value
-  if (props.infinite || reducedMotion() || Math.abs(target - from) < 0.01) {
+  if (visualInfinite.value || reducedMotion() || Math.abs(target - from) < 0.01) {
     displayedValue.value = target
     return
   }
 
   const startedAt = performance.now()
-  const duration = 520
+  const duration = 680
+  animating.value = true
   const tick = (now: number): void => {
     const progress = Math.min(1, (now - startedAt) / duration)
     const eased = 1 - (1 - progress) ** 3
@@ -59,16 +65,17 @@ function animateTo(target: number): void {
     } else {
       displayedValue.value = target
       animationFrame = undefined
+      animating.value = false
     }
   }
 
   animationFrame = requestAnimationFrame(tick)
 }
 
-watch(normalizedValue, animateTo)
-watch(() => props.infinite, (infinite) => {
+watch(targetValue, animateTo)
+watch(visualInfinite, (infinite) => {
   if (infinite) stopAnimation()
-  else animateTo(normalizedValue.value)
+  else animateTo(targetValue.value)
 })
 onBeforeUnmount(stopAnimation)
 </script>
@@ -76,7 +83,7 @@ onBeforeUnmount(stopAnimation)
 <template>
   <div
     class="progress-ring"
-    :class="[`progress-ring--${size}`, { 'progress-ring--infinite': infinite }]"
+    :class="[`progress-ring--${size}`, { 'progress-ring--infinite': visualInfinite, 'progress-ring--animating': animating }]"
     role="img"
     :aria-label="label"
   >
@@ -84,21 +91,21 @@ onBeforeUnmount(stopAnimation)
       <circle class="progress-ring__track" cx="50" cy="50" r="46" />
       <circle
         class="progress-ring__value"
-        :class="{ 'progress-ring__value--infinite': infinite }"
+        :class="{ 'progress-ring__value--infinite': visualInfinite }"
         cx="50"
         cy="50"
         r="46"
-        :style="infinite ? undefined : ringStyle"
+        :style="visualInfinite ? undefined : ringStyle"
       />
     </svg>
-    <span aria-hidden="true">{{ infinite ? '∞' : `${Math.round(displayedValue)}%` }}</span>
+    <span aria-hidden="true">{{ visualInfinite ? '∞' : `${Math.round(displayedValue)}%` }}</span>
   </div>
 </template>
 
 <style scoped>
 .progress-ring {
   --ring-size: 4.75rem;
-  --ring-stroke: 4.5;
+  --ring-stroke: 7.5;
   display: grid;
   position: relative;
   width: var(--ring-size);
@@ -116,6 +123,10 @@ onBeforeUnmount(stopAnimation)
   transform: rotate(-90deg);
 }
 
+.progress-ring--animating .progress-ring__svg {
+  animation: progress-ring-pulse 680ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 .progress-ring__track,
 .progress-ring__value {
   fill: none;
@@ -130,7 +141,7 @@ onBeforeUnmount(stopAnimation)
 .progress-ring__value--infinite { stroke-dasharray: 5 4; }
 
 @media (prefers-reduced-motion: reduce) {
-  .progress-ring__value { transition: none; }
+  .progress-ring--animating .progress-ring__svg { animation: none; }
 }
 
 .progress-ring span {
@@ -142,11 +153,17 @@ onBeforeUnmount(stopAnimation)
 
 .progress-ring--large {
   --ring-size: clamp(6.5rem, 11vw, 8rem);
-  --ring-stroke: 4;
+  --ring-stroke: 6.5;
 }
 
 .progress-ring--large span {
   font-size: clamp(1.35rem, 2.7vw, 1.85rem);
+}
+
+@keyframes progress-ring-pulse {
+  0% { filter: drop-shadow(0 0 0 transparent); transform: rotate(-90deg) scale(1); }
+  45% { filter: drop-shadow(0 0 0.35rem color-mix(in srgb, var(--nf-color-primary) 32%, transparent)); transform: rotate(-90deg) scale(1.035); }
+  100% { filter: drop-shadow(0 0 0 transparent); transform: rotate(-90deg) scale(1); }
 }
 
 </style>

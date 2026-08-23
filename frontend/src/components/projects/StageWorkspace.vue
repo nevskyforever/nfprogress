@@ -113,8 +113,9 @@ function move(index: number, offset: -1 | 1): void {
               </p>
             </div>
             <ProgressRing
-              :value="stageProgress(stage)"
+              :value="sharedProject && stage.infinite ? 100 : stageProgress(stage)"
               :infinite="stage.infinite"
+              :full="sharedProject && stage.infinite"
               :label="`${t('Прогресс этапа')} ${stage.name}: ${stage.infinite ? t('Без лимита') : `${locale.formatNumber(stageProgress(stage), 1)}%`}`"
             />
           </div>
