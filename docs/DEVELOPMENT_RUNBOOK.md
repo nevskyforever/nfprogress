@@ -4,6 +4,24 @@
 переходном этапе: legacy-интерфейс на PySide6 продолжает быть release-версией,
 а новый интерфейс работает как Vue/Ionic-клиент поверх FastAPI.
 
+## Откуда запускать команды
+
+Все команды ниже предполагают, что текущая папка терминала — **корень
+репозитория**, то есть папка, где одновременно находятся `main_UI.py`,
+`frontend/` и `scripts/`. Если терминал открыт, например, в `docs/`, сначала
+выполните:
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+```
+
+Проверка должна вывести путь, содержащий `frontend/package-lock.json` и
+`scripts/build-backend-sidecar.py`:
+
+```bash
+pwd
+```
+
 ## Как устроено приложение
 
 ```text
@@ -145,6 +163,7 @@ npm run build
 платформу:
 
 ```bash
+cd "$(git rev-parse --show-toplevel)"
 python3 -m pip install nuitka
 python3 scripts/build-backend-sidecar.py
 cd frontend
