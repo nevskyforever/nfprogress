@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { projectsApi } from '@/api/projects'
+import { integrationsApi } from '@/api/integrations'
 import { shareProgressImage } from '@/platform/progressShare'
 import { useNotificationsStore } from '@/stores/notifications'
 import { projectFixture } from '@/test/fixtures'
@@ -10,9 +11,18 @@ import type { Statistics } from '@/types/api'
 
 import ProjectDetailPage from './ProjectDetailPage.vue'
 
+const pushRoute = vi.fn()
+
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { projectId: 'project-id' } }),
-  useRouter: () => ({ replace: vi.fn() }),
+  useRouter: () => ({ replace: vi.fn(), push: pushRoute }),
+}))
+
+vi.mock('@/api/integrations', () => ({
+  integrationsApi: {
+    getSync: vi.fn(),
+    runSync: vi.fn(),
+  },
 }))
 
 vi.mock('@/api/projects', () => ({
@@ -53,6 +63,7 @@ function workspaceStubs() {
     IonContent: { template: '<div><slot /></div>' },
     IonIcon: true,
     IonPage: { template: '<div><slot /></div>' },
+    IonSpinner: true,
     ProgressWorkspace: true,
     ProjectEditDialog: true,
     RouterLink: { template: '<a><slot /></a>' },
@@ -81,6 +92,9 @@ describe('ProjectDetailPage progress sharing', () => {
     vi.mocked(projectsApi.get).mockReset()
     vi.mocked(projectsApi.statistics).mockReset()
     vi.mocked(shareProgressImage).mockReset()
+    vi.mocked(integrationsApi.getSync).mockReset()
+    vi.mocked(integrationsApi.runSync).mockReset()
+    pushRoute.mockReset()
     const stage = projectFixture({
       id: 'stage-id',
       name: 'Глава 3',
@@ -95,6 +109,16 @@ describe('ProjectDetailPage progress sharing', () => {
     }))
     vi.mocked(projectsApi.statistics).mockResolvedValue(statisticsFixture)
     vi.mocked(shareProgressImage).mockResolvedValue('clipboard')
+    vi.mocked(integrationsApi.getSync).mockResolvedValue({
+      project_id: 'project-id',
+      stage_id: 'stage-id',
+      configured: false,
+      type: null,
+      path: null,
+      item_id: null,
+      last_synced_at: null,
+      desktop_only: true,
+    })
   })
 
   it('creates cards locally for both a project and its selected stage', async () => {
@@ -133,5 +157,19 @@ describe('ProjectDetailPage progress sharing', () => {
     const shareButton = wrapper.get('button[aria-label*="Поделиться прогрессом"]')
     expect(shareButton.attributes('disabled')).toBeDefined()
     expect(shareProgressImage).not.toHaveBeenCalled()
+  })
+
+  it('keeps project sync visible and opens setup for the selected stage', async () => {
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    await wrapper.get('.project-sync-button').trigger('click')
+    await flushPromises()
+
+    expect(integrationsApi.getSync).toHaveBeenCalledWith('project-id', 'stage-id')
+    expect(pushRoute).toHaveBeenCalledWith({
+      name: 'integrations',
+      query: { projectId: 'project-id', stageId: 'stage-id' },
+    })
   })
 })

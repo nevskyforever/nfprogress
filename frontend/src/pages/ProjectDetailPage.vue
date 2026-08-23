@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { IonContent, IonIcon, IonPage } from '@ionic/vue'
+import { IonContent, IonIcon, IonPage, IonSpinner } from '@ionic/vue'
 import {
   alertCircleOutline,
   archiveOutline,
@@ -22,6 +22,9 @@ import StageDialog from '@/components/projects/StageDialog.vue'
 import StageWorkspace from '@/components/projects/StageWorkspace.vue'
 import StatisticsWorkspace from '@/components/projects/StatisticsWorkspace.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
+import ProgressRing from '@/components/ui/ProgressRing.vue'
+import { apiErrorMessage } from '@/api/client'
+import { integrationsApi } from '@/api/integrations'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
 import { progressShareTitle, shareProgressImage } from '@/platform/progressShare'
 import { useLocaleStore } from '@/stores/locale'
@@ -34,6 +37,7 @@ import type {
   ProjectUpdate,
   StageCreate,
 } from '@/types/api'
+import type { SyncSummary } from '@/types/integrations'
 
 const route = useRoute()
 const router = useRouter()
@@ -53,6 +57,12 @@ const statisticsEntityId = ref('')
 const actionSuccess = ref<string | null>(null)
 const feedbackArea = ref<'global' | 'progress'>('global')
 const sharingProgress = ref(false)
+const syncSummary = ref<SyncSummary | null>(null)
+const syncLoading = ref(false)
+const syncRunning = ref(false)
+let syncRequestSequence = 0
+
+const selectedSyncStageId = computed(() => selectedEntityId.value || null)
 
 const canCompleteProject = computed(() => {
   if (!store.currentProject || project.value.status === 'завершен') return false
@@ -89,6 +99,53 @@ async function loadProject(): Promise<void> {
   await store.loadOne(projectId.value)
   chooseAvailableEntity()
   refreshStatistics()
+  await loadSyncSummary()
+}
+
+async function loadSyncSummary(): Promise<void> {
+  if (!store.currentProject) return
+  const sequence = ++syncRequestSequence
+  syncLoading.value = true
+  try {
+    const summary = await integrationsApi.getSync(project.value.id, selectedSyncStageId.value)
+    if (sequence === syncRequestSequence) syncSummary.value = summary
+  } catch {
+    if (sequence === syncRequestSequence) syncSummary.value = null
+  } finally {
+    if (sequence === syncRequestSequence) syncLoading.value = false
+  }
+}
+
+async function synchronizeProject(): Promise<void> {
+  feedbackArea.value = 'global'
+  actionSuccess.value = null
+  if (!syncSummary.value?.configured) {
+    await router.push({
+      name: 'integrations',
+      query: {
+        projectId: project.value.id,
+        ...(selectedSyncStageId.value ? { stageId: selectedSyncStageId.value } : {}),
+      },
+    })
+    return
+  }
+  syncRunning.value = true
+  try {
+    const result = await integrationsApi.runSync(project.value.id, selectedSyncStageId.value)
+    syncSummary.value = result.sync
+    actionSuccess.value = result.changed
+      ? t('Синхронизация завершена. Прочитано символов: {count}', {
+          count: locale.formatNumber(result.symbols, 0),
+        })
+      : t('Документ не изменился. Текущий объём уже актуален.')
+    await store.loadOne(project.value.id)
+    chooseAvailableEntity()
+    refreshStatistics()
+  } catch (error) {
+    store.detailActionError = t(apiErrorMessage(error))
+  } finally {
+    syncRunning.value = false
+  }
 }
 
 function refreshStatistics(): void {
@@ -248,6 +305,7 @@ watch(statisticsEntityId, () => {
   actionSuccess.value = null
   refreshStatistics()
 })
+watch(selectedEntityId, () => { void loadSyncSummary() })
 
 onBeforeUnmount(() => store.cancelDetail())
 </script>
@@ -282,14 +340,26 @@ onBeforeUnmount(() => store.cancelDetail())
               <p class="detail-status">{{ presentation.statusLabel }}</p>
               <h1>{{ project.name }}</h1>
             </div>
-            <div class="detail-progress-number">
-              <strong v-if="!project.infinite">{{ presentation.progressLabel }}</strong>
-              <strong v-else :aria-label="t('Проект без конечной цели')">∞</strong>
-              <span>{{ t('общий прогресс') }}</span>
-            </div>
+            <ProgressRing
+              size="large"
+              :value="presentation.progress"
+              :infinite="project.infinite"
+              :label="`${t('Прогресс')}: ${presentation.progressLabel}`"
+            />
           </header>
 
           <nav class="project-actions" :aria-label="t('Действия проекта')">
+            <button
+              v-if="project.status !== 'завершен' && !isSharedProject"
+              class="nf-button project-sync-button"
+              type="button"
+              :disabled="syncLoading || syncRunning"
+              @click="synchronizeProject"
+            >
+              <IonSpinner v-if="syncLoading || syncRunning" name="crescent" aria-hidden="true" />
+              <IonIcon v-else :icon="refreshOutline" aria-hidden="true" />
+              {{ syncSummary?.configured ? t('Синхронизировать сейчас') : t('Подключить источник') }}
+            </button>
             <RouterLink
               class="nf-button nf-button--secondary"
               :to="{ name: 'project-notes', params: { projectId: project.id } }"
@@ -431,10 +501,8 @@ onBeforeUnmount(() => store.cancelDetail())
 .detail-header { display: flex; gap: var(--nf-space-5); align-items: flex-start; justify-content: space-between; }
 .detail-status { display: inline-flex; margin: 0 0 var(--nf-space-3); padding: 0.35rem 0.7rem; border-radius: var(--nf-radius-pill); background: var(--nf-color-primary-soft); color: var(--nf-color-primary); font-size: 0.75rem; font-weight: 800; }
 .detail-header h1 { max-width: 50rem; margin: 0; overflow-wrap: anywhere; color: var(--nf-color-text); font-family: var(--nf-font-serif); font-size: clamp(2.2rem, 7vw, 4.5rem); letter-spacing: -0.045em; line-height: 1; }
-.detail-progress-number { display: grid; min-width: 8rem; padding-top: var(--nf-space-4); text-align: right; }
-.detail-progress-number strong { color: var(--nf-color-accent); font-family: var(--nf-font-serif); font-size: clamp(2rem, 5vw, 3.25rem); line-height: 1; }
-.detail-progress-number span { margin-top: var(--nf-space-1); color: var(--nf-color-text-muted); font-size: 0.75rem; }
 .project-actions { display: flex; flex-wrap: wrap; gap: var(--nf-space-2); margin-top: var(--nf-space-5); }
+.project-sync-button { box-shadow: 0 8px 20px color-mix(in srgb, var(--nf-color-primary) 20%, transparent); }
 .project-delete-button { margin-left: auto; border-color: color-mix(in srgb, var(--nf-color-danger) 35%, transparent); background: transparent; color: var(--nf-color-danger); }
 .project-delete-button:hover:not(:disabled) { background: color-mix(in srgb, var(--nf-color-danger) 10%, transparent); }
 .action-announcements { min-height: 1.25rem; margin-top: var(--nf-space-3); }
@@ -457,7 +525,7 @@ onBeforeUnmount(() => store.cancelDetail())
 
 @media (max-width: 42rem) {
   .detail-header { display: grid; }
-  .detail-progress-number { display: flex; gap: var(--nf-space-2); align-items: baseline; padding-top: 0; text-align: left; }
+  .detail-header :deep(.progress-ring) { justify-self: start; }
   .project-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .project-delete-button { margin-left: 0; }
   .detail-facts { grid-template-columns: 1fr; }

@@ -248,16 +248,17 @@ onBeforeUnmount(workspace.invalidate)
               <input v-model="showArchived" type="checkbox" />
               <span>{{ t('Показывать архив') }}</span>
             </label>
-            <button
-              class="nf-button"
-              type="button"
-              :disabled="workspace.readOnly.value || workspace.mutating.value"
-              @click="createNote"
-            >
-              <IonIcon :icon="addOutline" aria-hidden="true" />
-              {{ t('Новая заметка') }}
-            </button>
           </div>
+
+          <button
+            class="new-note-button"
+            type="button"
+            :disabled="workspace.readOnly.value || workspace.mutating.value"
+            @click="createNote"
+          >
+            <IonIcon :icon="addOutline" aria-hidden="true" />
+            <span>{{ t('Новая заметка') }}</span>
+          </button>
 
           <p v-if="workspace.readOnly.value" class="read-only-notice">
             {{ t('Заметки завершённого проекта доступны только для просмотра.') }}
@@ -439,10 +440,31 @@ onBeforeUnmount(workspace.invalidate)
 
 .notes-toolbar {
   display: grid;
-  grid-template-columns: minmax(14rem, 1fr) auto auto;
+  grid-template-columns: minmax(14rem, 1fr) auto;
   gap: var(--nf-space-3);
   align-items: center;
 }
+
+.new-note-button {
+  display: flex;
+  gap: var(--nf-space-2);
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 3.25rem;
+  padding: var(--nf-space-3) var(--nf-space-5);
+  border: 1px solid color-mix(in srgb, var(--nf-color-primary) 45%, var(--nf-color-border));
+  border-radius: var(--nf-radius-sm);
+  background: linear-gradient(135deg, var(--nf-color-primary), color-mix(in srgb, var(--nf-color-primary) 76%, var(--nf-color-accent)));
+  color: white;
+  font-size: 1rem;
+  font-weight: 800;
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--nf-color-primary) 22%, transparent);
+  cursor: pointer;
+}
+
+.new-note-button:hover:not(:disabled) { filter: brightness(1.06); }
+.new-note-button:disabled { opacity: 0.45; cursor: not-allowed; }
 
 .notes-search {
   display: grid;

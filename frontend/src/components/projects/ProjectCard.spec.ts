@@ -23,8 +23,8 @@ describe('ProjectCard', () => {
     })
 
     expect(wrapper.get('h2').text()).toBe('Дом у моря')
-    expect(wrapper.get('progress').attributes('value')).toBe('25')
-    expect(wrapper.get('progress').attributes('aria-label')).toContain('Дом у моря')
+    expect(wrapper.get('[role="img"]').attributes('aria-label')).toContain('Дом у моря')
+    expect(wrapper.get('[role="img"]').text()).toContain('25%')
     expect(wrapper.get('a').attributes('aria-label')).toContain('Открыть проект')
   })
 })

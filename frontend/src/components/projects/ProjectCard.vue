@@ -4,6 +4,7 @@ import { IonIcon } from '@ionic/vue'
 import { calendarClearOutline, layersOutline } from 'ionicons/icons'
 
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
+import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
 
@@ -42,27 +43,25 @@ const progressAriaLabel = computed(() =>
         <span v-if="project.infinite" class="project-card__kind">∞ {{ t('Без лимита') }}</span>
       </div>
 
-      <div class="project-card__title-row">
-        <h2>{{ project.name }}</h2>
-        <span class="project-card__open" aria-hidden="true">↗</span>
+      <div class="project-card__body">
+        <ProgressRing
+          :value="presentation.progress"
+          :infinite="project.infinite"
+          :label="progressAriaLabel"
+        />
+        <div class="project-card__summary">
+          <div class="project-card__title-row">
+            <h2>{{ project.name }}</h2>
+            <span class="project-card__open" aria-hidden="true">↗</span>
+          </div>
+          <div class="project-card__progress-copy">
+            <span>
+              <strong>{{ presentation.totalLabel }}</strong>
+              <span> / {{ presentation.goalLabel }} {{ presentation.unitLabel }}</span>
+            </span>
+          </div>
+        </div>
       </div>
-
-      <div class="project-card__progress-copy">
-        <span>
-          <strong>{{ presentation.totalLabel }}</strong>
-          <span> / {{ presentation.goalLabel }} {{ presentation.unitLabel }}</span>
-        </span>
-        <strong v-if="!project.infinite">{{ presentation.progressLabel }}</strong>
-      </div>
-      <progress
-        v-if="!project.infinite"
-        :value="presentation.progress"
-        max="100"
-        :aria-label="progressAriaLabel"
-      >
-        {{ presentation.progressLabel }}
-      </progress>
-      <div v-else class="project-card__infinite-rule" aria-hidden="true" />
 
       <footer class="project-card__meta">
         <span :class="{ 'project-card__deadline--overdue': isOverdue }">
@@ -156,7 +155,19 @@ const progressAriaLabel = computed(() =>
 .project-card__title-row {
   gap: var(--nf-space-3);
   align-items: flex-start;
-  margin: var(--nf-space-5) 0 var(--nf-space-6);
+  margin: 0 0 var(--nf-space-3);
+}
+
+.project-card__body {
+  display: flex;
+  gap: var(--nf-space-4);
+  align-items: center;
+  margin-top: var(--nf-space-5);
+}
+
+.project-card__summary {
+  min-width: 0;
+  flex: 1;
 }
 
 .project-card h2 {
@@ -189,42 +200,6 @@ const progressAriaLabel = computed(() =>
   font-size: 0.95rem;
 }
 
-.project-card progress {
-  width: 100%;
-  height: 0.5rem;
-  overflow: hidden;
-  border: 0;
-  border-radius: var(--nf-radius-pill);
-  appearance: none;
-}
-
-.project-card progress::-webkit-progress-bar {
-  border-radius: var(--nf-radius-pill);
-  background: var(--nf-color-surface-muted);
-}
-
-.project-card progress::-webkit-progress-value {
-  border-radius: var(--nf-radius-pill);
-  background: var(--nf-color-primary);
-}
-
-.project-card progress::-moz-progress-bar {
-  border-radius: var(--nf-radius-pill);
-  background: var(--nf-color-primary);
-}
-
-.project-card__infinite-rule {
-  height: 0.5rem;
-  border-radius: var(--nf-radius-pill);
-  background: repeating-linear-gradient(
-    110deg,
-    var(--nf-color-primary-soft),
-    var(--nf-color-primary-soft) 0.5rem,
-    var(--nf-color-surface-muted) 0.5rem,
-    var(--nf-color-surface-muted) 1rem
-  );
-}
-
 .project-card__meta {
   gap: var(--nf-space-3);
   margin-top: auto;
@@ -251,8 +226,8 @@ const progressAriaLabel = computed(() =>
     padding-left: calc(var(--nf-space-4) + 0.25rem);
   }
 
-  .project-card__title-row {
-    margin: var(--nf-space-4) 0 var(--nf-space-5);
+  .project-card__body {
+    align-items: flex-start;
   }
 }
 </style>

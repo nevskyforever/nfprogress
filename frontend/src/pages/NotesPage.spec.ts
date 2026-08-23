@@ -63,5 +63,6 @@ describe('NotesPage', () => {
     expect(wrapper.text()).toContain('Первая встреча')
     expect(wrapper.get('[role="tablist"]').attributes('aria-label')).toBe('Заметки и карта')
     expect(wrapper.get('input[type="search"]').attributes('placeholder')).toBe('Поиск по заметкам')
+    expect(wrapper.get('.new-note-button').text()).toBe('Новая заметка')
   })
 })

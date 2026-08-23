@@ -165,27 +165,44 @@ const title = computed(
 <style scoped>
 .note-card {
   --note-accent: var(--nf-color-border);
+  --note-paper: var(--nf-color-surface);
+  position: relative;
   display: grid;
   gap: var(--nf-space-4);
   min-width: 0;
+  min-height: 18rem;
+  overflow: hidden;
   padding: var(--nf-space-5);
-  border: 1px solid var(--nf-color-border);
-  border-top: 0.35rem solid var(--note-accent);
-  border-radius: var(--nf-radius-md);
-  background: var(--nf-color-surface);
-  box-shadow: var(--nf-shadow-card);
+  border: 1px solid color-mix(in srgb, var(--note-accent) 48%, var(--nf-color-border));
+  border-top: 0.38rem solid var(--note-accent);
+  border-radius: var(--nf-radius-sm);
+  background: var(--note-paper);
+  box-shadow: 0 10px 26px rgb(43 55 50 / 10%);
+  transition: transform 160ms ease, box-shadow 160ms ease;
 }
 
-.note-card[data-color='coral'] { --note-accent: #d96c60; }
-.note-card[data-color='orange'] { --note-accent: #d98a48; }
-.note-card[data-color='yellow'] { --note-accent: #c9a83d; }
-.note-card[data-color='green'] { --note-accent: #5b9970; }
-.note-card[data-color='teal'] { --note-accent: #4c9a98; }
-.note-card[data-color='blue'] { --note-accent: #568dcc; }
-.note-card[data-color='purple'] { --note-accent: #826cb7; }
-.note-card[data-color='pink'] { --note-accent: #c5729b; }
-.note-card[data-color='brown'] { --note-accent: #92715b; }
-.note-card[data-color='gray'] { --note-accent: #7d8783; }
+.note-card::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 1.5rem;
+  height: 1.5rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--note-accent) 18%, transparent) 50%, var(--nf-color-canvas) 51%);
+  content: '';
+}
+
+.note-card:hover { transform: translateY(-2px); box-shadow: 0 16px 34px rgb(43 55 50 / 15%); }
+
+.note-card[data-color='coral'] { --note-accent: #d96c60; --note-paper: color-mix(in srgb, #d96c60 9%, var(--nf-color-surface)); }
+.note-card[data-color='orange'] { --note-accent: #d98a48; --note-paper: color-mix(in srgb, #d98a48 10%, var(--nf-color-surface)); }
+.note-card[data-color='yellow'] { --note-accent: #c9a83d; --note-paper: color-mix(in srgb, #f0cd55 20%, var(--nf-color-surface)); }
+.note-card[data-color='green'] { --note-accent: #5b9970; --note-paper: color-mix(in srgb, #5b9970 9%, var(--nf-color-surface)); }
+.note-card[data-color='teal'] { --note-accent: #4c9a98; --note-paper: color-mix(in srgb, #4c9a98 9%, var(--nf-color-surface)); }
+.note-card[data-color='blue'] { --note-accent: #568dcc; --note-paper: color-mix(in srgb, #568dcc 9%, var(--nf-color-surface)); }
+.note-card[data-color='purple'] { --note-accent: #826cb7; --note-paper: color-mix(in srgb, #826cb7 9%, var(--nf-color-surface)); }
+.note-card[data-color='pink'] { --note-accent: #c5729b; --note-paper: color-mix(in srgb, #c5729b 9%, var(--nf-color-surface)); }
+.note-card[data-color='brown'] { --note-accent: #92715b; --note-paper: color-mix(in srgb, #92715b 9%, var(--nf-color-surface)); }
+.note-card[data-color='gray'] { --note-accent: #7d8783; --note-paper: color-mix(in srgb, #7d8783 8%, var(--nf-color-surface)); }
 
 .note-card--archived {
   opacity: 0.78;
@@ -209,6 +226,7 @@ const title = computed(
   font-family: var(--nf-font-serif);
   font-size: 1.35rem;
   overflow-wrap: anywhere;
+  white-space: pre-line;
 }
 
 .note-card__pin-label,
@@ -275,6 +293,7 @@ const title = computed(
 
 .note-card__footer {
   align-items: center;
+  margin-top: auto;
   padding-top: var(--nf-space-3);
   border-top: 1px solid var(--nf-color-border);
 }

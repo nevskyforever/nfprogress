@@ -13,6 +13,7 @@ describe('NoteCard', () => {
         note: noteFixture({
           content: '<p>Тайна <strong>старого маяка</strong></p>',
           pinned: true,
+          color: 'yellow',
         }),
         canMoveDown: true,
       },
@@ -23,6 +24,7 @@ describe('NoteCard', () => {
     })
 
     expect(wrapper.text()).toContain('Тайна старого маяка')
+    expect(wrapper.get('article').attributes('data-color')).toBe('yellow')
     expect(wrapper.text()).not.toContain('<strong>')
     const pinButton = wrapper.get('button[aria-label="Открепить заметку"]')
     await pinButton.trigger('click')

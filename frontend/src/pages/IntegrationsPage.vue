@@ -94,6 +94,11 @@ function routeProjectId(): string {
   return typeof value === 'string' ? value : ''
 }
 
+function routeStageId(): string {
+  const value = route.query.stageId
+  return typeof value === 'string' ? value : ''
+}
+
 function flattenScrivenerItems(items: ScrivenerItem[]): ScrivenerItem[] {
   return items.flatMap((item) => [item, ...flattenScrivenerItems(item.children)])
 }
@@ -130,9 +135,17 @@ async function loadPage(): Promise<void> {
     const nextProjectId = projectList.some(({ id }) => id === requestedProject)
       ? requestedProject
       : (projectList[0]?.id ?? '')
+    const requestedStage = routeStageId()
+    const nextStageId = projectList
+      .find(({ id }) => id === nextProjectId)
+      ?.stages.some(({ id }) => id === requestedStage)
+      ? requestedStage
+      : ''
     if (selectedProjectId.value === nextProjectId) {
+      selectedStageId.value = nextStageId
       await loadSync()
     } else {
+      selectedStageId.value = nextStageId
       selectedProjectId.value = nextProjectId
     }
   } catch (loadError) {
@@ -351,7 +364,10 @@ function updateImportedProject(project: Project): void {
 }
 
 watch(selectedProjectId, () => {
-  selectedStageId.value = ''
+  const requestedStage = routeStageId()
+  selectedStageId.value = selectedProject.value?.stages.some(({ id }) => id === requestedStage)
+    ? requestedStage
+    : ''
   void loadSync()
 })
 watch(selectedStageId, () => void loadSync())

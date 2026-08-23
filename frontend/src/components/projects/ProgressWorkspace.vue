@@ -105,6 +105,7 @@ watch(
 
     <div class="progress-entry-layout">
       <form class="progress-entry-form" novalidate @submit.prevent="record">
+        <h3>{{ t('Новая запись:') }}</h3>
         <div>
           <span>{{ t('Текущее значение') }}</span>
           <strong>{{ locale.formatNumber(selectedEntity.total, fractionDigits) }}</strong>
@@ -187,12 +188,14 @@ watch(
 .entity-select select { min-height: 2.75rem; padding: 0.55rem 0.75rem; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface); color: var(--nf-color-text); }
 .read-only-note { padding: var(--nf-space-3); border-left: 0.25rem solid var(--nf-color-warning); border-radius: var(--nf-radius-sm); background: color-mix(in srgb, var(--nf-color-warning) 9%, var(--nf-color-surface)); color: var(--nf-color-text); }
 .progress-entry-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr); gap: var(--nf-space-3); align-items: start; }
-.progress-entry-form { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 1.5fr) auto; gap: var(--nf-space-3); align-items: end; padding: var(--nf-space-4); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
+.progress-entry-form { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 1.5fr) auto; gap: var(--nf-space-3); align-items: end; padding: var(--nf-space-4); border: 1px solid color-mix(in srgb, var(--nf-color-primary) 38%, var(--nf-color-border)); border-radius: var(--nf-radius-md); background: linear-gradient(135deg, var(--nf-color-surface), color-mix(in srgb, var(--nf-color-primary-soft) 45%, var(--nf-color-surface))); box-shadow: var(--nf-shadow-card); }
+.progress-entry-form h3 { grid-column: 1 / -1; margin: 0 0 var(--nf-space-1); color: var(--nf-color-primary); font-family: var(--nf-font-serif); font-size: 1.2rem; }
 .progress-entry-form > div,
 .progress-entry-form label { display: grid; gap: var(--nf-space-1); }
 .progress-entry-form span { color: var(--nf-color-text-muted); font-size: 0.75rem; font-weight: 700; }
 .progress-entry-form strong { min-height: 3rem; padding: 0.75rem 0; color: var(--nf-color-text); font-size: 1.15rem; }
 .progress-entry-form input { width: 100%; min-height: 3rem; padding: 0.65rem 0.8rem; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface-raised); color: var(--nf-color-text); }
+.progress-entry-form input:focus-visible { border-color: var(--nf-color-primary); box-shadow: 0 0 0 3px var(--nf-color-primary-soft); outline: 0; }
 .progress-feedback { min-height: 1rem; }
 .progress-feedback p { margin: 0; padding: var(--nf-space-3); border-radius: var(--nf-radius-sm); font-size: 0.85rem; }
 .feedback-error { background: color-mix(in srgb, var(--nf-color-danger) 10%, var(--nf-color-surface)); color: var(--nf-color-danger); }
