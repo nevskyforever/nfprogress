@@ -229,8 +229,8 @@ The project workspace covers search, sorting/filtering, project and stage
 lifecycle, all existing progress units, deadlines, structured statistics,
 browser-native 1080 × 1080 progress-card export, and the optional
 core-calculated all-project writing-day summary. Finite projects and stages use
-the same Canvas renderer; image clipboard writes are attempted only where the
-platform permits them and otherwise fall back to an explicit local PNG download.
+the same Canvas renderer; its menu has separate image-clipboard and local
+PNG-save actions, so one action never silently becomes the other.
 The card is rendered wholly in the client and never sends manuscript or note
 content to the backend. Its own filter
 and sort choices are persisted under explicit frontend UI-state keys, while

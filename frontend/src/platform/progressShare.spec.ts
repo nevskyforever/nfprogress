@@ -2,10 +2,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   drawProgressShareImage,
+  copyProgressImage,
+  downloadProgressImage,
   normalizeProgressSharePercent,
   progressShareColor,
   progressShareTitle,
-  shareProgressImage,
 } from './progressShare'
 
 const initialClipboardDescriptor = Object.getOwnPropertyDescriptor(navigator, 'clipboard')
@@ -15,6 +16,7 @@ function drawingContext(): CanvasRenderingContext2D {
     arc: vi.fn(),
     beginPath: vi.fn(),
     closePath: vi.fn(),
+    drawImage: vi.fn(),
     fill: vi.fn(),
     fillRect: vi.fn(),
     fillText: vi.fn(),
@@ -24,6 +26,18 @@ function drawingContext(): CanvasRenderingContext2D {
     quadraticCurveTo: vi.fn(),
     stroke: vi.fn(),
   } as unknown as CanvasRenderingContext2D
+}
+
+function installBrandImage(): void {
+  class ImageMock {
+    onload: (() => void) | null = null
+    onerror: (() => void) | null = null
+
+    set src(_value: string) {
+      queueMicrotask(() => this.onload?.())
+    }
+  }
+  vi.stubGlobal('Image', ImageMock)
 }
 
 describe('progressShare', () => {
@@ -73,14 +87,15 @@ describe('progressShare', () => {
       constructor(readonly items: Record<string, Blob>) {}
     }
     vi.stubGlobal('ClipboardItem', ClipboardItemMock)
+    installBrandImage()
 
-    await expect(shareProgressImage({ title: 'Дом у моря', progress: 25 })).resolves.toBe('clipboard')
+    await expect(copyProgressImage({ title: 'Дом у моря', progress: 25 })).resolves.toBeUndefined()
 
     expect(write).toHaveBeenCalledTimes(1)
     expect(write.mock.calls[0]?.[0]).toHaveLength(1)
   })
 
-  it('downloads the PNG after a clipboard permission or platform fallback', async () => {
+  it('saves the PNG only after the explicit save action', async () => {
     const context = drawingContext()
     const image = new Blob(['png'], { type: 'image/png' })
     const createObjectURL = vi.fn(() => 'blob:nfprogress-progress')
@@ -93,10 +108,30 @@ describe('progressShare', () => {
     })
     vi.stubGlobal('URL', { createObjectURL, revokeObjectURL })
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    installBrandImage()
 
-    await expect(shareProgressImage({ title: 'Дом у моря', progress: 25 })).resolves.toBe('downloaded')
+    await expect(downloadProgressImage({ title: 'Дом у моря', progress: 25 })).resolves.toBeUndefined()
 
     expect(createObjectURL).toHaveBeenCalledWith(image)
     expect(click).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not silently download when image clipboard access is unavailable', async () => {
+    const context = drawingContext()
+    const image = new Blob(['png'], { type: 'image/png' })
+    const createObjectURL = vi.fn(() => 'blob:nfprogress-progress')
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => callback(image))
+    Object.defineProperty(navigator, 'clipboard', {
+      configurable: true,
+      value: undefined,
+    })
+    vi.stubGlobal('URL', { createObjectURL })
+    installBrandImage()
+
+    await expect(copyProgressImage({ title: 'Дом у моря', progress: 25 })).rejects.toThrow(
+      'Image clipboard is unavailable.',
+    )
+    expect(createObjectURL).not.toHaveBeenCalled()
   })
 })

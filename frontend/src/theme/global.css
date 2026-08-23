@@ -96,18 +96,10 @@ a {
 }
 
 .brand-mark {
-  display: grid;
   flex: 0 0 2.75rem;
   width: 2.75rem;
   height: 2.75rem;
-  place-items: center;
-  border-radius: 0.85rem;
-  background: var(--nf-color-primary);
-  color: var(--nf-color-surface);
-  font-family: var(--nf-font-serif);
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: -0.04em;
+  object-fit: contain;
 }
 
 .brand strong,

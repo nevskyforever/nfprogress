@@ -33,6 +33,7 @@ const route = useRoute()
 const theme = useThemeStore()
 const locale = useLocaleStore()
 const t = locale.translate
+const appIcon = '/icons/icon-192.webp'
 const startupError = window.__NFPROGRESS_RUNTIME__?.startupError ?? ''
 const savingPreference = ref(false)
 const preferenceError = ref<string | null>(null)
@@ -112,7 +113,7 @@ watchEffect(() => {
   <div class="app-shell">
     <aside class="sidebar" :aria-label="t('Основная навигация')">
       <RouterLink class="brand" to="/projects" aria-label="nfprogress — проекты">
-        <span class="brand-mark" aria-hidden="true">nf</span>
+        <img class="brand-mark" :src="appIcon" alt="" />
         <span>
           <strong>nfprogress</strong>
           <small>{{ t('Пространство писателя') }}</small>

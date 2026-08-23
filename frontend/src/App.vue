@@ -19,6 +19,7 @@ const locale = useLocaleStore()
 const theme = useThemeStore()
 const notifications = useNotificationsStore()
 const t = locale.translate
+const appIcon = '/icons/icon-192.webp'
 const bootstrapState = ref<BootstrapState>('loading')
 const bootstrapError = ref<string | null>(null)
 
@@ -63,7 +64,7 @@ void bootstrapApplication()
       role="status"
       aria-live="polite"
     >
-      <span class="application-bootstrap__mark" aria-hidden="true">nf</span>
+      <img class="application-bootstrap__mark" :src="appIcon" alt="" />
       <p>{{ t('Запускаем nfprogress…') }}</p>
     </div>
 
@@ -72,7 +73,7 @@ void bootstrapApplication()
       class="application-bootstrap"
       role="alert"
     >
-      <span class="application-bootstrap__mark" aria-hidden="true">nf</span>
+      <img class="application-bootstrap__mark" :src="appIcon" alt="" />
       <h1>{{ t('Не удалось открыть nfprogress') }}</h1>
       <p>{{ bootstrapError ?? t('Backend недоступен.') }}</p>
       <button class="nf-button" type="button" @click="bootstrapApplication">
@@ -122,15 +123,8 @@ void bootstrapApplication()
 }
 
 .application-bootstrap__mark {
-  display: grid;
   width: 4rem;
   height: 4rem;
-  place-items: center;
-  border-radius: var(--nf-radius-md);
-  background: var(--nf-color-primary);
-  color: #fff;
-  font-family: var(--nf-font-serif);
-  font-size: 1.7rem;
-  font-weight: 800;
+  object-fit: contain;
 }
 </style>

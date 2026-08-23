@@ -28,7 +28,7 @@ blocker. The PySide6 application remains the release fallback.
 | Desktop background sync | [done] | Desktop-only worker runs configured active sources off the event loop on enable/start and writing-day change, isolates per-source failures, and shuts down with FastAPI |
 | FastAPI/OpenAPI | [done] | Health, centralized errors, loopback token, CORS, typed page-facing response contracts, and every router required by the Vue application are implemented; remote HTTPS/auth remains an operator deployment boundary, not an embedded account system |
 | Vue/Ionic shell | [done] | Responsive desktop/mobile navigation, platform guards, network/startup errors, legacy-derived neutral/blue design tokens, Arial/Helvetica typography, focus/reduced-motion support, themes, and locale store are implemented; Web and Tauri developer launchers now use the same synchronized `test_data` semantics as `main_UI.py` |
-| Projects/stages/progress frontend | [done] | Real API powers project list/search/filter/sort, project and stage editing/lifecycle, all units, deadlines, progress recording, immediate refresh, and finite project/stage 1080 × 1080 progress-card export with clipboard/download fallback. Stages are circular-progress tiles that open into their own focused workspace while retaining stable parent/stage IDs; project-local synchronization refreshes in place without replacing the workspace with a loading state. The displayed today target is the legacy cumulative plan, not the editable daily increment |
+| Projects/stages/progress frontend | [done] | Real API powers project list/search/filter/sort, project and stage editing/lifecycle, all units, deadlines, progress recording, immediate refresh, and finite project/stage 1080 × 1080 progress-card export with explicit clipboard/save-PNG choices. Stages are circular-progress tiles that open into their own focused workspace while retaining stable parent/stage IDs; project-local synchronization refreshes in place without replacing the workspace with a loading state. The displayed today target is the legacy cumulative plan, not the editable daily increment |
 | Statistics frontend | [done] | Structured Python calculations and localized labels are displayed responsively; calculations are not duplicated in TypeScript |
 | Notes/Mind Elixir frontend | [done] | Legacy pastel full-card note colors and in-card colour palette, a prominent full-width create action, autosave, and canonical Mind Elixir assets use the real notes/map API and synchronization rules; the responsive workspace keeps the recognizable legacy card concept |
 | Game frontend | [done] | Seven responsive panels cover overview, sessions, challenges, items, growth, cabinet, and awards/bank; a global responsive notification center exposes persisted bank/streak history, and every command reloads authoritative backend state |
@@ -55,9 +55,9 @@ blocker. The PySide6 application remains the release fallback.
 
 - Projects, stages, lifecycle, deadlines, all legacy progress units, global and
   project streak effects, structured statistics, and local 1080 × 1080
-  progress cards for finite projects and stages. Clipboard writes use the
-  platform browser API and otherwise explicitly download PNG; the card never
-  sends manuscript or note content to a server.
+  progress cards for finite projects and stages. Their share menu has separate
+  clipboard and PNG-save actions; the card never sends manuscript or note
+  content to a server.
 - Project-note cards, tags, ordering, Mind Elixir data, floating/free nodes, and
   bidirectional `#карта` synchronization.
 - Game profile, XP/levels, health, coins, inspiration, buffs, items, shop,

@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { projectsApi } from '@/api/projects'
 import { integrationsApi } from '@/api/integrations'
-import { shareProgressImage } from '@/platform/progressShare'
+import { copyProgressImage, downloadProgressImage } from '@/platform/progressShare'
 import { useNotificationsStore } from '@/stores/notifications'
 import { projectFixture } from '@/test/fixtures'
 import type { Statistics } from '@/types/api'
@@ -33,8 +33,9 @@ vi.mock('@/api/projects', () => ({
 }))
 
 vi.mock('@/platform/progressShare', () => ({
+  copyProgressImage: vi.fn(),
+  downloadProgressImage: vi.fn(),
   progressShareTitle: (name: string, parentName?: string) => parentName ? `${parentName}: ${name}` : name,
-  shareProgressImage: vi.fn(),
 }))
 
 const statisticsFixture: Statistics = {
@@ -66,12 +67,17 @@ function workspaceStubs() {
     IonSpinner: true,
     ProgressWorkspace: true,
     ProjectEditDialog: true,
+    ProgressShareMenu: {
+      props: ['label'],
+      emits: ['copy', 'save'],
+      template: '<button :aria-label="label" type="button" @click="$emit(\'copy\')">copy</button>',
+    },
     RouterLink: { template: '<a><slot /></a>' },
     StageDialog: true,
     StageWorkspace: {
       props: ['project'],
-      emits: ['share'],
-      template: '<button class="stage-share" type="button" @click="$emit(\'share\', project.stages[0])">stage share</button>',
+      emits: ['copy', 'save'],
+      template: '<button class="stage-share" type="button" @click="$emit(\'copy\', project.stages[0])">stage share</button>',
     },
     StatePanel: true,
     StatisticsWorkspace: true,
@@ -91,7 +97,8 @@ describe('ProjectDetailPage progress sharing', () => {
   beforeEach(() => {
     vi.mocked(projectsApi.get).mockReset()
     vi.mocked(projectsApi.statistics).mockReset()
-    vi.mocked(shareProgressImage).mockReset()
+    vi.mocked(copyProgressImage).mockReset()
+    vi.mocked(downloadProgressImage).mockReset()
     vi.mocked(integrationsApi.getProjectSyncs).mockReset()
     vi.mocked(integrationsApi.runProjectSyncs).mockReset()
     pushRoute.mockReset()
@@ -108,7 +115,8 @@ describe('ProjectDetailPage progress sharing', () => {
       stages: [stage],
     }))
     vi.mocked(projectsApi.statistics).mockResolvedValue(statisticsFixture)
-    vi.mocked(shareProgressImage).mockResolvedValue('clipboard')
+    vi.mocked(copyProgressImage).mockResolvedValue(undefined)
+    vi.mocked(downloadProgressImage).mockResolvedValue(undefined)
     vi.mocked(integrationsApi.getProjectSyncs).mockResolvedValue({
       project_id: 'project-id',
       syncs: [{
@@ -134,11 +142,11 @@ describe('ProjectDetailPage progress sharing', () => {
     await wrapper.get('.stage-share').trigger('click')
     await flushPromises()
 
-    expect(shareProgressImage).toHaveBeenNthCalledWith(1, {
+    expect(copyProgressImage).toHaveBeenNthCalledWith(1, {
       title: 'Дом у моря',
       progress: 25,
     })
-    expect(shareProgressImage).toHaveBeenNthCalledWith(2, {
+    expect(copyProgressImage).toHaveBeenNthCalledWith(2, {
       title: 'Дом у моря: Глава 3',
       progress: 50,
     })
@@ -160,7 +168,8 @@ describe('ProjectDetailPage progress sharing', () => {
 
     const shareButton = wrapper.get('button[aria-label*="Поделиться прогрессом"]')
     expect(shareButton.attributes('disabled')).toBeDefined()
-    expect(shareProgressImage).not.toHaveBeenCalled()
+    expect(copyProgressImage).not.toHaveBeenCalled()
+    expect(downloadProgressImage).not.toHaveBeenCalled()
   })
 
   it('keeps project sync visible and opens setup for the selected stage', async () => {

@@ -3,13 +3,14 @@ export const PROGRESS_SHARE_IMAGE_SIZE = 1080
 const RING_CENTER_X = PROGRESS_SHARE_IMAGE_SIZE / 2
 const RING_CENTER_Y = 435
 const RING_OUTER_DIAMETER = 620
-const RING_WIDTH = 78
+const RING_WIDTH = 24
 const RING_RADIUS = RING_OUTER_DIAMETER / 2 - RING_WIDTH / 2
 const TITLE_AREA = { x: 80, y: 805, width: PROGRESS_SHARE_IMAGE_SIZE - 160, height: 157 }
 const BRAND_CENTER_Y = PROGRESS_SHARE_IMAGE_SIZE - 54
 const BRAND_ICON_SIZE = 46
 const BRAND_SPACING = 14
 const BRAND_TEXT = 'nfprogress'
+const BRAND_ICON_URL = '/icons/icon-192.webp'
 
 const START_COLOR = [169, 169, 169] as const
 const END_COLOR = [37, 104, 172] as const
@@ -18,8 +19,6 @@ export interface ProgressSharePayload {
   title: string
   progress: number
 }
-
-export type ProgressShareResult = 'clipboard' | 'downloaded'
 
 interface TextLayout {
   fontSize: number
@@ -212,22 +211,26 @@ function roundedRectangle(
   context.closePath()
 }
 
-function drawBrand(context: CanvasRenderingContext2D): void {
+function drawBrand(context: CanvasRenderingContext2D, icon: CanvasImageSource | null = null): void {
   context.font = '700 37px Arial, sans-serif'
   const textWidth = context.measureText(BRAND_TEXT).width
   const groupWidth = BRAND_ICON_SIZE + BRAND_SPACING + textWidth
   const groupX = (PROGRESS_SHARE_IMAGE_SIZE - groupWidth) / 2
   const iconY = BRAND_CENTER_Y - BRAND_ICON_SIZE / 2
 
-  context.fillStyle = '#2568AC'
-  context.beginPath()
-  roundedRectangle(context, groupX, iconY, BRAND_ICON_SIZE, BRAND_ICON_SIZE, 12)
-  context.fill()
-  context.fillStyle = '#FFFFFF'
-  context.font = '700 24px Arial, sans-serif'
-  context.textAlign = 'center'
-  context.textBaseline = 'middle'
-  context.fillText('nf', groupX + BRAND_ICON_SIZE / 2, BRAND_CENTER_Y + 1)
+  if (icon) {
+    context.drawImage(icon, groupX, iconY, BRAND_ICON_SIZE, BRAND_ICON_SIZE)
+  } else {
+    context.fillStyle = '#2568AC'
+    context.beginPath()
+    roundedRectangle(context, groupX, iconY, BRAND_ICON_SIZE, BRAND_ICON_SIZE, 12)
+    context.fill()
+    context.fillStyle = '#FFFFFF'
+    context.font = '700 24px Arial, sans-serif'
+    context.textAlign = 'center'
+    context.textBaseline = 'middle'
+    context.fillText('nf', groupX + BRAND_ICON_SIZE / 2, BRAND_CENTER_Y + 1)
+  }
 
   context.fillStyle = '#2568AC'
   context.font = '700 37px Arial, sans-serif'
@@ -238,6 +241,7 @@ function drawBrand(context: CanvasRenderingContext2D): void {
 export function drawProgressShareImage(
   context: CanvasRenderingContext2D,
   payload: ProgressSharePayload,
+  icon: CanvasImageSource | null = null,
 ): void {
   const progress = normalizeProgressSharePercent(payload.progress)
   const title = progressShareTitle(payload.title)
@@ -253,7 +257,17 @@ export function drawProgressShareImage(
   context.fillText(`${progress}%`, RING_CENTER_X, RING_CENTER_Y)
 
   drawTitle(context, title)
-  drawBrand(context)
+  drawBrand(context, icon)
+}
+
+function loadBrandIcon(): Promise<HTMLImageElement | null> {
+  if (typeof Image === 'undefined') return Promise.resolve(null)
+  return new Promise((resolve) => {
+    const image = new Image()
+    image.onload = () => resolve(image)
+    image.onerror = () => resolve(null)
+    image.src = BRAND_ICON_URL
+  })
 }
 
 function canvasBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -273,7 +287,7 @@ export async function createProgressShareImage(payload: ProgressSharePayload): P
   const canvas = document.createElement('canvas')
   canvas.width = PROGRESS_SHARE_IMAGE_SIZE
   canvas.height = PROGRESS_SHARE_IMAGE_SIZE
-  drawProgressShareImage(canvasContext(canvas), payload)
+  drawProgressShareImage(canvasContext(canvas), payload, await loadBrandIcon())
   return canvasBlob(canvas)
 }
 
@@ -320,9 +334,13 @@ function downloadImage(blob: Blob): void {
   if (revokeObjectURL) window.setTimeout(() => revokeObjectURL(url), 0)
 }
 
-export async function shareProgressImage(payload: ProgressSharePayload): Promise<ProgressShareResult> {
+export async function copyProgressImage(payload: ProgressSharePayload): Promise<void> {
   const image = await createProgressShareImage(payload)
-  if (await copyImageToClipboard(image)) return 'clipboard'
-  downloadImage(image)
-  return 'downloaded'
+  if (!await copyImageToClipboard(image)) {
+    throw new Error('Image clipboard is unavailable.')
+  }
+}
+
+export async function downloadProgressImage(payload: ProgressSharePayload): Promise<void> {
+  downloadImage(await createProgressShareImage(payload))
 }

@@ -40,9 +40,8 @@ frontend never reads pickle files or imports Qt/Python objects directly. See the
 - Record characters, A4 pages, author's sheets, Ficbook pages, and the other
   units supported by the Python core.
 - Review project statistics, productive days, and writing streaks.
-- Create a 1080 × 1080 progress card for a finite project or stage; supported
-  platforms copy its PNG to the image clipboard and otherwise offer an explicit
-  download.
+- Create a 1080 × 1080 progress card for a finite project or stage; its share
+  menu has separate Copy-to-clipboard and Save-PNG actions.
 - Organize project-note cards and synchronize `#карта` notes with Mind Elixir.
 - Count and apply progress from Word `.docx` documents and Scrivener projects.
 - Use optional game mechanics: XP, levels, coins, inspiration, health, quests,

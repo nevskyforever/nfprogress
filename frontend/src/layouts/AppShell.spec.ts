@@ -65,6 +65,12 @@ function mountShell() {
 
 describe('AppShell preferences', () => {
   beforeEach(() => {
+    try {
+      window.localStorage?.removeItem('nfprogress.theme')
+      window.localStorage?.removeItem('nfprogress.language')
+    } catch {
+      // jsdom can run without an origin-backed local storage implementation.
+    }
     vi.mocked(settingsApi.update).mockReset()
     vi.mocked(contentApi.locale).mockReset()
     vi.mocked(contentApi.locale).mockResolvedValue({})

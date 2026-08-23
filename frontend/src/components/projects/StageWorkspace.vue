@@ -7,13 +7,13 @@ import {
   arrowUpOutline,
   checkmarkCircleOutline,
   createOutline,
-  shareSocialOutline,
   trashOutline,
 } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
+import ProgressShareMenu from './ProgressShareMenu.vue'
 
 const props = withDefaults(defineProps<{
   project: Project
@@ -29,7 +29,8 @@ const emit = defineEmits<{
   remove: [stage: Project]
   complete: [stage: Project]
   reorder: [stageIds: string[]]
-  share: [stage: Project]
+  copy: [stage: Project]
+  save: [stage: Project]
   open: [stage: Project]
 }>()
 
@@ -138,16 +139,14 @@ function move(index: number, offset: -1 | 1): void {
             >
               <IonIcon :icon="arrowDownOutline" aria-hidden="true" />
             </button>
-            <button
-              class="stage-action-button"
-              type="button"
+            <ProgressShareMenu
+              button-class="stage-action-button"
+              :label="t('Поделиться прогрессом «{name}»', { name: stage.name })"
               :title="stage.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined"
               :disabled="busy || sharing || sharedProject || stage.infinite"
-              @click="emit('share', stage)"
-            >
-              <IonIcon :icon="shareSocialOutline" aria-hidden="true" />
-              {{ t('Поделиться') }}
-            </button>
+              @copy="emit('copy', stage)"
+              @save="emit('save', stage)"
+            />
             <button
               class="stage-action-button"
               type="button"

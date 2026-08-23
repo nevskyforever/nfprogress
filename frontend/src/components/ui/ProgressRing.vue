@@ -12,17 +12,31 @@ const props = withDefaults(
 )
 
 const normalizedValue = computed(() => Math.min(100, Math.max(0, props.value)))
-const ringStyle = computed(() => ({ '--progress': `${normalizedValue.value * 3.6}deg` }))
+const RING_CIRCUMFERENCE = 2 * Math.PI * 46
+const ringStyle = computed(() => ({
+  strokeDasharray: `${RING_CIRCUMFERENCE}`,
+  strokeDashoffset: `${RING_CIRCUMFERENCE * (1 - normalizedValue.value / 100)}`,
+}))
 </script>
 
 <template>
   <div
     class="progress-ring"
     :class="[`progress-ring--${size}`, { 'progress-ring--infinite': infinite }]"
-    :style="ringStyle"
     role="img"
     :aria-label="label"
   >
+    <svg class="progress-ring__svg" viewBox="0 0 100 100" aria-hidden="true">
+      <circle class="progress-ring__track" cx="50" cy="50" r="46" />
+      <circle
+        class="progress-ring__value"
+        :class="{ 'progress-ring__value--infinite': infinite }"
+        cx="50"
+        cy="50"
+        r="46"
+        :style="infinite ? undefined : ringStyle"
+      />
+    </svg>
     <span aria-hidden="true">{{ infinite ? '∞' : `${Math.round(normalizedValue)}%` }}</span>
   </div>
 </template>
@@ -30,17 +44,36 @@ const ringStyle = computed(() => ({ '--progress': `${normalizedValue.value * 3.6
 <style scoped>
 .progress-ring {
   --ring-size: 4.75rem;
-  --ring-width: 0.28rem;
+  --ring-stroke: 2.6;
   display: grid;
+  position: relative;
   width: var(--ring-size);
   height: var(--ring-size);
   flex: 0 0 var(--ring-size);
   place-items: center;
   border-radius: 50%;
-  background:
-    radial-gradient(circle, var(--nf-color-surface) calc(50% - var(--ring-width)), transparent calc(50% - var(--ring-width) + 1px)),
-    conic-gradient(var(--nf-color-progress) var(--progress), var(--nf-color-progress-track) 0);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--nf-color-border) 35%, transparent);
+}
+
+.progress-ring__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.progress-ring__track,
+.progress-ring__value {
+  fill: none;
+  stroke-width: var(--ring-stroke);
+}
+
+.progress-ring__track { stroke: var(--nf-color-progress-track); }
+.progress-ring__value { stroke: var(--nf-color-progress); transition: stroke-dashoffset 180ms ease; }
+.progress-ring__value--infinite { stroke-dasharray: 5 4; }
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-ring__value { transition: none; }
 }
 
 .progress-ring span {
@@ -52,19 +85,11 @@ const ringStyle = computed(() => ({ '--progress': `${normalizedValue.value * 3.6
 
 .progress-ring--large {
   --ring-size: clamp(6.5rem, 11vw, 8rem);
-  --ring-width: 0.36rem;
+  --ring-stroke: 2.4;
 }
 
 .progress-ring--large span {
   font-size: clamp(1.35rem, 2.7vw, 1.85rem);
 }
 
-.progress-ring--infinite {
-  background:
-    radial-gradient(circle, var(--nf-color-surface) calc(50% - var(--ring-width)), transparent calc(50% - var(--ring-width) + 1px)),
-    repeating-conic-gradient(
-      var(--nf-color-progress) 0 12deg,
-      var(--nf-color-progress-track) 12deg 24deg
-    );
-}
 </style>

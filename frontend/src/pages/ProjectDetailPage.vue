@@ -12,12 +12,12 @@ import {
   documentTextOutline,
   layersOutline,
   refreshOutline,
-  shareSocialOutline,
   trashOutline,
 } from 'ionicons/icons'
 
 import ProgressWorkspace from '@/components/projects/ProgressWorkspace.vue'
 import ProjectEditDialog from '@/components/projects/ProjectEditDialog.vue'
+import ProgressShareMenu from '@/components/projects/ProgressShareMenu.vue'
 import StageDialog from '@/components/projects/StageDialog.vue'
 import StageWorkspace from '@/components/projects/StageWorkspace.vue'
 import StatisticsWorkspace from '@/components/projects/StatisticsWorkspace.vue'
@@ -26,7 +26,11 @@ import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { apiErrorMessage } from '@/api/client'
 import { integrationsApi } from '@/api/integrations'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
-import { progressShareTitle, shareProgressImage } from '@/platform/progressShare'
+import {
+  copyProgressImage,
+  downloadProgressImage,
+  progressShareTitle,
+} from '@/platform/progressShare'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useProjectsStore } from '@/stores/projects'
@@ -232,7 +236,13 @@ async function deleteProject(): Promise<void> {
   }
 }
 
-async function shareProgress(entity: Project, parentName?: string): Promise<void> {
+type ProgressExportDestination = 'clipboard' | 'download'
+
+async function exportProgress(
+  entity: Project,
+  destination: ProgressExportDestination,
+  parentName?: string,
+): Promise<void> {
   if (entity.infinite) {
     notifications.warning(t('Для проекта без цели нельзя создать картинку прогресса'))
     return
@@ -241,12 +251,17 @@ async function shareProgress(entity: Project, parentName?: string): Promise<void
 
   sharingProgress.value = true
   try {
-    const result = await shareProgressImage({
+    const payload = {
       title: progressShareTitle(entity.name, parentName),
       progress: entity.progress,
-    })
+    }
+    if (destination === 'clipboard') {
+      await copyProgressImage(payload)
+    } else {
+      await downloadProgressImage(payload)
+    }
     notifications.show(
-      result === 'clipboard'
+      destination === 'clipboard'
         ? t('Картинка прогресса добавлена в буфер обмена')
         : t('Картинка прогресса скачана в формате PNG'),
       'info',
@@ -258,12 +273,20 @@ async function shareProgress(entity: Project, parentName?: string): Promise<void
   }
 }
 
-function shareProjectProgress(): Promise<void> {
-  return shareProgress(project.value)
+function copyProjectProgress(): Promise<void> {
+  return exportProgress(project.value, 'clipboard')
 }
 
-function shareStageProgress(stage: Project): Promise<void> {
-  return shareProgress(stage, project.value.name)
+function downloadProjectProgress(): Promise<void> {
+  return exportProgress(project.value, 'download')
+}
+
+function copyStageProgress(stage: Project): Promise<void> {
+  return exportProgress(stage, 'clipboard', project.value.name)
+}
+
+function downloadStageProgress(stage: Project): Promise<void> {
+  return exportProgress(stage, 'download', project.value.name)
 }
 
 function openStageCreate(): void {
@@ -416,17 +439,14 @@ onBeforeUnmount(() => store.cancelDetail())
             >
               <IonIcon :icon="documentTextOutline" aria-hidden="true" />{{ t('Заметки и карта') }}
             </RouterLink>
-            <button
-              class="nf-button nf-button--secondary"
-              type="button"
-              :aria-label="t('Поделиться прогрессом «{name}»', { name: detailEntity.name })"
-              :aria-busy="sharingProgress"
+            <ProgressShareMenu
+              :label="t('Поделиться прогрессом «{name}»', { name: detailEntity.name })"
               :title="detailEntity.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined"
-              :disabled="sharingProgress || detailEntity.infinite"
-              @click="isStageDetail ? shareStageProgress(detailEntity) : shareProjectProgress()"
-            >
-              <IonIcon :icon="shareSocialOutline" aria-hidden="true" />{{ t('Поделиться') }}
-            </button>
+              :busy="sharingProgress"
+              :disabled="detailEntity.infinite"
+              @copy="isStageDetail ? copyStageProgress(detailEntity) : copyProjectProgress()"
+              @save="isStageDetail ? downloadStageProgress(detailEntity) : downloadProjectProgress()"
+            />
             <button
               v-if="detailEntity.status !== 'завершен' && !isSharedProject"
               class="nf-button nf-button--secondary"
@@ -498,7 +518,8 @@ onBeforeUnmount(() => store.cancelDetail())
             @remove="removeStage"
             @complete="completeStage"
             @reorder="reorderStages"
-            @share="shareStageProgress"
+            @copy="copyStageProgress"
+            @save="downloadStageProgress"
             @open="openStage"
           />
           <ProgressWorkspace
