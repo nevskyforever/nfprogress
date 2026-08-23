@@ -23,6 +23,15 @@ update_manifest = _load_script(
 windows_release_options = _load_script(
     'build-backend-sidecar.py', 'build_backend_sidecar',
 )._windows_release_options
+sync_versions = _load_script(
+    'sync-tauri-versions.py', 'sync_tauri_versions',
+)
+
+
+def test_engine_versions_are_normalized_to_three_components():
+    assert sync_versions.canonical_version('5.0') == '5.0.0'
+    assert sync_versions.canonical_version('4.14.2') == '4.14.2'
+    assert sync_versions.canonical_version('5.0-rc1') == '5.0.0-rc1'
 
 
 def test_release_config_creates_nsis_updater_artifacts():

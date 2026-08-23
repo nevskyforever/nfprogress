@@ -76,7 +76,8 @@ jobs:
         id: version
         shell: pwsh
         run: |
-          $version = (python -c "import engine; print(engine.version)").Trim()
+          python scripts\sync-tauri-versions.py
+          $version = (python scripts\sync-tauri-versions.py --version-only).Trim()
           if ($version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
             throw "engine.version is not semantic: $version"
           }

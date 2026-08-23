@@ -229,6 +229,9 @@ bash "Build Tauri Intel.sh"
 bash "Build Tauri All.sh"
 ```
 
+All Tauri build entry points synchronize the normalized three-component version
+from `engine.py` into the Tauri and Cargo metadata before building.
+
 The artifacts are written to `build-tauri-arm/` and `build-tauri-intel/`.
 On Apple Silicon, the Intel script requires an x86_64 Python virtual environment
 with the backend dependencies; it explains the required

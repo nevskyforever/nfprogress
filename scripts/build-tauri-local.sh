@@ -76,7 +76,8 @@ if [ ! -d "$ROOT_DIR/frontend/node_modules" ]; then
   (cd "$ROOT_DIR/frontend" && npm ci)
 fi
 
-VERSION="$(run_python -c 'import engine; print(engine.version)')"
+run_python "$ROOT_DIR/scripts/sync-tauri-versions.py"
+VERSION="$(run_python "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)"
 DMG_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.dmg"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"
 PACKAGE_NAME="$ARTIFACT_PREFIX-$VERSION"

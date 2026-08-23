@@ -18,9 +18,10 @@ case "$TARGET" in
     ;;
 esac
 
+python3 "$ROOT_DIR/scripts/sync-tauri-versions.py"
 APP_PATH="$ROOT_DIR/frontend/src-tauri/target/$TARGET/release/bundle/macos/nfprogress.app"
 SIDECAR_PATH="$ROOT_DIR/frontend/src-tauri/binaries/nfprogress-backend-$TARGET"
-VERSION="$(cd "$ROOT_DIR" && python3 -c 'import engine; print(engine.version)')"
+VERSION="$(python3 "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)"
 OUTPUT_PATH="${2:-$ROOT_DIR/frontend/src-tauri/target/$TARGET/release/bundle/dmg/nfprogress-$VERSION-$TARGET.dmg}"
 
 if [ ! -x "$SIDECAR_PATH" ]; then

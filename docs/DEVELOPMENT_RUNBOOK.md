@@ -246,6 +246,9 @@ bash "Build Tauri Intel.sh"
 bash "Build Tauri All.sh"
 ```
 
+Перед сборкой эти команды автоматически синхронизируют нормализованную версию
+из `engine.py` с `tauri.conf.json`, `Cargo.toml` и `Cargo.lock`.
+
 Они собирают подходящий Nuitka sidecar, Tauri `.app`, проверенный DMG и ZIP с
 DMG, лицензией и сведениями об исходном коде. Результаты лежат в
 `build-tauri-arm/` или `build-tauri-intel/`. На Apple Silicon Intel-сборка

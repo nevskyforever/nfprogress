@@ -20,7 +20,8 @@ case "$ARCH" in
     ;;
 esac
 
-VERSION="$(python3 -c 'import engine; print(engine.version)')"
+python3 "$ROOT_DIR/scripts/sync-tauri-versions.py"
+VERSION="$(python3 "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"
 
 if [ ! -f "$ARTIFACT_PATH" ]; then

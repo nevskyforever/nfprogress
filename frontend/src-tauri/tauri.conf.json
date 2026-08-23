@@ -1,13 +1,16 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "nfprogress",
-  "version": "4.14.2",
+  "version": "5.0.0",
   "identifier": "app.nfprogress.tracker",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
+  },
+  "plugins": {
+    "updater": {}
   },
   "app": {
     "windows": [

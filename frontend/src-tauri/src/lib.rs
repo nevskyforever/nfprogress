@@ -131,7 +131,7 @@ fn stop_backend(app_handle: &tauri::AppHandle) {
 }
 
 pub fn run() {
-    let app = tauri::Builder::default()
+    let mut builder = tauri::Builder::default()
         .manage(BackendState::default())
         .plugin(tauri_plugin_single_instance::init(|app, _arguments, _cwd| {
             if let Some(window) = app.get_webview_window("main") {
@@ -143,8 +143,6 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
-        .plugin(tauri_plugin_updater::Builder::new().build())
-        .invoke_handler(tauri::generate_handler![backend_connection])
         .setup(|app| {
             let state = app.state::<BackendState>();
             let port = match reserve_loopback_port() {
@@ -234,7 +232,14 @@ pub fn run() {
                 }
             });
             Ok(())
-        })
+        });
+
+    if native_updates_enabled() {
+        builder = builder.plugin(tauri_plugin_updater::Builder::new().build());
+    }
+
+    let app = builder
+        .invoke_handler(tauri::generate_handler![backend_connection])
         .build(tauri::generate_context!())
         .expect("failed to build the nfprogress desktop application");
 

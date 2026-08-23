@@ -71,6 +71,11 @@ def _windows_release_options() -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    subprocess.run(
+        [sys.executable, str(ROOT / 'scripts' / 'sync-tauri-versions.py')],
+        cwd=ROOT,
+        check=True,
+    )
     target = _parser().parse_args(argv).target or _host_target()
     _validate_target(target)
     BINARIES.mkdir(parents=True, exist_ok=True)
