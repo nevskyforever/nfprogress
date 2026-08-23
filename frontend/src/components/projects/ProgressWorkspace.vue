@@ -103,6 +103,12 @@ watch(
       <form class="progress-entry-form" novalidate @submit.prevent="record">
         <div class="progress-entry-heading">
           <h3>{{ t('Новая запись:') }}</h3>
+        </div>
+        <div class="progress-entry-fields">
+          <div>
+            <span>{{ t('Текущее значение') }}</span>
+            <strong>{{ locale.formatNumber(selectedEntity.total, fractionDigits) }}</strong>
+          </div>
           <label v-if="project.stages.length && !fixedStageId" class="progress-stage-select" for="progress-entity">
             <span>{{ t('Этап') }}</span>
             <span class="progress-stage-select__control">
@@ -115,12 +121,6 @@ watch(
               <IonIcon class="progress-stage-select__arrow" :icon="chevronDownOutline" aria-hidden="true" />
             </span>
           </label>
-        </div>
-        <div class="progress-entry-fields">
-          <div>
-            <span>{{ t('Текущее значение') }}</span>
-            <strong>{{ locale.formatNumber(selectedEntity.total, fractionDigits) }}</strong>
-          </div>
           <label for="progress-new-total">
             <span>{{ t('Новое общее значение') }}</span>
             <input
@@ -199,14 +199,14 @@ watch(
 .read-only-note { padding: var(--nf-space-3); border-left: 0.25rem solid var(--nf-color-warning); border-radius: var(--nf-radius-sm); background: color-mix(in srgb, var(--nf-color-warning) 9%, var(--nf-color-surface)); color: var(--nf-color-text); }
 .progress-entry-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr); gap: var(--nf-space-3); align-items: start; }
 .progress-entry-form { display: grid; gap: var(--nf-space-3); padding: var(--nf-space-4); border: 1px solid color-mix(in srgb, var(--nf-color-primary) 38%, var(--nf-color-border)); border-radius: var(--nf-radius-md); background: linear-gradient(135deg, var(--nf-color-surface), color-mix(in srgb, var(--nf-color-primary-soft) 45%, var(--nf-color-surface))); box-shadow: var(--nf-shadow-card); }
-.progress-entry-heading { display: flex; gap: var(--nf-space-3); align-items: end; justify-content: space-between; }
+.progress-entry-heading { display: flex; align-items: end; }
 .progress-entry-form h3 { margin: 0; color: var(--nf-color-primary); font-family: var(--nf-font-serif); font-size: 1.2rem; }
-.progress-entry-fields { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(12rem, 1.5fr) auto; gap: var(--nf-space-3); align-items: end; }
+.progress-entry-fields { display: grid; grid-template-columns: minmax(7rem, 0.8fr) minmax(9rem, 1fr) minmax(11rem, 1.3fr) auto; gap: var(--nf-space-3); align-items: end; }
 .progress-entry-fields > div,
 .progress-entry-fields label,
 .progress-stage-select { display: grid; gap: var(--nf-space-1); }
 .progress-entry-form span { color: var(--nf-color-text-muted); font-size: 0.75rem; font-weight: 700; }
-.progress-stage-select { width: min(100%, 18rem); }
+.progress-stage-select { min-width: 0; }
 .progress-stage-select__control { display: grid; position: relative; grid-template-columns: auto minmax(0, 1fr) auto; gap: var(--nf-space-2); align-items: center; min-height: 2.75rem; padding: 0 0.7rem; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface-raised); color: var(--nf-color-primary); transition: border-color 140ms ease, box-shadow 140ms ease; }
 .progress-stage-select__control:focus-within { border-color: var(--nf-color-primary); box-shadow: 0 0 0 3px var(--nf-color-primary-soft); }
 .progress-stage-select__control > :first-child { font-size: 1rem; }
@@ -240,7 +240,6 @@ watch(
 @media (max-width: 48rem) {
   .workspace-section-heading { align-items: stretch; flex-direction: column; }
   .progress-entry-layout { grid-template-columns: 1fr; }
-  .progress-entry-heading { align-items: stretch; flex-direction: column; }
   .progress-entry-fields { grid-template-columns: 1fr; }
   .progress-stage-select { width: auto; }
 }
