@@ -31,6 +31,7 @@ describe('ProgressWorkspace', () => {
       stage_id: 'stage-1',
     })
     expect(wrapper.get('.progress-entry-form h3').text()).toContain('Новая запись')
+    expect(wrapper.get('.progress-entry-form #progress-entity').element.tagName).toBe('SELECT')
   })
 
   it('announces unchanged totals instead of calling the API boundary', async () => {
