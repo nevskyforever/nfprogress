@@ -513,6 +513,7 @@ onBeforeUnmount(() => store.cancelDetail())
             :project="project"
             :busy="store.detailBusy"
             :submitting="store.detailOperation === 'record-progress'"
+            :syncs="syncSummaries"
             :error="feedbackArea === 'progress' ? store.detailActionError : null"
             :success="feedbackArea === 'progress' ? actionSuccess : null"
             :fixed-stage-id="isStageDetail ? detailEntity.id : null"

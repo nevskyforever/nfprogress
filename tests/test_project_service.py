@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -102,6 +102,26 @@ def test_progress_is_server_calculated_and_deletable(service):
     updated = service.delete_progress(project['id'], second['entry']['id'])
     assert updated['total'] == 400
     assert len(updated['progress_entries']) == 1
+
+
+def test_synchronized_entity_rejects_manual_progress_but_accepts_sync_result(service):
+    project = service.create_project({'name': 'Synced', 'goal': 1_000, 'unit': 'symbols'})
+
+    def configure_sync(data):
+        service._find_project(data, project['id']).synch = {
+            'type': 'word',
+            'path': '/tmp/manuscript.docx',
+        }
+
+    service.repository.update_projects(configure_sync)
+
+    with pytest.raises(ValidationError, match='Ручная запись прогресса недоступна'):
+        service.record_progress(project['id'], new_total=400)
+
+    result = service.record_synchronized_progress(
+        project['id'], new_total=400, source_modified_at=datetime.now(),
+    )
+    assert result['project']['total'] == 400
 
 
 def test_stage_order_requires_complete_permutation(service):

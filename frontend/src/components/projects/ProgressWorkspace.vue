@@ -5,6 +5,7 @@ import { addCircleOutline, chevronDownOutline, layersOutline, trashOutline } fro
 
 import { useLocaleStore } from '@/stores/locale'
 import type { ProgressCreate, ProgressEntry, Project } from '@/types/api'
+import type { SyncSummary } from '@/types/integrations'
 
 const props = withDefaults(
   defineProps<{
@@ -12,10 +13,11 @@ const props = withDefaults(
     busy: boolean
     submitting?: boolean
     fixedStageId?: string | null
+    syncs?: SyncSummary[]
     error?: string | null
     success?: string | null
   }>(),
-  { submitting: false, error: null, success: null, fixedStageId: null },
+  { submitting: false, syncs: () => [], error: null, success: null, fixedStageId: null },
 )
 
 const emit = defineEmits<{
@@ -38,7 +40,7 @@ const selectedEntity = computed<Project>(() => {
   return props.project.stages.find((stage) => stage.id === selectedEntityId.value) ?? props.project
 })
 const sharedProject = computed(() => props.project.name === 'Общий проект')
-const readOnly = computed(
+const lifecycleReadOnly = computed(
   () => sharedProject.value
     || props.project.status === 'завершен'
     || selectedEntity.value.status === 'завершен',
@@ -48,6 +50,10 @@ const fractionDigits = computed(() => (props.project.unit === 'symbols' ? 0 : 2)
 const selectedStageId = computed(() =>
   selectedEntity.value.id === props.project.id ? undefined : selectedEntity.value.id,
 )
+const synchronizedEntity = computed(() => props.syncs.some((sync) =>
+  sync.configured && (sync.stage_id ?? undefined) === selectedStageId.value,
+))
+const manualEntryLocked = computed(() => lifecycleReadOnly.value || synchronizedEntity.value)
 
 function numberFrom(value: string | number): number {
   return Number(String(value).replace(',', '.'))
@@ -93,10 +99,12 @@ watch(
       </div>
     </div>
 
-    <p v-if="readOnly" class="read-only-note">
+    <p v-if="manualEntryLocked" class="read-only-note">
       {{ sharedProject
         ? t('Прогресс Общего проекта обновляется через синхронизацию.')
-        : t('Завершённый проект или этап доступен только для просмотра.') }}
+        : synchronizedEntity
+          ? t('Включена синхронизация. Ручная запись прогресса недоступна.')
+          : t('Завершённый проект или этап доступен только для просмотра.') }}
     </p>
 
     <div class="progress-entry-layout">
@@ -113,7 +121,7 @@ watch(
             <span>{{ t('Этап') }}</span>
             <span class="progress-stage-select__control">
               <IonIcon :icon="layersOutline" aria-hidden="true" />
-              <select id="progress-entity" v-model="selectedEntityId" :disabled="busy || readOnly">
+              <select id="progress-entity" v-model="selectedEntityId" :disabled="busy || lifecycleReadOnly">
                 <option v-for="stage in project.stages" :key="stage.id" :value="stage.id">
                   {{ stage.name }}{{ stage.status === 'завершен' ? ` — ${t('завершён')}` : '' }}
                 </option>
@@ -130,10 +138,10 @@ watch(
               min="0"
               step="any"
               inputmode="decimal"
-              :disabled="busy || readOnly"
+              :disabled="busy || manualEntryLocked"
             />
           </label>
-          <button class="nf-button" type="submit" :disabled="busy || readOnly">
+          <button class="nf-button" type="submit" :disabled="busy || manualEntryLocked">
             <IonSpinner v-if="submitting" name="crescent" aria-hidden="true" />
             <IonIcon v-else :icon="addCircleOutline" aria-hidden="true" />
             {{ submitting ? t('Сохраняем…') : t('Записать') }}
@@ -177,7 +185,7 @@ watch(
                 class="history-delete"
                 type="button"
                 :aria-label="t('Удалить запись от {date}', { date: locale.formatDate(entry.created_at) })"
-                :disabled="busy || readOnly"
+                :disabled="busy || lifecycleReadOnly"
                 @click="requestRemove(entry)"
               >
                 <IonIcon :icon="trashOutline" aria-hidden="true" />
@@ -197,7 +205,7 @@ watch(
 .workspace-section-heading p { margin: 0 0 var(--nf-space-1); color: var(--nf-color-accent); font-size: 0.72rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
 .workspace-section-heading h2 { margin: 0; color: var(--nf-color-text); font-family: var(--nf-font-serif); font-size: clamp(1.7rem, 4vw, 2.3rem); }
 .read-only-note { padding: var(--nf-space-3); border-left: 0.25rem solid var(--nf-color-warning); border-radius: var(--nf-radius-sm); background: color-mix(in srgb, var(--nf-color-warning) 9%, var(--nf-color-surface)); color: var(--nf-color-text); }
-.progress-entry-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(12rem, 1fr); gap: var(--nf-space-3); align-items: start; }
+.progress-entry-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--nf-space-3); align-items: start; }
 .progress-entry-form { display: grid; gap: var(--nf-space-3); padding: var(--nf-space-4); border: 1px solid color-mix(in srgb, var(--nf-color-primary) 38%, var(--nf-color-border)); border-radius: var(--nf-radius-md); background: linear-gradient(135deg, var(--nf-color-surface), color-mix(in srgb, var(--nf-color-primary-soft) 45%, var(--nf-color-surface))); box-shadow: var(--nf-shadow-card); }
 .progress-entry-heading { display: flex; align-items: end; }
 .progress-entry-form h3 { margin: 0; color: var(--nf-color-primary); font-family: var(--nf-font-serif); font-size: 1.2rem; }
@@ -239,7 +247,6 @@ watch(
 
 @media (max-width: 48rem) {
   .workspace-section-heading { align-items: stretch; flex-direction: column; }
-  .progress-entry-layout { grid-template-columns: 1fr; }
   .progress-entry-fields { grid-template-columns: 1fr; }
   .progress-stage-select { width: auto; }
 }

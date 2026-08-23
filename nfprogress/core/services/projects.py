@@ -494,6 +494,10 @@ class ProjectService:
             self._require_editable(entity)
             if entity.has_stages():
                 raise ValidationError('Записывайте прогресс в конкретный этап.')
+            if occurred_at is None and getattr(entity, 'synch', None) is not None:
+                raise ValidationError(
+                    'Включена синхронизация. Ручная запись прогресса недоступна.',
+                )
             total = self._round_for_unit(
                 self._nonnegative_number(new_total, 'Новое общее значение'),
                 entity.unit,

@@ -46,4 +46,31 @@ describe('ProgressWorkspace', () => {
     expect(wrapper.emitted('record')).toBeUndefined()
     expect(wrapper.get('[role="alert"]').text()).toContain('отличающееся от текущего')
   })
+
+  it('blocks manual input for a synchronized stage but keeps stage selection available', () => {
+    const stage = projectFixture({ id: 'stage-1', name: 'Глава 1', total: 1_000 })
+    const wrapper = mount(ProgressWorkspace, {
+      props: {
+        project: projectFixture({ stages_enabled: true, stages: [stage] }),
+        modelValue: stage.id,
+        busy: false,
+        syncs: [{
+          project_id: 'f184de493a344752898ea43f2988dddb',
+          stage_id: stage.id,
+          configured: true,
+          type: 'word',
+          path: null,
+          item_id: null,
+          last_synced_at: null,
+          desktop_only: true,
+        }],
+      },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    expect(wrapper.get('#progress-new-total').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
+    expect(wrapper.get('#progress-entity').attributes('disabled')).toBeUndefined()
+    expect(wrapper.get('.read-only-note').text()).toContain('Включена синхронизация')
+  })
 })
