@@ -193,6 +193,15 @@ bash "Run Tauri.sh" --check
 5173. Первый Tauri dev-start может скомпилировать debug Rust-код, но не создаёт
 production .app, DMG или ZIP.
 
+Если в терминале Tauri появляется Vite-сообщение
+API вернул ошибку 502 или connect ECONNREFUSED 127.0.0.1:8000 **до** строки
+Running target/debug/nfprogress-desktop, обычно его отправляет ранее открытая
+браузерная вкладка с адресом 127.0.0.1:5173. Эта вкладка тестирует Web-режим и
+ищет отдельный FastAPI на порту 8000. Закройте её или запускайте для неё
+backend отдельно. Сам Tauri не использует порт 8000: он запускает свой sidecar
+на случайном loopback-порту с session token. Проверяйте работу в открывшемся
+desktop-окне nfprogress, а не в браузере.
+
 Production-сборка:
 
 ```bash
