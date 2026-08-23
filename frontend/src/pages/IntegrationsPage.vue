@@ -406,7 +406,7 @@ onMounted(loadPage)
           <div>
             <p>{{ t('Документы') }}</p>
             <h1>{{ t('Word и Scrivener') }}</h1>
-            <span>{{ t('Прогресс вычисляет Python Core; frontend не читает рукопись без явного действия.') }}</span>
+            <span>{{ t('Приложение вычисляет прогресс и не читает рукопись без явного действия.') }}</span>
           </div>
           <IonIcon :icon="documentAttachOutline" aria-hidden="true" />
         </header>
@@ -447,7 +447,7 @@ onMounted(loadPage)
               <p>
                 {{
                   t(
-                    'Для автоматического отслеживания подключите локальный путь в Tauri-версии. Удалённый интерфейс не показывает путь и не управляет таким подключением.',
+                    'Для автоматического отслеживания подключите локальный путь в настольной версии. В браузере и на мобильных устройствах используйте явный выбор файла.',
                   )
                 }}
               </p>
@@ -457,7 +457,7 @@ onMounted(loadPage)
           <section v-else class="local-sync-card" aria-labelledby="local-sync-title">
             <div class="local-sync-card__heading">
               <div>
-                <p>{{ t('Локальный desktop backend') }}</p>
+                <p>{{ t('Синхронизация файлов') }}</p>
                 <h2 id="local-sync-title">{{ t('Синхронизация проекта') }}</h2>
               </div>
               <div class="local-sync-card__heading-actions">

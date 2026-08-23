@@ -104,7 +104,7 @@ async function acceptAgreement(): Promise<void> {
   try {
     const settings = await settingsApi.acceptUserAgreement(agreement.value.id)
     if (settings.values.user_agreement !== true) {
-      error.value = t('Backend не подтвердил принятие соглашения.')
+      error.value = t('Не удалось сохранить принятие соглашения.')
       return
     }
     emit('accepted', settings)

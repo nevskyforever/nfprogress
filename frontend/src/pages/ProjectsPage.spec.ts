@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { projectsApi } from '@/api/projects'
+import { integrationsApi } from '@/api/integrations'
 import { settingsApi } from '@/api/settings'
 import { projectFixture } from '@/test/fixtures'
 
@@ -26,6 +27,10 @@ vi.mock('@/api/projects', () => ({
 
 vi.mock('@/api/settings', () => ({
   settingsApi: { get: vi.fn(), update: vi.fn() },
+}))
+
+vi.mock('@/api/integrations', () => ({
+  integrationsApi: { runAllSync: vi.fn() },
 }))
 
 describe('ProjectsPage streak summaries', () => {
@@ -83,6 +88,48 @@ describe('ProjectsPage streak summaries', () => {
     expect(wrapper.get('.workspace-summary--streak').text()).toContain('4 дн.')
     expect(wrapper.get('.workspace-summary--streak').text()).toContain('Максимум: 9')
     expect(wrapper.get('.project-card__streak').attributes('aria-label')).toContain('2 дн.')
+    wrapper.unmount()
+  })
+
+  it('offers all-source synchronization on desktop and refreshes the workspace', async () => {
+    vi.mocked(settingsApi.get).mockResolvedValue({
+      values: { global_streak: true, show_written_today_in_all_projects: true },
+      platform: 'desktop',
+      capabilities: {
+        local_file_sync: true,
+        background_file_sync: true,
+        native_updates: true,
+        remote_api: false,
+      },
+      editable_keys: ['global_streak'],
+    })
+    vi.mocked(integrationsApi.runAllSync).mockResolvedValue({
+      checked: 1,
+      changed: 1,
+      failed: 0,
+      items: [],
+    })
+    const wrapper = mount(ProjectsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' },
+          IonIcon: true,
+          IonPage: { template: '<div><slot /></div>' },
+          IonSpinner: true,
+          ProjectCreateDialog: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    const button = wrapper.get('.sync-all-button')
+    vi.mocked(projectsApi.list).mockClear()
+    await button.trigger('click')
+    await flushPromises()
+    expect(integrationsApi.runAllSync).toHaveBeenCalledOnce()
+    expect(projectsApi.list).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
 })

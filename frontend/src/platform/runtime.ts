@@ -32,7 +32,7 @@ async function initializeTauriRuntime(): Promise<void> {
   } catch (error) {
     window.__NFPROGRESS_RUNTIME__ = {
       startupError:
-        error instanceof Error ? error.message : String(error || 'Локальный backend недоступен.'),
+        error instanceof Error ? error.message : String(error || 'Не удалось запустить приложение.'),
     }
   }
 }

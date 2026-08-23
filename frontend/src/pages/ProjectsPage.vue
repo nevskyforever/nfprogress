@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { IonContent, IonIcon, IonPage } from '@ionic/vue'
+import { IonContent, IonIcon, IonPage, IonSpinner } from '@ionic/vue'
 import {
   addOutline,
   alertCircleOutline,
   closeCircleOutline,
   folderOpenOutline,
+  refreshOutline,
   searchOutline,
 } from 'ionicons/icons'
 
@@ -15,8 +16,11 @@ import ProjectCreateDialog from '@/components/projects/ProjectCreateDialog.vue'
 import StreakBadge from '@/components/projects/StreakBadge.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { projectsApi } from '@/api/projects'
+import { apiErrorMessage } from '@/api/client'
+import { integrationsApi } from '@/api/integrations'
 import { settingsApi } from '@/api/settings'
 import { useLocaleStore } from '@/stores/locale'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useProjectsStore } from '@/stores/projects'
 import type {
   GlobalStreakSummary,
@@ -32,6 +36,7 @@ const route = useRoute()
 const router = useRouter()
 const store = useProjectsStore()
 const locale = useLocaleStore()
+const notifications = useNotificationsStore()
 const t = locale.translate
 
 function queryValue(value: unknown): string {
@@ -69,6 +74,8 @@ const todaySummary = ref<TodaySummary | null>(null)
 const showTodaySummary = ref(false)
 const streaksEnabled = ref(false)
 const globalStreak = ref<GlobalStreakSummary | null>(null)
+const localSyncAvailable = ref(false)
+const syncAllRunning = ref(false)
 const preferencesReady = ref(false)
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 let preferencesController: AbortController | undefined
@@ -164,6 +171,7 @@ async function initializeWorkspace(): Promise<void> {
     }
     showTodaySummary.value = enabledSetting(settings.values.show_written_today_in_all_projects)
     streaksEnabled.value = enabledSetting(settings.values.global_streak)
+    localSyncAvailable.value = settings.capabilities.local_file_sync === true
     const summaryRequests: Promise<void>[] = []
     if (showTodaySummary.value) {
       summaryRequests.push(
@@ -189,6 +197,29 @@ async function initializeWorkspace(): Promise<void> {
     preferencesReady.value = true
     synchronizeRoute()
     loadProjects()
+  }
+}
+
+async function synchronizeAll(): Promise<void> {
+  if (!localSyncAvailable.value || syncAllRunning.value) return
+  syncAllRunning.value = true
+  try {
+    const result = await integrationsApi.runAllSync()
+    await Promise.all([
+      store.load(currentListQuery()),
+      showTodaySummary.value
+        ? projectsApi.today().then((summary) => { todaySummary.value = summary }).catch(() => undefined)
+        : Promise.resolve(),
+      streaksEnabled.value
+        ? projectsApi.globalStreak().then((summary) => { globalStreak.value = summary }).catch(() => undefined)
+        : Promise.resolve(),
+    ])
+    const notify = result.failed > 0 ? notifications.warning : notifications.success
+    notify(t('Синхронизация завершена'))
+  } catch (error) {
+    notifications.error(t(apiErrorMessage(error)))
+  } finally {
+    syncAllRunning.value = false
   }
 }
 
@@ -252,10 +283,24 @@ onBeforeUnmount(() => {
               {{ t('Следите за рукописями, целями и ритмом работы в одном месте.') }}
             </p>
           </div>
-          <button class="nf-button create-project-button" type="button" @click="openCreateDialog">
-            <IonIcon :icon="addOutline" aria-hidden="true" />
-            {{ t('Новый проект') }}
-          </button>
+          <div class="page-header__actions">
+            <button
+              v-if="localSyncAvailable"
+              class="nf-button nf-button--secondary sync-all-button"
+              type="button"
+              :disabled="syncAllRunning"
+              :aria-busy="syncAllRunning"
+              @click="synchronizeAll"
+            >
+              <IonSpinner v-if="syncAllRunning" name="crescent" aria-hidden="true" />
+              <IonIcon v-else :icon="refreshOutline" aria-hidden="true" />
+              {{ t('Синхронизировать все') }}
+            </button>
+            <button class="nf-button create-project-button" type="button" @click="openCreateDialog">
+              <IonIcon :icon="addOutline" aria-hidden="true" />
+              {{ t('Новый проект') }}
+            </button>
+          </div>
         </header>
 
         <div
@@ -416,6 +461,23 @@ onBeforeUnmount(() => {
   gap: var(--nf-space-6);
   align-items: flex-end;
   justify-content: space-between;
+}
+
+.page-header__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nf-space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.sync-all-button {
+  min-width: max-content;
+}
+
+.sync-all-button ion-icon,
+.sync-all-button ion-spinner {
+  font-size: 1.1rem;
 }
 
 .page-eyebrow {
@@ -626,6 +688,11 @@ onBeforeUnmount(() => {
     align-items: flex-start;
   }
 
+  .page-header__actions {
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+
   .create-project-button {
     width: 3rem;
     min-width: 3rem;
@@ -635,6 +702,18 @@ onBeforeUnmount(() => {
 
   .create-project-button ion-icon {
     font-size: 1.35rem;
+  }
+
+  .sync-all-button {
+    width: 3rem;
+    min-width: 3rem;
+    padding: 0;
+    font-size: 0;
+  }
+
+  .sync-all-button ion-icon,
+  .sync-all-button ion-spinner {
+    font-size: 1.25rem;
   }
 
   .workspace-summaries {

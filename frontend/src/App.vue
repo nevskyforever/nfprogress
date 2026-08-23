@@ -82,7 +82,7 @@ void bootstrapApplication()
     >
       <img class="application-bootstrap__mark" :src="appIcon" alt="" />
       <h1>{{ t('Не удалось открыть nfprogress') }}</h1>
-      <p>{{ bootstrapError ?? t('Backend недоступен.') }}</p>
+      <p>{{ bootstrapError ?? t('Не удалось подключиться к приложению.') }}</p>
       <button class="nf-button" type="button" @click="bootstrapApplication">
         {{ t('Повторить') }}
       </button>

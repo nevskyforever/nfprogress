@@ -10,7 +10,6 @@ import {
   languageOutline,
   settingsOutline,
   sparklesOutline,
-  syncOutline,
 } from 'ionicons/icons'
 
 import { useNetworkStatus } from '@/composables/useNetworkStatus'
@@ -41,7 +40,6 @@ const hasBanner = computed(() => !online.value || Boolean(startupError))
 const navigationItems = [
   { to: '/projects', label: 'Проекты', mobileLabel: 'Проекты', icon: folderOpenOutline },
   { to: '/game', label: 'Игровой режим', mobileLabel: 'Игра', icon: sparklesOutline },
-  { to: '/integrations', label: 'Синхронизация', mobileLabel: 'Файлы', icon: syncOutline },
   { to: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
   { to: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },
 ] as const
@@ -181,7 +179,7 @@ watchEffect(() => {
       role="alert"
     >
       <IonIcon :icon="cloudOfflineOutline" aria-hidden="true" />
-      {{ t('Не удалось запустить локальный backend') }}: {{ startupError }}
+      {{ t('Не удалось запустить приложение. Попробуйте повторить запуск.') }}
     </div>
     <div
       v-else-if="!online"

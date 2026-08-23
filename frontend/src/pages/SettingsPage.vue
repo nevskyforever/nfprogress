@@ -201,7 +201,7 @@ onBeforeUnmount(() => controller.abort())
           <div>
             <p>{{ t('Приложение') }}</p>
             <h1>{{ t('Настройки') }}</h1>
-            <span>{{ t('Параметры сохраняются в общем Python Core; здесь показаны только работающие на этой платформе возможности.') }}</span>
+            <span>{{ t('Здесь показаны только возможности, доступные на этом устройстве.') }}</span>
           </div>
           <IonIcon :icon="settingsOutline" aria-hidden="true" />
         </header>
@@ -215,7 +215,7 @@ onBeforeUnmount(() => controller.abort())
         <StatePanel
           v-else-if="!response"
           :title="t('Не удалось открыть настройки')"
-          :message="error ?? t('Backend недоступен.')"
+          :message="error ?? t('Не удалось подключиться к приложению.')"
           :icon="alertCircleOutline"
         >
           <button class="nf-button" type="button" @click="loadSettings">{{ t('Повторить') }}</button>
