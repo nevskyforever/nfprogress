@@ -25,17 +25,15 @@ windows_release_options = _load_script(
 )._windows_release_options
 
 
-def test_release_config_requires_signed_nsis_and_https_updater():
+def test_release_config_creates_nsis_updater_artifacts():
     payload = release_config(
         version='4.15.0',
         repository='owner/nfprogress',
         public_key='untrusted comment: minisign public key\nRWQexample',
-        certificate_thumbprint='A' * 40,
-        timestamp_url='http://timestamp.example.test',
     )
 
     assert payload['bundle']['createUpdaterArtifacts'] is True
-    assert payload['bundle']['windows']['certificateThumbprint'] == 'A' * 40
+    assert payload['bundle']['windows']['nsis']['installMode'] == 'currentUser'
     assert payload['plugins']['updater']['endpoints'] == [
         'https://github.com/owner/nfprogress/releases/latest/download/latest.json',
     ]

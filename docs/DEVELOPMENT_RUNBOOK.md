@@ -266,21 +266,16 @@ scripts/build-tauri-dmg.sh aarch64-apple-darwin
 ## Официальная Windows-сборка и обновления
 
 `.github/workflows/build.yml` собирает только новую Tauri-версию на
-Windows/MSVC. Он создаёт Nuitka sidecar и NSIS installer, проверяет их запуск и
-не публикует release, пока sidecar, приложение и installer не имеют валидной
-Authenticode-подписи, updater artifact — отдельной Tauri-подписи, а итоговый
-набор файлов не прошёл проверку Microsoft Defender. Windows-sidecar содержит
-иконку и версионные метаданные и собирается без сжатия вложенного payload,
-чтобы не добавлять признаки непрозрачного packer-файла.
+Windows/MSVC. Он создаёт Nuitka sidecar и NSIS installer, проверяет запуск
+sidecar, создаёт updater artifact с отдельной Tauri-подписью и публикует
+`latest.json` в GitHub Releases. Windows-sidecar содержит иконку и версионные
+метаданные и собирается без сжатия вложенного payload.
 
 Перед первым запуском workflow настройте GitHub Actions:
 
-- secrets `WINDOWS_CERTIFICATE` (PFX в base64) и
-  `WINDOWS_CERTIFICATE_PASSWORD`;
 - secrets `TAURI_SIGNING_PRIVATE_KEY` и, если задан,
   `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
-- repository variable `TAURI_UPDATER_PUBLIC_KEY`;
-- необязательную repository variable `WINDOWS_TIMESTAMP_URL`.
+- repository variable `TAURI_UPDATER_PUBLIC_KEY`.
 
 Пара updater-ключей создаётся один раз командой из `frontend/`:
 
@@ -288,7 +283,8 @@ Authenticode-подписи, updater artifact — отдельной Tauri-по�
 npm run tauri signer generate -- -w "$env:USERPROFILE\.tauri\nfprogress-updater.key"
 ```
 
-Приватный ключ нельзя коммитить или терять. Release-приложение проверяет
+Это бесплатная пара ключей Tauri, а не сертификат Authenticode. Приватный ключ
+нельзя коммитить или терять. Release-приложение проверяет
 `latest.json` в GitHub Releases после запуска и раз в час; найденное обновление
 устанавливается штатным Tauri updater только после проверки подписи. В
 `tauri:dev` updater намеренно выключен.

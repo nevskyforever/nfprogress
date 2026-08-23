@@ -14,7 +14,7 @@ retired.
 | --- | --- | --- |
 | Repository/dependency audit | [done] | Core, UI, game, storage, integrations, build scripts, and available native SDKs audited |
 | Architecture and migration plan | [done] | Transitional boundaries, data safety, transports, platform capabilities, and debt documented |
-| Legacy packaging retirement | [done] | PySide6 build/release wrappers, SSH publication helpers, and legacy manifests were removed. Actions publish only signed Tauri releases; historical Python UI source remains solely for data compatibility and regression reference |
+| Legacy packaging retirement | [done] | PySide6 build/release wrappers, SSH publication helpers, and legacy manifests were removed. Actions publish only Tauri releases; historical Python UI source remains solely for data compatibility and regression reference |
 | Qt-free supported runtime | [done] | Web, Tauri, sidecar, updater, and Capacitor paths have no Qt runtime requirement |
 | Qt-free application services | [done] | Projects, notes/maps, game, settings/content, and integrations are service-backed. `engine.py`, `game.py`, and `game_data.py` deliberately retain pickle-compatible class paths and are proven to import without PySide6 or legacy UI dependencies |
 | Storage repository/isolation | [done] | Explicit data roots, in-process and advisory locks, atomic legacy pickle writes, idempotent streak handling, temporary-directory tests, timestamped backups before destructive setting transitions, and a one-time backup before persisted notification IDs are present |
@@ -38,17 +38,17 @@ retired.
 | Localization pipeline | [done] | Six canonical Python catalogs, deterministic frontend export/drift check, Vue/TypeScript source extraction, HTML/placeholder validation, and the final catalog regression checks pass |
 | Help frontend | [done] | Localized canonical `HELP_SECTIONS`, nested navigation, article rendering, in-window search, and keyboard search shortcut use the real content API |
 | Web target | [done] | Production Vue build, remote URL configuration, manifest, responsive routes, platform guards, and backend-unavailable states are verified; deployment HTTPS/auth, SPA fallback, and offline mutation behavior remain operator concerns rather than bundled claims |
-| Tauri lifecycle/security | [done] | Ephemeral loopback port, per-run token, health wait, restricted capabilities, shutdown kill, parent-PID orphan protection, and release-only signed updater are implemented |
+| Tauri lifecycle/security | [done] | Ephemeral loopback port, per-run token, health wait, restricted capabilities, shutdown kill, parent-PID orphan protection, and release-only Tauri updater are implemented |
 | Tauri macOS Apple Silicon | [done] | Fresh matching ARM64 Nuitka sidecar, loopback/token `/health` smoke, child cleanup, `cargo check`, and release `.app` bundle were verified on the current Apple Silicon host |
 | Tauri macOS plain DMG | [done] | `scripts/build-tauri-dmg.sh` builds the matching app, creates a drag-to-Applications UDZO image with `hdiutil`, and verifies it without Finder automation; a 41 MB x86_64 smoke DMG was verified on the current host |
 | Tauri macOS DMG styling | [blocked] | The app bundle succeeds, but the optional Finder-styled DMG wrapper invokes `osascript`; Finder AppleScript hangs in this headless in-app environment. `npx tauri build --bundles app` is verified instead |
 | Tauri macOS Intel | [done] | A fresh `x86_64-apple-darwin` Nuitka sidecar, target `cargo check`, and unsigned production `.app` bundle were built on the ARM host; Rosetta authenticated `/health` and token-bound API smoke completed within the 30-second Tauri readiness window. Physical Intel UI/signing verification remains a release-host task |
-| Tauri Windows | [in progress] | Windows Actions now build/smoke-test the MSVC sidecar with explicit product metadata and an uncompressed payload, require and verify Authenticode signatures, scan final assets with Microsoft Defender, build NSIS updater artifacts, generate `latest.json`, and publish GitHub Releases. A real run remains dependent on repository updater keys and a trusted PFX certificate |
+| Tauri Windows | [in progress] | Windows Actions build/smoke-test the MSVC sidecar with explicit product metadata and an uncompressed payload, build NSIS updater artifacts, generate `latest.json`, and publish GitHub Releases. A real run remains dependent only on repository updater keys |
 | Capacitor shared setup | [done] | iOS and Android projects, app identifier/name, icons/splash assets, safe-area/theme behavior, keyboard/status bar/network/external-link plugins, and `cap sync` are present |
 | Capacitor iOS native build | [blocked] | Host has only Xcode Command Line Tools; full Xcode and the iPhoneOS SDK are unavailable |
 | Capacitor Android native build | [blocked] | Host exposes Java 8, below the current Android toolchain requirement, and has no Android SDK, `adb`, or `sdkmanager` |
 | Automated quality gates | [in progress] | Focused release/updater, content, integration, localization, help, and export Python suites pass; frontend typecheck/lint/104 Vitest tests/build, ARM64 and x86_64 `cargo check`, `cap sync`, sidecar smoke, and audit pass. Playwright and managed Chromium are installed for browser journeys; the in-app Browser has no available target, so final responsive screenshot review remains an environment limitation |
-| Developer documentation | [done] | README/runbook cover backend/frontend/Web/Tauri/Capacitor commands, signed Windows releases, updater keys, data safety, tests, and platform limitations |
+| Developer documentation | [done] | README/runbook cover backend/frontend/Web/Tauri/Capacitor commands, Windows releases, updater keys, data safety, tests, and platform limitations |
 
 ## Functional parity summary
 
@@ -168,7 +168,7 @@ verification task.
   product workflow again (the current flow requests `.docx`).
 - Full Playwright coverage for the project → stage → progress → statistics,
   note ↔ mind-map, and writing-session reward journeys.
-- A real signed Windows workflow run, plus native release/signing/UI
+- A Windows workflow run with repository updater keys, plus native release/UI
   verification on physical macOS Intel hardware, iOS, and Android.
 
 ## Verification evidence

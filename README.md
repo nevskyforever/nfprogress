@@ -57,7 +57,7 @@ frontend never reads pickle files or imports Qt/Python objects directly. See the
 | Web | Production Vue build works with a configured FastAPI deployment; HTTPS, authentication/reverse-proxy policy, and SPA route fallback belong to the deployment |
 | Tauri macOS Apple Silicon | Release `.app`, fresh ARM64 Nuitka sidecar, loopback/token health check, and child cleanup verified on the current host; a plain headless DMG is available, while Finder styling remains cosmetic-only |
 | Tauri macOS Intel | Fresh x86_64 sidecar, target `cargo check`, and unsigned production `.app` bundle were built on the ARM host; authenticated sidecar startup was exercised through Rosetta within Tauri's 30-second readiness window. Physical Intel UI/signing verification remains a release-host task |
-| Tauri Windows | The workflow builds the MSVC Nuitka sidecar and Tauri NSIS installer, checks runtime health, requires Authenticode and updater signatures, and publishes `latest.json` with the GitHub Release |
+| Tauri Windows | The workflow builds the MSVC Nuitka sidecar and Tauri NSIS installer, checks runtime health, creates the updater artifact, and publishes `latest.json` with the GitHub Release |
 | Capacitor iOS | Native project, plugins, branding, and `cap sync` are present; native compilation is blocked on this host because full Xcode and the iPhoneOS SDK are absent |
 | Capacitor Android | Native project, plugins, branding, and `cap sync` are present; native compilation is blocked on this host by Java 8 and the absence of the Android SDK (`adb`/`sdkmanager`) |
 
@@ -68,9 +68,9 @@ feature-level parity matrix and remaining platform-specific behavior.
 
 ## Download
 
-Signed Tauri desktop builds are published through
+Tauri desktop builds are published through
 [GitHub Releases](https://github.com/nevskyforever/nfprogress/releases).
-Windows releases use the bundled NSIS installer; signed updates are delivered
+Windows releases use the bundled NSIS installer; automatic updates are delivered
 from the same GitHub release channel.
 
 ## Development prerequisites
@@ -235,32 +235,27 @@ with the backend dependencies; it explains the required
 `NFPROGRESS_TAURI_PYTHON` and `NFPROGRESS_TAURI_PYTHON_ARCH` values if the
 active interpreter has the wrong architecture. The matching `Release Tauri
 *.sh` wrappers prepare the same local archive; the protected CI workflow owns
-the signed updater channel.
+the automatic updater channel.
 
 ### Windows release and automatic updates
 
 `.github/workflows/build.yml` is the supported Windows release path. It builds
 the x86_64 MSVC sidecar and NSIS installer, runs Python/frontend/Rust checks,
-smoke-tests the sidecar, verifies Authenticode signatures, scans the final
-release with Microsoft Defender, creates the Tauri updater signature and
-`latest.json`, then publishes one GitHub Release. The workflow refuses to
-publish an unsigned or Defender-rejected package. The Windows Nuitka sidecar
-also carries stable version/product metadata and avoids payload compression to
-reduce opaque-packer heuristics.
+smoke-tests the sidecar, creates the Tauri updater artifact and `latest.json`,
+then publishes one GitHub Release. The Windows Nuitka sidecar carries stable
+version/product metadata and avoids payload compression.
 
 Configure these GitHub Actions secrets before the first release:
 
-- `WINDOWS_CERTIFICATE`: base64-encoded PFX code-signing certificate;
-- `WINDOWS_CERTIFICATE_PASSWORD`: its import password;
 - `TAURI_SIGNING_PRIVATE_KEY`: the private updater key generated once with
   `npm run tauri signer generate -- -w
   "$env:USERPROFILE\\.tauri\\nfprogress-updater.key"` from PowerShell;
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: updater-key password, when set.
 
 Set `TAURI_UPDATER_PUBLIC_KEY` as a repository variable (a secret with the same
-name is also accepted). `WINDOWS_TIMESTAMP_URL` is an optional repository
-variable. Keep the updater private key backed up securely: installed clients
-cannot trust releases signed by a replacement key.
+name is also accepted). This is a free Tauri update key, not an Authenticode
+publisher certificate. Keep its private half backed up securely: installed
+clients cannot trust releases signed by a replacement key.
 
 Official release builds check GitHub Releases after startup and once per hour.
 When a version is available, the app shows its release notes and installs it
@@ -390,19 +385,6 @@ if you no longer need your projects, settings, and progress history.
 Move `nfprogress.app` from the Applications folder to the Trash. User data in
 `~/Documents/nfprogress` is not removed automatically; delete that directory
 manually only if you no longer need it.
-
-## Code signing policy
-
-The supported Windows workflow refuses unsigned releases. It requires a
-trusted Authenticode code-signing certificate for the installer, desktop
-executable, and Python sidecar, plus the independent Tauri updater key used to
-authenticate downloaded packages. Self-signed certificates are not suitable
-for public releases.
-
-The project also acknowledges free code signing provided by
-[SignPath.io](https://signpath.io/) with a certificate from the
-[SignPath Foundation](https://signpath.org/). A future SignPath cloud workflow
-must preserve the same verification gates before release.
 
 ### Project roles
 

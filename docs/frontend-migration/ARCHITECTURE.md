@@ -205,18 +205,12 @@ overlay embeds the public updater key and the HTTPS GitHub Releases
 offers a manual check in Settings, displays download progress, and delegates
 installation and restart to the Tauri updater plugin.
 
-Update authenticity and Windows publisher trust are separate controls. Tauri
-requires a minisign-style update signature and verifies it before install.
-The Windows workflow also requires a trusted Authenticode certificate, signs
-the Nuitka sidecar before bundling, lets Tauri sign its executable and NSIS
-installer, and verifies all signatures before publishing. The sidecar carries
-stable Windows product/version metadata and omits onefile payload compression;
-the final signed assets must also pass a Microsoft Defender custom scan. The
-workflow creates the static manifest only after these checks and never
-publishes the historical self-replacing ZIP/updater executable. Code signing
-and scanning materially reduce SmartScreen and antivirus warnings, but no build
-system can guarantee that a third-party scanner will never produce a false
-positive.
+Tauri requires its own minisign-style update signature and verifies it before
+install. It is a free application-owned key pair, not a commercial Windows
+publisher certificate. The Windows workflow creates the static manifest only
+after the updater artifact exists and never publishes the historical
+self-replacing ZIP/updater executable. The sidecar retains stable product and
+version metadata and omits onefile payload compression.
 
 ### Desktop background synchronization
 
@@ -381,7 +375,7 @@ The following behavior remains incomplete or platform-specific:
 - a real `.doc` reader, if that obsolete Word format is again made a supported
   product workflow (the current API accepts `.docx`);
 - full browser-driven Playwright coverage of the critical end-to-end flows;
-- a signed Windows CI execution with repository keys/certificate, plus macOS,
+- a Windows CI execution with repository updater keys, plus macOS,
   iOS, and Android store/notarization verification.
 
 PySide6 and its old updater remain historical source, not a supported fallback.

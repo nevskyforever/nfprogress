@@ -25,7 +25,7 @@ concurrency:
 
 jobs:
   build_windows:
-    name: Build signed Tauri/NSIS release
+    name: Build Tauri/NSIS release
     if: >-
       github.ref == 'refs/heads/main' &&
       (contains(github.event.head_commit.message, 'Обновление') || github.event_name == 'workflow_dispatch')
@@ -35,9 +35,6 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       release_notes: ${{ steps.release_notes.outputs.release_notes }}
       telegram_message: ${{ steps.release_notes.outputs.telegram_message }}
-    env:
-      WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL || 'http://timestamp.digicert.com' }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -162,81 +159,30 @@ jobs:
             Pop-Location
           }
 
-      - name: Validate release signing secrets and import Authenticode certificate
+      - name: Validate Tauri updater keys
         shell: pwsh
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_UPDATER_PUBLIC_KEY: ${{ vars.TAURI_UPDATER_PUBLIC_KEY || secrets.TAURI_UPDATER_PUBLIC_KEY }}
-          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
-          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
         run: |
           $required = @{
             TAURI_SIGNING_PRIVATE_KEY = $env:TAURI_SIGNING_PRIVATE_KEY
             TAURI_UPDATER_PUBLIC_KEY = $env:TAURI_UPDATER_PUBLIC_KEY
-            WINDOWS_CERTIFICATE = $env:WINDOWS_CERTIFICATE
-            WINDOWS_CERTIFICATE_PASSWORD = $env:WINDOWS_CERTIFICATE_PASSWORD
           }
           $missing = @($required.GetEnumerator() | Where-Object { [string]::IsNullOrWhiteSpace($_.Value) } | ForEach-Object Key)
           if ($missing.Count -gt 0) {
-            throw "A signed release cannot be published. Configure GitHub secrets/variables: $($missing -join ', ')."
+            throw "Automatic updates require GitHub secrets/variables: $($missing -join ', ')."
           }
-
-          $certificateText = $env:WINDOWS_CERTIFICATE `
-            -replace '-----BEGIN [^-]+-----', '' `
-            -replace '-----END [^-]+-----', '' `
-            -replace '\s', ''
-          try {
-            $certificateBytes = [Convert]::FromBase64String($certificateText)
-          } catch {
-            throw "WINDOWS_CERTIFICATE must contain the base64-encoded PFX certificate."
-          }
-          $certificatePath = Join-Path $env:RUNNER_TEMP "nfprogress-code-signing.pfx"
-          [System.IO.File]::WriteAllBytes($certificatePath, $certificateBytes)
-          $password = ConvertTo-SecureString $env:WINDOWS_CERTIFICATE_PASSWORD -AsPlainText -Force
-          $certificate = Import-PfxCertificate `
-            -FilePath $certificatePath `
-            -CertStoreLocation Cert:\CurrentUser\My `
-            -Password $password `
-            -Exportable:$false |
-            Where-Object HasPrivateKey |
-            Select-Object -First 1
-          Remove-Item $certificatePath -Force
-          if (-not $certificate) { throw "The PFX did not provide a certificate with a private key." }
-          if ($certificate.NotAfter -le (Get-Date)) { throw "The Authenticode certificate has expired." }
-          $codeSigningEku = $certificate.EnhancedKeyUsageList.ObjectId.Value -contains '1.3.6.1.5.5.7.3.3'
-          if (-not $codeSigningEku) { throw "The imported certificate is not valid for code signing." }
-
           $publicKeyPath = Join-Path $env:RUNNER_TEMP "tauri-updater.pub"
           $publicKey = ($env:TAURI_UPDATER_PUBLIC_KEY -replace '\\n', "`n").Trim()
           [System.IO.File]::WriteAllText($publicKeyPath, $publicKey, [System.Text.UTF8Encoding]::new($false))
-          "WINDOWS_CERTIFICATE_THUMBPRINT=$($certificate.Thumbprint)" >> $env:GITHUB_ENV
           "TAURI_UPDATER_PUBLIC_KEY_FILE=$publicKeyPath" >> $env:GITHUB_ENV
 
       - name: Build Python sidecar
         shell: pwsh
         run: python scripts\build-backend-sidecar.py --target x86_64-pc-windows-msvc
 
-      - name: Sign and verify Python sidecar
-        shell: pwsh
-        run: |
-          $sidecar = Resolve-Path "frontend\src-tauri\binaries\nfprogress-backend-x86_64-pc-windows-msvc.exe"
-          $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
-            Sort-Object FullName -Descending |
-            Select-Object -First 1
-          if (-not $signTool) { throw "signtool.exe was not found on the Windows runner." }
-          & $signTool.FullName sign `
-            /sha1 $env:WINDOWS_CERTIFICATE_THUMBPRINT `
-            /fd SHA256 `
-            /tr $env:WINDOWS_TIMESTAMP_URL `
-            /td SHA256 `
-            $sidecar
-          if ($LASTEXITCODE -ne 0) { throw "Unable to sign the Python sidecar." }
-          $signature = Get-AuthenticodeSignature $sidecar
-          if ($signature.Status -ne 'Valid') {
-            throw "The Python sidecar Authenticode signature is $($signature.Status): $($signature.StatusMessage)"
-          }
-
-      - name: Smoke-test signed sidecar
+      - name: Smoke-test Python sidecar
         shell: pwsh
         run: |
           $listener = [System.Net.Sockets.TcpListener]::new([System.Net.IPAddress]::Loopback, 0)
@@ -266,7 +212,7 @@ jobs:
                 Start-Sleep -Milliseconds 250
               }
             }
-            if (-not $healthy) { throw "The signed Python sidecar did not become healthy." }
+            if (-not $healthy) { throw "The Python sidecar did not become healthy." }
             Invoke-RestMethod `
               -Uri "http://127.0.0.1:$port/api/settings" `
               -Headers @{ 'X-NFProgress-Token' = $token } `
@@ -276,7 +222,7 @@ jobs:
             if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
           }
 
-      - name: Create signed Tauri release configuration
+      - name: Create Tauri release configuration
         shell: pwsh
         run: |
           $configPath = Join-Path $env:RUNNER_TEMP "tauri.release.conf.json"
@@ -284,8 +230,6 @@ jobs:
             --version $env:APP_VERSION `
             --repository $env:GITHUB_REPOSITORY `
             --public-key-file $env:TAURI_UPDATER_PUBLIC_KEY_FILE `
-            --certificate-thumbprint $env:WINDOWS_CERTIFICATE_THUMBPRINT `
-            --timestamp-url $env:WINDOWS_TIMESTAMP_URL `
             --output $configPath
           "TAURI_RELEASE_CONFIG=$configPath" >> $env:GITHUB_ENV
 
@@ -304,7 +248,7 @@ jobs:
             --bundles nsis `
             --config $env:TAURI_RELEASE_CONFIG
 
-      - name: Verify signatures and prepare release assets
+      - name: Verify updater artifact and prepare release assets
         shell: pwsh
         run: |
           $targetRoot = "frontend\src-tauri\target\x86_64-pc-windows-msvc\release"
@@ -315,18 +259,6 @@ jobs:
           if ([string]::IsNullOrWhiteSpace((Get-Content $updaterSignature -Raw))) {
             throw "The Tauri updater signature is empty."
           }
-          $desktopExecutable = Get-ChildItem $targetRoot -Filter 'nfprogress-desktop.exe' | Select-Object -First 1
-          $sidecar = Resolve-Path "frontend\src-tauri\binaries\nfprogress-backend-x86_64-pc-windows-msvc.exe"
-          foreach ($file in @($installer.FullName, $desktopExecutable.FullName, $sidecar.Path)) {
-            if ([string]::IsNullOrWhiteSpace($file) -or -not (Test-Path $file)) {
-              throw "A signed Windows executable is missing: $file"
-            }
-            $signature = Get-AuthenticodeSignature $file
-            if ($signature.Status -ne 'Valid') {
-              throw "Authenticode verification failed for $file: $($signature.Status) $($signature.StatusMessage)"
-            }
-          }
-
           $assets = Join-Path $PWD "release-assets"
           New-Item -ItemType Directory -Path $assets -Force | Out-Null
           $assetName = "nfprogress-windows-x86_64-$($env:APP_VERSION)-setup.exe"
@@ -353,31 +285,7 @@ jobs:
             [System.Text.UTF8Encoding]::new($false)
           )
 
-      - name: Scan signed release with Microsoft Defender
-        shell: pwsh
-        run: |
-          $platformRoot = Join-Path $env:ProgramData "Microsoft\Windows Defender\Platform"
-          $defender = Get-ChildItem $platformRoot -Directory -ErrorAction SilentlyContinue |
-            Sort-Object LastWriteTime -Descending |
-            ForEach-Object { Join-Path $_.FullName 'MpCmdRun.exe' } |
-            Where-Object { Test-Path $_ } |
-            Select-Object -First 1
-          if (-not $defender) {
-            $fallback = Join-Path $env:ProgramFiles 'Windows Defender\MpCmdRun.exe'
-            if (Test-Path $fallback) { $defender = $fallback }
-          }
-          if (-not $defender) { throw 'Microsoft Defender scanner was not found.' }
-
-          & $defender `
-            -Scan `
-            -ScanType 3 `
-            -File (Resolve-Path 'release-assets') `
-            -DisableRemediation
-          if ($LASTEXITCODE -ne 0) {
-            throw "Microsoft Defender rejected the signed release or could not scan it (exit $LASTEXITCODE)."
-          }
-
-      - name: Store signed Windows release
+      - name: Store Windows release
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: tauri-windows-${{ steps.version.outputs.version }}
@@ -385,16 +293,8 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
-      - name: Remove imported signing certificate
-        if: always()
-        shell: pwsh
-        run: |
-          if (-not [string]::IsNullOrWhiteSpace($env:WINDOWS_CERTIFICATE_THUMBPRINT)) {
-            Remove-Item "Cert:\CurrentUser\My\$($env:WINDOWS_CERTIFICATE_THUMBPRINT)" -Force -ErrorAction SilentlyContinue
-          }
-
   publish_release:
-    name: Publish signed GitHub release
+    name: Publish GitHub release
     needs: build_windows
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -408,7 +308,7 @@ jobs:
       GH_TOKEN: ${{ github.token }}
 
     steps:
-      - name: Download signed release files
+      - name: Download release files
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8
         with:
           name: tauri-windows-${{ needs.build_windows.outputs.version }}
