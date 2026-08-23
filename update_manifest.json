@@ -17,6 +17,7 @@
   "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.0.0.zip",
   "windows": {
     "version": "5.0.0",
+    "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.0.0-setup.exe",
     "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.0.0-setup.exe"
   }
 }

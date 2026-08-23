@@ -66,6 +66,7 @@ def main() -> int:
     if platform == "windows":
         section = {
             "version": version,
+            "url": url,
             "installer_url": url,
         }
         if installer is not None:
