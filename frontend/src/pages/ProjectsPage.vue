@@ -119,6 +119,12 @@ function preferenceSort(value: unknown): ProjectSort | null {
   return typeof value === 'string' ? legacy[value] ?? null : null
 }
 
+function enabledSetting(value: unknown): boolean {
+  // Existing settings files are normally boolean, but early legacy saves can
+  // contain serialized truthy equivalents.
+  return value === true || value === 1 || value === 'true' || value === 'True'
+}
+
 function synchronizeRoute(): void {
   const query: Record<string, string> = {}
   if (debouncedSearch.value.trim()) query.search = debouncedSearch.value.trim()
@@ -156,8 +162,8 @@ async function initializeWorkspace(): Promise<void> {
         settings.values.frontend_project_sort ?? settings.values.project_sort,
       ) ?? sort.value
     }
-    showTodaySummary.value = settings.values.show_written_today_in_all_projects === true
-    streaksEnabled.value = settings.values.global_streak === true
+    showTodaySummary.value = enabledSetting(settings.values.show_written_today_in_all_projects)
+    streaksEnabled.value = enabledSetting(settings.values.global_streak)
     const summaryRequests: Promise<void>[] = []
     if (showTodaySummary.value) {
       summaryRequests.push(
@@ -252,27 +258,32 @@ onBeforeUnmount(() => {
           </button>
         </header>
 
-        <section v-if="showTodaySummary && todaySummary" class="today-summary" role="status">
-          <div>
-            <p>{{ t('Текущий писательский день') }}</p>
-            <h2>{{ t('Написано сегодня') }}</h2>
-          </div>
-          <strong>{{ locale.formatNumber(todaySummary.symbols, 0) }} {{ t('символов') }}</strong>
-        </section>
+        <div
+          v-if="(showTodaySummary && todaySummary) || (streaksEnabled && globalStreak?.enabled)"
+          class="workspace-summaries"
+        >
+          <section v-if="showTodaySummary && todaySummary" class="workspace-summary workspace-summary--today" role="status">
+            <div>
+              <p>{{ t('Текущий писательский день') }}</p>
+              <h2>{{ t('Написано сегодня') }}</h2>
+            </div>
+            <strong>{{ locale.formatNumber(todaySummary.symbols, 0) }} {{ t('символов') }}</strong>
+          </section>
 
-        <section v-if="streaksEnabled && globalStreak" class="global-streak-summary">
-          <div>
-            <p>{{ t('Ритм всех проектов') }}</p>
-            <h2>{{ t('Глобальный стрик') }}</h2>
-          </div>
-          <StreakBadge
-            :length="globalStreak.length"
-            :max-length="globalStreak.max_length"
-            :status="globalStreak.status"
-            scope="global"
-            show-max
-          />
-        </section>
+          <section v-if="streaksEnabled && globalStreak?.enabled" class="workspace-summary workspace-summary--streak">
+            <div>
+              <p>{{ t('Ритм всех проектов') }}</p>
+              <h2>{{ t('Глобальный стрик') }}</h2>
+            </div>
+            <StreakBadge
+              :length="globalStreak.length"
+              :max-length="globalStreak.max_length"
+              :status="globalStreak.status"
+              scope="global"
+              show-max
+            />
+          </section>
+        </div>
 
         <section class="project-toolbar" :aria-label="t('Поиск и фильтры проектов')">
           <label class="search-field" for="project-search">
@@ -442,61 +453,58 @@ onBeforeUnmount(() => {
   font-size: 1.15rem;
 }
 
-.today-summary {
+.workspace-summaries {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--nf-space-3);
+  margin-top: var(--nf-space-5);
+}
+
+.workspace-summary {
   display: flex;
-  gap: var(--nf-space-4);
+  min-width: 0;
+  gap: var(--nf-space-3);
   align-items: center;
   justify-content: space-between;
-  margin-top: var(--nf-space-6);
-  padding: var(--nf-space-4) var(--nf-space-5);
+  padding: var(--nf-space-3) var(--nf-space-4);
   border: 1px solid var(--nf-color-border);
-  border-left: 0.3rem solid var(--nf-color-success);
+  border-left: 0.25rem solid var(--nf-color-accent);
   border-radius: var(--nf-radius-md);
   background: var(--nf-color-surface);
   box-shadow: var(--nf-shadow-card);
 }
 
-.today-summary p,
-.today-summary h2,
-.today-summary strong {
+.workspace-summary--today {
+  border-left-color: var(--nf-color-success);
+}
+
+.workspace-summary p,
+.workspace-summary h2,
+.workspace-summary strong {
   margin: 0;
 }
 
-.global-streak-summary {
-  display: flex;
-  gap: var(--nf-space-4);
-  align-items: center;
-  justify-content: space-between;
-  margin-top: var(--nf-space-3);
-  padding: var(--nf-space-4) var(--nf-space-5);
-  border: 1px solid var(--nf-color-border);
-  border-left: 0.3rem solid var(--nf-color-accent);
-  border-radius: var(--nf-radius-md);
-  background: var(--nf-color-surface);
-  box-shadow: var(--nf-shadow-card);
-}
-
-.global-streak-summary p,
-.global-streak-summary h2 { margin: 0; }
-.global-streak-summary p { color: var(--nf-color-text-muted); font-size: 0.78rem; font-weight: 700; }
-.global-streak-summary h2 { margin-top: var(--nf-space-1); font-family: var(--nf-font-serif); font-size: 1.25rem; }
-
-.today-summary p {
+.workspace-summary p {
   color: var(--nf-color-text-muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
 }
 
-.today-summary h2 {
+.workspace-summary h2 {
   margin-top: var(--nf-space-1);
   font-family: var(--nf-font-serif);
-  font-size: 1.25rem;
+  font-size: 1.08rem;
 }
 
-.today-summary strong {
+.workspace-summary--today strong {
+  min-width: max-content;
   color: var(--nf-color-success);
-  font-size: clamp(1.2rem, 3vw, 1.7rem);
+  font-size: clamp(1.05rem, 1.8vw, 1.32rem);
   text-align: right;
+}
+
+.workspace-summary--streak :deep(.streak-badge) {
+  flex: 0 1 auto;
 }
 
 .project-toolbar {
@@ -629,13 +637,15 @@ onBeforeUnmount(() => {
     font-size: 1.35rem;
   }
 
-  .today-summary,
-  .global-streak-summary {
-    align-items: flex-start;
-    flex-direction: column;
+  .workspace-summaries {
+    grid-template-columns: 1fr;
   }
 
-  .today-summary strong {
+  .workspace-summary {
+    align-items: flex-start;
+  }
+
+  .workspace-summary--today strong {
     text-align: left;
   }
 

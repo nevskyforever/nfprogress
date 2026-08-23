@@ -40,10 +40,15 @@ describe('ProjectsPage streak summaries', () => {
       length: 4,
       max_length: 9,
     })
+    vi.mocked(projectsApi.today).mockResolvedValue({
+      date: '2026-08-23',
+      symbols: 1530,
+      projects: [],
+    })
     vi.mocked(settingsApi.get).mockResolvedValue({
       values: {
         global_streak: true,
-        show_written_today_in_all_projects: false,
+        show_written_today_in_all_projects: true,
       },
       platform: 'web',
       capabilities: {
@@ -72,8 +77,11 @@ describe('ProjectsPage streak summaries', () => {
     await flushPromises()
 
     expect(projectsApi.globalStreak).toHaveBeenCalledOnce()
-    expect(wrapper.get('.global-streak-summary').text()).toContain('4 дн.')
-    expect(wrapper.get('.global-streak-summary').text()).toContain('Максимум: 9')
+    expect(wrapper.find('.workspace-summaries').exists()).toBe(true)
+    expect(wrapper.findAll('.workspace-summary')).toHaveLength(2)
+    expect(wrapper.get('.workspace-summary--today').text()).toContain('1,530 символов')
+    expect(wrapper.get('.workspace-summary--streak').text()).toContain('4 дн.')
+    expect(wrapper.get('.workspace-summary--streak').text()).toContain('Максимум: 9')
     expect(wrapper.get('.project-card__streak').attributes('aria-label')).toContain('2 дн.')
     wrapper.unmount()
   })
