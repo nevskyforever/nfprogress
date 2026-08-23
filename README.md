@@ -26,8 +26,10 @@ Vue 3 + Ionic ── FastAPI ───────┘
        └── Capacitor ── remote HTTPS API ────────────── iOS / Android
 ```
 
-All clients use the same Python business rules. The Vue frontend never reads
-pickle files or imports Qt/Python objects directly. See the detailed
+All clients use the same Python business rules. `Project`, `Stage`, `Gamer`,
+and `Buff` retain their legacy module paths so existing pickle data stays
+loadable, while the shared core and services import without Qt. The Vue
+frontend never reads pickle files or imports Qt/Python objects directly. See the detailed
 [architecture](docs/frontend-migration/ARCHITECTURE.md),
 [migration plan](docs/frontend-migration/MIGRATION_PLAN.md), and
 [live status](docs/frontend-migration/MIGRATION_STATUS.md).

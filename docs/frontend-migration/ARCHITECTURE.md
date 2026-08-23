@@ -21,12 +21,13 @@ Vue/Ionic ── HTTP ── FastAPI ── services ── repositories
     └── Tauri 2 ── local Nuitka Python sidecar
 ```
 
-The Python core currently wraps proven logic in `engine.py`, `game.py`, and
-`game_data.py` rather than rewriting its formulas. This is a compatibility
-extraction, not yet a physical move of every domain class into `nfprogress/`.
-The service and API layers have no PySide6 dependency; legacy Qt orchestration
-may continue to call compatibility functions until its remaining workflows are
-replaced and verified.
+The Python core wraps proven logic in `engine.py`, `game.py`, and
+`game_data.py` rather than rewriting its formulas. Keeping `Project`, `Stage`,
+`Gamer`, and `Buff` at their legacy module paths is deliberate: existing pickle
+payloads encode those paths, and moving them would require a data migration
+without improving the service boundary. The service and API layers, including
+these compatibility domain modules, have no PySide6 or UI imports; a subprocess
+regression test enforces that Python-only boundary.
 
 ## Source boundaries
 
