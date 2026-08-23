@@ -9,6 +9,7 @@ import type {
   EntityUpdate,
   StageCreate,
   Statistics,
+  TodaySummary,
 } from '@/types/api'
 
 function projectPath(projectId: string): string {
@@ -35,6 +36,10 @@ export const projectsApi = {
 
   get(projectId: string, signal?: AbortSignal): Promise<Project> {
     return apiRequest<Project>(projectPath(projectId), { signal })
+  },
+
+  today(signal?: AbortSignal): Promise<TodaySummary> {
+    return apiRequest<TodaySummary>('/api/projects/today', { signal })
   },
 
   create(payload: ProjectCreate): Promise<Project> {

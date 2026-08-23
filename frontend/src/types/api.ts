@@ -99,6 +99,20 @@ export interface ProgressResult {
   warning: string | null
 }
 
+export interface TodayProjectSummary {
+  id: string
+  name: string
+  symbols: number
+  unit: UnitCode
+  value: number
+}
+
+export interface TodaySummary {
+  date: string
+  symbols: number
+  projects: TodayProjectSummary[]
+}
+
 export interface Statistics {
   entity_id: string
   unit: UnitCode

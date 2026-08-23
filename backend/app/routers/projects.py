@@ -16,6 +16,7 @@ from ..schemas import (
     ReorderStages,
     StageCreate,
     StatisticsResponse,
+    TodaySummaryResponse,
 )
 
 
@@ -40,6 +41,13 @@ def create_project(
         services: Annotated[Services, Depends(get_services)],
 ):
     return services.projects.create_project(payload.model_dump())
+
+
+@router.get('/today', response_model=TodaySummaryResponse)
+def today_summary(
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.projects.today_summary()
 
 
 @router.get('/{project_id}', response_model=ProjectResponse)

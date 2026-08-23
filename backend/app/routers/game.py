@@ -8,6 +8,7 @@ from ..dependencies import Services, get_services
 from ..game_schemas import (
     GameCatalogResponse,
     GameCommandResponse,
+    GameNotificationsResponse,
     GameStateResponse,
 )
 from ..schemas import (
@@ -37,6 +38,26 @@ router = APIRouter(prefix='/game', tags=['game'])
 @router.get('/state', response_model=GameStateResponse)
 def state(services: Annotated[Services, Depends(get_services)]):
     return services.game.get_state()
+
+
+@router.get('/notifications', response_model=GameNotificationsResponse)
+def notifications(services: Annotated[Services, Depends(get_services)]):
+    return services.game.get_notifications()
+
+
+@router.post('/notifications/{notification_id}/read', response_model=GameNotificationsResponse)
+def mark_notification_read(
+        notification_id: str,
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.game.mark_notification_read(notification_id)
+
+
+@router.post('/notifications/read-all', response_model=GameNotificationsResponse)
+def mark_all_notifications_read(
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.game.mark_all_notifications_read()
 
 
 @router.get('/catalog', response_model=GameCatalogResponse)

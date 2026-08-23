@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { contentApi } from '@/api/content'
 import { settingsApi } from '@/api/settings'
 import { useLocaleStore } from '@/stores/locale'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore } from '@/stores/theme'
 import type { SettingsResponse } from '@/types/content'
 
@@ -50,6 +51,7 @@ function mountApp() {
           IonApp: { template: '<div><slot /></div>' },
           AppShell: { template: '<div data-testid="app-shell">workspace</div>' },
           UserAgreementGate: { template: '<div data-testid="agreement-gate">agreement</div>' },
+          NotificationCenter: true,
         },
       },
     }),
@@ -68,6 +70,7 @@ describe('App bootstrap', () => {
       settingsResponse({
         language: 'en',
         frontend_theme: 'dark',
+        notification_display_time: 20,
         user_agreement: true,
       }),
     )
@@ -78,6 +81,7 @@ describe('App bootstrap', () => {
     expect(wrapper.find('[data-testid="agreement-gate"]').exists()).toBe(false)
     expect(useLocaleStore(pinia).language).toBe('en')
     expect(useThemeStore(pinia).preference).toBe('dark')
+    expect(useNotificationsStore(pinia).durationSeconds).toBe(20)
   })
 
   it('does not mount router content before an unaccepted agreement', async () => {

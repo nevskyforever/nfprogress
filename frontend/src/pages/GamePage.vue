@@ -5,6 +5,7 @@ import { alertCircleOutline, refreshOutline, sparklesOutline } from 'ionicons/ic
 
 import { apiErrorMessage } from '@/api/client'
 import { gameApi } from '@/api/game'
+import { settingsApi } from '@/api/settings'
 import AwardsBankPanel from '@/components/game/AwardsBankPanel.vue'
 import CabinetPanel from '@/components/game/CabinetPanel.vue'
 import ChallengesPanel from '@/components/game/ChallengesPanel.vue'
@@ -14,6 +15,7 @@ import InventoryShopPanel from '@/components/game/InventoryShopPanel.vue'
 import WritingSessionPanel from '@/components/game/WritingSessionPanel.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { useLocaleStore } from '@/stores/locale'
+import { useNotificationsStore } from '@/stores/notifications'
 import type {
   BankProductRequest,
   GameCommandResponse,
@@ -32,6 +34,7 @@ type GameTab =
   | 'economy'
 
 const locale = useLocaleStore()
+const notifications = useNotificationsStore()
 const t = locale.translate
 const state = ref<GameState | null>(null)
 const loading = ref(true)
@@ -41,7 +44,11 @@ const error = ref('')
 const success = ref('')
 const tab = ref<GameTab>('overview')
 const bankPreview = ref<GameCommandResponse['result']>(null)
+const inventoryCategory = ref('')
 let stateController: AbortController | undefined
+let preferencesController: AbortController | undefined
+let preferenceRequest = 0
+let inventoryPreferenceSaveChain: Promise<void> = Promise.resolve()
 
 const tabs: ReadonlyArray<{ key: GameTab; label: string }> = [
   { key: 'overview', label: 'Обзор' },
@@ -53,6 +60,11 @@ const tabs: ReadonlyArray<{ key: GameTab; label: string }> = [
   { key: 'economy', label: 'Награды и банк' },
 ]
 
+function applyState(nextState: GameState): void {
+  state.value = nextState
+  notifications.setGameHistory(nextState.notifications)
+}
+
 async function loadState(showRefresh = false): Promise<void> {
   stateController?.abort()
   stateController = new AbortController()
@@ -60,7 +72,7 @@ async function loadState(showRefresh = false): Promise<void> {
   else if (!state.value) loading.value = true
   error.value = ''
   try {
-    state.value = await gameApi.state(stateController.signal)
+    applyState(await gameApi.state(stateController.signal))
   } catch (caught) {
     if (caught instanceof DOMException && caught.name === 'AbortError') return
     error.value = apiErrorMessage(caught)
@@ -68,6 +80,42 @@ async function loadState(showRefresh = false): Promise<void> {
     loading.value = false
     refreshing.value = false
   }
+}
+
+async function loadInventoryPreference(): Promise<void> {
+  preferencesController?.abort()
+  preferencesController = new AbortController()
+  const request = ++preferenceRequest
+  try {
+    const settings = await settingsApi.get(preferencesController.signal)
+    const value = settings.values.inventory_filter
+    if (request === preferenceRequest && typeof value === 'string') {
+      inventoryCategory.value = value
+    }
+  } catch (caught) {
+    if (caught instanceof DOMException && caught.name === 'AbortError') return
+    // The game screen still works if a noncritical view preference is unavailable.
+  }
+}
+
+function persistInventoryCategory(category: string): void {
+  if (!category || category === inventoryCategory.value) return
+  inventoryCategory.value = category
+  const requestedCategory = category
+  inventoryPreferenceSaveChain = inventoryPreferenceSaveChain
+    .then(() => settingsApi.update({ inventory_filter: requestedCategory }))
+    .then((settings) => {
+      if (
+        inventoryCategory.value === requestedCategory
+        && typeof settings.values.inventory_filter === 'string'
+      ) {
+        inventoryCategory.value = settings.values.inventory_filter
+      }
+    })
+    .catch((caught: unknown) => {
+      error.value = apiErrorMessage(caught)
+      notifications.error(error.value)
+    })
 }
 
 async function runCommand(
@@ -80,15 +128,17 @@ async function runCommand(
   success.value = ''
   try {
     const response = await action()
-    state.value = response.state
+    applyState(response.state)
     bankPreview.value = options.capturePreview ? response.result : null
     success.value =
       response.messages.filter(Boolean).join(' ') ||
       response.message ||
       t(options.fallbackMessage ?? 'Изменения сохранены.')
+    notifications.success(success.value)
     await loadState(false)
   } catch (caught) {
     error.value = apiErrorMessage(caught)
+    notifications.error(error.value)
   } finally {
     busy.value = false
   }
@@ -121,8 +171,14 @@ function previewBank(payload: BankProductRequest): void {
   })
 }
 
-onMounted(() => void loadState())
-onBeforeUnmount(() => stateController?.abort())
+onMounted(() => {
+  void loadState()
+  void loadInventoryPreference()
+})
+onBeforeUnmount(() => {
+  stateController?.abort()
+  preferencesController?.abort()
+})
 </script>
 
 <template>
@@ -234,9 +290,11 @@ onBeforeUnmount(() => stateController?.abort())
               :inventory="state.inventory"
               :shop="state.shop"
               :busy="busy"
+              :initial-inventory-category="inventoryCategory"
               @buy="(payload) => inventoryCommand('buy', payload)"
               @sell="(payload) => inventoryCommand('sell', payload)"
               @use="(payload) => inventoryCommand('use', payload)"
+              @inventory-category="persistInventoryCategory"
             />
 
             <GrowthPanel

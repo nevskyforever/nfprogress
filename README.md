@@ -45,6 +45,11 @@ pickle files or imports Qt/Python objects directly. See the detailed
   custom awards, bank deposits, and streak freezes.
 - Use Russian, English, Spanish, German, French, or Brazilian Portuguese.
 - Select light, dark, or system theme in the new frontend.
+- Configure the writing-day boundary, notification duration, and optional
+  all-project daily total; Vue remembers its own project-list and inventory
+  views without changing the PySide6 fallback preferences.
+- Review persistent bank and streak events in the cross-platform notification
+  center and mark them read without losing the legacy event history.
 
 ## Target status
 

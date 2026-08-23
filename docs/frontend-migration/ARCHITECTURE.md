@@ -62,7 +62,7 @@ frontend/
     layouts/           # adaptive desktop/mobile application shell
     pages/             # projects, notes, game, integrations, help, settings
     router/             # shared Web/Tauri/Capacitor routes
-    stores/             # Pinia locale/theme and client state
+    stores/             # Pinia locale/theme/notifications and client state
     types/              # stable TypeScript contract
   src-tauri/            # Tauri 2 shell and sidecar lifecycle
   android/              # Capacitor Android project
@@ -146,7 +146,8 @@ The application factory creates one repository and the project, notes, game,
 settings, content, and document-integration services. Thin routers expose:
 
 - `/health` and generated OpenAPI;
-- project/stage CRUD, lifecycle, progress, and statistics;
+- project/stage CRUD, lifecycle, progress, statistics, and the shared
+  all-project writing-day summary;
 - project-note and normalized Mind Elixir data;
 - complete commands used by the game workspace;
 - settings, language catalogs, localized help, and the versioned user
@@ -223,7 +224,10 @@ The adaptive shell exposes these real routes:
 ```
 
 The project workspace covers search, sorting/filtering, project and stage
-lifecycle, all existing progress units, deadlines, and structured statistics.
+lifecycle, all existing progress units, deadlines, structured statistics, and
+the optional core-calculated all-project writing-day summary. Its own filter
+and sort choices are persisted under explicit frontend UI-state keys, while
+legacy list preferences remain untouched for the PySide6 fallback.
 Notes use autosave and the existing `#карта` synchronization rules. Game
 commands refresh authoritative server state after mutation. The integrations
 page changes behavior by platform capability: local paths and Scrivener on
@@ -231,10 +235,14 @@ desktop, explicit `.docx` upload elsewhere. Direct sources are snapshotted
 before application: missing, stale, unreadable, future-dated, or changing
 sources preserve both progress and the configured binding. Help searches the
 canonical localized section tree. Settings expose language, theme, writing-day
-start, game mode, the infinite shared project, global streak, and desktop
-background synchronization. Before Vue routes render, bootstrap reads those
-preferences and presents the shared versioned agreement gate when acceptance
-is missing.
+start, notification duration, game mode, the infinite shared project, global
+streak, the all-project daily total, inventory category, and desktop background
+synchronization. The shared notification stack consumes the stored duration.
+The global notification center reads persisted bank and streak events through
+the same API contract, keeps unread/read history server-side, and never
+translates stored user-facing event text in the browser.
+Before Vue routes render, bootstrap reads those preferences and presents the
+shared versioned agreement gate when acceptance is missing.
 
 The design uses Vue single-file components and CSS design tokens, with separate
 wide-screen navigation and touch navigation. Semantic labels, live command
@@ -270,7 +278,8 @@ translated.
 ## Game state and achievement evidence
 
 The game frontend exposes overview/profile, buffs, freezes, writing sessions,
-daily and weekly challenges, inventory/shop, inspiration, creative events,
+daily and weekly challenges, inventory/shop with its persisted category,
+inspiration, creative events,
 specializations/mastery, skills, quests, cabinet/relics/sets, custom awards,
 and bank operations. Python remains the source of truth and reserializes state
 after every command.
@@ -322,10 +331,7 @@ The following behavior remains intentionally legacy-only or incomplete:
 - progress-share image generation and clipboard copying from `main_UI.py`;
 - the native macOS `NSUserInterfaceItemSearching` Help-menu integration (Vue
   has its own localized in-app help search);
-- some settings such as notification duration and project-list display
-  preferences, which are not yet surfaced by the Vue settings page;
-- a dedicated notification-history view and full browser-driven Playwright
-  coverage of the critical end-to-end flows;
+- full browser-driven Playwright coverage of the critical end-to-end flows;
 - Windows, macOS Intel, iOS, and Android native release builds and signing.
 
 The PySide6 files cannot be removed until these gaps and platform verification

@@ -128,6 +128,20 @@ export interface GameInventory {
   categories: GameItemCategory[]
 }
 
+export interface GameNotification {
+  id: string
+  text: string
+  tag: string | null
+  created_at: string | null
+  status: 'new' | 'read'
+}
+
+export interface GameNotifications {
+  unread: GameNotification[]
+  read: GameNotification[]
+  unread_count: number
+}
+
 export interface GameQuest {
   id: string
   name: string
@@ -411,6 +425,7 @@ export interface GameState {
   skills: GameSkills
   buffs: GameBuffs
   streak_freezes: StreakFreezesState
+  notifications: GameNotifications
   inventory: GameInventory
   quests: GameQuests
   daily_challenge: DailyChallengeState

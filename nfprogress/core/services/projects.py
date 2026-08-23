@@ -708,6 +708,35 @@ class ProjectService:
             ],
         }
 
+    def today_summary(self) -> dict[str, Any]:
+        """Return the legacy all-project daily total through the core.
+
+        The Qt shell displays this total in symbols, including entries stored
+        on stages. Keep that calculation in Python so the Vue workspace does
+        not reconstruct writing-day rules from serialized notes.
+        """
+        data = self.repository.read_projects()
+        today = engine.today_for_test()
+        projects: list[dict[str, Any]] = []
+        total_symbols = 0.0
+        for project in data.get('projects', {}).values():
+            symbols = float(project.get_added_symbols_today_value())
+            total_symbols += symbols
+            if not symbols:
+                continue
+            projects.append({
+                'id': project.project_id,
+                'name': project.name,
+                'symbols': symbols,
+                'unit': project.unit,
+                'value': engine.unit_converter('symbols', symbols, project.unit),
+            })
+        return {
+            'date': today.isoformat(),
+            'symbols': total_symbols,
+            'projects': projects,
+        }
+
     @staticmethod
     def _find_project(data: dict[str, Any], project_id: str) -> engine.Project:
         for project in data.get('projects', {}).values():

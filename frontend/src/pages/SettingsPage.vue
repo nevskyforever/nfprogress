@@ -14,6 +14,7 @@ import { settingsApi } from '@/api/settings'
 import SettingToggle from '@/components/settings/SettingToggle.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { SUPPORTED_LANGUAGES, useLocaleStore } from '@/stores/locale'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore, type ThemePreference } from '@/stores/theme'
 import type {
   FrontendTheme,
@@ -27,9 +28,11 @@ interface SettingsForm {
   language: SupportedLanguage
   frontend_theme: FrontendTheme
   start_day_time: string
+  notification_display_time: number
   game_mode: boolean
   inf_project: boolean
   global_streak: boolean
+  show_written_today_in_all_projects: boolean
   background_synch: boolean
 }
 
@@ -37,14 +40,17 @@ const GENERAL_KEYS: ReadonlyArray<keyof SettingsForm> = [
   'language',
   'frontend_theme',
   'start_day_time',
+  'notification_display_time',
   'game_mode',
   'inf_project',
   'global_streak',
+  'show_written_today_in_all_projects',
 ]
 const DESKTOP_KEYS: ReadonlyArray<keyof SettingsForm> = ['background_synch']
 
 const locale = useLocaleStore()
 const theme = useThemeStore()
+const notifications = useNotificationsStore()
 const t = locale.translate
 const response = ref<SettingsResponse | null>(null)
 const loading = ref(true)
@@ -58,9 +64,11 @@ const form = reactive<SettingsForm>({
   language: locale.language,
   frontend_theme: theme.preference,
   start_day_time: '00:00',
+  notification_display_time: 10,
   game_mode: false,
   inf_project: false,
   global_streak: false,
+  show_written_today_in_all_projects: false,
   background_synch: false,
 })
 
@@ -92,6 +100,13 @@ function booleanValue(values: SettingsValues, key: keyof SettingsForm): boolean 
   return values[key] === true
 }
 
+function notificationDuration(values: SettingsValues): number {
+  const value = values.notification_display_time
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 3600
+    ? value
+    : 10
+}
+
 function applySettings(settings: SettingsResponse): void {
   const values = settings.values
   form.language = typeof values.language === 'string' ? values.language : 'ru'
@@ -101,9 +116,14 @@ function applySettings(settings: SettingsResponse): void {
       : 'system'
   form.start_day_time =
     typeof values.start_day_time === 'string' ? values.start_day_time.slice(0, 5) : '00:00'
+  form.notification_display_time = notificationDuration(values)
   form.game_mode = booleanValue(values, 'game_mode')
   form.inf_project = booleanValue(values, 'inf_project')
   form.global_streak = booleanValue(values, 'global_streak')
+  form.show_written_today_in_all_projects = booleanValue(
+    values,
+    'show_written_today_in_all_projects',
+  )
   form.background_synch = booleanValue(values, 'background_synch')
   response.value = settings
   originalValues.value = Object.fromEntries(
@@ -149,6 +169,8 @@ async function saveSettings(): Promise<void> {
     applySettings(await settingsApi.update(changedValues()))
     await synchronizeFrontendPreferences()
     savedMessage.value = t('Настройки сохранены.')
+    notifications.setDurationSeconds(form.notification_display_time)
+    notifications.success(savedMessage.value)
   } catch (saveError) {
     error.value = t(apiErrorMessage(saveError))
   } finally {
@@ -236,6 +258,18 @@ onBeforeUnmount(() => controller.abort())
                   <span>{{ t('Начало писательского дня') }}</span>
                   <input id="settings-day-start" v-model="form.start_day_time" type="time" step="60" />
                 </label>
+                <label v-if="editable.has('notification_display_time')" for="settings-notification-time">
+                  <span>{{ t('Время показа уведомлений, сек.') }}</span>
+                  <input
+                    id="settings-notification-time"
+                    v-model.number="form.notification_display_time"
+                    type="number"
+                    min="1"
+                    max="3600"
+                    step="1"
+                    inputmode="numeric"
+                  />
+                </label>
               </div>
             </section>
 
@@ -264,6 +298,13 @@ onBeforeUnmount(() => controller.abort())
                 v-model="form.global_streak"
                 :label="t('Общий стрик')"
                 :description="t('Учитывает продуктивные дни по всем активным проектам.')"
+              />
+              <SettingToggle
+                v-if="editable.has('show_written_today_in_all_projects')"
+                id="settings-written-today"
+                v-model="form.show_written_today_in_all_projects"
+                :label="t('Показывать написанное сегодня')"
+                :description="t('Показывает суммарное число символов за текущий писательский день в рабочем пространстве проектов.')"
               />
             </section>
 

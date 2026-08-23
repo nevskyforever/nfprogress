@@ -5,8 +5,11 @@ import { IonApp } from '@ionic/vue'
 import { apiErrorMessage } from '@/api/client'
 import { settingsApi } from '@/api/settings'
 import UserAgreementGate from '@/components/agreement/UserAgreementGate.vue'
+import NotificationCenter from '@/components/ui/NotificationCenter.vue'
+import NotificationStack from '@/components/ui/NotificationStack.vue'
 import AppShell from '@/layouts/AppShell.vue'
 import { isSupportedLanguage, useLocaleStore } from '@/stores/locale'
+import { useNotificationsStore } from '@/stores/notifications'
 import { isThemePreference, useThemeStore } from '@/stores/theme'
 import type { SettingsResponse } from '@/types/content'
 
@@ -14,6 +17,7 @@ type BootstrapState = 'loading' | 'agreement' | 'ready' | 'error'
 
 const locale = useLocaleStore()
 const theme = useThemeStore()
+const notifications = useNotificationsStore()
 const t = locale.translate
 const bootstrapState = ref<BootstrapState>('loading')
 const bootstrapError = ref<string | null>(null)
@@ -25,6 +29,7 @@ async function applyBackendPreferences(settings: SettingsResponse): Promise<void
   const language = isSupportedLanguage(settings.values.language)
     ? settings.values.language
     : locale.language
+  notifications.setDurationSeconds(settings.values.notification_display_time)
   await locale.setLanguage(language)
 }
 
@@ -79,7 +84,11 @@ void bootstrapApplication()
       v-else-if="bootstrapState === 'agreement'"
       @accepted="handleAgreementAccepted"
     />
-    <AppShell v-else />
+    <template v-else>
+      <AppShell />
+      <NotificationCenter />
+      <NotificationStack />
+    </template>
   </IonApp>
 </template>
 

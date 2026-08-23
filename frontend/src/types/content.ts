@@ -12,6 +12,8 @@ export type SettingKey =
   | 'start_day_time'
   | 'language'
   | 'frontend_theme'
+  | 'frontend_project_filter'
+  | 'frontend_project_sort'
   | 'background_synch'
   | 'check_updates'
   | 'inventory_filter'
@@ -27,6 +29,8 @@ export interface SettingsValues {
   start_day_time?: string
   language?: SupportedLanguage
   frontend_theme?: FrontendTheme
+  frontend_project_filter?: 'all' | 'активен' | 'в архиве' | 'завершен'
+  frontend_project_sort?: 'name' | 'deadline' | 'progress' | 'updated'
   background_synch?: boolean
   check_updates?: boolean
   inventory_filter?: string

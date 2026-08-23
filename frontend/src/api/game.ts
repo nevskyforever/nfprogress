@@ -2,6 +2,7 @@ import { apiRequest } from './client'
 import type {
   BankProductRequest,
   GameCommandResponse,
+  GameNotifications,
   GameState,
   InventoryCommand,
   ShopCatalog,
@@ -21,6 +22,23 @@ function awardPath(awardId: string): string {
 export const gameApi = {
   state(signal?: AbortSignal): Promise<GameState> {
     return apiRequest<GameState>(`${GAME_PATH}/state`, { signal })
+  },
+
+  notifications(signal?: AbortSignal): Promise<GameNotifications> {
+    return apiRequest<GameNotifications>(`${GAME_PATH}/notifications`, { signal })
+  },
+
+  markNotificationRead(notificationId: string): Promise<GameNotifications> {
+    return apiRequest<GameNotifications>(
+      `${GAME_PATH}/notifications/${encodeURIComponent(notificationId)}/read`,
+      { method: 'POST' },
+    )
+  },
+
+  markAllNotificationsRead(): Promise<GameNotifications> {
+    return apiRequest<GameNotifications>(`${GAME_PATH}/notifications/read-all`, {
+      method: 'POST',
+    })
   },
 
   catalog(signal?: AbortSignal): Promise<ShopCatalog> {

@@ -84,13 +84,17 @@ describe('SettingsPage', () => {
 
     expect(wrapper.find('#settings-background-sync').exists()).toBe(false)
     expect(wrapper.find('#settings-infinite-project').exists()).toBe(true)
-    expect(wrapper.find('#settings-written-today').exists()).toBe(false)
-    expect(wrapper.find('#settings-notification-time').exists()).toBe(false)
+    expect(wrapper.find('#settings-written-today').exists()).toBe(true)
+    expect(wrapper.find('#settings-notification-time').exists()).toBe(true)
     await wrapper.get('#settings-game-mode').setValue(true)
+    await wrapper.get('#settings-notification-time').setValue(20)
     await wrapper.get('form').trigger('submit')
     await flushPromises()
 
-    expect(settingsApi.update).toHaveBeenCalledWith({ game_mode: true })
+    expect(settingsApi.update).toHaveBeenCalledWith({
+      game_mode: true,
+      notification_display_time: 20,
+    })
     expect(wrapper.get('[role="status"]').text()).toContain('Настройки сохранены')
   })
 

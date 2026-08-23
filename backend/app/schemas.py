@@ -105,6 +105,20 @@ class ProgressResult(BaseModel):
     warning: str | None = None
 
 
+class TodayProjectSummary(BaseModel):
+    id: str
+    name: str
+    symbols: float
+    unit: UnitCode
+    value: float
+
+
+class TodaySummaryResponse(BaseModel):
+    date: str
+    symbols: float
+    projects: list[TodayProjectSummary]
+
+
 class BestDayStatistic(BaseModel):
     date: str
     symbols: float

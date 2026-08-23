@@ -9,6 +9,8 @@ SupportedLanguage = Literal['ru', 'en', 'es', 'de', 'fr', 'pt_BR']
 BackendPlatform = Literal['desktop', 'web', 'ios', 'android']
 EditableSettingKey = Literal[
     'background_synch',
+    'frontend_project_filter',
+    'frontend_project_sort',
     'frontend_theme',
     'game_mode',
     'global_streak',

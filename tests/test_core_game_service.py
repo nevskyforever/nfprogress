@@ -68,6 +68,62 @@ def test_state_is_json_safe_and_contains_explicit_catalogs(game_context):
     assert state['shop']['categories']
 
 
+def test_notification_history_migrates_legacy_events_with_backup(game_context):
+    repository, service, _project, _stage = game_context
+    created_at = datetime(2026, 8, 15, 9, 30)
+    data = repository.read_projects()
+    data['notifications'] = {
+        'new': [
+            engine.Notification('Стрик сохранён.', tag='streak', date_create=created_at),
+            engine.Notification('Банк начислил проценты.', tag='bank', date_create=created_at),
+        ],
+        'read': [
+            engine.Notification('Старая запись.', tag='bank', date_create=created_at, status='Read'),
+        ],
+    }
+    repository.write_projects(data)
+    source_bytes = (repository.base_dir / 'data.pkl').read_bytes()
+
+    history = service.get_notifications()
+
+    assert history['unread_count'] == 2
+    assert [item['tag'] for item in history['unread']] == ['streak', 'bank']
+    assert history['read'][0]['status'] == 'read'
+    assert all(len(item['id']) == 32 for item in [*history['unread'], *history['read']])
+    backups = list((repository.base_dir / 'backups').glob('*/data.pkl'))
+    assert len(backups) == 1
+    assert backups[0].read_bytes() == source_bytes
+
+    repeated = service.get_notifications()
+    assert [item['id'] for item in repeated['unread']] == [
+        item['id'] for item in history['unread']
+    ]
+    marked = service.mark_notification_read(history['unread'][0]['id'])
+    assert marked['unread_count'] == 1
+    assert marked['read'][0]['id'] == history['unread'][0]['id']
+    complete = service.mark_all_notifications_read()
+    assert complete['unread'] == []
+    assert all(item['status'] == 'read' for item in complete['read'])
+    saved = repository.read_projects()['notifications']
+    assert all(item.get_status() == 'Read' for item in saved['read'])
+
+
+def test_notification_history_upgrades_flat_legacy_list(game_context):
+    repository, service, _project, _stage = game_context
+    data = repository.read_projects()
+    data['notifications'] = ['Событие из старой версии.']
+    repository.write_projects(data)
+
+    history = service.get_notifications()
+
+    assert history['unread_count'] == 1
+    assert history['unread'][0]['text'] == 'Событие из старой версии.'
+    saved = repository.read_projects()['notifications']
+    assert isinstance(saved, dict)
+    assert isinstance(saved['new'][0], engine.Notification)
+    assert saved['new'][0].notification_id == history['unread'][0]['id']
+
+
 def test_writing_session_uses_server_progress_and_rewards(game_context):
     _repository, service, project, _stage = game_context
     project_key = f'project:{project.project_id}'

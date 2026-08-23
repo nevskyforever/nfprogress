@@ -29,12 +29,31 @@ def test_openapi_exposes_game_state_catalog_and_command_models(tmp_path):
     assert _response_schema(openapi, '/api/game/catalog')['$ref'].endswith(
         '/GameCatalogResponse',
     )
+    assert _response_schema(openapi, '/api/game/notifications')['$ref'].endswith(
+        '/GameNotificationsResponse',
+    )
+    assert _response_schema(
+        openapi,
+        '/api/game/notifications/{notification_id}/read',
+        'post',
+    )['$ref'].endswith('/GameNotificationsResponse')
+    assert _response_schema(
+        openapi,
+        '/api/game/notifications/read-all',
+        'post',
+    )['$ref'].endswith('/GameNotificationsResponse')
 
     command_paths = {
         path: methods
         for path, methods in openapi['paths'].items()
         if path.startswith('/api/game/')
-        and path not in {'/api/game/state', '/api/game/catalog'}
+        and path not in {
+            '/api/game/state',
+            '/api/game/catalog',
+            '/api/game/notifications',
+            '/api/game/notifications/{notification_id}/read',
+            '/api/game/notifications/read-all',
+        }
     }
     assert command_paths
     for methods in command_paths.values():
@@ -54,6 +73,7 @@ def test_openapi_exposes_game_state_catalog_and_command_models(tmp_path):
         'skills',
         'buffs',
         'inventory',
+        'notifications',
         'streak_freezes',
         'quests',
         'daily_challenge',
@@ -139,6 +159,12 @@ def test_representative_full_game_state_and_commands_validate(tmp_path):
         project.project_plan = {}
         project.streaks = [today - timedelta(days=1)]
         project.streak_status = 'Active'
+        projects['notifications'] = {
+            'new': [engine.Notification('Contract streak event', tag='streak')],
+            'read': [engine.Notification(
+                'Contract bank event', tag='bank', status='Read',
+            )],
+        }
         repository.write_projects(projects)
 
         state_response = client.get('/api/game/state')
@@ -152,6 +178,8 @@ def test_representative_full_game_state_and_commands_validate(tmp_path):
             'nested': [1, True, None],
         }
         assert state['streak_freezes']['projects'][0]['project_id'] == project_id
+        assert state['notifications']['unread_count'] == 1
+        assert state['notifications']['unread'][0]['tag'] == 'streak'
         future_category = next(
             category for category in state['inventory']['categories']
             if category['key'] == 'Future category'
@@ -164,6 +192,20 @@ def test_representative_full_game_state_and_commands_validate(tmp_path):
         assert 'price' in catalog_item
         assert 'buffs' in catalog_item
         assert 'known' not in catalog_item
+
+        notifications = client.get('/api/game/notifications')
+        assert notifications.status_code == 200, notifications.text
+        unread = notifications.json()['unread']
+        assert len(unread) == 1
+        marked = client.post(
+            f"/api/game/notifications/{unread[0]['id']}/read",
+        )
+        assert marked.status_code == 200, marked.text
+        assert marked.json()['unread_count'] == 0
+        assert len(marked.json()['read']) == 2
+        marked_all = client.post('/api/game/notifications/read-all')
+        assert marked_all.status_code == 200, marked_all.text
+        assert marked_all.json()['unread'] == []
 
         weekly = client.post('/api/game/weekly-challenge/start', json={
             'challenge_id': 'symbols',

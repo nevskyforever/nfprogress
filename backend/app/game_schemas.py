@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
@@ -415,6 +417,20 @@ class GameCatalogResponse(ShopCatalogResponse):
     enabled: bool
 
 
+class GameNotificationResponse(GameResponseModel):
+    id: str
+    text: str
+    tag: str | None
+    created_at: str | None
+    status: Literal['new', 'read']
+
+
+class GameNotificationsResponse(GameResponseModel):
+    unread: list[GameNotificationResponse]
+    read: list[GameNotificationResponse]
+    unread_count: int
+
+
 class GameStateResponse(GameResponseModel):
     enabled: bool
     server_time: str
@@ -422,6 +438,7 @@ class GameStateResponse(GameResponseModel):
     skills: GameSkillsResponse
     buffs: GameBuffsResponse
     inventory: GameInventoryResponse
+    notifications: GameNotificationsResponse
     streak_freezes: StreakFreezesResponse
     quests: GameQuestsResponse
     daily_challenge: DailyChallengeResponse
@@ -446,5 +463,6 @@ class GameCommandResponse(GameResponseModel):
 __all__ = [
     'GameCatalogResponse',
     'GameCommandResponse',
+    'GameNotificationsResponse',
     'GameStateResponse',
 ]

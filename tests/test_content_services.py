@@ -43,12 +43,29 @@ def test_settings_are_platform_aware_and_persisted(tmp_path):
     repository = PickleRepository(tmp_path)
     web = SettingsService(repository, platform='web')
 
-    updated = web.update({'language': 'fr', 'frontend_theme': 'dark'})
+    updated = web.update({
+        'language': 'fr',
+        'frontend_theme': 'dark',
+        'frontend_project_filter': 'all',
+        'frontend_project_sort': 'updated',
+    })
 
     assert updated['values']['language'] == 'fr'
     assert updated['values']['frontend_theme'] == 'dark'
+    assert updated['values']['frontend_project_filter'] == 'all'
+    assert updated['values']['frontend_project_sort'] == 'updated'
     assert updated['capabilities']['local_file_sync'] is False
     assert 'background_synch' not in updated['editable_keys']
+
+
+def test_notification_duration_preserves_the_legacy_range(tmp_path):
+    service = SettingsService(PickleRepository(tmp_path), platform='web')
+
+    updated = service.update({'notification_display_time': 3600})
+
+    assert updated['values']['notification_display_time'] == 3600
+    with pytest.raises(ValidationError, match='от 1 до 3600'):
+        service.update({'notification_display_time': 3601})
 
 
 def test_agreement_acceptance_keeps_the_legacy_boolean(tmp_path):
@@ -70,6 +87,7 @@ def test_agreement_acceptance_keeps_the_legacy_boolean(tmp_path):
     {'notification_display_time': True},
     {'start_day_time': 'not-a-time'},
     {'project_sort': 'unknown'},
+    {'frontend_project_filter': 'unknown'},
 ])
 def test_settings_reject_values_that_change_legacy_truthiness(patch, tmp_path):
     service = SettingsService(PickleRepository(tmp_path), platform='web')

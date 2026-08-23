@@ -27,6 +27,8 @@ DESKTOP_KEYS = frozenset({
     'background_synch',
 })
 UI_STATE_KEYS = frozenset({
+    'frontend_project_filter',
+    'frontend_project_sort',
     'inventory_filter',
     'project_filter',
     'project_sort',
@@ -40,6 +42,8 @@ BOOLEAN_KEYS = frozenset({
 })
 PROJECT_FILTERS = frozenset({'Активен', 'В архиве', 'Завершен'})
 PROJECT_SORTS = frozenset({'Название', 'Дедлайн', 'Прогресс'})
+FRONTEND_PROJECT_FILTERS = frozenset({'all', 'активен', 'в архиве', 'завершен'})
+FRONTEND_PROJECT_SORTS = frozenset({'name', 'deadline', 'progress', 'updated'})
 
 
 class SettingsService:
@@ -199,13 +203,25 @@ class SettingsService:
             ):
                 raise ValidationError('Время уведомления должно быть целым числом.')
             duration = patch['notification_display_time']
-            if not 1 <= duration <= 120:
-                raise ValidationError('Время уведомления должно быть от 1 до 120 секунд.')
+            # Keep the established Qt range. The new frontend uses the same
+            # persisted setting for its accessible notification stack.
+            if not 1 <= duration <= 3600:
+                raise ValidationError('Время уведомления должно быть от 1 до 3600 секунд.')
             patch = {**patch, 'notification_display_time': duration}
         if 'project_filter' in patch and patch['project_filter'] not in PROJECT_FILTERS:
             raise ValidationError('Неизвестный фильтр проектов.')
         if 'project_sort' in patch and patch['project_sort'] not in PROJECT_SORTS:
             raise ValidationError('Неизвестная сортировка проектов.')
+        if (
+                'frontend_project_filter' in patch
+                and patch['frontend_project_filter'] not in FRONTEND_PROJECT_FILTERS
+        ):
+            raise ValidationError('Неизвестный фильтр проектов для нового интерфейса.')
+        if (
+                'frontend_project_sort' in patch
+                and patch['frontend_project_sort'] not in FRONTEND_PROJECT_SORTS
+        ):
+            raise ValidationError('Неизвестная сортировка проектов для нового интерфейса.')
         if 'inventory_filter' in patch:
             value = patch['inventory_filter']
             if not isinstance(value, str) or not value.strip() or len(value) > 100:

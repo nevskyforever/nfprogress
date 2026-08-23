@@ -14,13 +14,13 @@ blocker. The PySide6 application remains the release fallback.
 | Repository/dependency audit | [done] | Core, UI, game, storage, integrations, build scripts, and available native SDKs audited |
 | Architecture and migration plan | [done] | Transitional boundaries, data safety, transports, platform capabilities, and debt documented |
 | Legacy PySide6 preservation | [done] | Existing desktop UI and build files remain; no legacy workflow was deleted for the migration |
-| Complete Qt retirement | [pending] | Legacy remains required for the updater, progress-share clipboard image, native macOS Help search, notification history, and several display preferences |
+| Complete Qt retirement | [pending] | Legacy remains required for the updater, progress-share clipboard image, and native macOS Help search |
 | Qt-free application services | [in progress] | Projects, notes/maps, game, settings/content, and integrations are service-backed; proven domain classes still physically live in `engine.py`, `game.py`, and `game_data.py` behind compatibility imports |
-| Storage repository/isolation | [done] | Explicit data roots, in-process and advisory locks, atomic legacy pickle writes, idempotent streak handling, temporary-directory tests, and timestamped backups before destructive setting transitions are present |
-| JSON-safe exchange contract | [done] | Page-facing project/integration, content/settings, note/map, and complete game state/catalog/command envelopes have explicit Pydantic contracts; compatibility JSON remains intentionally extensible only for Mind Elixir, history/results, and unknown legacy metadata |
-| Project/stage service | [done] | CRUD, states, archive/completion, stages, all progress units, deadlines, infinite projects, and structured statistics use stable IDs |
+| Storage repository/isolation | [done] | Explicit data roots, in-process and advisory locks, atomic legacy pickle writes, idempotent streak handling, temporary-directory tests, timestamped backups before destructive setting transitions, and a one-time backup before persisted notification IDs are present |
+| JSON-safe exchange contract | [done] | Page-facing project/integration, content/settings, note/map, notification-history, and complete game state/catalog/command envelopes have explicit Pydantic contracts; compatibility JSON remains intentionally extensible only for Mind Elixir, history/results, and unknown legacy metadata |
+| Project/stage service | [done] | CRUD, states, archive/completion, stages, all progress units, deadlines, infinite projects, structured statistics, and the all-project writing-day summary use stable IDs |
 | Notes and Mind Elixir service | [done] | CRUD, ordering, normalization, aggregate maps, and bidirectional `#карта` synchronization are exposed without Qt |
-| Game and writing-session service | [done] | Server-authoritative profile, buffs, freezes, sessions, challenges, shop/inventory, inspiration, specializations/mastery, creative events, skills/quests, cabinet, custom awards, and bank commands are exposed |
+| Game and writing-session service | [done] | Server-authoritative profile, buffs, freezes, sessions, challenges, shop/inventory, inspiration, specializations/mastery, creative events, skills/quests, cabinet, custom awards, bank commands, and persisted unread/read bank or streak events are exposed |
 | Achievement/award mapping | [done] | Legacy has no separate `Achievement` model: quest badges remain canonical `Награды` inventory items; manuscript milestones remain cabinet state; custom awards have separate commands |
 | Settings semantics | [done] | `inf_project` creates/removes canonical `Общий проект`; disabling it or a populated `global_streak` creates a timestamped data/settings backup before applying the legacy-compatible destructive transition |
 | User-agreement service/gate | [done] | Versioned canonical agreement API, legacy-compatible acceptance flag, blocking Vue bootstrap gate, language switching, retry, accessible acceptance, and guarded Tauri decline/close behavior are implemented |
@@ -31,9 +31,9 @@ blocker. The PySide6 application remains the release fallback.
 | Projects/stages/progress frontend | [done] | Real API powers project list/search/filter/sort, project and stage editing/lifecycle, all units, deadlines, progress recording, and immediate refresh |
 | Statistics frontend | [done] | Structured Python calculations and localized labels are displayed responsively; calculations are not duplicated in TypeScript |
 | Notes/Mind Elixir frontend | [done] | Note cards/autosave and canonical Mind Elixir assets use the real notes/map API and synchronization rules |
-| Game frontend | [done] | Seven responsive panels cover overview, sessions, challenges, items, growth, cabinet, and awards/bank; every command reloads authoritative backend state |
+| Game frontend | [done] | Seven responsive panels cover overview, sessions, challenges, items, growth, cabinet, and awards/bank; a global responsive notification center exposes persisted bank/streak history, and every command reloads authoritative backend state |
 | Integrations frontend | [done] | Desktop dialogs, configured project/stage sync and detach, recursive Scrivener selection, manual/all-source runs, and remote `.docx` upload are wired to the real API; no client claims unsupported `.doc` access |
-| Settings frontend | [done] | Language, light/dark/system theme, writing-day start, game mode, infinite project, global streak, and desktop-only background sync are platform-gated and persisted through the settings service |
+| Settings frontend | [done] | Language, light/dark/system theme, writing-day start, notification duration, game mode, infinite project, global streak, all-project daily total, desktop-only background sync, inventory category, and frontend list preferences are platform-gated and persisted through the settings service |
 | Localization pipeline | [done] | Six canonical Python catalogs, deterministic frontend export/drift check, Vue/TypeScript source extraction, HTML/placeholder validation, and the final catalog regression checks pass |
 | Help frontend | [done] | Localized canonical `HELP_SECTIONS`, nested navigation, article rendering, in-window search, and keyboard search shortcut use the real content API |
 | Web target | [done] | Production Vue build, remote URL configuration, manifest, responsive routes, platform guards, and backend-unavailable states are verified; deployment HTTPS/auth, SPA fallback, and offline mutation behavior remain operator concerns rather than bundled claims |
@@ -45,7 +45,7 @@ blocker. The PySide6 application remains the release fallback.
 | Capacitor shared setup | [done] | iOS and Android projects, app identifier/name, icons/splash assets, safe-area/theme behavior, keyboard/status bar/network/external-link plugins, and `cap sync` are present |
 | Capacitor iOS native build | [blocked] | Host has only Xcode Command Line Tools; full Xcode and the iPhoneOS SDK are unavailable |
 | Capacitor Android native build | [blocked] | Host exposes Java 8, below the current Android toolchain requirement, and has no Android SDK, `adb`, or `sdkmanager` |
-| Automated quality gates | [in progress] | Aggregate migration Python suite: 406 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/64 Vitest tests/build, `cargo fmt --check`/`cargo check`, `cap sync`, sidecar smoke, and audit pass. The retained legacy accessibility test cannot collect because this base branch lacks `accessibility.py`; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
+| Automated quality gates | [in progress] | Aggregate migration Python suite: 411 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/70 Vitest tests/build, `cargo fmt --check`/`cargo check`, `cap sync`, sidecar smoke, and audit pass. The retained legacy accessibility test cannot collect because this base branch lacks `accessibility.py`; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
 | Developer documentation | [done] | README covers legacy/backend/frontend/Web/Tauri/Capacitor commands, data safety, platform limitations, tests, and current target status |
 
 ## Functional parity summary
@@ -59,11 +59,13 @@ blocker. The PySide6 application remains the release fallback.
 - Game profile, XP/levels, health, coins, inspiration, buffs, items, shop,
   writing sessions, daily/weekly challenges, creative rhythm, specializations,
   mastery, skills, quests, streak freezes, cabinet/relics/sets, custom awards,
-  and bank operations.
+  bank operations, and persisted bank/streak notification history.
 - Localized help, the six-language catalog service, and the versioned
   user-agreement/acceptance contract used by the blocking frontend gate.
 - Platform-aware settings, including legacy-compatible infinite-project and
-  global-streak transitions with pre-change backups.
+  global-streak transitions with pre-change backups, all-project daily-total
+  display, notification duration, inventory category, and isolated Vue list
+  preferences.
 - Desktop `.docx` and Scrivener paths, manual/all-source sync, background sync,
   nested Scrivener binder selection, hardened source snapshots and timestamps,
   atomic detach-all, and explicit `.docx` upload for remote clients.
@@ -157,9 +159,6 @@ have passed in earlier slices.
   product workflow again (the current legacy and new flows request `.docx`).
 - Progress-share image rendering and clipboard copy.
 - Native macOS Help-menu search bridge (`NSUserInterfaceItemSearching`).
-- Vue controls for `show_written_today_in_all_projects`,
-  `notification_display_time`, and persisted list filter/sort preferences.
-- Dedicated notification history in the new UI.
 - Full Playwright coverage for the project → stage → progress → statistics,
   note ↔ mind-map, and writing-session reward journeys.
 - Native release/signing/runtime verification on Windows, macOS Intel, iOS,
@@ -169,10 +168,10 @@ have passed in earlier slices.
 
 Checks completed for the final aggregate migration tree include:
 
-- `python3 -m pytest -q --ignore=tests/test_accessibility.py` — 406 passed,
+- `python3 -m pytest -q --ignore=tests/test_accessibility.py` — 409 passed,
   15 skipped, 2 subtests passed; focused localization/help/export checks add
-  42 passing tests;
-- `npm run typecheck`, `npm run lint`, `npm run test` — 64 Vitest tests, and
+  44 passing tests;
+- `npm run typecheck`, `npm run lint`, `npm run test` — 67 Vitest tests, and
   `npm run build` — all pass; `npm audit --audit-level=high` reports zero
   vulnerabilities;
 - `cargo fmt --check`, `cargo check`, `npx tauri build --bundles app`, a fresh

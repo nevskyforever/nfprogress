@@ -249,6 +249,170 @@ def serialize_inventory(gamer: legacy_game.Gamer) -> JSONDict:
     return {'categories': categories}
 
 
+def _notification_value(notification: Any, key: str, default: Any = None) -> Any:
+    if isinstance(notification, Mapping):
+        return notification.get(key, default)
+    return getattr(notification, key, default)
+
+
+def _notification_buckets(projects: JSONDict) -> dict[str, list[Any]]:
+    """Read both historical notification layouts without modifying a save."""
+    raw = projects.get('notifications')
+    if isinstance(raw, Mapping):
+        new = raw.get('new', [])
+        read = raw.get('read', [])
+        return {
+            'new': list(new) if isinstance(new, list) else [],
+            'read': list(read) if isinstance(read, list) else [],
+        }
+    # Very old data used a plain notification list. Preserve it as unread
+    # rather than dropping a user-visible event during the UI migration.
+    return {'new': list(raw) if isinstance(raw, list) else [], 'read': []}
+
+
+def _notification_id(notification: Any, bucket: str, index: int) -> str:
+    existing = _notification_value(notification, 'notification_id')
+    if not isinstance(existing, str) or not existing:
+        existing = _notification_value(notification, 'id')
+    if isinstance(existing, str) and existing:
+        return existing
+    seed = '\x1f'.join((
+        bucket,
+        str(index),
+        str(_notification_value(notification, 'text', notification)),
+        str(_notification_value(notification, 'tag', '')),
+        str(_notification_value(notification, 'date_create', '')),
+    ))
+    return uuid.uuid5(
+        uuid.NAMESPACE_URL, f'nfprogress-notification:{seed}',
+    ).hex
+
+
+def _serialize_notification(
+        notification: Any, *, bucket: str, index: int,
+) -> JSONDict:
+    text = _notification_value(notification, 'text', notification)
+    tag = _notification_value(notification, 'tag')
+    created_at = _notification_value(notification, 'date_create')
+    return {
+        'id': _notification_id(notification, bucket, index),
+        'text': str(text),
+        'tag': str(tag) if tag is not None else None,
+        'created_at': _iso(created_at),
+        'status': bucket,
+    }
+
+
+def serialize_notifications(projects: JSONDict) -> JSONDict:
+    buckets = _notification_buckets(projects)
+    unread = [
+        _serialize_notification(notification, bucket='new', index=index)
+        for index, notification in enumerate(buckets['new'])
+    ]
+    read = [
+        _serialize_notification(notification, bucket='read', index=index)
+        for index, notification in enumerate(buckets['read'])
+    ]
+    return {
+        'unread': unread,
+        'read': read,
+        'unread_count': len(unread),
+    }
+
+
+def _set_notification_identifier(
+        notification: Any,
+        notification_id: str,
+        *,
+        bucket: str,
+) -> tuple[Any, bool]:
+    """Attach a stable API identifier without changing legacy message text."""
+    if isinstance(notification, dict):
+        if notification.get('notification_id') == notification_id:
+            return notification, False
+        notification['notification_id'] = notification_id
+        return notification, True
+    if isinstance(notification, Mapping):
+        updated = dict(notification)
+        updated['notification_id'] = notification_id
+        return updated, True
+    if hasattr(notification, '__dict__'):
+        if getattr(notification, 'notification_id', None) == notification_id:
+            return notification, False
+        setattr(notification, 'notification_id', notification_id)
+        return notification, True
+
+    # A very old save may contain a plain string.  Keep its visible text and
+    # turn it into the legacy notification object only when a stable ID is
+    # needed for an API action.
+    legacy_notification = engine.Notification(
+        str(notification),
+        status='Read' if bucket == 'read' else 'New',
+    )
+    legacy_notification.notification_id = notification_id
+    return legacy_notification, True
+
+
+def _ensure_notification_ids(projects: JSONDict) -> bool:
+    """Persist IDs for legacy notification records before exposing them to UI.
+
+    The old Qt application did not store identifiers.  A generated UUID is
+    saved once, so moving a notification from ``new`` to ``read`` never makes
+    the frontend's identifier depend on a list position.
+    """
+    raw = projects.get('notifications')
+    buckets = _notification_buckets(projects)
+    has_notifications = bool(buckets['new'] or buckets['read'])
+    if not has_notifications:
+        return False
+
+    changed = False
+    for bucket, entries in buckets.items():
+        for index, notification in enumerate(entries):
+            existing = _notification_value(notification, 'notification_id')
+            if not isinstance(existing, str) or not existing:
+                existing = _notification_value(notification, 'id')
+            if isinstance(existing, str) and existing:
+                continue
+            entries[index], item_changed = _set_notification_identifier(
+                notification,
+                uuid.uuid4().hex,
+                bucket=bucket,
+            )
+            changed = changed or item_changed
+
+    # Convert a non-dictionary historical envelope only when it contains a
+    # real event.  Empty default lists keep their exact legacy representation.
+    if changed and not isinstance(raw, Mapping):
+        projects['notifications'] = buckets
+    elif changed and isinstance(raw, dict):
+        raw['new'] = buckets['new']
+        raw['read'] = buckets['read']
+    elif changed:
+        projects['notifications'] = {**dict(raw), **buckets}
+    return changed
+
+
+def _mark_notification_read(notification: Any, notification_id: str) -> Any:
+    if isinstance(notification, dict):
+        notification['notification_id'] = notification_id
+        notification['status'] = 'Read'
+        return notification
+    if isinstance(notification, Mapping):
+        updated = dict(notification)
+        updated['notification_id'] = notification_id
+        updated['status'] = 'Read'
+        return updated
+    if not hasattr(notification, '__dict__'):
+        notification = engine.Notification(str(notification), status='Read')
+    if hasattr(notification, 'set_status'):
+        notification.set_status('Read')
+    else:
+        setattr(notification, 'status', 'Read')
+    setattr(notification, 'notification_id', notification_id)
+    return notification
+
+
 def _freeze_inventory_count(gamer: legacy_game.Gamer) -> int:
     category_items = gamer.items.get(_FREEZE_CATEGORY, {})
     if not isinstance(category_items, Mapping):
@@ -737,7 +901,9 @@ def _bind_bank_notifications(
             new_notifications = []
         if not isinstance(read_notifications, list):
             read_notifications = []
-        new_notifications.append(engine.Notification(str(text), tag='bank'))
+        notification = engine.Notification(str(text), tag='bank')
+        notification.notification_id = uuid.uuid4().hex
+        new_notifications.append(notification)
         notifications['new'] = new_notifications
         notifications['read'] = read_notifications
         projects['notifications'] = notifications
@@ -759,6 +925,12 @@ class GameService:
     def __init__(self, repository: Any) -> None:
         self.repository = repository
         self._lock = RLock()
+
+    def _backup_notification_migration(self) -> None:
+        """Preserve the source pickle before adding notification IDs to it."""
+        create_backup = getattr(self.repository, 'create_backup', None)
+        if callable(create_backup):
+            create_backup('data')
 
     @contextmanager
     def _repository_context(self) -> Iterator[None]:
@@ -787,14 +959,74 @@ class GameService:
             gamer = self._read_gamer()
             projects = self._read_projects()
             enabled = self._game_mode_enabled()
+            notification_ids_changed = _ensure_notification_ids(projects)
             with _bind_legacy_gamer(gamer):
                 changed = self._prepare_gamer(gamer, projects, ensure_daily=enabled)
                 prepared_snapshot = self._preparation_snapshot(gamer)
                 state = self._serialize_state(gamer, projects, enabled=enabled)
                 changed = changed or prepared_snapshot != self._preparation_snapshot(gamer)
+            if notification_ids_changed:
+                self._backup_notification_migration()
+                self.repository.write_projects(projects)
             if changed:
                 self.repository.write_gamer(gamer)
             return state
+
+    def get_notifications(self) -> JSONDict:
+        """Expose persisted streak and bank events independently of game mode."""
+        with self._repository_context():
+            projects = self._read_projects()
+            if _ensure_notification_ids(projects):
+                self._backup_notification_migration()
+                self.repository.write_projects(projects)
+            return serialize_notifications(projects)
+
+    def mark_notification_read(self, notification_id: str) -> JSONDict:
+        if not isinstance(notification_id, str) or not notification_id:
+            raise ValidationError(
+                'notification_id_invalid', 'Идентификатор уведомления некорректен.',
+            )
+        with self._repository_context():
+            projects = self._read_projects()
+            migrated = _ensure_notification_ids(projects)
+            buckets = _notification_buckets(projects)
+            for index, notification in enumerate(buckets['new']):
+                if _notification_id(notification, 'new', index) != notification_id:
+                    continue
+                moved = _mark_notification_read(notification, notification_id)
+                buckets['new'].pop(index)
+                buckets['read'].insert(0, moved)
+                projects['notifications'] = buckets
+                if migrated:
+                    self._backup_notification_migration()
+                self.repository.write_projects(projects)
+                return serialize_notifications(projects)
+        raise NotFoundError('notification_not_found', 'Уведомление не найдено.')
+
+    def mark_all_notifications_read(self) -> JSONDict:
+        with self._repository_context():
+            projects = self._read_projects()
+            migrated = _ensure_notification_ids(projects)
+            buckets = _notification_buckets(projects)
+            if not buckets['new']:
+                if migrated:
+                    self._backup_notification_migration()
+                    self.repository.write_projects(projects)
+                return serialize_notifications(projects)
+            moved = [
+                _mark_notification_read(
+                    notification,
+                    _notification_id(notification, 'new', index),
+                )
+                for index, notification in enumerate(buckets['new'])
+            ]
+            buckets['new'] = []
+            buckets['read'] = [*reversed(moved), *buckets['read']]
+            projects['notifications'] = buckets
+            if migrated:
+                self._backup_notification_migration()
+            self.repository.write_projects(projects)
+            return serialize_notifications(projects)
 
     def get_shop_catalog(self) -> JSONDict:
         with self._repository_context():
@@ -1879,11 +2111,15 @@ class GameService:
                     )
                 if enabled:
                     self._prepare_gamer(gamer, projects, ensure_daily=True)
+                notification_ids_changed = _ensure_notification_ids(projects)
+                projects_changed = projects_changed or notification_ids_changed
                 state = self._serialize_state(gamer, projects, enabled=enabled)
             if enabled:
                 self.repository.write_gamer(gamer)
-                if projects_changed:
-                    self.repository.write_projects(projects)
+            if projects_changed:
+                if notification_ids_changed:
+                    self._backup_notification_migration()
+                self.repository.write_projects(projects)
         return {
             'ok': True,
             **payload,
@@ -2076,6 +2312,7 @@ class GameService:
             'skills': serialize_skills(gamer),
             'buffs': serialize_buffs(gamer),
             'inventory': serialize_inventory(gamer),
+            'notifications': serialize_notifications(projects),
             'streak_freezes': serialize_streak_freezes(gamer, projects),
             'quests': serialize_quests(gamer),
             'daily_challenge': serialize_daily_challenge(gamer),

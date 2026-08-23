@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IonContent, IonIcon, IonPage } from '@ionic/vue'
 import {
@@ -13,9 +13,11 @@ import {
 import ProjectCard from '@/components/projects/ProjectCard.vue'
 import ProjectCreateDialog from '@/components/projects/ProjectCreateDialog.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
+import { projectsApi } from '@/api/projects'
+import { settingsApi } from '@/api/settings'
 import { useLocaleStore } from '@/stores/locale'
 import { useProjectsStore } from '@/stores/projects'
-import type { ProjectCreate, ProjectSort, ProjectStatus } from '@/types/api'
+import type { ProjectCreate, ProjectSort, ProjectStatus, TodaySummary } from '@/types/api'
 
 type StatusFilter = 'all' | ProjectStatus
 
@@ -29,14 +31,26 @@ function queryValue(value: unknown): string {
   return typeof value === 'string' ? value : ''
 }
 
-function initialStatus(): StatusFilter {
+function routeStatus(): StatusFilter | null {
   const value = queryValue(route.query.status)
-  return value === 'активен' || value === 'в архиве' || value === 'завершен' ? value : 'all'
+  return value === 'all' || value === 'активен' || value === 'в архиве' || value === 'завершен'
+    ? value
+    : null
+}
+
+function routeSort(): ProjectSort | null {
+  const value = queryValue(route.query.sort)
+  return value === 'name' || value === 'deadline' || value === 'progress' || value === 'updated'
+    ? value
+    : null
+}
+
+function initialStatus(): StatusFilter {
+  return routeStatus() ?? 'all'
 }
 
 function initialSort(): ProjectSort {
-  const value = queryValue(route.query.sort)
-  return value === 'name' || value === 'deadline' || value === 'updated' ? value : 'progress'
+  return routeSort() ?? 'progress'
 }
 
 const search = ref(queryValue(route.query.search))
@@ -44,7 +58,12 @@ const debouncedSearch = ref(search.value)
 const status = ref<StatusFilter>(initialStatus())
 const sort = ref<ProjectSort>(initialSort())
 const createDialogOpen = ref(false)
+const todaySummary = ref<TodaySummary | null>(null)
+const showTodaySummary = ref(false)
+const preferencesReady = ref(false)
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
+let preferencesController: AbortController | undefined
+let preferenceSaveChain: Promise<void> = Promise.resolve()
 
 const hasFilters = computed(
   () => search.value.trim().length > 0 || status.value !== 'all',
@@ -65,6 +84,82 @@ function currentListQuery() {
 
 function loadProjects(): void {
   void store.load(currentListQuery())
+}
+
+function preferenceStatus(value: unknown): StatusFilter | null {
+  if (value === 'all' || value === 'активен' || value === 'в архиве' || value === 'завершен') {
+    return value
+  }
+  const legacy: Record<string, ProjectStatus> = {
+    Активен: 'активен',
+    'В архиве': 'в архиве',
+    Завершен: 'завершен',
+  }
+  return typeof value === 'string' ? legacy[value] ?? null : null
+}
+
+function preferenceSort(value: unknown): ProjectSort | null {
+  if (value === 'name' || value === 'deadline' || value === 'progress' || value === 'updated') {
+    return value
+  }
+  const legacy: Record<string, ProjectSort> = {
+    Название: 'name',
+    Дедлайн: 'deadline',
+    Прогресс: 'progress',
+  }
+  return typeof value === 'string' ? legacy[value] ?? null : null
+}
+
+function synchronizeRoute(): void {
+  const query: Record<string, string> = {}
+  if (debouncedSearch.value.trim()) query.search = debouncedSearch.value.trim()
+  if (status.value !== 'all') query.status = status.value
+  if (sort.value !== 'progress') query.sort = sort.value
+  void router.replace({ query })
+}
+
+function persistListPreferences(): void {
+  const values = {
+    frontend_project_filter: status.value,
+    frontend_project_sort: sort.value,
+  }
+  preferenceSaveChain = preferenceSaveChain
+    .then(() => settingsApi.update(values))
+    .then(() => undefined)
+    .catch(() => {
+      // List filtering remains usable when a noncritical view preference cannot save.
+    })
+}
+
+async function initializeWorkspace(): Promise<void> {
+  preferencesController?.abort()
+  const controller = new AbortController()
+  preferencesController = controller
+  try {
+    const settings = await settingsApi.get(controller.signal)
+    if (routeStatus() === null) {
+      status.value = preferenceStatus(
+        settings.values.frontend_project_filter ?? settings.values.project_filter,
+      ) ?? status.value
+    }
+    if (routeSort() === null) {
+      sort.value = preferenceSort(
+        settings.values.frontend_project_sort ?? settings.values.project_sort,
+      ) ?? sort.value
+    }
+    showTodaySummary.value = settings.values.show_written_today_in_all_projects === true
+    if (showTodaySummary.value) {
+      todaySummary.value = await projectsApi.today(controller.signal)
+    }
+  } catch (caught) {
+    if (caught instanceof DOMException && caught.name === 'AbortError') return
+    todaySummary.value = null
+  } finally {
+    if (controller.signal.aborted || preferencesController !== controller) return
+    preferencesReady.value = true
+    synchronizeRoute()
+    loadProjects()
+  }
 }
 
 function clearFilters(): void {
@@ -100,18 +195,17 @@ watch(search, (value) => {
 watch(
   [debouncedSearch, status, sort],
   () => {
-    const query: Record<string, string> = {}
-    if (debouncedSearch.value.trim()) query.search = debouncedSearch.value.trim()
-    if (status.value !== 'all') query.status = status.value
-    if (sort.value !== 'progress') query.sort = sort.value
-    void router.replace({ query })
+    if (!preferencesReady.value) return
+    synchronizeRoute()
+    persistListPreferences()
     loadProjects()
   },
-  { immediate: true },
 )
 
+onMounted(() => void initializeWorkspace())
 onBeforeUnmount(() => {
   clearTimeout(debounceTimer)
+  preferencesController?.abort()
   store.cancelList()
 })
 </script>
@@ -133,6 +227,14 @@ onBeforeUnmount(() => {
             {{ t('Новый проект') }}
           </button>
         </header>
+
+        <section v-if="showTodaySummary && todaySummary" class="today-summary" role="status">
+          <div>
+            <p>{{ t('Текущий писательский день') }}</p>
+            <h2>{{ t('Написано сегодня') }}</h2>
+          </div>
+          <strong>{{ locale.formatNumber(todaySummary.symbols, 0) }} {{ t('символов') }}</strong>
+        </section>
 
         <section class="project-toolbar" :aria-label="t('Поиск и фильтры проектов')">
           <label class="search-field" for="project-search">
@@ -297,6 +399,44 @@ onBeforeUnmount(() => {
   font-size: 1.15rem;
 }
 
+.today-summary {
+  display: flex;
+  gap: var(--nf-space-4);
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--nf-space-6);
+  padding: var(--nf-space-4) var(--nf-space-5);
+  border: 1px solid var(--nf-color-border);
+  border-left: 0.3rem solid var(--nf-color-success);
+  border-radius: var(--nf-radius-md);
+  background: var(--nf-color-surface);
+  box-shadow: var(--nf-shadow-card);
+}
+
+.today-summary p,
+.today-summary h2,
+.today-summary strong {
+  margin: 0;
+}
+
+.today-summary p {
+  color: var(--nf-color-text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.today-summary h2 {
+  margin-top: var(--nf-space-1);
+  font-family: var(--nf-font-serif);
+  font-size: 1.25rem;
+}
+
+.today-summary strong {
+  color: var(--nf-color-success);
+  font-size: clamp(1.2rem, 3vw, 1.7rem);
+  text-align: right;
+}
+
 .project-toolbar {
   display: grid;
   grid-template-columns: minmax(14rem, 1fr) auto auto;
@@ -425,6 +565,15 @@ onBeforeUnmount(() => {
 
   .create-project-button ion-icon {
     font-size: 1.35rem;
+  }
+
+  .today-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .today-summary strong {
+    text-align: left;
   }
 
   .project-toolbar {

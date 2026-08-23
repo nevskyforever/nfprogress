@@ -28,6 +28,7 @@ export function gameStateFixture(overrides: Partial<GameState> = {}): GameState 
       coefficients: [],
     },
     buffs: { server_time: '2026-08-15T12:00:00', positive: [], negative: [] },
+    notifications: { unread: [], read: [], unread_count: 0 },
     streak_freezes: {
       date: '2026-08-15',
       inventory_count: 2,

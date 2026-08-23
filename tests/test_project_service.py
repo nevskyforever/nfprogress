@@ -43,6 +43,32 @@ def test_project_stage_progress_and_statistics_round_trip(service):
     assert stats['timeline'][0]['symbols'] == 1_250
 
 
+def test_today_summary_uses_legacy_project_and_stage_totals(service, monkeypatch):
+    today = date(2026, 8, 23)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = service.create_project({
+        'name': 'Обычный', 'goal': 1_000, 'unit': 'symbols',
+    })
+    staged = service.create_project({
+        'name': 'По этапам', 'goal': 1_000, 'unit': 'symbols',
+    })
+    stage = service.create_stage(staged['id'], {
+        'name': 'Черновик', 'goal': 1_000, 'unit': 'symbols',
+    })
+
+    service.record_progress(project['id'], new_total=125)
+    service.record_progress(staged['id'], stage_id=stage['id'], new_total=250)
+
+    summary = service.today_summary()
+
+    assert summary['date'] == today.isoformat()
+    assert summary['symbols'] == 375
+    assert {item['name']: item['symbols'] for item in summary['projects']} == {
+        'Обычный': 125,
+        'По этапам': 250,
+    }
+
+
 def test_project_names_are_unique_and_lookup_uses_stable_id(service):
     first = service.create_project({'name': 'A', 'goal': 100, 'unit': 'symbols'})
     with pytest.raises(ConflictError):

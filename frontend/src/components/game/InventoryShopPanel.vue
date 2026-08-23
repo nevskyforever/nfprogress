@@ -8,12 +8,14 @@ const props = defineProps<{
   inventory: GameInventory
   shop: ShopCatalog
   busy: boolean
+  initialInventoryCategory?: string
 }>()
 
 const emit = defineEmits<{
   buy: [payload: InventoryCommand]
   sell: [payload: InventoryCommand]
   use: [payload: InventoryCommand]
+  inventoryCategory: [category: string]
 }>()
 
 const locale = useLocaleStore()
@@ -39,6 +41,35 @@ watch(
   },
   { immediate: true },
 )
+
+function applyPreferredInventoryCategory(): void {
+  const preferred = props.initialInventoryCategory
+  if (
+    view.value === 'inventory'
+    && preferred
+    && props.inventory.categories.some((item) => item.key === preferred)
+  ) {
+    category.value = preferred
+  }
+}
+
+watch(
+  [() => props.initialInventoryCategory, () => props.inventory.categories],
+  applyPreferredInventoryCategory,
+  { immediate: true },
+)
+
+function selectView(next: 'inventory' | 'shop'): void {
+  view.value = next
+  if (next === 'inventory') applyPreferredInventoryCategory()
+}
+
+function onCategoryChange(event: Event): void {
+  const target = event.target
+  if (!(target instanceof HTMLSelectElement)) return
+  category.value = target.value
+  if (view.value === 'inventory') emit('inventoryCategory', category.value)
+}
 
 function itemName(item: GameItem): string {
   return item.known === false ? item.name : t(item.name)
@@ -66,7 +97,7 @@ function payload(item: GameItem): InventoryCommand {
           role="tab"
           :aria-selected="view === 'inventory'"
           :class="{ active: view === 'inventory' }"
-          @click="view = 'inventory'"
+          @click="selectView('inventory')"
         >
           {{ t('Инвентарь') }}
         </button>
@@ -75,7 +106,7 @@ function payload(item: GameItem): InventoryCommand {
           role="tab"
           :aria-selected="view === 'shop'"
           :class="{ active: view === 'shop' }"
-          @click="view = 'shop'"
+          @click="selectView('shop')"
         >
           {{ t('Магазин') }}
         </button>
@@ -85,7 +116,7 @@ function payload(item: GameItem): InventoryCommand {
     <div class="item-toolbar">
       <label>
         <span>{{ t('Категория') }}</span>
-        <select v-model="category">
+        <select :value="category" @change="onCategoryChange">
           <option v-for="item in categories" :key="item.key" :value="item.key">
             {{ t(item.name) }}
           </option>

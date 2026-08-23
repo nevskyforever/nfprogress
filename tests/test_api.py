@@ -121,6 +121,11 @@ def test_project_stage_progress_statistics_and_status_workflow(client):
     assert stats.status_code == 200, stats.text
     assert stats.json()['metrics']['entries_count'] == 1
 
+    today = client.get('/api/projects/today')
+    assert today.status_code == 200, today.text
+    assert today.json()['symbols'] == 1_500
+    assert today.json()['projects'][0]['id'] == project['id']
+
     projects = client.get('/api/projects', params={
         'status': 'активен', 'search': 'черн', 'sort': 'name',
     })
