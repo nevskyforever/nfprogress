@@ -35,8 +35,9 @@ tests.
 
 ## 4. Runtime targets
 
-1. Add Web/PWA manifest, direct-route fallback documentation, offline shell,
-   network/error state, and environment-based remote API configuration.
+1. Add Web/PWA manifest, direct-route fallback documentation, network/error
+   state, and environment-based remote API configuration. Do not claim an
+   offline shell or offline mutation queue until one is implemented.
 2. Add Capacitor iOS/Android targets, safe-area/platform styling, status bar,
    external links, explicit file selection, icons/splash, and `cap sync` checks.
 3. Add Tauri 2 shell, minimal capabilities, dynamic loopback port/token,

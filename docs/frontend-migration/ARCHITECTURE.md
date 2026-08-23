@@ -1,181 +1,346 @@
 # nfprogress frontend migration architecture
 
-## Goals
+## Goals and current boundary
 
 The migration keeps the existing PySide6 application operational while a
-shared Python application layer and a new Vue/Ionic client are introduced.
-The legacy pickle files remain the authoritative persistence format during
-the transition. Neither the API nor the frontend reads pickle directly.
+shared, Qt-free application layer and Vue/Ionic clients are introduced. The
+legacy pickle files remain authoritative during the parity phase. Neither the
+API nor the frontend reads or writes pickle directly.
 
 ```text
 Legacy PySide6 UI ───────────────┐
+                                │
                                 v
-                         Python domain model
-                                ^
-Vue/Ionic ── HTTP ── FastAPI ── application services
-    │                           repository layer
-    ├── Web / PWA                    │
-    ├── Capacitor iOS/Android        └── existing atomic pickle files
-    └── Tauri 2 ── local Python sidecar
+                    legacy-compatible domain model
+                                ^          │
+                                │          v
+Vue/Ionic ── HTTP ── FastAPI ── services ── repositories
+    │                                      │
+    ├── Web                                └── atomic data.pkl/settings.pkl/gamer.pkl
+    ├── Capacitor iOS/Android
+    └── Tauri 2 ── local Nuitka Python sidecar
 ```
 
-## Current system boundaries
+The Python core currently wraps proven logic in `engine.py`, `game.py`, and
+`game_data.py` rather than rewriting its formulas. This is a compatibility
+extraction, not yet a physical move of every domain class into `nfprogress/`.
+The service and API layers have no PySide6 dependency; legacy Qt orchestration
+may continue to call compatibility functions until its remaining workflows are
+replaced and verified.
 
-| Area | Current source | Classification | Migration boundary |
+## Source boundaries
+
+| Area | Legacy source | Shared/new source | Boundary |
 | --- | --- | --- | --- |
-| Projects, stages, progress, statistics, streak calculations | `engine.py` | Mostly domain logic plus file-location/pickle concerns | Reuse models and calculations behind repositories and application services |
-| Desktop orchestration | `main_UI.py` | Qt UI plus application workflows and platform integration | Move workflows into services; keep Qt as a compatibility client |
-| Game state and calculations | `game.py`, `game_data.py` | Mostly domain logic with persistence calls embedded in some methods | Execute under repository storage context and expose typed commands |
-| Game presentation | `game_UI.py` | Qt UI and some application orchestration | Move orchestration to game service; keep calculations in `Gamer` |
-| Project notes | `project_notes.py` | Pure normalization/synchronization mixed with QObject/WebView UI | Provide a Qt-free notes service using the same save-compatible records |
-| Mind maps | `engine.py`, `mindmap.py`, `mindmap_assets/` | Server normalization plus Qt bridge plus an existing JS editor | Keep Python normalization; host the existing Mind Elixir assets in Vue and replace the Qt bridge with a TypeScript adapter |
-| Localization | `localization.py`, `translations_catalog.py` | Shared catalog with Qt runtime adapter | Export generated frontend locale JSON from the canonical Python catalog |
-| Help | `help_content.py` | Pure canonical content consumed by Qt | Export/serve the same section tree to the frontend |
-| Word/Scrivener | `engine.py`, `scrivener_parser.py`, `main_UI.py` | Pure readers plus Qt file selection/background workers | Move reads to integration service; platform-specific clients only choose/upload explicit files |
-| Persistence | `engine.py`, `game.py` | Atomic pickle files in the application data directory | Hide behind repository; retain source files and add explicit backup/snapshot operations |
+| Projects, stages, progress, statistics, streaks | `engine.py` | `nfprogress/core/services/projects.py` | Stable-ID commands wrap the existing models and calculations |
+| Storage | `engine.py`, `game.py` | `nfprogress/core/repositories/storage.py` | Explicit data root, in-process/cross-process locking, atomic legacy files |
+| Game rules | `game.py`, `game_data.py` | `nfprogress/core/services/game.py` | `Gamer` remains authoritative; commands return JSON-safe projections |
+| Desktop orchestration | `main_UI.py`, `game_UI.py` | FastAPI routers and Vue pages | UI validation and rewards move behind application commands |
+| Project notes | `project_notes.py` | `nfprogress/core/services/notes.py` | Preserve save-compatible note records and `#карта` synchronization |
+| Mind maps | `engine.py`, `mindmap.py`, `mindmap_assets/` | notes service plus Vue adapter | Keep server normalization and reuse Mind Elixir without the Qt bridge |
+| Settings | `engine.py`, Qt settings dialog | `nfprogress/core/services/settings.py` | Backend exposes only allow-listed, platform-applicable keys |
+| Localization/help | `localization.py`, `translations_catalog.py`, `help_content.py` | content service, exporter, Vue locale/help clients | Russian catalog and `HELP_SECTIONS` remain canonical |
+| Word/Scrivener | `engine.py`, `scrivener_parser.py`, Qt workers | `nfprogress/core/services/integrations.py` | Desktop paths or explicit `.docx` upload; progress still uses project service |
 
-## Target source layout
+## Source layout
 
 ```text
 nfprogress/
   core/
     services/          # application use cases, no Qt imports
     repositories/      # storage boundary and explicit data-dir context
-    serialization/     # JSON-safe projections of legacy domain objects
+    serialization/     # JSON-safe projection helpers
 backend/app/
-  main.py              # FastAPI application factory
+  main.py              # FastAPI app factory and desktop sync lifecycle
   routers/             # thin HTTP adapters
-  schemas/             # Pydantic request/response models
+  schemas.py           # Pydantic request and selected response models
 frontend/
   src/
     api/               # the only HTTP transport implementation
-    components/        # reusable Vue SFC components
-    composables/       # platform, theme, network and session behavior
-    pages/              # responsive route-level views
-    stores/             # Pinia state with server-authoritative mutations
-    types/              # stable JSON contract
-    i18n/               # generated locales and runtime adapter
-  src-tauri/            # Tauri 2 desktop shell and sidecar lifecycle
-  android/              # generated Capacitor Android target
-  ios/                  # generated Capacitor iOS target
+    components/        # reusable Vue single-file components
+    composables/       # platform, theme, network, and runtime behavior
+    layouts/           # adaptive desktop/mobile application shell
+    pages/             # projects, notes, game, integrations, help, settings
+    router/             # shared Web/Tauri/Capacitor routes
+    stores/             # Pinia locale/theme and client state
+    types/              # stable TypeScript contract
+  src-tauri/            # Tauri 2 shell and sidecar lifecycle
+  android/              # Capacitor Android project
+  ios/                  # Capacitor iOS project
 ```
+
+`scripts/export_frontend_content.py` can deterministically export the Python
+catalog and help data to `frontend/src/i18n/generated/` for drift checks. The
+runtime deliberately reads the same data from the content API instead of
+shipping a second independently consumed locale catalog.
 
 ## Dependency direction
 
 ```text
-Vue components
+Vue SFC pages/components
     ↓
-Pinia stores / composables
+Pinia stores and composables
     ↓
-typed API client
+typed API modules (`frontend/src/api/`)
     ↓
-FastAPI routers + Pydantic schemas
+FastAPI routers and Pydantic request validation
     ↓
 application services
     ↓
 legacy-compatible domain models
     ↓
-repositories / filesystem integrations
+repositories and explicit filesystem integrations
 ```
 
-Qt modules are not imported by the service, repository, serialization, or API
-layers. The legacy UI may call the same services incrementally, but it remains
-free to use compatibility functions in `engine.py` until each workflow is
-verified.
+There is one frontend request implementation in `frontend/src/api/client.ts`.
+Tauri supplies a runtime base URL and session token; Web/Capacitor supply the
+remote base URL. Feature modules do not scatter direct `fetch()` calls or use a
+different desktop contract.
 
 ## Stable identifiers and JSON contract
 
 - Projects use `Project.project_id`; stages use `Stage.stage_id`.
-- Canonical status, unit, game item, buff, challenge, specialization, and
-  session keys remain unchanged. Display text is a separate localized field.
-- Infinite goals are represented by an explicit `infinite` flag and a JSON
-  `null` goal, never by JSON `Infinity`.
-- Dates and datetimes are ISO 8601 strings at the API boundary.
-- Project names, stage names, custom awards, note content, and other user data
-  are never translated.
-- The frontend never receives Python objects or pickle payloads.
+- Notes and custom awards expose stable IDs. Mind-map nodes retain the current
+  canonical map identifiers.
+- Canonical status, unit, item, buff, challenge, specialization, and session
+  keys remain unchanged even when display names are localized.
+- Infinite goals use an explicit `infinite` flag and JSON `null`, never JSON
+  `Infinity`.
+- Dates and datetimes cross the API boundary as ISO 8601 strings.
+- Project names, stage names, custom awards, file paths, note content, and other
+  user data are never translated.
+- The frontend never receives Python instances or pickle payloads.
+
+Pydantic validates command input and page-facing response envelopes for
+projects/integrations, content/settings, notes/maps, and complete game
+state/catalog/commands. Mind Elixir documents, unknown legacy inventory
+metadata, and history/result payloads deliberately retain JSON-safe extensible
+fields rather than pretending their compatibility format is closed.
 
 ## Persistence and data safety
 
-The first production API continues to read and atomically write `data.pkl`,
-`settings.pkl`, and `gamer.pkl`. Repository operations are serialized by a
-shared process lock and a cross-platform advisory lock scoped to the explicit
-data directory. Streak rewards keep an idempotency marker in `gamer.pkl`; this
-allows a later request to repair the compatibility marker in `data.pkl` without
-issuing the reward twice if a process stops between the two atomic replaces.
-Tests and sidecar smoke checks use an explicit temporary data directory through
-a context-local override, so real user data is not touched.
+`data.pkl`, `settings.pkl`, and `gamer.pkl` remain the production persistence
+format. Repository operations are serialized by a shared process lock and a
+cross-platform advisory lock scoped to the explicit data directory. Writes use
+the existing atomic replacement behavior. Streak rewards keep an idempotency
+marker in `gamer.pkl`, allowing a later request to repair the compatibility
+marker in `data.pkl` without granting a second reward after an interrupted
+two-file update.
 
-The unmodified legacy UI still performs some direct read-modify-write sequences
-outside the repository transaction. Until those callers are moved behind the
-shared service, the legacy executable and the new sidecar must not edit the
-same data directory concurrently. The packaged Tauri runtime enforces a single
-backend owner; this restriction is also documented for development runs.
+Tests and sidecar smoke checks use an explicit temporary data directory via a
+context-local override, so they do not migrate real user files. No JSON or
+SQLite conversion runs automatically, and original pickle files are not
+deleted. Any future format migration must be a separate versioned operation
+that first creates a timestamped backup, writes a new destination, validates
+it, and leaves the source intact.
 
-Any future durable JSON/SQLite migration must be a separate, versioned change:
-create a timestamped backup first, write to a new destination, validate the
-result, and leave the pickle source intact. JSON snapshots in this migration
-are export/diagnostic artifacts, not a silent storage replacement.
+The legacy UI still has direct read-modify-write sequences that do not acquire
+the repository's new cross-process transaction lock. The legacy executable and
+the FastAPI/Tauri backend must therefore not edit the same data directory
+concurrently. Tauri enforces one desktop backend owner, but developers must
+also respect this rule when launching the legacy and new applications by hand.
 
-## Runtime targets
+## FastAPI application layer
 
-### Web and mobile
+The application factory creates one repository and the project, notes, game,
+settings, content, and document-integration services. Thin routers expose:
 
-Web and Capacitor clients obtain the remote HTTPS API URL from
-`VITE_API_BASE_URL`. They use the same client and contract. Mobile never embeds
-ordinary CPython. File access is limited to explicit browser/native selection
-and upload.
+- `/health` and generated OpenAPI;
+- project/stage CRUD, lifecycle, progress, and statistics;
+- project-note and normalized Mind Elixir data;
+- complete commands used by the game workspace;
+- settings, language catalogs, localized help, and the versioned user
+  agreement;
+- desktop synchronization and explicit uploaded `.docx` workflows.
 
-### Tauri desktop
+Domain errors are normalized centrally. Mutating game responses contain
+server-computed state and rewards; client-supplied XP, coins, inventory counts,
+or achievement outcomes are never accepted.
 
-Tauri starts a bundled Nuitka Python sidecar on `127.0.0.1` using an available
-ephemeral port. It generates an in-memory session token, passes it to the
-sidecar through the child environment, waits for `/health`, and exposes the
-connection details to the webview through one command. The child is terminated
-when the application exits. The sidecar also watches the owning Tauri PID and
-exits if the native process crashes, so a Nuitka onefile child cannot remain
-orphaned. The token is not persisted or built into Vite.
+## Runtime transports
 
-The API accepts only explicitly configured origins and requires the session
-header when a desktop token is configured. Tauri capabilities are kept to the
-smallest set needed for connection discovery, file dialogs, and external links.
+### Web and Capacitor
+
+Web, iOS, and Android receive the FastAPI origin through
+`VITE_API_BASE_URL`. They use the same typed client and require a separately
+deployed HTTPS backend. Ordinary CPython is not embedded in Capacitor.
+
+Remote clients cannot pass arbitrary server-side local paths. A user may
+explicitly select and upload a `.docx`; the backend validates archive size,
+counts symbols, and applies the total through `ProjectService`, including its
+normal progress and game rules. Remote Scrivener-project upload is not
+implemented because a browser selection does not provide the persistent local
+directory access expected by that workflow.
+
+The Web output includes responsive pages and a manifest. The hosting layer
+must provide HTTPS, any required authentication, and history fallback to
+`index.html`. There is no offline mutation queue or service-worker claim in the
+current implementation.
+
+### Tauri desktop sidecar
+
+Tauri reserves an ephemeral `127.0.0.1` port and generates a random per-run
+session token. It launches the target-triple-named Nuitka sidecar with the
+loopback address, port, token, and owning Tauri PID, waits up to the configured
+startup window for `/health`, and publishes connection details to the webview
+through one Rust command.
+
+Normal Tauri shutdown kills the stored child handle. The Python sidecar also
+watches the parent PID and exits when the native process disappears, preventing
+an orphan after a Tauri crash. The token is not persisted, hard-coded, or
+included in the Vite bundle. The backend rejects a desktop/session-token bind
+outside loopback.
+
+Tauri permissions are limited to the core window behavior, explicit file
+dialogs, and allow-listed HTTP/HTTPS external links. Direct filesystem paths
+are consumed only by the local Python integration service after the user has
+selected them.
+
+### Desktop background synchronization
+
+The desktop backend owns an asynchronous lifecycle task. Once per minute it
+reads the `background_synch` setting outside the event loop. When enabled for
+the first time or when the effective writing day changes, it runs every
+configured active Word/Scrivener source with `asyncio.to_thread`. One broken
+source is returned as an item-level failure and does not stop other sources or
+the worker. The task is cancelled and awaited during backend shutdown.
+
+This worker is deliberately absent from Web, iOS, and Android. Those clients
+have no automatic access to local manuscripts.
+
+## Vue/Ionic application
+
+The adaptive shell exposes these real routes:
+
+```text
+/projects
+/projects/:projectId
+/projects/:projectId/notes
+/game
+/integrations
+/help
+/settings
+```
+
+The project workspace covers search, sorting/filtering, project and stage
+lifecycle, all existing progress units, deadlines, and structured statistics.
+Notes use autosave and the existing `#карта` synchronization rules. Game
+commands refresh authoritative server state after mutation. The integrations
+page changes behavior by platform capability: local paths and Scrivener on
+desktop, explicit `.docx` upload elsewhere. Direct sources are snapshotted
+before application: missing, stale, unreadable, future-dated, or changing
+sources preserve both progress and the configured binding. Help searches the
+canonical localized section tree. Settings expose language, theme, writing-day
+start, game mode, the infinite shared project, global streak, and desktop
+background synchronization. Before Vue routes render, bootstrap reads those
+preferences and presents the shared versioned agreement gate when acceptance
+is missing.
+
+The design uses Vue single-file components and CSS design tokens, with separate
+wide-screen navigation and touch navigation. Semantic labels, live command
+feedback, visible focus styles, scalable text, minimum touch targets, and
+reduced-motion rules are part of the shared layer. Browser zoom is not disabled.
 
 ## Mind Elixir integration
 
-The existing `mindmap_assets/` editor remains the implementation. A build-time
-asset sync copies it into the frontend public output. A Vue component owns the
-editor frame, while a TypeScript adapter calls `initialize`, `getDataString`,
-`focusNode`, and save/event functions on `window.nfprogressMindMap`. Saved data
-always passes through the FastAPI mind-map endpoint and
-`engine.normalize_mindmap_data()` before persistence.
+The existing `mindmap_assets/` editor remains the implementation. A Vite plugin
+copies the required assets into the public output. A Vue component owns the
+editor frame, while a TypeScript adapter calls the existing initialization,
+serialization, focus, and event functions on `window.nfprogressMindMap`.
+
+Every saved map passes through the notes API and the server-side
+`engine.normalize_mindmap_data()` validation before persistence. This removes
+the Qt WebView and Python-to-JavaScript bridge from the new client without
+inventing a second map format.
 
 ## Localization and help
 
-Russian stays canonical. `scripts/export_frontend_content.py` exports all six
-locale catalogs and the `HELP_SECTIONS` tree. Generated JSON is validated for
-missing language files and canonical keys. This makes the Python catalog the
-single translation source while allowing the browser runtime to remain free of
-Python and Qt.
+Russian remains the canonical source language. `translations_catalog.py` and
+the overrides in `localization.py` provide English, Spanish, German, French,
+and Brazilian Portuguese. `ContentService` serves the canonical catalogs and
+localized `HELP_SECTIONS` to the frontend at runtime.
+
+`scripts/export_frontend_content.py` creates deterministic locale/help JSON and
+supports `--check` for drift detection; these generated artifacts are not an
+independently maintained translation system. The source extractor also scans
+Vue/TypeScript user-facing strings so new frontend text can enter the same
+catalog-generation workflow. User data and canonical Russian game keys are not
+translated.
+
+## Game state and achievement evidence
+
+The game frontend exposes overview/profile, buffs, freezes, writing sessions,
+daily and weekly challenges, inventory/shop, inspiration, creative events,
+specializations/mastery, skills, quests, cabinet/relics/sets, custom awards,
+and bank operations. Python remains the source of truth and reserializes state
+after every command.
+
+There is no independent legacy `Achievement` model to migrate. Legacy quest
+badges are created by `quest_award()` in `game_data.py` as ordinary `Item`
+objects with canonical category `Награды`; `ITEM_REGISTRY['Награды']` is the
+registry, and `Gamer.items['Награды']` is the persisted ownership evidence. The
+new UI preserves that evidence through the quest state and inventory category.
+Manuscript milestones and relic achievements remain the separate cabinet
+projection. Custom user-defined awards are exposed by their own game commands.
+Creating a duplicate generic "achievements" store would fork the actual legacy
+data model, so none is introduced.
+
+## Platform capability matrix
+
+| Capability | Web | Tauri desktop | Capacitor iOS/Android |
+| --- | --- | --- | --- |
+| Shared FastAPI contract | Remote HTTPS | Local sidecar | Remote HTTPS |
+| Local Python install for end user | Server-side only | No; bundled sidecar | No CPython in app |
+| Direct local Word `.docx` path | No | Yes, after file dialog | No |
+| Explicit `.docx` upload | Yes | Available through API contract | Yes |
+| Scrivener binder/path sync | No | Yes | No |
+| Automatic background file sync | No | Yes, when enabled | No |
+| Native updater | Deployment-specific | Disabled until signed Tauri releases | Store/distribution-specific |
 
 ## Security model
 
-- All project, progress, reward, inventory, challenge, and session changes are
-  commands validated by Python.
-- No reward amount sent by a client is trusted.
-- User manuscript/note text is not logged by request handlers.
-- Desktop listens on loopback only; remote deployments are expected to be
-  terminated behind HTTPS.
-- Authentication is represented by a replaceable dependency boundary, but no
-  account system is introduced without product requirements.
+- The backend validates every progress, reward, inventory, challenge, session,
+  bank, and custom-award mutation.
+- User manuscript and note text is not included in normal request logging.
+- Desktop listens only on loopback and requires the random session header.
+- Allowed CORS origins are explicit. A non-loopback CLI bind requires
+  `--allow-remote` and is intended only behind an external HTTPS/authentication
+  boundary.
+- `VITE_*` values contain public transport configuration only, never secrets.
+- The API dependency boundary can accept future authentication without
+  changing feature routes, but no account system is claimed today.
+
+## Remaining legacy debt
+
+The following behavior remains intentionally legacy-only or incomplete:
+
+- the Qt update checker/installer and signed legacy release channel; native
+  Tauri updates stay disabled until signed Tauri artifacts exist;
+- a real `.doc` reader, if that obsolete Word format is again made a supported
+  product workflow (the current legacy selector asks for `.docx`, as does the
+  new API);
+- progress-share image generation and clipboard copying from `main_UI.py`;
+- the native macOS `NSUserInterfaceItemSearching` Help-menu integration (Vue
+  has its own localized in-app help search);
+- some settings such as notification duration and project-list display
+  preferences, which are not yet surfaced by the Vue settings page;
+- a dedicated notification-history view and full browser-driven Playwright
+  coverage of the critical end-to-end flows;
+- Windows, macOS Intel, iOS, and Android native release builds and signing.
+
+The PySide6 files cannot be removed until these gaps and platform verification
+are addressed. Sequential access to the existing data keeps the legacy app a
+valid fallback.
 
 ## Architectural decisions
 
-1. Preserve pickle during the parity phase instead of combining UI migration
-   with an irreversible storage migration.
-2. Wrap proven `Project`, `Stage`, `Note`, and `Gamer` behavior rather than
-   reimplementing formulas in TypeScript.
+1. Preserve pickle during parity instead of combining UI migration with an
+   irreversible data migration.
+2. Wrap the proven `Project`, `Stage`, note, and `Gamer` behavior rather than
+   duplicating formulas in TypeScript.
 3. Use one HTTP contract for all clients; desktop connection discovery changes
    transport configuration, not API semantics.
-4. Keep Mind Elixir as the editor and replace only the Qt transport bridge.
-5. Keep legacy PySide6 as a supported fallback until parity checks cover each
-   migrated workflow.
+4. Reuse Mind Elixir and replace only its Qt transport bridge.
+5. Restrict automatic local-file synchronization to the desktop sidecar.
+6. Keep PySide6 as a supported fallback until every remaining workflow and
+   target is verified.
