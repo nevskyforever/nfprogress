@@ -1900,7 +1900,7 @@ class Gamer:
             self.save()
         message = (
             f'Сессия завершена! Результат: {grade_name}. '
-            f'Серия: {self.writing_session_streak}. '
+            f'Стрик: {self.writing_session_streak}. '
             f'Получено {coins} монет, {exp} опыта и {inspiration:g} вдохновения.'
         )
         if early_finish_multiplier > 1:

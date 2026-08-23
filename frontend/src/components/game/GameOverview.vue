@@ -134,7 +134,7 @@ function targetName(key: string): string {
       </article>
 
       <article class="resource-card">
-        <p>{{ t('Серия сессий') }}</p>
+        <p>{{ t('Стрик сессий') }}</p>
         <strong>{{ profile.writing_session_streak }}</strong>
         <small>
           {{ t('Щиты') }}: {{ profile.session_streak_shields }} ·
@@ -154,16 +154,16 @@ function targetName(key: string): string {
 
     <section class="summary-panel freeze-panel" aria-labelledby="streak-freeze-title">
       <div>
-        <h2 id="streak-freeze-title">{{ t('Заморозка серии') }}</h2>
+        <h2 id="streak-freeze-title">{{ t('Заморозка стрика') }}</h2>
         <p>
           {{ t('Сохраните серию на сегодня, если не получится написать текст.') }}
           {{ t('В инвентаре') }}: <strong>{{ streakFreezes.inventory_count }}</strong>
         </p>
       </div>
       <label>
-        <span>{{ t('Серия') }}</span>
+        <span>{{ t('Стрик') }}</span>
         <select v-model="freezeTarget" class="freeze-target-select">
-          <option value="global">{{ t('Общая серия') }}</option>
+          <option value="global">{{ t('Общий стрик') }}</option>
           <option
             v-for="project in streakFreezes.projects"
             :key="project.project_id"

@@ -1332,7 +1332,7 @@ def daily_route_token_func(do, add=None):
 
 
 def session_streak_thread_func(do, add=None):
-    """Даёт расходуемую защиту серии успешных сессий."""
+    """Даёт расходуемую защиту стрика успешных сессий."""
     if do == '?':
         return 'Один раз сохраняет серию при неудачной сессии (максимум 3)'
     if do != 'use':
@@ -1341,10 +1341,10 @@ def session_streak_thread_func(do, add=None):
     gamer = game.load_game()
     gamer.normalize_motivation()
     if gamer.session_streak_shields >= 3:
-        raise ValueError('Уже накоплен максимум защит серии: 3.')
+        raise ValueError('Уже накоплен максимум защит стрика: 3.')
     gamer.session_streak_shields += 1
     gamer.save()
-    return f'Защит серии: {gamer.session_streak_shields}/3.'
+    return f'Защит стрика: {gamer.session_streak_shields}/3.'
 
 
 def session_grade_medal_func(do, add=None):

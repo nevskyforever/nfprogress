@@ -1361,7 +1361,7 @@ class GameService:
         if target not in {'global', 'project'}:
             raise ValidationError(
                 'streak_freeze_target_invalid',
-                'Неизвестная цель заморозки серии.',
+                    'Неизвестная цель заморозки стрика.',
             )
         normalized_project_id = (
             str(project_id).strip() if project_id is not None else None
@@ -1374,7 +1374,7 @@ class GameService:
         if target == 'global' and normalized_project_id:
             raise ValidationError(
                 'streak_freeze_project_unexpected',
-                'Для глобальной серии проект не указывается.',
+                    'Для глобального стрика проект не указывается.',
             )
 
         def mutate(gamer: legacy_game.Gamer, projects: JSONDict) -> JSONDict:
@@ -1937,7 +1937,7 @@ class GameService:
 
         if streak_events is not None and not isinstance(streak_events, list):
             raise ValidationError(
-                'streak_events_invalid', 'События серии имеют неверный формат.',
+                'streak_events_invalid', 'События стрика имеют неверный формат.',
             )
         streak_events = list(streak_events or [])
 
@@ -2384,17 +2384,17 @@ class GameService:
         for event in events:
             if not isinstance(event, dict):
                 raise ValidationError(
-                    'streak_event_invalid', 'Событие серии имеет неверный формат.',
+                    'streak_event_invalid', 'Событие стрика имеет неверный формат.',
                 )
             streak_type = str(event.get('type', event.get('streak_type', '')))
             if streak_type not in {'Local', 'Global'}:
                 raise ValidationError(
-                    'streak_type_invalid', 'Неизвестный тип серии.',
+                    'streak_type_invalid', 'Неизвестный тип стрика.',
                 )
             status = event.get('status')
             if not isinstance(status, str) or not status.strip():
                 raise ValidationError(
-                    'streak_status_invalid', 'Статус серии имеет неверный формат.',
+                    'streak_status_invalid', 'Статус стрика имеет неверный формат.',
                 )
             length = self._nonnegative_integer(
                 event.get('length', event.get('streak_length', 0)),

@@ -110,7 +110,7 @@ onBeforeUnmount(() => clearInterval(timer))
         <h2 id="writing-session-title">{{ t('Писательская сессия') }}</h2>
       </div>
       <span class="streak-badge">
-        {{ t('Серия') }}: {{ session.streak }}
+        {{ t('Стрик') }}: {{ session.streak }}
       </span>
     </header>
 
