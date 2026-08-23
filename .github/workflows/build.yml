@@ -315,6 +315,21 @@ jobs:
           name: tauri-windows-${{ needs.build_windows.outputs.version }}
           path: release-assets
 
+      - name: Download macOS release files from hosting
+        shell: bash
+        env:
+          APP_VERSION: ${{ needs.build_windows.outputs.version }}
+        run: |
+          set -euo pipefail
+          base_url="https://nfproject.ru/app"
+          for arch in arm intel; do
+            file="nfprogress-mac-${arch}-${APP_VERSION}.zip"
+            curl --fail --location --retry 3 \
+              --output "release-assets/${file}" \
+              "${base_url}/${file}"
+            unzip -t "release-assets/${file}"
+          done
+
       - name: Validate release assets
         shell: bash
         run: |
@@ -327,6 +342,33 @@ jobs:
           jq -e --arg version "$APP_VERSION" \
             '.version == $version and (.platforms["windows-x86_64"].signature | length > 0)' \
             release-assets/latest.json >/dev/null
+
+      - name: Upload Windows release files to hosting
+        shell: bash
+        env:
+          SSH_UPLOAD_HOST: 77.222.62.219
+          SSH_UPLOAD_USER: nevskyfore
+          SSH_UPLOAD_DIR: nfproject/public_html/app
+          SSH_UPLOAD_PORT: 22
+          SSH_UPLOAD_PRIVATE_KEY: ${{ secrets.SSH_UPLOAD_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$SSH_UPLOAD_PRIVATE_KEY" ]]; then
+            echo "SSH upload skipped: SSH_UPLOAD_PRIVATE_KEY is not configured."
+            exit 0
+          fi
+
+          key_path="$RUNNER_TEMP/nfprogress-ssh-upload-key"
+          printf '%b\n' "$SSH_UPLOAD_PRIVATE_KEY" > "$key_path"
+          chmod 600 "$key_path"
+          ssh_options=(-i "$key_path" -p "$SSH_UPLOAD_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
+          scp_options=(-i "$key_path" -P "$SSH_UPLOAD_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30)
+          target="${SSH_UPLOAD_USER}@${SSH_UPLOAD_HOST}"
+
+          ssh "${ssh_options[@]}" "$target" "mkdir -p '$SSH_UPLOAD_DIR'"
+          for asset in release-assets/*; do
+            scp "${scp_options[@]}" "$asset" "$target:$SSH_UPLOAD_DIR/"
+          done
 
       - name: Publish GitHub release and updater manifest
         shell: bash

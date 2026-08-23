@@ -1,5 +1,5 @@
 #!/bin/bash
-# Prepare a local Tauri release archive. Publishing belongs to signed CI only.
+# Prepare a local Tauri release archive and upload it for the release CI.
 set -euo pipefail
 
 ARCH="${1:-}"
@@ -29,4 +29,10 @@ if [ ! -f "$ARTIFACT_PATH" ]; then
 fi
 
 echo "Локальный Tauri-архив готов: $ARTIFACT_PATH"
-echo "Публикация не выполнялась: официальный канал обновлений создаёт и подписывает CI."
+
+if [ "${NFPROGRESS_TAURI_RELEASE_UPLOAD:-1}" = "1" ]; then
+  REMOTE_NAME="nfprogress-mac-${ARCH}-${VERSION}.zip"
+  "$ROOT_DIR/scripts/upload-release.sh" "$ARTIFACT_PATH" "$REMOTE_NAME"
+else
+  echo "Загрузка на хостинг отключена: NFPROGRESS_TAURI_RELEASE_UPLOAD=0"
+fi

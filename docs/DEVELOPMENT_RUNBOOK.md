@@ -256,8 +256,10 @@ DMG, лицензией и сведениями об исходном коде. 
 командой, если вместо него выбран arm64 Python.
 
 Скрипты `Release Tauri ARM.sh`, `Release Tauri Intel.sh` и
-`Release Tauri All.sh` по умолчанию готовят только локальный архив. Подписанный
-канал обновлений публикует защищённый CI workflow.
+`Release Tauri All.sh` по умолчанию готовят архив и загружают его на release
+hosting. Защищённый CI workflow скачивает оба macOS-архива, добавляет Windows
+артефакты и публикует общий GitHub Release. Для сборки без загрузки используйте
+`NFPROGRESS_TAURI_RELEASE_UPLOAD=0`.
 
 На macOS для обычного DMG без Finder/AppleScript-оформления используйте после
 сборки соответствующего sidecar:

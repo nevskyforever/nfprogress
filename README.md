@@ -237,8 +237,9 @@ On Apple Silicon, the Intel script requires an x86_64 Python virtual environment
 with the backend dependencies; it explains the required
 `NFPROGRESS_TAURI_PYTHON` and `NFPROGRESS_TAURI_PYTHON_ARCH` values if the
 active interpreter has the wrong architecture. The matching `Release Tauri
-*.sh` wrappers prepare the same local archive; the protected CI workflow owns
-the automatic updater channel.
+*.sh` wrappers upload the macOS archives to the release hosting; the protected CI
+workflow downloads them, adds the Windows artifacts, and publishes the combined
+GitHub Release. Set `NFPROGRESS_TAURI_RELEASE_UPLOAD=0` to build without uploading.
 
 ### Windows release and automatic updates
 
