@@ -181,8 +181,10 @@ npm run tauri:dev
 bash "Run Tauri.sh"
 ```
 
-Скрипт выбирает Rust architecture текущего Mac, использует уже собранный
-matching sidecar и хранит тестовые данные в .nfprogress-dev-data/tauri.
+Скрипт выбирает Rust architecture текущего Mac, использует matching sidecar и
+хранит тестовые данные в .nfprogress-dev-data/tauri. Если sidecar был очищен,
+скрипт один раз соберёт только этот локальный Python backend; production
+.app, DMG и ZIP при этом не создаются.
 Проверить prerequisites без открытия окна можно так:
 
 ```bash

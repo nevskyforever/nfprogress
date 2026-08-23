@@ -206,8 +206,9 @@ root:
 bash "Run Tauri.sh"
 ```
 
-It selects the host target, reuses its matching sidecar, and defaults to the
-isolated .nfprogress-dev-data/tauri directory. Use
+It selects the host target, rebuilds its matching sidecar when that ignored
+local binary is absent, and defaults to the isolated .nfprogress-dev-data/tauri
+directory. Use
 bash "Run Tauri.sh" --check to validate prerequisites without opening a window.
 Stop a separately running npm run dev first, because Tauri dev uses port 5173.
 

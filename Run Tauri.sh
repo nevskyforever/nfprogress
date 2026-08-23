@@ -36,13 +36,21 @@ esac
 
 SIDECAR_PATH="$ROOT_DIR/frontend/src-tauri/binaries/nfprogress-backend-$TARGET"
 if [ ! -x "$SIDECAR_PATH" ]; then
-  echo "Не найден sidecar для $TARGET: $SIDECAR_PATH"
-  echo "Сначала создайте его из корня репозитория:"
-  case "$TARGET" in
-    aarch64-apple-darwin) echo "  bash 'Build Tauri ARM.sh'" ;;
-    x86_64-apple-darwin) echo "  bash 'Build Tauri Intel.sh'" ;;
-  esac
-  exit 1
+  if [ "$MODE" = "--check" ]; then
+    echo "Не найден sidecar для $TARGET: $SIDECAR_PATH"
+    echo "Обычный запуск соберёт его автоматически."
+    exit 1
+  fi
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "Не найден python3, необходимый для сборки локального sidecar."
+    exit 1
+  fi
+  echo "Не найден sidecar для $TARGET. Собирается только локальный Python backend..."
+  python3 "$ROOT_DIR/scripts/build-backend-sidecar.py" --target "$TARGET"
+  if [ ! -x "$SIDECAR_PATH" ]; then
+    echo "Сборка sidecar завершилась без ожидаемого файла: $SIDECAR_PATH"
+    exit 1
+  fi
 fi
 
 if [ ! -d "$ROOT_DIR/frontend/node_modules" ]; then
