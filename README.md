@@ -199,6 +199,18 @@ npm ci
 npm run tauri:dev
 ```
 
+For a local desktop test without a production package, run from the repository
+root:
+
+```bash
+bash "Run Tauri.sh"
+```
+
+It selects the host target, reuses its matching sidecar, and defaults to the
+isolated .nfprogress-dev-data/tauri directory. Use
+bash "Run Tauri.sh" --check to validate prerequisites without opening a window.
+Stop a separately running npm run dev first, because Tauri dev uses port 5173.
+
 Checks and a production bundle:
 
 ```bash

@@ -174,6 +174,25 @@ npm run tauri:dev
 `tauri:dev` самостоятельно запускает Tauri-окно и локальный backend. Вручную
 запускать FastAPI для него не нужно.
 
+Для обычного локального запуска нового desktop-приложения без production-пакета
+используйте из корня репозитория:
+
+```bash
+bash "Run Tauri.sh"
+```
+
+Скрипт выбирает Rust architecture текущего Mac, использует уже собранный
+matching sidecar и хранит тестовые данные в .nfprogress-dev-data/tauri.
+Проверить prerequisites без открытия окна можно так:
+
+```bash
+bash "Run Tauri.sh" --check
+```
+
+Перед запуском остановите отдельный npm run dev, если он уже занимает порт
+5173. Первый Tauri dev-start может скомпилировать debug Rust-код, но не создаёт
+production .app, DMG или ZIP.
+
 Production-сборка:
 
 ```bash
