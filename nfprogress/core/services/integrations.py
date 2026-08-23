@@ -129,6 +129,29 @@ class DocumentIntegrationService:
             summary['path'] = None
         return summary
 
+    def get_project_syncs(self, project_id: str) -> dict[str, Any]:
+        """Return every effective binding for a project without mutating it.
+
+        Legacy Qt synchronizes configured stages as a group. Exposing the same
+        list prevents a parent workspace from treating the first unbound stage
+        as if all existing stage bindings had disappeared.
+        """
+        data = self.repository.read_projects()
+        project = self.project_service._find_project(data, project_id)
+        entities = self._effective_sync_entities(project)
+        summaries = [
+            self._sync_summary(
+                project_id,
+                str(entity.stage_id) if getattr(entity, 'is_stage', False) else None,
+                entity,
+            )
+            for entity in entities
+        ]
+        if not self.allow_local_files:
+            for summary in summaries:
+                summary['path'] = None
+        return {'project_id': project_id, 'syncs': summaries}
+
     def run_sync(
             self, project_id: str, *, stage_id: str | None = None,
     ) -> dict[str, Any]:
@@ -181,6 +204,24 @@ class DocumentIntegrationService:
                 'progress': progress,
             }
 
+    def run_project_syncs(self, project_id: str) -> dict[str, Any]:
+        """Synchronize all bindings that legacy Qt would run for one project."""
+        self._require_local_files()
+        data = self.repository.read_projects()
+        project = self.project_service._find_project(data, project_id)
+        targets = [
+            (
+                project_id,
+                str(entity.stage_id) if getattr(entity, 'is_stage', False) else None,
+            )
+            for entity in self._effective_sync_entities(project)
+            if (
+                getattr(entity, 'status', None) == 'активен'
+                and getattr(entity, 'synch', None) is not None
+            )
+        ]
+        return self._run_sync_targets(targets)
+
     def sync_all_configured(self) -> dict[str, Any]:
         """Synchronize every active desktop source without stopping on one failure."""
         self._require_local_files()
@@ -208,6 +249,11 @@ class DocumentIntegrationService:
                 ):
                     targets.append((str(project_id), None))
 
+        return self._run_sync_targets(targets)
+
+    def _run_sync_targets(
+            self, targets: list[tuple[str, str | None]],
+    ) -> dict[str, Any]:
         items: list[dict[str, Any]] = []
         changed_count = 0
         for project_id, stage_id in targets:
@@ -252,6 +298,13 @@ class DocumentIntegrationService:
             'failed': sum(not item['ok'] for item in items),
             'items': items,
         }
+
+    @staticmethod
+    def _effective_sync_entities(project) -> list[Any]:
+        """Match legacy sync semantics for single projects and stage projects."""
+        if getattr(project, 'has_stages', lambda: False)():
+            return list(getattr(project, 'stages', []))
+        return [project]
 
     def inspect_scrivener(self, path: str) -> list[dict[str, Any]]:
         self._require_local_files()

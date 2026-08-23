@@ -136,11 +136,21 @@ async function loadPage(): Promise<void> {
       ? requestedProject
       : (projectList[0]?.id ?? '')
     const requestedStage = routeStageId()
-    const nextStageId = projectList
-      .find(({ id }) => id === nextProjectId)
-      ?.stages.some(({ id }) => id === requestedStage)
+    const nextProject = projectList.find(({ id }) => id === nextProjectId)
+    let nextStageId = nextProject?.stages.some(({ id }) => id === requestedStage)
       ? requestedStage
       : ''
+    if (!nextStageId && nextProject?.stages.length) {
+      try {
+        const bindings = await integrationsApi.getProjectSyncs(nextProjectId)
+        nextStageId = bindings.syncs.find(
+          (summary) => summary.configured && summary.stage_id,
+        )?.stage_id ?? ''
+      } catch {
+        // Source setup remains available if optional binding discovery fails.
+        nextStageId = ''
+      }
+    }
     if (selectedProjectId.value === nextProjectId) {
       selectedStageId.value = nextStageId
       await loadSync()
@@ -365,9 +375,12 @@ function updateImportedProject(project: Project): void {
 
 watch(selectedProjectId, () => {
   const requestedStage = routeStageId()
-  selectedStageId.value = selectedProject.value?.stages.some(({ id }) => id === requestedStage)
-    ? requestedStage
-    : ''
+  const stages = selectedProject.value?.stages ?? []
+  if (stages.some(({ id }) => id === requestedStage)) {
+    selectedStageId.value = requestedStage
+  } else if (!stages.some(({ id }) => id === selectedStageId.value)) {
+    selectedStageId.value = ''
+  }
   void loadSync()
 })
 watch(selectedStageId, () => void loadSync())

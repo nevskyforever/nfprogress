@@ -105,4 +105,18 @@ describe('settings and document integration API clients', () => {
     expect(options.method).toBe('POST')
     expect(result).toMatchObject({ checked: 2, changed: 1, failed: 1 })
   })
+
+  it('lists and runs every existing binding of one staged project', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(jsonResponse({ project_id: 'project/one', syncs: [] }))
+      .mockResolvedValueOnce(jsonResponse({ checked: 1, changed: 1, failed: 0, items: [] }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    await integrationsApi.getProjectSyncs('project/one')
+    await integrationsApi.runProjectSyncs('project/one')
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe('/api/projects/project%2Fone/sync/all')
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/projects/project%2Fone/sync/run-all')
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('POST')
+  })
 })

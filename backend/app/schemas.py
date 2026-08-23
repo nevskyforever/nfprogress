@@ -311,6 +311,11 @@ class SyncDetachAllResponse(BaseModel):
     syncs: list[SyncSummaryResponse]
 
 
+class ProjectSyncsResponse(BaseModel):
+    project_id: str
+    syncs: list[SyncSummaryResponse]
+
+
 class SyncRunResponse(BaseModel):
     changed: bool
     symbols: int

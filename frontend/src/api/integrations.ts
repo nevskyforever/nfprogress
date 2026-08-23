@@ -1,6 +1,7 @@
 import { apiRequest } from './client'
 import type {
   ScrivenerItem,
+  ProjectSyncs,
   SyncBatchResult,
   SyncConfigure,
   SyncRunResult,
@@ -27,6 +28,10 @@ export const integrationsApi = {
     return apiRequest<SyncSummary>(`${projectSyncPath(projectId)}${stageQuery(stageId)}`)
   },
 
+  getProjectSyncs(projectId: string): Promise<ProjectSyncs> {
+    return apiRequest<ProjectSyncs>(`${projectSyncPath(projectId)}/all`)
+  },
+
   configureSync(projectId: string, payload: SyncConfigure): Promise<SyncSummary> {
     return apiRequest<SyncSummary>(projectSyncPath(projectId), {
       method: 'PUT',
@@ -45,6 +50,12 @@ export const integrationsApi = {
       `${projectSyncPath(projectId)}/run${stageQuery(stageId)}`,
       { method: 'POST' },
     )
+  },
+
+  runProjectSyncs(projectId: string): Promise<SyncBatchResult> {
+    return apiRequest<SyncBatchResult>(`${projectSyncPath(projectId)}/run-all`, {
+      method: 'POST',
+    })
   },
 
   runAllSync(): Promise<SyncBatchResult> {

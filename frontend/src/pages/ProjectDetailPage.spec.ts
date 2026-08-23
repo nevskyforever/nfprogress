@@ -20,8 +20,8 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/api/integrations', () => ({
   integrationsApi: {
-    getSync: vi.fn(),
-    runSync: vi.fn(),
+    getProjectSyncs: vi.fn(),
+    runProjectSyncs: vi.fn(),
   },
 }))
 
@@ -92,8 +92,8 @@ describe('ProjectDetailPage progress sharing', () => {
     vi.mocked(projectsApi.get).mockReset()
     vi.mocked(projectsApi.statistics).mockReset()
     vi.mocked(shareProgressImage).mockReset()
-    vi.mocked(integrationsApi.getSync).mockReset()
-    vi.mocked(integrationsApi.runSync).mockReset()
+    vi.mocked(integrationsApi.getProjectSyncs).mockReset()
+    vi.mocked(integrationsApi.runProjectSyncs).mockReset()
     pushRoute.mockReset()
     const stage = projectFixture({
       id: 'stage-id',
@@ -109,15 +109,18 @@ describe('ProjectDetailPage progress sharing', () => {
     }))
     vi.mocked(projectsApi.statistics).mockResolvedValue(statisticsFixture)
     vi.mocked(shareProgressImage).mockResolvedValue('clipboard')
-    vi.mocked(integrationsApi.getSync).mockResolvedValue({
+    vi.mocked(integrationsApi.getProjectSyncs).mockResolvedValue({
       project_id: 'project-id',
-      stage_id: 'stage-id',
-      configured: false,
-      type: null,
-      path: null,
-      item_id: null,
-      last_synced_at: null,
-      desktop_only: true,
+      syncs: [{
+        project_id: 'project-id',
+        stage_id: 'stage-id',
+        configured: false,
+        type: null,
+        path: null,
+        item_id: null,
+        last_synced_at: null,
+        desktop_only: true,
+      }],
     })
   })
 
@@ -166,10 +169,48 @@ describe('ProjectDetailPage progress sharing', () => {
     await wrapper.get('.project-sync-button').trigger('click')
     await flushPromises()
 
-    expect(integrationsApi.getSync).toHaveBeenCalledWith('project-id', 'stage-id')
+    expect(integrationsApi.getProjectSyncs).toHaveBeenCalledWith('project-id')
     expect(pushRoute).toHaveBeenCalledWith({
       name: 'integrations',
       query: { projectId: 'project-id', stageId: 'stage-id' },
     })
+  })
+
+  it('runs an existing stage binding instead of offering a second connection', async () => {
+    vi.mocked(integrationsApi.getProjectSyncs).mockResolvedValue({
+      project_id: 'project-id',
+      syncs: [{
+        project_id: 'project-id',
+        stage_id: 'stage-id',
+        configured: true,
+        type: 'scrivener',
+        path: '/existing/book.scriv',
+        item_id: 'binder-id',
+        last_synced_at: null,
+        desktop_only: true,
+      }],
+    })
+    vi.mocked(integrationsApi.runProjectSyncs).mockResolvedValue({
+      checked: 1,
+      changed: 0,
+      failed: 0,
+      items: [{
+        project_id: 'project-id',
+        stage_id: 'stage-id',
+        ok: true,
+        changed: false,
+        symbols: 100,
+        error: null,
+      }],
+    })
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    await wrapper.get('.project-sync-button').trigger('click')
+    await flushPromises()
+
+    expect(integrationsApi.runProjectSyncs).toHaveBeenCalledWith('project-id')
+    expect(pushRoute).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('Синхронизация завершена')
   })
 })

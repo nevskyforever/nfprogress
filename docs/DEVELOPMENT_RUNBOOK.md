@@ -200,8 +200,8 @@ bash "Run Tauri.sh"
 
 Скрипт выбирает Rust architecture текущего Mac, использует matching sidecar и
 использует Python-совместимую папку `test_data` и синхронизирует её при старте.
-Если sidecar отсутствует или собран до поддержки dev-режима, скрипт
-пересоберёт только этот локальный Python backend; production `.app`, DMG и ZIP
+Если sidecar отсутствует, не поддерживает dev-режим или старее Python-кода
+backend, скрипт пересоберёт только этот локальный Python backend; production `.app`, DMG и ZIP
 при этом не создаются.
 Проверить prerequisites без открытия окна можно так:
 

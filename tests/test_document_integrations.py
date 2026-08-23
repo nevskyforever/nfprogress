@@ -428,6 +428,43 @@ def test_remove_all_syncs_matches_legacy_stage_workflow(tmp_path):
     assert all(stage.last_synch is None for stage in saved_project.stages)
 
 
+def test_project_syncs_preserve_legacy_stage_bindings_and_run_them(tmp_path):
+    path = tmp_path / 'book.docx'
+    path.write_bytes(_docx_bytes('1234567890'))
+    repository = PickleRepository(tmp_path / 'data')
+    projects = ProjectService(repository)
+    project = projects.create_project({
+        'name': 'Book',
+        'goal': 200,
+        'unit': 'symbols',
+        'stages': [
+            {'name': 'One', 'goal': 100},
+            {'name': 'Two', 'goal': 100},
+        ],
+    })
+    service = DocumentIntegrationService(
+        repository, projects, allow_local_files=True,
+    )
+    synced_stage = project['stages'][1]
+    service.configure_sync(
+        project['id'],
+        sync_type='word',
+        path=str(path),
+        stage_id=synced_stage['id'],
+    )
+
+    summaries = service.get_project_syncs(project['id'])
+    result = service.run_project_syncs(project['id'])
+
+    assert len(summaries['syncs']) == 2
+    assert [item['stage_id'] for item in summaries['syncs'] if item['configured']] == [
+        synced_stage['id'],
+    ]
+    assert result['checked'] == 1
+    assert result['failed'] == 0
+    assert result['items'][0]['stage_id'] == synced_stage['id']
+
+
 def test_sync_errors_and_detach_all_have_typed_api_contracts(tmp_path):
     path = tmp_path / 'book.docx'
     path.write_bytes(_docx_bytes('1234567890'))
@@ -456,6 +493,18 @@ def test_sync_errors_and_detach_all_have_typed_api_contracts(tmp_path):
                 },
             )
             assert configured.status_code == 200, configured.text
+
+        listed = client.get(f"/api/projects/{created['id']}/sync/all")
+        assert listed.status_code == 200, listed.text
+        assert [item['stage_id'] for item in listed.json()['syncs']] == [
+            stage['id'] for stage in created['stages']
+        ]
+        assert all(item['configured'] for item in listed.json()['syncs'])
+
+        project_run = client.post(f"/api/projects/{created['id']}/sync/run-all")
+        assert project_run.status_code == 200, project_run.text
+        assert project_run.json()['checked'] == 2
+        assert project_run.json()['failed'] == 0
 
         path.unlink()
         failed = client.post(

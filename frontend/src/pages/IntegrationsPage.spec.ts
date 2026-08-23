@@ -15,6 +15,7 @@ vi.mock('vue-router', () => ({
 
 vi.mock('@/api/integrations', () => ({
   integrationsApi: {
+    getProjectSyncs: vi.fn(),
     getSync: vi.fn(),
     configureSync: vi.fn(),
     removeSync: vi.fn(),
@@ -46,6 +47,7 @@ describe('IntegrationsPage', () => {
     })
     vi.mocked(projectsApi.list).mockReset()
     vi.mocked(settingsApi.get).mockReset()
+    vi.mocked(integrationsApi.getProjectSyncs).mockReset()
     vi.mocked(integrationsApi.getSync).mockReset()
     vi.mocked(projectsApi.list).mockResolvedValue([project])
     vi.mocked(settingsApi.get).mockResolvedValue({
@@ -58,6 +60,10 @@ describe('IntegrationsPage', () => {
         remote_api: false,
       },
       editable_keys: ['background_synch'],
+    })
+    vi.mocked(integrationsApi.getProjectSyncs).mockResolvedValue({
+      project_id: project.id,
+      syncs: [],
     })
     vi.mocked(integrationsApi.getSync).mockResolvedValue({
       project_id: project.id,
@@ -87,6 +93,7 @@ describe('IntegrationsPage', () => {
     })
     await flushPromises()
 
+    expect(integrationsApi.getProjectSyncs).toHaveBeenCalledWith('project-id')
     expect(integrationsApi.getSync).not.toHaveBeenCalled()
     expect(wrapper.text()).toContain('Источник подключается отдельно к каждому этапу')
     expect(wrapper.get('fieldset').attributes()).toHaveProperty('disabled')

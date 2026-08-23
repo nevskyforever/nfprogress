@@ -20,6 +20,11 @@ export interface SyncConfigure {
   item_id?: string | null
 }
 
+export interface ProjectSyncs {
+  project_id: string
+  syncs: SyncSummary[]
+}
+
 export interface SyncRunResult {
   changed: boolean
   symbols: number

@@ -267,9 +267,12 @@ The Vue workspace deliberately preserves the legacy application's central
 interaction cues while modernizing layout and responsiveness: projects use
 circular progress indicators, progress entry is presented as a prominent
 "new entry" action, and notes remain paper-like colored cards. A project-local
-sync action calls the same integration API directly when a Word/Scrivener
-binding exists; otherwise it deep-links to `/integrations` with stable project
-and stage IDs so setup starts in the correct context.
+sync action first discovers all effective project bindings. For a staged
+project, this means every stage: existing Word/Scrivener sources run together
+with the same semantics as the legacy PySide6 action, rather than requiring a
+user to reconnect or choose the particular configured stage. When no binding
+exists, the workspace deep-links to `/integrations` with stable project and
+stage IDs so setup starts in the correct context.
 
 The design uses Vue single-file components and CSS design tokens, with separate
 wide-screen navigation and touch navigation. Semantic labels, live command

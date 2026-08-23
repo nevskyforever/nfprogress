@@ -57,12 +57,15 @@ const statisticsEntityId = ref('')
 const actionSuccess = ref<string | null>(null)
 const feedbackArea = ref<'global' | 'progress'>('global')
 const sharingProgress = ref(false)
-const syncSummary = ref<SyncSummary | null>(null)
+const syncSummaries = ref<SyncSummary[]>([])
 const syncLoading = ref(false)
 const syncRunning = ref(false)
 let syncRequestSequence = 0
 
 const selectedSyncStageId = computed(() => selectedEntityId.value || null)
+const hasConfiguredSync = computed(() =>
+  syncSummaries.value.some((summary) => summary.configured),
+)
 
 const canCompleteProject = computed(() => {
   if (!store.currentProject || project.value.status === 'завершен') return false
@@ -107,10 +110,10 @@ async function loadSyncSummary(): Promise<void> {
   const sequence = ++syncRequestSequence
   syncLoading.value = true
   try {
-    const summary = await integrationsApi.getSync(project.value.id, selectedSyncStageId.value)
-    if (sequence === syncRequestSequence) syncSummary.value = summary
+    const summaries = await integrationsApi.getProjectSyncs(project.value.id)
+    if (sequence === syncRequestSequence) syncSummaries.value = summaries.syncs
   } catch {
-    if (sequence === syncRequestSequence) syncSummary.value = null
+    if (sequence === syncRequestSequence) syncSummaries.value = []
   } finally {
     if (sequence === syncRequestSequence) syncLoading.value = false
   }
@@ -119,7 +122,7 @@ async function loadSyncSummary(): Promise<void> {
 async function synchronizeProject(): Promise<void> {
   feedbackArea.value = 'global'
   actionSuccess.value = null
-  if (!syncSummary.value?.configured) {
+  if (!hasConfiguredSync.value) {
     await router.push({
       name: 'integrations',
       query: {
@@ -131,16 +134,18 @@ async function synchronizeProject(): Promise<void> {
   }
   syncRunning.value = true
   try {
-    const result = await integrationsApi.runSync(project.value.id, selectedSyncStageId.value)
-    syncSummary.value = result.sync
-    actionSuccess.value = result.changed
-      ? t('Синхронизация завершена. Прочитано символов: {count}', {
-          count: locale.formatNumber(result.symbols, 0),
-        })
-      : t('Документ не изменился. Текущий объём уже актуален.')
+    const result = await integrationsApi.runProjectSyncs(project.value.id)
+    const failed = result.items.find((item) => !item.ok)
+    if (failed && result.failed === result.checked) {
+      store.detailActionError = t(failed.error?.message ?? t('Синхронизация не настроена.'))
+      return
+    }
+    actionSuccess.value = t('Синхронизация завершена')
+    if (failed?.error?.message) notifications.warning(t(failed.error.message))
     await store.loadOne(project.value.id)
     chooseAvailableEntity()
     refreshStatistics()
+    await loadSyncSummary()
   } catch (error) {
     store.detailActionError = t(apiErrorMessage(error))
   } finally {
@@ -305,7 +310,6 @@ watch(statisticsEntityId, () => {
   actionSuccess.value = null
   refreshStatistics()
 })
-watch(selectedEntityId, () => { void loadSyncSummary() })
 
 onBeforeUnmount(() => store.cancelDetail())
 </script>
@@ -358,7 +362,7 @@ onBeforeUnmount(() => store.cancelDetail())
             >
               <IonSpinner v-if="syncLoading || syncRunning" name="crescent" aria-hidden="true" />
               <IonIcon v-else :icon="refreshOutline" aria-hidden="true" />
-              {{ syncSummary?.configured ? t('Синхронизировать сейчас') : t('Подключить источник') }}
+              {{ hasConfiguredSync ? t('Синхронизировать сейчас') : t('Подключить источник') }}
             </button>
             <RouterLink
               class="nf-button nf-button--secondary"
