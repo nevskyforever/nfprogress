@@ -46,7 +46,7 @@ blocker. The PySide6 application remains the release fallback.
 | Capacitor shared setup | [done] | iOS and Android projects, app identifier/name, icons/splash assets, safe-area/theme behavior, keyboard/status bar/network/external-link plugins, and `cap sync` are present |
 | Capacitor iOS native build | [blocked] | Host has only Xcode Command Line Tools; full Xcode and the iPhoneOS SDK are unavailable |
 | Capacitor Android native build | [blocked] | Host exposes Java 8, below the current Android toolchain requirement, and has no Android SDK, `adb`, or `sdkmanager` |
-| Automated quality gates | [in progress] | Aggregate migration Python suite: 420 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/77 Vitest tests/build, ARM64 and x86_64 `cargo check`, `cap sync`, sidecar smoke, and audit pass. Legacy screen-reader metadata, keyboard order, progress values, and game-list descriptions are now covered; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
+| Automated quality gates | [blocked] | Aggregate migration Python suite: 422 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/77 Vitest tests/build, ARM64 and x86_64 `cargo check`, `cap sync`, sidecar smoke, and audit pass. Legacy screen-reader metadata, keyboard order, progress values, and game-list descriptions are now covered; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
 | Developer documentation | [done] | README covers legacy/backend/frontend/Web/Tauri/Capacitor commands, data safety, platform limitations, tests, and current target status |
 
 ## Functional parity summary
@@ -173,7 +173,7 @@ have passed in earlier slices.
 
 Checks completed for the final aggregate migration tree include:
 
-- `python3 -m pytest -q` — 420 passed, 15 skipped, 2 subtests passed,
+- `python3 -m pytest -q` — 422 passed, 15 skipped, 2 subtests passed,
   including the restored legacy accessibility coverage; focused
   localization/help/export checks also pass;
 - `npm run typecheck`, `npm run lint`, `npm run test` — 77 Vitest tests, and
@@ -202,6 +202,11 @@ remain pending because the in-app Browser exposes no target in this environment.
 - `0457d63` — localize structured statistics.
 - `be42aa7` — run desktop synchronization in the backend lifecycle.
 - `045aa32` — preserve the nested Scrivener binder hierarchy.
+- `7a793cd` — migrate safe progress-card sharing.
+- `fcf46bd` — restore legacy accessibility semantics and keyboard metadata.
+- `afd1fa5` — enforce the Qt-free shared-core import boundary.
+- `fa0615e` — verify the macOS Intel Tauri target and sidecar lifecycle.
+- `7a4a1f4` — add verified headless Tauri DMG packaging.
 
 The current Game, Integrations, Help, Settings, agreement gate, strict
 contracts, project-parity, and integration-hardening layers follow these
