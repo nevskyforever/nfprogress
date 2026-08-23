@@ -195,9 +195,13 @@ jobs:
           $env:NFPROGRESS_ALLOWED_ORIGINS = 'tauri://localhost,http://tauri.localhost,https://tauri.localhost'
           $sidecar = Resolve-Path "frontend\src-tauri\binaries\nfprogress-backend-x86_64-pc-windows-msvc.exe"
           $dataDir = Join-Path $env:RUNNER_TEMP "nfprogress-sidecar-smoke"
+          $stdoutPath = Join-Path $env:RUNNER_TEMP "nfprogress-sidecar.stdout.log"
+          $stderrPath = Join-Path $env:RUNNER_TEMP "nfprogress-sidecar.stderr.log"
           $process = Start-Process `
             -FilePath $sidecar `
             -ArgumentList @('--host', '127.0.0.1', '--port', $port, '--platform', 'desktop', '--parent-pid', $PID, '--data-dir', $dataDir, '--log-level', 'warning') `
+            -RedirectStandardOutput $stdoutPath `
+            -RedirectStandardError $stderrPath `
             -PassThru
           try {
             $deadline = (Get-Date).AddSeconds(60)
@@ -213,7 +217,12 @@ jobs:
                 Start-Sleep -Milliseconds 250
               }
             }
-            if (-not $healthy) { throw "The Python sidecar did not become healthy." }
+            if (-not $healthy) {
+              Write-Host "Sidecar exited: $($process.HasExited); exit code: $($process.ExitCode)"
+              if (Test-Path $stdoutPath) { Write-Host '--- sidecar stdout ---'; Get-Content $stdoutPath }
+              if (Test-Path $stderrPath) { Write-Host '--- sidecar stderr ---'; Get-Content $stderrPath }
+              throw "The Python sidecar did not become healthy."
+            }
             Invoke-RestMethod `
               -Uri "http://127.0.0.1:$port/api/settings" `
               -Headers @{ 'X-NFProgress-Token' = $token } `
