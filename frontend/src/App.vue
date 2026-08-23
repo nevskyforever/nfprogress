@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { onBeforeUnmount, ref } from 'vue'
 import { IonApp } from '@ionic/vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -7,11 +7,14 @@ import { settingsApi } from '@/api/settings'
 import UserAgreementGate from '@/components/agreement/UserAgreementGate.vue'
 import NotificationCenter from '@/components/ui/NotificationCenter.vue'
 import NotificationStack from '@/components/ui/NotificationStack.vue'
+import UpdatePrompt from '@/components/ui/UpdatePrompt.vue'
 import AppShell from '@/layouts/AppShell.vue'
+import { supportsNativeUpdates } from '@/platform/runtime'
 import { isSupportedLanguage, useLocaleStore } from '@/stores/locale'
 import { isMotionPreference, useMotionStore } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
 import { isThemePreference, useThemeStore } from '@/stores/theme'
+import { useUpdaterStore } from '@/stores/updater'
 import type { SettingsResponse } from '@/types/content'
 
 type BootstrapState = 'loading' | 'agreement' | 'ready' | 'error'
@@ -20,10 +23,20 @@ const locale = useLocaleStore()
 const theme = useThemeStore()
 const motion = useMotionStore()
 const notifications = useNotificationsStore()
+const updater = useUpdaterStore()
 const t = locale.translate
 const appIcon = '/icons/icon-192.webp'
 const bootstrapState = ref<BootstrapState>('loading')
 const bootstrapError = ref<string | null>(null)
+let updateTimer: number | null = null
+
+function startAutomaticUpdateChecks(): void {
+  if (!supportsNativeUpdates() || updateTimer !== null) return
+  void updater.checkForUpdates()
+  updateTimer = window.setInterval(() => {
+    void updater.checkForUpdates()
+  }, 60 * 60 * 1000)
+}
 
 async function applyBackendPreferences(settings: SettingsResponse): Promise<void> {
   if (isThemePreference(settings.values.frontend_theme)) {
@@ -48,6 +61,7 @@ async function bootstrapApplication(): Promise<void> {
     const settings = await settingsApi.get()
     await applyBackendPreferences(settings)
     bootstrapState.value = settings.values.user_agreement === true ? 'ready' : 'agreement'
+    if (bootstrapState.value === 'ready') startAutomaticUpdateChecks()
   } catch (error) {
     await locale.initialize()
     bootstrapError.value = t(apiErrorMessage(error))
@@ -58,9 +72,13 @@ async function bootstrapApplication(): Promise<void> {
 async function handleAgreementAccepted(settings: SettingsResponse): Promise<void> {
   await applyBackendPreferences(settings)
   bootstrapState.value = 'ready'
+  startAutomaticUpdateChecks()
 }
 
 void bootstrapApplication()
+onBeforeUnmount(() => {
+  if (updateTimer !== null) window.clearInterval(updateTimer)
+})
 </script>
 
 <template>
@@ -96,6 +114,7 @@ void bootstrapApplication()
       <AppShell />
       <NotificationCenter />
       <NotificationStack />
+      <UpdatePrompt />
     </template>
   </IonApp>
 </template>

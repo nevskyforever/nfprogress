@@ -4,22 +4,17 @@ nfprogress is a progress tracker for writers. It organizes writing projects,
 stages, deadlines, notes, statistics, and optional game mechanics that turn
 regular writing into challenges and rewards.
 
-The project is migrating from PySide6 to Vue 3, TypeScript, Ionic, FastAPI,
-Tauri 2, and Capacitor. The published desktop application still uses PySide6;
-the legacy UI remains available while the new clients reach and verify
-functional parity.
+The current application uses Vue 3, TypeScript, Ionic, FastAPI, Tauri 2, and
+Capacitor. PySide6 source remains in the repository only as a compatibility
+reference for existing data and behavior; legacy packages are no longer built,
+published, or supported.
 
 ## Architecture
 
 ```text
-Legacy PySide6 UI ───────────────┐
-                                │
-                                v
-                         shared Python Core
+Vue 3 + Ionic ── FastAPI ── shared Python Core
                                 │
                                 ├── repositories ── atomic legacy pickle files
-                                │
-Vue 3 + Ionic ── FastAPI ───────┘
        │
        ├── Web
        ├── Tauri 2 ── bundled Nuitka Python sidecar ── Windows / macOS
@@ -51,7 +46,7 @@ frontend never reads pickle files or imports Qt/Python objects directly. See the
 - Select light, dark, or system theme in the new frontend.
 - Configure the writing-day boundary, notification duration, and optional
   all-project daily total; Vue remembers its own project-list and inventory
-  views without changing the PySide6 fallback preferences.
+  views without changing historical desktop preference keys.
 - Review persistent bank and streak events in the cross-platform notification
   center and mark them read without losing the legacy event history.
 
@@ -59,32 +54,29 @@ frontend never reads pickle files or imports Qt/Python objects directly. See the
 
 | Target | Current state |
 | --- | --- |
-| Legacy Windows and macOS | Current downloadable PySide6 fallback; preserved during migration |
 | Web | Production Vue build works with a configured FastAPI deployment; HTTPS, authentication/reverse-proxy policy, and SPA route fallback belong to the deployment |
 | Tauri macOS Apple Silicon | Release `.app`, fresh ARM64 Nuitka sidecar, loopback/token health check, and child cleanup verified on the current host; a plain headless DMG is available, while Finder styling remains cosmetic-only |
 | Tauri macOS Intel | Fresh x86_64 sidecar, target `cargo check`, and unsigned production `.app` bundle were built on the ARM host; authenticated sidecar startup was exercised through Rosetta within Tauri's 30-second readiness window. Physical Intel UI/signing verification remains a release-host task |
-| Tauri Windows | Configuration and sidecar builder exist; the MSVC sidecar and bundle must be built and tested on Windows |
+| Tauri Windows | The workflow builds the MSVC Nuitka sidecar and Tauri NSIS installer, checks runtime health, requires Authenticode and updater signatures, and publishes `latest.json` with the GitHub Release |
 | Capacitor iOS | Native project, plugins, branding, and `cap sync` are present; native compilation is blocked on this host because full Xcode and the iPhoneOS SDK are absent |
 | Capacitor Android | Native project, plugins, branding, and `cap sync` are present; native compilation is blocked on this host by Java 8 and the absence of the Android SDK (`adb`/`sdkmanager`) |
 
 The Capacitor applications do not embed CPython. Web, iOS, and Android require
 a separately deployed FastAPI server. See
 [MIGRATION_STATUS.md](docs/frontend-migration/MIGRATION_STATUS.md) for the
-feature-level parity matrix and remaining legacy-only behavior.
+feature-level parity matrix and remaining platform-specific behavior.
 
 ## Download
 
-Download the current PySide6 desktop build from
+Signed Tauri desktop builds are published through
 [GitHub Releases](https://github.com/nevskyforever/nfprogress/releases).
-Project downloads are also published through
-[nfproject.ru](https://nfproject.ru/).
-
-Tauri and Capacitor artifacts are not yet the published release channel.
+Windows releases use the bundled NSIS installer; signed updates are delivered
+from the same GitHub release channel.
 
 ## Development prerequisites
 
-- Python 3.11 (used by the official Windows build) and the dependencies in
-  `requirements.txt`.
+- Python 3.13 (used by the official Windows build) and the dependencies in
+  `requirements-backend.txt` for the new desktop/backend targets.
 - Node.js 20.19 or newer for `frontend/`.
 - Rust and Cargo for Tauri.
 - Nuitka for creating the bundled desktop backend sidecar.
@@ -99,30 +91,22 @@ git clone https://github.com/nevskyforever/nfprogress.git
 cd nfprogress
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-backend.txt
 ```
 
 On Windows, activate it with PowerShell:
 
 ```powershell
-py -3.11 -m venv .venv
+py -3.13 -m venv .venv
 .venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-backend.txt
 ```
 
-## Run the legacy desktop application
+## Historical PySide6 source
 
-```bash
-python main_UI.py
-```
-
-The legacy UI and the new backend still share the same pickle persistence.
-In source/developer mode both clients use the Python-compatible
-`nfprogress/test_data` copy; it is refreshed from newer real `.pkl` files and
-the source files are not overwritten. Do not run both clients against that
-same test directory at the same time. Use `--data-dir` or
-`NFPROGRESS_DATA_DIR` only when an entirely isolated empty directory is
-required for a test.
+`main_UI.py` and the old updater remain for regression comparison and pickle
+compatibility only. They are not part of the release workflow and are not a
+supported application target. Use Web or Tauri for development and releases.
 
 ## Run FastAPI and the Vue frontend
 
@@ -133,7 +117,7 @@ python -m backend.app --host 127.0.0.1 --port 8000 --platform web --dev-data
 ```
 
 `/health` reports readiness and `/docs` exposes OpenAPI. The `--dev-data` flag
-uses the same synchronized test-data behavior as `python main_UI.py`. To
+uses the same synchronized test-data behavior as the historical Python UI. To
 isolate a test completely, replace it with `--data-dir
 /absolute/path/to/test-data`.
 
@@ -235,7 +219,7 @@ npm run tauri:build
 ```
 
 `Build Tauri ARM.sh`, `Build Tauri Intel.sh`, and `Build Tauri All.sh`
-mirror the legacy macOS build entry points. They build the target-matched Nuitka
+provide matching macOS build entry points. They build the target-matched Nuitka
 sidecar, Tauri app, verified plain DMG, and a local ZIP containing the DMG,
 license, and source-code notice:
 
@@ -250,8 +234,38 @@ On Apple Silicon, the Intel script requires an x86_64 Python virtual environment
 with the backend dependencies; it explains the required
 `NFPROGRESS_TAURI_PYTHON` and `NFPROGRESS_TAURI_PYTHON_ARCH` values if the
 active interpreter has the wrong architecture. The matching `Release Tauri
-*.sh` wrappers prepare the same local archive but do not upload it or change
-the legacy updater manifest unless `NFPROGRESS_TAURI_RELEASE_UPLOAD=1` is set.
+*.sh` wrappers prepare the same local archive; the protected CI workflow owns
+the signed updater channel.
+
+### Windows release and automatic updates
+
+`.github/workflows/build.yml` is the supported Windows release path. It builds
+the x86_64 MSVC sidecar and NSIS installer, runs Python/frontend/Rust checks,
+smoke-tests the sidecar, verifies Authenticode signatures, scans the final
+release with Microsoft Defender, creates the Tauri updater signature and
+`latest.json`, then publishes one GitHub Release. The workflow refuses to
+publish an unsigned or Defender-rejected package. The Windows Nuitka sidecar
+also carries stable version/product metadata and avoids payload compression to
+reduce opaque-packer heuristics.
+
+Configure these GitHub Actions secrets before the first release:
+
+- `WINDOWS_CERTIFICATE`: base64-encoded PFX code-signing certificate;
+- `WINDOWS_CERTIFICATE_PASSWORD`: its import password;
+- `TAURI_SIGNING_PRIVATE_KEY`: the private updater key generated once with
+  `npm run tauri signer generate -- -w
+  "$env:USERPROFILE\\.tauri\\nfprogress-updater.key"` from PowerShell;
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: updater-key password, when set.
+
+Set `TAURI_UPDATER_PUBLIC_KEY` as a repository variable (a secret with the same
+name is also accepted). `WINDOWS_TIMESTAMP_URL` is an optional repository
+variable. Keep the updater private key backed up securely: installed clients
+cannot trust releases signed by a replacement key.
+
+Official release builds check GitHub Releases after startup and once per hour.
+When a version is available, the app shows its release notes and installs it
+through Tauri after cryptographic verification. Local `tauri:dev` and ordinary
+unsigned local bundles do not enable this channel.
 
 `npm run tauri:build` also creates a Finder-styled DMG. In a headless macOS
 environment, use `npx tauri build --bundles app` to verify the production app
@@ -312,8 +326,8 @@ native SDK build succeeds.
   access. They can explicitly upload a selected `.docx`; the server counts it
   and applies the total through normal progress and reward rules.
 - Scrivener project upload is not supported by remote clients. The shared
-  integration accepts `.docx` only; the legacy selector may still show `.doc`
-  but correctly asks the user to save that obsolete format as `.docx`.
+  integration accepts `.docx` only and asks the user to save the obsolete
+  `.doc` format as `.docx`.
 
 ## Data safety
 
@@ -322,8 +336,7 @@ native SDK build succeeds.
 - Tests and smoke checks use explicit temporary data directories; they must not
   migrate real user files.
 - No automatic JSON/SQLite replacement or destructive pickle migration occurs.
-- Keep backups before testing migration builds with valuable data, and never
-  point the legacy UI and Tauri sidecar at the same directory concurrently.
+- Keep backups before testing migration builds with valuable data.
 
 ## Tests
 
@@ -365,8 +378,7 @@ and the latest verified matrix are recorded in
 ### Windows
 
 Open **Settings > Apps > Installed apps**, find **nfprogress**, and select
-**Uninstall**. The legacy application is installed in
-`%LOCALAPPDATA%\Programs\nfprogress`.
+**Uninstall**. The Tauri NSIS application is installed for the current user.
 
 Uninstalling the application does not remove user data. It is stored in
 `%APPDATA%\nfprogress`. Data created by older versions may also remain in
@@ -381,9 +393,16 @@ manually only if you no longer need it.
 
 ## Code signing policy
 
-Free code signing provided by
-[SignPath.io](https://signpath.io/), certificate by
-[SignPath Foundation](https://signpath.org/).
+The supported Windows workflow refuses unsigned releases. It requires a
+trusted Authenticode code-signing certificate for the installer, desktop
+executable, and Python sidecar, plus the independent Tauri updater key used to
+authenticate downloaded packages. Self-signed certificates are not suitable
+for public releases.
+
+The project also acknowledges free code signing provided by
+[SignPath.io](https://signpath.io/) with a certificate from the
+[SignPath Foundation](https://signpath.org/). A future SignPath cloud workflow
+must preserve the same verification gates before release.
 
 ### Project roles
 

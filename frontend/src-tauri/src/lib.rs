@@ -18,6 +18,7 @@ const BACKEND_START_TIMEOUT: Duration = Duration::from_secs(30);
 struct BackendConnection {
     api_base_url: String,
     session_token: String,
+    native_updates: bool,
 }
 
 #[derive(Default)]
@@ -74,6 +75,13 @@ fn create_session_token() -> Result<String, String> {
         write!(&mut token, "{byte:02x}").expect("writing to a String cannot fail");
     }
     Ok(token)
+}
+
+fn native_updates_enabled() -> bool {
+    matches!(
+        option_env!("NFPROGRESS_UPDATER_ENABLED"),
+        Some("1") | Some("true")
+    )
 }
 
 fn backend_is_healthy(port: u16) -> bool {
@@ -134,6 +142,8 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .invoke_handler(tauri::generate_handler![backend_connection])
         .setup(|app| {
             let state = app.state::<BackendState>();
@@ -203,6 +213,7 @@ pub fn run() {
                 *connection = Some(BackendConnection {
                     api_base_url: format!("http://{BACKEND_HOST}:{port}"),
                     session_token: token,
+                    native_updates: native_updates_enabled(),
                 });
             }
             if let Ok(mut managed_child) = state.child.lock() {

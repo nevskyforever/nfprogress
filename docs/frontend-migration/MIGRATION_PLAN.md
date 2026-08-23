@@ -1,8 +1,8 @@
 # Frontend migration plan
 
-Migration is delivered as verified vertical slices. Each slice must leave the
-legacy desktop application runnable and must not touch real user files in
-tests.
+Migration is delivered as verified vertical slices. Legacy packaging is
+retired; each slice must preserve existing user data and must not touch real
+user files in tests.
 
 ## 1. Shared Python application layer
 
@@ -46,12 +46,12 @@ tests.
 
 ## 5. Parity and handoff
 
-1. Run focused legacy and new Python tests, frontend tests/typecheck/build,
+1. Run focused Python compatibility and service tests, frontend tests/typecheck/build,
    Capacitor sync, and Tauri checks.
 2. Exercise critical end-to-end flows with a temporary data directory.
 3. Update README, architecture, platform limitations, and migration status.
-4. Keep unmatched PySide6 workflows documented as fallback debt; remove no
-   legacy code without proof of replacement.
+4. Keep compatibility code only where existing data or regression evidence
+   still requires it; do not publish PySide6 packages.
 
 ## Definition of a migrated subsystem
 

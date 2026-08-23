@@ -3,6 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { settingsApi } from '@/api/settings'
+import { supportsNativeUpdates } from '@/platform/runtime'
 import type { SettingsResponse } from '@/types/content'
 
 import SettingsPage from './SettingsPage.vue'
@@ -12,6 +13,10 @@ vi.mock('@/api/settings', () => ({
     get: vi.fn(),
     update: vi.fn(),
   },
+}))
+
+vi.mock('@/platform/runtime', () => ({
+  supportsNativeUpdates: vi.fn(() => false),
 }))
 
 const webSettings: SettingsResponse = {
@@ -53,7 +58,7 @@ const desktopSettings: SettingsResponse = {
   capabilities: {
     local_file_sync: true,
     background_file_sync: true,
-    native_updates: false,
+    native_updates: true,
     remote_api: false,
   },
   editable_keys: [...webSettings.editable_keys, 'background_synch'],
@@ -63,6 +68,8 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     vi.mocked(settingsApi.get).mockReset()
     vi.mocked(settingsApi.update).mockReset()
+    vi.mocked(supportsNativeUpdates).mockReset()
+    vi.mocked(supportsNativeUpdates).mockReturnValue(false)
     vi.mocked(settingsApi.get).mockResolvedValue(webSettings)
     vi.mocked(settingsApi.update).mockResolvedValue({
       ...webSettings,
@@ -103,8 +110,9 @@ describe('SettingsPage', () => {
     expect(wrapper.get('[role="status"]').text()).toContain('Настройки сохранены')
   })
 
-  it('shows real background sync on desktop without offering the unavailable legacy updater', async () => {
+  it('shows background sync and the signed updater only in a release-enabled desktop', async () => {
     vi.mocked(settingsApi.get).mockResolvedValue(desktopSettings)
+    vi.mocked(supportsNativeUpdates).mockReturnValue(true)
     const wrapper = mount(SettingsPage, {
       global: {
         plugins: [createPinia()],
@@ -119,7 +127,7 @@ describe('SettingsPage', () => {
     await flushPromises()
 
     expect(wrapper.find('#settings-background-sync').exists()).toBe(true)
-    expect(wrapper.find('#settings-check-updates').exists()).toBe(false)
-    expect(wrapper.text()).not.toContain('Проверять обновления')
+    expect(wrapper.find('#settings-check-updates').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Подписанные обновления проверяются автоматически')
   })
 })

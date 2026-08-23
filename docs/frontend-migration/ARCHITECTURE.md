@@ -2,23 +2,21 @@
 
 ## Goals and current boundary
 
-The migration keeps the existing PySide6 application operational while a
-shared, Qt-free application layer and Vue/Ionic clients are introduced. The
-legacy pickle files remain authoritative during the parity phase. Neither the
-API nor the frontend reads or writes pickle directly.
+Vue/Ionic is the supported interface over a shared, Qt-free application layer.
+Historical PySide6 source remains only for behavior and pickle compatibility;
+it is not built or published. Existing pickle files remain authoritative, and
+neither the API nor the frontend reads or writes them directly.
 
 ```text
-Legacy PySide6 UI ───────────────┐
-                                │
-                                v
-                    legacy-compatible domain model
-                                ^          │
-                                │          v
-Vue/Ionic ── HTTP ── FastAPI ── services ── repositories
-    │                                      │
-    ├── Web                                └── atomic data.pkl/settings.pkl/gamer.pkl
-    ├── Capacitor iOS/Android
-    └── Tauri 2 ── local Nuitka Python sidecar
+Vue/Ionic clients
+    ├── Web / Capacitor ── HTTPS ─────────────┐
+    └── Tauri 2 ── local Nuitka sidecar ─────┤
+                                             v
+                    FastAPI ── services ── compatibility domain model
+                                      │                 │
+                                      └──── repositories┘
+                                                │
+                                                └── atomic data.pkl/settings.pkl/gamer.pkl
 ```
 
 The Python core wraps proven logic in `engine.py`, `game.py`, and
@@ -136,11 +134,10 @@ deleted. Any future format migration must be a separate versioned operation
 that first creates a timestamped backup, writes a new destination, validates
 it, and leaves the source intact.
 
-The legacy UI still has direct read-modify-write sequences that do not acquire
-the repository's new cross-process transaction lock. The legacy executable and
-the FastAPI/Tauri backend must therefore not edit the same data directory
-concurrently. Tauri enforces one desktop backend owner, but developers must
-also respect this rule when launching the legacy and new applications by hand.
+The historical UI still has direct read-modify-write sequences that do not
+acquire the repository's cross-process transaction lock. It is unsupported and
+must not be run against the same data directory as FastAPI/Tauri. Tauri itself
+enforces one desktop backend owner.
 
 ## FastAPI application layer
 
@@ -194,10 +191,32 @@ an orphan after a Tauri crash. The token is not persisted, hard-coded, or
 included in the Vite bundle. The backend rejects a desktop/session-token bind
 outside loopback.
 
-Tauri permissions are limited to the core window behavior, explicit file
-dialogs, and allow-listed HTTP/HTTPS external links. Direct filesystem paths
-are consumed only by the local Python integration service after the user has
-selected them.
+Tauri permissions are limited to core window behavior, explicit file dialogs,
+allow-listed HTTP/HTTPS external links, update check/install, and application
+restart. Direct filesystem paths are consumed only by the local Python
+integration service after the user has selected them.
+
+### Signed desktop updates
+
+Official Windows desktop releases compile with `NFPROGRESS_UPDATER_ENABLED=1`; local
+and debug builds omit it and expose no updater UI. A release-only Tauri config
+overlay embeds the public updater key and the HTTPS GitHub Releases
+`latest.json` endpoint. The frontend checks after startup and once per hour,
+offers a manual check in Settings, displays download progress, and delegates
+installation and restart to the Tauri updater plugin.
+
+Update authenticity and Windows publisher trust are separate controls. Tauri
+requires a minisign-style update signature and verifies it before install.
+The Windows workflow also requires a trusted Authenticode certificate, signs
+the Nuitka sidecar before bundling, lets Tauri sign its executable and NSIS
+installer, and verifies all signatures before publishing. The sidecar carries
+stable Windows product/version metadata and omits onefile payload compression;
+the final signed assets must also pass a Microsoft Defender custom scan. The
+workflow creates the static manifest only after these checks and never
+publishes the historical self-replacing ZIP/updater executable. Code signing
+and scanning materially reduce SmartScreen and antivirus warnings, but no build
+system can guarantee that a third-party scanner will never produce a false
+positive.
 
 ### Desktop background synchronization
 
@@ -234,7 +253,7 @@ PNG-save actions, so one action never silently becomes the other.
 The card is rendered wholly in the client and never sends manuscript or note
 content to the backend. Its own filter
 and sort choices are persisted under explicit frontend UI-state keys, while
-legacy list preferences remain untouched for the PySide6 fallback.
+historical preference keys remain untouched for data compatibility.
 Notes use autosave and the existing `#карта` synchronization rules. Game
 commands refresh authoritative server state after mutation. The integrations
 page changes behavior by platform capability: local paths and Scrivener on
@@ -340,7 +359,7 @@ data model, so none is introduced.
 | Explicit `.docx` upload | Yes | Available through API contract | Yes |
 | Scrivener binder/path sync | No | Yes | No |
 | Automatic background file sync | No | Yes, when enabled | No |
-| Native updater | Deployment-specific | Disabled until signed Tauri releases | Store/distribution-specific |
+| Native updater | Deployment-specific | Signed Tauri updater in official release builds | Store/distribution-specific |
 
 ## Security model
 
@@ -355,23 +374,19 @@ data model, so none is introduced.
 - The API dependency boundary can accept future authentication without
   changing feature routes, but no account system is claimed today.
 
-## Remaining legacy debt
+## Remaining platform debt
 
-The following behavior remains intentionally legacy-only or incomplete:
+The following behavior remains incomplete or platform-specific:
 
-- the Qt update checker/installer and signed legacy release channel; native
-  Tauri updates stay disabled until signed Tauri artifacts exist;
 - a real `.doc` reader, if that obsolete Word format is again made a supported
-  product workflow (the current legacy selector asks for `.docx`, as does the
-  new API);
-- the native macOS `NSUserInterfaceItemSearching` Help-menu integration (Vue
-  has its own localized in-app help search);
+  product workflow (the current API accepts `.docx`);
 - full browser-driven Playwright coverage of the critical end-to-end flows;
-- Windows, macOS Intel, iOS, and Android native release builds and signing.
+- a signed Windows CI execution with repository keys/certificate, plus macOS,
+  iOS, and Android store/notarization verification.
 
-The PySide6 files cannot be removed until these gaps and platform verification
-are addressed. Sequential access to the existing data keeps the legacy app a
-valid fallback.
+PySide6 and its old updater remain historical source, not a supported fallback.
+Compatibility classes whose module paths are encoded in existing pickle files
+must remain until a separately tested data migration makes them unnecessary.
 
 ## Architectural decisions
 
@@ -383,5 +398,5 @@ valid fallback.
    transport configuration, not API semantics.
 4. Reuse Mind Elixir and replace only its Qt transport bridge.
 5. Restrict automatic local-file synchronization to the desktop sidecar.
-6. Keep PySide6 as a supported fallback until every remaining workflow and
-   target is verified.
+6. Keep only the Python compatibility paths required to load existing data;
+   build and publish the Tauri desktop application exclusively.

@@ -24,7 +24,6 @@
 /build-intel/
 /build-tauri-arm/
 /build-tauri-intel/
-/update_manifest_legacy.json
 /frontend/node_modules/
 /frontend/dist/
 /frontend/coverage/

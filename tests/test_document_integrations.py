@@ -129,7 +129,7 @@ def test_desktop_capabilities_match_background_runtime(tmp_path):
 
     assert desktop['values']['background_synch'] is True
     assert desktop['capabilities']['background_file_sync'] is True
-    assert desktop['capabilities']['native_updates'] is False
+    assert desktop['capabilities']['native_updates'] is True
     assert 'check_updates' not in desktop['editable_keys']
 
 

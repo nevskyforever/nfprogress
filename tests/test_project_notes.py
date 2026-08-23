@@ -527,7 +527,7 @@ def test_rich_text_sanitizer_rejects_active_content_and_unsafe_links():
     assert note_html_to_plain_text(sanitized) == 'Safe textbad linkgood link'
 
 
-def test_ui_resources_are_local_and_packaged():
+def test_historical_ui_resources_are_local():
     main_ui = ET.parse(PROJECT_ROOT / 'UI template' / 'main_window.ui').getroot()
     button = main_ui.find(".//widget[@name='btn_project_notes']")
     assert button is not None
@@ -573,13 +573,6 @@ def test_ui_resources_are_local_and_packaged():
     assert 'License: MIT' in notice
     assert (PROJECT_ROOT / 'notes_assets' / 'vendor' / 'muuri.min.js').is_file()
     assert (PROJECT_ROOT / 'notes_assets' / 'vendor' / 'MUURI-LICENSE.md').is_file()
-
-    for build_file in (
-        PROJECT_ROOT / 'scripts' / 'build-macos-local.sh',
-        PROJECT_ROOT / '.github' / 'workflows' / 'build.yml',
-    ):
-        assert 'notes_assets' in build_file.read_text()
-
 
 def test_notes_frontend_exposes_incremental_bridge_api():
     source = (PROJECT_ROOT / 'notes_assets' / 'app.js').read_text()

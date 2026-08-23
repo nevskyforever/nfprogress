@@ -8,6 +8,7 @@ import platform
 import shutil
 import subprocess
 import sys
+import tomllib
 from pathlib import Path
 
 
@@ -51,6 +52,24 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _windows_release_options() -> list[str]:
+    cargo = tomllib.loads(
+        (ROOT / 'frontend' / 'src-tauri' / 'Cargo.toml').read_text(encoding='utf-8'),
+    )
+    version = str(cargo['package']['version']).split('-', 1)[0].split('+', 1)[0]
+    return [
+        '--onefile-no-compression',
+        '--windows-console-mode=disable',
+        f'--windows-icon-from-ico={ROOT / "icon.ico"}',
+        '--company-name=nfprogress',
+        '--product-name=nfprogress',
+        f'--file-version={version}',
+        f'--product-version={version}',
+        '--file-description=nfprogress local application service',
+        '--copyright=Copyright nfprogress contributors',
+    ]
+
+
 def main(argv: list[str] | None = None) -> int:
     target = _parser().parse_args(argv).target or _host_target()
     _validate_target(target)
@@ -76,6 +95,10 @@ def main(argv: list[str] | None = None) -> int:
     ]
     if target == 'x86_64-apple-darwin':
         command.append('--macos-target-arch=x86_64')
+    if target.endswith('windows-msvc'):
+        # Keep the signed Windows executable identifiable and avoid an extra
+        # compressed payload layer that can provoke packer heuristics.
+        command.extend(_windows_release_options())
     command.append(str(ROOT / 'backend_sidecar.py'))
     subprocess.run(command, cwd=ROOT, check=True)
 

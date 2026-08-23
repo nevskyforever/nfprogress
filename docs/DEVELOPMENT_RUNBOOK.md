@@ -1,14 +1,14 @@
 # Запуск и сборка nfprogress
 
-Этот документ описывает варианты запуска из PyCharm и сборки на текущем
-переходном этапе: legacy-интерфейс на PySide6 продолжает быть release-версией,
-а новый интерфейс работает как Vue/Ionic-клиент поверх FastAPI.
+Этот документ описывает поддерживаемые варианты запуска из PyCharm и сборки
+актуального Vue/Ionic-приложения поверх FastAPI. PySide6 больше не входит в
+release-сборки и не поддерживается как пользовательская версия.
 
 ## Откуда запускать команды
 
 Все команды ниже предполагают, что текущая папка терминала — **корень
-репозитория**, то есть папка, где одновременно находятся `main_UI.py`,
-`frontend/` и `scripts/`. Если терминал открыт, например, в `docs/`, сначала
+репозитория**, то есть папка, где одновременно находятся `frontend/`,
+`backend/` и `scripts/`. Если терминал открыт, например, в `docs/`, сначала
 выполните:
 
 ```bash
@@ -25,9 +25,7 @@ pwd
 ## Как устроено приложение
 
 ```text
-Legacy PySide6 UI ────────────────┐
-                                  ├─ Python Core → существующие .pkl-данные
-Vue/Ionic → FastAPI → services ──┘
+Vue/Ionic → FastAPI → services → Python Core → существующие .pkl-данные
      ├─ Web
      ├─ Tauri для desktop
      └─ Capacitor для iOS/Android
@@ -41,11 +39,11 @@ Vue/Ionic → FastAPI → services ──┘
 ## Подготовка PyCharm
 
 1. Откройте корень репозитория в PyCharm.
-2. Создайте interpreter на Python 3.11 в `.venv`.
+2. Создайте interpreter на Python 3.13 в `.venv`.
 3. Установите Python-зависимости:
 
    ```bash
-   python3 -m pip install -r requirements.txt
+   python3 -m pip install -r requirements-backend.txt
    ```
 
 4. Для Vue/Ionic установите Node.js 20.19 или новее, затем один раз выполните:
@@ -55,26 +53,18 @@ Vue/Ionic → FastAPI → services ──┘
    npm ci
    ```
 
-## Legacy desktop (PySide6)
+## Исторический PySide6-код
 
-Это самый простой вариант запуска обычного desktop-приложения.
-
-В **Run | Edit Configurations** создайте конфигурацию типа **Python**:
-
-- **Script path:** `$PROJECT_DIR$/main_UI.py`
-- **Working directory:** `$PROJECT_DIR$`
-- **Python interpreter:** `.venv`
-
-Запуск из исходников включает developer-режим. Его данные находятся в
-`nfprogress/test_data`; перед первым запуском туда копируются более новые
-основные `.pkl`-файлы. Не используйте его одновременно с новым backend по той
-же папке данных.
+`main_UI.py` сохранён только как источник для регрессионного сравнения и
+совместимости старых `.pkl`. Он не собирается в Actions, не публикуется и не
+считается поддерживаемым способом запуска. Для desktop-разработки используйте
+Tauri ниже.
 
 ## Новый Web-интерфейс
 
 Для Web нужны два одновременно работающих процесса: FastAPI и Vite. В
 обычном режиме разработки используйте тот же набор данных, что и
-`main_UI.py`: backend перед стартом обновляет `nfprogress/test_data` из более
+исторический Python UI: backend перед стартом обновляет `nfprogress/test_data` из более
 новых рабочих `.pkl`, а все записи нового интерфейса идут в эту тестовую
 копию.
 
@@ -248,8 +238,7 @@ cd frontend
 npm run tauri:build
 ```
 
-Для локальных macOS-архивов есть те же ARM/Intel/All-скрипты, что и для
-legacy PySide6-версии:
+Для локальных macOS-архивов доступны ARM/Intel/All-скрипты:
 
 ```bash
 bash "Build Tauri ARM.sh"
@@ -264,10 +253,8 @@ DMG, лицензией и сведениями об исходном коде. 
 командой, если вместо него выбран arm64 Python.
 
 Скрипты `Release Tauri ARM.sh`, `Release Tauri Intel.sh` и
-`Release Tauri All.sh` также существуют, но по умолчанию готовят только
-локальный архив. Загрузка требует явного `NFPROGRESS_TAURI_RELEASE_UPLOAD=1`
-и никогда не меняет legacy update manifest: подписанный Tauri release-канал
-ещё не введён.
+`Release Tauri All.sh` по умолчанию готовят только локальный архив. Подписанный
+канал обновлений публикует защищённый CI workflow.
 
 На macOS для обычного DMG без Finder/AppleScript-оформления используйте после
 сборки соответствующего sidecar:
@@ -276,22 +263,35 @@ DMG, лицензией и сведениями об исходном коде. 
 scripts/build-tauri-dmg.sh aarch64-apple-darwin
 ```
 
-## Legacy macOS-сборка
+## Официальная Windows-сборка и обновления
 
-Для текущего PySide6-приложения на Apple Silicon:
+`.github/workflows/build.yml` собирает только новую Tauri-версию на
+Windows/MSVC. Он создаёт Nuitka sidecar и NSIS installer, проверяет их запуск и
+не публикует release, пока sidecar, приложение и installer не имеют валидной
+Authenticode-подписи, updater artifact — отдельной Tauri-подписи, а итоговый
+набор файлов не прошёл проверку Microsoft Defender. Windows-sidecar содержит
+иконку и версионные метаданные и собирается без сжатия вложенного payload,
+чтобы не добавлять признаки непрозрачного packer-файла.
 
-```bash
-bash scripts/build-macos-local.sh arm
+Перед первым запуском workflow настройте GitHub Actions:
+
+- secrets `WINDOWS_CERTIFICATE` (PFX в base64) и
+  `WINDOWS_CERTIFICATE_PASSWORD`;
+- secrets `TAURI_SIGNING_PRIVATE_KEY` и, если задан,
+  `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`;
+- repository variable `TAURI_UPDATER_PUBLIC_KEY`;
+- необязательную repository variable `WINDOWS_TIMESTAMP_URL`.
+
+Пара updater-ключей создаётся один раз командой из `frontend/`:
+
+```powershell
+npm run tauri signer generate -- -w "$env:USERPROFILE\.tauri\nfprogress-updater.key"
 ```
 
-Intel-сборка требует совместимого Intel-окружения:
-
-```bash
-bash scripts/build-macos-local.sh intel
-```
-
-Официальная Windows-сборка рассчитана на Windows/MSVC CI. Не собирайте её
-кросс-компиляцией с macOS.
+Приватный ключ нельзя коммитить или терять. Release-приложение проверяет
+`latest.json` в GitHub Releases после запуска и раз в час; найденное обновление
+устанавливается штатным Tauri updater только после проверки подписи. В
+`tauri:dev` updater намеренно выключен.
 
 ## iOS и Android
 
@@ -309,7 +309,6 @@ JDK и Android SDK соответственно.
 
 ## Полезные адреса и документы
 
-- Legacy entry point: `main_UI.py`.
 - API documentation: `http://127.0.0.1:8000/docs`.
 - Vue development server: `http://127.0.0.1:5173`.
 - Архитектура: `docs/frontend-migration/ARCHITECTURE.md`.

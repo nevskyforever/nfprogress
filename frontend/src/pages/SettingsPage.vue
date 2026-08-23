@@ -6,6 +6,7 @@ import {
   checkmarkCircleOutline,
   cloudOutline,
   desktopOutline,
+  refreshOutline,
   settingsOutline,
 } from 'ionicons/icons'
 
@@ -17,6 +18,7 @@ import { SUPPORTED_LANGUAGES, useLocaleStore } from '@/stores/locale'
 import { useMotionStore, type MotionPreference } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore, type ThemePreference } from '@/stores/theme'
+import { useUpdaterStore } from '@/stores/updater'
 import type {
   FrontendMotion,
   FrontendTheme,
@@ -56,6 +58,7 @@ const locale = useLocaleStore()
 const theme = useThemeStore()
 const motion = useMotionStore()
 const notifications = useNotificationsStore()
+const updater = useUpdaterStore()
 const t = locale.translate
 const response = ref<SettingsResponse | null>(null)
 const loading = ref(true)
@@ -80,6 +83,9 @@ const form = reactive<SettingsForm>({
 
 const editable = computed(() => new Set<SettingKey>(response.value?.editable_keys ?? []))
 const isDesktop = computed(() => response.value?.platform === 'desktop')
+const nativeUpdaterAvailable = computed(() => (
+  response.value?.capabilities.native_updates === true && updater.supported
+))
 const visibleKeys = computed<ReadonlyArray<keyof SettingsForm>>(() => [
   ...GENERAL_KEYS.filter((key) => editable.value.has(key)),
   ...(isDesktop.value ? DESKTOP_KEYS.filter((key) => editable.value.has(key)) : []),
@@ -187,6 +193,10 @@ async function saveSettings(): Promise<void> {
   } finally {
     saving.value = false
   }
+}
+
+async function checkForUpdates(): Promise<void> {
+  await updater.checkForUpdates(true)
 }
 
 onMounted(loadSettings)
@@ -328,7 +338,7 @@ onBeforeUnmount(() => controller.abort())
             </section>
 
             <section
-              v-if="isDesktop && editable.has('background_synch')"
+              v-if="isDesktop && (editable.has('background_synch') || nativeUpdaterAvailable)"
               class="settings-card"
               aria-labelledby="desktop-settings-title"
             >
@@ -343,6 +353,29 @@ onBeforeUnmount(() => controller.abort())
                 :label="t('Фоновая синхронизация документов')"
                 :description="t('Проверяет активные подключённые источники при запуске и после смены писательского дня.')"
               />
+              <div v-if="nativeUpdaterAvailable" class="update-setting">
+                <div>
+                  <strong>{{ t('Обновления приложения') }}</strong>
+                  <p>{{ t('Подписанные обновления проверяются автоматически при запуске и раз в час.') }}</p>
+                  <p v-if="updater.status === 'available'" class="update-setting__status" role="status">
+                    {{ t('Доступна версия {version}.', { version: updater.availableVersion }) }}
+                  </p>
+                  <p v-else-if="updater.status === 'error'" class="update-setting__error" role="alert">
+                    {{ t('Не удалось проверить обновления.') }}
+                  </p>
+                </div>
+                <button
+                  id="settings-check-updates"
+                  class="nf-button nf-button--secondary"
+                  type="button"
+                  :disabled="updater.busy"
+                  @click="checkForUpdates"
+                >
+                  <IonSpinner v-if="updater.status === 'checking'" name="crescent" aria-hidden="true" />
+                  <IonIcon v-else :icon="refreshOutline" aria-hidden="true" />
+                  {{ updater.status === 'checking' ? t('Проверяем…') : t('Проверить обновления') }}
+                </button>
+              </div>
             </section>
 
             <div v-if="error" class="settings-message settings-message--error" role="alert">
@@ -486,6 +519,40 @@ onBeforeUnmount(() => controller.abort())
   margin: 0;
 }
 
+.update-setting {
+  display: flex;
+  gap: var(--nf-space-4);
+  align-items: center;
+  justify-content: space-between;
+  padding-top: var(--nf-space-4);
+  border-top: 1px solid var(--nf-color-border);
+}
+
+.update-setting strong,
+.update-setting p {
+  margin: 0;
+}
+
+.update-setting p {
+  margin-top: var(--nf-space-1);
+  color: var(--nf-color-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.update-setting .update-setting__status {
+  color: var(--nf-color-success);
+  font-weight: 700;
+}
+
+.update-setting .update-setting__error {
+  color: var(--nf-color-danger);
+}
+
+.update-setting .nf-button {
+  flex: 0 0 auto;
+}
+
 .settings-card__heading h2 {
   font-family: var(--nf-font-serif);
   font-size: 1.4rem;
@@ -573,6 +640,11 @@ onBeforeUnmount(() => controller.abort())
   }
 
   .settings-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .update-setting {
     align-items: stretch;
     flex-direction: column;
   }

@@ -8,6 +8,7 @@ from functools import lru_cache
 from PySide6.QtCore import QLibraryInfo, QLocale, QTranslator
 from PySide6.QtWidgets import QApplication, QMessageBox
 
+from help_content import HELP_SECTIONS
 from nfprogress.core.agreement import ENGLISH_AGREEMENT_HTML
 
 try:
@@ -86,8 +87,98 @@ MINDMAP_HELP_SOURCE = """<html><body>
 <p>Редактор и его ресурсы входят в приложение, поэтому для работы с картой подключение к интернету не требуется.</p>
 </body></html>"""
 
+
+def _help_article_source(section_key: str) -> str:
+    pending = list(HELP_SECTIONS)
+    while pending:
+        section = pending.pop()
+        if section["key"] == section_key:
+            return section["content"]
+        pending.extend(section.get("children", ()))
+    raise KeyError(section_key)
+
+
+_HELP_ARTICLE_SOURCES = {
+    key: _help_article_source(key)
+    for key in ("quick_start", "project_list", "settings", "shortcuts")
+}
+
 TRANSLATION_OVERRIDES = {
     "en": {
+        "Справка всегда соответствует возможностям установленной версии приложения.": "Help always matches the features available in the installed application version.",
+        _HELP_ARTICLE_SOURCES["quick_start"]: """<html>
+  <body>
+    <h2>Quick start</h2>
+    <p>nfprogress does not store the text of the manuscript, but its measurable progress. The basic unit of work is the project; A large project can be broken down into stages.</p>
+    <ol>
+      <li>Open “Projects” and click “Create Project”.</li>
+      <li>Indicate the name, final goal, value already achieved and unit of measurement. If necessary, select a deadline, daily goal, stages and streaks.</li>
+      <li>Select a project from the list. In the “New Entry” field, enter <b>new general meaning</b>, not the number written since the last entry. The application will calculate the difference itself.</li>
+      <li>Keep track of your progress, your cumulative goal for today, and your recording history. In Tauri desktop, a project can be linked to local Word or Scrivener; Web and mobile versions accept an explicitly selected Word .docx file.</li>
+      <li>Game mode is enabled separately in the settings. It adds rewards, character, store, quests and Creative Rhythm, but does not change project data.</li>
+    </ol>
+    <p>
+      <b>Important:</b> the daily project goal and the game goal of the day in “Creative Rhythm” are different mechanisms. The first helps to meet the deadline and supports the streak; the second is a daily challenge for an in-game reward.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["project_list"]: """<html>
+  <body>
+    <h2>List, search and navigation</h2>
+    <ul>
+      <li>Click a project or milestone to open its details, entries, and action buttons.</li>
+      <li>The arrow of a project opens or collapses its stages. You can drag and drop stages within a project to change their order.</li>
+      <li>The search finds both projects and milestones. Double-clicking a found stage clears the search, expands its parent project, and selects the stage from the normal list.</li>
+      <li>The filter switches between active, archived and completed projects. The stages are shown along with the parent.</li>
+      <li>Sorting by deadline places projects without a deadline separately; sorting by progress uses the overall completion percentage. The selected filter and sort order are saved between launches.</li>
+    </ul>
+    <p>The last selected project or stage is remembered and opened the next time you start it.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["settings"]: """<html>
+  <body>
+    <h2>Application Settings</h2>
+    <ul>
+      <li>
+        <b>Endless Project:</b> creates a “General Project” without an end goal. It is suitable for small unrelated texts and multiple synchronization sources. Disabling the setting deletes the “Shared Project” along with the data accumulated in it, but first creates a backup copy of the data files and settings in the folder <code>backups</code>.</li>
+      <li>
+        <b>Game mode:</b> Shows or hides the game tab. Hiding does not reset a saved character.</li>
+      <li>
+        <b>Streaks:</b> includes a global mechanism and allows you to customize project strings. Disabling clears the history of current local and global streaks; A backup copy is also created before such a reset.</li>
+      <li>
+        <b>Show how much has been written today:</b> displays the total result of the current writing day for all projects. In the new interface, this card is located above the list of projects.</li>
+      <li>
+        <b>Notification display time:</b> sets how long pop-up messages remain visible; the valid range is 1 to 3,600 seconds. Saved bank and streak events can be opened with the “Notifications” button, remain in history, and are marked as read individually.</li>
+      <li>
+        <b>Start time of day:</b> defines the writing day boundary for entries, daily goals, and streaks.</li>
+      <li>
+        <b>Language:</b> immediately switches between Russian, English, Spanish, German, French or Brazilian Portuguese interface.</li>
+      <li>
+        <b>Interface animation:</b> Full animation makes changes to pie charts and progress bars noticeable; Same as System mode follows the operating system's motion reduction setting, and Reduced turns off decorative motion.</li>
+      <li>
+        <b>Check for updates:</b> available in the official desktop version. The application also checks for new versions after startup and once an hour. Every package must pass digital-signature verification before installation; local test builds are not connected to the update channel.</li>
+    </ul>
+    <p>Settings are available in the separate “Settings” section.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
+<h2>Keyboard shortcuts</h2>
+<p>Actions are performed with visible buttons and form controls. In Help, Ctrl+F or Command+F moves focus to search; standard browser and system shortcuts remain available.</p>
+<p>All interactive elements are available from the keyboard in the normal Tab order. Enter or Space activates the selected button, and Escape closes supported dialogs and menus.</p>
+</body></html>""",
+        "Доступна версия {version}.": "Version {version} is available.",
+        "Доступно обновление nfprogress": "An nfprogress update is available",
+        "Загружаем обновление…": "Downloading the update…",
+        "Загрузка обновления": "Update download",
+        "Не удалось проверить обновления.": "Could not check for updates.",
+        "Не удалось установить обновление.": "Could not install the update.",
+        "Новая версия {version} готова к установке.": "Version {version} is ready to install.",
+        "Обновления приложения": "Application updates",
+        "Отложить обновление": "Install later",
+        "Перезапускаем приложение…": "Restarting the application…",
+        "Подписанные обновления проверяются автоматически при запуске и раз в час.": "Signed updates are checked automatically at startup and once an hour.",
+        "Проверяем подпись и подготавливаем установку…": "Verifying the signature and preparing installation…",
+        "Проверяем…": "Checking…",
+        "Установить и перезапустить": "Install and restart",
         "Анимация интерфейса": "Interface animations",
         "Полная": "Full",
         "Уменьшенная": "Reduced",
@@ -312,6 +403,80 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Editing Pass",
     },
     "es": {
+        "Справка всегда соответствует возможностям установленной версии приложения.": "La ayuda siempre coincide con las funciones disponibles en la versión instalada de la aplicación.",
+        _HELP_ARTICLE_SOURCES["quick_start"]: """<html>
+  <body>
+    <h2>Inicio rápido</h2>
+    <p>nfprogress no almacena el texto del manuscrito, sino su progreso medible. La unidad básica de trabajo es el proyecto; Un gran proyecto se puede dividir en etapas.</p>
+    <ol>
+      <li>Abra la sección «Proyectos» y pulse «Crear proyecto».</li>
+      <li>Indique el nombre, objetivo final, valor ya alcanzado y unidad de medida. Si es necesario, selecciona una fecha límite, objetivo diario, etapas y rachas.</li>
+      <li>Seleccione un proyecto de la lista. En el campo "Nueva entrada", ingrese <b>nuevo significado general</b>, no el número escrito desde la última entrada. La aplicación calculará la diferencia por sí misma.</li>
+      <li>Realice un seguimiento de su progreso, su objetivo acumulativo para hoy y su historial de grabaciones. En el escritorio Tauri, un proyecto se puede vincular a Word o Scrivener local; Las versiones web y móvil aceptan un archivo .docx de Word seleccionado explícitamente.</li>
+      <li>El modo de juego se habilita por separado en la configuración. Agrega recompensas, personajes, tienda, misiones y ritmo creativo, pero no cambia los datos del proyecto.</li>
+    </ol>
+    <p>
+      <b>Importante:</b> el objetivo del proyecto diario y el objetivo del juego del día en “Ritmo Creativo” son mecanismos diferentes. El primero ayuda a cumplir el plazo y apoya la racha; el segundo es un desafío diario para obtener una recompensa en el juego.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["project_list"]: """<html>
+  <body>
+    <h2>Lista, búsqueda y navegación.</h2>
+    <ul>
+      <li>Haga clic en un proyecto o hito para abrir sus detalles, entradas y botones de acción.</li>
+      <li>La flecha de un proyecto abre o contrae sus etapas. Puede arrastrar y soltar etapas dentro de un proyecto para cambiar su orden.</li>
+      <li>La búsqueda encuentra tanto proyectos como hitos. Al hacer doble clic en una etapa encontrada se borra la búsqueda, se expande su proyecto principal y se selecciona la etapa de la lista normal.</li>
+      <li>El filtro cambia entre proyectos activos, archivados y completados. Las etapas se muestran junto con los padres.</li>
+      <li>La ordenación por fecha límite coloca aparte los proyectos sin fecha límite; la ordenación por progreso utiliza el porcentaje total completado. El filtro y el orden seleccionados se guardan entre inicios.</li>
+    </ul>
+    <p>El último proyecto o etapa seleccionado se recuerda y se abre la próxima vez que lo inicie.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["settings"]: """<html>
+  <body>
+    <h2>Configuración de la aplicación</h2>
+    <ul>
+      <li>
+        <b>Proyecto sin fin:</b> crea un “Proyecto General” sin un objetivo final. Es adecuado para textos pequeños no relacionados y múltiples fuentes de sincronización. Al deshabilitar la configuración se elimina el "Proyecto compartido" junto con los datos acumulados en él, pero primero se crea una copia de seguridad de los archivos de datos y la configuración en la carpeta. <code>backups</code>.</li>
+      <li>
+        <b>Modo de juego:</b> Muestra u oculta la pestaña del juego. Ocultar no restablece un personaje guardado.</li>
+      <li>
+        <b>Rayas:</b> Incluye un mecanismo global y le permite personalizar las cadenas del proyecto. La desactivación borra el historial de rachas locales y globales actuales; También se crea una copia de seguridad antes de dicho reinicio.</li>
+      <li>
+        <b>Muestra cuánto se ha escrito hoy:</b> muestra el resultado total del día de escritura actual para todos los proyectos. En la nueva interfaz, esta tarjeta se encuentra encima de la lista de proyectos.</li>
+      <li>
+        <b>Tiempo de visualización de las notificaciones:</b> establece durante cuánto tiempo se muestran los mensajes emergentes; el intervalo permitido es de 1 a 3600 segundos. Los eventos guardados del banco y de los streaks se abren con el botón «Notificaciones», permanecen en el historial y se marcan como leídos por separado.</li>
+      <li>
+        <b>Hora de inicio del día:</b> define el límite del día de escritura para entradas, objetivos diarios y rachas.</li>
+      <li>
+        <b>Idioma:</b> Cambia inmediatamente entre la interfaz rusa, inglesa, española, alemana, francesa o portuguesa de Brasil.</li>
+      <li>
+        <b>Animación de la interfaz:</b> La animación completa hace que se noten los cambios en los gráficos circulares y las barras de progreso; Igual que el modo Sistema, sigue la configuración de reducción de movimiento del sistema operativo y Reducido desactiva el movimiento decorativo.</li>
+      <li>
+        <b>Buscar actualizaciones:</b> está disponible en la versión oficial de escritorio. La aplicación también busca nuevas versiones después de iniciarse y una vez por hora. Antes de instalarse, cada paquete debe superar la verificación de la firma digital; las compilaciones locales de prueba no se conectan al canal de actualizaciones.</li>
+    </ul>
+    <p>Los ajustes se abren en la sección independiente «Ajustes».</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
+<h2>Atajos de teclado</h2>
+<p>Las acciones se realizan con los botones visibles y los controles del formulario. En la ayuda abierta, Ctrl+F o Command+F lleva el foco a la búsqueda; los atajos estándar del navegador y del sistema siguen disponibles.</p>
+<p>Todos los elementos interactivos son accesibles con el teclado en el orden habitual de Tab. Enter o la barra espaciadora activa el botón seleccionado, y Escape cierra los diálogos y menús compatibles.</p>
+</body></html>""",
+        "Доступна версия {version}.": "La versión {version} está disponible.",
+        "Доступно обновление nfprogress": "Hay una actualización de nfprogress disponible",
+        "Загружаем обновление…": "Descargando la actualización…",
+        "Загрузка обновления": "Descarga de la actualización",
+        "Не удалось проверить обновления.": "No se pudo comprobar si hay actualizaciones.",
+        "Не удалось установить обновление.": "No se pudo instalar la actualización.",
+        "Новая версия {version} готова к установке.": "La versión {version} está lista para instalarse.",
+        "Обновления приложения": "Actualizaciones de la aplicación",
+        "Отложить обновление": "Instalar más tarde",
+        "Перезапускаем приложение…": "Reiniciando la aplicación…",
+        "Подписанные обновления проверяются автоматически при запуске и раз в час.": "Las actualizaciones firmadas se comprueban automáticamente al iniciar y una vez por hora.",
+        "Проверяем подпись и подготавливаем установку…": "Verificando la firma y preparando la instalación…",
+        "Проверяем…": "Comprobando…",
+        "Установить и перезапустить": "Instalar y reiniciar",
         "Анимация интерфейса": "Animación de la interfaz",
         "Полная": "Completa",
         "Уменьшенная": "Reducida",
@@ -537,6 +702,80 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Pase de edición",
     },
     "de": {
+        "Справка всегда соответствует возможностям установленной версии приложения.": "Die Hilfe entspricht immer den Funktionen der installierten Anwendungsversion.",
+        _HELP_ARTICLE_SOURCES["quick_start"]: """<html>
+  <body>
+    <h2>Schnellstart</h2>
+    <p>nfprogress speichert nicht den Text des Manuskripts, sondern seinen messbaren Fortschritt. Die grundlegende Arbeitseinheit ist das Projekt; Ein großes Projekt kann in Phasen unterteilt werden.</p>
+    <ol>
+      <li>Öffnen Sie den Bereich „Projekte“ und klicken Sie auf „Projekt erstellen“.</li>
+      <li>Geben Sie den Namen, das Endziel, den bereits erreichten Wert und die Maßeinheit an. Wählen Sie bei Bedarf eine Frist, ein Tagesziel, Etappen und Streaks aus.</li>
+      <li>Wählen Sie ein Projekt aus der Liste aus. Geben Sie im Feld „Neuer Eintrag“ ein <b>neue allgemeine Bedeutung</b>, nicht die seit dem letzten Eintrag geschriebene Zahl. Die Anwendung berechnet die Differenz selbst.</li>
+      <li>Verfolgen Sie Ihren Fortschritt, Ihr heutiges Gesamtziel und Ihren Aufzeichnungsverlauf. Im Tauri-Desktop kann ein Projekt mit lokalem Word oder Scrivener verknüpft werden; Web- und Mobilversionen akzeptieren eine explizit ausgewählte Word-.docx-Datei.</li>
+      <li>Der Spielemodus wird separat in den Einstellungen aktiviert. Es fügt Belohnungen, Charakter, Shop, Quests und kreativen Rhythmus hinzu, ändert jedoch keine Projektdaten.</li>
+    </ol>
+    <p>
+      <b>Wichtig:</b> Das tägliche Projektziel und das Spielziel des Tages in „Creative Rhythm“ sind unterschiedliche Mechanismen. Ersteres hilft, die Frist einzuhalten und unterstützt den Streak; Die zweite ist eine tägliche Herausforderung für eine Belohnung im Spiel.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["project_list"]: """<html>
+  <body>
+    <h2>Liste, Suche und Navigation</h2>
+    <ul>
+      <li>Klicken Sie auf ein Projekt oder einen Meilenstein, um dessen Details, Einträge und Aktionsschaltflächen zu öffnen.</li>
+      <li>Der Pfeil eines Projekts öffnet oder reduziert seine Phasen. Sie können Phasen innerhalb eines Projekts per Drag-and-Drop verschieben, um ihre Reihenfolge zu ändern.</li>
+      <li>Die Suche findet sowohl Projekte als auch Meilensteine. Durch Doppelklicken auf eine gefundene Phase wird die Suche gelöscht, das übergeordnete Projekt erweitert und die Phase aus der normalen Liste ausgewählt.</li>
+      <li>Der Filter wechselt zwischen aktiven, archivierten und abgeschlossenen Projekten. Die Stufen werden zusammen mit dem übergeordneten Element angezeigt.</li>
+      <li>Die Sortierung nach Frist stellt Projekte ohne Frist separat dar; die Sortierung nach Fortschritt verwendet den gesamten Fertigstellungsgrad. Der gewählte Filter und die Sortierung werden zwischen Starts gespeichert.</li>
+    </ul>
+    <p>Das zuletzt ausgewählte Projekt oder die zuletzt ausgewählte Phase wird gespeichert und beim nächsten Start geöffnet.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["settings"]: """<html>
+  <body>
+    <h2>Anwendungseinstellungen</h2>
+    <ul>
+      <li>
+        <b>Endloses Projekt:</b> erstellt ein „allgemeines Projekt“ ohne Endziel. Es eignet sich für kleine, unabhängige Texte und mehrere Synchronisationsquellen. Das Deaktivieren der Einstellung löscht das „Shared Project“ zusammen mit den darin gesammelten Daten, erstellt jedoch zunächst eine Sicherungskopie der Datendateien und Einstellungen im Ordner <code>backups</code>.</li>
+      <li>
+        <b>Spielmodus:</b> Blendet die Spielregisterkarte ein oder aus. Durch das Verstecken wird ein gespeicherter Charakter nicht zurückgesetzt.</li>
+      <li>
+        <b>Streifen:</b> Enthält einen globalen Mechanismus und ermöglicht die Anpassung von Projektzeichenfolgen. Durch die Deaktivierung wird der Verlauf aktueller lokaler und globaler Streaks gelöscht. Vor einem solchen Reset wird ebenfalls eine Sicherungskopie erstellt.</li>
+      <li>
+        <b>Zeigen Sie, wie viel heute geschrieben wurde:</b> zeigt das Gesamtergebnis des aktuellen Schreibtages für alle Projekte an. In der neuen Benutzeroberfläche befindet sich diese Karte über der Liste der Projekte.</li>
+      <li>
+        <b>Anzeigedauer von Benachrichtigungen:</b> legt fest, wie lange Pop-up-Meldungen sichtbar bleiben; zulässig sind 1 bis 3.600 Sekunden. Gespeicherte Bank- und Streak-Ereignisse können über die Schaltfläche „Benachrichtigungen“ geöffnet werden, bleiben im Verlauf und werden einzeln als gelesen markiert.</li>
+      <li>
+        <b>Startzeit des Tages:</b> Definiert die Schreibtagsgrenze für Einträge, Tagesziele und Streaks.</li>
+      <li>
+        <b>Sprache:</b> Wechselt sofort zwischen der Benutzeroberfläche Russisch, Englisch, Spanisch, Deutsch, Französisch oder brasilianischem Portugiesisch.</li>
+      <li>
+        <b>Schnittstellenanimation:</b> Durch die vollständige Animation sind Änderungen an Kreisdiagrammen und Fortschrittsbalken erkennbar. Wie der Systemmodus folgt er der Bewegungsreduzierungseinstellung des Betriebssystems und „Reduziert“ schaltet die dekorative Bewegung aus.</li>
+      <li>
+        <b>Nach Updates suchen:</b> ist in der offiziellen Desktop-Version verfügbar. Die Anwendung sucht außerdem nach dem Start und einmal pro Stunde nach neuen Versionen. Vor der Installation muss jedes Paket die Prüfung der digitalen Signatur bestehen; lokale Test-Builds sind nicht mit dem Update-Kanal verbunden.</li>
+    </ul>
+    <p>Die Einstellungen werden im eigenen Bereich „Einstellungen“ geöffnet.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
+<h2>Tastenkürzel</h2>
+<p>Aktionen werden mit sichtbaren Schaltflächen und Formularfeldern ausgeführt. In der geöffneten Hilfe verschiebt Strg+F oder Command+F den Fokus auf die Suche; die üblichen Browser- und Systemkürzel bleiben verfügbar.</p>
+<p>Alle interaktiven Elemente sind in der normalen Tab-Reihenfolge per Tastatur erreichbar. Enter oder die Leertaste aktiviert die ausgewählte Schaltfläche, Escape schließt unterstützte Dialoge und Menüs.</p>
+</body></html>""",
+        "Доступна версия {version}.": "Version {version} ist verfügbar.",
+        "Доступно обновление nfprogress": "Ein nfprogress-Update ist verfügbar",
+        "Загружаем обновление…": "Update wird heruntergeladen…",
+        "Загрузка обновления": "Update-Download",
+        "Не удалось проверить обновления.": "Die Suche nach Updates ist fehlgeschlagen.",
+        "Не удалось установить обновление.": "Das Update konnte nicht installiert werden.",
+        "Новая версия {version} готова к установке.": "Version {version} kann jetzt installiert werden.",
+        "Обновления приложения": "Anwendungsupdates",
+        "Отложить обновление": "Später installieren",
+        "Перезапускаем приложение…": "Anwendung wird neu gestartet…",
+        "Подписанные обновления проверяются автоматически при запуске и раз в час.": "Signierte Updates werden beim Start und einmal pro Stunde automatisch geprüft.",
+        "Проверяем подпись и подготавливаем установку…": "Signatur wird geprüft und Installation vorbereitet…",
+        "Проверяем…": "Wird geprüft…",
+        "Установить и перезапустить": "Installieren und neu starten",
         "Анимация интерфейса": "Oberflächenanimation",
         "Полная": "Voll",
         "Уменьшенная": "Reduziert",
@@ -763,6 +1002,80 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Überarbeitungsdurchgang",
     },
     "fr": {
+        "Справка всегда соответствует возможностям установленной версии приложения.": "L’aide correspond toujours aux fonctions disponibles dans la version installée de l’application.",
+        _HELP_ARTICLE_SOURCES["quick_start"]: """<html>
+  <body>
+    <h2>Démarrage rapide</h2>
+    <p>nfprogress ne stocke pas le texte du manuscrit, mais sa progression mesurable. L'unité de travail de base est le projet ; Un grand projet peut être décomposé en étapes.</p>
+    <ol>
+      <li>Ouvrez la section « Projets » et cliquez sur « Créer un projet ».</li>
+      <li>Indiquez le nom, l'objectif final, la valeur déjà atteinte et l'unité de mesure. Si nécessaire, sélectionnez une date limite, un objectif quotidien, des étapes et des séquences.</li>
+      <li>Sélectionnez un projet dans la liste. Dans le champ « Nouvelle entrée », saisissez <b>nouveau sens général</b>, pas le numéro écrit depuis la dernière entrée. L'application calculera elle-même la différence.</li>
+      <li>Gardez une trace de vos progrès, de votre objectif cumulé pour aujourd'hui et de votre historique d'enregistrement. Dans le bureau Tauri, un projet peut être lié à Word ou Scrivener local ; Les versions Web et mobiles acceptent un fichier Word .docx explicitement sélectionné.</li>
+      <li>Le mode jeu est activé séparément dans les paramètres. Il ajoute des récompenses, des personnages, un magasin, des quêtes et un rythme créatif, mais ne modifie pas les données du projet.</li>
+    </ol>
+    <p>
+      <b>Important :</b> l'objectif quotidien du projet et l'objectif du jeu du jour dans « Creative Rhythm » sont des mécanismes différents. Le premier aide à respecter le délai et soutient la séquence ; le second est un défi quotidien pour une récompense en jeu.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["project_list"]: """<html>
+  <body>
+    <h2>Liste, recherche et navigation</h2>
+    <ul>
+      <li>Cliquez sur un projet ou un jalon pour ouvrir ses détails, ses entrées et ses boutons d'action.</li>
+      <li>La flèche d'un projet ouvre ou réduit ses étapes. Vous pouvez faire glisser et déposer les étapes dans un projet pour modifier leur ordre.</li>
+      <li>La recherche trouve à la fois des projets et des jalons. Double-cliquer sur une étape trouvée efface la recherche, développe son projet parent et sélectionne l'étape dans la liste normale.</li>
+      <li>Le filtre bascule entre les projets actifs, archivés et terminés. Les étapes sont affichées avec le parent.</li>
+      <li>Le tri par échéance place séparément les projets sans échéance ; le tri par progression utilise le pourcentage global d’achèvement. Le filtre et l’ordre de tri sélectionnés sont conservés entre les lancements.</li>
+    </ul>
+    <p>Le dernier projet ou étape sélectionné est mémorisé et ouvert au prochain démarrage.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["settings"]: """<html>
+  <body>
+    <h2>Paramètres des applications</h2>
+    <ul>
+      <li>
+        <b>Projet sans fin :</b> crée un « projet général » sans objectif final. Il convient aux petits textes sans rapport et aux sources de synchronisation multiples. La désactivation du paramètre supprime le « Projet partagé » ainsi que les données accumulées, mais crée d'abord une copie de sauvegarde des fichiers de données et des paramètres dans le dossier. <code>backups</code>.</li>
+      <li>
+        <b>Mode de jeu :</b> Affiche ou masque l'onglet du jeu. Le masquage ne réinitialise pas un caractère enregistré.</li>
+      <li>
+        <b>Stries :</b> inclut un mécanisme global et vous permet de personnaliser les chaînes du projet. La désactivation efface l'historique des séquences locales et globales actuelles ; Une copie de sauvegarde est également créée avant une telle réinitialisation.</li>
+      <li>
+        <b>Montrez tout ce qui a été écrit aujourd'hui :</b> affiche le résultat total de la journée d'écriture en cours pour tous les projets. Dans la nouvelle interface, cette fiche se situe au dessus de la liste des projets.</li>
+      <li>
+        <b>Durée d’affichage des notifications :</b> définit la durée d’affichage des messages contextuels ; la plage autorisée va de 1 à 3 600 secondes. Les événements enregistrés de la banque et des streaks sont accessibles par le bouton « Notifications », restent dans l’historique et sont marqués comme lus séparément.</li>
+      <li>
+        <b>Heure de début de la journée :</b> définit la limite du jour d'écriture pour les entrées, les objectifs quotidiens et les séquences.</li>
+      <li>
+        <b>Langue :</b> Bascule immédiatement entre l'interface russe, anglaise, espagnole, allemande, française ou portugaise brésilienne.</li>
+      <li>
+        <b>Animations d'interfaces :</b> L'animation complète rend visibles les modifications apportées aux diagrammes circulaires et aux barres de progression ; Identique au mode Système, il suit le paramètre de réduction de mouvement du système d'exploitation et Réduit désactive le mouvement décoratif.</li>
+      <li>
+        <b>Rechercher les mises à jour :</b> disponible dans la version officielle pour ordinateur. L’application recherche aussi les nouvelles versions après le démarrage et une fois par heure. Avant l’installation, chaque paquet doit passer la vérification de la signature numérique ; les versions de test locales ne sont pas connectées au canal de mise à jour.</li>
+    </ul>
+    <p>Les paramètres s’ouvrent dans la section dédiée « Paramètres ».</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
+<h2>Raccourcis clavier</h2>
+<p>Les actions sont effectuées avec les boutons visibles et les contrôles du formulaire. Dans l’aide ouverte, Ctrl+F ou Command+F place le focus dans la recherche ; les raccourcis standard du navigateur et du système restent disponibles.</p>
+<p>Tous les éléments interactifs sont accessibles au clavier dans l’ordre normal de tabulation. Entrée ou Espace active le bouton sélectionné, et Échap ferme les boîtes de dialogue et menus compatibles.</p>
+</body></html>""",
+        "Доступна версия {version}.": "La version {version} est disponible.",
+        "Доступно обновление nfprogress": "Une mise à jour de nfprogress est disponible",
+        "Загружаем обновление…": "Téléchargement de la mise à jour…",
+        "Загрузка обновления": "Téléchargement de la mise à jour",
+        "Не удалось проверить обновления.": "Impossible de rechercher les mises à jour.",
+        "Не удалось установить обновление.": "Impossible d’installer la mise à jour.",
+        "Новая версия {version} готова к установке.": "La version {version} est prête à être installée.",
+        "Обновления приложения": "Mises à jour de l’application",
+        "Отложить обновление": "Installer plus tard",
+        "Перезапускаем приложение…": "Redémarrage de l’application…",
+        "Подписанные обновления проверяются автоматически при запуске и раз в час.": "Les mises à jour signées sont vérifiées automatiquement au démarrage et une fois par heure.",
+        "Проверяем подпись и подготавливаем установку…": "Vérification de la signature et préparation de l’installation…",
+        "Проверяем…": "Vérification…",
+        "Установить и перезапустить": "Installer et redémarrer",
         "Анимация интерфейса": "Animation de l’interface",
         "Полная": "Complète",
         "Уменьшенная": "Réduite",
@@ -990,6 +1303,80 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Passe de révision",
     },
     "pt_BR": {
+        "Справка всегда соответствует возможностям установленной версии приложения.": "A ajuda sempre corresponde aos recursos disponíveis na versão instalada do aplicativo.",
+        _HELP_ARTICLE_SOURCES["quick_start"]: """<html>
+  <body>
+    <h2>Início rápido</h2>
+    <p>nfprogress não armazena o texto do manuscrito, mas seu progresso mensurável. A unidade básica de trabalho é o projeto; Um grande projeto pode ser dividido em etapas.</p>
+    <ol>
+      <li>Abra a seção “Projetos” e clique em “Criar projeto”.</li>
+      <li>Indique o nome, objetivo final, valor já alcançado e unidade de medida. Se necessário, selecione prazo, meta diária, etapas e sequências.</li>
+      <li>Selecione um projeto na lista. No campo “Nova entrada”, digite <b>novo significado geral</b>, não o número escrito desde a última entrada. O próprio aplicativo calculará a diferença.</li>
+      <li>Acompanhe seu progresso, sua meta cumulativa para hoje e seu histórico de gravação. No desktop Tauri, um projeto pode ser vinculado ao Word ou Scrivener local; As versões para Web e dispositivos móveis aceitam um arquivo Word .docx explicitamente selecionado.</li>
+      <li>O modo de jogo é ativado separadamente nas configurações. Adiciona recompensas, personagem, loja, missões e Ritmo Criativo, mas não altera os dados do projeto.</li>
+    </ol>
+    <p>
+      <b>Importante:</b> a meta diária do projeto e a meta do jogo do dia em “Ritmo Criativo” são mecanismos diferentes. O primeiro ajuda a cumprir o prazo e apoia a sequência; o segundo é um desafio diário por uma recompensa no jogo.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["project_list"]: """<html>
+  <body>
+    <h2>Lista, pesquisa e navegação</h2>
+    <ul>
+      <li>Clique em um projeto ou marco para abrir seus detalhes, entradas e botões de ação.</li>
+      <li>A seta de um projeto abre ou recolhe suas etapas. Você pode arrastar e soltar estágios em um projeto para alterar sua ordem.</li>
+      <li>A pesquisa encontra projetos e marcos. Clicar duas vezes em um estágio encontrado limpa a pesquisa, expande seu projeto pai e seleciona o estágio na lista normal.</li>
+      <li>O filtro alterna entre projetos ativos, arquivados e concluídos. Os estágios são mostrados junto com o pai.</li>
+      <li>A ordenação por prazo separa os projetos sem prazo; a ordenação por progresso usa o percentual geral de conclusão. O filtro e a ordem selecionados são salvos entre as inicializações.</li>
+    </ul>
+    <p>O último projeto ou estágio selecionado será lembrado e aberto na próxima vez que for iniciado.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["settings"]: """<html>
+  <body>
+    <h2>Configurações do aplicativo</h2>
+    <ul>
+      <li>
+        <b>Projeto sem fim:</b> cria um “Projeto Geral” sem objetivo final. É adequado para pequenos textos não relacionados e múltiplas fontes de sincronização. Desativar a configuração exclui o “Projeto Compartilhado” junto com os dados acumulados nele, mas primeiro cria uma cópia de backup dos arquivos de dados e configurações na pasta <code>backups</code>.</li>
+      <li>
+        <b>Modo de jogo:</b> Mostra ou oculta a aba do jogo. Ocultar não redefine um caractere salvo.</li>
+      <li>
+        <b>Listras:</b> inclui um mecanismo global e permite personalizar strings de projeto. A desativação limpa o histórico das sequências locais e globais atuais; Uma cópia de backup também é criada antes dessa redefinição.</li>
+      <li>
+        <b>Mostre o quanto foi escrito hoje:</b> exibe o resultado total do dia de escrita atual para todos os projetos. Na nova interface, este cartão está localizado acima da lista de projetos.</li>
+      <li>
+        <b>Tempo de exibição das notificações:</b> define por quanto tempo as mensagens pop-up permanecem visíveis; o intervalo permitido é de 1 a 3.600 segundos. Os eventos salvos do banco e dos streaks são abertos pelo botão “Notificações”, permanecem no histórico e são marcados como lidos separadamente.</li>
+      <li>
+        <b>Hora de início do dia:</b> define o limite do dia de escrita para entradas, metas diárias e sequências.</li>
+      <li>
+        <b>Idioma:</b> alterna imediatamente entre interface em russo, inglês, espanhol, alemão, francês ou português do Brasil.</li>
+      <li>
+        <b>Animação de interface:</b> A animação completa torna visíveis as alterações nos gráficos de pizza e nas barras de progresso; O mesmo que o modo Sistema segue a configuração de redução de movimento do sistema operacional e Reduzido desativa o movimento decorativo.</li>
+      <li>
+        <b>Verificar atualizações:</b> disponível na versão oficial para desktop. O aplicativo também verifica novas versões após iniciar e uma vez por hora. Antes da instalação, todos os pacotes devem passar pela verificação da assinatura digital; as compilações locais de teste não são conectadas ao canal de atualizações.</li>
+    </ul>
+    <p>As configurações são abertas na seção separada “Configurações”.</p>
+  </body>
+</html>""",
+        _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
+<h2>Atalhos de teclado</h2>
+<p>As ações são realizadas por botões visíveis e controles de formulário. Na ajuda aberta, Ctrl+F ou Command+F move o foco para a pesquisa; os atalhos padrão do navegador e do sistema continuam disponíveis.</p>
+<p>Todos os elementos interativos podem ser acessados pelo teclado na ordem normal de Tab. Enter ou Espaço ativa o botão selecionado, e Escape fecha caixas de diálogo e menus compatíveis.</p>
+</body></html>""",
+        "Доступна версия {version}.": "A versão {version} está disponível.",
+        "Доступно обновление nfprogress": "Há uma atualização do nfprogress disponível",
+        "Загружаем обновление…": "Baixando a atualização…",
+        "Загрузка обновления": "Download da atualização",
+        "Не удалось проверить обновления.": "Não foi possível verificar se há atualizações.",
+        "Не удалось установить обновление.": "Não foi possível instalar a atualização.",
+        "Новая версия {version} готова к установке.": "A versão {version} está pronta para ser instalada.",
+        "Обновления приложения": "Atualizações do aplicativo",
+        "Отложить обновление": "Instalar mais tarde",
+        "Перезапускаем приложение…": "Reiniciando o aplicativo…",
+        "Подписанные обновления проверяются автоматически при запуске и раз в час.": "As atualizações assinadas são verificadas automaticamente ao iniciar e uma vez por hora.",
+        "Проверяем подпись и подготавливаем установку…": "Verificando a assinatura e preparando a instalação…",
+        "Проверяем…": "Verificando…",
+        "Установить и перезапустить": "Instalar e reiniciar",
         "Анимация интерфейса": "Animação da interface",
         "Полная": "Completa",
         "Уменьшенная": "Reduzida",

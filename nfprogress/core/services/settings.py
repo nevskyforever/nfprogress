@@ -63,9 +63,9 @@ class SettingsService:
             'capabilities': {
                 'local_file_sync': self.platform == 'desktop',
                 'background_file_sync': self.platform == 'desktop',
-                # Legacy packages use a Qt-specific updater and release format.
-                # Tauri updates stay disabled until signed Tauri artifacts exist.
-                'native_updates': False,
+                # The UI additionally checks the Tauri release-build flag, so
+                # unsigned local/dev bundles never contact the update channel.
+                'native_updates': self.platform == 'desktop',
                 'remote_api': self.platform in {'web', 'ios', 'android'},
             },
             'editable_keys': sorted(

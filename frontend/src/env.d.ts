@@ -11,6 +11,7 @@ interface ImportMeta {
 interface NFProgressRuntimeBridge {
   apiBaseUrl?: string
   getSessionToken?: () => Promise<string | null> | string | null
+  nativeUpdates?: boolean
   startupError?: string
 }
 

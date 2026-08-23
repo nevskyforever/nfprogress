@@ -3,6 +3,7 @@ import { Capacitor } from '@capacitor/core'
 interface DesktopBackendConnection {
   apiBaseUrl: string
   sessionToken: string
+  nativeUpdates: boolean
 }
 
 export type RuntimePlatform = 'web' | 'tauri' | 'ios' | 'android'
@@ -21,6 +22,10 @@ export function isNativeMobile(): boolean {
   return runtimePlatform === 'ios' || runtimePlatform === 'android'
 }
 
+export function supportsNativeUpdates(): boolean {
+  return runtimePlatform === 'tauri' && window.__NFPROGRESS_RUNTIME__?.nativeUpdates === true
+}
+
 async function initializeTauriRuntime(): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core')
   try {
@@ -28,6 +33,7 @@ async function initializeTauriRuntime(): Promise<void> {
     window.__NFPROGRESS_RUNTIME__ = {
       apiBaseUrl: connection.apiBaseUrl,
       getSessionToken: () => connection.sessionToken,
+      nativeUpdates: connection.nativeUpdates,
     }
   } catch (error) {
     window.__NFPROGRESS_RUNTIME__ = {

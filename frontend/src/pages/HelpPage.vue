@@ -117,7 +117,7 @@ onBeforeUnmount(() => {
           <div>
             <p>{{ t('Справочник nfprogress') }}</p>
             <h1>{{ t('Помощь') }}</h1>
-            <span>{{ t('Статьи загружаются из общего HELP_SECTIONS и всегда соответствуют Python-приложению.') }}</span>
+            <span>{{ t('Справка всегда соответствует возможностям установленной версии приложения.') }}</span>
           </div>
           <IonIcon :icon="bookOutline" aria-hidden="true" />
         </header>

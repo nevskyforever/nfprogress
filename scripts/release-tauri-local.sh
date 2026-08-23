@@ -1,5 +1,5 @@
 #!/bin/bash
-# Prepare an optional Tauri upload without touching the legacy updater manifest.
+# Prepare a local Tauri release archive. Publishing belongs to signed CI only.
 set -euo pipefail
 
 ARCH="${1:-}"
@@ -9,12 +9,10 @@ case "$ARCH" in
   arm)
     BUILD_DIR="$ROOT_DIR/build-tauri-arm"
     ARTIFACT_PREFIX="nfprogress-tauri-mac-arm"
-    ARCH_LABEL="ARM"
     ;;
   intel)
     BUILD_DIR="$ROOT_DIR/build-tauri-intel"
     ARTIFACT_PREFIX="nfprogress-tauri-mac-intel"
-    ARCH_LABEL="Intel"
     ;;
   *)
     echo "Использование: $0 arm|intel"
@@ -30,12 +28,4 @@ if [ ! -f "$ARTIFACT_PATH" ]; then
 fi
 
 echo "Локальный Tauri-архив готов: $ARTIFACT_PATH"
-if [ "${NFPROGRESS_TAURI_RELEASE_UPLOAD:-0}" != "1" ]; then
-  echo "Публикация не выполнялась: Tauri ещё не является подписанным release-каналом."
-  echo "Для явной загрузки без изменения legacy update manifest задайте:"
-  echo "  NFPROGRESS_TAURI_RELEASE_UPLOAD=1 bash 'Release Tauri $ARCH_LABEL.sh'"
-  exit 0
-fi
-
-"$ROOT_DIR/scripts/upload-release.sh" "$ARTIFACT_PATH"
-echo "Tauri-архив загружен. Legacy update manifest намеренно не изменён."
+echo "Публикация не выполнялась: официальный канал обновлений создаёт и подписывает CI."
