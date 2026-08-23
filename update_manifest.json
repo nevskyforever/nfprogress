@@ -18,6 +18,11 @@
   "windows": {
     "version": "5.0.0",
     "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.0.0-setup.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.0.0-setup.exe"
+    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.0.0-setup.exe",
+    "sha256": "33507c0b17462467182284dda9cf84a753206477c6ce3c857488a4af36866f6b",
+    "size": 23045303,
+    "entry_point": "nfprogress/nfprogress.exe",
+    "installer_sha256": "33507c0b17462467182284dda9cf84a753206477c6ce3c857488a4af36866f6b",
+    "installer_size": 23045303
   }
 }

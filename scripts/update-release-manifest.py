@@ -70,8 +70,16 @@ def main() -> int:
             "installer_url": url,
         }
         if installer is not None:
+            installer_sha256 = _sha256(installer)
+            installer_size = installer.stat().st_size
+            # Keep the historical secure-manifest names as aliases. Legacy
+            # clients read these fields even though the current website uses
+            # installer_url and installer_* metadata.
+            section["sha256"] = installer_sha256
+            section["size"] = installer_size
+            section["entry_point"] = "nfprogress/nfprogress.exe"
             section["installer_sha256"] = _sha256(installer)
-            section["installer_size"] = installer.stat().st_size
+            section["installer_size"] = installer_size
         manifest["windows"] = section
         manifest["windows_version"] = version
         manifest["windows_url"] = url
