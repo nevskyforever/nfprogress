@@ -168,10 +168,10 @@ have passed in earlier slices.
 
 Checks completed for the final aggregate migration tree include:
 
-- `python3 -m pytest -q --ignore=tests/test_accessibility.py` — 409 passed,
+- `python3 -m pytest -q --ignore=tests/test_accessibility.py` — 411 passed,
   15 skipped, 2 subtests passed; focused localization/help/export checks add
   44 passing tests;
-- `npm run typecheck`, `npm run lint`, `npm run test` — 67 Vitest tests, and
+- `npm run typecheck`, `npm run lint`, `npm run test` — 70 Vitest tests, and
   `npm run build` — all pass; `npm audit --audit-level=high` reports zero
   vulnerabilities;
 - `cargo fmt --check`, `cargo check`, `npx tauri build --bundles app`, a fresh
