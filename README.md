@@ -63,7 +63,7 @@ frontend never reads pickle files or imports Qt/Python objects directly. See the
 | Legacy Windows and macOS | Current downloadable PySide6 fallback; preserved during migration |
 | Web | Production Vue build works with a configured FastAPI deployment; HTTPS, authentication/reverse-proxy policy, and SPA route fallback belong to the deployment |
 | Tauri macOS Apple Silicon | Release `.app`, fresh ARM64 Nuitka sidecar, loopback/token health check, and child cleanup verified on the current host; headless DMG styling is a separate environment limitation |
-| Tauri macOS Intel | Configuration and sidecar builder exist; Intel Rust bundle and hardware/runtime verification remain pending |
+| Tauri macOS Intel | Fresh x86_64 sidecar, target `cargo check`, and unsigned production `.app` bundle were built on the ARM host; authenticated sidecar startup was exercised through Rosetta within Tauri's 30-second readiness window. Physical Intel UI/signing verification remains a release-host task |
 | Tauri Windows | Configuration and sidecar builder exist; the MSVC sidecar and bundle must be built and tested on Windows |
 | Capacitor iOS | Native project, plugins, branding, and `cap sync` are present; native compilation is blocked on this host because full Xcode and the iPhoneOS SDK are absent |
 | Capacitor Android | Native project, plugins, branding, and `cap sync` are present; native compilation is blocked on this host by Java 8 and the absence of the Android SDK (`adb`/`sdkmanager`) |
@@ -214,7 +214,10 @@ bundle without requiring Finder AppleScript automation.
 
 To target macOS Intel on a macOS builder, build a matching sidecar with
 `python scripts/build-backend-sidecar.py --target x86_64-apple-darwin` and use
-the same Rust target for Tauri. The Windows target
+the same Rust target for Tauri. On Apple Silicon, invoke that command from an
+`x86_64` execution of a universal Python virtual environment with matching
+x86_64 backend dependencies; an arm64 Python cannot package arm64 extension
+modules such as `pydantic_core` into an Intel sidecar. The Windows target
 `x86_64-pc-windows-msvc` must be built on Windows; the sidecar script rejects
 cross-host Windows output by design.
 

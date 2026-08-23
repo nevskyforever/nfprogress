@@ -40,12 +40,12 @@ blocker. The PySide6 application remains the release fallback.
 | Tauri lifecycle/security | [done] | Ephemeral loopback port, per-run token, health wait, restricted capabilities, shutdown kill, and parent-PID orphan protection are implemented |
 | Tauri macOS Apple Silicon | [done] | Fresh matching ARM64 Nuitka sidecar, loopback/token `/health` smoke, child cleanup, `cargo check`, and release `.app` bundle were verified on the current Apple Silicon host |
 | Tauri macOS DMG styling | [blocked] | The app bundle succeeds, but the optional Finder-styled DMG wrapper invokes `osascript`; Finder AppleScript hangs in this headless in-app environment. `npx tauri build --bundles app` is verified instead |
-| Tauri macOS Intel | [pending] | Intel sidecar target is supported, but the matching Rust/Tauri bundle and runtime verification were not performed on the ARM host |
+| Tauri macOS Intel | [done] | A fresh `x86_64-apple-darwin` Nuitka sidecar, target `cargo check`, and unsigned production `.app` bundle were built on the ARM host; Rosetta authenticated `/health` and token-bound API smoke completed within the 30-second Tauri readiness window. Physical Intel UI/signing verification remains a release-host task |
 | Tauri Windows | [pending] | Windows MSVC target is configured; sidecar builder deliberately requires a Windows host/runner, so bundle/runtime verification remains |
 | Capacitor shared setup | [done] | iOS and Android projects, app identifier/name, icons/splash assets, safe-area/theme behavior, keyboard/status bar/network/external-link plugins, and `cap sync` are present |
 | Capacitor iOS native build | [blocked] | Host has only Xcode Command Line Tools; full Xcode and the iPhoneOS SDK are unavailable |
 | Capacitor Android native build | [blocked] | Host exposes Java 8, below the current Android toolchain requirement, and has no Android SDK, `adb`, or `sdkmanager` |
-| Automated quality gates | [in progress] | Aggregate migration Python suite: 420 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/77 Vitest tests/build, `cargo fmt --check`/`cargo check`, `cap sync`, sidecar smoke, and audit pass. Legacy screen-reader metadata, keyboard order, progress values, and game-list descriptions are now covered; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
+| Automated quality gates | [in progress] | Aggregate migration Python suite: 420 passed, 15 skipped, 2 subtests passed; frontend typecheck/lint/77 Vitest tests/build, ARM64 and x86_64 `cargo check`, `cap sync`, sidecar smoke, and audit pass. Legacy screen-reader metadata, keyboard order, progress values, and game-list descriptions are now covered; in-app Browser has no available target, so visual/Playwright journeys remain unverified |
 | Developer documentation | [done] | README covers legacy/backend/frontend/Web/Tauri/Capacitor commands, data safety, platform limitations, tests, and current target status |
 
 ## Functional parity summary
@@ -132,9 +132,10 @@ deletes the user's `.pkl` files.
 - Apple Silicon sidecar lifecycle, loopback/token smoke, child cleanup, and
   release app bundle were exercised. The optional Finder-styled DMG is blocked
   only by headless AppleScript; an app-only production bundle succeeds.
-- Intel macOS remains a cross-target build/runtime verification task. The
-  sidecar builder can emit `x86_64-apple-darwin` on macOS, but a matching Rust
-  target and Intel validation are still required.
+- Intel macOS now has a fresh x86_64 sidecar, target compile and unsigned app
+  bundle. Its bundled backend passed loopback and session-token smoke through
+  Rosetta in 25.1 seconds, within Tauri's 30-second readiness window. A native
+  Intel UI run and release signing still require the matching release host.
 - Windows requires a Windows/MSVC host or CI runner. The Nuitka helper rejects
   a Windows sidecar build on macOS rather than creating a misleading artifact.
 
@@ -163,8 +164,8 @@ have passed in earlier slices.
 - Native macOS Help-menu search bridge (`NSUserInterfaceItemSearching`).
 - Full Playwright coverage for the project → stage → progress → statistics,
   note ↔ mind-map, and writing-session reward journeys.
-- Native release/signing/runtime verification on Windows, macOS Intel, iOS,
-  and Android.
+- Native release/signing/UI verification on Windows, physical macOS Intel
+  hardware, iOS, and Android.
 
 ## Verification evidence
 
@@ -176,9 +177,10 @@ Checks completed for the final aggregate migration tree include:
 - `npm run typecheck`, `npm run lint`, `npm run test` — 77 Vitest tests, and
   `npm run build` — all pass; `npm audit --audit-level=high` reports zero
   vulnerabilities;
-- `cargo fmt --check`, `cargo check`, `npx tauri build --bundles app`, a fresh
-  Nuitka ARM64 sidecar, loopback/token `/health` smoke, and orphan-process
-  check all pass;
+- `cargo fmt --check`, ARM64 and x86_64 `cargo check`, app-only Tauri bundles,
+  fresh matching Nuitka sidecars, loopback/token `/health` smoke, and
+  orphan-process checks all pass. The Intel sidecar was exercised through
+  Rosetta in 25.1 seconds, inside the 30-second Tauri readiness limit;
 - `npx cap sync` passes for both generated mobile targets;
 - explicit SDK probes confirm the iOS/Android blockers above.
 
