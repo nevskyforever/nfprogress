@@ -5,6 +5,7 @@ import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
 import type { Project, ProjectUpdate, UnitCode } from '@/types/api'
+import { automaticDailyGoal, automaticDeadline } from '@/utils/projectPlanning'
 
 const props = withDefaults(
   defineProps<{
@@ -67,6 +68,27 @@ function fill(): void {
 
 function numberFrom(value: string | number): number {
   return Number(String(value).replace(',', '.'))
+}
+
+function updateDailyGoal(): void {
+  if (form.infinite) return
+  const dailyGoal = automaticDailyGoal(
+    numberFrom(form.goal), numberFrom(form.total), form.deadline, form.unit,
+  )
+  if (dailyGoal !== null) form.personalGoal = String(dailyGoal)
+}
+
+function updateDeadline(): void {
+  if (form.infinite) return
+  const deadline = automaticDeadline(
+    numberFrom(form.goal), numberFrom(form.total), numberFrom(form.personalGoal),
+  )
+  if (deadline !== null) form.deadline = deadline
+}
+
+function updatePlanFromAmount(): void {
+  if (numberFrom(form.personalGoal) > 0) updateDeadline()
+  else updateDailyGoal()
 }
 
 async function submit(): Promise<void> {
@@ -201,7 +223,7 @@ watch(
         </label>
         <label class="workspace-field" for="edit-project-deadline">
           <span>{{ t('Срок') }}</span>
-          <input id="edit-project-deadline" v-model="form.deadline" type="date" />
+          <input id="edit-project-deadline" v-model="form.deadline" type="date" @input="updateDailyGoal" />
         </label>
         <label v-if="!project.stages.length" class="workspace-field" for="edit-project-goal">
           <span>{{ t('Общая цель') }}</span>
@@ -213,6 +235,7 @@ watch(
             step="any"
             inputmode="decimal"
             :disabled="form.infinite"
+            @input="updatePlanFromAmount"
           />
         </label>
         <label v-if="!project.stages.length" class="workspace-field" for="edit-project-total">
@@ -224,6 +247,7 @@ watch(
             min="0"
             step="any"
             inputmode="decimal"
+            @input="updatePlanFromAmount"
           />
         </label>
         <label class="workspace-field" for="edit-project-personal-goal">
@@ -235,6 +259,7 @@ watch(
             min="0"
             step="any"
             inputmode="decimal"
+            @input="updateDeadline"
           />
         </label>
 

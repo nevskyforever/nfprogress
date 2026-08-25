@@ -1,6 +1,6 @@
 import { createPinia } from 'pinia'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import ProjectCreateDialog from './ProjectCreateDialog.vue'
 
@@ -13,6 +13,23 @@ const ionicStubs = {
 }
 
 describe('ProjectCreateDialog', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('calculates the daily goal and deadline as the planning fields change', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-26T12:00:00'))
+    const wrapper = mount(ProjectCreateDialog, {
+      props: { open: true }, global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    await wrapper.get('#project-goal').setValue('1000')
+    await wrapper.get('#project-total').setValue('100')
+    await wrapper.get('#project-deadline').setValue('2026-08-28')
+    expect((wrapper.get('#project-personal-goal').element as HTMLInputElement).value).toBe('300')
+
+    await wrapper.get('#project-personal-goal').setValue('225')
+    expect((wrapper.get('#project-deadline').element as HTMLInputElement).value).toBe('2026-08-29')
+  })
   it('emits a typed finite-project payload from the form', async () => {
     const wrapper = mount(ProjectCreateDialog, {
       props: { open: true },

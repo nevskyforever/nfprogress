@@ -5,6 +5,7 @@ import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
 import type { ProjectCreate, UnitCode } from '@/types/api'
+import { automaticDailyGoal, automaticDeadline } from '@/utils/projectPlanning'
 
 const props = withDefaults(
   defineProps<{
@@ -57,6 +58,27 @@ function reset(): void {
 
 function numberFrom(value: string | number): number {
   return Number(String(value).replace(',', '.'))
+}
+
+function updateDailyGoal(): void {
+  if (form.infinite) return
+  const dailyGoal = automaticDailyGoal(
+    numberFrom(form.goal), numberFrom(form.total), form.deadline, form.unit,
+  )
+  if (dailyGoal !== null) form.personalGoal = String(dailyGoal)
+}
+
+function updateDeadline(): void {
+  if (form.infinite) return
+  const deadline = automaticDeadline(
+    numberFrom(form.goal), numberFrom(form.total), numberFrom(form.personalGoal),
+  )
+  if (deadline !== null) form.deadline = deadline
+}
+
+function updatePlanFromAmount(): void {
+  if (numberFrom(form.personalGoal) > 0) updateDeadline()
+  else updateDailyGoal()
 }
 
 async function submit(): Promise<void> {
@@ -182,7 +204,7 @@ watch(
 
         <label class="form-field" for="project-deadline">
           <span>{{ t('Срок') }} <small>{{ t('необязательно') }}</small></span>
-          <input id="project-deadline" v-model="form.deadline" name="deadline" type="date" />
+          <input id="project-deadline" v-model="form.deadline" name="deadline" type="date" @input="updateDailyGoal" />
         </label>
 
         <label class="form-field" for="project-total">
@@ -195,6 +217,7 @@ watch(
             inputmode="decimal"
             min="0"
             step="any"
+            @input="updatePlanFromAmount"
           />
         </label>
 
@@ -209,6 +232,7 @@ watch(
             min="0"
             step="any"
             :disabled="form.infinite"
+            @input="updatePlanFromAmount"
           />
         </label>
 
@@ -222,6 +246,7 @@ watch(
             inputmode="decimal"
             min="0"
             step="any"
+            @input="updateDeadline"
           />
         </label>
 

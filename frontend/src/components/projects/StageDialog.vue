@@ -5,6 +5,7 @@ import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
 import type { EntityUpdate, Project, StageCreate, UnitCode } from '@/types/api'
+import { automaticDailyGoal, automaticDeadline } from '@/utils/projectPlanning'
 
 const props = withDefaults(
   defineProps<{
@@ -68,6 +69,27 @@ function fill(): void {
 
 function numberFrom(value: string | number): number {
   return Number(String(value).replace(',', '.'))
+}
+
+function updateDailyGoal(): void {
+  if (form.infinite || props.sharedSource) return
+  const dailyGoal = automaticDailyGoal(
+    numberFrom(form.goal), numberFrom(form.total), form.deadline, props.projectUnit,
+  )
+  if (dailyGoal !== null) form.personalGoal = String(dailyGoal)
+}
+
+function updateDeadline(): void {
+  if (form.infinite || props.sharedSource) return
+  const deadline = automaticDeadline(
+    numberFrom(form.goal), numberFrom(form.total), numberFrom(form.personalGoal),
+  )
+  if (deadline !== null) form.deadline = deadline
+}
+
+function updatePlanFromAmount(): void {
+  if (numberFrom(form.personalGoal) > 0) updateDeadline()
+  else updateDailyGoal()
 }
 
 async function submit(): Promise<void> {
@@ -194,6 +216,7 @@ watch(
             step="any"
             inputmode="decimal"
             :disabled="form.infinite"
+            @input="updatePlanFromAmount"
           />
         </label>
         <label v-if="!sharedSource" class="workspace-field" for="stage-total">
@@ -205,11 +228,12 @@ watch(
             min="0"
             step="any"
             inputmode="decimal"
+            @input="updatePlanFromAmount"
           />
         </label>
         <label v-if="!sharedSource" class="workspace-field" for="stage-deadline">
           <span>{{ t('Срок') }}</span>
-          <input id="stage-deadline" v-model="form.deadline" type="date" />
+          <input id="stage-deadline" v-model="form.deadline" type="date" @input="updateDailyGoal" />
         </label>
         <label v-if="!sharedSource" class="workspace-field" for="stage-personal-goal">
           <span>{{ t('Цель на день') }}</span>
@@ -220,6 +244,7 @@ watch(
             min="0"
             step="any"
             inputmode="decimal"
+            @input="updateDeadline"
           />
         </label>
         <p class="stage-unit-note">
