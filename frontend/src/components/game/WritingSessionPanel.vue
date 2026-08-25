@@ -28,6 +28,7 @@ const mode = ref<WritingSessionModeKey>('flow')
 const ticker = ref(Date.now())
 const clockOffset = ref(0)
 let timer: ReturnType<typeof setInterval> | undefined
+let completionRequested = false
 
 const activeMode = computed(() =>
   props.session.modes.find((item) => item.key === props.session.active?.mode),
@@ -71,6 +72,18 @@ watch(
   },
   { immediate: true },
 )
+
+watch(
+  () => props.session.active?.started_at,
+  () => { completionRequested = false },
+  { immediate: true },
+)
+
+watch(remainingSeconds, (remaining) => {
+  if (!props.session.active || remaining > 0 || completionRequested) return
+  completionRequested = true
+  emit('finish')
+})
 
 watch(mode, (value) => {
   if (value === 'sprint') duration.value = 15

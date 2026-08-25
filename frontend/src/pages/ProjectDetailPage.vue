@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IonContent, IonIcon, IonPage, IonSpinner } from '@ionic/vue'
 import {
@@ -24,6 +24,7 @@ import StageWorkspace from '@/components/projects/StageWorkspace.vue'
 import StatisticsWorkspace from '@/components/projects/StatisticsWorkspace.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
+import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { apiErrorMessage } from '@/api/client'
 import { integrationsApi } from '@/api/integrations'
@@ -86,8 +87,9 @@ const displayedStreakScope = computed<'project' | 'stage'>(() =>
 const editDialogOpen = ref(false)
 const stageDialogOpen = ref(false)
 const editingStage = ref<Project | null>(null)
-const selectedEntityId = ref('')
-const statisticsEntityId = ref('')
+const savedSelection = store.detailSelection(projectId.value)
+const selectedEntityId = ref(savedSelection?.entityId ?? '')
+const statisticsEntityId = ref(savedSelection?.statisticsEntityId ?? '')
 const actionSuccess = ref<string | null>(null)
 const feedbackArea = ref<'global' | 'progress'>('global')
 const sharingProgress = ref(false)
@@ -139,6 +141,11 @@ function chooseAvailableEntity(): void {
 async function loadProject(): Promise<void> {
   if (!projectId.value) return
   actionSuccess.value = null
+  const selection = store.detailSelection(projectId.value)
+  if (selection) {
+    selectedEntityId.value = selection.entityId
+    statisticsEntityId.value = selection.statisticsEntityId
+  }
   if (!routeStageId.value) statisticsEntityId.value = ''
   await store.loadOne(projectId.value)
   chooseAvailableEntity()
@@ -419,8 +426,28 @@ watch(statisticsEntityId, () => {
   actionSuccess.value = null
   refreshStatistics()
 })
+watch([selectedEntityId, statisticsEntityId, projectId], ([entityId, statisticsId, id]) => {
+  if (id) store.saveDetailSelection(id, entityId, statisticsId)
+})
 
-onBeforeUnmount(() => store.cancelDetail())
+function handleProjectShortcut(event: Event): void {
+  const action = (event as CustomEvent<string>).detail
+  if (action === 'sync') void synchronizeProject()
+  if (action === 'edit' && detailEntity.value.status !== 'завершен') {
+    isStageDetail.value ? openStageEdit(detailEntity.value) : openProjectEdit()
+  }
+  if (action === 'delete') void deleteProject()
+  if (action === 'complete') void completeProject()
+  if (action === 'archive' && !isStageDetail.value) void toggleArchive()
+  if (action === 'statistics') document.querySelector('#statistics-heading')?.scrollIntoView({ behavior: 'smooth' })
+}
+
+onMounted(() => window.addEventListener('nfprogress:project-shortcut', handleProjectShortcut))
+
+onBeforeUnmount(() => {
+  store.cancelDetail()
+  window.removeEventListener('nfprogress:project-shortcut', handleProjectShortcut)
+})
 </script>
 
 <template>
@@ -544,7 +571,7 @@ onBeforeUnmount(() => store.cancelDetail())
           </div>
 
           <section class="progress-hero" :aria-label="t('Прогресс проекта')">
-            <div><span>{{ t('Написано') }}</span><strong>{{ presentation.totalLabel }} {{ presentation.unitLabel }}</strong></div>
+            <div><span>{{ t('Написано') }}</span><strong><AnimatedNumber :value="detailEntity.total" :digits="detailEntity.unit === 'symbols' ? 0 : 2" /> {{ presentation.unitLabel }}</strong></div>
             <div><span>{{ t('Цель') }}</span><strong>{{ presentation.goalLabel }}</strong></div>
             <ProgressBar
               v-if="!detailEntity.infinite"

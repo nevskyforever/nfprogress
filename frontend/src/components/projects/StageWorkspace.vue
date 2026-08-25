@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { IonIcon } from '@ionic/vue'
 import {
   addOutline,
@@ -15,6 +15,8 @@ import type { Project } from '@/types/api'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import StreakBadge from './StreakBadge.vue'
 import ProgressShareMenu from './ProgressShareMenu.vue'
+
+type StageSort = 'progress' | 'updated' | 'deadline' | 'name'
 
 const props = withDefaults(defineProps<{
   project: Project
@@ -42,6 +44,13 @@ const t = locale.translate
 const readOnly = computed(() => props.project.status === 'завершен')
 const sharedProject = computed(() => props.project.name === 'Общий проект')
 const fractionDigits = computed(() => (props.project.unit === 'symbols' ? 0 : 2))
+const sort = ref<StageSort>('progress')
+const sortedStages = computed(() => [...props.project.stages].sort((left, right) => {
+  if (sort.value === 'name') return left.name.localeCompare(right.name, locale.localeTag)
+  if (sort.value === 'progress') return right.progress - left.progress
+  if (sort.value === 'updated') return String(right.updated_at ?? '').localeCompare(String(left.updated_at ?? ''))
+  return String(left.deadline ?? '9999-12-31').localeCompare(String(right.deadline ?? '9999-12-31'))
+}))
 
 function stageProgress(stage: Project): number {
   return Math.min(100, Math.max(0, stage.progress || 0))
@@ -72,8 +81,8 @@ function requestRemove(stage: Project): void {
 
 function move(index: number, offset: -1 | 1): void {
   const target = index + offset
-  if (target < 0 || target >= props.project.stages.length) return
-  const ids = props.project.stages.map((stage) => stage.id)
+  if (sort.value !== 'progress' || target < 0 || target >= sortedStages.value.length) return
+  const ids = sortedStages.value.map((stage) => stage.id)
   const currentId = ids[index]
   const targetId = ids[target]
   if (!currentId || !targetId) return
@@ -90,20 +99,31 @@ function move(index: number, offset: -1 | 1): void {
         <p>{{ t('Структура рукописи') }}</p>
         <h2 id="stages-heading">{{ t('Этапы') }}</h2>
       </div>
-      <button
-        v-if="!readOnly"
-        class="nf-button nf-button--secondary"
-        type="button"
-        :disabled="busy"
-        @click="emit('add')"
-      >
-        <IonIcon :icon="addOutline" aria-hidden="true" />
-        {{ t('Добавить этап') }}
-      </button>
+      <div class="stage-heading-actions">
+        <label class="stage-sort" for="stage-sort">
+          <span class="visually-hidden">{{ t('Сортировка') }}</span>
+          <select id="stage-sort" v-model="sort" :disabled="busy">
+            <option value="progress">{{ t('По прогрессу') }}</option>
+            <option value="updated">{{ t('Недавно изменённые') }}</option>
+            <option value="deadline">{{ t('По сроку') }}</option>
+            <option value="name">{{ t('По названию') }}</option>
+          </select>
+        </label>
+        <button
+          v-if="!readOnly"
+          class="nf-button nf-button--secondary"
+          type="button"
+          :disabled="busy"
+          @click="emit('add')"
+        >
+          <IonIcon :icon="addOutline" aria-hidden="true" />
+          {{ t('Добавить этап') }}
+        </button>
+      </div>
     </div>
 
-    <ol v-if="project.stages.length" class="stage-list">
-      <li v-for="(stage, index) in project.stages" :key="stage.id" class="stage-card">
+    <TransitionGroup v-if="project.stages.length" tag="ol" class="stage-list">
+      <li v-for="(stage, index) in sortedStages" :key="stage.id" class="stage-card">
         <button
           class="stage-open-button"
           type="button"
@@ -144,7 +164,7 @@ function move(index: number, offset: -1 | 1): void {
               class="stage-icon-button"
               type="button"
               :aria-label="t('Поднять этап «{name}»', { name: stage.name })"
-              :disabled="busy || readOnly || index === 0"
+              :disabled="busy || readOnly || sort !== 'progress' || index === 0"
               @click="move(index, -1)"
             >
               <IonIcon :icon="arrowUpOutline" aria-hidden="true" />
@@ -153,7 +173,7 @@ function move(index: number, offset: -1 | 1): void {
               class="stage-icon-button"
               type="button"
               :aria-label="t('Опустить этап «{name}»', { name: stage.name })"
-              :disabled="busy || readOnly || index === project.stages.length - 1"
+              :disabled="busy || readOnly || sort !== 'progress' || index === sortedStages.length - 1"
               @click="move(index, 1)"
             >
               <IonIcon :icon="arrowDownOutline" aria-hidden="true" />
@@ -195,7 +215,7 @@ function move(index: number, offset: -1 | 1): void {
             </button>
         </div>
       </li>
-    </ol>
+    </TransitionGroup>
 
     <div v-else class="stages-empty">
       <p>{{ t('Разбейте рукопись на главы или другие рабочие этапы.') }}</p>
@@ -210,6 +230,9 @@ function move(index: number, offset: -1 | 1): void {
 <style scoped>
 .stages-section { margin-top: var(--nf-space-7); }
 .stage-section-heading { align-items: center; }
+.stage-heading-actions { display: flex; flex-wrap: wrap; gap: var(--nf-space-2); align-items: center; }
+.stage-sort { display: inline-flex; min-height: 2.75rem; align-items: center; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface-raised); }
+.stage-sort select { min-height: 2.65rem; padding: 0 2rem 0 0.75rem; border: 0; background: transparent; color: var(--nf-color-text); font: inherit; font-size: .82rem; font-weight: 700; }
 .section-heading {
   display: flex;
   gap: var(--nf-space-4);
@@ -240,6 +263,9 @@ function move(index: number, offset: -1 | 1): void {
 .stage-action-button--danger { color: var(--nf-color-danger); }
 .stages-empty { display: grid; justify-items: start; gap: var(--nf-space-3); padding: var(--nf-space-5); border: 1px dashed var(--nf-color-border); border-radius: var(--nf-radius-md); color: var(--nf-color-text-muted); }
 .stages-empty p { margin: 0; }
+.stage-list-move, .stage-list-enter-active, .stage-list-leave-active { transition: transform 360ms ease, opacity 220ms ease; }
+.stage-list-enter-from, .stage-list-leave-to { opacity: 0; transform: translateY(.75rem) scale(.98); }
+.stage-list-leave-active { position: absolute; }
 
 @media (max-width: 37.5rem) {
   .section-heading { align-items: stretch; flex-direction: column; }

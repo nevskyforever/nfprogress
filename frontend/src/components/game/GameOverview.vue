@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 
 import { useLocaleStore } from '@/stores/locale'
+import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import type { BankState, GameBuffs, GameProfile, StreakFreezesState } from '@/types/game'
 
 const props = defineProps<{
@@ -29,6 +30,8 @@ const pendingBonuses = computed(() =>
   Object.entries(props.profile.pending_bonuses).filter(([, value]) => value > 0),
 )
 const freezeTarget = ref('global')
+const clock = ref(Date.now())
+let clockTimer: ReturnType<typeof setInterval> | undefined
 
 const selectedFreezeProject = computed(() =>
   props.streakFreezes.projects.find((project) => project.project_id === freezeTarget.value),
@@ -79,6 +82,23 @@ function targetName(key: string): string {
   }
   return t(names[key] ?? key)
 }
+
+function remainingLabel(buff: GameBuffs['positive'][number]): string | null {
+  if (buff.remaining_seconds === null && !buff.expires_at) return null
+  const endsAt = buff.expires_at ? Date.parse(buff.expires_at) : Number.NaN
+  const seconds = Number.isNaN(endsAt)
+    ? Math.max(0, buff.remaining_seconds ?? 0)
+    : Math.max(0, Math.ceil((endsAt - clock.value) / 1_000))
+  const hours = Math.floor(seconds / 3_600)
+  const minutes = Math.floor((seconds % 3_600) / 60)
+  const rest = seconds % 60
+  return hours > 0
+    ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+    : `${String(minutes).padStart(2, '0')}:${String(rest).padStart(2, '0')}`
+}
+
+onMounted(() => { clockTimer = setInterval(() => { clock.value = Date.now() }, 1_000) })
+onBeforeUnmount(() => clearInterval(clockTimer))
 </script>
 
 <template>
@@ -86,7 +106,7 @@ function targetName(key: string): string {
     <div class="resource-grid">
       <article class="level-card resource-card">
         <p>{{ t('Уровень') }}</p>
-        <strong>{{ profile.level }}</strong>
+        <strong><AnimatedNumber :value="profile.level" /></strong>
         <progress
           :value="levelProgress"
           max="100"
@@ -101,7 +121,7 @@ function targetName(key: string): string {
 
       <article class="resource-card">
         <p>{{ t('Монеты') }}</p>
-        <strong>{{ locale.formatNumber(profile.coins) }}</strong>
+        <strong><AnimatedNumber :value="profile.coins" /></strong>
         <small v-if="bank.credit">
           {{ t('Кредит') }}: {{ locale.formatNumber(bank.credit.remaining) }}
         </small>
@@ -112,7 +132,7 @@ function targetName(key: string): string {
 
       <article class="resource-card">
         <p>{{ t('Здоровье') }}</p>
-        <strong>{{ locale.formatNumber(profile.health) }} / {{ locale.formatNumber(profile.max_health) }}</strong>
+        <strong><AnimatedNumber :value="profile.health" /> / <AnimatedNumber :value="profile.max_health" /></strong>
         <progress
           :value="profile.health"
           :max="profile.max_health || 1"
@@ -123,8 +143,8 @@ function targetName(key: string): string {
       <article class="resource-card">
         <p>{{ t('Вдохновение') }}</p>
         <strong>
-          {{ locale.formatNumber(profile.inspiration) }} /
-          {{ locale.formatNumber(profile.max_inspiration) }}
+          <AnimatedNumber :value="profile.inspiration" /> /
+          <AnimatedNumber :value="profile.max_inspiration" />
         </strong>
         <progress
           :value="profile.inspiration"
@@ -135,7 +155,7 @@ function targetName(key: string): string {
 
       <article class="resource-card">
         <p>{{ t('Стрик сессий') }}</p>
-        <strong>{{ profile.writing_session_streak }}</strong>
+        <strong><AnimatedNumber :value="profile.writing_session_streak" /></strong>
         <small>
           {{ t('Щиты') }}: {{ profile.session_streak_shields }} ·
           {{ t('Медали качества') }}: {{ profile.session_grade_boosts }}
@@ -218,6 +238,7 @@ function targetName(key: string): string {
           <li v-for="buff in buffs.positive" :key="`${buff.name}:${buff.started_at}`">
             <strong>{{ t(buff.name) }}<span v-if="buff.stacks > 1"> ×{{ buff.stacks }}</span></strong>
             <span>{{ t(buff.description) }}</span>
+            <time v-if="remainingLabel(buff)" class="buff-timer">{{ remainingLabel(buff) }}</time>
           </li>
         </ul>
       </section>
@@ -231,6 +252,7 @@ function targetName(key: string): string {
           <li v-for="buff in buffs.negative" :key="`${buff.name}:${buff.started_at}`">
             <strong>{{ t(buff.name) }}<span v-if="buff.stacks > 1"> ×{{ buff.stacks }}</span></strong>
             <span>{{ t(buff.description) }}</span>
+            <time v-if="remainingLabel(buff)" class="buff-timer">{{ remainingLabel(buff) }}</time>
           </li>
         </ul>
       </section>
@@ -429,6 +451,7 @@ progress {
   color: var(--nf-color-text-muted);
   line-height: 1.45;
 }
+.buff-list .buff-timer { color: var(--nf-color-primary); font-variant-numeric: tabular-nums; font-weight: 750; }
 
 @media (max-width: 75rem) {
   .resource-grid {

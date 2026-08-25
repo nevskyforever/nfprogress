@@ -32,16 +32,16 @@ const statistics: Statistics = {
 }
 
 describe('StatisticsWorkspace', () => {
-  it('renders metrics and an accessible semantic timeline table', () => {
+  it('renders metrics, compact daily bars and an accessible growth chart', () => {
     const wrapper = mount(StatisticsWorkspace, {
       props: { statistics },
       global: { plugins: [createPinia()], stubs: { IonSpinner: true } },
     })
 
     expect(wrapper.findAll('.metric-card dd')[1]?.text().replace(/\D/g, '')).toBe('3500')
-    expect(wrapper.get('table caption').text()).toContain('Таблица прогресса по дням')
-    expect(wrapper.findAll('tbody tr')).toHaveLength(2)
-    expect(wrapper.findAll('th[scope="col"]')).toHaveLength(3)
+    expect(wrapper.find('table').exists()).toBe(false)
+    expect(wrapper.findAll('.timeline-row')).toHaveLength(2)
+    expect(wrapper.get('svg[role="img"]').attributes('aria-label')).toContain('График роста')
   })
 
   it('offers aggregate project statistics separately from stage statistics', async () => {

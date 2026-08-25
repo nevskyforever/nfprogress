@@ -16,6 +16,7 @@ import WritingSessionPanel from '@/components/game/WritingSessionPanel.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
+import { announceDataChange, onDataChange } from '@/services/dataChanges'
 import type {
   BankProductRequest,
   GameCommandResponse,
@@ -45,6 +46,7 @@ const success = ref('')
 const tab = ref<GameTab>('overview')
 const bankPreview = ref<GameCommandResponse['result']>(null)
 const inventoryCategory = ref('')
+let stopDataChanges: (() => void) | undefined
 let stateController: AbortController | undefined
 let preferencesController: AbortController | undefined
 let preferenceRequest = 0
@@ -129,13 +131,13 @@ async function runCommand(
   try {
     const response = await action()
     applyState(response.state)
+    announceDataChange('game')
     bankPreview.value = options.capturePreview ? response.result : null
     success.value =
       response.messages.filter(Boolean).join(' ') ||
       response.message ||
       t(options.fallbackMessage ?? 'Изменения сохранены.')
     notifications.success(success.value)
-    await loadState(false)
   } catch (caught) {
     error.value = apiErrorMessage(caught)
     notifications.error(error.value)
@@ -178,10 +180,14 @@ function previewBank(payload: BankProductRequest): void {
 onMounted(() => {
   void loadState()
   void loadInventoryPreference()
+  stopDataChanges = onDataChange((scope) => {
+    if (scope === 'projects') void loadState()
+  })
 })
 onBeforeUnmount(() => {
   stateController?.abort()
   preferencesController?.abort()
+  stopDataChanges?.()
 })
 </script>
 

@@ -22,6 +22,7 @@ import { settingsApi } from '@/api/settings'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useProjectsStore } from '@/stores/projects'
+import { onDataChange } from '@/services/dataChanges'
 import type {
   GlobalStreakSummary,
   ProjectCreate,
@@ -77,9 +78,11 @@ const globalStreak = ref<GlobalStreakSummary | null>(null)
 const localSyncAvailable = ref(false)
 const syncAllRunning = ref(false)
 const preferencesReady = ref(false)
+const updateVersion = ref(0)
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 let preferencesController: AbortController | undefined
 let preferenceSaveChain: Promise<void> = Promise.resolve()
+let stopDataChanges: (() => void) | undefined
 
 const hasFilters = computed(
   () => search.value.trim().length > 0 || status.value !== 'all',
@@ -263,11 +266,24 @@ watch(
   },
 )
 
-onMounted(() => void initializeWorkspace())
+onMounted(() => {
+  void initializeWorkspace()
+  window.addEventListener('nfprogress:new-project', openCreateDialog)
+  stopDataChanges = onDataChange((scope) => {
+    updateVersion.value += 1
+    if (scope === 'projects') {
+      loadProjects()
+      return
+    }
+    void initializeWorkspace()
+  })
+})
 onBeforeUnmount(() => {
   clearTimeout(debounceTimer)
   preferencesController?.abort()
   store.cancelList()
+  stopDataChanges?.()
+  window.removeEventListener('nfprogress:new-project', openCreateDialog)
 })
 </script>
 
@@ -416,8 +432,9 @@ onBeforeUnmount(() => {
           </button>
         </StatePanel>
 
-        <section
+        <TransitionGroup
           v-else
+          tag="section"
           class="project-grid"
           :class="{ 'project-grid--updating': store.loading }"
           :aria-busy="store.loading"
@@ -425,11 +442,11 @@ onBeforeUnmount(() => {
         >
           <ProjectCard
             v-for="project in store.projects"
-            :key="project.id"
+            :key="`${project.id}:${updateVersion}`"
             :project="project"
             :streaks-enabled="streaksEnabled"
           />
-        </section>
+        </TransitionGroup>
       </div>
     </IonContent>
 
@@ -671,6 +688,12 @@ onBeforeUnmount(() => {
   opacity: 0.58;
   pointer-events: none;
 }
+.project-grid-move,
+.project-grid-enter-active,
+.project-grid-leave-active { transition: transform 360ms ease, opacity 260ms ease; }
+.project-grid-enter-from,
+.project-grid-leave-to { opacity: 0; transform: translateY(0.8rem) scale(0.98); }
+.project-grid-leave-active { position: absolute; }
 
 @media (min-width: 100rem) {
   .project-grid {

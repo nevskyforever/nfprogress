@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref, watchEffect } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { IonIcon, IonRouterOutlet } from '@ionic/vue'
 import {
   cloudOfflineOutline,
@@ -29,6 +29,7 @@ import type { SupportedLanguage } from '@/types/api'
 
 const { online } = useNetworkStatus()
 const route = useRoute()
+const router = useRouter()
 const theme = useThemeStore()
 const locale = useLocaleStore()
 const t = locale.translate
@@ -43,6 +44,46 @@ const navigationItems = [
   { to: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
   { to: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },
 ] as const
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLInputElement
+    || target instanceof HTMLTextAreaElement
+    || target instanceof HTMLSelectElement
+    || (target instanceof HTMLElement && target.isContentEditable)
+}
+
+function handleShortcut(event: KeyboardEvent): void {
+  if (isTypingTarget(event.target)) return
+  const key = event.key.toLowerCase()
+  const modified = event.ctrlKey || event.metaKey
+  if (!modified && key !== 'delete') return
+  if (modified && key === 'h' && !event.shiftKey) {
+    event.preventDefault()
+    void router.push({ name: 'help' })
+    return
+  }
+  if (modified && key === 'n') {
+    event.preventDefault()
+    void router.push({ name: 'projects' }).then(() => window.dispatchEvent(new Event('nfprogress:new-project')))
+    return
+  }
+  if (route.name === 'project-detail' || route.name === 'stage-detail') {
+    const action = event.shiftKey && key === 'c' ? 'complete'
+      : event.shiftKey && key === 's' ? 'statistics'
+        : event.shiftKey && key === 'h' ? 'archive'
+          : key === 's' ? 'sync'
+      : key === 'e' ? 'edit'
+        : key === 'delete' ? 'delete'
+          : null
+    if (action) {
+      event.preventDefault()
+      window.dispatchEvent(new CustomEvent<string>('nfprogress:project-shortcut', { detail: action }))
+    }
+  }
+}
+
+onMounted(() => window.addEventListener('keydown', handleShortcut))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleShortcut))
 
 const themeLabel = computed(() => {
   const labels: Record<ThemePreference, string> = {

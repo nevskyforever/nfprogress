@@ -37,6 +37,29 @@ describe('WritingSessionPanel', () => {
     expect(wrapper.get('progress').attributes('value')).toBe('300')
   })
 
+  it('finishes an active session once when its authoritative clock reaches zero', async () => {
+    const session = gameStateFixture().writing_session
+    session.active = {
+      started_at: '2026-08-15T11:59:59',
+      ends_at: '2026-08-15T12:00:01',
+      duration_minutes: 15,
+      target_symbols: 1_000,
+      progress: 300,
+      intention: 'Написать новую сцену',
+      mode: 'sprint',
+      remaining_seconds: 1,
+    }
+    const wrapper = mount(WritingSessionPanel, {
+      props: { session, busy: false },
+      global: { plugins: [createPinia()] },
+    })
+
+    await vi.advanceTimersByTimeAsync(1_000)
+    await vi.advanceTimersByTimeAsync(2_000)
+
+    expect(wrapper.emitted('finish')).toHaveLength(1)
+  })
+
   it('emits only a validated editing-session command', async () => {
     const wrapper = mount(WritingSessionPanel, {
       props: { session: gameStateFixture().writing_session, busy: false },

@@ -59,7 +59,7 @@ describe('GamePage', () => {
     })
   })
 
-  it('loads real state and re-reads it after an authoritative command', async () => {
+  it('loads real state and applies an authoritative command response without a redundant reload', async () => {
     const pinia = createPinia()
     vi.mocked(gameApi.state).mockResolvedValue(gameStateFixture({
       notifications: {
@@ -96,7 +96,7 @@ describe('GamePage', () => {
     await flushPromises()
 
     expect(gameApi.applyStreakFreeze).toHaveBeenCalledWith('global', undefined)
-    expect(gameApi.state).toHaveBeenCalledTimes(2)
+    expect(gameApi.state).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('Заморозка применена.')
   })
 

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { projectsApi } from '@/api/projects'
+import { announceDataChange } from '@/services/dataChanges'
 import type {
   EntityUpdate,
   ProgressCreate,
@@ -29,6 +30,7 @@ export const useProjectsStore = defineStore('projects', () => {
   const error = ref<string | null>(null)
   const detailError = ref<string | null>(null)
   const createError = ref<string | null>(null)
+  const detailSelections = ref<Record<string, { entityId: string; statisticsEntityId: string }>>({})
 
   let listController: AbortController | null = null
   let detailController: AbortController | null = null
@@ -44,6 +46,17 @@ export const useProjectsStore = defineStore('projects', () => {
     return project
   }
 
+  function saveDetailSelection(projectId: string, entityId: string, statisticsEntityId: string): void {
+    detailSelections.value = {
+      ...detailSelections.value,
+      [projectId]: { entityId, statisticsEntityId },
+    }
+  }
+
+  function detailSelection(projectId: string): { entityId: string; statisticsEntityId: string } | undefined {
+    return detailSelections.value[projectId]
+  }
+
   async function runDetailMutation(
     operation: string,
     action: () => Promise<Project>,
@@ -52,7 +65,9 @@ export const useProjectsStore = defineStore('projects', () => {
     detailOperation.value = operation
     detailActionError.value = null
     try {
-      return storeProject(await action())
+      const project = storeProject(await action())
+      announceDataChange('projects')
+      return project
     } catch (mutationError) {
       detailActionError.value = apiErrorMessage(mutationError)
       return null
@@ -118,7 +133,9 @@ export const useProjectsStore = defineStore('projects', () => {
 
   async function refreshCurrent(projectId: string): Promise<Project | null> {
     try {
-      return storeProject(await projectsApi.get(projectId))
+      const project = storeProject(await projectsApi.get(projectId))
+      announceDataChange('projects')
+      return project
     } catch (refreshError) {
       detailActionError.value = apiErrorMessage(refreshError)
       return null
@@ -132,6 +149,7 @@ export const useProjectsStore = defineStore('projects', () => {
       const project = await projectsApi.create(payload)
       projects.value = [project, ...projects.value.filter((item) => item.id !== project.id)]
       currentProject.value = project
+      announceDataChange('projects')
       return project
     } catch (creationError) {
       createError.value = apiErrorMessage(creationError)
@@ -171,6 +189,7 @@ export const useProjectsStore = defineStore('projects', () => {
       await projectsApi.remove(projectId)
       projects.value = projects.value.filter((item) => item.id !== projectId)
       if (currentProject.value?.id === projectId) currentProject.value = null
+      announceDataChange('projects')
       return true
     } catch (mutationError) {
       detailActionError.value = apiErrorMessage(mutationError)
@@ -224,6 +243,7 @@ export const useProjectsStore = defineStore('projects', () => {
     try {
       const result = await projectsApi.recordProgress(projectId, payload)
       storeProject(result.project)
+      announceDataChange('projects')
       return result
     } catch (mutationError) {
       detailActionError.value = apiErrorMessage(mutationError)
@@ -275,6 +295,8 @@ export const useProjectsStore = defineStore('projects', () => {
   return {
     projects,
     currentProject,
+    detailSelection,
+    saveDetailSelection,
     loading,
     detailLoading,
     creating,

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { IonSpinner } from '@ionic/vue'
 
 import { useLocaleStore } from '@/stores/locale'
@@ -20,6 +20,9 @@ const emit = defineEmits<{ retry: [] }>()
 const selectedEntityId = defineModel<string>('entityId', { default: '' })
 const locale = useLocaleStore()
 const t = locale.translate
+const timelinePanel = ref<HTMLElement | null>(null)
+const chartVisible = ref(false)
+let timelineObserver: IntersectionObserver | undefined
 
 type MetricKey = keyof StatisticsMetrics
 
@@ -74,6 +77,41 @@ function formatValue(value: number, unit: UnitCode): string {
 function barWidth(value: number): string {
   return `${Math.max(2, Math.abs(value) / maxTimelineValue.value * 100)}%`
 }
+
+const cumulativeTimeline = computed(() => {
+  let total = 0
+  return (props.statistics?.timeline ?? []).map((item) => {
+    total += item.value
+    return { ...item, total }
+  })
+})
+const maxCumulativeValue = computed(() => Math.max(1, ...cumulativeTimeline.value.map((item) => item.total)))
+const chartPoints = computed(() => cumulativeTimeline.value.map((item, index, items) => {
+  const x = items.length === 1 ? 50 : 4 + index / (items.length - 1) * 92
+  const y = 92 - Math.max(0, item.total) / maxCumulativeValue.value * 84
+  return `${x},${y}`
+}).join(' '))
+
+function observeTimeline(): void {
+  timelineObserver?.disconnect()
+  chartVisible.value = false
+  void nextTick(() => {
+    if (!timelinePanel.value) return
+    if (!('IntersectionObserver' in window)) {
+      chartVisible.value = true
+      return
+    }
+    timelineObserver = new IntersectionObserver(([entry]) => {
+      if (!entry?.isIntersecting) return
+      chartVisible.value = true
+      timelineObserver?.disconnect()
+    }, { threshold: 0.2 })
+    timelineObserver.observe(timelinePanel.value)
+  })
+}
+
+watch(() => props.statistics?.timeline, observeTimeline, { deep: true, immediate: true })
+onBeforeUnmount(() => timelineObserver?.disconnect())
 </script>
 
 <template>
@@ -120,38 +158,31 @@ function barWidth(value: number): string {
         <h3>{{ t('Прогресс по дням') }}</h3>
         <span>{{ t('Активных дней') }}: {{ statistics.timeline.length }}</span>
       </div>
-      <div v-if="statistics.timeline.length" class="timeline-layout">
-        <div class="timeline-bars" aria-hidden="true">
+      <div v-if="statistics.timeline.length" ref="timelinePanel" class="timeline-layout">
+        <div class="timeline-bars" :class="{ 'timeline-bars--visible': chartVisible }" aria-hidden="true">
           <div v-for="item in statistics.timeline" :key="item.date" class="timeline-row">
             <span>{{ locale.formatDate(item.date) }}</span>
             <div class="timeline-track">
               <i
                 :class="{ 'timeline-bar--negative': item.value < 0 }"
-                :style="{ width: barWidth(item.value) }"
+                :style="{ '--bar-width': barWidth(item.value) }"
               />
             </div>
             <strong>{{ item.value > 0 ? '+' : '' }}{{ formatValue(item.value, statistics.unit) }}</strong>
           </div>
         </div>
 
-        <div class="timeline-table-wrap">
-          <table class="timeline-table">
-            <caption>{{ t('Таблица прогресса по дням') }}</caption>
-            <thead>
-              <tr>
-                <th scope="col">{{ t('Дата') }}</th>
-                <th scope="col">{{ t('В единице проекта') }}</th>
-                <th scope="col">{{ t('Символы') }}</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="item in statistics.timeline" :key="item.date">
-                <td>{{ locale.formatDate(item.date) }}</td>
-                <td>{{ formatValue(item.value, statistics.unit) }}</td>
-                <td>{{ locale.formatNumber(item.symbols, 0) }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div class="progress-chart" :class="{ 'progress-chart--visible': chartVisible }">
+          <div class="progress-chart__caption">
+            <span>{{ t('Общее количество единиц') }}</span>
+            <strong>{{ formatValue(cumulativeTimeline.at(-1)?.total ?? 0, statistics.unit) }}</strong>
+          </div>
+          <svg viewBox="0 0 100 100" role="img" :aria-label="t('График роста общего прогресса')" preserveAspectRatio="none">
+            <line x1="4" x2="96" y1="92" y2="92" />
+            <line x1="4" x2="4" y1="4" y2="92" />
+            <polyline :points="chartPoints" />
+          </svg>
+          <div class="progress-chart__axis"><span>{{ locale.formatDate(statistics.timeline[0]?.date ?? null) }}</span><span>{{ locale.formatDate(statistics.timeline.at(-1)?.date ?? null) }}</span></div>
         </div>
       </div>
       <p v-else class="statistics-empty">{{ t('Добавьте первую запись, чтобы увидеть динамику.') }}</p>
@@ -178,29 +209,30 @@ function barWidth(value: number): string {
 .timeline-heading { display: flex; align-items: baseline; justify-content: space-between; margin-top: var(--nf-space-6); }
 .timeline-heading h3 { margin: 0; color: var(--nf-color-text); font-size: 1rem; }
 .timeline-heading span { color: var(--nf-color-text-muted); font-size: 0.78rem; }
-.timeline-layout { display: grid; grid-template-columns: minmax(18rem, 1fr) minmax(22rem, 1.1fr); gap: var(--nf-space-4); margin-top: var(--nf-space-3); }
-.timeline-bars { display: grid; gap: var(--nf-space-2); align-content: start; padding: var(--nf-space-4); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
+.timeline-layout { display: grid; gap: var(--nf-space-3); margin-top: var(--nf-space-3); }
+.timeline-bars { display: grid; max-height: 18rem; gap: var(--nf-space-2); align-content: start; overflow-y: auto; padding: var(--nf-space-3); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
 .timeline-row { display: grid; grid-template-columns: 6.8rem minmax(4rem, 1fr) 5rem; gap: var(--nf-space-2); align-items: center; color: var(--nf-color-text-muted); font-size: 0.72rem; }
 .timeline-row strong { overflow: hidden; color: var(--nf-color-text); text-align: right; text-overflow: ellipsis; }
 .timeline-track { height: 0.55rem; overflow: hidden; border-radius: var(--nf-radius-pill); background: var(--nf-color-surface-muted); }
-.timeline-track i { display: block; height: 100%; border-radius: inherit; background: var(--nf-color-primary); }
+.timeline-track i { display: block; width: 0 !important; height: 100%; border-radius: inherit; background: var(--nf-color-primary); transition: width 700ms cubic-bezier(.2,.8,.2,1); }
+.timeline-bars--visible .timeline-track i { width: var(--bar-width, 0) !important; }
 .timeline-track .timeline-bar--negative { background: var(--nf-color-danger); }
-.timeline-table-wrap { overflow-x: auto; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
-.timeline-table { width: 100%; min-width: 29rem; border-collapse: collapse; color: var(--nf-color-text); }
-.timeline-table caption { padding: var(--nf-space-3) var(--nf-space-4); color: var(--nf-color-text-muted); font-size: 0.78rem; font-weight: 700; text-align: left; }
-.timeline-table th,
-.timeline-table td { padding: 0.7rem var(--nf-space-4); border-top: 1px solid var(--nf-color-border); text-align: left; }
-.timeline-table th { color: var(--nf-color-text-muted); font-size: 0.7rem; text-transform: uppercase; }
+.progress-chart { padding: var(--nf-space-3); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
+.progress-chart__caption, .progress-chart__axis { display: flex; justify-content: space-between; gap: var(--nf-space-2); color: var(--nf-color-text-muted); font-size: .72rem; }
+.progress-chart__caption strong { color: var(--nf-color-text); font-variant-numeric: tabular-nums; }
+.progress-chart svg { display: block; width: 100%; height: 10rem; margin-top: var(--nf-space-2); overflow: visible; }
+.progress-chart line { stroke: var(--nf-color-border); stroke-width: .6; }
+.progress-chart polyline { fill: none; stroke: var(--nf-color-primary); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 180; stroke-dashoffset: 180; transition: stroke-dashoffset 900ms cubic-bezier(.2,.8,.2,1); }
+.progress-chart--visible polyline { stroke-dashoffset: 0; }
 
 @media (max-width: 70rem) {
   .metric-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .timeline-layout { grid-template-columns: 1fr; }
 }
 @media (max-width: 42rem) {
   .statistics-heading { align-items: stretch; flex-direction: column; }
   .statistics-entity { min-width: 0; margin-left: 0; }
   .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .timeline-bars { display: none; }
+  .timeline-row { grid-template-columns: 5.5rem minmax(3rem, 1fr) 4.5rem; }
 }
 @media (max-width: 25rem) {
   .metric-grid { grid-template-columns: 1fr; }

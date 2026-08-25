@@ -324,6 +324,32 @@ def serialize_notifications(projects: JSONDict) -> JSONDict:
     }
 
 
+def _append_game_notifications(projects: JSONDict, messages: list[str]) -> bool:
+    """Store command outcomes in the shared notification history once."""
+    messages = [message.strip() for message in messages if isinstance(message, str) and message.strip()]
+    if not messages:
+        return False
+    buckets = _notification_buckets(projects)
+    existing = {
+        str(_notification_value(notification, 'text', notification))
+        for notification in buckets['new']
+    }
+    changed = False
+    for message in messages:
+        # Bank operations already write their own persistent event inside the
+        # transaction; avoid making a second identical record for it.
+        if message in existing:
+            continue
+        # Keep a bank handler's transaction event as the newest record; it is
+        # produced while the command runs and can carry richer bank metadata.
+        buckets['new'].insert(0, engine.Notification(message, tag='game'))
+        existing.add(message)
+        changed = True
+    if changed:
+        projects['notifications'] = buckets
+    return changed
+
+
 def _set_notification_identifier(
         notification: Any,
         notification_id: str,
@@ -2113,6 +2139,11 @@ class GameService:
                     projects_changed = (
                         projects_changed or bank_notifications['value']
                     )
+                if enabled:
+                    projects_changed = _append_game_notifications(
+                        projects,
+                        [payload.get('message', ''), *reward_messages],
+                    ) or projects_changed
                 if enabled:
                     self._prepare_gamer(gamer, projects, ensure_daily=True)
                 notification_ids_changed = _ensure_notification_ids(projects)
