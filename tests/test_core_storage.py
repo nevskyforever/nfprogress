@@ -233,6 +233,10 @@ def test_project_projection_uses_legacy_cumulative_today_goal(monkeypatch):
     # not the configured daily increment stored in personal_goal.
     assert stage_payload['personal_goal'] == 500
     assert stage_payload['today_goal'] == 2_653
+    assert stage_payload['planning_date'] == '2026-08-25'
+    assert stage_payload['plan_daily_goal'] == 500
+    assert stage_payload['added_today'] == 0
+    assert stage_payload['remaining'] == 2_847
     assert project_payload['today_goal'] == 2_653
 
 

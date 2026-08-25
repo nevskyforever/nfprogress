@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watchEffect } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IonIcon, IonRouterOutlet } from '@ionic/vue'
 import {
@@ -38,12 +38,25 @@ const startupError = window.__NFPROGRESS_RUNTIME__?.startupError ?? ''
 const savingPreference = ref(false)
 const preferenceError = ref<string | null>(null)
 const hasBanner = computed(() => !online.value || Boolean(startupError))
-const navigationItems = [
-  { to: '/projects', label: 'Проекты', mobileLabel: 'Проекты', icon: folderOpenOutline },
+const lastProjectPath = ref('/projects')
+try {
+  const saved = sessionStorage.getItem('nfprogress:last-project-path')
+  if (saved?.startsWith('/projects')) lastProjectPath.value = saved
+} catch {
+  // Session persistence is optional in restricted embedded webviews.
+}
+const navigationItems = computed(() => [
+  { to: lastProjectPath.value, label: 'Проекты', mobileLabel: 'Проекты', icon: folderOpenOutline },
   { to: '/game', label: 'Игровой режим', mobileLabel: 'Игра', icon: sparklesOutline },
   { to: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
   { to: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },
-] as const
+] as const)
+
+watch(() => route.fullPath, (path) => {
+  if (!path.startsWith('/projects')) return
+  lastProjectPath.value = path
+  try { sessionStorage.setItem('nfprogress:last-project-path', path) } catch { /* optional */ }
+}, { immediate: true })
 
 function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement

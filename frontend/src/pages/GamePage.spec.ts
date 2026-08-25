@@ -97,7 +97,8 @@ describe('GamePage', () => {
 
     expect(gameApi.applyStreakFreeze).toHaveBeenCalledWith('global', undefined)
     expect(gameApi.state).toHaveBeenCalledTimes(1)
-    expect(wrapper.text()).toContain('Заморозка применена.')
+    expect(useNotificationsStore(pinia).notifications.at(-1)?.message)
+      .toBe('Заморозка применена.')
   })
 
   it('shows active bank products beside coins instead of inflation', async () => {

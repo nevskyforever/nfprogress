@@ -12,7 +12,8 @@ import type { SettingsResponse } from '@/types/content'
 import AppShell from './AppShell.vue'
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ meta: { title: 'Проекты' } }),
+  useRoute: () => ({ meta: { title: 'Проекты' }, fullPath: '/projects', name: 'projects' }),
+  useRouter: () => ({ push: vi.fn().mockResolvedValue(undefined) }),
 }))
 
 vi.mock('@/composables/useNetworkStatus', () => ({

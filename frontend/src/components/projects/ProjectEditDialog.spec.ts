@@ -15,7 +15,49 @@ const ionicStubs = {
 }
 
 describe('ProjectEditDialog', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('preserves the current-day plan when the daily goal changes', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-26T12:00:00'))
+    const wrapper = mount(ProjectEditDialog, {
+      props: {
+        open: true,
+        project: projectFixture({
+          goal: 2_000, total: 400, personal_goal: 200,
+          plan_daily_goal: 200, today_goal: 600, deadline: '2026-09-02',
+        }),
+      },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    await wrapper.get('#edit-project-personal-goal').setValue('300')
+    expect((wrapper.get('#edit-project-deadline').element as HTMLInputElement).value)
+      .toBe('2026-08-31')
+  })
+
+  it('converts values and recalculates the plan when the unit changes', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-26T12:00:00'))
+    const wrapper = mount(ProjectEditDialog, {
+      props: {
+        open: true,
+        project: projectFixture({
+          goal: 40_000, total: 20_000, personal_goal: 10_000,
+          deadline: '2026-08-27',
+        }),
+      },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    await wrapper.get('#edit-project-unit').setValue('author_list')
+    expect((wrapper.get('#edit-project-goal').element as HTMLInputElement).value).toBe('1')
+    expect((wrapper.get('#edit-project-total').element as HTMLInputElement).value).toBe('0.5')
+    expect((wrapper.get('#edit-project-personal-goal').element as HTMLInputElement).value).toBe('0.3')
+  })
 
   it('updates the current value without forcing a daily-plan reset', async () => {
     const wrapper = mount(ProjectEditDialog, {

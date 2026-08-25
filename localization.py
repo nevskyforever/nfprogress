@@ -162,7 +162,17 @@ TRANSLATION_OVERRIDES = {
 </html>""",
         _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
 <h2>Keyboard shortcuts</h2>
-<p>Actions are performed with visible buttons and form controls. In Help, Ctrl+F or Command+F moves focus to search; standard browser and system shortcuts remain available.</p>
+<ul>
+<li><b>Ctrl+N / Command+N:</b> open project creation.</li>
+<li><b>Ctrl+H / Command+H:</b> open Help.</li>
+<li><b>Ctrl+S / Command+S:</b> open synchronization for the selected project or stage.</li>
+<li><b>Ctrl+E / Command+E:</b> edit the selected project or stage.</li>
+<li><b>Delete:</b> delete the selected project or stage after confirmation.</li>
+<li><b>Ctrl+Shift+S / Command+Shift+S:</b> go to statistics.</li>
+<li><b>Ctrl+Shift+C / Command+Shift+C:</b> complete the selected project or stage.</li>
+<li><b>Ctrl+Shift+H / Command+Shift+H:</b> archive the selected project.</li>
+</ul>
+<p>In Help, Ctrl+F or Command+F moves focus to search. Shortcuts are not intercepted while typing in a field, editor, or drop-down list.</p>
 <p>All interactive elements are available from the keyboard in the normal Tab order. Enter or Space activates the selected button, and Escape closes supported dialogs and menus.</p>
 </body></html>""",
         "Доступна версия {version}.": "Version {version} is available.",
@@ -460,7 +470,17 @@ TRANSLATION_OVERRIDES = {
 </html>""",
         _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
 <h2>Atajos de teclado</h2>
-<p>Las acciones se realizan con los botones visibles y los controles del formulario. En la ayuda abierta, Ctrl+F o Command+F lleva el foco a la búsqueda; los atajos estándar del navegador y del sistema siguen disponibles.</p>
+<ul>
+<li><b>Ctrl+N / Command+N:</b> abrir la creación de proyectos.</li>
+<li><b>Ctrl+H / Command+H:</b> abrir la ayuda.</li>
+<li><b>Ctrl+S / Command+S:</b> abrir la sincronización del proyecto o etapa seleccionados.</li>
+<li><b>Ctrl+E / Command+E:</b> editar el proyecto o etapa seleccionados.</li>
+<li><b>Delete:</b> eliminar el proyecto o etapa seleccionados tras la confirmación.</li>
+<li><b>Ctrl+Shift+S / Command+Shift+S:</b> ir a las estadísticas.</li>
+<li><b>Ctrl+Shift+C / Command+Shift+C:</b> completar el proyecto o etapa seleccionados.</li>
+<li><b>Ctrl+Shift+H / Command+Shift+H:</b> archivar el proyecto seleccionado.</li>
+</ul>
+<p>En la ayuda, Ctrl+F o Command+F lleva el foco a la búsqueda. Los atajos no se interceptan al escribir en un campo, editor o lista desplegable.</p>
 <p>Todos los elementos interactivos son accesibles con el teclado en el orden habitual de Tab. Enter o la barra espaciadora activa el botón seleccionado, y Escape cierra los diálogos y menús compatibles.</p>
 </body></html>""",
         "Доступна версия {version}.": "La versión {version} está disponible.",
@@ -759,7 +779,17 @@ TRANSLATION_OVERRIDES = {
 </html>""",
         _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
 <h2>Tastenkürzel</h2>
-<p>Aktionen werden mit sichtbaren Schaltflächen und Formularfeldern ausgeführt. In der geöffneten Hilfe verschiebt Strg+F oder Command+F den Fokus auf die Suche; die üblichen Browser- und Systemkürzel bleiben verfügbar.</p>
+<ul>
+<li><b>Ctrl+N / Command+N:</b> Projekterstellung öffnen.</li>
+<li><b>Ctrl+H / Command+H:</b> Hilfe öffnen.</li>
+<li><b>Ctrl+S / Command+S:</b> Synchronisierung des ausgewählten Projekts oder Abschnitts öffnen.</li>
+<li><b>Ctrl+E / Command+E:</b> ausgewähltes Projekt oder Abschnitt bearbeiten.</li>
+<li><b>Delete:</b> ausgewähltes Projekt oder Abschnitt nach Bestätigung löschen.</li>
+<li><b>Ctrl+Shift+S / Command+Shift+S:</b> zur Statistik wechseln.</li>
+<li><b>Ctrl+Shift+C / Command+Shift+C:</b> ausgewähltes Projekt oder Abschnitt abschließen.</li>
+<li><b>Ctrl+Shift+H / Command+Shift+H:</b> ausgewähltes Projekt archivieren.</li>
+</ul>
+<p>In der Hilfe verschiebt Ctrl+F oder Command+F den Fokus auf die Suche. Tastenkürzel werden beim Tippen in einem Feld, Editor oder einer Auswahlliste nicht abgefangen.</p>
 <p>Alle interaktiven Elemente sind in der normalen Tab-Reihenfolge per Tastatur erreichbar. Enter oder die Leertaste aktiviert die ausgewählte Schaltfläche, Escape schließt unterstützte Dialoge und Menüs.</p>
 </body></html>""",
         "Доступна версия {version}.": "Version {version} ist verfügbar.",
@@ -1059,7 +1089,17 @@ TRANSLATION_OVERRIDES = {
 </html>""",
         _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
 <h2>Raccourcis clavier</h2>
-<p>Les actions sont effectuées avec les boutons visibles et les contrôles du formulaire. Dans l’aide ouverte, Ctrl+F ou Command+F place le focus dans la recherche ; les raccourcis standard du navigateur et du système restent disponibles.</p>
+<ul>
+<li><b>Ctrl+N / Command+N:</b> ouvrir la création d’un projet.</li>
+<li><b>Ctrl+H / Command+H:</b> ouvrir l’aide.</li>
+<li><b>Ctrl+S / Command+S:</b> ouvrir la synchronisation du projet ou de l’étape sélectionnés.</li>
+<li><b>Ctrl+E / Command+E:</b> modifier le projet ou l’étape sélectionnés.</li>
+<li><b>Delete:</b> supprimer le projet ou l’étape sélectionnés après confirmation.</li>
+<li><b>Ctrl+Shift+S / Command+Shift+S:</b> accéder aux statistiques.</li>
+<li><b>Ctrl+Shift+C / Command+Shift+C:</b> terminer le projet ou l’étape sélectionnés.</li>
+<li><b>Ctrl+Shift+H / Command+Shift+H:</b> archiver le projet sélectionné.</li>
+</ul>
+<p>Dans l’aide, Ctrl+F ou Command+F place le focus dans la recherche. Les raccourcis ne sont pas interceptés lors de la saisie dans un champ, un éditeur ou une liste déroulante.</p>
 <p>Tous les éléments interactifs sont accessibles au clavier dans l’ordre normal de tabulation. Entrée ou Espace active le bouton sélectionné, et Échap ferme les boîtes de dialogue et menus compatibles.</p>
 </body></html>""",
         "Доступна версия {version}.": "La version {version} est disponible.",
@@ -1360,7 +1400,17 @@ TRANSLATION_OVERRIDES = {
 </html>""",
         _HELP_ARTICLE_SOURCES["shortcuts"]: """<html><body>
 <h2>Atalhos de teclado</h2>
-<p>As ações são realizadas por botões visíveis e controles de formulário. Na ajuda aberta, Ctrl+F ou Command+F move o foco para a pesquisa; os atalhos padrão do navegador e do sistema continuam disponíveis.</p>
+<ul>
+<li><b>Ctrl+N / Command+N:</b> abrir a criação de projeto.</li>
+<li><b>Ctrl+H / Command+H:</b> abrir a ajuda.</li>
+<li><b>Ctrl+S / Command+S:</b> abrir a sincronização do projeto ou etapa selecionados.</li>
+<li><b>Ctrl+E / Command+E:</b> editar o projeto ou etapa selecionados.</li>
+<li><b>Delete:</b> excluir o projeto ou etapa selecionados após confirmação.</li>
+<li><b>Ctrl+Shift+S / Command+Shift+S:</b> ir para as estatísticas.</li>
+<li><b>Ctrl+Shift+C / Command+Shift+C:</b> concluir o projeto ou etapa selecionados.</li>
+<li><b>Ctrl+Shift+H / Command+Shift+H:</b> arquivar o projeto selecionado.</li>
+</ul>
+<p>Na ajuda, Ctrl+F ou Command+F move o foco para a pesquisa. Os atalhos não são interceptados durante a digitação em um campo, editor ou lista suspensa.</p>
 <p>Todos os elementos interativos podem ser acessados pelo teclado na ordem normal de Tab. Enter ou Espaço ativa o botão selecionado, e Escape fecha caixas de diálogo e menus compatíveis.</p>
 </body></html>""",
         "Доступна версия {version}.": "A versão {version} está disponível.",

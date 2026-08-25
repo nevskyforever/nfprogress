@@ -1,17 +1,23 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { useLocaleStore } from '@/stores/locale'
+import { useMotionStore } from '@/stores/motion'
 
 const props = withDefaults(defineProps<{ value: number; digits?: number }>(), { digits: 0 })
 const locale = useLocaleStore()
-const displayed = ref(props.value)
+const motion = useMotionStore()
+const displayed = ref(0)
 let frame: number | undefined
 
-watch(() => props.value, (next, previous) => {
+function animate(next: number): void {
   if (frame !== undefined) cancelAnimationFrame(frame)
+  if (motion.reduced) {
+    displayed.value = next
+    return
+  }
   const startedAt = performance.now()
-  const from = Number.isFinite(previous) ? previous : displayed.value
+  const from = displayed.value
   const duration = 420
   const tick = (now: number) => {
     const progress = Math.min(1, (now - startedAt) / duration)
@@ -20,7 +26,11 @@ watch(() => props.value, (next, previous) => {
     if (progress < 1) frame = requestAnimationFrame(tick)
   }
   frame = requestAnimationFrame(tick)
-})
+}
+
+watch(() => props.value, animate)
+watch(() => motion.reduced, () => animate(props.value))
+onMounted(() => animate(props.value))
 
 onBeforeUnmount(() => { if (frame !== undefined) cancelAnimationFrame(frame) })
 </script>

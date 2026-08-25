@@ -30,6 +30,26 @@ describe('StageDialog', () => {
     await wrapper.get('#stage-deadline').setValue('2026-08-28')
     expect((wrapper.get('#stage-personal-goal').element as HTMLInputElement).value).toBe('300')
   })
+
+  it('preserves the current-day stage plan when its daily goal changes', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-26T12:00:00'))
+    const wrapper = mount(StageDialog, {
+      props: {
+        open: true,
+        projectUnit: 'symbols',
+        stage: projectFixture({
+          goal: 2_000, total: 400, personal_goal: 200,
+          plan_daily_goal: 200, today_goal: 600, deadline: '2026-09-02',
+        }),
+      },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    await wrapper.get('#stage-personal-goal').setValue('300')
+    expect((wrapper.get('#stage-deadline').element as HTMLInputElement).value)
+      .toBe('2026-08-31')
+  })
   it('carries an edited current value without implicitly recalculating the plan', async () => {
     const wrapper = mount(StageDialog, {
       props: {

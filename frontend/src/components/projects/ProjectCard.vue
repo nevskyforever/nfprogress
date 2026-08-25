@@ -6,6 +6,7 @@ import { calendarClearOutline, layersOutline } from 'ionicons/icons'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
 import StreakBadge from '@/components/projects/StreakBadge.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
+import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
 
@@ -69,8 +70,8 @@ const progressAriaLabel = computed(() =>
           </div>
           <div class="project-card__progress-copy">
             <span>
-              <strong>{{ presentation.totalLabel }}</strong>
-              <span> / {{ presentation.goalLabel }} {{ presentation.unitLabel }}</span>
+              <strong><AnimatedNumber :value="project.total" :digits="project.unit === 'symbols' ? 0 : 2" /></strong>
+              <span> / <template v-if="project.infinite">{{ presentation.goalLabel }}</template><AnimatedNumber v-else :value="project.goal ?? 0" :digits="project.unit === 'symbols' ? 0 : 2" /> {{ presentation.unitLabel }}</span>
             </span>
           </div>
         </div>

@@ -62,6 +62,11 @@ export const useNotificationsStore = defineStore('notifications', () => {
     const normalizedMessage = message.trim()
     if (!normalizedMessage) return null
 
+    const duplicate = notifications.value.find(
+      (notification) => notification.kind === kind && notification.message === normalizedMessage,
+    )
+    if (duplicate) dismiss(duplicate.id)
+
     const id = `notice-${Date.now()}-${sequence++}`
     if (notifications.value.length >= 4) {
       const oldest = notifications.value[0]

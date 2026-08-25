@@ -5,7 +5,14 @@ import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
 import type { Project, ProjectUpdate, UnitCode } from '@/types/api'
-import { automaticDailyGoal, automaticDeadline } from '@/utils/projectPlanning'
+import {
+  automaticDailyGoal,
+  automaticDeadlineAfterGoalChange,
+  automaticEditedDeadline,
+  convertProjectUnit,
+  planningDate,
+  todayIsoDate,
+} from '@/utils/projectPlanning'
 
 const props = withDefaults(
   defineProps<{
@@ -26,6 +33,9 @@ const locale = useLocaleStore()
 const t = locale.translate
 const validationErrors = ref<string[]>([])
 const errorSummary = ref<HTMLElement | null>(null)
+const sourceUnit = ref<UnitCode>('symbols')
+const minimumDeadline = computed(() => props.project.planning_date ?? todayIsoDate())
+const calculationDate = computed(() => planningDate(props.project.planning_date))
 const form = reactive({
   name: '',
   unit: 'symbols' as UnitCode,
@@ -46,13 +56,16 @@ const canRecalculatePlan = computed(() => {
   return Boolean(form.deadline)
     && Number.isFinite(personalGoal)
     && personalGoal > 0
-    && Math.abs(personalGoal - props.project.personal_goal) < 0.000001
+    && Math.abs(
+      personalGoal - convertProjectUnit(props.project.personal_goal, props.project.unit, form.unit),
+    ) < 0.000001
 })
 
 function fill(): void {
   const project = props.project
   form.name = project.name
   form.unit = project.unit
+  sourceUnit.value = project.unit
   form.goal = project.goal === null ? '' : String(project.goal)
   form.total = String(project.total)
   form.deadline = project.deadline?.slice(0, 10) ?? ''
@@ -71,24 +84,75 @@ function numberFrom(value: string | number): number {
 }
 
 function updateDailyGoal(): void {
-  if (form.infinite) return
+  if (form.infinite || props.project.stages.length) return
+  const addedToday = convertProjectUnit(
+    props.project.added_today, props.project.unit, form.unit,
+  )
   const dailyGoal = automaticDailyGoal(
     numberFrom(form.goal), numberFrom(form.total), form.deadline, form.unit,
+    calculationDate.value, addedToday,
   )
   if (dailyGoal !== null) form.personalGoal = String(dailyGoal)
 }
 
+function planValue(value: number | null): number | null {
+  return value === null ? null : convertProjectUnit(value, props.project.unit, form.unit)
+}
+
 function updateDeadline(): void {
-  if (form.infinite) return
-  const deadline = automaticDeadline(
-    numberFrom(form.goal), numberFrom(form.total), numberFrom(form.personalGoal),
-  )
+  if (form.infinite || props.project.stages.length) return
+  const deadline = automaticEditedDeadline({
+    goal: numberFrom(form.goal),
+    total: numberFrom(form.total),
+    dailyGoal: numberFrom(form.personalGoal),
+    todayGoal: planValue(props.project.today_goal),
+    previousDailyGoal: planValue(props.project.plan_daily_goal),
+    recalculate: form.recalculatePlan,
+    today: calculationDate.value,
+  })
   if (deadline !== null) form.deadline = deadline
 }
 
-function updatePlanFromAmount(): void {
+function updatePlanFromTotal(): void {
   if (numberFrom(form.personalGoal) > 0) updateDeadline()
   else updateDailyGoal()
+}
+
+function updatePlanFromGoal(): void {
+  const personalGoal = numberFrom(form.personalGoal)
+  if (personalGoal <= 0) {
+    updateDailyGoal()
+    return
+  }
+  const deadline = automaticDeadlineAfterGoalChange({
+    goal: numberFrom(form.goal),
+    total: numberFrom(form.total),
+    dailyGoal: personalGoal,
+    todayGoal: planValue(props.project.today_goal),
+    recalculate: form.recalculatePlan,
+    today: calculationDate.value,
+  })
+  if (deadline !== null) form.deadline = deadline
+}
+
+function updateUnit(): void {
+  const oldUnit = sourceUnit.value
+  const newUnit = form.unit
+  if (oldUnit === newUnit) return
+  form.goal = String(convertProjectUnit(numberFrom(form.goal), oldUnit, newUnit))
+  form.total = String(convertProjectUnit(numberFrom(form.total), oldUnit, newUnit))
+  form.personalGoal = String(convertProjectUnit(numberFrom(form.personalGoal), oldUnit, newUnit))
+  sourceUnit.value = newUnit
+  if (form.deadline) updateDailyGoal()
+}
+
+function toggleInfinite(): void {
+  if (form.infinite) {
+    form.personalGoal = '0'
+    form.deadline = ''
+  } else {
+    updatePlanFromGoal()
+  }
 }
 
 async function submit(): Promise<void> {
@@ -214,7 +278,7 @@ watch(
         </label>
         <label class="workspace-field" for="edit-project-unit">
           <span>{{ t('Единица прогресса') }}</span>
-          <select id="edit-project-unit" v-model="form.unit">
+          <select id="edit-project-unit" v-model="form.unit" @change="updateUnit">
             <option value="symbols">{{ t('Символы') }}</option>
             <option value="A4">{{ t('Листы A4') }}</option>
             <option value="author_list">{{ t('Авторские листы') }}</option>
@@ -223,7 +287,7 @@ watch(
         </label>
         <label class="workspace-field" for="edit-project-deadline">
           <span>{{ t('Срок') }}</span>
-          <input id="edit-project-deadline" v-model="form.deadline" type="date" @input="updateDailyGoal" />
+          <input id="edit-project-deadline" v-model="form.deadline" type="date" :min="minimumDeadline" :disabled="form.infinite" @input="updateDailyGoal" />
         </label>
         <label v-if="!project.stages.length" class="workspace-field" for="edit-project-goal">
           <span>{{ t('Общая цель') }}</span>
@@ -235,7 +299,7 @@ watch(
             step="any"
             inputmode="decimal"
             :disabled="form.infinite"
-            @input="updatePlanFromAmount"
+            @input="updatePlanFromGoal"
           />
         </label>
         <label v-if="!project.stages.length" class="workspace-field" for="edit-project-total">
@@ -247,7 +311,7 @@ watch(
             min="0"
             step="any"
             inputmode="decimal"
-            @input="updatePlanFromAmount"
+            @input="updatePlanFromTotal"
           />
         </label>
         <label class="workspace-field" for="edit-project-personal-goal">
@@ -259,13 +323,14 @@ watch(
             min="0"
             step="any"
             inputmode="decimal"
+            :disabled="form.infinite"
             @input="updateDeadline"
           />
         </label>
 
         <div class="workspace-options workspace-field--wide">
           <label v-if="!project.stages.length" class="workspace-check">
-            <input v-model="form.infinite" type="checkbox" />
+            <input v-model="form.infinite" type="checkbox" @change="toggleInfinite" />
             <span><strong>{{ t('Проект без конечной цели') }}</strong></span>
           </label>
           <label class="workspace-check">
@@ -288,7 +353,7 @@ watch(
             </span>
           </label>
           <label v-if="canRecalculatePlan" class="workspace-check">
-            <input v-model="form.recalculatePlan" type="checkbox" />
+            <input v-model="form.recalculatePlan" type="checkbox" @change="updateDeadline" />
             <span><strong>{{ t('Пересчитать цели на день с сегодняшнего дня') }}</strong></span>
           </label>
         </div>

@@ -990,13 +990,37 @@ class GameService:
             projects = self._read_projects()
             enabled = self._game_mode_enabled()
             notification_ids_changed = _ensure_notification_ids(projects)
+            projects_changed = False
             with _bind_legacy_gamer(gamer):
                 changed = self._prepare_gamer(gamer, projects, ensure_daily=enabled)
+                if (
+                        enabled
+                        and gamer.writing_session is not None
+                        and gamer.writing_session_remaining_seconds() <= 0
+                ):
+                    with _bind_bank_notifications(
+                            gamer, projects,
+                    ) as bank_notifications:
+                        _successful, message = gamer.finish_writing_session(
+                            save=False,
+                        )
+                        reward_messages = self._settle_rewards(gamer)
+                    projects_changed = bank_notifications['value']
+                    projects_changed = _append_game_notifications(
+                        projects, [message, *reward_messages],
+                    ) or projects_changed
+                    self._prepare_gamer(gamer, projects, ensure_daily=True)
+                    changed = True
                 prepared_snapshot = self._preparation_snapshot(gamer)
                 state = self._serialize_state(gamer, projects, enabled=enabled)
                 changed = changed or prepared_snapshot != self._preparation_snapshot(gamer)
-            if notification_ids_changed:
+            notification_ids_changed = (
+                _ensure_notification_ids(projects) or notification_ids_changed
+            )
+            projects_changed = projects_changed or notification_ids_changed
+            if projects_changed and notification_ids_changed:
                 self._backup_notification_migration()
+            if projects_changed:
                 self.repository.write_projects(projects)
             if changed:
                 self.repository.write_gamer(gamer)

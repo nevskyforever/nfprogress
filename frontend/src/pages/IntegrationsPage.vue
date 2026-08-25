@@ -24,6 +24,7 @@ import {
   pickDesktopWordFile,
 } from '@/platform/files'
 import { currentPlatform } from '@/platform/runtime'
+import { announceDataChange } from '@/services/dataChanges'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 import type { ProgressResult, Project } from '@/types/api'
@@ -299,6 +300,7 @@ async function runSync(): Promise<void> {
     )
     applySyncSummary(result.sync)
     applyGameFeedback(result.progress)
+    if (result.changed) announceDataChange('projects')
     success.value = result.changed
       ? t('Синхронизация завершена. Прочитано символов: {count}', {
           count: locale.formatNumber(result.symbols, 0),
@@ -353,6 +355,7 @@ async function runAllSync(): Promise<void> {
     }
     await loadSync()
     for (const item of result.items) applyGameFeedback(item.progress ?? null)
+    if (result.items.some((item) => item.changed)) announceDataChange('projects')
     batchResult.value = result
   } catch (batchError) {
     operationError.value = t(apiErrorMessage(batchError))
@@ -382,6 +385,7 @@ function formatDateTime(value: string | null): string {
 function updateImportedProject(project: Project): void {
   const index = projects.value.findIndex(({ id }) => id === project.id)
   if (index >= 0) projects.value.splice(index, 1, project)
+  announceDataChange('projects')
 }
 
 watch(selectedProjectId, () => {

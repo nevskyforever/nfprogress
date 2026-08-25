@@ -79,16 +79,23 @@ function barWidth(value: number): string {
 }
 
 const cumulativeTimeline = computed(() => {
-  let total = 0
+  const dailyChange = (props.statistics?.timeline ?? [])
+    .reduce((sum, item) => sum + item.value, 0)
+  let total = (props.statistics?.metrics.total ?? dailyChange) - dailyChange
   return (props.statistics?.timeline ?? []).map((item) => {
     total += item.value
     return { ...item, total }
   })
 })
-const maxCumulativeValue = computed(() => Math.max(1, ...cumulativeTimeline.value.map((item) => item.total)))
+const cumulativeRange = computed(() => {
+  const values = cumulativeTimeline.value.map((item) => item.total)
+  const minimum = Math.min(0, ...values)
+  const maximum = Math.max(1, ...values)
+  return { minimum, maximum, size: Math.max(1, maximum - minimum) }
+})
 const chartPoints = computed(() => cumulativeTimeline.value.map((item, index, items) => {
   const x = items.length === 1 ? 50 : 4 + index / (items.length - 1) * 92
-  const y = 92 - Math.max(0, item.total) / maxCumulativeValue.value * 84
+  const y = 92 - (item.total - cumulativeRange.value.minimum) / cumulativeRange.value.size * 84
   return `${x},${y}`
 }).join(' '))
 
@@ -182,6 +189,10 @@ onBeforeUnmount(() => timelineObserver?.disconnect())
             <line x1="4" x2="4" y1="4" y2="92" />
             <polyline :points="chartPoints" />
           </svg>
+          <div class="progress-chart__y-axis" aria-hidden="true">
+            <span>{{ formatValue(cumulativeRange.maximum, statistics.unit) }}</span>
+            <span>{{ formatValue(cumulativeRange.minimum, statistics.unit) }}</span>
+          </div>
           <div class="progress-chart__axis"><span>{{ locale.formatDate(statistics.timeline[0]?.date ?? null) }}</span><span>{{ locale.formatDate(statistics.timeline.at(-1)?.date ?? null) }}</span></div>
         </div>
       </div>
@@ -217,10 +228,11 @@ onBeforeUnmount(() => timelineObserver?.disconnect())
 .timeline-track i { display: block; width: 0 !important; height: 100%; border-radius: inherit; background: var(--nf-color-primary); transition: width 700ms cubic-bezier(.2,.8,.2,1); }
 .timeline-bars--visible .timeline-track i { width: var(--bar-width, 0) !important; }
 .timeline-track .timeline-bar--negative { background: var(--nf-color-danger); }
-.progress-chart { padding: var(--nf-space-3); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
+.progress-chart { position: relative; padding: var(--nf-space-3); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
 .progress-chart__caption, .progress-chart__axis { display: flex; justify-content: space-between; gap: var(--nf-space-2); color: var(--nf-color-text-muted); font-size: .72rem; }
 .progress-chart__caption strong { color: var(--nf-color-text); font-variant-numeric: tabular-nums; }
 .progress-chart svg { display: block; width: 100%; height: 10rem; margin-top: var(--nf-space-2); overflow: visible; }
+.progress-chart__y-axis { position: absolute; top: 3.3rem; bottom: 2.2rem; left: 1.15rem; display: flex; flex-direction: column; justify-content: space-between; color: var(--nf-color-text-muted); font-size: .62rem; pointer-events: none; }
 .progress-chart line { stroke: var(--nf-color-border); stroke-width: .6; }
 .progress-chart polyline { fill: none; stroke: var(--nf-color-primary); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 180; stroke-dashoffset: 180; transition: stroke-dashoffset 900ms cubic-bezier(.2,.8,.2,1); }
 .progress-chart--visible polyline { stroke-dashoffset: 0; }

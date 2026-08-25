@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { IonContent, IonIcon, IonPage, IonSpinner } from '@ionic/vue'
+import {
+  IonContent,
+  IonIcon,
+  IonPage,
+  IonSpinner,
+  onIonViewWillEnter,
+  onIonViewWillLeave,
+} from '@ionic/vue'
 import {
   addOutline,
   alertCircleOutline,
@@ -23,8 +30,10 @@ import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useProjectsStore } from '@/stores/projects'
 import { onDataChange } from '@/services/dataChanges'
+import { todayIsoDate, writingDayIsoDate } from '@/utils/projectPlanning'
 import type {
   GlobalStreakSummary,
+  Project,
   ProjectCreate,
   ProjectSort,
   ProjectStatus,
@@ -78,7 +87,11 @@ const globalStreak = ref<GlobalStreakSummary | null>(null)
 const localSyncAvailable = ref(false)
 const syncAllRunning = ref(false)
 const preferencesReady = ref(false)
-const updateVersion = ref(0)
+const createPlanningDate = ref(todayIsoDate())
+const cardVersions = ref<Record<string, number>>({})
+const previousCardSignatures = new Map<string, string>()
+const pendingCardAnimations = new Set<string>()
+let projectViewActive = false
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 let preferencesController: AbortController | undefined
 let preferenceSaveChain: Promise<void> = Promise.resolve()
@@ -103,6 +116,30 @@ function currentListQuery() {
 
 function loadProjects(): void {
   void store.load(currentListQuery())
+}
+
+function projectAnimationSignature(project: Project): string {
+  return JSON.stringify({
+    total: project.total,
+    goal: project.goal,
+    progress: project.progress,
+    deadline: project.deadline,
+    status: project.status,
+    todayGoal: project.today_goal,
+    personalGoal: project.personal_goal,
+    streak: [project.streak_status, project.streak_length, project.max_streak],
+    stages: project.stages.map((stage) => [
+      stage.id, stage.total, stage.goal, stage.progress, stage.deadline,
+      stage.status, stage.today_goal, stage.streak_status, stage.streak_length,
+    ]),
+  })
+}
+
+function restartCardAnimation(projectId: string): void {
+  cardVersions.value = {
+    ...cardVersions.value,
+    [projectId]: (cardVersions.value[projectId] ?? 0) + 1,
+  }
 }
 
 function preferenceStatus(value: unknown): StatusFilter | null {
@@ -175,6 +212,7 @@ async function initializeWorkspace(): Promise<void> {
     showTodaySummary.value = enabledSetting(settings.values.show_written_today_in_all_projects)
     streaksEnabled.value = enabledSetting(settings.values.global_streak)
     localSyncAvailable.value = settings.capabilities.local_file_sync === true
+    createPlanningDate.value = writingDayIsoDate(settings.values.start_day_time)
     const summaryRequests: Promise<void>[] = []
     if (showTodaySummary.value) {
       summaryRequests.push(
@@ -266,11 +304,28 @@ watch(
   },
 )
 
+watch(
+  () => store.projects.map((project) => [project.id, projectAnimationSignature(project)] as const),
+  (entries) => {
+    const currentIds = new Set(entries.map(([id]) => id))
+    for (const [id, signature] of entries) {
+      const previous = previousCardSignatures.get(id)
+      previousCardSignatures.set(id, signature)
+      if (previous === undefined || previous === signature) continue
+      if (projectViewActive) restartCardAnimation(id)
+      else pendingCardAnimations.add(id)
+    }
+    for (const id of previousCardSignatures.keys()) {
+      if (!currentIds.has(id)) previousCardSignatures.delete(id)
+    }
+  },
+  { deep: true },
+)
+
 onMounted(() => {
   void initializeWorkspace()
   window.addEventListener('nfprogress:new-project', openCreateDialog)
   stopDataChanges = onDataChange((scope) => {
-    updateVersion.value += 1
     if (scope === 'projects') {
       loadProjects()
       return
@@ -278,6 +333,12 @@ onMounted(() => {
     void initializeWorkspace()
   })
 })
+onIonViewWillEnter(() => {
+  projectViewActive = true
+  for (const id of pendingCardAnimations) restartCardAnimation(id)
+  pendingCardAnimations.clear()
+})
+onIonViewWillLeave(() => { projectViewActive = false })
 onBeforeUnmount(() => {
   clearTimeout(debounceTimer)
   preferencesController?.abort()
@@ -442,7 +503,7 @@ onBeforeUnmount(() => {
         >
           <ProjectCard
             v-for="project in store.projects"
-            :key="`${project.id}:${updateVersion}`"
+            :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
             :project="project"
             :streaks-enabled="streaksEnabled"
           />
@@ -452,6 +513,7 @@ onBeforeUnmount(() => {
 
     <ProjectCreateDialog
       :open="createDialogOpen"
+      :planning-date="createPlanningDate"
       :submitting="store.creating"
       :api-error="store.createError"
       @close="closeCreateDialog"

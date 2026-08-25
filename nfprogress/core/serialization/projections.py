@@ -111,6 +111,8 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
     mindmap = engine.normalize_mindmap_data(getattr(entity, 'mindmap_data', None))
     stages = getattr(entity, 'stages', []) if kind == 'project' else []
     today_goal = _today_goal_for_display(entity, kind=kind, infinite=infinite)
+    plan = getattr(entity, 'project_plan', {})
+    daily_goal_symbols = plan.get('daily_goal_symbols') if isinstance(plan, dict) else None
 
     payload = {
         'id': entity_id,
@@ -129,6 +131,13 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
             getattr(entity, 'personal_goal_for_the_day', 0),
         ),
         'today_goal': to_json_safe(today_goal),
+        'planning_date': engine.today_for_test().isoformat(),
+        'plan_daily_goal': to_json_safe(
+            engine.unit_converter('symbols', daily_goal_symbols, entity.unit)
+            if isinstance(daily_goal_symbols, (int, float)) else None
+        ),
+        'added_today': to_json_safe(entity.get_added_today_in_unit()),
+        'remaining': None if infinite else to_json_safe(entity.get_need_write_in_unit()),
         'streak_enabled': getattr(entity, 'streak_status', 'No') != 'Off',
         'streak_status': str(getattr(entity, 'streak_status', 'No')),
         'streak_length': engine.streak_length(
@@ -173,5 +182,6 @@ def _today_goal_for_display(entity: Any, *, kind: str, infinite: bool) -> float 
         has_stage_goal = bool(getattr(entity, 'has_stages', lambda: False)()) and value > 0
         return value if deadline != 'Нет' or has_stage_goal else None
 
-    # A legacy stage uses its own daily target when it has a deadline.
-    return entity.get_today_goal_in_unit() if deadline != 'Нет' else None
+    # A stage can have a fixed daily goal without a deadline too.
+    has_personal_goal = bool(getattr(entity, 'personal_goal_for_the_day', 0))
+    return entity.get_today_goal_in_unit() if deadline != 'Нет' or has_personal_goal else None

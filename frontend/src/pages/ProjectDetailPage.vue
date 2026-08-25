@@ -1,7 +1,14 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { IonContent, IonIcon, IonPage, IonSpinner } from '@ionic/vue'
+import {
+  IonContent,
+  IonIcon,
+  IonPage,
+  IonSpinner,
+  onIonViewWillEnter,
+  onIonViewWillLeave,
+} from '@ionic/vue'
 import {
   alertCircleOutline,
   archiveOutline,
@@ -30,6 +37,7 @@ import { apiErrorMessage } from '@/api/client'
 import { integrationsApi } from '@/api/integrations'
 import { projectsApi } from '@/api/projects'
 import { settingsApi } from '@/api/settings'
+import { onDataChange } from '@/services/dataChanges'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
 import {
   copyProgressImage,
@@ -57,6 +65,10 @@ const locale = useLocaleStore()
 const notifications = useNotificationsStore()
 const t = locale.translate
 const projectId = computed(() => String(route.params.projectId ?? ''))
+const detailAnimationVersion = ref(0)
+let detailViewActive = false
+let pendingProjectRefresh = false
+let stopDataChanges: (() => void) | undefined
 const routeStageId = computed(() => String(route.params.stageId ?? ''))
 const project = computed<Project>(() => store.currentProject as Project)
 const openedStage = computed<Project | null>(() =>
@@ -151,6 +163,17 @@ async function loadProject(): Promise<void> {
   chooseAvailableEntity()
   refreshStatistics()
   await Promise.all([loadSyncSummary(), loadStreakSummaries()])
+}
+
+async function refreshChangedProject(): Promise<void> {
+  const before = store.currentProject?.id === projectId.value
+    ? JSON.stringify(store.currentProject)
+    : ''
+  await loadProject()
+  const after = store.currentProject?.id === projectId.value
+    ? JSON.stringify(store.currentProject)
+    : ''
+  if (before && before !== after) detailAnimationVersion.value += 1
 }
 
 function enabledSetting(value: unknown): boolean {
@@ -434,7 +457,8 @@ function handleProjectShortcut(event: Event): void {
   const action = (event as CustomEvent<string>).detail
   if (action === 'sync') void synchronizeProject()
   if (action === 'edit' && detailEntity.value.status !== 'завершен') {
-    isStageDetail.value ? openStageEdit(detailEntity.value) : openProjectEdit()
+    if (isStageDetail.value) openStageEdit(detailEntity.value)
+    else openProjectEdit()
   }
   if (action === 'delete') void deleteProject()
   if (action === 'complete') void completeProject()
@@ -442,10 +466,27 @@ function handleProjectShortcut(event: Event): void {
   if (action === 'statistics') document.querySelector('#statistics-heading')?.scrollIntoView({ behavior: 'smooth' })
 }
 
-onMounted(() => window.addEventListener('nfprogress:project-shortcut', handleProjectShortcut))
+onMounted(() => {
+  window.addEventListener('nfprogress:project-shortcut', handleProjectShortcut)
+  stopDataChanges = onDataChange((scope) => {
+    if (scope !== 'projects' || store.detailBusy) return
+    if (detailViewActive) void refreshChangedProject()
+    else pendingProjectRefresh = true
+  })
+})
+
+onIonViewWillEnter(() => {
+  detailViewActive = true
+  if (pendingProjectRefresh || store.currentProject?.id === projectId.value) {
+    pendingProjectRefresh = false
+    void refreshChangedProject()
+  }
+})
+onIonViewWillLeave(() => { detailViewActive = false })
 
 onBeforeUnmount(() => {
   store.cancelDetail()
+  stopDataChanges?.()
   window.removeEventListener('nfprogress:project-shortcut', handleProjectShortcut)
 })
 </script>
@@ -453,7 +494,7 @@ onBeforeUnmount(() => {
 <template>
   <IonPage>
     <IonContent :fullscreen="true" class="detail-content">
-      <div class="detail-workspace">
+      <div :key="detailAnimationVersion" class="detail-workspace">
         <RouterLink
           class="back-link"
           :to="isStageDetail ? { name: 'project-detail', params: { projectId } } : { name: 'projects' }"
@@ -506,7 +547,7 @@ onBeforeUnmount(() => {
               {{ hasConfiguredSync ? t('Синхронизировать сейчас') : t('Подключить источник') }}
             </button>
             <RouterLink
-              class="nf-button nf-button--secondary"
+              class="nf-button nf-button--secondary project-notes-button"
               :to="{
                 name: 'project-notes',
                 params: { projectId: project.id },
@@ -657,6 +698,7 @@ onBeforeUnmount(() => {
       v-if="store.currentProject"
       :open="stageDialogOpen"
       :project-unit="project.unit"
+      :planning-date="project.planning_date"
       :stage="editingStage"
       :shared-source="isSharedProject && !editingStage"
       :submitting="Boolean(store.detailOperation?.includes('stage'))"
@@ -677,6 +719,7 @@ onBeforeUnmount(() => {
 .detail-header h1 { max-width: 50rem; margin: 0; overflow-wrap: anywhere; color: var(--nf-color-text); font-family: var(--nf-font-serif); font-size: clamp(1.8rem, 3.5vw, 2.75rem); letter-spacing: -0.025em; line-height: 1.15; }
 .project-actions { display: flex; flex-wrap: wrap; gap: var(--nf-space-2); margin-top: var(--nf-space-5); }
 .project-sync-button { box-shadow: 0 8px 20px color-mix(in srgb, var(--nf-color-primary) 20%, transparent); }
+.project-notes-button { color: var(--nf-color-text); text-decoration: none; }
 .project-delete-button { margin-left: auto; border-color: color-mix(in srgb, var(--nf-color-danger) 35%, transparent); background: transparent; color: var(--nf-color-danger); }
 .project-delete-button:hover:not(:disabled) { background: color-mix(in srgb, var(--nf-color-danger) 10%, transparent); }
 .action-announcements { min-height: 1.25rem; margin-top: var(--nf-space-3); }

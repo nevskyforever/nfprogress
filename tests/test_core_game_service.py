@@ -68,6 +68,26 @@ def test_state_is_json_safe_and_contains_explicit_catalogs(game_context):
     assert state['shop']['categories']
 
 
+def test_state_finishes_an_expired_writing_session(game_context):
+    repository, service, _project, _stage = game_context
+    gamer = repository.read_gamer()
+    ok, _message = gamer.start_writing_session(
+        25, 1_000, 'Продолжить черновик', save=False,
+    )
+    assert ok is True
+    gamer.writing_session['started_at'] = game.get_session_now() - timedelta(minutes=26)
+    repository.write_gamer(gamer)
+
+    state = service.get_state()
+
+    assert state['writing_session']['active'] is None
+    assert state['writing_session']['history'][-1]['successful'] is False
+    assert any(
+        'Сессия завершена' in item['text']
+        for item in state['notifications']['unread']
+    )
+
+
 def test_notification_history_migrates_legacy_events_with_backup(game_context):
     repository, service, _project, _stage = game_context
     created_at = datetime(2026, 8, 15, 9, 30)

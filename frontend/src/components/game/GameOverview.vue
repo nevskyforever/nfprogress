@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 
 import { useLocaleStore } from '@/stores/locale'
 import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
@@ -15,6 +15,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   applyFreeze: [target: 'global' | 'project', projectId?: string]
+  effectsExpired: []
 }>()
 
 const locale = useLocaleStore()
@@ -32,6 +33,8 @@ const pendingBonuses = computed(() =>
 const freezeTarget = ref('global')
 const clock = ref(Date.now())
 let clockTimer: ReturnType<typeof setInterval> | undefined
+let expiredSignature = ''
+const serverOffset = ref(0)
 
 const selectedFreezeProject = computed(() =>
   props.streakFreezes.projects.find((project) => project.project_id === freezeTarget.value),
@@ -88,7 +91,7 @@ function remainingLabel(buff: GameBuffs['positive'][number]): string | null {
   const endsAt = buff.expires_at ? Date.parse(buff.expires_at) : Number.NaN
   const seconds = Number.isNaN(endsAt)
     ? Math.max(0, buff.remaining_seconds ?? 0)
-    : Math.max(0, Math.ceil((endsAt - clock.value) / 1_000))
+    : Math.max(0, Math.ceil((endsAt - (clock.value + serverOffset.value)) / 1_000))
   const hours = Math.floor(seconds / 3_600)
   const minutes = Math.floor((seconds % 3_600) / 60)
   const rest = seconds % 60
@@ -99,6 +102,21 @@ function remainingLabel(buff: GameBuffs['positive'][number]): string | null {
 
 onMounted(() => { clockTimer = setInterval(() => { clock.value = Date.now() }, 1_000) })
 onBeforeUnmount(() => clearInterval(clockTimer))
+watch(() => props.buffs.server_time, (serverTime) => {
+  const parsed = Date.parse(serverTime)
+  serverOffset.value = Number.isNaN(parsed) ? 0 : parsed - Date.now()
+  expiredSignature = ''
+}, { immediate: true })
+watch(clock, () => {
+  const expired = [...props.buffs.positive, ...props.buffs.negative]
+    .filter((buff) => buff.expires_at && Date.parse(buff.expires_at) <= clock.value + serverOffset.value)
+    .map((buff) => `${buff.name}:${buff.started_at}`)
+    .sort()
+    .join('|')
+  if (!expired || expired === expiredSignature) return
+  expiredSignature = expired
+  emit('effectsExpired')
+})
 </script>
 
 <template>

@@ -13,6 +13,7 @@ import {
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
+import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import StreakBadge from './StreakBadge.vue'
 import ProgressShareMenu from './ProgressShareMenu.vue'
 
@@ -138,8 +139,8 @@ function move(index: number, offset: -1 | 1): void {
                 {{ t('Завершён') }}
               </span>
               <p>
-                {{ locale.formatNumber(stage.total, fractionDigits) }} /
-                {{ stage.infinite || stage.goal === null ? t('Без лимита') : locale.formatNumber(stage.goal, fractionDigits) }}
+                <AnimatedNumber :value="stage.total" :digits="fractionDigits" /> /
+                <template v-if="stage.infinite || stage.goal === null">{{ t('Без лимита') }}</template><AnimatedNumber v-else :value="stage.goal" :digits="fractionDigits" />
               </p>
               <StreakBadge
                 v-if="showStageStreak(stage)"

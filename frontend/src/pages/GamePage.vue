@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
-import { IonContent, IonIcon, IonPage } from '@ionic/vue'
-import { alertCircleOutline, refreshOutline, sparklesOutline } from 'ionicons/icons'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { IonContent, IonPage, onIonViewWillEnter } from '@ionic/vue'
+import { alertCircleOutline, sparklesOutline } from 'ionicons/icons'
 
 import { apiErrorMessage } from '@/api/client'
 import { gameApi } from '@/api/game'
@@ -39,11 +39,28 @@ const notifications = useNotificationsStore()
 const t = locale.translate
 const state = ref<GameState | null>(null)
 const loading = ref(true)
-const refreshing = ref(false)
 const busy = ref(false)
 const error = ref('')
-const success = ref('')
-const tab = ref<GameTab>('overview')
+function readSavedGameTab(): string | null {
+  try {
+    return window.sessionStorage.getItem('nfprogress:game-tab')
+  } catch {
+    return null
+  }
+}
+
+function saveGameTab(value: GameTab): void {
+  try {
+    window.sessionStorage.setItem('nfprogress:game-tab', value)
+  } catch {
+    // View state persistence is optional in restricted browser contexts.
+  }
+}
+
+const savedGameTab = readSavedGameTab()
+const tab = ref<GameTab>([
+  'overview', 'sessions', 'challenges', 'items', 'growth', 'cabinet', 'economy',
+].includes(savedGameTab ?? '') ? savedGameTab as GameTab : 'overview')
 const bankPreview = ref<GameCommandResponse['result']>(null)
 const inventoryCategory = ref('')
 let stopDataChanges: (() => void) | undefined
@@ -51,6 +68,8 @@ let stateController: AbortController | undefined
 let preferencesController: AbortController | undefined
 let preferenceRequest = 0
 let inventoryPreferenceSaveChain: Promise<void> = Promise.resolve()
+let sessionCompletionTimer: ReturnType<typeof setTimeout> | undefined
+let effectsRefreshTimer: ReturnType<typeof setTimeout> | undefined
 
 const tabs: ReadonlyArray<{ key: GameTab; label: string }> = [
   { key: 'overview', label: 'Обзор' },
@@ -65,13 +84,56 @@ const tabs: ReadonlyArray<{ key: GameTab; label: string }> = [
 function applyState(nextState: GameState): void {
   state.value = nextState
   notifications.setGameHistory(nextState.notifications)
+  scheduleSessionCompletion(nextState)
+  scheduleEffectsRefresh(nextState)
 }
 
-async function loadState(showRefresh = false): Promise<void> {
+function serverClockDelay(serverTime: string, endsAt: string): number | null {
+  const server = Date.parse(serverTime)
+  const end = Date.parse(endsAt)
+  if (Number.isNaN(server) || Number.isNaN(end)) return null
+  return Math.max(0, end - server)
+}
+
+function finishExpiredSession(): void {
+  if (busy.value) {
+    sessionCompletionTimer = setTimeout(finishExpiredSession, 250)
+    return
+  }
+  void runCommand(() => gameApi.finishWritingSession())
+}
+
+function scheduleSessionCompletion(nextState: GameState): void {
+  clearTimeout(sessionCompletionTimer)
+  sessionCompletionTimer = undefined
+  const session = nextState.writing_session.active
+  if (!session) return
+  const delay = session.ends_at
+    ? serverClockDelay(nextState.writing_session.server_time, session.ends_at)
+    : session.remaining_seconds * 1_000
+  if (delay === null) return
+  sessionCompletionTimer = setTimeout(finishExpiredSession, delay + 50)
+}
+
+function scheduleEffectsRefresh(nextState: GameState): void {
+  clearTimeout(effectsRefreshTimer)
+  effectsRefreshTimer = undefined
+  const delays = [...nextState.buffs.positive, ...nextState.buffs.negative]
+    .map((effect) => effect.expires_at
+      ? serverClockDelay(nextState.buffs.server_time, effect.expires_at)
+      : null)
+    .filter((delay): delay is number => delay !== null)
+  if (!delays.length) return
+  effectsRefreshTimer = setTimeout(
+    () => { void loadState() },
+    Math.min(Math.min(...delays) + 50, 2_147_000_000),
+  )
+}
+
+async function loadState(): Promise<void> {
   stateController?.abort()
   stateController = new AbortController()
-  if (showRefresh) refreshing.value = true
-  else if (!state.value) loading.value = true
+  if (!state.value) loading.value = true
   error.value = ''
   try {
     applyState(await gameApi.state(stateController.signal))
@@ -80,7 +142,6 @@ async function loadState(showRefresh = false): Promise<void> {
     error.value = apiErrorMessage(caught)
   } finally {
     loading.value = false
-    refreshing.value = false
   }
 }
 
@@ -127,17 +188,16 @@ async function runCommand(
   if (busy.value) return
   busy.value = true
   error.value = ''
-  success.value = ''
   try {
     const response = await action()
     applyState(response.state)
     announceDataChange('game')
     bankPreview.value = options.capturePreview ? response.result : null
-    success.value =
+    const message =
       response.messages.filter(Boolean).join(' ') ||
       response.message ||
       t(options.fallbackMessage ?? 'Изменения сохранены.')
-    notifications.success(success.value)
+    notifications.success(message)
   } catch (caught) {
     error.value = apiErrorMessage(caught)
     notifications.error(error.value)
@@ -184,7 +244,13 @@ onMounted(() => {
     if (scope === 'projects') void loadState()
   })
 })
+onIonViewWillEnter(() => {
+  if (state.value) void loadState()
+})
+watch(tab, (value) => saveGameTab(value))
 onBeforeUnmount(() => {
+  clearTimeout(sessionCompletionTimer)
+  clearTimeout(effectsRefreshTimer)
   stateController?.abort()
   preferencesController?.abort()
   stopDataChanges?.()
@@ -203,15 +269,6 @@ onBeforeUnmount(() => {
               {{ t('Развивайте писательский ритм, а все награды доверяйте правилам nfprogress.') }}
             </p>
           </div>
-          <button
-            class="nf-button nf-button--secondary"
-            type="button"
-            :disabled="loading || refreshing || busy"
-            @click="loadState(true)"
-          >
-            <IonIcon :icon="refreshOutline" aria-hidden="true" />
-            {{ refreshing ? t('Обновляем') : t('Обновить') }}
-          </button>
         </header>
 
         <StatePanel
@@ -238,11 +295,7 @@ onBeforeUnmount(() => {
         />
 
         <template v-else-if="state">
-          <div class="command-feedback" aria-live="polite" aria-atomic="true">
-            <p v-if="error" class="feedback feedback--error">{{ error }}</p>
-            <p v-else-if="success" class="feedback feedback--success">{{ success }}</p>
-            <p v-else-if="busy" class="feedback">{{ t('Применяем изменение…') }}</p>
-          </div>
+          <p v-if="error" class="feedback feedback--error" role="alert">{{ error }}</p>
 
           <nav class="game-tabs" role="tablist" :aria-label="t('Разделы игрового режима')">
             <button
@@ -275,6 +328,7 @@ onBeforeUnmount(() => {
               :streak-freezes="state.streak_freezes"
               :busy="busy"
               @apply-freeze="applyFreeze"
+              @effects-expired="loadState"
             />
 
             <WritingSessionPanel
