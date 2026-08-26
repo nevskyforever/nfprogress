@@ -52,6 +52,11 @@ if [ ! -x "$SIDECAR_PATH" ]; then
   SIDECAR_REBUILD=1
 else
   if [ "$SIDECAR_REBUILD" = "0" ] \
+    && find "$ROOT_DIR" -maxdepth 1 -type f -name '*.py' \
+      -newer "$SIDECAR_PATH" -print -quit | grep -q .; then
+    SIDECAR_REBUILD=1
+  fi
+  if [ "$SIDECAR_REBUILD" = "0" ] \
     && find "$ROOT_DIR/backend" "$ROOT_DIR/nfprogress" -type f -name '*.py' \
       -newer "$SIDECAR_PATH" -print -quit | grep -q .; then
     SIDECAR_REBUILD=1

@@ -416,6 +416,22 @@ def test_specialization_ability_rejects_use_during_cooldown(monkeypatch):
     assert 'восстанавливается' in message
 
 
+def test_specialization_ability_normalizes_legacy_timezone_timestamp(monkeypatch):
+    gamer = make_gamer(monkeypatch)
+    gamer.specialization = 'ritualist'
+    current = datetime(2026, 8, 27, 12, 0)
+    monkeypatch.setattr(game, 'get_effective_now', lambda: current)
+    local_timezone = datetime.now().astimezone().tzinfo
+    gamer.specialization_ability_ready_at = {
+        'ritualist': (current + timedelta(hours=1)).replace(tzinfo=local_timezone).isoformat(),
+    }
+
+    gamer.normalize_motivation()
+
+    assert gamer.specialization_ability_remaining_seconds() == 3600
+    assert '+' not in gamer.specialization_ability_ready_at['ritualist']
+
+
 def test_marathoner_rewards_large_entries(monkeypatch):
     gamer = make_gamer(monkeypatch)
     gamer.specialization = 'marathoner'

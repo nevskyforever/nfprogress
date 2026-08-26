@@ -551,6 +551,17 @@ def get_effective_now():
     return engine.now_for_test()
 
 
+def _parse_effective_datetime(value):
+    """Read a persisted timestamp in the naive local-time format used by the game."""
+    try:
+        parsed = datetime.fromisoformat(str(value))
+    except (TypeError, ValueError):
+        return None
+    if parsed.tzinfo is not None:
+        parsed = parsed.astimezone().replace(tzinfo=None)
+    return parsed
+
+
 def get_session_now():
     """Возвращает реальное время для живого таймера писательской сессии."""
     return datetime.now()
@@ -1141,11 +1152,14 @@ class Gamer:
         raw_ready_at = getattr(self, 'specialization_ability_ready_at', {})
         if not isinstance(raw_ready_at, dict):
             raw_ready_at = {}
-        self.specialization_ability_ready_at = {
-            key: str(value)
-            for key, value in raw_ready_at.items()
-            if key in SPECIALIZATIONS and value
-        }
+        normalized_ready_at = {}
+        for key, value in raw_ready_at.items():
+            if key not in SPECIALIZATIONS or not value:
+                continue
+            ready_at = _parse_effective_datetime(value)
+            if ready_at is not None:
+                normalized_ready_at[key] = ready_at.isoformat()
+        self.specialization_ability_ready_at = normalized_ready_at
         raw_effects = getattr(self, 'specialization_ability_effects', {})
         if not isinstance(raw_effects, dict):
             raw_effects = {}
@@ -1268,12 +1282,14 @@ class Gamer:
         ready_at = self.specialization_ability_ready_at.get(specialization_key)
         if not ready_at:
             return 0
-        try:
-            ready_at = datetime.fromisoformat(str(ready_at))
-        except (TypeError, ValueError):
+        ready_at = _parse_effective_datetime(ready_at)
+        if ready_at is None:
             self.specialization_ability_ready_at.pop(specialization_key, None)
             return 0
-        return max(0, math.ceil((ready_at - get_effective_now()).total_seconds()))
+        current_time = _parse_effective_datetime(get_effective_now())
+        if current_time is None:
+            current_time = datetime.now()
+        return max(0, math.ceil((ready_at - current_time).total_seconds()))
 
     def activate_specialization_ability(self, save=True):
         self.normalize_motivation()
@@ -1303,7 +1319,10 @@ class Gamer:
         else:
             self.specialization_ability_effects[specialization] = True
 
-        ready_at = get_effective_now() + timedelta(
+        current_time = _parse_effective_datetime(get_effective_now())
+        if current_time is None:
+            current_time = datetime.now()
+        ready_at = current_time + timedelta(
             hours=SPECIALIZATION_ABILITY_COOLDOWN_HOURS
         )
         self.specialization_ability_ready_at[specialization] = ready_at.isoformat()
