@@ -64,6 +64,7 @@ class SettingsService:
         if self.platform == 'desktop':
             values.setdefault('background_synch', True)
         return {
+            'version': engine.version,
             'values': to_json_safe(values),
             'platform': self.platform,
             'capabilities': {

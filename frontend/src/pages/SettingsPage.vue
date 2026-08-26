@@ -6,6 +6,7 @@ import {
   checkmarkCircleOutline,
   cloudOutline,
   desktopOutline,
+  logoGithub,
   refreshOutline,
   settingsOutline,
 } from 'ionicons/icons'
@@ -394,6 +395,19 @@ onBeforeUnmount(() => controller.abort())
                 {{ saving ? t('Сохраняем…') : t('Сохранить настройки') }}
               </button>
             </footer>
+
+            <div class="settings-app-meta">
+              <span>{{ t('Версия приложения') }} {{ response?.version ?? '5.0' }}</span>
+              <a
+                class="nf-button nf-button--secondary settings-repository-link"
+                href="https://github.com/nevskyforever/nfprogress"
+                target="_blank"
+                rel="noopener noreferrer"
+                :aria-label="t('Открыть репозиторий nfprogress на GitHub')"
+              >
+                <IonIcon :icon="logoGithub" aria-hidden="true" />
+              </a>
+            </div>
           </div>
         </form>
       </main>
@@ -617,6 +631,21 @@ onBeforeUnmount(() => controller.abort())
   margin: 0;
   color: var(--nf-color-text-muted);
   font-size: 0.85rem;
+}
+
+.settings-app-meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--nf-space-3);
+  margin-top: var(--nf-space-6);
+  color: var(--nf-color-text-muted);
+  font-size: 0.8rem;
+}
+
+.settings-repository-link {
+  min-width: 2.25rem;
+  padding: var(--nf-space-2);
 }
 
 @media (max-width: 52rem) {

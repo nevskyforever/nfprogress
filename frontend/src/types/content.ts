@@ -55,6 +55,7 @@ export interface PlatformCapabilities {
 
 export interface SettingsResponse {
   values: SettingsValues
+  version?: string
   platform: BackendPlatform
   capabilities: PlatformCapabilities
   editable_keys: SettingKey[]

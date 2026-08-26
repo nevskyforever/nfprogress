@@ -58,6 +58,7 @@ class SettingsResponse(ResponseModel):
     # transition. Values are still constrained to the JSON boundary while the
     # stable response envelope remains explicit in OpenAPI.
     values: dict[str, JsonValue]
+    version: str | None = None
     platform: BackendPlatform
     capabilities: PlatformCapabilitiesResponse
     editable_keys: list[EditableSettingKey]

@@ -349,6 +349,7 @@ watchEffect(() => {
 
 :deep(.sidebar-global-streak) {
   width: 100%;
+  margin-top: var(--nf-space-4);
   border-radius: var(--nf-radius-md);
   grid-template-columns: auto minmax(0, 1fr);
   grid-template-rows: auto auto auto;
