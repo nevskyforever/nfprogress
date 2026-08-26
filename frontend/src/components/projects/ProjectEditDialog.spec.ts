@@ -39,6 +39,28 @@ describe('ProjectEditDialog', () => {
       .toBe('2026-08-31')
   })
 
+  it('recalculates the deadline for a project that already has stages', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-26T12:00:00'))
+    const stage = projectFixture({ id: 'stage-1', name: 'Черновик' })
+    const wrapper = mount(ProjectEditDialog, {
+      props: {
+        open: true,
+        project: projectFixture({
+          goal: 2_000, total: 400, personal_goal: 200,
+          plan_daily_goal: 200, today_goal: 600, deadline: '2026-09-02',
+          stages_enabled: true, stages: [stage],
+        }),
+      },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    await wrapper.get('#edit-project-personal-goal').setValue('300')
+
+    expect((wrapper.get('#edit-project-deadline').element as HTMLInputElement).value)
+      .toBe('2026-08-31')
+  })
+
   it('converts values and recalculates the plan when the unit changes', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(new Date('2026-08-26T12:00:00'))

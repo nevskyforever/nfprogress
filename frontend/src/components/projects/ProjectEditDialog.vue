@@ -84,7 +84,7 @@ function numberFrom(value: string | number): number {
 }
 
 function updateDailyGoal(): void {
-  if (form.infinite || props.project.stages.length) return
+  if (form.infinite) return
   const addedToday = convertProjectUnit(
     props.project.added_today, props.project.unit, form.unit,
   )
@@ -100,7 +100,7 @@ function planValue(value: number | null): number | null {
 }
 
 function updateDeadline(): void {
-  if (form.infinite || props.project.stages.length) return
+  if (form.infinite) return
   const deadline = automaticEditedDeadline({
     goal: numberFrom(form.goal),
     total: numberFrom(form.total),
