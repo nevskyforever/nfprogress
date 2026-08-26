@@ -28,6 +28,7 @@ import ProgressShareMenu from '@/components/projects/ProgressShareMenu.vue'
 import StageDialog from '@/components/projects/StageDialog.vue'
 import StreakBadge from '@/components/projects/StreakBadge.vue'
 import StageWorkspace from '@/components/projects/StageWorkspace.vue'
+import type { StageSort } from '@/components/projects/StageWorkspace.vue'
 import StatisticsWorkspace from '@/components/projects/StatisticsWorkspace.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import ProgressBar from '@/components/ui/ProgressBar.vue'
@@ -81,6 +82,8 @@ const isStageDetail = computed(() => openedStage.value !== null)
 const presentation = useProjectPresentation(detailEntity)
 const isSharedProject = computed(() => project.value.name === 'Общий проект')
 const streaksEnabled = ref(false)
+const stageSort = ref<StageSort>('progress')
+let stageSortSaveChain: Promise<void> = Promise.resolve()
 const globalStreak = ref<GlobalStreakSummary | null>(null)
 const displayedStreakEntity = computed<Project | null>(() => {
   if (!streaksEnabled.value || !store.currentProject) return null
@@ -184,6 +187,13 @@ async function loadStreakSummaries(): Promise<void> {
   try {
     const settings = await settingsApi.get()
     streaksEnabled.value = enabledSetting(settings.values.global_streak)
+    const savedStageSort = settings.values.frontend_stage_sort
+    if (
+      savedStageSort === 'name'
+      || savedStageSort === 'deadline'
+      || savedStageSort === 'progress'
+      || savedStageSort === 'updated'
+    ) stageSort.value = savedStageSort
     globalStreak.value = streaksEnabled.value
       ? await projectsApi.globalStreak()
       : null
@@ -191,6 +201,14 @@ async function loadStreakSummaries(): Promise<void> {
     streaksEnabled.value = false
     globalStreak.value = null
   }
+}
+
+function saveStageSort(value: StageSort): void {
+  stageSort.value = value
+  stageSortSaveChain = stageSortSaveChain
+    .then(() => settingsApi.update({ frontend_stage_sort: value }))
+    .then(() => undefined)
+    .catch(() => undefined)
 }
 
 async function loadSyncSummary(): Promise<void> {
@@ -669,6 +687,7 @@ onBeforeUnmount(() => {
             :busy="store.detailBusy"
             :sharing="sharingProgress"
             :streaks-enabled="streaksEnabled"
+            :stage-sort="stageSort"
             @add="openStageCreate"
             @edit="openStageEdit"
             @remove="removeStage"
@@ -677,6 +696,7 @@ onBeforeUnmount(() => {
             @copy="copyStageProgress"
             @save="downloadStageProgress"
             @open="openStage"
+            @sort="saveStageSort"
           />
           <StatisticsWorkspace
             v-model:entity-id="statisticsEntityId"

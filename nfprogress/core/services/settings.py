@@ -30,6 +30,7 @@ DESKTOP_KEYS = frozenset({
 UI_STATE_KEYS = frozenset({
     'frontend_project_filter',
     'frontend_project_sort',
+    'frontend_stage_sort',
     'inventory_filter',
     'project_filter',
     'project_sort',
@@ -45,6 +46,7 @@ PROJECT_FILTERS = frozenset({'Активен', 'В архиве', 'Заверш�
 PROJECT_SORTS = frozenset({'Название', 'Дедлайн', 'Прогресс'})
 FRONTEND_PROJECT_FILTERS = frozenset({'all', 'активен', 'в архиве', 'завершен'})
 FRONTEND_PROJECT_SORTS = frozenset({'name', 'deadline', 'progress', 'updated'})
+FRONTEND_STAGE_SORTS = frozenset({'name', 'deadline', 'progress', 'updated'})
 
 
 class SettingsService:
@@ -232,6 +234,11 @@ class SettingsService:
                 and patch['frontend_project_sort'] not in FRONTEND_PROJECT_SORTS
         ):
             raise ValidationError('Неизвестная сортировка проектов для нового интерфейса.')
+        if (
+                'frontend_stage_sort' in patch
+                and patch['frontend_stage_sort'] not in FRONTEND_STAGE_SORTS
+        ):
+            raise ValidationError('Неизвестная сортировка этапов для нового интерфейса.')
         if 'inventory_filter' in patch:
             value = patch['inventory_filter']
             if not isinstance(value, str) or not value.strip() or len(value) > 100:

@@ -808,7 +808,6 @@ class ProjectService:
                 and streaks
                 and not has_today_streak
                 and not deadline_is_removed
-                and not engine.dev_mode
         ):
             raise ValidationError(
                 'Нельзя уменьшить цель на день, пока не выполнена текущая.',
@@ -818,7 +817,6 @@ class ProjectService:
         requires_confirmation = (
             personal_goal > old_goal
             and bool(settings.get('global_streak', False))
-            and not engine.dev_mode
         )
         if requires_confirmation and not payload.get('confirm_daily_goal_increase', False):
             raise ValidationError(

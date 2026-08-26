@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { IonIcon } from '@ionic/vue'
 import {
   addOutline,
@@ -17,16 +17,18 @@ import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import StreakBadge from './StreakBadge.vue'
 import ProgressShareMenu from './ProgressShareMenu.vue'
 
-type StageSort = 'progress' | 'updated' | 'deadline' | 'name'
+export type StageSort = 'progress' | 'updated' | 'deadline' | 'name'
 
 const props = withDefaults(defineProps<{
   project: Project
   busy: boolean
   sharing?: boolean
   streaksEnabled?: boolean
+  stageSort?: StageSort
 }>(), {
   sharing: false,
   streaksEnabled: false,
+  stageSort: 'progress',
 })
 
 const emit = defineEmits<{
@@ -38,6 +40,7 @@ const emit = defineEmits<{
   copy: [stage: Project]
   save: [stage: Project]
   open: [stage: Project]
+  sort: [sort: StageSort]
 }>()
 
 const locale = useLocaleStore()
@@ -45,7 +48,7 @@ const t = locale.translate
 const readOnly = computed(() => props.project.status === 'завершен')
 const sharedProject = computed(() => props.project.name === 'Общий проект')
 const fractionDigits = computed(() => (props.project.unit === 'symbols' ? 0 : 2))
-const sort = ref<StageSort>('progress')
+const sort = ref<StageSort>(props.stageSort)
 const sortedStages = computed(() => [...props.project.stages].sort((left, right) => {
   if (sort.value === 'name') return left.name.localeCompare(right.name, locale.localeTag)
   if (sort.value === 'progress') return right.progress - left.progress
@@ -91,6 +94,11 @@ function move(index: number, offset: -1 | 1): void {
   ids[target] = currentId
   emit('reorder', ids)
 }
+
+watch(() => props.stageSort, (value) => {
+  if (value !== sort.value) sort.value = value
+})
+watch(sort, (value) => emit('sort', value))
 </script>
 
 <template>

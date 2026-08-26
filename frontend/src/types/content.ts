@@ -16,6 +16,7 @@ export type SettingKey =
   | 'frontend_motion'
   | 'frontend_project_filter'
   | 'frontend_project_sort'
+  | 'frontend_stage_sort'
   | 'background_synch'
   | 'check_updates'
   | 'inventory_filter'
@@ -34,6 +35,7 @@ export interface SettingsValues {
   frontend_motion?: FrontendMotion
   frontend_project_filter?: 'all' | 'активен' | 'в архиве' | 'завершен'
   frontend_project_sort?: 'name' | 'deadline' | 'progress' | 'updated'
+  frontend_stage_sort?: 'name' | 'deadline' | 'progress' | 'updated'
   background_synch?: boolean
   check_updates?: boolean
   inventory_filter?: string
