@@ -51,8 +51,6 @@ const form = reactive({
   personalGoal: '0',
   infinite: false,
   stagesEnabled: false,
-  streakEnabled: false,
-  autoFreeze: true,
 })
 
 function reset(): void {
@@ -66,8 +64,6 @@ function reset(): void {
   form.personalGoal = '0'
   form.infinite = false
   form.stagesEnabled = false
-  form.streakEnabled = false
-  form.autoFreeze = true
   validationErrors.value = []
 }
 
@@ -176,8 +172,6 @@ async function submit(): Promise<void> {
     total,
     deadline: form.noDeadline ? null : (form.deadline || null),
     personal_goal: personalGoal,
-    streak_enabled: form.streakEnabled,
-    auto_freeze: form.autoFreeze,
     stages_enabled: form.stagesEnabled,
     stages: [],
     combine_stage_mindmaps: false,
@@ -344,20 +338,6 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
             <span>
               <strong>{{ t('Проект с этапами') }}</strong>
               <small>{{ t('Текущая цель и прогресс перейдут в первый этап') }}</small>
-            </span>
-          </label>
-          <label class="check-field">
-            <input v-model="form.streakEnabled" name="streak_enabled" type="checkbox" />
-            <span>
-              <strong>{{ t('Отслеживать серию') }}</strong>
-              <small>{{ t('Поддерживать ежедневный ритм работы') }}</small>
-            </span>
-          </label>
-          <label v-if="form.streakEnabled" class="check-field check-field--nested">
-            <input v-model="form.autoFreeze" name="auto_freeze" type="checkbox" />
-            <span>
-              <strong>{{ t('Использовать заморозку автоматически') }}</strong>
-              <small>{{ t('Если дневная цель не выполнена') }}</small>
             </span>
           </label>
         </div>

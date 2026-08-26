@@ -60,8 +60,6 @@ const form = reactive({
   noDeadline: false,
   personalGoal: '0',
   infinite: false,
-  streakEnabled: false,
-  autoFreeze: true,
   recalculatePlan: false,
 })
 
@@ -82,8 +80,6 @@ function fill(): void {
   // Stages without a deadline cannot have a personal daily plan, as in legacy.
   form.personalGoal = form.noDeadline ? '0' : String(props.stage?.personal_goal ?? 0)
   form.infinite = props.sharedSource || (props.stage?.infinite ?? false)
-  form.streakEnabled = props.stage?.streak_enabled ?? false
-  form.autoFreeze = props.stage?.auto_freeze ?? true
   form.recalculatePlan = false
   validationErrors.value = []
 }
@@ -225,8 +221,6 @@ async function submit(): Promise<void> {
         update.confirm_daily_goal_increase = true
       }
     }
-    if (form.streakEnabled !== props.stage.streak_enabled) update.streak_enabled = form.streakEnabled
-    if (form.autoFreeze !== props.stage.auto_freeze) update.auto_freeze = form.autoFreeze
     if (form.recalculatePlan && canRecalculatePlan.value) update.recalculate_plan = true
     payload = update
   } else {
@@ -235,8 +229,6 @@ async function submit(): Promise<void> {
       infinite: props.sharedSource || form.infinite,
       deadline: props.sharedSource || form.noDeadline ? null : (form.deadline || null),
       personal_goal: props.sharedSource ? 0 : personalGoal,
-      streak_enabled: props.sharedSource ? false : form.streakEnabled,
-      auto_freeze: props.sharedSource ? true : form.autoFreeze,
       total: props.sharedSource ? 0 : total,
       ...((props.sharedSource || form.infinite) ? {} : { goal }),
     }
@@ -370,14 +362,6 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
           <label class="workspace-check">
             <input v-model="form.infinite" type="checkbox" @change="toggleInfinite" />
             <span><strong>{{ t('Этап без конечной цели') }}</strong></span>
-          </label>
-          <label class="workspace-check">
-            <input v-model="form.streakEnabled" type="checkbox" />
-            <span><strong>{{ t('Отслеживать серию') }}</strong></span>
-          </label>
-          <label v-if="form.streakEnabled" class="workspace-check">
-            <input v-model="form.autoFreeze" type="checkbox" />
-            <span><strong>{{ t('Использовать заморозку автоматически') }}</strong></span>
           </label>
           <label v-if="canRecalculatePlan" class="workspace-check">
             <input v-model="form.recalculatePlan" type="checkbox" @change="updateDeadline" />

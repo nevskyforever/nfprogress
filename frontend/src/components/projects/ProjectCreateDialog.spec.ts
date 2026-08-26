@@ -41,6 +41,16 @@ describe('ProjectCreateDialog', () => {
     await wrapper.get('input[name="no_deadline"]').setValue(false)
     expect((wrapper.get('#project-deadline').element as HTMLInputElement).disabled).toBe(false)
   })
+
+  it('keeps streak controls in global settings instead of the project form', () => {
+    const wrapper = mount(ProjectCreateDialog, {
+      props: { open: true }, global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    expect(wrapper.text()).not.toContain('Отслеживать серию')
+    expect(wrapper.text()).not.toContain('Использовать заморозку автоматически')
+  })
+
   it('emits a typed finite-project payload from the form', async () => {
     const wrapper = mount(ProjectCreateDialog, {
       props: { open: true },

@@ -47,8 +47,6 @@ const form = reactive({
   personalGoal: '',
   infinite: false,
   stagesEnabled: false,
-  streakEnabled: false,
-  autoFreeze: true,
   combineStageMindmaps: false,
   recalculatePlan: false,
 })
@@ -77,8 +75,6 @@ function fill(): void {
   form.personalGoal = form.noDeadline ? '0' : String(project.personal_goal)
   form.infinite = project.infinite
   form.stagesEnabled = project.stages_enabled
-  form.streakEnabled = project.streak_enabled
-  form.autoFreeze = project.auto_freeze
   form.combineStageMindmaps = project.combine_stage_mindmaps
   form.recalculatePlan = false
   validationErrors.value = []
@@ -243,8 +239,6 @@ async function submit(): Promise<void> {
     payload.personal_goal = personalGoal
     if (dailyGoalIncreased) payload.confirm_daily_goal_increase = true
   }
-  if (form.streakEnabled !== props.project.streak_enabled) payload.streak_enabled = form.streakEnabled
-  if (form.autoFreeze !== props.project.auto_freeze) payload.auto_freeze = form.autoFreeze
   if (form.stagesEnabled !== props.project.stages_enabled) payload.stages_enabled = form.stagesEnabled
   if (
     form.stagesEnabled
@@ -397,14 +391,6 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
           <label class="workspace-check">
             <input v-model="form.stagesEnabled" type="checkbox" />
             <span><strong>{{ t('Проект с этапами') }}</strong></span>
-          </label>
-          <label class="workspace-check">
-            <input v-model="form.streakEnabled" type="checkbox" />
-            <span><strong>{{ t('Отслеживать серию') }}</strong></span>
-          </label>
-          <label v-if="form.streakEnabled" class="workspace-check">
-            <input v-model="form.autoFreeze" type="checkbox" />
-            <span><strong>{{ t('Использовать заморозку автоматически') }}</strong></span>
           </label>
           <label v-if="form.stagesEnabled" class="workspace-check">
             <input v-model="form.combineStageMindmaps" type="checkbox" />
