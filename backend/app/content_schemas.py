@@ -11,6 +11,7 @@ EditableSettingKey = Literal[
     'background_synch',
     'frontend_project_filter',
     'frontend_project_sort',
+    'frontend_stage_sort',
     'frontend_motion',
     'frontend_theme',
     'game_mode',

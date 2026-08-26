@@ -3,7 +3,8 @@
 set -euo pipefail
 
 ARCH="${1:-}"
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 PYTHON_BIN="${NFPROGRESS_TAURI_PYTHON:-python3}"
 PYTHON_ARCH="${NFPROGRESS_TAURI_PYTHON_ARCH:-}"

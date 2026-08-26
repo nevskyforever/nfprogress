@@ -3,7 +3,8 @@
 set -euo pipefail
 
 # Resolve paths from this file, never from the caller's current directory.
-SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
+SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$SCRIPT_DIR"
 
 MODE=""
