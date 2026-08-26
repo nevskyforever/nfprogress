@@ -43,6 +43,10 @@ async def _desktop_sync_loop(services: Services) -> None:
     was_enabled = False
     while True:
         try:
+            # Day boundaries must be processed even when no document source is
+            # configured. This applies automatic local/global freezes and keeps
+            # both streak displays current in a running desktop application.
+            await asyncio.to_thread(services.projects.refresh_streak_statuses)
             enabled, current_day = await asyncio.to_thread(
                 _desktop_sync_state, services,
             )

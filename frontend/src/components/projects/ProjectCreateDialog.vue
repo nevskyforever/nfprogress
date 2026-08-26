@@ -37,6 +37,7 @@ const t = locale.translate
 const validationErrors = ref<string[]>([])
 const errorSummary = ref<HTMLElement | null>(null)
 const sourceUnit = ref<UnitCode>('symbols')
+const planningUpdateInProgress = ref(false)
 const minimumDeadline = computed(() => props.planningDate ?? todayIsoDate())
 const calculationDate = computed(() => parsePlanningDate(props.planningDate))
 
@@ -73,21 +74,31 @@ function numberFrom(value: string | number): number {
 }
 
 function updateDailyGoal(): void {
-  if (form.infinite) return
+  if (planningUpdateInProgress.value || form.infinite) return
+  planningUpdateInProgress.value = true
+  try {
   const dailyGoal = automaticDailyGoal(
     numberFrom(form.goal), numberFrom(form.total), form.deadline, form.unit,
     calculationDate.value,
   )
   if (dailyGoal !== null) form.personalGoal = String(dailyGoal)
+  } finally {
+    planningUpdateInProgress.value = false
+  }
 }
 
 function updateDeadline(): void {
-  if (form.infinite) return
+  if (planningUpdateInProgress.value || form.infinite) return
+  planningUpdateInProgress.value = true
+  try {
   const deadline = automaticDeadline(
     numberFrom(form.goal), numberFrom(form.total), numberFrom(form.personalGoal),
     calculationDate.value,
   )
   if (deadline !== null) form.deadline = deadline
+  } finally {
+    planningUpdateInProgress.value = false
+  }
 }
 
 function updatePlanFromAmount(): void {
@@ -99,10 +110,15 @@ function updateUnit(): void {
   const oldUnit = sourceUnit.value
   const newUnit = form.unit
   if (oldUnit === newUnit) return
-  form.goal = String(convertProjectUnit(numberFrom(form.goal), oldUnit, newUnit))
-  form.total = String(convertProjectUnit(numberFrom(form.total), oldUnit, newUnit))
-  form.personalGoal = String(convertProjectUnit(numberFrom(form.personalGoal), oldUnit, newUnit))
-  sourceUnit.value = newUnit
+  planningUpdateInProgress.value = true
+  try {
+    form.goal = String(convertProjectUnit(numberFrom(form.goal), oldUnit, newUnit))
+    form.total = String(convertProjectUnit(numberFrom(form.total), oldUnit, newUnit))
+    form.personalGoal = String(convertProjectUnit(numberFrom(form.personalGoal), oldUnit, newUnit))
+    sourceUnit.value = newUnit
+  } finally {
+    planningUpdateInProgress.value = false
+  }
   if (form.deadline) updateDailyGoal()
 }
 
@@ -167,6 +183,11 @@ watch(
     if (open) reset()
   },
 )
+
+watch(() => form.deadline, updateDailyGoal, { flush: 'sync' })
+watch(() => form.personalGoal, updateDeadline, { flush: 'sync' })
+watch(() => form.goal, updatePlanFromAmount, { flush: 'sync' })
+watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
 </script>
 
 <template>
@@ -238,7 +259,7 @@ watch(
 
         <label class="form-field" for="project-deadline">
           <span>{{ t('Срок') }} <small>{{ t('необязательно') }}</small></span>
-          <input id="project-deadline" v-model="form.deadline" name="deadline" type="date" :min="minimumDeadline" :disabled="form.infinite" @input="updateDailyGoal" />
+          <input id="project-deadline" v-model="form.deadline" name="deadline" type="date" :min="minimumDeadline" :disabled="form.infinite" />
         </label>
 
         <label class="form-field" for="project-total">
@@ -251,7 +272,6 @@ watch(
             inputmode="decimal"
             min="0"
             step="any"
-            @input="updatePlanFromAmount"
           />
         </label>
 
@@ -266,7 +286,6 @@ watch(
             min="0"
             step="any"
             :disabled="form.infinite"
-            @input="updatePlanFromAmount"
           />
         </label>
 
@@ -281,7 +300,6 @@ watch(
             min="0"
             step="any"
             :disabled="form.infinite"
-            @input="updateDeadline"
           />
         </label>
 

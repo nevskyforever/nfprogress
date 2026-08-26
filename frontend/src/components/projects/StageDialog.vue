@@ -42,6 +42,7 @@ const locale = useLocaleStore()
 const t = locale.translate
 const validationErrors = ref<string[]>([])
 const errorSummary = ref<HTMLElement | null>(null)
+const planningUpdateInProgress = ref(false)
 const effectivePlanningDate = computed(() => props.stage?.planning_date ?? props.planningDate)
 const minimumDeadline = computed(() => effectivePlanningDate.value ?? todayIsoDate())
 const calculationDate = computed(() => parsePlanningDate(effectivePlanningDate.value))
@@ -89,16 +90,23 @@ function numberFrom(value: string | number): number {
 }
 
 function updateDailyGoal(): void {
-  if (form.infinite || props.sharedSource) return
+  if (planningUpdateInProgress.value || form.infinite || props.sharedSource) return
+  planningUpdateInProgress.value = true
+  try {
   const dailyGoal = automaticDailyGoal(
     numberFrom(form.goal), numberFrom(form.total), form.deadline, props.projectUnit,
     calculationDate.value, props.stage?.added_today ?? 0,
   )
   if (dailyGoal !== null) form.personalGoal = String(dailyGoal)
+  } finally {
+    planningUpdateInProgress.value = false
+  }
 }
 
 function updateDeadline(): void {
-  if (form.infinite || props.sharedSource) return
+  if (planningUpdateInProgress.value || form.infinite || props.sharedSource) return
+  planningUpdateInProgress.value = true
+  try {
   const deadline = props.stage
     ? automaticEditedDeadline({
       goal: numberFrom(form.goal),
@@ -112,8 +120,11 @@ function updateDeadline(): void {
     : automaticDeadline(
       numberFrom(form.goal), numberFrom(form.total), numberFrom(form.personalGoal),
       calculationDate.value,
-    )
+  )
   if (deadline !== null) form.deadline = deadline
+  } finally {
+    planningUpdateInProgress.value = false
+  }
 }
 
 function updatePlanFromTotal(): void {
@@ -218,6 +229,12 @@ watch(
   },
   { immediate: true },
 )
+
+watch(() => form.deadline, updateDailyGoal, { flush: 'sync' })
+watch(() => form.personalGoal, updateDeadline, { flush: 'sync' })
+watch(() => form.goal, updatePlanFromGoal, { flush: 'sync' })
+watch(() => form.total, updatePlanFromTotal, { flush: 'sync' })
+watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
 </script>
 
 <template>
@@ -275,7 +292,6 @@ watch(
             step="any"
             inputmode="decimal"
             :disabled="form.infinite"
-            @input="updatePlanFromGoal"
           />
         </label>
         <label v-if="!sharedSource" class="workspace-field" for="stage-total">
@@ -287,12 +303,11 @@ watch(
             min="0"
             step="any"
             inputmode="decimal"
-            @input="updatePlanFromTotal"
           />
         </label>
         <label v-if="!sharedSource" class="workspace-field" for="stage-deadline">
           <span>{{ t('Срок') }}</span>
-          <input id="stage-deadline" v-model="form.deadline" type="date" :min="minimumDeadline" :disabled="form.infinite" @input="updateDailyGoal" />
+          <input id="stage-deadline" v-model="form.deadline" type="date" :min="minimumDeadline" :disabled="form.infinite" />
         </label>
         <label v-if="!sharedSource" class="workspace-field" for="stage-personal-goal">
           <span>{{ t('Цель на день') }}</span>
@@ -304,7 +319,6 @@ watch(
             step="any"
             inputmode="decimal"
             :disabled="form.infinite"
-            @input="updateDeadline"
           />
         </label>
         <p class="stage-unit-note">
@@ -325,7 +339,7 @@ watch(
             <span><strong>{{ t('Использовать заморозку автоматически') }}</strong></span>
           </label>
           <label v-if="canRecalculatePlan" class="workspace-check">
-            <input v-model="form.recalculatePlan" type="checkbox" @change="updateDeadline" />
+            <input v-model="form.recalculatePlan" type="checkbox" />
             <span><strong>{{ t('Пересчитать цели на день с сегодняшнего дня') }}</strong></span>
           </label>
         </div>

@@ -33,7 +33,7 @@ class ProjectService:
     ) -> list[dict[str, Any]]:
         if status is not None and status not in VALID_STATUSES:
             raise ValidationError('Неизвестный статус проекта.')
-        data = self.repository.read_projects()
+        data = self._read_projects_with_streak_refresh()
         projects = list(data.get('projects', {}).values())
         if status is not None:
             projects = [project for project in projects if project.status == status]
@@ -65,9 +65,13 @@ class ProjectService:
         return [serialize_project(project) for project in projects]
 
     def get_project(self, project_id: str) -> dict[str, Any]:
-        data = self.repository.read_projects()
+        data = self._read_projects_with_streak_refresh()
         project = self._find_project(data, project_id)
         return serialize_project(project)
+
+    def refresh_streak_statuses(self) -> None:
+        """Apply legacy daily streak/freeze transitions in repository context."""
+        self.repository.update_projects(self._refresh_streak_statuses)
 
     def create_project(self, payload: dict[str, Any]) -> dict[str, Any]:
         name = self._validated_name(payload.get('name'))
@@ -748,6 +752,7 @@ class ProjectService:
             return {'enabled': False, 'status': 'Off', 'length': 0, 'max_length': 0}
 
         def summarize(data: dict[str, Any]) -> dict[str, Any]:
+            self._refresh_streak_statuses(data)
             # global_streak_status preserves legacy day-boundary, recovery and
             # freeze rules. Running it inside update_projects routes its nested
             # legacy saves to this repository instead of the process default.
@@ -763,6 +768,18 @@ class ProjectService:
             }
 
         return self.repository.update_projects(summarize)
+
+    @staticmethod
+    def _refresh_streak_statuses(data: dict[str, Any]) -> None:
+        """Advance missed local and global streak days exactly as legacy does."""
+        engine.refresh_project_streak_statuses(data)
+        engine.global_streak_status(data)
+
+    def _read_projects_with_streak_refresh(self) -> dict[str, Any]:
+        """Keep rendered project state in sync with automatic daily changes."""
+        return self.repository.update_projects(
+            lambda data: (self._refresh_streak_statuses(data), data)[1],
+        )
 
     @staticmethod
     def _find_project(data: dict[str, Any], project_id: str) -> engine.Project:

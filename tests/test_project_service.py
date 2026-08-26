@@ -96,6 +96,24 @@ def test_global_streak_summary_uses_legacy_status_in_repository_context(
     assert service.repository.read_projects()['global_streak_status'] == 'Active'
 
 
+def test_project_reads_refresh_automatic_local_and_global_streaks(
+        service, monkeypatch,
+):
+    project = service.create_project({'name': 'Роман', 'goal': 1_000, 'unit': 'symbols'})
+    refreshed: list[dict] = []
+
+    def refresh(data):
+        refreshed.append(data)
+        return {'changed': False, 'freeze_changed': False}
+
+    monkeypatch.setattr(engine, 'refresh_project_streak_statuses', refresh)
+    monkeypatch.setattr(engine, 'global_streak_status', lambda _data: 'No')
+
+    assert service.get_project(project['id'])['id'] == project['id']
+    assert service.list_projects()[0]['id'] == project['id']
+    assert len(refreshed) == 2
+
+
 def test_project_names_are_unique_and_lookup_uses_stable_id(service):
     first = service.create_project({'name': 'A', 'goal': 100, 'unit': 'symbols'})
     with pytest.raises(ConflictError):
