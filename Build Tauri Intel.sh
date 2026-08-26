@@ -1,3 +1,4 @@
 #!/bin/bash
 set -euo pipefail
-"$(dirname "$0")/scripts/build-tauri-local.sh" intel
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+"$SCRIPT_DIR/scripts/build-tauri-local.sh" intel

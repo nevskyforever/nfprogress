@@ -2,7 +2,8 @@
 # Build a plain distributable DMG without Finder/AppleScript layout automation.
 set -euo pipefail
 
-ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 TARGET="${1:-}"
 
 if [ "$(uname -s)" != "Darwin" ]; then

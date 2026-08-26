@@ -1,12 +1,15 @@
 #!/bin/bash
 # Start the new desktop application in Tauri development mode.
-set -eo pipefail
+set -euo pipefail
+
+# Resolve paths from this file, never from the caller's current directory.
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$SCRIPT_DIR"
 
 MODE=""
 if [ "$#" -gt 0 ]; then
   MODE="$1"
 fi
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 case "$MODE" in
   ""|--check) ;;
@@ -34,17 +37,19 @@ case "$TARGET" in
     ;;
 esac
 
+if [ "$MODE" != "--check" ] && lsof -nP -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then
+  PORT_PID="$(lsof -nP -iTCP:5173 -sTCP:LISTEN -t | head -n 1)"
+  PORT_COMMAND="$(ps -p "$PORT_PID" -o command= 2>/dev/null || true)"
+  echo "Порт 5173 уже занят процессом из другого запуска: ${PORT_COMMAND:-PID $PORT_PID}." >&2
+  echo "Остановите старый Tauri/Vite и повторите запуск из $ROOT_DIR." >&2
+  exit 1
+fi
+
 SIDECAR_PATH="$ROOT_DIR/frontend/src-tauri/binaries/nfprogress-backend-$TARGET"
 SIDECAR_REBUILD=0
 if [ ! -x "$SIDECAR_PATH" ]; then
   SIDECAR_REBUILD=1
 else
-  SIDECAR_HELP_FILE="$(mktemp "${TMPDIR:-/tmp}/nfprogress-sidecar-help.XXXXXX")"
-  if ! "$SIDECAR_PATH" --help >"$SIDECAR_HELP_FILE" 2>&1 \
-    || ! grep -q -- '--dev-data' "$SIDECAR_HELP_FILE"; then
-    SIDECAR_REBUILD=1
-  fi
-  rm -f "$SIDECAR_HELP_FILE"
   if [ "$SIDECAR_REBUILD" = "0" ] \
     && find "$ROOT_DIR/backend" "$ROOT_DIR/nfprogress" -type f -name '*.py' \
       -newer "$SIDECAR_PATH" -print -quit | grep -q .; then
@@ -81,11 +86,6 @@ if [ "$MODE" = "--check" ]; then
   echo "Sidecar: $SIDECAR_PATH"
   echo "Development data: Python-compatible test_data (synchronized at backend startup)"
   exit 0
-fi
-
-if lsof -nP -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "Порт 5173 уже занят. Остановите отдельный 'npm run dev' перед запуском Tauri."
-  exit 1
 fi
 
 echo "Запускается Tauri dev. Это не production-сборка; при первом запуске Cargo может собрать debug-код."

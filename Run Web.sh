@@ -3,7 +3,8 @@
 set -euo pipefail
 
 MODE="${1:-}"
-ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT_DIR="$SCRIPT_DIR"
 
 case "$MODE" in
   ""|--check) ;;
@@ -42,11 +43,17 @@ if [ "$MODE" = "--check" ]; then
 fi
 
 if lsof -nP -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "Порт 8000 уже занят. Остановите отдельный FastAPI перед запуском."
+  PORT_PID="$(lsof -nP -iTCP:8000 -sTCP:LISTEN -t | head -n 1)"
+  PORT_COMMAND="$(ps -p "$PORT_PID" -o command= 2>/dev/null || true)"
+  echo "Порт 8000 уже занят процессом: ${PORT_COMMAND:-PID $PORT_PID}." >&2
+  echo "Остановите старый backend и повторите запуск из $ROOT_DIR." >&2
   exit 1
 fi
 if lsof -nP -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1; then
-  echo "Порт 5173 уже занят. Остановите отдельный Vite перед запуском."
+  PORT_PID="$(lsof -nP -iTCP:5173 -sTCP:LISTEN -t | head -n 1)"
+  PORT_COMMAND="$(ps -p "$PORT_PID" -o command= 2>/dev/null || true)"
+  echo "Порт 5173 уже занят процессом: ${PORT_COMMAND:-PID $PORT_PID}." >&2
+  echo "Остановите старый frontend и повторите запуск из $ROOT_DIR." >&2
   exit 1
 fi
 
