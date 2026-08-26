@@ -36,7 +36,6 @@ import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { apiErrorMessage } from '@/api/client'
 import { integrationsApi } from '@/api/integrations'
-import { projectsApi } from '@/api/projects'
 import { settingsApi } from '@/api/settings'
 import { onDataChange } from '@/services/dataChanges'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
@@ -50,7 +49,6 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { useProjectsStore } from '@/stores/projects'
 import type {
   EntityUpdate,
-  GlobalStreakSummary,
   ProgressCreate,
   ProgressResult,
   Project,
@@ -84,7 +82,6 @@ const isSharedProject = computed(() => project.value.name === 'Общий про
 const streaksEnabled = ref(false)
 const stageSort = ref<StageSort>('progress')
 let stageSortSaveChain: Promise<void> = Promise.resolve()
-const globalStreak = ref<GlobalStreakSummary | null>(null)
 const displayedStreakEntity = computed<Project | null>(() => {
   if (!streaksEnabled.value || !store.currentProject) return null
   if (isStageDetail.value && project.value.deadline === null) {
@@ -194,12 +191,8 @@ async function loadStreakSummaries(): Promise<void> {
       || savedStageSort === 'progress'
       || savedStageSort === 'updated'
     ) stageSort.value = savedStageSort
-    globalStreak.value = streaksEnabled.value
-      ? await projectsApi.globalStreak()
-      : null
   } catch {
     streaksEnabled.value = false
-    globalStreak.value = null
   }
 }
 
@@ -643,15 +636,6 @@ onBeforeUnmount(() => {
             <div class="fact-card"><IonIcon :icon="calendarClearOutline" aria-hidden="true" /><span>{{ t('Срок') }}</span><strong>{{ locale.formatDate(detailEntity.deadline) }}</strong></div>
             <div class="fact-card"><IonIcon :icon="documentTextOutline" aria-hidden="true" /><span>{{ t('Записей прогресса') }}</span><strong>{{ locale.formatNumber(detailEntity.progress_entries.length, 0) }}</strong></div>
             <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ presentation.unitLabel }}</strong></div>
-            <StreakBadge
-              v-if="globalStreak?.enabled"
-              class="detail-streak detail-streak--global"
-              :length="globalStreak.length"
-              :max-length="globalStreak.max_length"
-              :status="globalStreak.status"
-              scope="global"
-              show-max
-            />
             <StreakBadge
               v-if="displayedStreakEntity"
               class="detail-streak detail-streak--entity"

@@ -17,6 +17,9 @@ import { useNetworkStatus } from '@/composables/useNetworkStatus'
 import { apiErrorMessage } from '@/api/client'
 import { settingsApi } from '@/api/settings'
 import DeveloperModeDialog from '@/components/developer/DeveloperModeDialog.vue'
+import StreakBadge from '@/components/projects/StreakBadge.vue'
+import { projectsApi } from '@/api/projects'
+import { onDataChange } from '@/services/dataChanges'
 import {
   SUPPORTED_LANGUAGES,
   isSupportedLanguage,
@@ -27,7 +30,7 @@ import {
   useThemeStore,
   type ThemePreference,
 } from '@/stores/theme'
-import type { SupportedLanguage } from '@/types/api'
+import type { GlobalStreakSummary, SupportedLanguage } from '@/types/api'
 import type { GameState } from '@/types/game'
 
 const { online } = useNetworkStatus()
@@ -42,6 +45,8 @@ const savingPreference = ref(false)
 const preferenceError = ref<string | null>(null)
 const developerAvailable = ref(false)
 const developerDialogOpen = ref(false)
+const globalStreak = ref<GlobalStreakSummary | null>(null)
+let stopDataChanges: (() => void) | undefined
 const hasBanner = computed(() => !online.value || Boolean(startupError))
 const lastProjectPath = ref('/projects')
 try {
@@ -111,13 +116,33 @@ function publishDeveloperState(state: GameState): void {
   }))
 }
 
+async function refreshGlobalStreak(): Promise<void> {
+  try {
+    const settings = await settingsApi.get()
+    if (settings.values.global_streak !== true) {
+      globalStreak.value = null
+      return
+    }
+    globalStreak.value = await projectsApi.globalStreak()
+  } catch {
+    globalStreak.value = null
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleShortcut)
   void settingsApi.get().then((settings) => {
     developerAvailable.value = settings.values.developer_mode === true
   })
+  void refreshGlobalStreak()
+  stopDataChanges = onDataChange((scope) => {
+    if (scope === 'projects') void refreshGlobalStreak()
+  })
 })
-onBeforeUnmount(() => window.removeEventListener('keydown', handleShortcut))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleShortcut)
+  stopDataChanges?.()
+})
 
 const themeLabel = computed(() => {
   const labels: Record<ThemePreference, string> = {
@@ -192,6 +217,16 @@ watchEffect(() => {
           <small>{{ t('Пространство писателя') }}</small>
         </span>
       </RouterLink>
+
+      <StreakBadge
+        v-if="globalStreak?.enabled"
+        class="sidebar-global-streak"
+        :length="globalStreak.length"
+        :max-length="globalStreak.max_length"
+        :status="globalStreak.status"
+        scope="global"
+        show-max
+      />
 
       <nav class="primary-navigation" :aria-label="t('Разделы приложения')">
         <RouterLink
@@ -310,5 +345,23 @@ watchEffect(() => {
   color: var(--nf-color-danger);
   font-size: 0.75rem;
   line-height: 1.35;
+}
+
+:deep(.sidebar-global-streak) {
+  width: 100%;
+  border-radius: var(--nf-radius-md);
+  align-items: start;
+}
+
+:deep(.sidebar-global-streak .streak-badge__copy) {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+:deep(.sidebar-global-streak .streak-badge__status) {
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 </style>

@@ -187,7 +187,7 @@ describe('ProjectDetailPage progress sharing', () => {
     }))
   })
 
-  it('shows the global streak even when the opened project has no deadline', async () => {
+  it('does not render the global streak in project details', async () => {
     vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
       id: 'project-id',
       deadline: null,
@@ -197,9 +197,8 @@ describe('ProjectDetailPage progress sharing', () => {
     const wrapper = mountWorkspace()
     await flushPromises()
 
-    expect(projectsApi.globalStreak).toHaveBeenCalledOnce()
-    expect(wrapper.get('.detail-streak--global').text()).toContain('7 дн.')
-    expect(wrapper.get('.detail-streak--global').text()).toContain('Максимум: 18')
+    expect(projectsApi.globalStreak).not.toHaveBeenCalled()
+    expect(wrapper.find('.detail-streak--global').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -254,7 +253,6 @@ describe('ProjectDetailPage progress sharing', () => {
       expect.objectContaining({ message: 'Глобальный стрик продлён: 7 дней.' }),
     ]))
     expect(notificationStore.gameHistory.unread_count).toBe(1)
-    expect(projectsApi.globalStreak).toHaveBeenCalledTimes(2)
     wrapper.unmount()
   })
 
