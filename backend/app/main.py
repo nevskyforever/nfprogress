@@ -70,14 +70,20 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
             else engine.get_app_data_dir()
         )
     repository = PickleRepository(data_dir)
-    game_service = GameService(repository)
+    game_service = GameService(
+        repository, developer_mode=runtime_config.developer_mode,
+    )
     project_service = ProjectService(repository, game_service=game_service)
     services = Services(
         repository=repository,
         projects=project_service,
         notes_class=ProjectNotesService,
         game=game_service,
-        settings=SettingsService(repository, platform=runtime_config.platform),
+        settings=SettingsService(
+            repository,
+            platform=runtime_config.platform,
+            developer_mode=runtime_config.developer_mode,
+        ),
         content=ContentService(),
         integrations=DocumentIntegrationService(
             repository,

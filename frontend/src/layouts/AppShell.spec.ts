@@ -28,6 +28,7 @@ vi.mock('@/api/content', () => ({
 
 vi.mock('@/api/settings', () => ({
   settingsApi: {
+    get: vi.fn(),
     update: vi.fn(),
   },
 }))
@@ -73,6 +74,8 @@ describe('AppShell preferences', () => {
       // jsdom can run without an origin-backed local storage implementation.
     }
     vi.mocked(settingsApi.update).mockReset()
+    vi.mocked(settingsApi.get).mockReset()
+    vi.mocked(settingsApi.get).mockResolvedValue(response({ developer_mode: false }))
     vi.mocked(contentApi.locale).mockReset()
     vi.mocked(contentApi.locale).mockResolvedValue({})
   })

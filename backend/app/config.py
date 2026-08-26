@@ -24,6 +24,7 @@ class RuntimeConfig:
     allowed_origins: tuple[str, ...] = DEFAULT_ORIGINS
     platform: str = 'web'
     allow_local_files: bool = False
+    developer_mode: bool = False
 
     @classmethod
     def from_env(cls) -> 'RuntimeConfig':
@@ -42,4 +43,5 @@ class RuntimeConfig:
                 platform == 'desktop'
                 or os.environ.get('NFPROGRESS_ALLOW_LOCAL_FILES') == '1'
             ),
+            developer_mode=os.environ.get('NFPROGRESS_DEVELOPER_MODE') == '1',
         )

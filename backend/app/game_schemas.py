@@ -460,9 +460,16 @@ class GameCommandResponse(GameResponseModel):
     state: GameStateResponse
 
 
+class DeveloperModeResponse(GameResponseModel):
+    state: GameStateResponse
+    test_date_enabled: bool
+    test_datetime: str | None
+
+
 __all__ = [
     'GameCatalogResponse',
     'GameCommandResponse',
+    'DeveloperModeResponse',
     'GameNotificationsResponse',
     'GameStateResponse',
 ]

@@ -68,6 +68,35 @@ def test_state_is_json_safe_and_contains_explicit_catalogs(game_context):
     assert state['shop']['categories']
 
 
+def test_developer_mode_updates_profile_and_grants_registered_item(game_context):
+    repository, _service, _project, _stage = game_context
+    service = GameService(repository, developer_mode=True)
+    profile = service.update_developer_profile(
+        level=4,
+        health=500,
+        coins=123.4,
+        exp=77.5,
+        test_date_enabled=False,
+        test_datetime=None,
+    )
+    granted = service.grant_developer_inventory_item(
+        'Предметы', 'Компас рукописи', 3,
+    )
+
+    assert profile['state']['profile']['level'] == 4
+    assert profile['state']['profile']['health'] == 100
+    assert profile['state']['profile']['coins'] == 123.4
+    assert repository.read_settings()['today_for_test_mode'] is False
+    assert _inventory_count(granted['state'], 'Предметы', 'Компас рукописи') == 3
+
+
+def test_developer_mode_endpoints_are_unavailable_in_regular_runtime(game_context):
+    _repository, service, _project, _stage = game_context
+
+    with pytest.raises(ConflictError, match='Режим разработчика недоступен'):
+        service.get_developer_state()
+
+
 def test_state_finishes_an_expired_writing_session(game_context):
     repository, service, _project, _stage = game_context
     gamer = repository.read_gamer()

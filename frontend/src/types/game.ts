@@ -447,6 +447,21 @@ export interface GameCommandResponse {
   state: GameState
 }
 
+export interface DeveloperModeState {
+  state: GameState
+  test_date_enabled: boolean
+  test_datetime: string | null
+}
+
+export interface DeveloperProfileUpdate {
+  level: number
+  health: number
+  coins: number
+  exp: number
+  test_date_enabled: boolean
+  test_datetime: string | null
+}
+
 export interface WritingSessionStart {
   duration_minutes: 15 | 25 | 45 | 60
   target_symbols: number

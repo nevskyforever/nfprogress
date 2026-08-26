@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -58,6 +58,21 @@ class ProgressCreate(StrictModel):
 
 class ReorderStages(StrictModel):
     stage_ids: list[str]
+
+
+class DeveloperProfileUpdate(StrictModel):
+    level: int
+    health: float
+    coins: float
+    exp: float
+    test_date_enabled: bool = False
+    test_datetime: datetime | None = None
+
+
+class DeveloperInventoryGrant(StrictModel):
+    category: str
+    item_id: str
+    count: int = Field(default=1, ge=1, le=9999)
 
 
 class ProgressEntryResponse(BaseModel):

@@ -952,9 +952,108 @@ def _bind_bank_notifications(
 class GameService:
     """Application boundary for game reads and commands."""
 
-    def __init__(self, repository: Any) -> None:
+    def __init__(self, repository: Any, *, developer_mode: bool = False) -> None:
         self.repository = repository
+        self.developer_mode = developer_mode
         self._lock = RLock()
+
+    def _require_developer_mode(self) -> None:
+        if not self.developer_mode:
+            raise ConflictError(
+                'developer_mode_disabled', 'Режим разработчика недоступен.',
+            )
+
+    def get_developer_state(self) -> JSONDict:
+        """Return the legacy developer controls without exposing them in releases."""
+        self._require_developer_mode()
+        state = self.get_state()
+        with self._repository_context():
+            settings = self.repository.read_settings()
+        test_datetime = settings.get('today_for_test_datetime')
+        return {
+            'state': state,
+            'test_date_enabled': bool(settings.get('today_for_test_mode', False)),
+            'test_datetime': _iso(test_datetime) if test_datetime is not None else None,
+        }
+
+    def update_developer_profile(
+            self,
+            level: int,
+            health: float,
+            coins: float,
+            exp: float,
+            test_date_enabled: bool = False,
+            test_datetime: datetime | None = None,
+    ) -> JSONDict:
+        self._require_developer_mode()
+        if test_date_enabled and test_datetime is None:
+            raise ValidationError(
+                'developer_test_datetime_required',
+                'Укажите дату и время для тестового режима.',
+            )
+        if not all(math.isfinite(float(value)) for value in (health, coins, exp)):
+            raise ValidationError(
+                'developer_profile_invalid', 'Значения режима разработчика некорректны.',
+            )
+        with self._repository_context():
+            gamer = self._read_gamer()
+            projects = self._read_projects()
+            bounded_level = min(len(game_data.levels) - 1, max(1, int(level)))
+            gamer.level = bounded_level
+            gamer.exp = max(0.0, float(exp))
+            gamer.coins = gamer.round_money(max(0.0, float(coins)))
+            gamer.update_max_health()
+            gamer.health = round(
+                min(gamer.get_max_health(), max(0.0, float(health))), 1,
+            )
+            self._prepare_gamer(gamer, projects, ensure_daily=self._game_mode_enabled())
+            settings = self.repository.read_settings()
+            settings['today_for_test_mode'] = test_date_enabled
+            settings['today_for_test_datetime'] = test_datetime if test_date_enabled else None
+            settings['today_for_test_date'] = (
+                test_datetime.date() if test_date_enabled and test_datetime else None
+            )
+            # Persist the test clock before serializing so ``server_time`` and
+            # daily state in the response already reflect the chosen date.
+            self.repository.write_settings(settings)
+            state = self._serialize_state(
+                gamer, projects, enabled=self._game_mode_enabled(),
+            )
+            self.repository.write_gamer(gamer)
+        return {
+            'ok': True,
+            'message': 'Настройки режима разработчика сохранены.',
+            'messages': ['Настройки режима разработчика сохранены.'],
+            'result': None,
+            'state': state,
+        }
+
+    def grant_developer_inventory_item(
+            self, category: str, item_id: str, count: int = 1,
+    ) -> JSONDict:
+        self._require_developer_mode()
+        count = self._positive_count(count, maximum=9999)
+        with self._repository_context():
+            gamer = self._read_gamer()
+            projects = self._read_projects()
+            key, item = self._registry_item(category, item_id)
+            inventory = gamer.items.setdefault(category, {})
+            inventory[key] = max(0, int(inventory.get(key, 0))) + count
+            gamer.normalize_inventory_item_names()
+            gamer.update_cf()
+            self._prepare_gamer(gamer, projects, ensure_daily=self._game_mode_enabled())
+            state = self._serialize_state(
+                gamer, projects, enabled=self._game_mode_enabled(),
+            )
+            self.repository.write_gamer(gamer)
+        message = f'Получено: {item.name} x{count}.'
+        return {
+            'ok': True,
+            'message': message,
+            'messages': [message],
+            'result': {'category': category, 'item_key': key, 'count': count},
+            'state': state,
+        }
 
     def _backup_notification_migration(self) -> None:
         """Preserve the source pickle before adding notification IDs to it."""

@@ -269,7 +269,10 @@ function openProjectEdit(): void {
 async function saveProject(payload: ProjectUpdate): Promise<void> {
   feedbackArea.value = 'global'
   const updated = await store.updateCurrent(project.value.id, payload)
-  if (!updated) return
+  if (!updated) {
+    if (store.detailActionError) notifications.warning(t(store.detailActionError))
+    return
+  }
   editDialogOpen.value = false
   announceSuccess(t('Изменения проекта сохранены.'))
   chooseAvailableEntity()
@@ -393,7 +396,10 @@ async function saveStage(payload: StageCreate | EntityUpdate): Promise<void> {
   const updated = editingStage.value
     ? await store.updateStage(project.value.id, editingStage.value.id, payload as EntityUpdate)
     : await store.createStage(project.value.id, payload as StageCreate)
-  if (!updated) return
+  if (!updated) {
+    if (store.detailActionError) notifications.warning(t(store.detailActionError))
+    return
+  }
   stageDialogOpen.value = false
   announceSuccess(editingStage.value ? t('Этап сохранён.') : t('Этап создан.'))
   editingStage.value = null
@@ -691,6 +697,7 @@ onBeforeUnmount(() => {
       :project="project"
       :submitting="store.detailOperation === 'update-project'"
       :api-error="store.detailActionError"
+      :global-streak-enabled="streaksEnabled"
       @close="editDialogOpen = false"
       @submit="saveProject"
     />
@@ -703,6 +710,7 @@ onBeforeUnmount(() => {
       :shared-source="isSharedProject && !editingStage"
       :submitting="Boolean(store.detailOperation?.includes('stage'))"
       :api-error="store.detailActionError"
+      :global-streak-enabled="streaksEnabled"
       @close="stageDialogOpen = false"
       @submit="saveStage"
     />

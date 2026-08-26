@@ -40,6 +40,7 @@ export interface SettingsValues {
   project_filter?: string
   project_sort?: string
   user_agreement?: boolean
+  developer_mode?: boolean
   [key: string]: unknown
 }
 

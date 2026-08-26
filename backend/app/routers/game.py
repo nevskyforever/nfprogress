@@ -8,6 +8,7 @@ from ..dependencies import Services, get_services
 from ..game_schemas import (
     GameCatalogResponse,
     GameCommandResponse,
+    DeveloperModeResponse,
     GameNotificationsResponse,
     GameStateResponse,
 )
@@ -29,6 +30,8 @@ from ..schemas import (
     StreakFreezeApply,
     WeeklyChallengeStart,
     WritingSessionStart,
+    DeveloperInventoryGrant,
+    DeveloperProfileUpdate,
 )
 
 
@@ -63,6 +66,29 @@ def mark_all_notifications_read(
 @router.get('/catalog', response_model=GameCatalogResponse)
 def catalog(services: Annotated[Services, Depends(get_services)]):
     return services.game.get_shop_catalog()
+
+
+@router.get('/developer', response_model=DeveloperModeResponse)
+def developer_state(services: Annotated[Services, Depends(get_services)]):
+    return services.game.get_developer_state()
+
+
+@router.put('/developer/profile', response_model=GameCommandResponse)
+def update_developer_profile(
+        payload: DeveloperProfileUpdate,
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.game.update_developer_profile(**payload.model_dump())
+
+
+@router.post('/developer/inventory', response_model=GameCommandResponse)
+def grant_developer_inventory_item(
+        payload: DeveloperInventoryGrant,
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.game.grant_developer_inventory_item(
+        payload.category, payload.item_id, payload.count,
+    )
 
 
 @router.post('/writing-sessions/start', response_model=GameCommandResponse)

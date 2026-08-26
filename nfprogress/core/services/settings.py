@@ -48,13 +48,17 @@ FRONTEND_PROJECT_SORTS = frozenset({'name', 'deadline', 'progress', 'updated'})
 
 
 class SettingsService:
-    def __init__(self, repository, *, platform: str = 'web'):
+    def __init__(
+            self, repository, *, platform: str = 'web', developer_mode: bool = False,
+    ):
         self.repository = repository
         self.platform = platform
+        self.developer_mode = developer_mode
 
     def get(self) -> dict[str, Any]:
-        values = self.repository.read_settings()
+        values = dict(self.repository.read_settings())
         values.setdefault('frontend_motion', 'full')
+        values['developer_mode'] = self.developer_mode
         if self.platform == 'desktop':
             values.setdefault('background_synch', True)
         return {

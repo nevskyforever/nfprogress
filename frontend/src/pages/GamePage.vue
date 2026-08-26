@@ -71,6 +71,11 @@ let inventoryPreferenceSaveChain: Promise<void> = Promise.resolve()
 let sessionCompletionTimer: ReturnType<typeof setTimeout> | undefined
 let effectsRefreshTimer: ReturnType<typeof setTimeout> | undefined
 
+function applyDeveloperState(event: Event): void {
+  const stateEvent = event as CustomEvent<GameState>
+  if (stateEvent.detail) applyState(stateEvent.detail)
+}
+
 const tabs: ReadonlyArray<{ key: GameTab; label: string }> = [
   { key: 'overview', label: 'Обзор' },
   { key: 'sessions', label: 'Сессии' },
@@ -238,6 +243,7 @@ function previewBank(payload: BankProductRequest): void {
 }
 
 onMounted(() => {
+  window.addEventListener('nfprogress:game-state-updated', applyDeveloperState)
   void loadState()
   void loadInventoryPreference()
   stopDataChanges = onDataChange((scope) => {
@@ -249,6 +255,7 @@ onIonViewWillEnter(() => {
 })
 watch(tab, (value) => saveGameTab(value))
 onBeforeUnmount(() => {
+  window.removeEventListener('nfprogress:game-state-updated', applyDeveloperState)
   clearTimeout(sessionCompletionTimer)
   clearTimeout(effectsRefreshTimer)
   stateController?.abort()

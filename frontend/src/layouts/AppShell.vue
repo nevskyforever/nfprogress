@@ -5,6 +5,7 @@ import { IonIcon, IonRouterOutlet } from '@ionic/vue'
 import {
   cloudOfflineOutline,
   contrastOutline,
+  codeSlashOutline,
   folderOpenOutline,
   helpCircleOutline,
   languageOutline,
@@ -15,6 +16,7 @@ import {
 import { useNetworkStatus } from '@/composables/useNetworkStatus'
 import { apiErrorMessage } from '@/api/client'
 import { settingsApi } from '@/api/settings'
+import DeveloperModeDialog from '@/components/developer/DeveloperModeDialog.vue'
 import {
   SUPPORTED_LANGUAGES,
   isSupportedLanguage,
@@ -26,6 +28,7 @@ import {
   type ThemePreference,
 } from '@/stores/theme'
 import type { SupportedLanguage } from '@/types/api'
+import type { GameState } from '@/types/game'
 
 const { online } = useNetworkStatus()
 const route = useRoute()
@@ -37,6 +40,8 @@ const appIcon = '/icons/icon-192.webp'
 const startupError = window.__NFPROGRESS_RUNTIME__?.startupError ?? ''
 const savingPreference = ref(false)
 const preferenceError = ref<string | null>(null)
+const developerAvailable = ref(false)
+const developerDialogOpen = ref(false)
 const hasBanner = computed(() => !online.value || Boolean(startupError))
 const lastProjectPath = ref('/projects')
 try {
@@ -69,6 +74,11 @@ function handleShortcut(event: KeyboardEvent): void {
   if (isTypingTarget(event.target)) return
   const key = event.key.toLowerCase()
   const modified = event.ctrlKey || event.metaKey
+  if (modified && key === 'd' && developerAvailable.value) {
+    event.preventDefault()
+    developerDialogOpen.value = true
+    return
+  }
   if (!modified && key !== 'delete') return
   if (modified && key === 'h' && !event.shiftKey) {
     event.preventDefault()
@@ -95,7 +105,18 @@ function handleShortcut(event: KeyboardEvent): void {
   }
 }
 
-onMounted(() => window.addEventListener('keydown', handleShortcut))
+function publishDeveloperState(state: GameState): void {
+  window.dispatchEvent(new CustomEvent<GameState>('nfprogress:game-state-updated', {
+    detail: state,
+  }))
+}
+
+onMounted(() => {
+  window.addEventListener('keydown', handleShortcut)
+  void settingsApi.get().then((settings) => {
+    developerAvailable.value = settings.values.developer_mode === true
+  })
+})
 onBeforeUnmount(() => window.removeEventListener('keydown', handleShortcut))
 
 const themeLabel = computed(() => {
@@ -185,6 +206,15 @@ watchEffect(() => {
       </nav>
 
       <div class="sidebar-controls">
+        <button
+          v-if="developerAvailable"
+          class="nf-button nf-button--quiet"
+          type="button"
+          @click="developerDialogOpen = true"
+        >
+          <IonIcon :icon="codeSlashOutline" aria-hidden="true" />
+          {{ t('Режим разработчика') }}
+        </button>
         <label class="compact-select">
           <IonIcon :icon="languageOutline" aria-hidden="true" />
           <span class="visually-hidden">{{ t('Язык интерфейса') }}</span>
@@ -266,6 +296,11 @@ watchEffect(() => {
         <span>{{ t(item.mobileLabel) }}</span>
       </RouterLink>
     </nav>
+    <DeveloperModeDialog
+      :open="developerDialogOpen"
+      @close="developerDialogOpen = false"
+      @updated="publishDeveloperState"
+    />
   </div>
 </template>
 

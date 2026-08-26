@@ -20,8 +20,9 @@ const props = withDefaults(
     project: Project
     submitting?: boolean
     apiError?: string | null
+    globalStreakEnabled?: boolean
   }>(),
-  { submitting: false, apiError: null },
+  { submitting: false, apiError: null, globalStreakEnabled: false },
 )
 
 const emit = defineEmits<{
@@ -223,6 +224,7 @@ async function submit(): Promise<void> {
   const dailyGoalIncreased = personalGoal > props.project.personal_goal + 0.000001
   if (
     dailyGoalIncreased
+    && props.globalStreakEnabled
     && !window.confirm(t(
       'Вы хотите увеличить цель на день, уменьшить ее не выйдет, пока она не будет выполнена.\nПродолжить?',
     ))

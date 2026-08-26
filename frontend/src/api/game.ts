@@ -2,6 +2,8 @@ import { apiRequest } from './client'
 import type {
   BankProductRequest,
   GameCommandResponse,
+  DeveloperModeState,
+  DeveloperProfileUpdate,
   GameNotifications,
   GameState,
   InventoryCommand,
@@ -43,6 +45,26 @@ export const gameApi = {
 
   catalog(signal?: AbortSignal): Promise<ShopCatalog> {
     return apiRequest<ShopCatalog>(`${GAME_PATH}/catalog`, { signal })
+  },
+
+  developerState(): Promise<DeveloperModeState> {
+    return apiRequest<DeveloperModeState>(`${GAME_PATH}/developer`)
+  },
+
+  updateDeveloperProfile(payload: DeveloperProfileUpdate): Promise<GameCommandResponse> {
+    return command('/developer/profile', payload, 'PUT')
+  },
+
+  grantDeveloperInventoryItem(
+    category: string,
+    itemId: string,
+    count: number,
+  ): Promise<GameCommandResponse> {
+    return command('/developer/inventory', {
+      category,
+      item_id: itemId,
+      count,
+    })
   },
 
   startWritingSession(payload: WritingSessionStart): Promise<GameCommandResponse> {

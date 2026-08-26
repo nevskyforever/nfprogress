@@ -109,6 +109,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.dev_data and args.data_dir is not None:
         raise SystemExit('--dev-data cannot be combined with --data-dir.')
     environment = RuntimeConfig.from_env()
+    developer_mode = args.dev_data or environment.developer_mode
+    # The Tauri sidecar is packaged, so the legacy import-time check cannot
+    # distinguish its explicitly requested development data from a release run.
+    # Keep the legacy test-clock and developer safeguards enabled in that mode.
+    if developer_mode:
+        engine.dev_mode = True
     platform = args.platform or environment.platform
     session_token = environment.session_token
     try:
@@ -138,6 +144,7 @@ def main(argv: list[str] | None = None) -> int:
         allowed_origins=environment.allowed_origins,
         platform=platform,
         allow_local_files=(platform == 'desktop'),
+        developer_mode=developer_mode,
     )
     if args.parent_pid is not None:
         _start_parent_watchdog(args.parent_pid)

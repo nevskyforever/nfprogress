@@ -23,6 +23,7 @@ const props = withDefaults(
     sharedSource?: boolean
     submitting?: boolean
     apiError?: string | null
+    globalStreakEnabled?: boolean
   }>(),
   {
     stage: null,
@@ -30,6 +31,7 @@ const props = withDefaults(
     sharedSource: false,
     submitting: false,
     apiError: null,
+    globalStreakEnabled: false,
   },
 )
 
@@ -212,6 +214,7 @@ async function submit(): Promise<void> {
     if (Math.abs(personalGoal - props.stage.personal_goal) >= 0.000001) {
       if (
         personalGoal > props.stage.personal_goal + 0.000001
+        && props.globalStreakEnabled
         && !window.confirm(t(
           'Вы хотите увеличить цель на день, уменьшить ее не выйдет, пока она не будет выполнена.\nПродолжить?',
         ))
