@@ -27,6 +27,7 @@ describe('StageDialog', () => {
 
     await wrapper.get('#stage-goal').setValue('1000')
     await wrapper.get('#stage-total').setValue('100')
+    await wrapper.get('input[name="no_deadline"]').setValue(false)
     await wrapper.get('#stage-deadline').setValue('2026-08-28')
     expect((wrapper.get('#stage-personal-goal').element as HTMLInputElement).value).toBe('300')
   })

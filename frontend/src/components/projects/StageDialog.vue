@@ -57,6 +57,7 @@ const form = reactive({
   goal: '10000',
   total: '0',
   deadline: '',
+  noDeadline: false,
   personalGoal: '0',
   infinite: false,
   streakEnabled: false,
@@ -77,7 +78,9 @@ function fill(): void {
   form.goal = props.stage?.goal === null ? '10000' : String(props.stage?.goal ?? 10000)
   form.total = String(props.sharedSource ? 0 : (props.stage?.total ?? 0))
   form.deadline = props.stage?.deadline?.slice(0, 10) ?? ''
-  form.personalGoal = String(props.stage?.personal_goal ?? 0)
+  form.noDeadline = !form.deadline
+  // Stages without a deadline cannot have a personal daily plan, as in legacy.
+  form.personalGoal = form.noDeadline ? '0' : String(props.stage?.personal_goal ?? 0)
   form.infinite = props.sharedSource || (props.stage?.infinite ?? false)
   form.streakEnabled = props.stage?.streak_enabled ?? false
   form.autoFreeze = props.stage?.auto_freeze ?? true
@@ -90,7 +93,7 @@ function numberFrom(value: string | number): number {
 }
 
 function updateDailyGoal(): void {
-  if (planningUpdateInProgress.value || form.infinite || props.sharedSource) return
+  if (planningUpdateInProgress.value || form.infinite || form.noDeadline || props.sharedSource) return
   planningUpdateInProgress.value = true
   try {
   const dailyGoal = automaticDailyGoal(
@@ -104,7 +107,7 @@ function updateDailyGoal(): void {
 }
 
 function updateDeadline(): void {
-  if (planningUpdateInProgress.value || form.infinite || props.sharedSource) return
+  if (planningUpdateInProgress.value || form.infinite || form.noDeadline || props.sharedSource) return
   planningUpdateInProgress.value = true
   try {
   const deadline = props.stage
@@ -155,11 +158,23 @@ function updatePlanFromGoal(): void {
 
 function toggleInfinite(): void {
   if (form.infinite) {
+    form.noDeadline = true
     form.deadline = ''
     form.personalGoal = '0'
   } else {
     updatePlanFromGoal()
   }
+}
+
+function toggleNoDeadline(): void {
+  if (form.noDeadline) {
+    form.recalculatePlan = false
+    form.deadline = ''
+    form.personalGoal = '0'
+    return
+  }
+  form.deadline = minimumDeadline.value
+  updateDailyGoal()
 }
 
 async function submit(): Promise<void> {
@@ -194,11 +209,22 @@ async function submit(): Promise<void> {
       update.goal = goal
     }
     if (Math.abs(total - props.stage.total) >= 0.000001) update.total = total
-    const deadline = form.deadline || null
+    const deadline = form.noDeadline ? null : (form.deadline || null)
     if (deadline !== props.stage.deadline?.slice(0, 10) && !(deadline === null && props.stage.deadline === null)) {
       update.deadline = deadline
     }
-    if (Math.abs(personalGoal - props.stage.personal_goal) >= 0.000001) update.personal_goal = personalGoal
+    if (Math.abs(personalGoal - props.stage.personal_goal) >= 0.000001) {
+      if (
+        personalGoal > props.stage.personal_goal + 0.000001
+        && !window.confirm(t(
+          'Вы хотите увеличить цель на день, уменьшить ее не выйдет, пока она не будет выполнена.\nПродолжить?',
+        ))
+      ) return
+      update.personal_goal = personalGoal
+      if (personalGoal > props.stage.personal_goal + 0.000001) {
+        update.confirm_daily_goal_increase = true
+      }
+    }
     if (form.streakEnabled !== props.stage.streak_enabled) update.streak_enabled = form.streakEnabled
     if (form.autoFreeze !== props.stage.auto_freeze) update.auto_freeze = form.autoFreeze
     if (form.recalculatePlan && canRecalculatePlan.value) update.recalculate_plan = true
@@ -207,7 +233,7 @@ async function submit(): Promise<void> {
     payload = {
       name,
       infinite: props.sharedSource || form.infinite,
-      deadline: props.sharedSource ? null : (form.deadline || null),
+      deadline: props.sharedSource || form.noDeadline ? null : (form.deadline || null),
       personal_goal: props.sharedSource ? 0 : personalGoal,
       streak_enabled: props.sharedSource ? false : form.streakEnabled,
       auto_freeze: props.sharedSource ? true : form.autoFreeze,
@@ -230,7 +256,10 @@ watch(
   { immediate: true },
 )
 
-watch(() => form.deadline, updateDailyGoal, { flush: 'sync' })
+watch(() => form.deadline, (deadline) => {
+  if (deadline) form.noDeadline = false
+  updateDailyGoal()
+}, { flush: 'sync' })
 watch(() => form.personalGoal, updateDeadline, { flush: 'sync' })
 watch(() => form.goal, updatePlanFromGoal, { flush: 'sync' })
 watch(() => form.total, updatePlanFromTotal, { flush: 'sync' })
@@ -292,6 +321,8 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
             step="any"
             inputmode="decimal"
             :disabled="form.infinite"
+            @input="updatePlanFromGoal"
+            @change="updatePlanFromGoal"
           />
         </label>
         <label v-if="!sharedSource" class="workspace-field" for="stage-total">
@@ -303,12 +334,20 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
             min="0"
             step="any"
             inputmode="decimal"
+            @input="updatePlanFromTotal"
+            @change="updatePlanFromTotal"
           />
         </label>
-        <label v-if="!sharedSource" class="workspace-field" for="stage-deadline">
-          <span>{{ t('Срок') }}</span>
-          <input id="stage-deadline" v-model="form.deadline" type="date" :min="minimumDeadline" :disabled="form.infinite" />
-        </label>
+        <div v-if="!sharedSource" class="workspace-field">
+          <label for="stage-deadline">
+            <span>{{ t('Срок') }}</span>
+            <input id="stage-deadline" v-model="form.deadline" type="date" :min="minimumDeadline" :disabled="form.infinite || form.noDeadline" @input="updateDailyGoal" @change="updateDailyGoal" />
+          </label>
+          <label class="workspace-check workspace-check--compact">
+            <input v-model="form.noDeadline" name="no_deadline" type="checkbox" :disabled="form.infinite" @change="toggleNoDeadline" />
+            <span>{{ t('Нет дедлайна') }}</span>
+          </label>
+        </div>
         <label v-if="!sharedSource" class="workspace-field" for="stage-personal-goal">
           <span>{{ t('Цель на день') }}</span>
           <input
@@ -318,7 +357,9 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
             min="0"
             step="any"
             inputmode="decimal"
-            :disabled="form.infinite"
+            :disabled="form.infinite || form.noDeadline"
+            @input="updateDeadline"
+            @change="updateDeadline"
           />
         </label>
         <p class="stage-unit-note">
@@ -339,7 +380,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
             <span><strong>{{ t('Использовать заморозку автоматически') }}</strong></span>
           </label>
           <label v-if="canRecalculatePlan" class="workspace-check">
-            <input v-model="form.recalculatePlan" type="checkbox" />
+            <input v-model="form.recalculatePlan" type="checkbox" @change="updateDeadline" />
             <span><strong>{{ t('Пересчитать цели на день с сегодняшнего дня') }}</strong></span>
           </label>
         </div>
@@ -366,5 +407,24 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
   padding: 0.85rem;
   color: var(--nf-color-text-muted);
   font-size: 0.82rem;
+}
+.workspace-check--compact {
+  grid-template-columns: 1.25rem 1fr;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.8rem;
+}
+
+.workspace-field .workspace-check--compact input {
+  width: 1.1rem;
+  min-height: 0;
+  height: 1.1rem;
+  margin: 0.05rem 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 </style>

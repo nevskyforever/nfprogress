@@ -43,6 +43,7 @@ class EntityUpdate(StrictModel):
     streak_enabled: bool | None = None
     auto_freeze: bool | None = None
     recalculate_plan: bool = False
+    confirm_daily_goal_increase: bool = False
 
 
 class ProjectUpdate(EntityUpdate):

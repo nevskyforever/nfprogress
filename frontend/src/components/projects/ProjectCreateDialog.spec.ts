@@ -24,11 +24,22 @@ describe('ProjectCreateDialog', () => {
 
     await wrapper.get('#project-goal').setValue('1000')
     await wrapper.get('#project-total').setValue('100')
+    await wrapper.get('input[name="no_deadline"]').setValue(false)
     await wrapper.get('#project-deadline').setValue('2026-08-28')
     expect((wrapper.get('#project-personal-goal').element as HTMLInputElement).value).toBe('300')
 
     await wrapper.get('#project-personal-goal').setValue('225')
     expect((wrapper.get('#project-deadline').element as HTMLInputElement).value).toBe('2026-08-29')
+  })
+
+  it('uses the legacy no-deadline checkbox to disable the daily plan', async () => {
+    const wrapper = mount(ProjectCreateDialog, {
+      props: { open: true }, global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    expect((wrapper.get('#project-deadline').element as HTMLInputElement).disabled).toBe(true)
+    await wrapper.get('input[name="no_deadline"]').setValue(false)
+    expect((wrapper.get('#project-deadline').element as HTMLInputElement).disabled).toBe(false)
   })
   it('emits a typed finite-project payload from the form', async () => {
     const wrapper = mount(ProjectCreateDialog, {

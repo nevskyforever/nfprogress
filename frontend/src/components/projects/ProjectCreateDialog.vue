@@ -47,6 +47,7 @@ const form = reactive({
   goal: '50000',
   total: '0',
   deadline: '',
+  noDeadline: true,
   personalGoal: '0',
   infinite: false,
   stagesEnabled: false,
@@ -61,6 +62,7 @@ function reset(): void {
   form.goal = '50000'
   form.total = '0'
   form.deadline = ''
+  form.noDeadline = true
   form.personalGoal = '0'
   form.infinite = false
   form.stagesEnabled = false
@@ -74,7 +76,7 @@ function numberFrom(value: string | number): number {
 }
 
 function updateDailyGoal(): void {
-  if (planningUpdateInProgress.value || form.infinite) return
+  if (planningUpdateInProgress.value || form.infinite || form.noDeadline) return
   planningUpdateInProgress.value = true
   try {
   const dailyGoal = automaticDailyGoal(
@@ -88,7 +90,7 @@ function updateDailyGoal(): void {
 }
 
 function updateDeadline(): void {
-  if (planningUpdateInProgress.value || form.infinite) return
+  if (planningUpdateInProgress.value || form.infinite || form.noDeadline) return
   planningUpdateInProgress.value = true
   try {
   const deadline = automaticDeadline(
@@ -124,11 +126,22 @@ function updateUnit(): void {
 
 function toggleInfinite(): void {
   if (form.infinite) {
+    form.noDeadline = true
     form.deadline = ''
     form.personalGoal = '0'
   } else {
     updatePlanFromAmount()
   }
+}
+
+function toggleNoDeadline(): void {
+  if (form.noDeadline) {
+    form.deadline = ''
+    form.personalGoal = '0'
+    return
+  }
+  form.deadline = minimumDeadline.value
+  updateDailyGoal()
 }
 
 async function submit(): Promise<void> {
@@ -161,7 +174,7 @@ async function submit(): Promise<void> {
     unit: form.unit,
     infinite: form.infinite,
     total,
-    deadline: form.deadline || null,
+    deadline: form.noDeadline ? null : (form.deadline || null),
     personal_goal: personalGoal,
     streak_enabled: form.streakEnabled,
     auto_freeze: form.autoFreeze,
@@ -184,7 +197,10 @@ watch(
   },
 )
 
-watch(() => form.deadline, updateDailyGoal, { flush: 'sync' })
+watch(() => form.deadline, (deadline) => {
+  if (deadline) form.noDeadline = false
+  updateDailyGoal()
+}, { flush: 'sync' })
 watch(() => form.personalGoal, updateDeadline, { flush: 'sync' })
 watch(() => form.goal, updatePlanFromAmount, { flush: 'sync' })
 watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
@@ -257,10 +273,16 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
           </select>
         </label>
 
-        <label class="form-field" for="project-deadline">
-          <span>{{ t('Срок') }} <small>{{ t('необязательно') }}</small></span>
-          <input id="project-deadline" v-model="form.deadline" name="deadline" type="date" :min="minimumDeadline" :disabled="form.infinite" />
-        </label>
+        <div class="form-field">
+          <label for="project-deadline">
+            <span>{{ t('Срок') }} <small>{{ t('необязательно') }}</small></span>
+            <input id="project-deadline" v-model="form.deadline" name="deadline" type="date" :min="minimumDeadline" :disabled="form.infinite || form.noDeadline" @input="updateDailyGoal" @change="updateDailyGoal" />
+          </label>
+          <label class="check-field check-field--compact">
+            <input v-model="form.noDeadline" name="no_deadline" type="checkbox" :disabled="form.infinite" @change="toggleNoDeadline" />
+            <span>{{ t('Нет дедлайна') }}</span>
+          </label>
+        </div>
 
         <label class="form-field" for="project-total">
           <span>{{ t('Уже написано') }}</span>
@@ -272,6 +294,8 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
             inputmode="decimal"
             min="0"
             step="any"
+            @input="updatePlanFromAmount"
+            @change="updatePlanFromAmount"
           />
         </label>
 
@@ -286,6 +310,8 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
             min="0"
             step="any"
             :disabled="form.infinite"
+            @input="updatePlanFromAmount"
+            @change="updatePlanFromAmount"
           />
         </label>
 
@@ -299,7 +325,9 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
             inputmode="decimal"
             min="0"
             step="any"
-            :disabled="form.infinite"
+            :disabled="form.infinite || form.noDeadline"
+            @input="updateDeadline"
+            @change="updateDeadline"
           />
         </label>
 
@@ -519,6 +547,26 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
 
 .check-field--nested {
   margin-left: var(--nf-space-5);
+}
+
+.check-field--compact {
+  grid-template-columns: 1.25rem 1fr;
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 0.8rem;
+}
+
+.form-field .check-field--compact input {
+  width: 1.1rem;
+  min-height: 0;
+  height: 1.1rem;
+  margin: 0.05rem 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .form-actions {

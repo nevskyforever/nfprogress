@@ -80,6 +80,7 @@ export interface EntityUpdate {
   streak_enabled?: boolean
   auto_freeze?: boolean
   recalculate_plan?: boolean
+  confirm_daily_goal_increase?: boolean
 }
 
 export interface ProjectUpdate extends EntityUpdate {

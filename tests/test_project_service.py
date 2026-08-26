@@ -96,6 +96,67 @@ def test_global_streak_summary_uses_legacy_status_in_repository_context(
     assert service.repository.read_projects()['global_streak_status'] == 'Active'
 
 
+def test_daily_goal_changes_keep_legacy_streak_safeguards(service, monkeypatch):
+    today = date(2026, 8, 23)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    monkeypatch.setattr(engine, 'dev_mode', False)
+    service.repository.update_settings(
+        lambda settings: settings.update({'global_streak': True}),
+    )
+    project = service.create_project({
+        'name': 'Серия', 'goal': 1_000, 'unit': 'symbols',
+        'deadline': (today + timedelta(days=10)).isoformat(),
+        'personal_goal': 100, 'streak_enabled': True,
+    })
+
+    def set_active_streak(data):
+        item = service._find_project(data, project['id'])
+        item.streaks = [today - timedelta(days=1)]
+        item.streak_status = 'Active'
+
+    service.repository.update_projects(set_active_streak)
+    with pytest.raises(ValidationError, match='Нельзя уменьшить цель на день'):
+        service.update_project(project['id'], {'personal_goal': 50})
+    with pytest.raises(ValidationError, match='Вы хотите увеличить цель на день'):
+        service.update_project(project['id'], {'personal_goal': 200})
+
+    updated = service.update_project(project['id'], {
+        'personal_goal': 200,
+        'confirm_daily_goal_increase': True,
+    })
+    assert updated['personal_goal'] == 200
+
+    def set_today_streak(data):
+        item = service._find_project(data, project['id'])
+        item.streaks = [today]
+        item.streak_status = 'Go'
+
+    service.repository.update_projects(set_today_streak)
+    service.update_project(project['id'], {
+        'personal_goal': 300,
+        'confirm_daily_goal_increase': True,
+    })
+    assert service.get_project(project['id'])['streak_length'] == 0
+
+
+def test_explicit_plan_recalculation_restarts_from_current_progress(
+        service, monkeypatch,
+):
+    today = date(2026, 8, 23)
+    monkeypatch.setattr(engine, 'today_for_test', lambda: today)
+    project = service.create_project({
+        'name': 'План', 'goal': 1_000, 'total': 0, 'unit': 'symbols',
+        'deadline': (today + timedelta(days=9)).isoformat(), 'personal_goal': 100,
+    })
+
+    updated = service.update_project(project['id'], {
+        'total': 400,
+        'recalculate_plan': True,
+    })
+
+    assert updated['today_goal'] == 500
+
+
 def test_project_reads_refresh_automatic_local_and_global_streaks(
         service, monkeypatch,
 ):

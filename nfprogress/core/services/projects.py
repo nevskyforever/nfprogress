@@ -187,6 +187,9 @@ class ProjectService:
                     payload['personal_goal'], 'Цель на день',
                 )
                 self._ensure_convertible(personal_goal, new_unit, 'Цель на день')
+                self._apply_daily_goal_streak_rules(
+                    data, project, personal_goal, payload,
+                )
                 project.personal_goal_for_the_day = personal_goal
             if 'auto_freeze' in payload:
                 project.auto_freeze = bool(payload['auto_freeze'])
@@ -373,6 +376,9 @@ class ProjectService:
                     payload['personal_goal'], 'Цель на день',
                 )
                 self._ensure_convertible(personal_goal, new_unit, 'Цель на день')
+                self._apply_daily_goal_streak_rules(
+                    data, stage, personal_goal, payload,
+                )
                 stage.personal_goal_for_the_day = personal_goal
             if 'auto_freeze' in payload:
                 stage.auto_freeze = bool(payload['auto_freeze'])
@@ -780,6 +786,46 @@ class ProjectService:
         return self.repository.update_projects(
             lambda data: (self._refresh_streak_statuses(data), data)[1],
         )
+
+    def _apply_daily_goal_streak_rules(
+            self,
+            data: dict[str, Any],
+            entity: engine.Project,
+            personal_goal: float,
+            payload: dict[str, Any],
+    ) -> None:
+        """Preserve the legacy safeguards around an active daily streak."""
+        old_goal = float(getattr(entity, 'personal_goal_for_the_day', 0) or 0)
+        if math.isclose(personal_goal, old_goal, abs_tol=0.000001):
+            return
+        today = engine.today_for_test()
+        streaks = getattr(entity, 'streaks', [])
+        has_today_streak = engine.streak_contains_day(streaks, today)
+        deadline_is_removed = 'deadline' in payload and payload['deadline'] is None
+
+        if (
+                personal_goal < old_goal
+                and streaks
+                and not has_today_streak
+                and not deadline_is_removed
+                and not engine.dev_mode
+        ):
+            raise ValidationError(
+                'Нельзя уменьшить цель на день, пока не выполнена текущая.',
+            )
+
+        settings = self.repository.read_settings()
+        requires_confirmation = (
+            personal_goal > old_goal
+            and bool(settings.get('global_streak', False))
+            and not engine.dev_mode
+        )
+        if requires_confirmation and not payload.get('confirm_daily_goal_increase', False):
+            raise ValidationError(
+                'Вы хотите увеличить цель на день, уменьшить ее не выйдет, пока она не будет выполнена.\nПродолжить?',
+            )
+        if requires_confirmation and has_today_streak:
+            engine.remove_streak_day(entity.streaks, today)
 
     @staticmethod
     def _find_project(data: dict[str, Any], project_id: str) -> engine.Project:
