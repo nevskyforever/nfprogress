@@ -350,18 +350,30 @@ watchEffect(() => {
 :deep(.sidebar-global-streak) {
   width: 100%;
   border-radius: var(--nf-radius-md);
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-rows: auto auto auto;
   align-items: start;
 }
 
 :deep(.sidebar-global-streak .streak-badge__copy) {
+  grid-column: 2;
   min-width: 0;
   flex-wrap: wrap;
 }
 
 :deep(.sidebar-global-streak .streak-badge__status) {
+  grid-column: 2;
   overflow: visible;
   text-overflow: clip;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+:deep(.sidebar-global-streak .streak-badge__maximum) {
+  grid-column: 2;
+}
+
+:deep(.sidebar-global-streak > ion-icon) {
+  grid-row: 1 / 4;
 }
 </style>
