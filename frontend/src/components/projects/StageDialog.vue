@@ -4,7 +4,6 @@ import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue
 import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
-import { useNotificationsStore } from '@/stores/notifications'
 import type { EntityUpdate, Project, StageCreate, UnitCode } from '@/types/api'
 import {
   automaticDailyGoal,
@@ -42,7 +41,6 @@ const emit = defineEmits<{
 }>()
 
 const locale = useLocaleStore()
-const notifications = useNotificationsStore()
 const t = locale.translate
 const validationErrors = ref<string[]>([])
 const errorSummary = ref<HTMLElement | null>(null)
@@ -214,11 +212,6 @@ async function submit(): Promise<void> {
       update.deadline = deadline
     }
     if (Math.abs(personalGoal - props.stage.personal_goal) >= 0.000001) {
-      if (personalGoal > props.stage.personal_goal + 0.000001) {
-        notifications.warning(t(
-          'Вы хотите увеличить цель на день, уменьшить ее не выйдет, пока она не будет выполнена.\nПродолжить?',
-        ))
-      }
       if (
         personalGoal > props.stage.personal_goal + 0.000001
         && !window.confirm(t(

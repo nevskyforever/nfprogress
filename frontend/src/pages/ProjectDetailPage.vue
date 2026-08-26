@@ -286,14 +286,13 @@ function openProjectEdit(): void {
 
 async function saveProject(payload: ProjectUpdate): Promise<void> {
   feedbackArea.value = 'global'
-  const dailyGoalChanged = payload.personal_goal !== undefined
   const updated = await store.updateCurrent(project.value.id, payload)
   if (!updated) {
     if (store.detailActionError) notifications.warning(t(store.detailActionError))
     return
   }
   editDialogOpen.value = false
-  if (!dailyGoalChanged) announceSuccess(t('Изменения проекта сохранены.'))
+  announceSuccess(t('Изменения проекта сохранены.'))
   chooseAvailableEntity()
   refreshStatistics()
 }
@@ -412,7 +411,6 @@ async function openStage(stage: Project): Promise<void> {
 
 async function saveStage(payload: StageCreate | EntityUpdate): Promise<void> {
   feedbackArea.value = 'global'
-  const dailyGoalChanged = Boolean(editingStage.value && 'personal_goal' in payload)
   const updated = editingStage.value
     ? await store.updateStage(project.value.id, editingStage.value.id, payload as EntityUpdate)
     : await store.createStage(project.value.id, payload as StageCreate)
@@ -421,9 +419,7 @@ async function saveStage(payload: StageCreate | EntityUpdate): Promise<void> {
     return
   }
   stageDialogOpen.value = false
-  if (!dailyGoalChanged) {
-    announceSuccess(editingStage.value ? t('Этап сохранён.') : t('Этап создан.'))
-  }
+  announceSuccess(editingStage.value ? t('Этап сохранён.') : t('Этап создан.'))
   editingStage.value = null
   chooseAvailableEntity()
   refreshStatistics()
