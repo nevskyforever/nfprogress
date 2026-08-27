@@ -18,6 +18,7 @@ const END_COLOR = [37, 104, 172] as const
 export interface ProgressSharePayload {
   title: string
   progress: number
+  coverImage?: string | null
 }
 
 interface TextLayout {
@@ -238,6 +239,137 @@ function drawBrand(context: CanvasRenderingContext2D, icon: CanvasImageSource | 
   context.fillText(BRAND_TEXT, groupX + BRAND_ICON_SIZE + BRAND_SPACING, BRAND_CENTER_Y)
 }
 
+function drawCoverImage(
+  context: CanvasRenderingContext2D,
+  cover: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): void {
+  const sourceWidth = cover.naturalWidth || cover.width
+  const sourceHeight = cover.naturalHeight || cover.height
+  if (!sourceWidth || !sourceHeight) return
+
+  const sourceRatio = sourceWidth / sourceHeight
+  const targetRatio = width / height
+  let sourceX = 0
+  let sourceY = 0
+  let croppedWidth = sourceWidth
+  let croppedHeight = sourceHeight
+  if (sourceRatio > targetRatio) {
+    croppedWidth = sourceHeight * targetRatio
+    sourceX = (sourceWidth - croppedWidth) / 2
+  } else {
+    croppedHeight = sourceWidth / targetRatio
+    sourceY = (sourceHeight - croppedHeight) / 2
+  }
+  context.drawImage(cover, sourceX, sourceY, croppedWidth, croppedHeight, x, y, width, height)
+}
+
+function drawCoveredProjectCard(
+  context: CanvasRenderingContext2D,
+  payload: ProgressSharePayload,
+  cover: HTMLImageElement,
+  icon: CanvasImageSource | null,
+): void {
+  const progress = normalizeProgressSharePercent(payload.progress)
+  const card = { x: 90, y: 45, width: 900, height: 990, radius: 48 }
+  const coverHeight = 590
+  const contentY = card.y + coverHeight
+  const title = progressShareTitle(payload.title)
+
+  context.fillStyle = '#F2F0EA'
+  context.fillRect(0, 0, PROGRESS_SHARE_IMAGE_SIZE, PROGRESS_SHARE_IMAGE_SIZE)
+  context.save()
+  context.shadowColor = 'rgb(43 55 50 / 20%)'
+  context.shadowBlur = 28
+  context.shadowOffsetY = 12
+  context.fillStyle = '#FFFFFF'
+  context.beginPath()
+  roundedRectangle(context, card.x, card.y, card.width, card.height, card.radius)
+  context.fill()
+  context.restore()
+
+  context.save()
+  context.beginPath()
+  roundedRectangle(context, card.x, card.y, card.width, card.height, card.radius)
+  context.clip()
+  drawCoverImage(context, cover, card.x, card.y, card.width, coverHeight)
+  context.restore()
+
+  context.fillStyle = 'rgb(0 0 0 / 36%)'
+  context.beginPath()
+  roundedRectangle(context, card.x + 36, card.y + 36, 300, 74, 30)
+  context.fill()
+  if (icon) context.drawImage(icon, card.x + 52, card.y + 50, 46, 46)
+  else {
+    context.fillStyle = '#2568AC'
+    context.beginPath()
+    roundedRectangle(context, card.x + 52, card.y + 50, 46, 46, 12)
+    context.fill()
+  }
+  context.fillStyle = '#FFFFFF'
+  context.font = '700 37px Arial, sans-serif'
+  context.textAlign = 'left'
+  context.textBaseline = 'middle'
+  context.fillText(BRAND_TEXT, card.x + 112, card.y + 74)
+
+  context.fillStyle = '#FFFFFF'
+  context.fillRect(card.x, contentY, card.width, card.height - coverHeight)
+  context.fillStyle = progressShareColor(progress)
+  context.fillRect(card.x, contentY, 12, card.height - coverHeight)
+
+  context.fillStyle = progressShareColor(progress)
+  context.beginPath()
+  context.arc(card.x + 145, contentY + 165, 92, 0, Math.PI * 2)
+  context.fill()
+  context.fillStyle = '#FFFFFF'
+  context.font = '700 66px Arial, sans-serif'
+  context.textAlign = 'center'
+  context.textBaseline = 'middle'
+  context.fillText(`${progress}%`, card.x + 145, contentY + 165)
+
+  context.fillStyle = '#171B1A'
+  context.font = '700 58px Georgia, serif'
+  context.textAlign = 'left'
+  context.textBaseline = 'alphabetic'
+  const layout = fitTitleInArea(context, title, { x: card.x + 275, y: contentY + 64, width: 565, height: 160 }, 58)
+  let titleY = contentY + 64 + layout.lineHeight
+  for (const line of layout.lines) {
+    context.fillText(line, card.x + 275, titleY)
+    titleY += layout.lineHeight
+  }
+
+  const bar = { x: card.x + 64, y: contentY + 316, width: card.width - 128, height: 20 }
+  context.fillStyle = '#E6EBEF'
+  context.beginPath()
+  roundedRectangle(context, bar.x, bar.y, bar.width, bar.height, bar.height / 2)
+  context.fill()
+  if (progress) {
+    context.fillStyle = progressShareColor(progress)
+    context.beginPath()
+    roundedRectangle(context, bar.x, bar.y, Math.max(bar.height, bar.width * progress / 100), bar.height, bar.height / 2)
+    context.fill()
+  }
+}
+
+function fitTitleInArea(
+  context: CanvasRenderingContext2D,
+  title: string,
+  area: { x: number, y: number, width: number, height: number },
+  maximumFontSize: number,
+): TextLayout {
+  for (let fontSize = maximumFontSize; fontSize >= 26; fontSize -= 2) {
+    const lineHeight = Math.ceil(fontSize * 1.16)
+    context.font = `700 ${fontSize}px Georgia, serif`
+    const lines = wrapTitle(context, title, area.width)
+    if (lines.length * lineHeight <= area.height) return { fontSize, lineHeight, lines }
+  }
+  context.font = '700 26px Georgia, serif'
+  return { fontSize: 26, lineHeight: 31, lines: [ellipsizeLine(context, title, area.width)] }
+}
+
 export function drawProgressShareImage(
   context: CanvasRenderingContext2D,
   payload: ProgressSharePayload,
@@ -260,13 +392,13 @@ export function drawProgressShareImage(
   drawBrand(context, icon)
 }
 
-function loadBrandIcon(): Promise<HTMLImageElement | null> {
+function loadImage(source: string): Promise<HTMLImageElement | null> {
   if (typeof Image === 'undefined') return Promise.resolve(null)
   return new Promise((resolve) => {
     const image = new Image()
     image.onload = () => resolve(image)
     image.onerror = () => resolve(null)
-    image.src = BRAND_ICON_URL
+    image.src = source
   })
 }
 
@@ -287,7 +419,13 @@ export async function createProgressShareImage(payload: ProgressSharePayload): P
   const canvas = document.createElement('canvas')
   canvas.width = PROGRESS_SHARE_IMAGE_SIZE
   canvas.height = PROGRESS_SHARE_IMAGE_SIZE
-  drawProgressShareImage(canvasContext(canvas), payload, await loadBrandIcon())
+  const [icon, cover] = await Promise.all([
+    loadImage(BRAND_ICON_URL),
+    payload.coverImage ? loadImage(payload.coverImage) : Promise.resolve(null),
+  ])
+  const context = canvasContext(canvas)
+  if (cover) drawCoveredProjectCard(context, payload, cover, icon)
+  else drawProgressShareImage(context, payload, icon)
   return canvasBlob(canvas)
 }
 
@@ -296,6 +434,15 @@ function clipboardItemConstructor(): ClipboardItemConstructor | undefined {
 }
 
 async function copyImageToClipboard(blob: Blob): Promise<boolean> {
+  if (document.documentElement.dataset.platform === 'tauri') {
+    try {
+      const { writeImage } = await import('@tauri-apps/plugin-clipboard-manager')
+      await writeImage(new Uint8Array(await blob.arrayBuffer()))
+      return true
+    } catch {
+      return false
+    }
+  }
   const ClipboardImageItem = clipboardItemConstructor()
   if (
     typeof navigator === 'undefined'

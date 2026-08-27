@@ -341,6 +341,7 @@ async function exportProgress(
     const payload = {
       title: progressShareTitle(entity.name, parentName),
       progress: entity.progress,
+      coverImage: project.value.cover_image,
     }
     if (destination === 'clipboard') {
       await copyProgressImage(payload)

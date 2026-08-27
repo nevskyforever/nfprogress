@@ -176,10 +176,12 @@ describe('ProjectDetailPage progress sharing', () => {
     expect(copyProgressImage).toHaveBeenNthCalledWith(1, {
       title: 'Дом у моря',
       progress: 25,
+      coverImage: null,
     })
     expect(copyProgressImage).toHaveBeenNthCalledWith(2, {
       title: 'Дом у моря: Глава 3',
       progress: 50,
+      coverImage: null,
     })
     expect(useNotificationsStore(pinia).notifications).toContainEqual(expect.objectContaining({
       kind: 'info',
