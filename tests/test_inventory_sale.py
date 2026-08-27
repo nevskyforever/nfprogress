@@ -27,6 +27,18 @@ class FakeSpinBox:
         return self._value
 
 
+class FakeButton:
+    def __init__(self):
+        self.visible = None
+        self.enabled = None
+
+    def setVisible(self, value):
+        self.visible = value
+
+    def setEnabled(self, value):
+        self.enabled = value
+
+
 def make_controller(gamer, item_data, count):
     controller = game_UI.GameMenuController.__new__(game_UI.GameMenuController)
     controller.gamer = gamer
@@ -85,6 +97,21 @@ def test_item_sellable_flag_and_sell_price():
 
     assert item.sellable is False
     assert item.sell_price == 75
+
+
+def test_inventory_use_button_follows_item_usable_flag():
+    controller = game_UI.GameMenuController.__new__(game_UI.GameMenuController)
+    controller.ui = type('FakeUi', (), {'button_for_selected_item': FakeButton()})()
+    usable_item = game_UI.game_data.FuncItem('Тест-зелье', price=1, item_type='Зелья')
+    permanent_item = game_UI.game_data.Item('Тест-награда', price=1)
+
+    controller.update_inventory_use_button(usable_item, 1)
+    assert controller.ui.button_for_selected_item.visible is True
+    assert controller.ui.button_for_selected_item.enabled is True
+
+    controller.update_inventory_use_button(permanent_item, 1)
+    assert controller.ui.button_for_selected_item.visible is False
+    assert controller.ui.button_for_selected_item.enabled is False
 
 
 def test_freeze_project_does_not_show_dialog_result_as_notification(monkeypatch):

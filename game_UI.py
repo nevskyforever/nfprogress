@@ -251,6 +251,7 @@ class GameMenuController:
         self.ui.description_selected_item.clear()
         self.ui.level_selected_item.clear()
         self.ui.effect_selected_item.clear()
+        self.update_inventory_use_button(None, 0)
 
         self.clear_shop_info()
 
@@ -1672,6 +1673,7 @@ class GameMenuController:
                 tr(f"⚡ Нет эффекта\n🔢 В наличии: {count}{sale_info}")
             )
             self.ui.value_for_use_selected_item.setMaximum(count)
+            self.update_inventory_use_button(award, count)
             self.update_inventory_sell_button(award, count)
             return
 
@@ -1708,6 +1710,7 @@ class GameMenuController:
 
             # Устанавливаем максимум для spinbox
             self.ui.value_for_use_selected_item.setMaximum(count)
+            self.update_inventory_use_button(item_obj, count)
             self.update_inventory_sell_button(item_obj, count)
 
     def on_use_item(self):
@@ -1727,6 +1730,9 @@ class GameMenuController:
         registry_key, item_obj = game_data.find_registry_item(category, item_name)
         if not item_obj:
             QMessageBox.warning(self.ui.centralwidget, "Ошибка", "Предмет не найден")
+            return
+
+        if not getattr(item_obj, 'usable', False):
             return
 
         # Проверяем наличие
@@ -1982,6 +1988,7 @@ class GameMenuController:
         self.ui.effect_selected_item.clear()
         self.ui.value_for_use_selected_item.setValue(1)
         self.reset_quantity_spinbox_maximum('value_for_use_selected_item')
+        self.update_inventory_use_button(None, 0)
         if hasattr(self.ui, 'button_to_sell_selected_item'):
             self.ui.button_to_sell_selected_item.setEnabled(False)
 
@@ -2443,6 +2450,15 @@ class GameMenuController:
         if hasattr(self.ui, 'button_to_sell_selected_item'):
             self.ui.button_to_sell_selected_item.setEnabled(count > 0 and self.is_item_sellable(item_obj))
 
+    def update_inventory_use_button(self, item_obj, count):
+        """Update visibility and enabled state of the inventory use button."""
+        button = getattr(self.ui, 'button_for_selected_item', None)
+        if button is None:
+            return
+        usable = bool(item_obj and getattr(item_obj, 'usable', False) and count > 0)
+        button.setVisible(usable)
+        button.setEnabled(usable)
+
     def update_after_inventory_sale(self, item_name, sold_count, total_price):
         self.gamer = game.load_game()
         self.register_custom_awards()
@@ -2568,6 +2584,9 @@ class GameMenuController:
                 changed = True
             if not hasattr(award, 'sellable'):
                 award.sellable = True
+                changed = True
+            if not hasattr(award, 'usable'):
+                award.usable = True
                 changed = True
             if award.count > 0:
                 self.gamer.custom_awards_inventory[award.name] = (
@@ -2965,7 +2984,8 @@ class GameMenuController:
                 name=name,
                 price=price,
                 item_type='Награды',
-                description='Кастомная награда без эффекта'
+                description='Кастомная награда без эффекта',
+                usable=True,
             )
             new_award.count = 0
             new_award.available_in_shop = True

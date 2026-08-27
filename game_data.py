@@ -134,7 +134,8 @@ class Item:
     """Основной класс"""
 
     def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None,
-                 credit_allowed=True, sellable=True, maximum_quantity_in_stock=None, buffs=None):
+                 credit_allowed=True, sellable=True, maximum_quantity_in_stock=None, buffs=None,
+                 usable=False):
         self.name = name
         self.item_type = item_type
         self._price = price
@@ -150,6 +151,7 @@ class Item:
         self.credit_allowed = credit_allowed
         self.sellable = sellable
         self.maximum_quantity_in_stock = maximum_quantity_in_stock
+        self.usable = usable
 
     @property
     def price(self):
@@ -222,9 +224,9 @@ class Item:
 class FuncItem(Item):
     """Предмет с функцией (зелья и т.д.)"""
 
-    def __init__(self, name, price, item_type, func=None, add=None, **kwargs):
+    def __init__(self, name, price, item_type, func=None, add=None, usable=True, **kwargs):
         # Передаем item_type корректно в родителя
-        super().__init__(name, price, item_type=item_type, **kwargs)
+        super().__init__(name, price, item_type=item_type, usable=usable, **kwargs)
         self._func = func
         self.add = add  # Сохраняем add как атрибут
 
