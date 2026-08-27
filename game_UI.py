@@ -14,6 +14,7 @@ import game_data
 from UI_fiiles.freeze_project import Ui_freeze_projrct
 from UI_fiiles.bank import Ui_Bamk
 from UI_fiiles.new_bank_product import Ui_Dialog as Ui_NewBankProduct
+from lottery_dialog import LotteryTicketDialog
 from UI_fiiles.create_custom_award import Ui_create_castom_item
 from engine import load_data, save_data, today_for_test, unit_converter
 from localization import LocalizedMessageBox as QMessageBox, tr
@@ -1750,6 +1751,11 @@ class GameMenuController:
             self.freeze_project(item_obj=item_obj, fallback_names=(item_name, registry_key))
             return
 
+        # Лотерейный билет раскрывается в отдельном окне, по одному билету за раз.
+        if registry_key == 'Лотерейный билет':
+            self.use_lottery_ticket(category, item_obj, registry_key, item_name, count)
+            return
+
         # Проверяем наличие метода use
         if not hasattr(item_obj, 'use'):
             QMessageBox.information(
@@ -1809,6 +1815,29 @@ class GameMenuController:
             )
             self.clear_inventory_item_info()
             self.clear_item_info()
+
+    def use_lottery_ticket(self, category, item_obj, registry_key, item_name, count):
+        """Показывает анимированный розыгрыш и расходует подтверждённые билеты."""
+        used_count = 0
+        for _ in range(count):
+            draw = game_data.prepare_lottery_ticket_draw()
+            dialog = LotteryTicketDialog(draw, self.ui.centralwidget)
+            if dialog.exec() != QDialog.Accepted:
+                break
+
+            game_data.complete_lottery_ticket_draw(draw)
+            used_count += 1
+
+        if not used_count:
+            return
+
+        self.gamer = game.load_game()
+        self.decrease_inventory_item(category, item_obj, used_count, registry_key, item_name)
+        self.gamer.save()
+        self.update_inventory()
+        self.update_game_data(force_quests=True)
+        self.clear_inventory_item_info()
+        self.clear_item_info()
 
     def on_sell_item(self):
         """Продажа выбранного предмета из инвентаря."""
