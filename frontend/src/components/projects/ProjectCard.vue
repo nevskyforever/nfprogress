@@ -6,6 +6,7 @@ import { calendarClearOutline, layersOutline } from 'ionicons/icons'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
 import StreakBadge from '@/components/projects/StreakBadge.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
 import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
@@ -66,6 +67,7 @@ const progressAriaLabel = computed(() =>
 
         <div class="project-card__body">
           <ProgressRing
+            v-if="!project.cover_image"
             :value="presentation.progress"
             :infinite="project.infinite"
             :full="project.name === 'Общий проект'"
@@ -82,6 +84,12 @@ const progressAriaLabel = computed(() =>
                 <span> / <template v-if="project.infinite">{{ presentation.goalLabel }}</template><AnimatedNumber v-else :value="project.goal ?? 0" :digits="project.unit === 'symbols' ? 0 : 2" /> {{ presentation.unitLabel }}</span>
               </span>
             </div>
+            <ProgressBar
+              v-if="project.cover_image"
+              class="project-card__cover-progress"
+              :value="presentation.progress"
+              :label="progressAriaLabel"
+            />
           </div>
         </div>
 
@@ -248,6 +256,10 @@ const progressAriaLabel = computed(() =>
 .project-card__progress-copy strong {
   color: var(--nf-color-text);
   font-size: 0.95rem;
+}
+
+.project-card__cover-progress {
+  margin-top: var(--nf-space-3);
 }
 
 .project-card__meta {

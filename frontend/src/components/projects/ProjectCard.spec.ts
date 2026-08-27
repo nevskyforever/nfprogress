@@ -57,6 +57,8 @@ describe('ProjectCard', () => {
     expect(wrapper.get('.project-card__cover').attributes('src')).toBe(cover)
     expect(wrapper.get('.project-card__cover').element.nextElementSibling?.className)
       .toContain('project-card__content')
+    expect(wrapper.get('.project-card__cover-progress').attributes('aria-label')).toContain('Дом у моря')
+    expect(wrapper.find('.progress-ring').exists()).toBe(false)
   })
 
   it('shows the project streak only when the global mode and legacy deadline rule allow it', () => {

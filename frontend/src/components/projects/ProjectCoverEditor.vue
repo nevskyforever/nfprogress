@@ -155,7 +155,13 @@ watch([zoom, horizontal, vertical], redraw)
     </div>
   </section>
 
-  <IonModal :is-open="cropOpen" css-class="cover-crop-modal" :backdrop-dismiss="!disabled" @did-dismiss="cropOpen = false">
+  <IonModal
+    :is-open="cropOpen"
+    css-class="cover-crop-modal"
+    :backdrop-dismiss="!disabled"
+    @did-present="redraw"
+    @did-dismiss="cropOpen = false"
+  >
     <IonHeader class="cover-crop-modal__header ion-no-border"><div><p>{{ t('Обложка проекта') }}</p><h2>{{ t('Настройте кадр') }}</h2></div></IonHeader>
     <IonContent class="cover-crop-modal__content"><div class="cover-cropper"><canvas ref="canvas" class="cover-cropper__canvas" width="360" height="540" role="img" :aria-label="t('Предпросмотр обложки: перетаскивайте изображение для кадрирования')" @pointerdown="startDrag" @pointermove="moveDrag" @pointerup="stopDrag" @pointercancel="stopDrag" /><label>{{ t('Масштаб') }}<input v-model.number="zoom" type="range" min="1" max="3" step="0.01" :disabled="disabled" /></label><p>{{ t('Перетаскивайте изображение в рамке, чтобы выбрать нужный фрагмент.') }}</p><div class="cover-cropper__actions"><button type="button" class="nf-button nf-button--secondary" :disabled="disabled" @click="resetCrop">{{ t('Отцентрировать') }}</button><button type="button" class="nf-button nf-button--secondary" :disabled="disabled" @click="cropOpen = false">{{ t('Отмена') }}</button><button type="button" class="nf-button" :disabled="disabled" @click="saveCrop">{{ t('Готово') }}</button></div></div></IonContent>
   </IonModal>
