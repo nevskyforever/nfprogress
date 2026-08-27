@@ -8,6 +8,7 @@ import { gameApi } from '@/api/game'
 import { settingsApi } from '@/api/settings'
 import AwardsBankPanel from '@/components/game/AwardsBankPanel.vue'
 import CabinetPanel from '@/components/game/CabinetPanel.vue'
+import CharacterQuickStats from '@/components/game/CharacterQuickStats.vue'
 import ChallengesPanel from '@/components/game/ChallengesPanel.vue'
 import CreditConfirmDialog from '@/components/game/CreditConfirmDialog.vue'
 import GameOverview from '@/components/game/GameOverview.vue'
@@ -547,6 +548,8 @@ onBeforeUnmount(() => {
               {{ t(item.label) }}
             </button>
           </nav>
+
+          <CharacterQuickStats v-if="tab !== 'overview'" :profile="state.profile" />
 
           <section
             :id="`game-panel-${tab}`"
