@@ -103,6 +103,7 @@ class ProjectService:
                 personal_goal_for_the_day=personal_goal,
                 auto_freeze=bool(payload.get('auto_freeze', True)),
             )
+            project.cover_image = self._validated_cover_image(payload.get('cover_image'))
             project.set_streak_state(bool(payload.get('streak_enabled', False)))
             for stage_payload in payload.get('stages', []):
                 project.stages.append(self._new_stage(project, stage_payload))
@@ -193,6 +194,8 @@ class ProjectService:
                 project.personal_goal_for_the_day = personal_goal
             if 'auto_freeze' in payload:
                 project.auto_freeze = bool(payload['auto_freeze'])
+            if 'cover_image' in payload:
+                project.cover_image = self._validated_cover_image(payload['cover_image'])
             if 'streak_enabled' in payload:
                 project.set_streak_state(bool(payload['streak_enabled']))
 
@@ -219,6 +222,15 @@ class ProjectService:
             return serialize_project(project)
 
         return self.repository.update_projects(mutate)
+
+    @staticmethod
+    def _validated_cover_image(value: Any) -> str | None:
+        if value is None:
+            return None
+        normalized = engine.normalize_project_cover_image(value)
+        if normalized is None:
+            raise ValidationError('Некорректное изображение обложки.')
+        return normalized
 
     def delete_project(self, project_id: str) -> None:
         def mutate(data):

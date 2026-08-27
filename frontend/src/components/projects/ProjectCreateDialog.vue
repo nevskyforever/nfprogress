@@ -4,6 +4,7 @@ import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue
 import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
+import ProjectCoverEditor from '@/components/projects/ProjectCoverEditor.vue'
 import type { ProjectCreate, UnitCode } from '@/types/api'
 import {
   automaticDailyGoal,
@@ -51,6 +52,7 @@ const form = reactive({
   personalGoal: '0',
   infinite: false,
   stagesEnabled: false,
+  coverImage: null as string | null,
 })
 
 function reset(): void {
@@ -64,6 +66,7 @@ function reset(): void {
   form.personalGoal = '0'
   form.infinite = false
   form.stagesEnabled = false
+  form.coverImage = null
   validationErrors.value = []
 }
 
@@ -175,6 +178,7 @@ async function submit(): Promise<void> {
     stages_enabled: form.stagesEnabled,
     stages: [],
     combine_stage_mindmaps: false,
+    cover_image: form.coverImage,
   }
   if (!form.infinite) payload.goal = goal
   emit('submit', payload)
@@ -256,6 +260,8 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
             autofocus
           />
         </label>
+
+        <ProjectCoverEditor v-model="form.coverImage" :disabled="submitting" />
 
         <label class="form-field" for="project-unit">
           <span>{{ t('Единица прогресса') }}</span>
@@ -364,7 +370,7 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
 <style>
 .project-create-modal {
   --width: min(44rem, calc(100vw - 2rem));
-  --height: min(47rem, calc(100dvh - 2rem));
+  --height: min(54rem, calc(100dvh - 2rem));
   --border-radius: var(--nf-radius-lg);
   --background: var(--nf-color-surface);
 }

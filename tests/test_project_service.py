@@ -43,6 +43,28 @@ def test_project_stage_progress_and_statistics_round_trip(service):
     assert stats['timeline'][0]['symbols'] == 1_250
 
 
+def test_project_cover_round_trips_and_can_be_removed(service):
+    cover = 'data:image/jpeg;base64,/9j/2Q=='
+    project = service.create_project({
+        'name': 'Обложка', 'goal': 1_000, 'unit': 'symbols', 'cover_image': cover,
+    })
+
+    assert project['cover_image'] == cover
+    assert service.get_project(project['id'])['cover_image'] == cover
+
+    updated = service.update_project(project['id'], {'cover_image': None})
+
+    assert updated['cover_image'] is None
+
+
+def test_project_cover_rejects_invalid_data(service):
+    with pytest.raises(ValidationError, match='Некорректное изображение'):
+        service.create_project({
+            'name': 'Не картинка', 'goal': 1_000, 'unit': 'symbols',
+            'cover_image': 'https://example.com/cover.jpg',
+        })
+
+
 def test_today_summary_uses_legacy_project_and_stage_totals(service, monkeypatch):
     today = date(2026, 8, 23)
     monkeypatch.setattr(engine, 'today_for_test', lambda: today)

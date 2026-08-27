@@ -4,6 +4,7 @@ import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue
 import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
+import ProjectCoverEditor from '@/components/projects/ProjectCoverEditor.vue'
 import type { Project, ProjectUpdate, UnitCode } from '@/types/api'
 import {
   automaticDailyGoal,
@@ -50,6 +51,7 @@ const form = reactive({
   stagesEnabled: false,
   combineStageMindmaps: false,
   recalculatePlan: false,
+  coverImage: null as string | null,
 })
 
 const canRecalculatePlan = computed(() => {
@@ -78,6 +80,7 @@ function fill(): void {
   form.stagesEnabled = project.stages_enabled
   form.combineStageMindmaps = project.combine_stage_mindmaps
   form.recalculatePlan = false
+  form.coverImage = project.cover_image
   validationErrors.value = []
 }
 
@@ -241,6 +244,7 @@ async function submit(): Promise<void> {
     if (dailyGoalIncreased) payload.confirm_daily_goal_increase = true
   }
   if (form.stagesEnabled !== props.project.stages_enabled) payload.stages_enabled = form.stagesEnabled
+  if (form.coverImage !== props.project.cover_image) payload.cover_image = form.coverImage
   if (
     form.stagesEnabled
     && form.combineStageMindmaps !== props.project.combine_stage_mindmaps
@@ -323,6 +327,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
           <span>{{ t('Название') }}</span>
           <input id="edit-project-name" v-model="form.name" maxlength="300" autocomplete="off" />
         </label>
+        <ProjectCoverEditor v-model="form.coverImage" :disabled="submitting" />
         <label class="workspace-field" for="edit-project-unit">
           <span>{{ t('Единица прогресса') }}</span>
           <select id="edit-project-unit" v-model="form.unit" @change="updateUnit">
@@ -423,7 +428,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
 <style>
 .workspace-dialog-modal {
   --width: min(44rem, calc(100vw - 2rem));
-  --height: min(46rem, calc(100dvh - 2rem));
+  --height: min(54rem, calc(100dvh - 2rem));
   --border-radius: var(--nf-radius-lg);
   --background: var(--nf-color-surface);
 }

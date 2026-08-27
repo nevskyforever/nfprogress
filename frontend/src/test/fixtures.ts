@@ -32,6 +32,7 @@ export function projectFixture(overrides: Partial<Project> = {}): Project {
     stages_enabled: false,
     combine_stage_mindmaps: false,
     parent_project_id: null,
+    cover_image: null,
     ...overrides,
   }
 }

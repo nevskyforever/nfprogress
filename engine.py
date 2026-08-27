@@ -280,6 +280,33 @@ def normalize_mindmap_data(value):
     return normalized
 
 
+def normalize_project_cover_image(value):
+    """Return a safe, bounded cover data URL or ``None``.
+
+    Covers are produced by the frontend cropper as JPEG data URLs.  PNG and
+    WebP are accepted as well to keep saves made by compatible clients valid.
+    """
+    if not isinstance(value, str) or len(value) > 1_500_000:
+        return None
+    prefix, separator, encoded = value.partition(',')
+    if (
+            not separator
+            or prefix not in {
+                'data:image/jpeg;base64',
+                'data:image/png;base64',
+                'data:image/webp;base64',
+            }
+            or not encoded
+    ):
+        return None
+    try:
+        import base64
+        base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError):
+        return None
+    return value
+
+
 def _normalize_free_mindmap_node(value, *, is_root=True):
     if (
         not isinstance(value, dict)
@@ -1142,6 +1169,9 @@ class Project:
         self.mindmap_data = None
         self.combine_stage_mindmaps = False
         self.project_notes = []
+        # A cropped 2:3 data URL used by the Vue project cards.  Keeping it on
+        # the project makes covers available to desktop and offline clients.
+        self.cover_image = None
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -1182,6 +1212,7 @@ class Project:
             'mindmap_data': None,
             'combine_stage_mindmaps': False,
             'project_notes': [],
+            'cover_image': None,
         }
 
         for attr, default_value in defaults.items():
@@ -1222,6 +1253,7 @@ class Project:
             self.mindmap_data = None
         if not isinstance(self.combine_stage_mindmaps, bool):
             self.combine_stage_mindmaps = False
+        self.cover_image = normalize_project_cover_image(self.cover_image)
 
         for index, stage in enumerate(self.stages):
             if not isinstance(stage, Stage):

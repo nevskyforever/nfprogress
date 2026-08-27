@@ -64,6 +64,23 @@ def test_health_openapi_and_desktop_session_authentication(client):
     assert invalid.json()['detail']['fields']
 
 
+def test_project_cover_is_created_updated_and_returned_by_api(client):
+    cover = 'data:image/jpeg;base64,/9j/2Q=='
+    created = client.post('/api/projects', json={
+        'name': 'Роман с обложкой', 'goal': 10_000, 'cover_image': cover,
+    })
+
+    assert created.status_code == 201, created.text
+    project = created.json()
+    assert project['cover_image'] == cover
+
+    updated = client.patch(
+        f"/api/projects/{project['id']}", json={'cover_image': None},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()['cover_image'] is None
+
+
 def test_timed_potion_uses_timezone_safe_developer_clock(client, monkeypatch):
     monkeypatch.setattr(
         engine,
