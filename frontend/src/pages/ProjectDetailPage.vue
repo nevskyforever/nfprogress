@@ -63,6 +63,12 @@ const store = useProjectsStore()
 const locale = useLocaleStore()
 const notifications = useNotificationsStore()
 const t = locale.translate
+const projectUnitLabels = {
+  symbols: 'символов',
+  A4: 'листов A4',
+  author_list: 'авторских листов',
+  ficbook_pages: 'страниц Ficbook',
+} as const
 const projectId = computed(() => String(route.params.projectId ?? ''))
 const detailAnimationVersion = ref(0)
 let detailViewActive = false
@@ -338,10 +344,20 @@ async function exportProgress(
 
   sharingProgress.value = true
   try {
+    const fractionDigits = entity.unit === 'symbols' ? 0 : 2
+    const goalLabel = entity.goal === null
+      ? t('Без лимита')
+      : locale.formatNumber(entity.goal, fractionDigits)
     const payload = {
       title: progressShareTitle(entity.name, parentName),
       progress: entity.progress,
       coverImage: project.value.cover_image,
+      statusLabel: t(entity.status === 'активен' ? 'Активен' : entity.status === 'в архиве' ? 'В архиве' : 'Завершён'),
+      progressText: `${locale.formatNumber(entity.total, fractionDigits)} / ${goalLabel} ${t(projectUnitLabels[entity.unit])}`,
+      footerLabel: entity.deadline ? locale.formatDate(entity.deadline) : t('Без срока'),
+      footerDetail: parentName || !entity.stages_enabled
+        ? undefined
+        : `${t('Этапов')}: ${locale.formatNumber(entity.stages.length, 0)}`,
     }
     if (destination === 'clipboard') {
       await copyProgressImage(payload)
