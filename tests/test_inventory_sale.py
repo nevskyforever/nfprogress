@@ -114,6 +114,12 @@ def test_inventory_use_button_follows_item_usable_flag():
     assert controller.ui.button_for_selected_item.enabled is False
 
 
+def test_registry_buy_flag_is_false_only_for_builtin_awards():
+    for category, items in game_UI.game_data.ITEM_REGISTRY.items():
+        assert all(hasattr(item, 'Buy') for item in items.values())
+        assert all(item.Buy is (category != 'Награды') for item in items.values())
+
+
 def test_freeze_project_does_not_show_dialog_result_as_notification(monkeypatch):
     gamer = game.Gamer(level=3)
     gamer.items = {'Предметы': {'Заморозка': 1}, 'Зелья': {}, 'Награды': {}}

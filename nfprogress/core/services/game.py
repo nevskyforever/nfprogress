@@ -185,6 +185,7 @@ def _registry_item_payload(
         'sellable': bool(getattr(item, 'sellable', True)),
         'credit_allowed': bool(getattr(item, 'credit_allowed', True)),
         'usable': usable,
+        'buy': bool(getattr(item, 'Buy', False)),
         'maximum_quantity': maximum,
         'available_for_level': gamer.level >= getattr(item, 'level', 1),
         'buffs': [
@@ -196,6 +197,8 @@ def _registry_item_payload(
     if include_count:
         payload['count'] = max(0, count)
     payload['can_buy'] = bool(
+        payload['buy']
+        and
         payload['available_for_level']
         and gamer.coins >= price
         and (maximum is None or count < maximum)
@@ -238,6 +241,7 @@ def serialize_inventory(gamer: legacy_game.Gamer) -> JSONDict:
                     'count': count,
                     'known': False,
                     'usable': False,
+                    'buy': False,
                     'sellable': False,
                 }
             payload.setdefault('known', True)
@@ -1370,6 +1374,10 @@ class GameService:
 
         def mutate(gamer: legacy_game.Gamer, _projects: JSONDict) -> JSONDict:
             key, item = self._registry_item(category, item_key)
+            if not getattr(item, 'Buy', False):
+                raise ConflictError(
+                    'item_not_buyable', 'Этот предмет нельзя купить.',
+                )
             if gamer.level < item.level:
                 raise ConflictError(
                     'item_level_too_low',

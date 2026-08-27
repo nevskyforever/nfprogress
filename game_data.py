@@ -135,7 +135,7 @@ class Item:
 
     def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None,
                  credit_allowed=True, sellable=True, maximum_quantity_in_stock=None, buffs=None,
-                 usable=False):
+                 usable=False, Buy=True):
         self.name = name
         self.item_type = item_type
         self._price = price
@@ -152,6 +152,7 @@ class Item:
         self.sellable = sellable
         self.maximum_quantity_in_stock = maximum_quantity_in_stock
         self.usable = usable
+        self.Buy = Buy
 
     @property
     def price(self):
@@ -224,9 +225,9 @@ class Item:
 class FuncItem(Item):
     """Предмет с функцией (зелья и т.д.)"""
 
-    def __init__(self, name, price, item_type, func=None, add=None, usable=True, **kwargs):
+    def __init__(self, name, price, item_type, func=None, add=None, usable=True, Buy=True, **kwargs):
         # Передаем item_type корректно в родителя
-        super().__init__(name, price, item_type=item_type, usable=usable, **kwargs)
+        super().__init__(name, price, item_type=item_type, usable=usable, Buy=Buy, **kwargs)
         self._func = func
         self.add = add  # Сохраняем add как атрибут
 
@@ -1682,6 +1683,7 @@ session_grade_medal = FuncItem(
     maximum_quantity_in_stock=2,
 )
 crown_of_the_first_era = Item(name='👑  Корона Первой Эпохи', item_type='Награды', price=250000, sellable=False,
+                              Buy=False,
                               description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре',
                               buff=Buff(name='Опыт миллионера',
                                         description='+1 к коэффициенту опыта',
@@ -1690,6 +1692,7 @@ crown_of_the_first_era = Item(name='👑  Корона Первой Эпохи',
                                         value=1.0)
                               )
 millionaires_pen = Item(name='💎  Перо Миллионера', item_type='Награды', price=250000, sellable=False,
+                        Buy=False,
                         description='Перо выдается игрокам, которые заработали больше миллиона монет до первой экономической реформы в игре',
                         buff=Buff(name='Удача миллионера',
                                   description='+1 к коэффициенту заработка',
@@ -1733,12 +1736,14 @@ def quest_award(name, description, target_cf, value=0.025):
         name=f'⭐️ {name}',
         item_type='Награды',
         price=0,
+        Buy=False,
         description=description,
         buff=make_quest_award_buff(target_cf, value),
     )
 
 
 health_care_badge = Item(name='⭐️ Знак заботы о здоровье', item_type='Награды', price=0,
+                         Buy=False,
                          description='Награда за подготовку аптечки автора.',
                          buff=make_quest_award_buff('health_recovery'))
 discipline_badge = quest_award('Знак дисциплины', 'Награда за запасной день и заботу о стрике.', 'health_recovery')

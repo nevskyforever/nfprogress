@@ -22,6 +22,7 @@ const inventory: GameInventory = {
           count: 1,
           sellable: false,
           usable: true,
+          buy: true,
         },
         {
           id: 'Предметы:Заморозка',
@@ -32,6 +33,7 @@ const inventory: GameInventory = {
           count: 1,
           sellable: true,
           usable: true,
+          buy: true,
         },
         {
           id: 'Предметы:Печатная машинка Хемингуэя',
@@ -43,6 +45,7 @@ const inventory: GameInventory = {
           count: 1,
           sellable: true,
           usable: false,
+          buy: true,
         },
       ],
     },
@@ -88,7 +91,11 @@ describe('InventoryShopPanel', () => {
     expect(freezeCard?.text()).toContain('Выбрать серию')
     const permanentCard = wrapper.findAll('.item-card')[2]
     expect(permanentCard?.text()).not.toContain('Использовать')
-    await freezeCard?.get('button').trigger('click')
+    expect(permanentCard?.text()).toContain('Купить')
+    const freezeButton = freezeCard?.findAll('button').find(
+      (button) => button.text() === 'Выбрать серию',
+    )
+    await freezeButton?.trigger('click')
     expect(wrapper.emitted('freeze')).toHaveLength(1)
   })
 })

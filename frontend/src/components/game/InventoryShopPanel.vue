@@ -159,7 +159,7 @@ function isUsable(item: GameItem): boolean {
         </p>
         <div class="button-row">
           <button
-            v-if="view === 'shop'"
+            v-if="item.buy && (view === 'shop' || view === 'inventory')"
             class="nf-button"
             type="button"
             :disabled="busy || !item.can_buy"

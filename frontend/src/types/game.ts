@@ -111,6 +111,7 @@ export interface GameItem {
   sellable: boolean
   credit_allowed?: boolean
   usable: boolean
+  buy: boolean
   maximum_quantity?: number | null
   available_for_level?: boolean
   buffs?: GameBuff[]
