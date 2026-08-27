@@ -279,13 +279,13 @@ function drawCoveredProjectCard(
   const contentY = card.y + coverHeight
   const title = progressShareTitle(payload.title)
 
-  context.fillStyle = '#F2F0EA'
+  context.fillStyle = '#191C1C'
   context.fillRect(0, 0, PROGRESS_SHARE_IMAGE_SIZE, PROGRESS_SHARE_IMAGE_SIZE)
   context.save()
   context.shadowColor = 'rgb(43 55 50 / 20%)'
   context.shadowBlur = 28
   context.shadowOffsetY = 12
-  context.fillStyle = '#FFFFFF'
+  context.fillStyle = '#272B31'
   context.beginPath()
   roundedRectangle(context, card.x, card.y, card.width, card.height, card.radius)
   context.fill()
@@ -298,37 +298,59 @@ function drawCoveredProjectCard(
   drawCoverImage(context, cover, card.x, card.y, card.width, coverHeight)
   context.restore()
 
-  context.fillStyle = '#FFFFFF'
+  context.fillStyle = '#272B31'
   context.fillRect(card.x, contentY, card.width, card.height - coverHeight)
 
-  context.fillStyle = '#171B1A'
-  context.font = '700 44px Georgia, serif'
+  context.fillStyle = '#3E519F'
+  context.beginPath()
+  roundedRectangle(context, card.x + 40, contentY + 28, 116, 38, 19)
+  context.fill()
+  context.fillStyle = '#B8C4FF'
+  context.font = '700 20px Arial, sans-serif'
+  context.textBaseline = 'middle'
+  context.fillText('Активен', card.x + 58, contentY + 47)
+
+  context.fillStyle = '#F7F8FA'
+  context.font = '500 40px Arial, sans-serif'
   context.textAlign = 'left'
   context.textBaseline = 'alphabetic'
-  const layout = fitTitleInArea(context, title, { x: card.x + 40, y: contentY + 38, width: 400, height: 100 }, 44)
-  let titleY = contentY + 38 + layout.lineHeight
+  const layout = fitTitleInArea(context, title, { x: card.x + 40, y: contentY + 92, width: 360, height: 88 }, 40)
+  let titleY = contentY + 92 + layout.lineHeight
   for (const line of layout.lines) {
     context.fillText(line, card.x + 40, titleY)
     titleY += layout.lineHeight
   }
 
-  context.fillStyle = '#5C646A'
-  context.font = '700 28px Arial, sans-serif'
-  context.fillText(`${progress}%`, card.x + 40, contentY + 178)
+  context.fillStyle = '#F7F8FA'
+  context.font = '700 24px Arial, sans-serif'
+  context.fillText(`${progress}%`, card.x + 40, contentY + 193)
 
-  const bar = { x: card.x + 40, y: contentY + 214, width: card.width - 80, height: 16 }
-  context.fillStyle = '#E6EBEF'
+  const bar = { x: card.x + 40, y: contentY + 220, width: card.width - 80, height: 16 }
+  context.fillStyle = '#3D424C'
   context.beginPath()
   roundedRectangle(context, bar.x, bar.y, bar.width, bar.height, bar.height / 2)
   context.fill()
   if (progress) {
-    context.fillStyle = progressShareColor(progress)
+    context.fillStyle = '#93A8FF'
     context.beginPath()
     roundedRectangle(context, bar.x, bar.y, Math.max(bar.height, bar.width * progress / 100), bar.height, bar.height / 2)
     context.fill()
   }
 
-  drawBrand(context, icon)
+  drawCoveredBrand(context, icon)
+}
+
+function drawCoveredBrand(context: CanvasRenderingContext2D, icon: CanvasImageSource | null): void {
+  const brandY = 1025
+  context.font = '700 37px Arial, sans-serif'
+  const textWidth = context.measureText(BRAND_TEXT).width
+  const groupWidth = BRAND_ICON_SIZE + BRAND_SPACING + textWidth
+  const groupX = (PROGRESS_SHARE_IMAGE_SIZE - groupWidth) / 2
+  if (icon) context.drawImage(icon, groupX, brandY - BRAND_ICON_SIZE / 2, BRAND_ICON_SIZE, BRAND_ICON_SIZE)
+  context.fillStyle = '#F7F8FA'
+  context.textAlign = 'left'
+  context.textBaseline = 'middle'
+  context.fillText(BRAND_TEXT, groupX + BRAND_ICON_SIZE + BRAND_SPACING, brandY)
 }
 
 function fitTitleInArea(
@@ -339,11 +361,11 @@ function fitTitleInArea(
 ): TextLayout {
   for (let fontSize = maximumFontSize; fontSize >= 26; fontSize -= 2) {
     const lineHeight = Math.ceil(fontSize * 1.16)
-    context.font = `700 ${fontSize}px Georgia, serif`
+    context.font = `500 ${fontSize}px Arial, sans-serif`
     const lines = wrapTitle(context, title, area.width)
     if (lines.length * lineHeight <= area.height) return { fontSize, lineHeight, lines }
   }
-  context.font = '700 26px Georgia, serif'
+  context.font = '500 26px Arial, sans-serif'
   return { fontSize: 26, lineHeight: 31, lines: [ellipsizeLine(context, title, area.width)] }
 }
 
