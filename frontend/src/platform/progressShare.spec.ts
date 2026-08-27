@@ -119,7 +119,8 @@ describe('progressShare', () => {
 
     expect(context.clip).toHaveBeenCalledTimes(1)
     expect(context.drawImage).toHaveBeenCalled()
-    expect(context.fillText).toHaveBeenCalledWith('Роман: Глава 3', 365, expect.any(Number))
+    expect(context.fillText).toHaveBeenCalledWith('Роман: Глава 3', 340, expect.any(Number))
+    expect(context.fillText).toHaveBeenCalledWith('nfprogress', expect.any(Number), 1026)
   })
 
   it('uses the native clipboard in the desktop application', async () => {

@@ -274,8 +274,8 @@ function drawCoveredProjectCard(
   icon: CanvasImageSource | null,
 ): void {
   const progress = normalizeProgressSharePercent(payload.progress)
-  const card = { x: 90, y: 45, width: 900, height: 990, radius: 48 }
-  const coverHeight = 590
+  const card = { x: 300, y: 30, width: 480, height: 900, radius: 32 }
+  const coverHeight = 620
   const contentY = card.y + coverHeight
   const title = progressShareTitle(payload.title)
 
@@ -298,50 +298,25 @@ function drawCoveredProjectCard(
   drawCoverImage(context, cover, card.x, card.y, card.width, coverHeight)
   context.restore()
 
-  context.fillStyle = 'rgb(0 0 0 / 36%)'
-  context.beginPath()
-  roundedRectangle(context, card.x + 36, card.y + 36, 300, 74, 30)
-  context.fill()
-  if (icon) context.drawImage(icon, card.x + 52, card.y + 50, 46, 46)
-  else {
-    context.fillStyle = '#2568AC'
-    context.beginPath()
-    roundedRectangle(context, card.x + 52, card.y + 50, 46, 46, 12)
-    context.fill()
-  }
-  context.fillStyle = '#FFFFFF'
-  context.font = '700 37px Arial, sans-serif'
-  context.textAlign = 'left'
-  context.textBaseline = 'middle'
-  context.fillText(BRAND_TEXT, card.x + 112, card.y + 74)
-
   context.fillStyle = '#FFFFFF'
   context.fillRect(card.x, contentY, card.width, card.height - coverHeight)
-  context.fillStyle = progressShareColor(progress)
-  context.fillRect(card.x, contentY, 12, card.height - coverHeight)
-
-  context.fillStyle = progressShareColor(progress)
-  context.beginPath()
-  context.arc(card.x + 145, contentY + 165, 92, 0, Math.PI * 2)
-  context.fill()
-  context.fillStyle = '#FFFFFF'
-  context.font = '700 66px Arial, sans-serif'
-  context.textAlign = 'center'
-  context.textBaseline = 'middle'
-  context.fillText(`${progress}%`, card.x + 145, contentY + 165)
 
   context.fillStyle = '#171B1A'
-  context.font = '700 58px Georgia, serif'
+  context.font = '700 44px Georgia, serif'
   context.textAlign = 'left'
   context.textBaseline = 'alphabetic'
-  const layout = fitTitleInArea(context, title, { x: card.x + 275, y: contentY + 64, width: 565, height: 160 }, 58)
-  let titleY = contentY + 64 + layout.lineHeight
+  const layout = fitTitleInArea(context, title, { x: card.x + 40, y: contentY + 38, width: 400, height: 100 }, 44)
+  let titleY = contentY + 38 + layout.lineHeight
   for (const line of layout.lines) {
-    context.fillText(line, card.x + 275, titleY)
+    context.fillText(line, card.x + 40, titleY)
     titleY += layout.lineHeight
   }
 
-  const bar = { x: card.x + 64, y: contentY + 316, width: card.width - 128, height: 20 }
+  context.fillStyle = '#5C646A'
+  context.font = '700 28px Arial, sans-serif'
+  context.fillText(`${progress}%`, card.x + 40, contentY + 178)
+
+  const bar = { x: card.x + 40, y: contentY + 214, width: card.width - 80, height: 16 }
   context.fillStyle = '#E6EBEF'
   context.beginPath()
   roundedRectangle(context, bar.x, bar.y, bar.width, bar.height, bar.height / 2)
@@ -352,6 +327,8 @@ function drawCoveredProjectCard(
     roundedRectangle(context, bar.x, bar.y, Math.max(bar.height, bar.width * progress / 100), bar.height, bar.height / 2)
     context.fill()
   }
+
+  drawBrand(context, icon)
 }
 
 function fitTitleInArea(
