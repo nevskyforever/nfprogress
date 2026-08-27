@@ -60,7 +60,9 @@ class Buff:
 
     def activate(self, start_time=None):
         """Возвращает копию бафа с рассчитанным временем начала и окончания."""
-        start_time = start_time or datetime.now()
+        start_time = game.as_local_naive_datetime(
+            start_time or game.get_effective_now()
+        ) or datetime.now()
         end_time = None
         if self.duration_minutes is not None:
             end_time = start_time + timedelta(minutes=self.duration_minutes)
@@ -87,7 +89,14 @@ class Buff:
     def is_expired(self, now=None):
         if self.end_time is None:
             return False
-        return (now or datetime.now()) >= self.end_time
+        end_time = game.as_local_naive_datetime(self.end_time)
+        if end_time is None:
+            return True
+        self.end_time = end_time
+        current_time = game.as_local_naive_datetime(
+            now or game.get_effective_now()
+        ) or datetime.now()
+        return current_time >= end_time
 
     def signed_value(self):
         value = abs(self.value)
@@ -97,7 +106,14 @@ class Buff:
         if self.end_time is None:
             return None
 
-        remaining = self.end_time - (now or datetime.now())
+        end_time = game.as_local_naive_datetime(self.end_time)
+        if end_time is None:
+            return timedelta(0)
+        self.end_time = end_time
+        current_time = game.as_local_naive_datetime(
+            now or game.get_effective_now()
+        ) or datetime.now()
+        remaining = end_time - current_time
         if remaining.total_seconds() <= 0:
             return timedelta(0)
         return remaining

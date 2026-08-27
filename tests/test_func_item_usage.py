@@ -1,3 +1,6 @@
+from datetime import datetime, timedelta, timezone
+
+import game
 import game_data
 
 
@@ -31,3 +34,17 @@ def test_all_functional_items_can_use_normalized_inventory_names(monkeypatch):
         result = item.use()
 
         assert result, f'Не удалось использовать {registry_key}'
+
+
+def test_timed_buff_accepts_timezone_aware_developer_clock(monkeypatch):
+    current = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(game.engine, 'now_for_test', lambda: current)
+    buff = game_data.Buff(
+        'Тестовое зелье', 'Тестовый эффект', game_data.Buff.POSITIVE,
+        'coins', 1, duration_minutes=60,
+    )
+
+    active = buff.activate()
+
+    assert active.start_time.tzinfo is None
+    assert active.remaining_time(current + timedelta(minutes=30)) == timedelta(minutes=30)

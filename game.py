@@ -548,10 +548,10 @@ def resource_path(relative_path):
 
 def get_effective_now():
     """Возвращает текущее время с датой из режима разработчика, если она включена."""
-    return engine.now_for_test()
+    return as_local_naive_datetime(engine.now_for_test()) or datetime.now()
 
 
-def _parse_effective_datetime(value):
+def as_local_naive_datetime(value):
     """Read a persisted timestamp in the naive local-time format used by the game."""
     try:
         parsed = datetime.fromisoformat(str(value))
@@ -1156,7 +1156,7 @@ class Gamer:
         for key, value in raw_ready_at.items():
             if key not in SPECIALIZATIONS or not value:
                 continue
-            ready_at = _parse_effective_datetime(value)
+            ready_at = as_local_naive_datetime(value)
             if ready_at is not None:
                 normalized_ready_at[key] = ready_at.isoformat()
         self.specialization_ability_ready_at = normalized_ready_at
@@ -1282,11 +1282,11 @@ class Gamer:
         ready_at = self.specialization_ability_ready_at.get(specialization_key)
         if not ready_at:
             return 0
-        ready_at = _parse_effective_datetime(ready_at)
+        ready_at = as_local_naive_datetime(ready_at)
         if ready_at is None:
             self.specialization_ability_ready_at.pop(specialization_key, None)
             return 0
-        current_time = _parse_effective_datetime(get_effective_now())
+        current_time = as_local_naive_datetime(get_effective_now())
         if current_time is None:
             current_time = datetime.now()
         return max(0, math.ceil((ready_at - current_time).total_seconds()))
@@ -1319,7 +1319,7 @@ class Gamer:
         else:
             self.specialization_ability_effects[specialization] = True
 
-        current_time = _parse_effective_datetime(get_effective_now())
+        current_time = as_local_naive_datetime(get_effective_now())
         if current_time is None:
             current_time = datetime.now()
         ready_at = current_time + timedelta(

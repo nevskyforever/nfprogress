@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from io import BytesIO
 
 import pytest
@@ -62,6 +62,33 @@ def test_health_openapi_and_desktop_session_authentication(client):
     assert invalid.status_code == 422
     assert invalid.json()['detail']['code'] == 'invalid_request'
     assert invalid.json()['detail']['fields']
+
+
+def test_timed_potion_uses_timezone_safe_developer_clock(client, monkeypatch):
+    monkeypatch.setattr(
+        engine,
+        'now_for_test',
+        lambda: datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc),
+    )
+    enabled = client.patch('/api/settings', json={
+        'values': {'game_mode': True},
+    })
+    assert enabled.status_code == 200, enabled.text
+
+    repository = client.app.state.services.repository
+    gamer = repository.read_gamer()
+    gamer.level = 99
+    gamer.items.setdefault('Зелья', {})['Часовое зелье просвещения'] = 1
+    repository.write_gamer(gamer)
+
+    used = client.post('/api/game/inventory/use', json={
+        'category': 'Зелья',
+        'item_id': 'Часовое зелье просвещения',
+        'count': 1,
+    })
+
+    assert used.status_code == 200, used.text
+    assert used.json()['state']['buffs']['positive'][0]['remaining_seconds'] == 3600
 
 
 def test_backend_cli_requires_explicit_remote_bind(monkeypatch):
