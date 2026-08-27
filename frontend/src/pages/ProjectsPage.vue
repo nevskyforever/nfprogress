@@ -499,14 +499,36 @@ onBeforeUnmount(() => {
           </button>
         </StatePanel>
 
+        <section
+          v-else-if="hasMixedProjectCards"
+          class="project-mixed-grid"
+          :class="{ 'project-grid--updating': store.loading }"
+          :aria-busy="store.loading"
+          :aria-label="t('Список проектов')"
+        >
+          <TransitionGroup tag="div" class="project-mixed-grid__covers">
+            <ProjectCard
+              v-for="project in store.projects.filter((item) => item.cover_image)"
+              :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
+              :project="project"
+              :streaks-enabled="streaksEnabled"
+            />
+          </TransitionGroup>
+          <TransitionGroup tag="div" class="project-mixed-grid__plain">
+            <ProjectCard
+              v-for="project in store.projects.filter((item) => !item.cover_image)"
+              :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
+              :project="project"
+              :streaks-enabled="streaksEnabled"
+            />
+          </TransitionGroup>
+        </section>
+
         <TransitionGroup
           v-else
           tag="section"
           class="project-grid"
-          :class="{
-            'project-grid--updating': store.loading,
-            'project-grid--mixed-covers': hasMixedProjectCards,
-          }"
+          :class="{ 'project-grid--updating': store.loading }"
           :aria-busy="store.loading"
           :aria-label="t('Список проектов')"
         >
@@ -760,18 +782,21 @@ onBeforeUnmount(() => {
   pointer-events: none;
 }
 
-/* A mixed library contains tall portrait covers and compact ordinary cards.
-   Columns let the latter fill the available vertical space instead of inheriting
-   a grid row's height from a neighboring cover. */
-.project-grid--mixed-covers {
-  display: block;
-  columns: 19rem;
-  column-gap: var(--nf-space-4);
+.project-mixed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: var(--nf-space-4);
+  transition: opacity 120ms ease;
 }
 
-.project-grid--mixed-covers :deep(.project-card) {
-  break-inside: avoid;
-  margin-bottom: var(--nf-space-4);
+.project-mixed-grid__covers {
+  display: contents;
+}
+
+.project-mixed-grid__plain {
+  display: grid;
+  gap: var(--nf-space-4);
+  align-content: start;
 }
 .project-grid-move,
 .project-grid-enter-active,
@@ -782,6 +807,10 @@ onBeforeUnmount(() => {
 
 @media (min-width: 100rem) {
   .project-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .project-mixed-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

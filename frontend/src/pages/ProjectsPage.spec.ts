@@ -110,7 +110,9 @@ describe('ProjectsPage streak summaries', () => {
     })
     await flushPromises()
 
-    expect(wrapper.get('.project-grid').classes()).toContain('project-grid--mixed-covers')
+    expect(wrapper.find('.project-mixed-grid').exists()).toBe(true)
+    expect(wrapper.get('.project-mixed-grid__covers').findAll('.project-card')).toHaveLength(1)
+    expect(wrapper.get('.project-mixed-grid__plain').findAll('.project-card')).toHaveLength(1)
     wrapper.unmount()
   })
 
