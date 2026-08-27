@@ -1474,9 +1474,15 @@ class GameService:
                     f'В инвентаре только {available} шт.',
                 )
             messages: list[str] = []
+            lottery_draws: list[JSONDict] = []
             for _ in range(count):
                 try:
-                    result = item.use()
+                    if key == 'Лотерейный билет':
+                        draw = game_data.prepare_lottery_ticket_draw()
+                        result = game_data.complete_lottery_ticket_draw(draw)
+                        lottery_draws.append(draw)
+                    else:
+                        result = item.use()
                 except ValueError as error:
                     raise ConflictError('item_use_rejected', str(error)) from error
                 inventory[key] -= 1
@@ -1485,13 +1491,16 @@ class GameService:
                 inventory.pop(key, None)
             gamer.normalize_inventory_item_names()
             gamer.update_cf()
+            result: JSONDict = {
+                'category': category,
+                'item_key': key,
+                'count': count,
+            }
+            if lottery_draws:
+                result['lottery_draws'] = lottery_draws
             return {
                 'message': '\n'.join(messages),
-                'result': {
-                    'category': category,
-                    'item_key': key,
-                    'count': count,
-                },
+                'result': result,
             }
 
         return self._command(mutate, settle_rewards=True)

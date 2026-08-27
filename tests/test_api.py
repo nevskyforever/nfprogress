@@ -91,6 +91,33 @@ def test_timed_potion_uses_timezone_safe_developer_clock(client, monkeypatch):
     assert used.json()['state']['buffs']['positive'][0]['remaining_seconds'] == 3600
 
 
+def test_lottery_ticket_use_returns_draw_for_client_animation(client):
+    enabled = client.patch('/api/settings', json={
+        'values': {'game_mode': True},
+    })
+    assert enabled.status_code == 200, enabled.text
+
+    repository = client.app.state.services.repository
+    gamer = repository.read_gamer()
+    gamer.level = 3
+    gamer.items.setdefault('Предметы', {})['Лотерейный билет'] = 1
+    repository.write_gamer(gamer)
+
+    used = client.post('/api/game/inventory/use', json={
+        'category': 'Предметы',
+        'item_id': 'Лотерейный билет',
+        'count': 1,
+    })
+
+    assert used.status_code == 200, used.text
+    draw = used.json()['result']['lottery_draws'][0]
+    assert len(draw['player_numbers']) == 5
+    assert len(draw['winning_numbers']) == 5
+    assert draw['matches'] == len(
+        set(draw['player_numbers']).intersection(draw['winning_numbers'])
+    )
+
+
 def test_backend_cli_requires_explicit_remote_bind(monkeypatch):
     monkeypatch.delenv('NFPROGRESS_SESSION_TOKEN', raising=False)
     monkeypatch.delenv('NFPROGRESS_PLATFORM', raising=False)

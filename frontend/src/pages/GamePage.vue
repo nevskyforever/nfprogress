@@ -12,6 +12,7 @@ import ChallengesPanel from '@/components/game/ChallengesPanel.vue'
 import GameOverview from '@/components/game/GameOverview.vue'
 import GrowthPanel from '@/components/game/GrowthPanel.vue'
 import InventoryShopPanel from '@/components/game/InventoryShopPanel.vue'
+import LotteryTicketDialog, { type LotteryDraw } from '@/components/game/LotteryTicketDialog.vue'
 import WritingSessionPanel from '@/components/game/WritingSessionPanel.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { useLocaleStore } from '@/stores/locale'
@@ -63,6 +64,7 @@ const tab = ref<GameTab>([
 ].includes(savedGameTab ?? '') ? savedGameTab as GameTab : 'overview')
 const bankPreview = ref<GameCommandResponse['result']>(null)
 const inventoryCategory = ref('')
+const lotteryDraws = ref<LotteryDraw[]>([])
 let stopDataChanges: (() => void) | undefined
 let stateController: AbortController | undefined
 let preferencesController: AbortController | undefined
@@ -232,7 +234,41 @@ function inventoryCommand(
     sell: gameApi.sellItem,
     use: gameApi.useItem,
   }[action]
+  if (action === 'use' && payload.item_id === 'Лотерейный билет') {
+    void useLotteryTicket(payload)
+    return
+  }
   void runCommand(() => command(payload))
+}
+
+async function useLotteryTicket(payload: InventoryCommand): Promise<void> {
+  if (busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    const response = await gameApi.useItem(payload)
+    applyState(response.state)
+    announceDataChange('game')
+    const draws: unknown[] = Array.isArray(response.result?.lottery_draws)
+      ? response.result.lottery_draws
+      : []
+    lotteryDraws.value = draws.filter(isLotteryDraw)
+    if (!lotteryDraws.value.length) {
+      notifications.success(response.messages.filter(Boolean).join(' ') || response.message || t('Изменения сохранены.'))
+    }
+  } catch (caught) {
+    error.value = apiErrorMessage(caught)
+    notifications.error(error.value)
+  } finally {
+    busy.value = false
+  }
+}
+
+function isLotteryDraw(value: unknown): value is LotteryDraw {
+  if (!value || typeof value !== 'object') return false
+  const draw = value as Partial<LotteryDraw>
+  return Array.isArray(draw.player_numbers) && Array.isArray(draw.winning_numbers)
+    && typeof draw.matches === 'number' && typeof draw.prize === 'number'
 }
 
 function previewBank(payload: BankProductRequest): void {
@@ -268,6 +304,7 @@ onBeforeUnmount(() => {
   <IonPage>
     <IonContent :fullscreen="true" class="game-content">
       <main class="game-workspace">
+        <LotteryTicketDialog :draws="lotteryDraws" @close="lotteryDraws = []" />
         <header class="page-header">
           <div>
             <p class="page-eyebrow">{{ t('Творческая мотивация') }}</p>
