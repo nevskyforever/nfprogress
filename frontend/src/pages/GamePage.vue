@@ -732,8 +732,10 @@ onBeforeUnmount(() => {
   z-index: 5;
   top: 0;
   display: flex;
+  width: fit-content;
+  max-width: 100%;
   gap: var(--nf-space-1);
-  margin-bottom: var(--nf-space-5);
+  margin: 0 auto var(--nf-space-5);
   padding: var(--nf-space-2);
   overflow-x: auto;
   scrollbar-width: thin;
@@ -741,6 +743,7 @@ onBeforeUnmount(() => {
   border-radius: var(--nf-radius-md);
   background: color-mix(in srgb, var(--nf-color-surface) 94%, transparent);
   backdrop-filter: blur(12px);
+  box-shadow: 0 0.75rem 1.75rem color-mix(in srgb, var(--nf-color-canvas) 34%, transparent);
 }
 
 .game-tabs button {
@@ -784,6 +787,8 @@ onBeforeUnmount(() => {
   }
 
   .game-tabs {
+    width: auto;
+    max-width: none;
     margin-inline: calc(-1 * clamp(1rem, 3vw, 3.5rem));
     border-inline: 0;
     border-radius: 0;
