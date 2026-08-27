@@ -4,9 +4,14 @@ import { IonContent, IonHeader, IonModal } from '@ionic/vue'
 
 import { useLocaleStore } from '@/stores/locale'
 
-const props = withDefaults(defineProps<{ modelValue?: string | null; disabled?: boolean }>(), {
+const props = withDefaults(defineProps<{
+  modelValue?: string | null
+  disabled?: boolean
+  workspaceWide?: boolean
+}>(), {
   modelValue: null,
   disabled: false,
+  workspaceWide: false,
 })
 const emit = defineEmits<{ 'update:modelValue': [value: string | null] }>()
 const locale = useLocaleStore()
@@ -137,7 +142,11 @@ watch([zoom, horizontal, vertical], redraw)
 </script>
 
 <template>
-  <section class="cover-editor form-field--wide" :aria-label="t('Обложка проекта')">
+  <section
+    class="cover-editor form-field--wide"
+    :class="{ 'workspace-field--wide': workspaceWide }"
+    :aria-label="t('Обложка проекта')"
+  >
     <div class="cover-editor__heading"><div><strong>{{ t('Обложка проекта') }}</strong><small>{{ t('Добавьте книжную обложку для карточки проекта.') }}</small></div><button v-if="hasCover" type="button" class="cover-editor__remove" :disabled="disabled" @click="removeCover">{{ t('Удалить') }}</button></div>
     <div class="cover-editor__summary">
       <img v-if="modelValue" :src="modelValue" alt="" class="cover-editor__thumbnail" />

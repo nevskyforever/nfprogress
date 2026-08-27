@@ -327,7 +327,11 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
           <span>{{ t('Название') }}</span>
           <input id="edit-project-name" v-model="form.name" maxlength="300" autocomplete="off" />
         </label>
-        <ProjectCoverEditor v-model="form.coverImage" :disabled="submitting" />
+        <ProjectCoverEditor
+          v-model="form.coverImage"
+          workspace-wide
+          :disabled="submitting"
+        />
         <label class="workspace-field" for="edit-project-unit">
           <span>{{ t('Единица прогресса') }}</span>
           <select id="edit-project-unit" v-model="form.unit" @change="updateUnit">
