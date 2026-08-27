@@ -396,13 +396,13 @@ jobs:
           } catch {
             Write-Warning "Current remote manifest is unavailable; using the repository copy: $_"
           }
-          python scripts\update-release-manifest.py `
+          python scripts/update-release-manifest.py `
             $env:APP_VERSION `
             windows `
-            "release-assets\nfprogress-windows-x86_64-$($env:APP_VERSION)-setup.exe"
-          python scripts\create-legacy-manifest.py
-          Copy-Item update_manifest.json release-assets\update_manifest.json -Force
-          Copy-Item update_manifest_legacy.json release-assets\update_manifest_legacy.json -Force
+            "release-assets/nfprogress-windows-x86_64-$($env:APP_VERSION)-setup.exe"
+          python scripts/create-legacy-manifest.py
+          Copy-Item update_manifest.json release-assets/update_manifest.json -Force
+          Copy-Item update_manifest_legacy.json release-assets/update_manifest_legacy.json -Force
 
       - name: Upload Windows release files to hosting
         shell: bash
