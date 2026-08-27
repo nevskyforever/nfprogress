@@ -21,7 +21,7 @@ const inventory: GameInventory = {
           effect: 'Испытать удачу',
           count: 1,
           sellable: false,
-          usable: false,
+          usable: true,
         },
         {
           id: 'Предметы:Заморозка',
@@ -32,6 +32,17 @@ const inventory: GameInventory = {
           count: 1,
           sellable: true,
           usable: true,
+        },
+        {
+          id: 'Предметы:Печатная машинка Хемингуэя',
+          key: 'Печатная машинка Хемингуэя',
+          category: 'Предметы',
+          name: '📠 Печатная машинка Хемингуэя',
+          description: 'Постоянный бонус',
+          effect: 'Опыт +0,5',
+          count: 1,
+          sellable: true,
+          usable: false,
         },
       ],
     },
@@ -65,16 +76,18 @@ describe('InventoryShopPanel', () => {
     expect(wrapper.emitted('inventoryCategory')?.[0]).toEqual(['Зелья'])
   })
 
-  it('shows use for effect items and routes freeze to the streak selector', async () => {
+  it('uses the explicit usable flag and routes freeze to the streak selector', async () => {
     const wrapper = mount(InventoryShopPanel, {
       props: { inventory, shop, busy: false },
       global: { plugins: [createPinia()] },
     })
 
-    expect(wrapper.findAll('.item-card')).toHaveLength(2)
+    expect(wrapper.findAll('.item-card')).toHaveLength(3)
     expect(wrapper.get('.item-card').text()).toContain('Использовать')
     const freezeCard = wrapper.findAll('.item-card')[1]
     expect(freezeCard?.text()).toContain('Выбрать серию')
+    const permanentCard = wrapper.findAll('.item-card')[2]
+    expect(permanentCard?.text()).not.toContain('Использовать')
     await freezeCard?.get('button').trigger('click')
     expect(wrapper.emitted('freeze')).toHaveLength(1)
   })

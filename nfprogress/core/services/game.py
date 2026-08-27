@@ -171,14 +171,7 @@ def _registry_item_payload(
             effect = item_function('?')
         except Exception:
             effect = None
-    # Legacy inventory exposes every registered item with a ``use`` method,
-    # including permanent equipment buffs.  Restricting this to FuncItem
-    # silently removed the action button for those items in the web client.
-    # Freeze is intentionally still marked usable: the client routes it to the
-    # dedicated streak selector instead of the generic inventory command.
-    usable = callable(getattr(item, 'use', None)) and (
-        callable(item_function) or getattr(item, 'buff', None) is not None
-    )
+    usable = bool(getattr(item, 'usable', False))
     payload: JSONDict = {
         'id': f'{category}:{key}',
         'key': key,

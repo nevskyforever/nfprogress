@@ -89,9 +89,7 @@ function isFreeze(item: GameItem): boolean {
 }
 
 function isUsable(item: GameItem): boolean {
-  // Older desktop saves and API responses may omit the explicit flag while
-  // still carrying the function/effect metadata that makes the item usable.
-  return item.usable || Boolean(item.effect) || Boolean(item.buffs?.length)
+  return item.usable
 }
 </script>
 
