@@ -46,7 +46,13 @@ const progressAriaLabel = computed(() =>
 </script>
 
 <template>
-  <article class="project-card" :class="`project-card--${project.status.replaceAll(' ', '-')}`">
+  <article
+    class="project-card"
+    :class="[
+      `project-card--${project.status.replaceAll(' ', '-')}`,
+      { 'project-card--with-cover': project.cover_image },
+    ]"
+  >
     <RouterLink
       class="project-card__link"
       :class="{ 'project-card__link--with-cover': project.cover_image }"
@@ -149,6 +155,10 @@ const progressAriaLabel = computed(() =>
   background: var(--nf-color-accent);
 }
 
+.project-card--with-cover::before {
+  display: none;
+}
+
 .project-card:hover {
   border-color: color-mix(in srgb, var(--nf-color-primary) 45%, var(--nf-color-border));
   transform: translateY(-2px);
@@ -176,6 +186,10 @@ const progressAriaLabel = computed(() =>
   aspect-ratio: 2 / 3;
   object-fit: cover;
   background: var(--nf-color-surface-muted);
+}
+
+.project-card--with-cover .project-card__content {
+  padding-left: var(--nf-space-5);
 }
 
 .project-card__header,
