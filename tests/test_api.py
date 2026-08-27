@@ -81,6 +81,19 @@ def test_project_cover_is_created_updated_and_returned_by_api(client):
     assert updated.json()['cover_image'] is None
 
 
+def test_api_accepts_existing_cover_larger_than_compact_export(client):
+    # Covers produced by older frontend builds can be larger than the compact
+    # 1.35 MB export used now.  They must reach the service instead of failing
+    # Pydantic's generic request validation first.
+    cover = 'data:image/jpeg;base64,' + ('AAAA' * 450_000)
+    created = client.post('/api/projects', json={
+        'name': 'Старая большая обложка', 'goal': 10_000, 'cover_image': cover,
+    })
+
+    assert created.status_code == 201, created.text
+    assert created.json()['cover_image'] == cover
+
+
 def test_timed_potion_uses_timezone_safe_developer_clock(client, monkeypatch):
     monkeypatch.setattr(
         engine,

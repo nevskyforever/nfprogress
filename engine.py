@@ -15,6 +15,9 @@ from pathlib import Path
 from collections import defaultdict
 
 
+MAX_PROJECT_COVER_IMAGE_LENGTH = 5_000_000
+
+
 # Режим разработчика.
 dev_mode = "__compiled__" not in globals()
 
@@ -286,7 +289,7 @@ def normalize_project_cover_image(value):
     Covers are produced by the frontend cropper as JPEG data URLs.  PNG and
     WebP are accepted as well to keep saves made by compatible clients valid.
     """
-    if not isinstance(value, str) or len(value) > 1_500_000:
+    if not isinstance(value, str) or len(value) > MAX_PROJECT_COVER_IMAGE_LENGTH:
         return None
     prefix, separator, encoded = value.partition(',')
     if (
