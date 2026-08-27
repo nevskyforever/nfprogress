@@ -396,7 +396,6 @@ jobs:
           } catch {
             Write-Warning "Current remote manifest is unavailable; using the repository copy: $_"
           }
-          $env:RELEASE_NOTES = Get-Content $env:RELEASE_NOTES_FILE -Raw
           python scripts\update-release-manifest.py `
             $env:APP_VERSION `
             windows `
