@@ -9,6 +9,7 @@ import { settingsApi } from '@/api/settings'
 import AwardsBankPanel from '@/components/game/AwardsBankPanel.vue'
 import CabinetPanel from '@/components/game/CabinetPanel.vue'
 import ChallengesPanel from '@/components/game/ChallengesPanel.vue'
+import CreditConfirmDialog from '@/components/game/CreditConfirmDialog.vue'
 import GameOverview from '@/components/game/GameOverview.vue'
 import GrowthPanel from '@/components/game/GrowthPanel.vue'
 import InventoryShopPanel from '@/components/game/InventoryShopPanel.vue'
@@ -70,6 +71,7 @@ const inventoryCategory = ref('')
 const lotteryDraws = ref<LotteryDraw[]>([])
 const pendingPurchase = ref<InventoryCommand | null>(null)
 const cartLines = ref<CartLine[]>([])
+const pendingCredit = ref<{ amount: number; days: number; preview: GameCommandResponse['result'] } | null>(null)
 const cartTotal = computed(() => cartLines.value.reduce(
   (sum, line) => sum + (line.item.price ?? 0) * line.count,
   0,
@@ -292,13 +294,21 @@ function addPendingPurchaseToCart(): void {
   pendingPurchase.value = null
 }
 
-async function checkoutCart(useCredit: boolean, days: number): Promise<void> {
+async function checkoutCart(useCredit: boolean, days: number, approvedCredit = false): Promise<void> {
   if (busy.value || !cartLines.value.length || !state.value) return
   busy.value = true
   error.value = ''
   try {
     let currentState = {} as GameState
     const shortfall = Math.max(0, cartTotal.value - state.value.profile.coins)
+    if (useCredit && shortfall > 0 && !approvedCredit) {
+      const preview = await gameApi.previewBankProduct({
+        product_type: 'credit', amount: shortfall, days: Math.floor(days),
+        allow_interest_withdrawal: false,
+      })
+      pendingCredit.value = { amount: shortfall, days: Math.floor(days), preview: preview.result }
+      return
+    }
     if (useCredit && shortfall > 0) {
       const credit = await gameApi.openBankCredit(shortfall, Math.floor(days))
       currentState = credit.state
@@ -321,6 +331,17 @@ async function checkoutCart(useCredit: boolean, days: number): Promise<void> {
   } finally {
     busy.value = false
   }
+}
+
+function cancelCreditPreview(): void {
+  pendingCredit.value = null
+}
+
+function confirmCreditCheckout(): void {
+  const credit = pendingCredit.value
+  if (!credit) return
+  pendingCredit.value = null
+  void checkoutCart(true, credit.days, true)
 }
 
 async function useLotteryTicket(payload: InventoryCommand): Promise<void> {
@@ -394,6 +415,14 @@ onBeforeUnmount(() => {
           @confirm="confirmPurchase"
           @cancel="pendingPurchase = null"
           @add-to-cart="addPendingPurchaseToCart"
+        />
+        <CreditConfirmDialog
+          :preview="pendingCredit?.preview ?? null"
+          :amount="pendingCredit?.amount ?? 0"
+          :days="pendingCredit?.days ?? 0"
+          :busy="busy"
+          @confirm="confirmCreditCheckout"
+          @cancel="cancelCreditPreview"
         />
         <ShoppingCart
           :lines="cartLines"
