@@ -120,6 +120,7 @@ const progressAriaLabel = computed(() =>
 
 <style scoped>
 .project-card {
+  align-self: start;
   position: relative;
   min-width: 0;
   overflow: hidden;
