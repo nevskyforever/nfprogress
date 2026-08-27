@@ -181,6 +181,7 @@ describe('ProjectDetailPage progress sharing', () => {
       progressText: '25,000 / 100,000 символов',
       footerLabel: 'Apr 30, 2027',
       footerDetail: 'Этапов: 1',
+      theme: 'light',
     })
     expect(copyProgressImage).toHaveBeenNthCalledWith(2, {
       title: 'Дом у моря: Глава 3',
@@ -190,6 +191,7 @@ describe('ProjectDetailPage progress sharing', () => {
       progressText: '25,000 / 100,000 символов',
       footerLabel: 'Apr 30, 2027',
       footerDetail: undefined,
+      theme: 'light',
     })
     expect(useNotificationsStore(pinia).notifications).toContainEqual(expect.objectContaining({
       kind: 'info',

@@ -23,6 +23,7 @@ export interface ProgressSharePayload {
   progressText?: string
   footerLabel?: string
   footerDetail?: string
+  theme?: 'light' | 'dark'
 }
 
 interface TextLayout {
@@ -277,19 +278,20 @@ function drawCoveredProjectCard(
   cover: HTMLImageElement,
   icon: CanvasImageSource | null,
 ): void {
+  const colors = projectCardColors(payload.theme)
   const progress = normalizeProgressSharePercent(payload.progress)
   const card = { x: 340, y: 30, width: 400, height: 900, radius: 32 }
   const coverHeight = 600
   const contentY = card.y + coverHeight
   const title = progressShareTitle(payload.title)
 
-  context.fillStyle = '#191C1C'
+  context.fillStyle = colors.canvas
   context.fillRect(0, 0, PROGRESS_SHARE_IMAGE_SIZE, PROGRESS_SHARE_IMAGE_SIZE)
   context.save()
-  context.shadowColor = 'rgb(43 55 50 / 20%)'
+  context.shadowColor = colors.shadow
   context.shadowBlur = 28
   context.shadowOffsetY = 12
-  context.fillStyle = '#272B31'
+  context.fillStyle = colors.surface
   context.beginPath()
   roundedRectangle(context, card.x, card.y, card.width, card.height, card.radius)
   context.fill()
@@ -299,22 +301,23 @@ function drawCoveredProjectCard(
   context.beginPath()
   roundedRectangle(context, card.x, card.y, card.width, card.height, card.radius)
   context.clip()
+  context.save()
   drawCoverImage(context, cover, card.x, card.y, card.width, coverHeight)
   context.restore()
 
-  context.fillStyle = '#272B31'
+  context.fillStyle = colors.surface
   context.fillRect(card.x, contentY, card.width, card.height - coverHeight)
 
-  context.fillStyle = '#3E519F'
+  context.fillStyle = colors.primarySoft
   context.beginPath()
   roundedRectangle(context, card.x + 30, contentY + 28, 98, 34, 17)
   context.fill()
-  context.fillStyle = '#B8C4FF'
+  context.fillStyle = colors.primary
   context.font = '700 17px Arial, sans-serif'
   context.textBaseline = 'middle'
   context.fillText(payload.statusLabel || 'Активен', card.x + 43, contentY + 45)
 
-  context.fillStyle = '#F7F8FA'
+  context.fillStyle = colors.text
   context.font = '500 31px Arial, sans-serif'
   context.textAlign = 'left'
   context.textBaseline = 'alphabetic'
@@ -325,50 +328,182 @@ function drawCoveredProjectCard(
     titleY += layout.lineHeight
   }
 
-  context.fillStyle = '#BDC1C6'
+  context.fillStyle = colors.textMuted
   context.font = '500 17px Arial, sans-serif'
   context.fillText(payload.progressText || `${progress}%`, card.x + 30, contentY + 198)
 
   const bar = { x: card.x + 30, y: contentY + 218, width: card.width - 60, height: 14 }
-  context.fillStyle = '#3D424C'
+  context.fillStyle = colors.surfaceMuted
   context.beginPath()
   roundedRectangle(context, bar.x, bar.y, bar.width, bar.height, bar.height / 2)
   context.fill()
   if (progress) {
-    context.fillStyle = '#93A8FF'
+    context.fillStyle = colors.accent
     context.beginPath()
     roundedRectangle(context, bar.x, bar.y, Math.max(bar.height, bar.width * progress / 100), bar.height, bar.height / 2)
     context.fill()
   }
 
-  context.fillStyle = '#BDC1C6'
+  context.fillStyle = colors.textMuted
   context.font = '500 16px Arial, sans-serif'
   context.fillText(payload.footerLabel || 'Без срока', card.x + 30, contentY + 276)
   if (payload.footerDetail) {
     context.textAlign = 'right'
     context.fillText(payload.footerDetail, card.x + card.width - 30, contentY + 276)
   }
+  context.restore()
 
-  context.strokeStyle = '#5F6368'
+  context.strokeStyle = colors.border
   context.lineWidth = 1
   context.beginPath()
   roundedRectangle(context, card.x + .5, card.y + .5, card.width - 1, card.height - 1, card.radius)
   context.stroke()
 
-  drawCoveredBrand(context, icon)
+  drawCoveredBrand(context, icon, colors.brand)
 }
 
-function drawCoveredBrand(context: CanvasRenderingContext2D, icon: CanvasImageSource | null): void {
-  const brandY = 1025
+interface ProjectCardColors {
+  canvas: string
+  surface: string
+  surfaceMuted: string
+  text: string
+  textMuted: string
+  border: string
+  primary: string
+  primarySoft: string
+  accent: string
+  brand: string
+  shadow: string
+}
+
+function projectCardColors(theme: ProgressSharePayload['theme']): ProjectCardColors {
+  return theme === 'dark'
+    ? {
+        canvas: '#202124', surface: '#292B30', surfaceMuted: '#383B42', text: '#F1F3F4',
+        textMuted: '#BDC1C6', border: '#5F6368', primary: '#8DA2FB', primarySoft: '#303D7D',
+        accent: '#AAB8FF', brand: '#F1F3F4', shadow: 'rgb(0 0 0 / 20%)',
+      }
+    : {
+        canvas: '#F5F5F7', surface: '#FFFFFF', surfaceMuted: '#F0F1F4', text: '#202124',
+        textMuted: '#687078', border: '#C7C9CE', primary: '#4263EB', primarySoft: '#E8ECFF',
+        accent: '#4263EB', brand: '#4263EB', shadow: 'rgb(0 0 0 / 15%)',
+      }
+}
+
+function drawCoveredBrand(
+  context: CanvasRenderingContext2D,
+  icon: CanvasImageSource | null,
+  color: string,
+  brandY = 1025,
+): void {
   context.font = '700 37px Arial, sans-serif'
   const textWidth = context.measureText(BRAND_TEXT).width
   const groupWidth = BRAND_ICON_SIZE + BRAND_SPACING + textWidth
   const groupX = (PROGRESS_SHARE_IMAGE_SIZE - groupWidth) / 2
   if (icon) context.drawImage(icon, groupX, brandY - BRAND_ICON_SIZE / 2, BRAND_ICON_SIZE, BRAND_ICON_SIZE)
-  context.fillStyle = '#F7F8FA'
+  context.fillStyle = color
   context.textAlign = 'left'
   context.textBaseline = 'middle'
   context.fillText(BRAND_TEXT, groupX + BRAND_ICON_SIZE + BRAND_SPACING, brandY)
+}
+
+function drawUncoveredProjectCard(
+  context: CanvasRenderingContext2D,
+  payload: ProgressSharePayload,
+  icon: CanvasImageSource | null,
+): void {
+  const colors = projectCardColors(payload.theme)
+  const progress = normalizeProgressSharePercent(payload.progress)
+  const card = { x: 120, y: 270, width: 840, height: 390, radius: 34 }
+  const title = progressShareTitle(payload.title)
+
+  context.fillStyle = colors.canvas
+  context.fillRect(0, 0, PROGRESS_SHARE_IMAGE_SIZE, PROGRESS_SHARE_IMAGE_SIZE)
+  context.save()
+  context.shadowColor = colors.shadow
+  context.shadowBlur = 28
+  context.shadowOffsetY = 12
+  context.fillStyle = colors.surface
+  context.beginPath()
+  roundedRectangle(context, card.x, card.y, card.width, card.height, card.radius)
+  context.fill()
+  context.restore()
+
+  context.save()
+  context.beginPath()
+  roundedRectangle(context, card.x, card.y, card.width, card.height, card.radius)
+  context.clip()
+
+  context.fillStyle = colors.primarySoft
+  context.beginPath()
+  roundedRectangle(context, card.x + 34, card.y + 30, 108, 36, 18)
+  context.fill()
+  context.fillStyle = colors.primary
+  context.font = '700 18px Arial, sans-serif'
+  context.textAlign = 'left'
+  context.textBaseline = 'middle'
+  context.fillText(payload.statusLabel || 'Активен', card.x + 48, card.y + 48)
+
+  const ringX = card.x + 150
+  const ringY = card.y + 195
+  const ringRadius = 77
+  context.lineWidth = 16
+  context.lineCap = 'round'
+  context.strokeStyle = colors.surfaceMuted
+  context.beginPath()
+  context.arc(ringX, ringY, ringRadius, 0, Math.PI * 2)
+  context.stroke()
+  if (progress) {
+    context.strokeStyle = colors.accent
+    context.beginPath()
+    context.arc(ringX, ringY, ringRadius, -Math.PI / 2, -Math.PI / 2 + progress / 100 * Math.PI * 2)
+    context.stroke()
+  }
+  context.fillStyle = colors.text
+  context.font = '700 28px Arial, sans-serif'
+  context.textAlign = 'center'
+  context.fillText(`${progress}%`, ringX, ringY + 1)
+
+  const contentX = card.x + 285
+  context.textAlign = 'left'
+  context.textBaseline = 'alphabetic'
+  context.fillStyle = colors.text
+  const layout = fitTitleInArea(context, title, { x: contentX, y: card.y + 100, width: 475, height: 76 }, 38)
+  let titleY = card.y + 100 + layout.lineHeight
+  for (const line of layout.lines) {
+    context.fillText(line, contentX, titleY)
+    titleY += layout.lineHeight
+  }
+  context.fillStyle = colors.textMuted
+  context.font = '500 19px Arial, sans-serif'
+  context.fillText(payload.progressText || `${progress}%`, contentX, card.y + 210)
+  const bar = { x: contentX, y: card.y + 230, width: 475, height: 14 }
+  context.fillStyle = colors.surfaceMuted
+  context.beginPath()
+  roundedRectangle(context, bar.x, bar.y, bar.width, bar.height, bar.height / 2)
+  context.fill()
+  if (progress) {
+    context.fillStyle = colors.accent
+    context.beginPath()
+    roundedRectangle(context, bar.x, bar.y, Math.max(bar.height, bar.width * progress / 100), bar.height, bar.height / 2)
+    context.fill()
+  }
+
+  context.fillStyle = colors.textMuted
+  context.font = '500 16px Arial, sans-serif'
+  context.fillText(payload.footerLabel || 'Без срока', card.x + 34, card.y + 340)
+  if (payload.footerDetail) {
+    context.textAlign = 'right'
+    context.fillText(payload.footerDetail, card.x + card.width - 34, card.y + 340)
+  }
+  context.restore()
+
+  context.strokeStyle = colors.border
+  context.lineWidth = 1
+  context.beginPath()
+  roundedRectangle(context, card.x + .5, card.y + .5, card.width - 1, card.height - 1, card.radius)
+  context.stroke()
+  drawCoveredBrand(context, icon, colors.brand, 770)
 }
 
 function fitTitleInArea(
@@ -442,7 +577,7 @@ export async function createProgressShareImage(payload: ProgressSharePayload): P
   ])
   const context = canvasContext(canvas)
   if (cover) drawCoveredProjectCard(context, payload, cover, icon)
-  else drawProgressShareImage(context, payload, icon)
+  else drawUncoveredProjectCard(context, payload, icon)
   return canvasBlob(canvas)
 }
 

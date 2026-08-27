@@ -348,6 +348,9 @@ async function exportProgress(
     const goalLabel = entity.goal === null
       ? t('Без лимита')
       : locale.formatNumber(entity.goal, fractionDigits)
+    const shareTheme: 'light' | 'dark' = document.documentElement.dataset.theme === 'dark'
+      ? 'dark'
+      : 'light'
     const payload = {
       title: progressShareTitle(entity.name, parentName),
       progress: entity.progress,
@@ -358,6 +361,7 @@ async function exportProgress(
       footerDetail: parentName || !entity.stages_enabled
         ? undefined
         : `${t('Этапов')}: ${locale.formatNumber(entity.stages.length, 0)}`,
+      theme: shareTheme,
     }
     if (destination === 'clipboard') {
       await copyProgressImage(payload)
