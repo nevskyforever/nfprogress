@@ -19,7 +19,7 @@ from collections import defaultdict
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
-version = '5.0'
+version = '5.0.1'
 
 # Определяем систему
 
