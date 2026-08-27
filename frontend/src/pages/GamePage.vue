@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { IonContent, IonPage, onIonViewWillEnter } from '@ionic/vue'
 import { alertCircleOutline, sparklesOutline } from 'ionicons/icons'
 
@@ -13,6 +13,8 @@ import GameOverview from '@/components/game/GameOverview.vue'
 import GrowthPanel from '@/components/game/GrowthPanel.vue'
 import InventoryShopPanel from '@/components/game/InventoryShopPanel.vue'
 import LotteryTicketDialog, { type LotteryDraw } from '@/components/game/LotteryTicketDialog.vue'
+import PurchaseConfirmDialog from '@/components/game/PurchaseConfirmDialog.vue'
+import ShoppingCart, { type CartLine } from '@/components/game/ShoppingCart.vue'
 import WritingSessionPanel from '@/components/game/WritingSessionPanel.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { useLocaleStore } from '@/stores/locale'
@@ -21,6 +23,7 @@ import { announceDataChange, onDataChange } from '@/services/dataChanges'
 import type {
   BankProductRequest,
   GameCommandResponse,
+  GameItem,
   GameState,
   InventoryCommand,
   WritingSessionStart,
@@ -65,6 +68,21 @@ const tab = ref<GameTab>([
 const bankPreview = ref<GameCommandResponse['result']>(null)
 const inventoryCategory = ref('')
 const lotteryDraws = ref<LotteryDraw[]>([])
+const pendingPurchase = ref<InventoryCommand | null>(null)
+const cartLines = ref<CartLine[]>([])
+const cartTotal = computed(() => cartLines.value.reduce(
+  (sum, line) => sum + (line.item.price ?? 0) * line.count,
+  0,
+))
+const cartCreditAllowed = computed(() => cartLines.value.every(
+  (line) => line.item.credit_allowed !== false,
+))
+const pendingPurchaseItem = computed(() => {
+  const payload = pendingPurchase.value
+  if (!payload || !state.value) return null
+  return state.value.shop.categories.flatMap((category) => category.items)
+    .find((item) => item.category === payload.category && item.key === payload.item_id) ?? null
+})
 let stopDataChanges: (() => void) | undefined
 let stateController: AbortController | undefined
 let preferencesController: AbortController | undefined
@@ -234,11 +252,75 @@ function inventoryCommand(
     sell: gameApi.sellItem,
     use: gameApi.useItem,
   }[action]
+  if (action === 'buy') {
+    pendingPurchase.value = payload
+    return
+  }
   if (action === 'use' && payload.item_id === 'Лотерейный билет') {
     void useLotteryTicket(payload)
     return
   }
   void runCommand(() => command(payload))
+}
+
+function addToCart(item: GameItem, count: number): void {
+  const existing = cartLines.value.find((line) => line.item.id === item.id)
+  if (existing) existing.count += count
+  else cartLines.value.push({ item, count })
+}
+
+function changeCartLine(itemId: string, count: number): void {
+  const line = cartLines.value.find((candidate) => candidate.item.id === itemId)
+  if (line) line.count = count
+}
+
+function removeCartLine(itemId: string): void {
+  cartLines.value = cartLines.value.filter((line) => line.item.id !== itemId)
+}
+
+async function confirmPurchase(): Promise<void> {
+  const payload = pendingPurchase.value
+  if (!payload) return
+  pendingPurchase.value = null
+  await runCommand(() => gameApi.buyItem(payload))
+}
+
+function addPendingPurchaseToCart(): void {
+  const payload = pendingPurchase.value
+  const item = pendingPurchaseItem.value
+  if (payload && item) addToCart(item, payload.count)
+  pendingPurchase.value = null
+}
+
+async function checkoutCart(useCredit: boolean, days: number): Promise<void> {
+  if (busy.value || !cartLines.value.length || !state.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    let currentState = {} as GameState
+    const shortfall = Math.max(0, cartTotal.value - state.value.profile.coins)
+    if (useCredit && shortfall > 0) {
+      const credit = await gameApi.openBankCredit(shortfall, Math.floor(days))
+      currentState = credit.state
+    }
+    for (const line of cartLines.value) {
+      const response = await gameApi.buyItem({
+        category: line.item.category,
+        item_id: line.item.key,
+        count: line.count,
+      })
+      currentState = response.state
+    }
+    applyState(currentState)
+    cartLines.value = []
+    announceDataChange('game')
+    notifications.success(t('Покупки оформлены.'))
+  } catch (caught) {
+    error.value = apiErrorMessage(caught)
+    notifications.error(error.value)
+  } finally {
+    busy.value = false
+  }
 }
 
 async function useLotteryTicket(payload: InventoryCommand): Promise<void> {
@@ -305,6 +387,25 @@ onBeforeUnmount(() => {
     <IonContent :fullscreen="true" class="game-content">
       <main class="game-workspace">
         <LotteryTicketDialog :draws="lotteryDraws" @close="lotteryDraws = []" />
+        <PurchaseConfirmDialog
+          :item="pendingPurchaseItem"
+          :count="pendingPurchase?.count ?? 1"
+          :busy="busy"
+          @confirm="confirmPurchase"
+          @cancel="pendingPurchase = null"
+          @add-to-cart="addPendingPurchaseToCart"
+        />
+        <ShoppingCart
+          :lines="cartLines"
+          :coins="state?.profile.coins ?? 0"
+          :can-open-credit="state?.bank.can_open_credit ?? false"
+          :credit-allowed="cartCreditAllowed"
+          :busy="busy"
+          @change="changeCartLine"
+          @remove="removeCartLine"
+          @clear="cartLines = []"
+          @checkout="checkoutCart"
+        />
         <header class="page-header">
           <div>
             <p class="page-eyebrow">{{ t('Творческая мотивация') }}</p>
@@ -401,6 +502,7 @@ onBeforeUnmount(() => {
               :busy="busy"
               :initial-inventory-category="inventoryCategory"
               @buy="(payload) => inventoryCommand('buy', payload)"
+              @add-to-cart="addToCart"
               @sell="(payload) => inventoryCommand('sell', payload)"
               @use="(payload) => inventoryCommand('use', payload)"
               @freeze="openFreezeSelector"

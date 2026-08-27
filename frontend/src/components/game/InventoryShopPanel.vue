@@ -13,6 +13,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   buy: [payload: InventoryCommand]
+  addToCart: [item: GameItem, count: number]
   sell: [payload: InventoryCommand]
   use: [payload: InventoryCommand]
   freeze: []
@@ -82,6 +83,15 @@ function payload(item: GameItem): InventoryCommand {
     item_id: item.key,
     count: Math.max(1, Math.min(1_000, Math.floor(count.value || 1))),
   }
+}
+
+function buy(item: GameItem, event: MouseEvent): void {
+  const quantity = payload(item).count
+  if (event.shiftKey) {
+    emit('addToCart', item, quantity)
+    return
+  }
+  emit('buy', payload(item))
 }
 
 function isFreeze(item: GameItem): boolean {
@@ -163,7 +173,7 @@ function isUsable(item: GameItem): boolean {
             class="nf-button"
             type="button"
             :disabled="busy || !item.can_buy"
-            @click="emit('buy', payload(item))"
+            @click="buy(item, $event)"
           >
             {{ t('Купить') }}
           </button>

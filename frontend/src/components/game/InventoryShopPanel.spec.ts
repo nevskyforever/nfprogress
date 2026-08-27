@@ -98,4 +98,20 @@ describe('InventoryShopPanel', () => {
     await freezeButton?.trigger('click')
     expect(wrapper.emitted('freeze')).toHaveLength(1)
   })
+
+  it('adds an item to the cart when Buy is clicked with Shift', async () => {
+    const cartInventory: GameInventory = structuredClone(inventory)
+    cartInventory.categories[0]!.items[0]!.can_buy = true
+    const wrapper = mount(InventoryShopPanel, {
+      props: { inventory: cartInventory, shop, busy: false },
+      global: { plugins: [createPinia()] },
+    })
+
+    const buyButton = wrapper.findAll('.item-card')[0]?.find('.nf-button')
+    await buyButton?.trigger('click', { shiftKey: true })
+
+    expect(wrapper.emitted('addToCart')?.[0]?.[0]).toMatchObject({
+      key: 'Лотерейный билет',
+    })
+  })
 })

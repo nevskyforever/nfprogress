@@ -128,7 +128,7 @@ onBeforeUnmount(stopAnimation)
 
 <style scoped>
 .lottery-dialog { --background: transparent; }
-.lottery-dialog__card { min-height: 100%; display: grid; place-content: center; gap: 1rem; padding: 2rem; text-align: center; background: radial-gradient(circle at top, #273d63, #111827 68%); color: #fff; }
+.lottery-dialog__card { width: min(37.5rem, calc(100% - 2rem)); margin: max(2rem, 10vh) auto; display: grid; place-content: center; gap: 1rem; padding: 2rem; overflow: hidden; border: 1px solid rgba(150, 177, 255, .22); border-radius: var(--nf-radius-xl, 1.5rem); text-align: center; background: radial-gradient(circle at top, #273d63, #111827 68%); box-shadow: 0 1.5rem 4rem rgba(0, 0, 0, .42); color: #fff; }
 .lottery-dialog__card h2 { margin: 0; font-size: clamp(1.5rem, 4vw, 2.25rem); }
 .lottery-dialog__eyebrow, .lottery-dialog__hint { margin: 0; color: #c9d6ef; }
 .lottery-dialog__row { display: grid; grid-template-columns: minmax(8rem, 1fr) repeat(5, minmax(2.5rem, 3.5rem)); gap: .5rem; align-items: center; text-align: left; }
