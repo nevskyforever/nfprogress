@@ -21,7 +21,7 @@ MAX_PROJECT_COVER_IMAGE_LENGTH = 5_000_000
 # Режим разработчика.
 dev_mode = "__compiled__" not in globals()
 
-# Версия приложения.
+# Версия приложения
 version = '5.1'
 
 # Определяем систему
