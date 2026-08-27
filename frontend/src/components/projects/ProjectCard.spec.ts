@@ -44,6 +44,24 @@ describe('ProjectCard', () => {
     expect(wrapper.get('.progress-ring').classes()).not.toContain('progress-ring--infinite')
   })
 
+  it('places a saved portrait cover above the project information', () => {
+    const cover = 'data:image/jpeg;base64,/9j/2Q=='
+    const wrapper = mount(ProjectCard, {
+      props: { project: projectFixture({ cover_image: cover }) },
+      global: {
+        plugins: [createPinia()],
+        stubs: { IonIcon: true, RouterLink: { template: '<a><slot /></a>' } },
+      },
+    })
+
+    expect(wrapper.get('.project-card__cover').attributes('src')).toBe(cover)
+    expect(wrapper.get('.project-card__cover').element.nextElementSibling?.className)
+      .toContain('project-card__content')
+    expect(wrapper.get('.project-card__cover-progress').attributes('aria-label')).toContain('Дом у моря')
+    expect(wrapper.find('.progress-ring').exists()).toBe(false)
+    expect(wrapper.get('.project-card').classes()).toContain('project-card--with-cover')
+  })
+
   it('shows the project streak only when the global mode and legacy deadline rule allow it', () => {
     const wrapper = mount(ProjectCard, {
       props: {

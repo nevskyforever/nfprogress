@@ -176,10 +176,22 @@ describe('ProjectDetailPage progress sharing', () => {
     expect(copyProgressImage).toHaveBeenNthCalledWith(1, {
       title: 'Дом у моря',
       progress: 25,
+      coverImage: null,
+      statusLabel: 'Активен',
+      progressText: '25,000 / 100,000 символов',
+      footerLabel: 'Apr 30, 2027',
+      footerDetail: 'Этапов: 1',
+      theme: 'light',
     })
     expect(copyProgressImage).toHaveBeenNthCalledWith(2, {
       title: 'Дом у моря: Глава 3',
       progress: 50,
+      coverImage: null,
+      statusLabel: 'Активен',
+      progressText: '25,000 / 100,000 символов',
+      footerLabel: 'Apr 30, 2027',
+      footerDetail: undefined,
+      theme: 'light',
     })
     expect(useNotificationsStore(pinia).notifications).toContainEqual(expect.objectContaining({
       kind: 'info',

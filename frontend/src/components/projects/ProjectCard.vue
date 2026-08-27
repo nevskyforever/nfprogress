@@ -6,6 +6,7 @@ import { calendarClearOutline, layersOutline } from 'ionicons/icons'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
 import StreakBadge from '@/components/projects/StreakBadge.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
+import ProgressBar from '@/components/ui/ProgressBar.vue'
 import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
@@ -45,64 +46,87 @@ const progressAriaLabel = computed(() =>
 </script>
 
 <template>
-  <article class="project-card" :class="`project-card--${project.status.replaceAll(' ', '-')}`">
+  <article
+    class="project-card"
+    :class="[
+      `project-card--${project.status.replaceAll(' ', '-')}`,
+      { 'project-card--with-cover': project.cover_image },
+    ]"
+  >
     <RouterLink
       class="project-card__link"
+      :class="{ 'project-card__link--with-cover': project.cover_image }"
       :to="{ name: 'project-detail', params: { projectId: project.id } }"
       :aria-label="`${t('Открыть проект')}: ${project.name}`"
     >
-      <div class="project-card__header">
-        <span class="project-card__status">{{ presentation.statusLabel }}</span>
-        <span v-if="project.infinite" class="project-card__kind">∞ {{ t('Без лимита') }}</span>
-      </div>
+      <img
+        v-if="project.cover_image"
+        class="project-card__cover"
+        :src="project.cover_image"
+        alt=""
+      />
+      <div class="project-card__content">
+        <div class="project-card__header">
+          <span class="project-card__status">{{ presentation.statusLabel }}</span>
+          <span v-if="project.infinite" class="project-card__kind">∞ {{ t('Без лимита') }}</span>
+        </div>
 
-      <div class="project-card__body">
-        <ProgressRing
-          :value="presentation.progress"
-          :infinite="project.infinite"
-          :full="project.name === 'Общий проект'"
-          :label="progressAriaLabel"
-        />
-        <div class="project-card__summary">
-          <div class="project-card__title-row">
-            <h2>{{ project.name }}</h2>
-            <span class="project-card__open" aria-hidden="true">↗</span>
-          </div>
-          <div class="project-card__progress-copy">
-            <span>
-              <strong><AnimatedNumber :value="project.total" :digits="project.unit === 'symbols' ? 0 : 2" /></strong>
-              <span> / <template v-if="project.infinite">{{ presentation.goalLabel }}</template><AnimatedNumber v-else :value="project.goal ?? 0" :digits="project.unit === 'symbols' ? 0 : 2" /> {{ presentation.unitLabel }}</span>
-            </span>
+        <div class="project-card__body">
+          <ProgressRing
+            v-if="!project.cover_image"
+            :value="presentation.progress"
+            :infinite="project.infinite"
+            :full="project.name === 'Общий проект'"
+            :label="progressAriaLabel"
+          />
+          <div class="project-card__summary">
+            <div class="project-card__title-row">
+              <h2>{{ project.name }}</h2>
+              <span class="project-card__open" aria-hidden="true">↗</span>
+            </div>
+            <div class="project-card__progress-copy">
+              <span>
+                <strong><AnimatedNumber :value="project.total" :digits="project.unit === 'symbols' ? 0 : 2" /></strong>
+                <span> / <template v-if="project.infinite">{{ presentation.goalLabel }}</template><AnimatedNumber v-else :value="project.goal ?? 0" :digits="project.unit === 'symbols' ? 0 : 2" /> {{ presentation.unitLabel }}</span>
+              </span>
+            </div>
+            <ProgressBar
+              v-if="project.cover_image"
+              class="project-card__cover-progress"
+              :value="presentation.progress"
+              :label="progressAriaLabel"
+            />
           </div>
         </div>
+
+        <StreakBadge
+          v-if="showStreak"
+          class="project-card__streak"
+          :length="project.streak_length"
+          :status="project.streak_status"
+          scope="project"
+          compact
+        />
+
+        <footer class="project-card__meta">
+          <span :class="{ 'project-card__deadline--overdue': isOverdue }">
+            <IonIcon :icon="calendarClearOutline" aria-hidden="true" />
+            <span>{{ locale.formatDate(project.deadline) }}</span>
+            <span v-if="isOverdue" class="visually-hidden"> — {{ t('срок прошёл') }}</span>
+          </span>
+          <span v-if="project.stages_enabled">
+            <IonIcon :icon="layersOutline" aria-hidden="true" />
+            {{ stageCountLabel }}
+          </span>
+        </footer>
       </div>
-
-      <StreakBadge
-        v-if="showStreak"
-        class="project-card__streak"
-        :length="project.streak_length"
-        :status="project.streak_status"
-        scope="project"
-        compact
-      />
-
-      <footer class="project-card__meta">
-        <span :class="{ 'project-card__deadline--overdue': isOverdue }">
-          <IonIcon :icon="calendarClearOutline" aria-hidden="true" />
-          <span>{{ locale.formatDate(project.deadline) }}</span>
-          <span v-if="isOverdue" class="visually-hidden"> — {{ t('срок прошёл') }}</span>
-        </span>
-        <span v-if="project.stages_enabled">
-          <IonIcon :icon="layersOutline" aria-hidden="true" />
-          {{ stageCountLabel }}
-        </span>
-      </footer>
     </RouterLink>
   </article>
 </template>
 
 <style scoped>
 .project-card {
+  align-self: start;
   position: relative;
   min-width: 0;
   overflow: hidden;
@@ -131,6 +155,10 @@ const progressAriaLabel = computed(() =>
   background: var(--nf-color-accent);
 }
 
+.project-card--with-cover::before {
+  display: none;
+}
+
 .project-card:hover {
   border-color: color-mix(in srgb, var(--nf-color-primary) 45%, var(--nf-color-border));
   transform: translateY(-2px);
@@ -138,13 +166,30 @@ const progressAriaLabel = computed(() =>
 }
 
 .project-card__link {
+  display: block;
+  flex-direction: column;
+  color: inherit;
+  text-decoration: none;
+}
+
+.project-card__content {
   display: flex;
   min-height: 15.5rem;
   padding: var(--nf-space-5);
   padding-left: calc(var(--nf-space-5) + 0.25rem);
   flex-direction: column;
-  color: inherit;
-  text-decoration: none;
+}
+
+.project-card__cover {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  background: var(--nf-color-surface-muted);
+}
+
+.project-card--with-cover .project-card__content {
+  padding-left: var(--nf-space-5);
 }
 
 .project-card__header,
@@ -228,6 +273,10 @@ const progressAriaLabel = computed(() =>
   font-size: 0.95rem;
 }
 
+.project-card__cover-progress {
+  margin-top: var(--nf-space-3);
+}
+
 .project-card__meta {
   gap: var(--nf-space-3);
   margin-top: auto;
@@ -248,7 +297,7 @@ const progressAriaLabel = computed(() =>
 }
 
 @media (max-width: 31rem) {
-  .project-card__link {
+  .project-card__content {
     min-height: 13.75rem;
     padding: var(--nf-space-4);
     padding-left: calc(var(--nf-space-4) + 0.25rem);

@@ -30,6 +30,7 @@ PYTHON_SOURCES = (
     "game_UI.py",
     "game_data.py",
     "help_content.py",
+    "lottery_dialog.py",
     "localization.py",
     "main_UI.py",
     "mindmap.py",

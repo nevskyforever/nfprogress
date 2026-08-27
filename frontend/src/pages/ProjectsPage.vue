@@ -101,6 +101,12 @@ const hasFilters = computed(
   () => search.value.trim().length > 0 || status.value !== 'all',
 )
 
+const hasMixedProjectCards = computed(() => {
+  const hasCoveredProject = store.projects.some((project) => Boolean(project.cover_image))
+  const hasUncoveredProject = store.projects.some((project) => !project.cover_image)
+  return hasCoveredProject && hasUncoveredProject
+})
+
 const resultSummary = computed(() => {
   if (store.loading || store.error) return ''
   return t('Найдено проектов: {count}', { count: store.projectCount })
@@ -493,6 +499,31 @@ onBeforeUnmount(() => {
           </button>
         </StatePanel>
 
+        <section
+          v-else-if="hasMixedProjectCards"
+          class="project-mixed-grid"
+          :class="{ 'project-grid--updating': store.loading }"
+          :aria-busy="store.loading"
+          :aria-label="t('Список проектов')"
+        >
+          <TransitionGroup tag="div" class="project-mixed-grid__covers">
+            <ProjectCard
+              v-for="project in store.projects.filter((item) => item.cover_image)"
+              :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
+              :project="project"
+              :streaks-enabled="streaksEnabled"
+            />
+          </TransitionGroup>
+          <TransitionGroup tag="div" class="project-mixed-grid__plain">
+            <ProjectCard
+              v-for="project in store.projects.filter((item) => !item.cover_image)"
+              :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
+              :project="project"
+              :streaks-enabled="streaksEnabled"
+            />
+          </TransitionGroup>
+        </section>
+
         <TransitionGroup
           v-else
           tag="section"
@@ -750,6 +781,23 @@ onBeforeUnmount(() => {
   opacity: 0.58;
   pointer-events: none;
 }
+
+.project-mixed-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  gap: var(--nf-space-4);
+  transition: opacity 120ms ease;
+}
+
+.project-mixed-grid__covers {
+  display: contents;
+}
+
+.project-mixed-grid__plain {
+  display: grid;
+  gap: var(--nf-space-4);
+  align-content: start;
+}
 .project-grid-move,
 .project-grid-enter-active,
 .project-grid-leave-active { transition: transform 360ms ease, opacity 260ms ease; }
@@ -759,6 +807,10 @@ onBeforeUnmount(() => {
 
 @media (min-width: 100rem) {
   .project-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .project-mixed-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }

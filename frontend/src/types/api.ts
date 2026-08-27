@@ -49,6 +49,7 @@ export interface Project {
   stages_enabled: boolean
   combine_stage_mindmaps: boolean
   parent_project_id: string | null
+  cover_image: string | null
 }
 
 export interface StageCreate {
@@ -67,6 +68,7 @@ export interface ProjectCreate extends StageCreate {
   stages_enabled?: boolean
   stages?: StageCreate[]
   combine_stage_mindmaps?: boolean
+  cover_image?: string | null
 }
 
 export interface EntityUpdate {
@@ -86,6 +88,7 @@ export interface EntityUpdate {
 export interface ProjectUpdate extends EntityUpdate {
   stages_enabled?: boolean
   combine_stage_mindmaps?: boolean
+  cover_image?: string | null
 }
 
 export interface ProjectListQuery {

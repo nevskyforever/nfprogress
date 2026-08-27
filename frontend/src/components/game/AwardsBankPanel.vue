@@ -1,6 +1,4 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-
 import BankPanel from '@/components/game/BankPanel.vue'
 import CustomAwardsPanel from '@/components/game/CustomAwardsPanel.vue'
 import { useLocaleStore } from '@/stores/locale'
@@ -16,6 +14,7 @@ defineProps<{
   bank: BankState
   preview: GameCommandResponse['result']
   busy: boolean
+  view: 'awards' | 'bank'
 }>()
 
 const emit = defineEmits<{
@@ -39,7 +38,6 @@ const emit = defineEmits<{
 
 const locale = useLocaleStore()
 const t = locale.translate
-const view = ref<'awards' | 'bank'>('awards')
 </script>
 
 <template>
@@ -47,27 +45,7 @@ const view = ref<'awards' | 'bank'>('awards')
     <header class="panel-heading">
       <div>
         <p>{{ t('Личные цели и экономика') }}</p>
-        <h2 id="rewards-bank-title">{{ t('Награды и банк') }}</h2>
-      </div>
-      <div class="view-switch" role="tablist" :aria-label="t('Раздел наград и банка')">
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="view === 'awards'"
-          :class="{ active: view === 'awards' }"
-          @click="view = 'awards'"
-        >
-          {{ t('Мои награды') }}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="view === 'bank'"
-          :class="{ active: view === 'bank' }"
-          @click="view = 'bank'"
-        >
-          {{ t('Банк') }}
-        </button>
+        <h2 id="rewards-bank-title">{{ view === 'awards' ? t('Награды') : t('Банк') }}</h2>
       </div>
     </header>
 

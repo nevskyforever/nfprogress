@@ -95,6 +95,7 @@ class GameItemResponse(JsonExtensionResponse):
     count: int
     sellable: bool
     usable: bool
+    buy: bool = False
 
 
 class InventoryGameItemResponse(GameItemResponse):

@@ -94,6 +94,15 @@ describe('ProjectEditDialog', () => {
     expect(wrapper.emitted('submit')?.[0]?.[0]).not.toHaveProperty('recalculate_plan')
   })
 
+  it('keeps the cover control across both columns of the edit form', () => {
+    const wrapper = mount(ProjectEditDialog, {
+      props: { open: true, project: projectFixture() },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    expect(wrapper.get('.cover-editor').classes()).toContain('workspace-field--wide')
+  })
+
   it('confirms and requests the preserving stages-to-single conversion', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const stage = projectFixture({ id: 'stage-1', name: 'Черновик' })

@@ -171,14 +171,7 @@ def _registry_item_payload(
             effect = item_function('?')
         except Exception:
             effect = None
-    # Legacy inventory exposes every registered item with a ``use`` method,
-    # including permanent equipment buffs.  Restricting this to FuncItem
-    # silently removed the action button for those items in the web client.
-    # Freeze is intentionally still marked usable: the client routes it to the
-    # dedicated streak selector instead of the generic inventory command.
-    usable = callable(getattr(item, 'use', None)) and (
-        callable(item_function) or getattr(item, 'buff', None) is not None
-    )
+    usable = bool(getattr(item, 'usable', False))
     payload: JSONDict = {
         'id': f'{category}:{key}',
         'key': key,
@@ -192,6 +185,7 @@ def _registry_item_payload(
         'sellable': bool(getattr(item, 'sellable', True)),
         'credit_allowed': bool(getattr(item, 'credit_allowed', True)),
         'usable': usable,
+        'buy': bool(getattr(item, 'Buy', False)),
         'maximum_quantity': maximum,
         'available_for_level': gamer.level >= getattr(item, 'level', 1),
         'buffs': [
@@ -203,6 +197,8 @@ def _registry_item_payload(
     if include_count:
         payload['count'] = max(0, count)
     payload['can_buy'] = bool(
+        payload['buy']
+        and
         payload['available_for_level']
         and gamer.coins >= price
         and (maximum is None or count < maximum)
@@ -245,6 +241,7 @@ def serialize_inventory(gamer: legacy_game.Gamer) -> JSONDict:
                     'count': count,
                     'known': False,
                     'usable': False,
+                    'buy': False,
                     'sellable': False,
                 }
             payload.setdefault('known', True)
@@ -1377,6 +1374,10 @@ class GameService:
 
         def mutate(gamer: legacy_game.Gamer, _projects: JSONDict) -> JSONDict:
             key, item = self._registry_item(category, item_key)
+            if not getattr(item, 'Buy', False):
+                raise ConflictError(
+                    'item_not_buyable', 'Этот предмет нельзя купить.',
+                )
             if gamer.level < item.level:
                 raise ConflictError(
                     'item_level_too_low',
@@ -1473,9 +1474,15 @@ class GameService:
                     f'В инвентаре только {available} шт.',
                 )
             messages: list[str] = []
+            lottery_draws: list[JSONDict] = []
             for _ in range(count):
                 try:
-                    result = item.use()
+                    if key == 'Лотерейный билет':
+                        draw = game_data.prepare_lottery_ticket_draw()
+                        result = game_data.complete_lottery_ticket_draw(draw)
+                        lottery_draws.append(draw)
+                    else:
+                        result = item.use()
                 except ValueError as error:
                     raise ConflictError('item_use_rejected', str(error)) from error
                 inventory[key] -= 1
@@ -1484,13 +1491,16 @@ class GameService:
                 inventory.pop(key, None)
             gamer.normalize_inventory_item_names()
             gamer.update_cf()
+            result: JSONDict = {
+                'category': category,
+                'item_key': key,
+                'count': count,
+            }
+            if lottery_draws:
+                result['lottery_draws'] = lottery_draws
             return {
                 'message': '\n'.join(messages),
-                'result': {
-                    'category': category,
-                    'item_key': key,
-                    'count': count,
-                },
+                'result': result,
             }
 
         return self._command(mutate, settle_rewards=True)

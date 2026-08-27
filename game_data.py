@@ -134,7 +134,8 @@ class Item:
     """Основной класс"""
 
     def __init__(self, name, price, item_type=None, level=1, description='Нет описания', buff=None,
-                 credit_allowed=True, sellable=True, maximum_quantity_in_stock=None, buffs=None):
+                 credit_allowed=True, sellable=True, maximum_quantity_in_stock=None, buffs=None,
+                 usable=False, Buy=True):
         self.name = name
         self.item_type = item_type
         self._price = price
@@ -150,6 +151,8 @@ class Item:
         self.credit_allowed = credit_allowed
         self.sellable = sellable
         self.maximum_quantity_in_stock = maximum_quantity_in_stock
+        self.usable = usable
+        self.Buy = Buy
 
     @property
     def price(self):
@@ -222,9 +225,9 @@ class Item:
 class FuncItem(Item):
     """Предмет с функцией (зелья и т.д.)"""
 
-    def __init__(self, name, price, item_type, func=None, add=None, **kwargs):
+    def __init__(self, name, price, item_type, func=None, add=None, usable=True, Buy=True, **kwargs):
         # Передаем item_type корректно в родителя
-        super().__init__(name, price, item_type=item_type, **kwargs)
+        super().__init__(name, price, item_type=item_type, usable=usable, Buy=Buy, **kwargs)
         self._func = func
         self.add = add  # Сохраняем add как атрибут
 
@@ -1381,55 +1384,54 @@ def session_grade_medal_func(do, add=None):
 
 def lottery_ticket_func(do, add=None):
     """Функция лотерейного билета"""
-
-    gamer = game.load_game()
-    price = round(calculate_item_price(10))  # Базовая цена билета
+    if do == '?':
+        return 'Разыграйте 5 чисел из 30 и получите приз за 2 или больше совпадений'
 
     if do == 'use':
-        # Классическая система лотереи "5 из 30"
-        chance = set()
-        win = set()
-
-        # Генерируем 5 уникальных чисел от 1 до 30 для игрока
-        while len(chance) < 5:
-            chance.add(randint(1, 30))
-
-        # Генерируем 5 уникальных выигрышных чисел
-        while len(win) < 5:
-            win.add(randint(1, 30))
-
-        # Считаем совпадения
-        matches = len(chance.intersection(win))
-
-        win_prize = 0
-        # Показываем игроку, какие числа выпали, чтобы добавить азарта
-        message = f'Ваши числа: {sorted(chance)}\nВыигрышные: {sorted(win)}\n\n'
-
-        if matches == 2:
-            win_prize = price * 2
-            message += f'Совпало 2 числа! Выигрыш: {win_prize} монет.'
-        elif matches == 3:
-            win_prize = price * 10
-            message += f'Совпало 3 числа! Выигрыш: {win_prize} монет.'
-        elif matches == 4:
-            win_prize = price * 250
-            message += f'Отлично! Совпало 4 числа! Выигрыш: {win_prize} монет.'
-        elif matches == 5:
-            win_prize = price * 10000
-            message += f'ДЖЕКПОТ!! Совпало 5 чисел из 5! Выигрыш: {win_prize} монет!'
-        else:
-            message += f'Совпало чисел: {matches}. В этот раз не повезло :('
-
-        if win_prize > 0:
-            gamer.set_coins(win_prize)
-            gamer.save()
-
-        return message
-
-    if do == '?':
-        return 'Усугубляет лудоманию'
+        draw = prepare_lottery_ticket_draw()
+        return complete_lottery_ticket_draw(draw)
 
     return 'Неизвестное действие'
+
+
+def prepare_lottery_ticket_draw():
+    """Готовит результат розыгрыша билета без изменения сохранения игрока."""
+    player_numbers = set()
+    winning_numbers = set()
+    while len(player_numbers) < 5:
+        player_numbers.add(randint(1, 30))
+    while len(winning_numbers) < 5:
+        winning_numbers.add(randint(1, 30))
+
+    matches = len(player_numbers.intersection(winning_numbers))
+    multiplier = {2: 2, 3: 10, 4: 250, 5: 10000}.get(matches, 0)
+    prize = round(calculate_item_price(10)) * multiplier
+    return {
+        'player_numbers': sorted(player_numbers),
+        'winning_numbers': sorted(winning_numbers),
+        'matches': matches,
+        'prize': prize,
+    }
+
+
+def complete_lottery_ticket_draw(draw):
+    """Начисляет приз подготовленного розыгрыша и возвращает его итог."""
+    matches = int(draw['matches'])
+    prize = draw['prize']
+    if prize > 0:
+        gamer = game.load_game()
+        gamer.set_coins(prize)
+        gamer.save()
+
+    if matches == 2:
+        return f'Совпало 2 числа! Выигрыш: {prize} монет.'
+    if matches == 3:
+        return f'Совпало 3 числа! Выигрыш: {prize} монет.'
+    if matches == 4:
+        return f'Отлично! Совпало 4 числа! Выигрыш: {prize} монет.'
+    if matches == 5:
+        return f'ДЖЕКПОТ!! Совпало 5 чисел из 5! Выигрыш: {prize} монет!'
+    return f'Совпало чисел: {matches}. В этот раз не повезло :('
 
 def calculate_item_price(price):
     """Считает стоимость предмета с мягким ростом по уровню игрока.
@@ -1680,6 +1682,7 @@ session_grade_medal = FuncItem(
     maximum_quantity_in_stock=2,
 )
 crown_of_the_first_era = Item(name='👑  Корона Первой Эпохи', item_type='Награды', price=250000, sellable=False,
+                              Buy=False,
                               description='Корона выдается игрокам, которые прошли первую экономическую реформу в игре',
                               buff=Buff(name='Опыт миллионера',
                                         description='+1 к коэффициенту опыта',
@@ -1688,6 +1691,7 @@ crown_of_the_first_era = Item(name='👑  Корона Первой Эпохи',
                                         value=1.0)
                               )
 millionaires_pen = Item(name='💎  Перо Миллионера', item_type='Награды', price=250000, sellable=False,
+                        Buy=False,
                         description='Перо выдается игрокам, которые заработали больше миллиона монет до первой экономической реформы в игре',
                         buff=Buff(name='Удача миллионера',
                                   description='+1 к коэффициенту заработка',
@@ -1731,12 +1735,14 @@ def quest_award(name, description, target_cf, value=0.025):
         name=f'⭐️ {name}',
         item_type='Награды',
         price=0,
+        Buy=False,
         description=description,
         buff=make_quest_award_buff(target_cf, value),
     )
 
 
 health_care_badge = Item(name='⭐️ Знак заботы о здоровье', item_type='Награды', price=0,
+                         Buy=False,
                          description='Награда за подготовку аптечки автора.',
                          buff=make_quest_award_buff('health_recovery'))
 discipline_badge = quest_award('Знак дисциплины', 'Награда за запасной день и заботу о стрике.', 'health_recovery')

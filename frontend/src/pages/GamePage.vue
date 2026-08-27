@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { IonContent, IonPage, onIonViewWillEnter } from '@ionic/vue'
 import { alertCircleOutline, sparklesOutline } from 'ionicons/icons'
 
@@ -8,10 +8,15 @@ import { gameApi } from '@/api/game'
 import { settingsApi } from '@/api/settings'
 import AwardsBankPanel from '@/components/game/AwardsBankPanel.vue'
 import CabinetPanel from '@/components/game/CabinetPanel.vue'
+import CharacterQuickStats from '@/components/game/CharacterQuickStats.vue'
 import ChallengesPanel from '@/components/game/ChallengesPanel.vue'
+import CreditConfirmDialog from '@/components/game/CreditConfirmDialog.vue'
 import GameOverview from '@/components/game/GameOverview.vue'
 import GrowthPanel from '@/components/game/GrowthPanel.vue'
 import InventoryShopPanel from '@/components/game/InventoryShopPanel.vue'
+import LotteryTicketDialog, { type LotteryDraw } from '@/components/game/LotteryTicketDialog.vue'
+import PurchaseConfirmDialog from '@/components/game/PurchaseConfirmDialog.vue'
+import ShoppingCart, { type CartLine } from '@/components/game/ShoppingCart.vue'
 import WritingSessionPanel from '@/components/game/WritingSessionPanel.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { useLocaleStore } from '@/stores/locale'
@@ -20,6 +25,7 @@ import { announceDataChange, onDataChange } from '@/services/dataChanges'
 import type {
   BankProductRequest,
   GameCommandResponse,
+  GameItem,
   GameState,
   InventoryCommand,
   WritingSessionStart,
@@ -29,10 +35,12 @@ type GameTab =
   | 'overview'
   | 'sessions'
   | 'challenges'
-  | 'items'
+  | 'inventory'
+  | 'shop'
   | 'growth'
   | 'cabinet'
-  | 'economy'
+  | 'awards'
+  | 'bank'
 
 const locale = useLocaleStore()
 const notifications = useNotificationsStore()
@@ -59,10 +67,32 @@ function saveGameTab(value: GameTab): void {
 
 const savedGameTab = readSavedGameTab()
 const tab = ref<GameTab>([
-  'overview', 'sessions', 'challenges', 'items', 'growth', 'cabinet', 'economy',
+  'overview', 'sessions', 'challenges', 'inventory', 'shop', 'growth', 'cabinet', 'awards', 'bank',
 ].includes(savedGameTab ?? '') ? savedGameTab as GameTab : 'overview')
 const bankPreview = ref<GameCommandResponse['result']>(null)
 const inventoryCategory = ref('')
+const lotteryDraws = ref<LotteryDraw[]>([])
+const pendingPurchase = ref<InventoryCommand | null>(null)
+const cartLines = ref<CartLine[]>([])
+const pendingCredit = ref<{
+  amount: number
+  days: number
+  preview: GameCommandResponse['result']
+  source: 'cart' | 'purchase'
+} | null>(null)
+const cartTotal = computed(() => cartLines.value.reduce(
+  (sum, line) => sum + (line.item.price ?? 0) * line.count,
+  0,
+))
+const cartCreditAllowed = computed(() => cartLines.value.every(
+  (line) => line.item.credit_allowed !== false,
+))
+const pendingPurchaseItem = computed(() => {
+  const payload = pendingPurchase.value
+  if (!payload || !state.value) return null
+  return state.value.shop.categories.flatMap((category) => category.items)
+    .find((item) => item.category === payload.category && item.key === payload.item_id) ?? null
+})
 let stopDataChanges: (() => void) | undefined
 let stateController: AbortController | undefined
 let preferencesController: AbortController | undefined
@@ -80,10 +110,12 @@ const tabs: ReadonlyArray<{ key: GameTab; label: string }> = [
   { key: 'overview', label: 'Обзор' },
   { key: 'sessions', label: 'Сессии' },
   { key: 'challenges', label: 'Испытания' },
-  { key: 'items', label: 'Предметы' },
+  { key: 'inventory', label: 'Инвентарь' },
+  { key: 'shop', label: 'Магазин' },
   { key: 'growth', label: 'Развитие' },
   { key: 'cabinet', label: 'Кабинет' },
-  { key: 'economy', label: 'Награды и банк' },
+  { key: 'awards', label: 'Награды' },
+  { key: 'bank', label: 'Банк' },
 ]
 
 function applyState(nextState: GameState): void {
@@ -232,7 +264,176 @@ function inventoryCommand(
     sell: gameApi.sellItem,
     use: gameApi.useItem,
   }[action]
+  if (action === 'buy') {
+    pendingPurchase.value = payload
+    return
+  }
+  if (action === 'use' && payload.item_id === 'Лотерейный билет') {
+    void useLotteryTicket(payload)
+    return
+  }
   void runCommand(() => command(payload))
+}
+
+function addToCart(item: GameItem, count: number): void {
+  const existing = cartLines.value.find((line) => line.item.id === item.id)
+  if (existing) existing.count += count
+  else cartLines.value.push({ item, count })
+}
+
+function changeCartLine(itemId: string, count: number): void {
+  const line = cartLines.value.find((candidate) => candidate.item.id === itemId)
+  if (line) line.count = count
+}
+
+function removeCartLine(itemId: string): void {
+  cartLines.value = cartLines.value.filter((line) => line.item.id !== itemId)
+}
+
+async function confirmPurchase(): Promise<void> {
+  const payload = pendingPurchase.value
+  const item = pendingPurchaseItem.value
+  if (!payload || !item || !state.value || busy.value) return
+  const total = (item.price ?? 0) * payload.count
+  const shortfall = Math.max(0, total - state.value.profile.coins)
+  if (shortfall > 0 && state.value.bank.can_open_credit && item.credit_allowed !== false) {
+    busy.value = true
+    error.value = ''
+    try {
+      const preview = await gameApi.previewBankProduct({
+        product_type: 'credit', amount: shortfall, days: 30,
+        allow_interest_withdrawal: false,
+      })
+      pendingCredit.value = { amount: shortfall, days: 30, preview: preview.result, source: 'purchase' }
+    } catch (caught) {
+      error.value = apiErrorMessage(caught)
+      notifications.error(error.value)
+    } finally {
+      busy.value = false
+    }
+    return
+  }
+  pendingPurchase.value = null
+  await runCommand(() => gameApi.buyItem(payload))
+}
+
+function addPendingPurchaseToCart(): void {
+  const payload = pendingPurchase.value
+  const item = pendingPurchaseItem.value
+  if (payload && item) addToCart(item, payload.count)
+  pendingPurchase.value = null
+}
+
+async function checkoutCart(useCredit: boolean, days: number, approvedCredit = false): Promise<void> {
+  if (busy.value || !cartLines.value.length || !state.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    let currentState = {} as GameState
+    const shortfall = Math.max(0, cartTotal.value - state.value.profile.coins)
+    if (useCredit && shortfall > 0 && !approvedCredit) {
+      const preview = await gameApi.previewBankProduct({
+        product_type: 'credit', amount: shortfall, days: Math.floor(days),
+        allow_interest_withdrawal: false,
+      })
+      pendingCredit.value = {
+        amount: shortfall,
+        days: Math.floor(days),
+        preview: preview.result,
+        source: 'cart',
+      }
+      return
+    }
+    if (useCredit && shortfall > 0) {
+      const credit = await gameApi.openBankCredit(shortfall, Math.floor(days))
+      currentState = credit.state
+    }
+    for (const line of cartLines.value) {
+      const response = await gameApi.buyItem({
+        category: line.item.category,
+        item_id: line.item.key,
+        count: line.count,
+      })
+      currentState = response.state
+    }
+    applyState(currentState)
+    cartLines.value = []
+    announceDataChange('game')
+    notifications.success(t('Покупки оформлены.'))
+  } catch (caught) {
+    error.value = apiErrorMessage(caught)
+    notifications.error(error.value)
+  } finally {
+    busy.value = false
+  }
+}
+
+function cancelCreditPreview(): void {
+  pendingCredit.value = null
+}
+
+function confirmCreditCheckout(): void {
+  const credit = pendingCredit.value
+  if (!credit) return
+  pendingCredit.value = null
+  if (credit.source === 'cart') {
+    void checkoutCart(true, credit.days, true)
+    return
+  }
+  void checkoutPurchaseWithCredit(credit.days)
+}
+
+async function checkoutPurchaseWithCredit(days: number): Promise<void> {
+  const payload = pendingPurchase.value
+  const item = pendingPurchaseItem.value
+  if (!payload || !item || !state.value || busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    const total = (item.price ?? 0) * payload.count
+    const shortfall = Math.max(0, total - state.value.profile.coins)
+    const credit = await gameApi.openBankCredit(shortfall, days)
+    const purchase = await gameApi.buyItem(payload)
+    pendingPurchase.value = null
+    applyState(purchase.state ?? credit.state)
+    announceDataChange('game')
+    notifications.success(t('Покупка оформлена.'))
+  } catch (caught) {
+    error.value = apiErrorMessage(caught)
+    notifications.error(error.value)
+  } finally {
+    busy.value = false
+  }
+}
+
+async function useLotteryTicket(payload: InventoryCommand): Promise<void> {
+  if (busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    const response = await gameApi.useItem(payload)
+    applyState(response.state)
+    announceDataChange('game')
+    const draws: unknown[] = Array.isArray(response.result?.lottery_draws)
+      ? response.result.lottery_draws
+      : []
+    lotteryDraws.value = draws.filter(isLotteryDraw)
+    if (!lotteryDraws.value.length) {
+      notifications.success(response.messages.filter(Boolean).join(' ') || response.message || t('Изменения сохранены.'))
+    }
+  } catch (caught) {
+    error.value = apiErrorMessage(caught)
+    notifications.error(error.value)
+  } finally {
+    busy.value = false
+  }
+}
+
+function isLotteryDraw(value: unknown): value is LotteryDraw {
+  if (!value || typeof value !== 'object') return false
+  const draw = value as Partial<LotteryDraw>
+  return Array.isArray(draw.player_numbers) && Array.isArray(draw.winning_numbers)
+    && typeof draw.matches === 'number' && typeof draw.prize === 'number'
 }
 
 function previewBank(payload: BankProductRequest): void {
@@ -268,6 +469,34 @@ onBeforeUnmount(() => {
   <IonPage>
     <IonContent :fullscreen="true" class="game-content">
       <main class="game-workspace">
+        <LotteryTicketDialog :draws="lotteryDraws" @close="lotteryDraws = []" />
+        <PurchaseConfirmDialog
+          :item="pendingPurchaseItem"
+          :count="pendingPurchase?.count ?? 1"
+          :busy="busy"
+          @confirm="confirmPurchase"
+          @cancel="pendingPurchase = null"
+          @add-to-cart="addPendingPurchaseToCart"
+        />
+        <CreditConfirmDialog
+          :preview="pendingCredit?.preview ?? null"
+          :amount="pendingCredit?.amount ?? 0"
+          :days="pendingCredit?.days ?? 0"
+          :busy="busy"
+          @confirm="confirmCreditCheckout"
+          @cancel="cancelCreditPreview"
+        />
+        <ShoppingCart
+          :lines="cartLines"
+          :coins="state?.profile.coins ?? 0"
+          :can-open-credit="state?.bank.can_open_credit ?? false"
+          :credit-allowed="cartCreditAllowed"
+          :busy="busy"
+          @change="changeCartLine"
+          @remove="removeCartLine"
+          @clear="cartLines = []"
+          @checkout="checkoutCart"
+        />
         <header class="page-header">
           <div>
             <p class="page-eyebrow">{{ t('Творческая мотивация') }}</p>
@@ -320,6 +549,8 @@ onBeforeUnmount(() => {
             </button>
           </nav>
 
+          <CharacterQuickStats v-if="tab !== 'overview'" :profile="state.profile" />
+
           <section
             :id="`game-panel-${tab}`"
             class="active-game-panel"
@@ -358,12 +589,15 @@ onBeforeUnmount(() => {
             />
 
             <InventoryShopPanel
-              v-else-if="tab === 'items'"
+              v-else-if="tab === 'inventory' || tab === 'shop'"
               :inventory="state.inventory"
               :shop="state.shop"
               :busy="busy"
+              :view="tab"
+              :can-open-credit="state.bank.can_open_credit ?? false"
               :initial-inventory-category="inventoryCategory"
               @buy="(payload) => inventoryCommand('buy', payload)"
+              @add-to-cart="addToCart"
               @sell="(payload) => inventoryCommand('sell', payload)"
               @use="(payload) => inventoryCommand('use', payload)"
               @freeze="openFreezeSelector"
@@ -399,6 +633,7 @@ onBeforeUnmount(() => {
               :bank="state.bank"
               :preview="bankPreview"
               :busy="busy"
+              :view="tab === 'awards' ? 'awards' : 'bank'"
               @create-award="(name, price) => runCommand(() => gameApi.createCustomAward(name, price))"
               @update-award="(id, name, price) => runCommand(() => gameApi.updateCustomAward(id, { name, price }))"
               @delete-award="(id) => runCommand(() => gameApi.deleteCustomAward(id))"
@@ -500,18 +735,22 @@ onBeforeUnmount(() => {
   z-index: 5;
   top: 0;
   display: flex;
+  width: fit-content;
+  max-width: 100%;
   gap: var(--nf-space-1);
-  margin-bottom: var(--nf-space-5);
+  margin: 0 auto var(--nf-space-5);
   padding: var(--nf-space-2);
   overflow-x: auto;
+  scrollbar-width: thin;
   border: 1px solid var(--nf-color-border);
   border-radius: var(--nf-radius-md);
   background: color-mix(in srgb, var(--nf-color-surface) 94%, transparent);
   backdrop-filter: blur(12px);
+  box-shadow: 0 0.75rem 1.75rem color-mix(in srgb, var(--nf-color-canvas) 34%, transparent);
 }
 
 .game-tabs button {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   min-height: 2.75rem;
   padding: 0.65rem 0.85rem;
   border: 0;
@@ -519,6 +758,7 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--nf-color-text-muted);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .game-tabs button.active {
@@ -550,6 +790,8 @@ onBeforeUnmount(() => {
   }
 
   .game-tabs {
+    width: auto;
+    max-width: none;
     margin-inline: calc(-1 * clamp(1rem, 3vw, 3.5rem));
     border-inline: 0;
     border-radius: 0;

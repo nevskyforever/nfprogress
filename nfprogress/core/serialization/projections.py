@@ -159,6 +159,10 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
             kind == 'project'
             and getattr(entity, 'combine_stage_mindmaps', False)
         ),
+        'cover_image': (
+            engine.normalize_project_cover_image(getattr(entity, 'cover_image', None))
+            if kind == 'project' else None
+        ),
     }
     if kind == 'stage':
         payload['parent_project_name'] = getattr(entity, 'parent_project_name', None)

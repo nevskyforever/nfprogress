@@ -2,6 +2,10 @@
 
 This is a Python desktop application with a PySide6 GUI for writers to track their writing progress, with optional gamification features.
 
+> **Current UI:** the user-facing interface is implemented in Vue (`frontend/`).
+> The PySide6 interface is legacy and is not used by the application. Do not add
+> or change PySide6 UI behavior unless the user explicitly requests legacy-interface work.
+
 The application is built with Nuitka for:
 
 * Windows;

@@ -91,6 +91,31 @@ describe('ProjectsPage streak summaries', () => {
     wrapper.unmount()
   })
 
+  it('uses compact columns only when the list mixes covered and uncovered projects', async () => {
+    vi.mocked(projectsApi.list).mockResolvedValue([
+      projectFixture({ id: 'covered', cover_image: 'data:image/jpeg;base64,/9j/2Q==' }),
+      projectFixture({ id: 'plain', cover_image: null }),
+    ])
+    const wrapper = mount(ProjectsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' },
+          IonIcon: true,
+          IonPage: { template: '<div><slot /></div>' },
+          ProjectCreateDialog: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.project-mixed-grid').exists()).toBe(true)
+    expect(wrapper.get('.project-mixed-grid__covers').findAll('.project-card')).toHaveLength(1)
+    expect(wrapper.get('.project-mixed-grid__plain').findAll('.project-card')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
   it('offers all-source synchronization on desktop and refreshes the workspace', async () => {
     vi.mocked(settingsApi.get).mockResolvedValue({
       values: { global_streak: true, show_written_today_in_all_projects: true },

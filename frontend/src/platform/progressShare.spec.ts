@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
   drawProgressShareImage,
+  createProgressShareImage,
   copyProgressImage,
   downloadProgressImage,
   normalizeProgressSharePercent,
@@ -24,6 +25,9 @@ function drawingContext(): CanvasRenderingContext2D {
     measureText: vi.fn((text: string) => ({ width: text.length * 18 })),
     moveTo: vi.fn(),
     quadraticCurveTo: vi.fn(),
+    clip: vi.fn(),
+    restore: vi.fn(),
+    save: vi.fn(),
     stroke: vi.fn(),
   } as unknown as CanvasRenderingContext2D
 }
@@ -32,6 +36,10 @@ function installBrandImage(): void {
   class ImageMock {
     onload: (() => void) | null = null
     onerror: (() => void) | null = null
+    naturalWidth = 600
+    naturalHeight = 900
+    width = 600
+    height = 900
 
     set src(_value: string) {
       queueMicrotask(() => this.onload?.())
@@ -42,6 +50,7 @@ function installBrandImage(): void {
 
 describe('progressShare', () => {
   afterEach(() => {
+    delete document.documentElement.dataset.platform
     if (initialClipboardDescriptor) {
       Object.defineProperty(navigator, 'clipboard', initialClipboardDescriptor)
     } else {
@@ -93,6 +102,40 @@ describe('progressShare', () => {
 
     expect(write).toHaveBeenCalledTimes(1)
     expect(write.mock.calls[0]?.[0]).toHaveLength(1)
+  })
+
+  it('renders a covered project as a project card and retains its stage title', async () => {
+    const context = drawingContext()
+    const image = new Blob(['png'], { type: 'image/png' })
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => callback(image))
+    installBrandImage()
+
+    await expect(createProgressShareImage({
+      title: 'Роман: Глава 3',
+      progress: 25,
+      coverImage: 'data:image/png;base64,cover',
+    })).resolves.toBe(image)
+
+    expect(context.clip).toHaveBeenCalledTimes(1)
+    expect(context.drawImage).toHaveBeenCalled()
+    expect(context.fillText).toHaveBeenCalledWith('Роман: Глава 3', 370, expect.any(Number))
+    expect(context.fillText).toHaveBeenCalledWith('nfprogress', expect.any(Number), 1025)
+  })
+
+  it('uses the native clipboard in the desktop application', async () => {
+    const context = drawingContext()
+    const image = new Blob(['png'], { type: 'image/png' })
+    const writeImage = vi.fn().mockResolvedValue(undefined)
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(context)
+    vi.spyOn(HTMLCanvasElement.prototype, 'toBlob').mockImplementation((callback) => callback(image))
+    document.documentElement.dataset.platform = 'tauri'
+    vi.doMock('@tauri-apps/plugin-clipboard-manager', () => ({ writeImage }))
+    installBrandImage()
+
+    await expect(copyProgressImage({ title: 'Дом у моря', progress: 25 })).resolves.toBeUndefined()
+
+    expect(writeImage).toHaveBeenCalledWith(expect.any(Uint8Array))
   })
 
   it('saves the PNG only after the explicit save action', async () => {

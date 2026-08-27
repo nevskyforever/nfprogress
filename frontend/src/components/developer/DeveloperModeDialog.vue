@@ -27,6 +27,7 @@ const form = reactive({
   testDateEnabled: false,
   testDatetime: '',
 })
+const maxHealth = ref(100)
 const grant = reactive({ category: '', itemId: '', count: 1 })
 
 const categories = computed(() => developerState.value?.state.shop.categories ?? [])
@@ -42,6 +43,7 @@ function fill(state: DeveloperModeState): void {
   const profile = state.state.profile
   form.level = profile.level
   form.health = profile.health
+  maxHealth.value = profile.max_health
   form.coins = profile.coins
   form.exp = profile.experience
   form.testDateEnabled = state.test_date_enabled
@@ -50,6 +52,18 @@ function fill(state: DeveloperModeState): void {
   grant.category = category?.key ?? ''
   grant.itemId = category?.items[0]?.key ?? ''
   grant.count = 1
+}
+
+function normalizeNumber(value: unknown, fallback = 0): number {
+  const number = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(number) ? number : fallback
+}
+
+function normalizeForm(): void {
+  form.level = Math.max(1, Math.min(99, Math.trunc(normalizeNumber(form.level, 1))))
+  form.health = Math.round(Math.max(0, Math.min(maxHealth.value, normalizeNumber(form.health))) * 10) / 10
+  form.coins = Math.round(Math.max(0, normalizeNumber(form.coins)) * 10) / 10
+  form.exp = Math.round(Math.max(0, normalizeNumber(form.exp)) * 10) / 10
 }
 
 async function load(): Promise<void> {
@@ -73,6 +87,7 @@ function selectCategory(): void {
 
 async function saveProfile(): Promise<void> {
   if (saving.value) return
+  normalizeForm()
   saving.value = true
   error.value = null
   success.value = null
@@ -135,10 +150,10 @@ watch(() => props.open, (open) => {
       <form v-else class="developer-form" @submit.prevent="saveProfile">
         <p>{{ t('Эти инструменты доступны только в локальном запуске с тестовыми данными.') }}</p>
         <div class="developer-grid">
-          <label>{{ t('Уровень') }}<input v-model.number="form.level" min="1" type="number" /></label>
-          <label>{{ t('Здоровье') }}<input v-model.number="form.health" min="0" step="0.1" type="number" /></label>
-          <label>{{ t('Монеты') }}<input v-model.number="form.coins" min="0" step="0.1" type="number" /></label>
-          <label>{{ t('Опыт') }}<input v-model.number="form.exp" min="0" step="0.1" type="number" /></label>
+          <label>{{ t('Уровень') }}<input v-model.number="form.level" min="1" max="99" step="1" type="number" @blur="normalizeForm" /></label>
+          <label>{{ t('Здоровье') }}<input v-model.number="form.health" min="0" :max="maxHealth" step="any" type="number" @blur="normalizeForm" /></label>
+          <label>{{ t('Монеты') }}<input v-model.number="form.coins" min="0" step="any" type="number" @blur="normalizeForm" /></label>
+          <label>{{ t('Опыт') }}<input v-model.number="form.exp" min="0" step="any" type="number" @blur="normalizeForm" /></label>
         </div>
         <label class="developer-toggle"><input v-model="form.testDateEnabled" type="checkbox" /> {{ t('Использовать тестовую дату') }}</label>
         <label v-if="form.testDateEnabled">{{ t('Тестовые дата и время') }}<input v-model="form.testDatetime" type="datetime-local" required /></label>

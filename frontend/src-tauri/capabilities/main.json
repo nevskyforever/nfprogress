@@ -6,6 +6,7 @@
   "permissions": [
     "core:default",
     "core:window:allow-close",
+    "clipboard-manager:allow-write-image",
     "dialog:allow-open",
     "opener:allow-open-url",
     "process:allow-restart",
