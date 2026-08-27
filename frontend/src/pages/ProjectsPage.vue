@@ -101,6 +101,12 @@ const hasFilters = computed(
   () => search.value.trim().length > 0 || status.value !== 'all',
 )
 
+const hasMixedProjectCards = computed(() => {
+  const hasCoveredProject = store.projects.some((project) => Boolean(project.cover_image))
+  const hasUncoveredProject = store.projects.some((project) => !project.cover_image)
+  return hasCoveredProject && hasUncoveredProject
+})
+
 const resultSummary = computed(() => {
   if (store.loading || store.error) return ''
   return t('Найдено проектов: {count}', { count: store.projectCount })
@@ -497,7 +503,10 @@ onBeforeUnmount(() => {
           v-else
           tag="section"
           class="project-grid"
-          :class="{ 'project-grid--updating': store.loading }"
+          :class="{
+            'project-grid--updating': store.loading,
+            'project-grid--mixed-covers': hasMixedProjectCards,
+          }"
           :aria-busy="store.loading"
           :aria-label="t('Список проектов')"
         >
@@ -749,6 +758,20 @@ onBeforeUnmount(() => {
 .project-grid--updating {
   opacity: 0.58;
   pointer-events: none;
+}
+
+/* A mixed library contains tall portrait covers and compact ordinary cards.
+   Columns let the latter fill the available vertical space instead of inheriting
+   a grid row's height from a neighboring cover. */
+.project-grid--mixed-covers {
+  display: block;
+  columns: 19rem;
+  column-gap: var(--nf-space-4);
+}
+
+.project-grid--mixed-covers :deep(.project-card) {
+  break-inside: avoid;
+  margin-bottom: var(--nf-space-4);
 }
 .project-grid-move,
 .project-grid-enter-active,
