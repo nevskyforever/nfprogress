@@ -8,6 +8,8 @@ const props = defineProps<{
   inventory: GameInventory
   shop: ShopCatalog
   busy: boolean
+  view: 'inventory' | 'shop'
+  canOpenCredit: boolean
   initialInventoryCategory?: string
 }>()
 
@@ -22,12 +24,11 @@ const emit = defineEmits<{
 
 const locale = useLocaleStore()
 const t = locale.translate
-const view = ref<'inventory' | 'shop'>('inventory')
 const category = ref('')
 const count = ref(1)
 
 const categories = computed(() =>
-  view.value === 'inventory' ? props.inventory.categories : props.shop.categories,
+  props.view === 'inventory' ? props.inventory.categories : props.shop.categories,
 )
 
 const selectedCategory = computed(() =>
@@ -47,7 +48,7 @@ watch(
 function applyPreferredInventoryCategory(): void {
   const preferred = props.initialInventoryCategory
   if (
-    view.value === 'inventory'
+    props.view === 'inventory'
     && preferred
     && props.inventory.categories.some((item) => item.key === preferred)
   ) {
@@ -61,16 +62,11 @@ watch(
   { immediate: true },
 )
 
-function selectView(next: 'inventory' | 'shop'): void {
-  view.value = next
-  if (next === 'inventory') applyPreferredInventoryCategory()
-}
-
 function onCategoryChange(event: Event): void {
   const target = event.target
   if (!(target instanceof HTMLSelectElement)) return
   category.value = target.value
-  if (view.value === 'inventory') emit('inventoryCategory', category.value)
+  if (props.view === 'inventory') emit('inventoryCategory', category.value)
 }
 
 function itemName(item: GameItem): string {
@@ -101,6 +97,16 @@ function isFreeze(item: GameItem): boolean {
 function isUsable(item: GameItem): boolean {
   return item.usable
 }
+
+function canPurchase(item: GameItem): boolean {
+  if (item.can_buy) return true
+  if (!props.canOpenCredit || item.credit_allowed === false || !item.available_for_level) return false
+  if (item.maximum_quantity === null || item.maximum_quantity === undefined) return true
+  const count = props.inventory.categories
+    .find((category) => category.key === item.category)?.items
+    .find((inventoryItem) => inventoryItem.key === item.key)?.count ?? 0
+  return count < item.maximum_quantity
+}
 </script>
 
 <template>
@@ -108,27 +114,7 @@ function isUsable(item: GameItem): boolean {
     <header class="panel-heading">
       <div>
         <p>{{ t('Предметы и эффекты') }}</p>
-        <h2 id="inventory-title">{{ t('Инвентарь и магазин') }}</h2>
-      </div>
-      <div class="view-switch" role="tablist" :aria-label="t('Раздел предметов')">
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="view === 'inventory'"
-          :class="{ active: view === 'inventory' }"
-          @click="selectView('inventory')"
-        >
-          {{ t('Инвентарь') }}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          :aria-selected="view === 'shop'"
-          :class="{ active: view === 'shop' }"
-          @click="selectView('shop')"
-        >
-          {{ t('Магазин') }}
-        </button>
+        <h2 id="inventory-title">{{ view === 'inventory' ? t('Инвентарь') : t('Магазин') }}</h2>
       </div>
     </header>
 
@@ -172,7 +158,7 @@ function isUsable(item: GameItem): boolean {
             v-if="item.buy && (view === 'shop' || view === 'inventory')"
             class="nf-button"
             type="button"
-            :disabled="busy || !item.can_buy"
+            :disabled="busy || !canPurchase(item)"
             @click="buy(item, $event)"
           >
             {{ t('Купить') }}

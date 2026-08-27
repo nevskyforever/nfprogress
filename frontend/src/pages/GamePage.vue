@@ -34,10 +34,12 @@ type GameTab =
   | 'overview'
   | 'sessions'
   | 'challenges'
-  | 'items'
+  | 'inventory'
+  | 'shop'
   | 'growth'
   | 'cabinet'
-  | 'economy'
+  | 'awards'
+  | 'bank'
 
 const locale = useLocaleStore()
 const notifications = useNotificationsStore()
@@ -64,14 +66,19 @@ function saveGameTab(value: GameTab): void {
 
 const savedGameTab = readSavedGameTab()
 const tab = ref<GameTab>([
-  'overview', 'sessions', 'challenges', 'items', 'growth', 'cabinet', 'economy',
+  'overview', 'sessions', 'challenges', 'inventory', 'shop', 'growth', 'cabinet', 'awards', 'bank',
 ].includes(savedGameTab ?? '') ? savedGameTab as GameTab : 'overview')
 const bankPreview = ref<GameCommandResponse['result']>(null)
 const inventoryCategory = ref('')
 const lotteryDraws = ref<LotteryDraw[]>([])
 const pendingPurchase = ref<InventoryCommand | null>(null)
 const cartLines = ref<CartLine[]>([])
-const pendingCredit = ref<{ amount: number; days: number; preview: GameCommandResponse['result'] } | null>(null)
+const pendingCredit = ref<{
+  amount: number
+  days: number
+  preview: GameCommandResponse['result']
+  source: 'cart' | 'purchase'
+} | null>(null)
 const cartTotal = computed(() => cartLines.value.reduce(
   (sum, line) => sum + (line.item.price ?? 0) * line.count,
   0,
@@ -102,10 +109,12 @@ const tabs: ReadonlyArray<{ key: GameTab; label: string }> = [
   { key: 'overview', label: 'Обзор' },
   { key: 'sessions', label: 'Сессии' },
   { key: 'challenges', label: 'Испытания' },
-  { key: 'items', label: 'Предметы' },
+  { key: 'inventory', label: 'Инвентарь' },
+  { key: 'shop', label: 'Магазин' },
   { key: 'growth', label: 'Развитие' },
   { key: 'cabinet', label: 'Кабинет' },
-  { key: 'economy', label: 'Награды и банк' },
+  { key: 'awards', label: 'Награды' },
+  { key: 'bank', label: 'Банк' },
 ]
 
 function applyState(nextState: GameState): void {
@@ -282,7 +291,27 @@ function removeCartLine(itemId: string): void {
 
 async function confirmPurchase(): Promise<void> {
   const payload = pendingPurchase.value
-  if (!payload) return
+  const item = pendingPurchaseItem.value
+  if (!payload || !item || !state.value || busy.value) return
+  const total = (item.price ?? 0) * payload.count
+  const shortfall = Math.max(0, total - state.value.profile.coins)
+  if (shortfall > 0 && state.value.bank.can_open_credit && item.credit_allowed !== false) {
+    busy.value = true
+    error.value = ''
+    try {
+      const preview = await gameApi.previewBankProduct({
+        product_type: 'credit', amount: shortfall, days: 30,
+        allow_interest_withdrawal: false,
+      })
+      pendingCredit.value = { amount: shortfall, days: 30, preview: preview.result, source: 'purchase' }
+    } catch (caught) {
+      error.value = apiErrorMessage(caught)
+      notifications.error(error.value)
+    } finally {
+      busy.value = false
+    }
+    return
+  }
   pendingPurchase.value = null
   await runCommand(() => gameApi.buyItem(payload))
 }
@@ -306,7 +335,12 @@ async function checkoutCart(useCredit: boolean, days: number, approvedCredit = f
         product_type: 'credit', amount: shortfall, days: Math.floor(days),
         allow_interest_withdrawal: false,
       })
-      pendingCredit.value = { amount: shortfall, days: Math.floor(days), preview: preview.result }
+      pendingCredit.value = {
+        amount: shortfall,
+        days: Math.floor(days),
+        preview: preview.result,
+        source: 'cart',
+      }
       return
     }
     if (useCredit && shortfall > 0) {
@@ -341,7 +375,34 @@ function confirmCreditCheckout(): void {
   const credit = pendingCredit.value
   if (!credit) return
   pendingCredit.value = null
-  void checkoutCart(true, credit.days, true)
+  if (credit.source === 'cart') {
+    void checkoutCart(true, credit.days, true)
+    return
+  }
+  void checkoutPurchaseWithCredit(credit.days)
+}
+
+async function checkoutPurchaseWithCredit(days: number): Promise<void> {
+  const payload = pendingPurchase.value
+  const item = pendingPurchaseItem.value
+  if (!payload || !item || !state.value || busy.value) return
+  busy.value = true
+  error.value = ''
+  try {
+    const total = (item.price ?? 0) * payload.count
+    const shortfall = Math.max(0, total - state.value.profile.coins)
+    const credit = await gameApi.openBankCredit(shortfall, days)
+    const purchase = await gameApi.buyItem(payload)
+    pendingPurchase.value = null
+    applyState(purchase.state ?? credit.state)
+    announceDataChange('game')
+    notifications.success(t('Покупка оформлена.'))
+  } catch (caught) {
+    error.value = apiErrorMessage(caught)
+    notifications.error(error.value)
+  } finally {
+    busy.value = false
+  }
 }
 
 async function useLotteryTicket(payload: InventoryCommand): Promise<void> {
@@ -525,10 +586,12 @@ onBeforeUnmount(() => {
             />
 
             <InventoryShopPanel
-              v-else-if="tab === 'items'"
+              v-else-if="tab === 'inventory' || tab === 'shop'"
               :inventory="state.inventory"
               :shop="state.shop"
               :busy="busy"
+              :view="tab"
+              :can-open-credit="state.bank.can_open_credit ?? false"
               :initial-inventory-category="inventoryCategory"
               @buy="(payload) => inventoryCommand('buy', payload)"
               @add-to-cart="addToCart"
@@ -567,6 +630,7 @@ onBeforeUnmount(() => {
               :bank="state.bank"
               :preview="bankPreview"
               :busy="busy"
+              :view="tab === 'awards' ? 'awards' : 'bank'"
               @create-award="(name, price) => runCommand(() => gameApi.createCustomAward(name, price))"
               @update-award="(id, name, price) => runCommand(() => gameApi.updateCustomAward(id, { name, price }))"
               @delete-award="(id) => runCommand(() => gameApi.deleteCustomAward(id))"
@@ -672,6 +736,7 @@ onBeforeUnmount(() => {
   margin-bottom: var(--nf-space-5);
   padding: var(--nf-space-2);
   overflow-x: auto;
+  scrollbar-width: thin;
   border: 1px solid var(--nf-color-border);
   border-radius: var(--nf-radius-md);
   background: color-mix(in srgb, var(--nf-color-surface) 94%, transparent);
@@ -679,7 +744,7 @@ onBeforeUnmount(() => {
 }
 
 .game-tabs button {
-  flex: 1 0 auto;
+  flex: 0 0 auto;
   min-height: 2.75rem;
   padding: 0.65rem 0.85rem;
   border: 0;
@@ -687,6 +752,7 @@ onBeforeUnmount(() => {
   background: transparent;
   color: var(--nf-color-text-muted);
   cursor: pointer;
+  white-space: nowrap;
 }
 
 .game-tabs button.active {

@@ -66,6 +66,8 @@ describe('InventoryShopPanel', () => {
         inventory,
         shop,
         busy: false,
+        view: 'inventory',
+        canOpenCredit: false,
         initialInventoryCategory: 'Награды',
       },
       global: { plugins: [createPinia()] },
@@ -81,7 +83,7 @@ describe('InventoryShopPanel', () => {
 
   it('uses the explicit usable flag and routes freeze to the streak selector', async () => {
     const wrapper = mount(InventoryShopPanel, {
-      props: { inventory, shop, busy: false },
+      props: { inventory, shop, busy: false, view: 'inventory', canOpenCredit: false },
       global: { plugins: [createPinia()] },
     })
 
@@ -103,7 +105,7 @@ describe('InventoryShopPanel', () => {
     const cartInventory: GameInventory = structuredClone(inventory)
     cartInventory.categories[0]!.items[0]!.can_buy = true
     const wrapper = mount(InventoryShopPanel, {
-      props: { inventory: cartInventory, shop, busy: false },
+      props: { inventory: cartInventory, shop, busy: false, view: 'inventory', canOpenCredit: false },
       global: { plugins: [createPinia()] },
     })
 
@@ -112,6 +114,31 @@ describe('InventoryShopPanel', () => {
 
     expect(wrapper.emitted('addToCart')?.[0]?.[0]).toMatchObject({
       key: 'Лотерейный билет',
+    })
+  })
+
+  it('keeps a credit-eligible item purchasable when coins are insufficient', async () => {
+    const creditInventory: GameInventory = structuredClone(inventory)
+    const item = creditInventory.categories[0]!.items[0]!
+    item.can_buy = false
+    item.available_for_level = true
+    item.credit_allowed = true
+    const wrapper = mount(InventoryShopPanel, {
+      props: {
+        inventory: creditInventory,
+        shop,
+        busy: false,
+        view: 'inventory',
+        canOpenCredit: true,
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    const buyButton = wrapper.findAll('.item-card')[0]?.find('.nf-button')
+    expect(buyButton?.attributes('disabled')).toBeUndefined()
+    await buyButton?.trigger('click')
+    expect(wrapper.emitted('buy')?.[0]?.[0]).toMatchObject({
+      item_id: 'Лотерейный билет',
     })
   })
 })
