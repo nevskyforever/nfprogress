@@ -747,18 +747,6 @@ onBeforeUnmount(() => {
             />
           </section>
 
-          <ProgressWorkspace
-            v-model="selectedEntityId"
-            :project="project"
-            :busy="store.detailBusy"
-            :submitting="store.detailOperation === 'record-progress'"
-            :syncs="syncSummaries"
-            :error="feedbackArea === 'progress' ? store.detailActionError : null"
-            :success="feedbackArea === 'progress' ? actionSuccess : null"
-            :fixed-stage-id="isStageDetail ? detailEntity.id : null"
-            @record="recordProgress"
-            @remove="deleteProgress"
-          />
           <StageWorkspace
             v-if="!isStageDetail"
             :project="project"
@@ -775,6 +763,18 @@ onBeforeUnmount(() => {
             @save="downloadStageProgress"
             @open="openStage"
             @sort="saveStageSort"
+          />
+          <ProgressWorkspace
+            v-model="selectedEntityId"
+            :project="project"
+            :busy="store.detailBusy"
+            :submitting="store.detailOperation === 'record-progress'"
+            :syncs="syncSummaries"
+            :error="feedbackArea === 'progress' ? store.detailActionError : null"
+            :success="feedbackArea === 'progress' ? actionSuccess : null"
+            :fixed-stage-id="isStageDetail ? detailEntity.id : null"
+            @record="recordProgress"
+            @remove="deleteProgress"
           />
           <StatisticsWorkspace
             v-model:entity-id="statisticsEntityId"

@@ -214,6 +214,15 @@ describe('ProjectDetailPage progress sharing', () => {
     }))
   })
 
+  it('renders the stage list before the progress records', async () => {
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    expect([...wrapper.element.querySelectorAll('.stage-share, .progress-record')].map((element) => element.className))
+      .toEqual(['stage-share', 'progress-record'])
+    wrapper.unmount()
+  })
+
   it('does not render the global streak in project details', async () => {
     vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
       id: 'project-id',

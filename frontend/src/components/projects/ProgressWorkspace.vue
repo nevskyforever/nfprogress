@@ -231,11 +231,11 @@ watch(
 .history-heading { display: flex; align-items: baseline; justify-content: space-between; margin-top: var(--nf-space-5); }
 .history-heading h3 { margin: 0; color: var(--nf-color-text); font-size: 1rem; }
 .history-heading span { color: var(--nf-color-text-muted); font-size: 0.78rem; }
-.history-table-wrap { margin-top: var(--nf-space-3); overflow-x: auto; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
+.history-table-wrap { max-height: min(24rem, 50vh); margin-top: var(--nf-space-3); overflow: auto; overscroll-behavior: contain; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); }
 .history-table { width: 100%; min-width: 34rem; border-collapse: collapse; color: var(--nf-color-text); }
 .history-table th,
 .history-table td { padding: 0.8rem var(--nf-space-4); border-bottom: 1px solid var(--nf-color-border); text-align: left; }
-.history-table th { color: var(--nf-color-text-muted); font-size: 0.72rem; text-transform: uppercase; }
+.history-table th { position: sticky; top: 0; z-index: 1; background: var(--nf-color-surface); color: var(--nf-color-text-muted); font-size: 0.72rem; text-transform: uppercase; }
 .history-table tbody tr:last-child td { border-bottom: 0; }
 .positive-value { color: var(--nf-color-success); font-weight: 700; }
 .negative-value { color: var(--nf-color-danger); font-weight: 700; }
