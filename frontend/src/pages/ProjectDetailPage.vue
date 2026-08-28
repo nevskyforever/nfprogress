@@ -639,7 +639,7 @@ onBeforeUnmount(() => {
 
           <section class="progress-hero" :aria-label="t('Прогресс проекта')">
             <div><span>{{ t('Написано') }}</span><strong><AnimatedNumber :value="detailEntity.total" :digits="detailEntity.unit === 'symbols' ? 0 : 2" /> {{ locale.formatUnit(detailEntity.unit, detailEntity.total) }}</strong></div>
-            <div><span>{{ t('Цель') }}</span><strong>{{ presentation.goalLabel }}<template v-if="!detailEntity.infinite && detailEntity.goal !== null"> {{ locale.formatUnit(detailEntity.unit, detailEntity.goal) }}</template></strong></div>
+            <div><span>{{ t('Цель') }}</span><strong>{{ presentation.goalLabel }}<template v-if="!detailEntity.infinite && detailEntity.goal !== null">&nbsp;{{ locale.formatUnit(detailEntity.unit, detailEntity.goal) }}</template></strong></div>
             <ProgressBar
               v-if="!detailEntity.infinite"
               :value="presentation.progress"
