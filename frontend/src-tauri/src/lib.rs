@@ -99,7 +99,7 @@ mod tests {
     #[cfg(target_os = "macos")]
     use std::process::{Command, Stdio};
 
-    use super::{build_macos_updater_script, configure_rustls_provider};
+    use super::{build_macos_updater_script, configure_rustls_provider, macos_update_target};
 
     #[test]
     fn update_client_has_a_rustls_crypto_provider() {
@@ -122,6 +122,15 @@ mod tests {
         assert!(script.contains("hdiutil attach \"$DMG_PATH\""));
         assert!(script.contains("find \"$MOUNT_POINT\""));
         assert!(script.contains("ditto \"$NEW_APP\" \"$TARGET_PATH\""));
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn tauri_dev_updates_the_installed_macos_app() {
+        assert_eq!(
+            macos_update_target(Path::new("/project/target/debug/nfprogress-desktop")),
+            Some(Path::new("/Applications/nfprogress.app").to_path_buf()),
+        );
     }
 
     #[cfg(target_os = "macos")]
@@ -160,6 +169,11 @@ fn macos_app_bundle(executable: &Path) -> Option<PathBuf> {
         .ancestors()
         .find(|path| path.extension().is_some_and(|extension| extension == "app"))
         .map(Path::to_path_buf)
+}
+
+fn macos_update_target(executable: &Path) -> Option<PathBuf> {
+    macos_app_bundle(executable)
+        .or_else(|| cfg!(debug_assertions).then(|| PathBuf::from("/Applications/nfprogress.app")))
 }
 
 fn build_macos_updater_script(
@@ -280,7 +294,7 @@ fn install_macos_update(
         .path()
         .executable_dir()
         .map_err(|error| error.to_string())?;
-    let Some(target) = macos_app_bundle(&executable_dir) else {
+    let Some(target) = macos_update_target(&executable_dir) else {
         return Ok(false);
     };
     let update_dir = app
