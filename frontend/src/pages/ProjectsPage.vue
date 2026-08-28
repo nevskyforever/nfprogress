@@ -815,6 +815,14 @@ onBeforeUnmount(() => {
   }
 }
 
+@media (max-width: 75rem) {
+  .project-grid,
+  .project-mixed-grid {
+    grid-template-columns: minmax(0, min(100%, 19rem));
+    justify-content: center;
+  }
+}
+
 @media (max-width: 48rem) {
   .projects-workspace {
     padding-top: calc(var(--nf-space-6) + env(safe-area-inset-top));
