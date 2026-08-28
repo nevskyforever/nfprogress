@@ -87,7 +87,6 @@ VERSION="$(run_python "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)
 DMG_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.dmg"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"
 PACKAGE_NAME="$ARTIFACT_PREFIX-$VERSION"
-APP_PATH="$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle/macos/nfprogress.app"
 
 mkdir -p "$BUILD_DIR"
 run_python "$ROOT_DIR/scripts/build-backend-sidecar.py" --target "$TARGET"
@@ -97,11 +96,7 @@ STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nfprogress-tauri-package.XXXXXX")"
 trap 'rm -rf -- "$STAGING_DIR"' EXIT
 PACKAGE_DIR="$STAGING_DIR/$PACKAGE_NAME"
 mkdir -p "$PACKAGE_DIR"
-if [ ! -d "$APP_PATH" ]; then
-  echo "Tauri did not produce the expected app bundle: $APP_PATH"
-  exit 1
-fi
-ditto "$APP_PATH" "$PACKAGE_DIR/nfprogress.app"
+cp "$DMG_PATH" "$PACKAGE_DIR/"
 cp "$ROOT_DIR/LICENSE" "$PACKAGE_DIR/LICENSE.txt"
 cp "$ROOT_DIR/SOURCE_CODE.txt" "$PACKAGE_DIR/SOURCE_CODE.txt"
 SOURCE_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD)"

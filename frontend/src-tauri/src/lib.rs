@@ -293,7 +293,10 @@ fn install_macos_update(
     let script =
         build_macos_updater_script(&url, &target, &sha256, size, &log_path, std::process::id());
     fs::write(&script_path, script).map_err(|error| error.to_string())?;
-    Command::new("/bin/sh")
+    // Keep the updater alive after plugin-process exits the application, matching
+    // the detached process used by the legacy macOS updater.
+    Command::new("/usr/bin/nohup")
+        .arg("/bin/sh")
         .arg(&script_path)
         .stdin(Stdio::null())
         .stdout(Stdio::null())
