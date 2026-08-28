@@ -97,6 +97,25 @@ describe('StageWorkspace', () => {
     expect(protectedButtons.every((button) => button.attributes('disabled') !== undefined)).toBe(true)
   })
 
+  it('allows adding another synchronization source to the shared project', async () => {
+    const wrapper = mount(StageWorkspace, {
+      props: {
+        project: projectFixture({
+          name: 'Общий проект',
+          infinite: true,
+          goal: null,
+          stages_enabled: true,
+        }),
+        busy: false,
+      },
+      global: { plugins: [createPinia()], stubs: { IonIcon: true } },
+    })
+
+    await wrapper.get('button.nf-button--secondary').trigger('click')
+
+    expect(wrapper.emitted('add')).toHaveLength(1)
+  })
+
   it('shows stage streaks only when stages own the legacy streak plan', () => {
     const stage = projectFixture({
       id: 'stage-a',

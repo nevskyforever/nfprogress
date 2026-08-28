@@ -317,6 +317,48 @@ describe('ProjectDetailPage progress sharing', () => {
     })
   })
 
+  it('keeps source synchronization available in the shared project', async () => {
+    const source = projectFixture({
+      id: 'source-id',
+      name: 'Источник 1',
+      infinite: true,
+      goal: null,
+      parent_project_id: 'project-id',
+    })
+    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
+      id: 'project-id',
+      name: 'Общий проект',
+      infinite: true,
+      goal: null,
+      stages_enabled: true,
+      stages: [source],
+    }))
+    vi.mocked(integrationsApi.getProjectSyncs).mockResolvedValue({
+      project_id: 'project-id',
+      syncs: [{
+        project_id: 'project-id',
+        stage_id: 'source-id',
+        configured: false,
+        type: null,
+        path: null,
+        item_id: null,
+        last_synced_at: null,
+        desktop_only: true,
+      }],
+    })
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    await wrapper.get('.project-sync-button').trigger('click')
+    await flushPromises()
+
+    expect(pushRoute).toHaveBeenCalledWith({
+      name: 'integrations',
+      query: { projectId: 'project-id', stageId: 'source-id' },
+    })
+    wrapper.unmount()
+  })
+
   it('runs an existing stage binding instead of offering a second connection', async () => {
     vi.mocked(integrationsApi.getProjectSyncs).mockResolvedValue({
       project_id: 'project-id',
