@@ -4,11 +4,7 @@ import { check } from '@tauri-apps/plugin-updater'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
 
-import {
-  openExternalUrl,
-  supportsMacUpdateChecks,
-  supportsNativeUpdates,
-} from '@/platform/runtime'
+import { supportsMacUpdateChecks, supportsNativeUpdates } from '@/platform/runtime'
 import { useNotificationsStore } from '@/stores/notifications'
 
 import { useUpdaterStore } from './updater'
@@ -37,7 +33,6 @@ describe('updater store', () => {
     vi.mocked(check).mockReset()
     vi.mocked(relaunch).mockReset()
     vi.mocked(getVersion).mockReset()
-    vi.mocked(openExternalUrl).mockReset()
     vi.mocked(supportsNativeUpdates).mockReset()
     vi.mocked(supportsMacUpdateChecks).mockReset()
     vi.mocked(supportsNativeUpdates).mockReturnValue(true)
@@ -102,6 +97,8 @@ describe('updater store', () => {
         macos_intel: {
           version: '5.1.0',
           url: 'https://nfproject.ru/app/nfprogress-mac-intel-5.1.0.zip',
+          sha256: 'a'.repeat(64),
+          size: 100,
         },
       }),
     }))
@@ -111,10 +108,6 @@ describe('updater store', () => {
 
     expect(updater.status).toBe('available')
     expect(updater.availableVersion).toBe('5.1.0')
-    await updater.installUpdate()
-    expect(openExternalUrl).toHaveBeenCalledWith(
-      'https://nfproject.ru/app/nfprogress-mac-intel-5.1.0.zip',
-    )
     vi.unstubAllGlobals()
   })
 })

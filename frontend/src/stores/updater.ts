@@ -2,11 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { Update } from '@tauri-apps/plugin-updater'
 
-import {
-  openExternalUrl,
-  supportsMacUpdateChecks,
-  supportsNativeUpdates,
-} from '@/platform/runtime'
+import { supportsMacUpdateChecks, supportsNativeUpdates } from '@/platform/runtime'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 
@@ -52,6 +48,8 @@ export const useUpdaterStore = defineStore('updater', () => {
   const dismissed = ref(false)
   let pendingUpdate: Update | null = null
   let pendingMacUrl = ''
+  let pendingMacSha256 = ''
+  let pendingMacSize = 0
 
   const supported = computed(() => supportsNativeUpdates())
   const busy = computed(() => (
@@ -85,8 +83,8 @@ export const useUpdaterStore = defineStore('updater', () => {
         const manifest = await response.json() as {
           version?: string
           notes?: string
-          macos_arm?: { version?: string; url?: string }
-          macos_intel?: { version?: string; url?: string }
+          macos_arm?: { version?: string; url?: string; sha256?: string; size?: number }
+          macos_intel?: { version?: string; url?: string; sha256?: string; size?: number }
         }
         const platformSection = /arm64|aarch64/i.test(
           window.__NFPROGRESS_RUNTIME__?.architecture ?? '',
@@ -95,7 +93,10 @@ export const useUpdaterStore = defineStore('updater', () => {
           : manifest.macos_intel
         const updateVersion = platformSection?.version ?? manifest.version ?? ''
         pendingMacUrl = platformSection?.url ?? ''
-        if (!updateVersion || !pendingMacUrl || !isNewerVersion(updateVersion, currentVersion)) {
+        pendingMacSha256 = platformSection?.sha256 ?? ''
+        pendingMacSize = platformSection?.size ?? 0
+        if (!updateVersion || !pendingMacUrl || !pendingMacSha256 || !pendingMacSize
+          || !isNewerVersion(updateVersion, currentVersion)) {
           availableVersion.value = ''
           releaseNotes.value = ''
           status.value = 'current'
@@ -138,8 +139,14 @@ export const useUpdaterStore = defineStore('updater', () => {
   async function installUpdate(): Promise<void> {
     if (pendingMacUrl) {
       try {
-        await openExternalUrl(pendingMacUrl)
-        dismissed.value = true
+        const { invoke } = await import('@tauri-apps/api/core')
+        await invoke('install_macos_update', {
+          url: pendingMacUrl,
+          sha256: pendingMacSha256,
+          size: pendingMacSize,
+        })
+        const { exit } = await import('@tauri-apps/plugin-process')
+        await exit(0)
       } catch (error) {
         errorMessage.value = errorText(error)
         status.value = 'error'

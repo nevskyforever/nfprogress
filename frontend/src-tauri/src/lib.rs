@@ -1,6 +1,9 @@
 use std::fmt::Write as _;
+use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -56,6 +59,80 @@ fn backend_connection(state: State<'_, BackendState>) -> Result<BackendConnectio
             || Err("Локальный backend nfprogress ещё не готов.".to_string()),
             Err,
         )
+}
+
+fn shell_literal(value: impl AsRef<str>) -> String {
+    format!("'{}'", value.as_ref().replace('\'', "'\\''"))
+}
+
+fn macos_app_bundle(executable: &Path) -> Option<PathBuf> {
+    executable
+        .ancestors()
+        .find(|path| path.extension().is_some_and(|extension| extension == "app"))
+        .map(Path::to_path_buf)
+}
+
+#[tauri::command]
+fn install_macos_update(
+    app: tauri::AppHandle,
+    url: String,
+    sha256: String,
+    size: u64,
+) -> Result<(), String> {
+    if !url.starts_with("https://nfproject.ru/app/") {
+        return Err("Недопустимый адрес обновления macOS.".to_string());
+    }
+    if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) || size == 0 {
+        return Err("В манифесте отсутствуют данные проверки архива macOS.".to_string());
+    }
+    let executable_dir = app
+        .path()
+        .executable_dir()
+        .map_err(|error| error.to_string())?;
+    let target = macos_app_bundle(&executable_dir)
+        .ok_or_else(|| "Не удалось определить пакет приложения macOS.".to_string())?;
+    let update_dir = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|error| error.to_string())?;
+    fs::create_dir_all(&update_dir).map_err(|error| error.to_string())?;
+    let script_path = update_dir.join("install-update.sh");
+    let script = format!(
+        r#"#!/bin/sh
+set -eu
+URL={url}
+SHA256={sha256}
+SIZE={size}
+TARGET={target}
+PID={pid}
+while kill -0 "$PID" >/dev/null 2>&1; do sleep 1; done
+WORK=$(mktemp -d "${{TMPDIR:-/tmp/}}nfprogress-update.XXXXXX")
+ARCHIVE="$WORK/update.zip"
+curl -fL --connect-timeout 20 --retry 2 -o "$ARCHIVE" "$URL"
+[ "$(stat -f %z "$ARCHIVE")" = "$SIZE" ]
+[ "$(shasum -a 256 "$ARCHIVE" | awk '{{print $1}}')" = "$SHA256" ]
+ditto -x -k "$ARCHIVE" "$WORK/extract"
+NEW_APP=$(find "$WORK/extract" -name '*.app' -type d -print -quit)
+[ -n "$NEW_APP" ]
+BACKUP="$TARGET.old"
+rm -rf "$BACKUP"
+mv "$TARGET" "$BACKUP"
+ditto "$NEW_APP" "$TARGET"
+rm -rf "$BACKUP" "$WORK"
+open "$TARGET"
+"#,
+        url = shell_literal(url),
+        sha256 = shell_literal(sha256),
+        size = size,
+        target = shell_literal(target.to_string_lossy()),
+        pid = std::process::id(),
+    );
+    fs::write(&script_path, script).map_err(|error| error.to_string())?;
+    Command::new("/bin/sh")
+        .arg(&script_path)
+        .spawn()
+        .map_err(|error| error.to_string())?;
+    Ok(())
 }
 
 fn reserve_loopback_port() -> Result<u16, String> {
@@ -242,7 +319,10 @@ pub fn run() {
     }
 
     let app = builder
-        .invoke_handler(tauri::generate_handler![backend_connection])
+        .invoke_handler(tauri::generate_handler![
+            backend_connection,
+            install_macos_update
+        ])
         .build(tauri::generate_context!())
         .expect("failed to build the nfprogress desktop application");
 
