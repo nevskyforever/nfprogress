@@ -4,6 +4,7 @@ interface DesktopBackendConnection {
   apiBaseUrl: string
   sessionToken: string
   nativeUpdates: boolean
+  architecture: string
 }
 
 export type RuntimePlatform = 'web' | 'tauri' | 'ios' | 'android'
@@ -26,6 +27,17 @@ export function supportsNativeUpdates(): boolean {
   return runtimePlatform === 'tauri' && window.__NFPROGRESS_RUNTIME__?.nativeUpdates === true
 }
 
+export function supportsMacUpdateChecks(): boolean {
+  return runtimePlatform === 'tauri'
+    && !supportsNativeUpdates()
+    && typeof navigator !== 'undefined'
+    && /Macintosh|Mac OS X/i.test(navigator.userAgent)
+}
+
+export function supportsUpdateChecks(): boolean {
+  return supportsNativeUpdates() || supportsMacUpdateChecks()
+}
+
 async function initializeTauriRuntime(): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core')
   try {
@@ -34,6 +46,7 @@ async function initializeTauriRuntime(): Promise<void> {
       apiBaseUrl: connection.apiBaseUrl,
       getSessionToken: () => connection.sessionToken,
       nativeUpdates: connection.nativeUpdates,
+      architecture: connection.architecture,
     }
   } catch (error) {
     window.__NFPROGRESS_RUNTIME__ = {

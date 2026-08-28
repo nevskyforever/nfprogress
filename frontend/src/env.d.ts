@@ -12,6 +12,7 @@ interface NFProgressRuntimeBridge {
   apiBaseUrl?: string
   getSessionToken?: () => Promise<string | null> | string | null
   nativeUpdates?: boolean
+  architecture?: string
   startupError?: string
 }
 

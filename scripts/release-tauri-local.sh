@@ -46,6 +46,16 @@ fi
 export RELEASE_NOTES="${RELEASE_NOTES:-}"
 python3 "$ROOT_DIR/scripts/update-release-manifest.py" "$VERSION" "macos_${ARCH}" "$ARTIFACT_PATH"
 python3 "$ROOT_DIR/scripts/create-legacy-manifest.py"
+python3 - "$MANIFEST_PATH" "macos_${ARCH}" <<'PY'
+import json
+import sys
+
+manifest_path, platform = sys.argv[1:]
+manifest = json.load(open(manifest_path, encoding="utf-8"))
+release = manifest.get(platform, {})
+if not isinstance(release, dict) or not release.get("sha256") or not release.get("size"):
+    raise SystemExit(f"В манифесте нет sha256/size для {platform}.")
+PY
 
 if [ "${NFPROGRESS_TAURI_RELEASE_UPLOAD:-1}" = "1" ]; then
   REMOTE_NAME="nfprogress-mac-${ARCH}-${VERSION}.zip"

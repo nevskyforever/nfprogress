@@ -20,6 +20,7 @@ import { useMotionStore, type MotionPreference } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore, type ThemePreference } from '@/stores/theme'
 import { useUpdaterStore } from '@/stores/updater'
+import { supportsUpdateChecks } from '@/platform/runtime'
 import type {
   FrontendMotion,
   FrontendTheme,
@@ -84,9 +85,7 @@ const form = reactive<SettingsForm>({
 
 const editable = computed(() => new Set<SettingKey>(response.value?.editable_keys ?? []))
 const isDesktop = computed(() => response.value?.platform === 'desktop')
-const nativeUpdaterAvailable = computed(() => (
-  response.value?.capabilities.native_updates === true && updater.supported
-))
+const updaterAvailable = computed(() => isDesktop.value && supportsUpdateChecks())
 const visibleKeys = computed<ReadonlyArray<keyof SettingsForm>>(() => [
   ...GENERAL_KEYS.filter((key) => editable.value.has(key)),
   ...(isDesktop.value ? DESKTOP_KEYS.filter((key) => editable.value.has(key)) : []),
@@ -339,7 +338,7 @@ onBeforeUnmount(() => controller.abort())
             </section>
 
             <section
-              v-if="isDesktop && (editable.has('background_synch') || nativeUpdaterAvailable)"
+              v-if="isDesktop && (editable.has('background_synch') || updaterAvailable)"
               class="settings-card"
               aria-labelledby="desktop-settings-title"
             >
@@ -354,7 +353,7 @@ onBeforeUnmount(() => controller.abort())
                 :label="t('Фоновая синхронизация документов')"
                 :description="t('Проверяет активные подключённые источники при запуске и после смены писательского дня.')"
               />
-              <div v-if="nativeUpdaterAvailable" class="update-setting">
+              <div v-if="updaterAvailable" class="update-setting">
                 <div>
                   <strong>{{ t('Обновления приложения') }}</strong>
                   <p>{{ t('Подписанные обновления проверяются автоматически при запуске и раз в час.') }}</p>

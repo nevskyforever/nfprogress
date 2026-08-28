@@ -3,7 +3,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { settingsApi } from '@/api/settings'
-import { supportsNativeUpdates } from '@/platform/runtime'
+import { supportsNativeUpdates, supportsUpdateChecks } from '@/platform/runtime'
 import type { SettingsResponse } from '@/types/content'
 
 import SettingsPage from './SettingsPage.vue'
@@ -17,6 +17,7 @@ vi.mock('@/api/settings', () => ({
 
 vi.mock('@/platform/runtime', () => ({
   supportsNativeUpdates: vi.fn(() => false),
+  supportsUpdateChecks: vi.fn(() => false),
 }))
 
 const webSettings: SettingsResponse = {
@@ -69,7 +70,9 @@ describe('SettingsPage', () => {
     vi.mocked(settingsApi.get).mockReset()
     vi.mocked(settingsApi.update).mockReset()
     vi.mocked(supportsNativeUpdates).mockReset()
+    vi.mocked(supportsUpdateChecks).mockReset()
     vi.mocked(supportsNativeUpdates).mockReturnValue(false)
+    vi.mocked(supportsUpdateChecks).mockReturnValue(false)
     vi.mocked(settingsApi.get).mockResolvedValue(webSettings)
     vi.mocked(settingsApi.update).mockResolvedValue({
       ...webSettings,
@@ -113,6 +116,7 @@ describe('SettingsPage', () => {
   it('shows background sync and the signed updater only in a release-enabled desktop', async () => {
     vi.mocked(settingsApi.get).mockResolvedValue(desktopSettings)
     vi.mocked(supportsNativeUpdates).mockReturnValue(true)
+    vi.mocked(supportsUpdateChecks).mockReturnValue(true)
     const wrapper = mount(SettingsPage, {
       global: {
         plugins: [createPinia()],

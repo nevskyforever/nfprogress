@@ -73,9 +73,13 @@ if ! rustup target list --installed | grep -Fxq "$TARGET"; then
   exit 1
 fi
 
-if [ ! -d "$ROOT_DIR/frontend/node_modules" ]; then
-  echo "Устанавливаются frontend-зависимости..."
-  (cd "$ROOT_DIR/frontend" && npm ci)
+FRONTEND_DIR="$ROOT_DIR/frontend"
+NODE_MODULES_LOCK="$FRONTEND_DIR/node_modules/.package-lock.json"
+if [ ! -f "$NODE_MODULES_LOCK" ] \
+  || [ "$FRONTEND_DIR/package.json" -nt "$NODE_MODULES_LOCK" ] \
+  || [ "$FRONTEND_DIR/package-lock.json" -nt "$NODE_MODULES_LOCK" ]; then
+  echo "Устанавливаются или обновляются frontend-зависимости..."
+  (cd "$FRONTEND_DIR" && npm ci)
 fi
 
 run_python "$ROOT_DIR/scripts/sync-tauri-versions.py"
