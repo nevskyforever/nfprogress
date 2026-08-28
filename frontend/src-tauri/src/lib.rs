@@ -118,7 +118,7 @@ fn install_macos_update(
     url: String,
     sha256: String,
     size: u64,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     if !url.starts_with("https://nfproject.ru/app/") {
         return Err("Недопустимый адрес обновления macOS.".to_string());
     }
@@ -129,8 +129,9 @@ fn install_macos_update(
         .path()
         .executable_dir()
         .map_err(|error| error.to_string())?;
-    let target = macos_app_bundle(&executable_dir)
-        .ok_or_else(|| "Не удалось определить пакет приложения macOS.".to_string())?;
+    let Some(target) = macos_app_bundle(&executable_dir) else {
+        return Ok(false);
+    };
     let update_dir = app
         .path()
         .app_local_data_dir()
@@ -172,7 +173,7 @@ open "$TARGET"
         .arg(&script_path)
         .spawn()
         .map_err(|error| error.to_string())?;
-    Ok(())
+    Ok(true)
 }
 
 fn reserve_loopback_port() -> Result<u16, String> {

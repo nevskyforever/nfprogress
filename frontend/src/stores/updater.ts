@@ -2,7 +2,11 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { Update } from '@tauri-apps/plugin-updater'
 
-import { supportsMacUpdateChecks, supportsNativeUpdates } from '@/platform/runtime'
+import {
+  openExternalUrl,
+  supportsMacUpdateChecks,
+  supportsNativeUpdates,
+} from '@/platform/runtime'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 
@@ -148,11 +152,19 @@ export const useUpdaterStore = defineStore('updater', () => {
     if (pendingMacUrl) {
       try {
         const { invoke } = await import('@tauri-apps/api/core')
-        await invoke('install_macos_update', {
-          url: pendingMacUrl,
-          sha256: pendingMacSha256,
-          size: pendingMacSize,
-        })
+        const installationStarted = await invoke<boolean>(
+          'install_macos_update',
+          {
+            url: pendingMacUrl,
+            sha256: pendingMacSha256,
+            size: pendingMacSize,
+          },
+        )
+        if (!installationStarted) {
+          await openExternalUrl(pendingMacUrl)
+          dismissed.value = true
+          return
+        }
         const { exit } = await import('@tauri-apps/plugin-process')
         await exit(0)
       } catch (error) {
