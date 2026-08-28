@@ -33,8 +33,37 @@ fi
 echo "Локальный Tauri-архив готов: $ARTIFACT_PATH"
 
 MANIFEST_PATH="$ROOT_DIR/update_manifest.json"
+MANIFEST_LOCK_DIR="$ROOT_DIR/.release-tauri-manifest.lock"
 REMOTE_MANIFEST_PATH="$(mktemp "${TMPDIR:-/tmp}/nfprogress-manifest.XXXXXX")"
-trap 'rm -f -- "$REMOTE_MANIFEST_PATH"' EXIT
+
+while ! mkdir "$MANIFEST_LOCK_DIR" 2>/dev/null; do
+  lock_pid=""
+  if [ -f "$MANIFEST_LOCK_DIR/pid" ] \
+    && read -r lock_pid < "$MANIFEST_LOCK_DIR/pid" \
+    && [[ "$lock_pid" =~ ^[0-9]+$ ]] \
+    && ! kill -0 "$lock_pid" 2>/dev/null; then
+    echo "Удаляется блокировка манифеста от завершившегося релиза (PID $lock_pid)."
+    rm -f -- "$MANIFEST_LOCK_DIR/pid"
+    rmdir "$MANIFEST_LOCK_DIR" 2>/dev/null || true
+    continue
+  fi
+  echo "Ожидается обновление общего манифеста другим macOS-релизом..."
+  sleep 1
+done
+printf '%s\n' "$$" > "$MANIFEST_LOCK_DIR/pid"
+
+cleanup_release_manifest() {
+  rm -f -- "$REMOTE_MANIFEST_PATH"
+  rm -f -- "$MANIFEST_LOCK_DIR/pid"
+  rmdir "$MANIFEST_LOCK_DIR" 2>/dev/null || true
+}
+interrupt_release_manifest() {
+  cleanup_release_manifest
+  exit 130
+}
+trap cleanup_release_manifest EXIT
+trap interrupt_release_manifest HUP INT TERM
+
 if curl --fail --location --retry 3 --silent --show-error \
   --output "$REMOTE_MANIFEST_PATH" \
   "https://nfproject.ru/app/update_manifest.json"; then
