@@ -183,13 +183,12 @@ const progressAriaLabel = computed(() =>
 .project-card__cover {
   display: block;
   width: 100%;
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 2 / 3;
   object-fit: cover;
   background: var(--nf-color-surface-muted);
 }
 
 .project-card--with-cover .project-card__content {
-  min-height: 12.5rem;
   padding-left: var(--nf-space-5);
 }
 
