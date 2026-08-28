@@ -21,6 +21,7 @@ const props = withDefaults(
     planningDate?: string
     stage?: Project | null
     sharedSource?: boolean
+    defaultName?: string
     submitting?: boolean
     apiError?: string | null
     globalStreakEnabled?: boolean
@@ -29,6 +30,7 @@ const props = withDefaults(
     stage: null,
     planningDate: undefined,
     sharedSource: false,
+    defaultName: '',
     submitting: false,
     apiError: null,
     globalStreakEnabled: false,
@@ -74,7 +76,7 @@ const canRecalculatePlan = computed(() => {
 })
 
 function fill(): void {
-  form.name = props.stage?.name ?? ''
+  form.name = props.stage?.name ?? props.defaultName
   form.goal = props.stage?.goal === null ? '10000' : String(props.stage?.goal ?? 10000)
   form.total = String(props.sharedSource ? 0 : (props.stage?.total ?? 0))
   form.deadline = props.stage?.deadline?.slice(0, 10) ?? ''
@@ -270,8 +272,8 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
   >
     <IonHeader class="workspace-dialog-header ion-no-border">
       <div>
-        <p>{{ t('Структура рукописи') }}</p>
-        <h2>{{ stage ? t('Редактировать этап') : t('Новый этап') }}</h2>
+        <p>{{ sharedSource ? t('Источники синхронизации') : t('Структура рукописи') }}</p>
+        <h2>{{ stage ? t('Редактировать этап') : sharedSource ? t('Добавить этап') : t('Новый этап') }}</h2>
       </div>
       <button
         class="workspace-dialog-close"
@@ -302,7 +304,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
         </div>
 
         <label class="workspace-field workspace-field--wide" for="stage-name">
-          <span>{{ t('Название') }}</span>
+          <span>{{ sharedSource ? t('Название источника синхронизации:') : t('Название') }}</span>
           <input id="stage-name" v-model="form.name" maxlength="300" autocomplete="off" />
         </label>
         <label v-if="!sharedSource" class="workspace-field" for="stage-goal">

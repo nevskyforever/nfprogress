@@ -70,15 +70,21 @@ describe('StageDialog', () => {
 
   it('creates a shared-project source as an infinite zero-baseline stage', async () => {
     const wrapper = mount(StageDialog, {
-      props: { open: true, projectUnit: 'symbols', sharedSource: true },
+      props: {
+        open: true,
+        projectUnit: 'symbols',
+        sharedSource: true,
+        defaultName: 'Источник 2',
+      },
       global: { plugins: [createPinia()], stubs: ionicStubs },
     })
 
-    await wrapper.get('#stage-name').setValue('Рукопись')
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
-      name: 'Рукопись', infinite: true, total: 0,
+      name: 'Источник 2', infinite: true, total: 0,
     })
+    expect(wrapper.text()).toContain('Источники синхронизации')
+    expect(wrapper.text()).toContain('Название источника синхронизации:')
   })
 })

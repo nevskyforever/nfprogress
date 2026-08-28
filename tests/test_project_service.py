@@ -353,6 +353,25 @@ def test_shared_project_sources_are_infinite_and_lifecycle_is_protected(service)
         service.set_project_archived(project['id'], True)
 
 
+def test_adding_shared_source_migrates_the_existing_legacy_sync(service):
+    project = service.create_project({
+        'name': 'Общий проект', 'infinite': True, 'unit': 'symbols',
+    })
+
+    def add_legacy_sync(data):
+        stored = service._find_project(data, project['id'])
+        stored.synch = {'type': 'word', 'path': '/tmp/first.docx'}
+
+    service.repository.update_projects(add_legacy_sync)
+
+    source = service.create_stage(project['id'], {'name': 'Источник 2'})
+    stored = next(iter(service.repository.read_projects()['projects'].values()))
+
+    assert source['infinite'] is True
+    assert [stage.name for stage in stored.stages] == ['Источник 1', 'Источник 2']
+    assert stored.stages[0].synch == {'type': 'word', 'path': '/tmp/first.docx'}
+
+
 def test_repository_does_not_touch_default_legacy_location(service, monkeypatch):
     monkeypatch.setattr(engine, 'save_data', lambda _data: pytest.fail('legacy save called'))
     project = service.create_project({'name': 'Isolated', 'goal': 100, 'unit': 'symbols'})

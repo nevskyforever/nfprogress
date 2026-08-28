@@ -13,6 +13,7 @@ import {
   alertCircleOutline,
   archiveOutline,
   arrowBackOutline,
+  addOutline,
   calendarClearOutline,
   checkmarkCircleOutline,
   createOutline,
@@ -117,6 +118,23 @@ const selectedSyncStageId = computed(() => routeStageId.value || selectedEntityI
 const hasConfiguredSync = computed(() =>
   syncSummaries.value.some((summary) => summary.configured),
 )
+const selectedSyncConfigured = computed(() =>
+  selectedSyncStageId.value
+    ? syncSummaries.value.some((summary) =>
+      summary.configured && summary.stage_id === selectedSyncStageId.value,
+    )
+    : hasConfiguredSync.value,
+)
+const sharedSourceDefaultName = computed(() => {
+  const hasLegacySource = isSharedProject.value
+    && !project.value.stages.length
+    && (
+      project.value.project_notes.length > 0
+      || syncSummaries.value.some((summary) => summary.configured && summary.stage_id === null)
+    )
+  const sourceNumber = project.value.stages.length + (hasLegacySource ? 2 : 1)
+  return `Источник ${sourceNumber}`
+})
 
 const canCompleteProject = computed(() => {
   if (!store.currentProject || project.value.status === 'завершен') return false
@@ -224,7 +242,7 @@ async function loadSyncSummary(): Promise<void> {
 async function synchronizeProject(): Promise<void> {
   feedbackArea.value = 'global'
   actionSuccess.value = null
-  if (!hasConfiguredSync.value) {
+  if (!selectedSyncConfigured.value) {
     await router.push({
       name: 'integrations',
       query: {
@@ -467,12 +485,21 @@ async function openStage(stage: Project): Promise<void> {
 
 async function saveStage(payload: StageCreate | EntityUpdate): Promise<void> {
   feedbackArea.value = 'global'
+  const creatingSharedSource = isSharedProject.value && !editingStage.value
   const updated = editingStage.value
     ? await store.updateStage(project.value.id, editingStage.value.id, payload as EntityUpdate)
     : await store.createStage(project.value.id, payload as StageCreate)
   if (!updated) return
   stageDialogOpen.value = false
   announceSuccess(editingStage.value ? t('Этап сохранён.') : t('Этап создан.'))
+  if (creatingSharedSource) {
+    const sourceName = (payload as StageCreate).name
+    const source = updated.stages.find((stage) => stage.name === sourceName)
+    if (source) {
+      selectedEntityId.value = source.id
+      statisticsEntityId.value = source.id
+    }
+  }
   editingStage.value = null
   chooseAvailableEntity()
   refreshStatistics()
@@ -619,7 +646,16 @@ onBeforeUnmount(() => {
             >
               <IonSpinner v-if="syncLoading || syncRunning" name="crescent" aria-hidden="true" />
               <IonIcon v-else :icon="refreshOutline" aria-hidden="true" />
-              {{ hasConfiguredSync ? t('Синхронизировать сейчас') : t('Подключить источник') }}
+              {{ selectedSyncConfigured ? t('Синхронизировать сейчас') : t('Подключить источник') }}
+            </button>
+            <button
+              v-if="isSharedProject && !isStageDetail && project.status !== 'завершен'"
+              class="nf-button nf-button--secondary project-add-source-button"
+              type="button"
+              :disabled="store.detailBusy"
+              @click="openStageCreate"
+            >
+              <IonIcon :icon="addOutline" aria-hidden="true" />{{ t('Добавить этап') }}
             </button>
             <RouterLink
               class="nf-button nf-button--secondary project-notes-button"
@@ -770,6 +806,7 @@ onBeforeUnmount(() => {
       :planning-date="project.planning_date"
       :stage="editingStage"
       :shared-source="isSharedProject && !editingStage"
+      :default-name="isSharedProject && !editingStage ? sharedSourceDefaultName : ''"
       :submitting="Boolean(store.detailOperation?.includes('stage'))"
       :api-error="store.detailActionError"
       :global-streak-enabled="streaksEnabled"

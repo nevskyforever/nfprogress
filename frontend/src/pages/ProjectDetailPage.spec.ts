@@ -29,6 +29,7 @@ vi.mock('@/api/integrations', () => ({
 
 vi.mock('@/api/projects', () => ({
   projectsApi: {
+    createStage: vi.fn(),
     get: vi.fn(),
     globalStreak: vi.fn(),
     recordProgress: vi.fn(),
@@ -84,7 +85,20 @@ function workspaceStubs() {
       template: '<button :aria-label="label" type="button" @click="$emit(\'copy\')">copy</button>',
     },
     RouterLink: { template: '<a><slot /></a>' },
-    StageDialog: true,
+    StageDialog: {
+      props: ['open', 'defaultName', 'sharedSource'],
+      emits: ['submit'],
+      template: `
+        <button
+          v-if="open"
+          class="stage-dialog-submit"
+          type="button"
+          @click="$emit('submit', { name: defaultName, infinite: true, total: 0 })"
+        >
+          {{ sharedSource ? defaultName : 'stage' }}
+        </button>
+      `,
+    },
     StageWorkspace: {
       props: ['project'],
       emits: ['copy', 'save'],
@@ -107,6 +121,7 @@ function mountWorkspace(pinia = createPinia()) {
 describe('ProjectDetailPage progress sharing', () => {
   beforeEach(() => {
     vi.mocked(projectsApi.get).mockReset()
+    vi.mocked(projectsApi.createStage).mockReset()
     vi.mocked(projectsApi.globalStreak).mockReset()
     vi.mocked(projectsApi.recordProgress).mockReset()
     vi.mocked(projectsApi.statistics).mockReset()
@@ -325,14 +340,26 @@ describe('ProjectDetailPage progress sharing', () => {
       goal: null,
       parent_project_id: 'project-id',
     })
-    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
+    const addedSource = projectFixture({
+      id: 'source-id-2',
+      name: 'Источник 2',
+      infinite: true,
+      goal: null,
+      parent_project_id: 'project-id',
+    })
+    let sharedProject = projectFixture({
       id: 'project-id',
       name: 'Общий проект',
       infinite: true,
       goal: null,
       stages_enabled: true,
       stages: [source],
-    }))
+    })
+    vi.mocked(projectsApi.get).mockImplementation(async () => sharedProject)
+    vi.mocked(projectsApi.createStage).mockImplementation(async () => {
+      sharedProject = { ...sharedProject, stages: [source, addedSource] }
+      return sharedProject
+    })
     vi.mocked(integrationsApi.getProjectSyncs).mockResolvedValue({
       project_id: 'project-id',
       syncs: [{
@@ -349,12 +376,22 @@ describe('ProjectDetailPage progress sharing', () => {
     const wrapper = mountWorkspace()
     await flushPromises()
 
+    await wrapper.get('.project-add-source-button').trigger('click')
+    await wrapper.get('.stage-dialog-submit').trigger('click')
+    await flushPromises()
+
+    expect(projectsApi.createStage).toHaveBeenCalledWith('project-id', {
+      name: 'Источник 2',
+      infinite: true,
+      total: 0,
+    })
+
     await wrapper.get('.project-sync-button').trigger('click')
     await flushPromises()
 
     expect(pushRoute).toHaveBeenCalledWith({
       name: 'integrations',
-      query: { projectId: 'project-id', stageId: 'source-id' },
+      query: { projectId: 'project-id', stageId: 'source-id-2' },
     })
     wrapper.unmount()
   })
