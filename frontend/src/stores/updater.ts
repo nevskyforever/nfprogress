@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import type { Update } from '@tauri-apps/plugin-updater'
 
 import {
+  isTauriDevelopment,
   openExternalUrl,
   supportsMacUpdateChecks,
   supportsNativeUpdates,
@@ -151,6 +152,11 @@ export const useUpdaterStore = defineStore('updater', () => {
   async function installUpdate(): Promise<void> {
     if (pendingMacUrl) {
       try {
+        if (isTauriDevelopment()) {
+          await openExternalUrl(pendingMacUrl)
+          dismissed.value = true
+          return
+        }
         const { invoke } = await import('@tauri-apps/api/core')
         const installationStarted = await invoke<boolean>(
           'install_macos_update',

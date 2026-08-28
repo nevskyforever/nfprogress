@@ -25,6 +25,7 @@ struct BackendConnection {
     session_token: String,
     native_updates: bool,
     architecture: String,
+    development: bool,
 }
 
 #[derive(Default)]
@@ -333,6 +334,7 @@ pub fn run() {
                     session_token: token,
                     native_updates: native_updates_enabled(),
                     architecture: std::env::consts::ARCH.to_string(),
+                    development: cfg!(debug_assertions),
                 });
             }
             if let Ok(mut managed_child) = state.child.lock() {

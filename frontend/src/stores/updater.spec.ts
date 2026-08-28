@@ -6,6 +6,7 @@ import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 
 import {
+  isTauriDevelopment,
   openExternalUrl,
   supportsMacUpdateChecks,
   supportsNativeUpdates,
@@ -32,6 +33,7 @@ vi.mock('@tauri-apps/api/core', () => ({
 
 vi.mock('@/platform/runtime', () => ({
   supportsNativeUpdates: vi.fn(() => true),
+  isTauriDevelopment: vi.fn(() => false),
   supportsMacUpdateChecks: vi.fn(() => false),
   openExternalUrl: vi.fn(),
 }))
@@ -43,10 +45,12 @@ describe('updater store', () => {
     vi.mocked(relaunch).mockReset()
     vi.mocked(getVersion).mockReset()
     vi.mocked(invoke).mockReset()
+    vi.mocked(isTauriDevelopment).mockReset()
     vi.mocked(openExternalUrl).mockReset()
     vi.mocked(supportsNativeUpdates).mockReset()
     vi.mocked(supportsMacUpdateChecks).mockReset()
     vi.mocked(supportsNativeUpdates).mockReturnValue(true)
+    vi.mocked(isTauriDevelopment).mockReturnValue(false)
     vi.mocked(supportsMacUpdateChecks).mockReturnValue(false)
   })
 
@@ -137,9 +141,10 @@ describe('updater store', () => {
     vi.useRealTimers()
   })
 
-  it('opens the archive instead of installing from an unpackaged macOS app', async () => {
+  it('opens the archive instead of installing from a Tauri dev app', async () => {
     vi.mocked(supportsNativeUpdates).mockReturnValue(false)
     vi.mocked(supportsMacUpdateChecks).mockReturnValue(true)
+    vi.mocked(isTauriDevelopment).mockReturnValue(true)
     vi.mocked(getVersion).mockResolvedValue('5.0.1')
     vi.mocked(invoke).mockResolvedValueOnce({
       macos_intel: {
@@ -148,7 +153,7 @@ describe('updater store', () => {
         sha256: 'a'.repeat(64),
         size: 100,
       },
-    }).mockResolvedValueOnce(false)
+    })
     const updater = useUpdaterStore()
 
     await updater.checkForUpdates()
@@ -157,5 +162,6 @@ describe('updater store', () => {
     expect(openExternalUrl).toHaveBeenCalledWith(
       'https://nfproject.ru/app/nfprogress-mac-intel-5.1.0.zip',
     )
+    expect(invoke).toHaveBeenCalledTimes(1)
   })
 })
