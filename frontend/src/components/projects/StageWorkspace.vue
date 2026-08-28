@@ -53,6 +53,9 @@ const addButtonLabel = computed(() =>
 const emptyActionLabel = computed(() =>
   sharedProject.value ? t('Создать первый источник') : t('Создать первый этап'),
 )
+const removeButtonLabel = computed(() =>
+  sharedProject.value ? t('Удалить источник') : t('Удалить'),
+)
 const fractionDigits = computed(() => (props.project.unit === 'symbols' ? 0 : 2))
 const sort = ref<StageSort>(props.stageSort)
 const sortedStages = computed(() => [...props.project.stages].sort((left, right) => {
@@ -82,7 +85,9 @@ function showStageStreak(stage: Project): boolean {
 
 function requestRemove(stage: Project): void {
   const confirmed = window.confirm(
-    t('Удалить этап «{name}» и всю его историю прогресса? Это действие нельзя отменить.', {
+    t(sharedProject.value
+      ? 'Удалить источник «{name}» и всю его историю прогресса? Это действие нельзя отменить.'
+      : 'Удалить этап «{name}» и всю его историю прогресса? Это действие нельзя отменить.', {
       name: stage.name,
     }),
   )
@@ -174,7 +179,7 @@ watch(sort, (value) => emit('sort', value))
           </div>
         </button>
 
-        <div class="stage-actions" :aria-label="`${t('Действия этапа')}: ${stage.name}`">
+        <div class="stage-actions" :aria-label="`${sharedProject ? t('Действия источника синхронизации') : t('Действия этапа')}: ${stage.name}`">
             <button
               class="stage-icon-button"
               type="button"
@@ -222,11 +227,11 @@ watch(sort, (value) => emit('sort', value))
             <button
               class="stage-action-button stage-action-button--danger"
               type="button"
-              :disabled="busy || readOnly || sharedProject"
+              :disabled="busy || readOnly"
               @click="requestRemove(stage)"
             >
               <IonIcon :icon="trashOutline" aria-hidden="true" />
-              {{ t('Удалить') }}
+              {{ removeButtonLabel }}
             </button>
         </div>
       </li>

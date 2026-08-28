@@ -14,10 +14,12 @@ import type { Statistics } from '@/types/api'
 import ProjectDetailPage from './ProjectDetailPage.vue'
 
 const pushRoute = vi.fn()
+const replaceRoute = vi.fn()
+const routeParams: { projectId: string; stageId?: string } = { projectId: 'project-id' }
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ params: { projectId: 'project-id' } }),
-  useRouter: () => ({ replace: vi.fn(), push: pushRoute }),
+  useRoute: () => ({ params: routeParams }),
+  useRouter: () => ({ replace: replaceRoute, push: pushRoute }),
 }))
 
 vi.mock('@/api/integrations', () => ({
@@ -33,6 +35,7 @@ vi.mock('@/api/projects', () => ({
     get: vi.fn(),
     globalStreak: vi.fn(),
     recordProgress: vi.fn(),
+    removeStage: vi.fn(),
     statistics: vi.fn(),
   },
 }))
@@ -122,6 +125,7 @@ describe('ProjectDetailPage progress sharing', () => {
   beforeEach(() => {
     vi.mocked(projectsApi.get).mockReset()
     vi.mocked(projectsApi.createStage).mockReset()
+    vi.mocked(projectsApi.removeStage).mockReset()
     vi.mocked(projectsApi.globalStreak).mockReset()
     vi.mocked(projectsApi.recordProgress).mockReset()
     vi.mocked(projectsApi.statistics).mockReset()
@@ -131,6 +135,8 @@ describe('ProjectDetailPage progress sharing', () => {
     vi.mocked(integrationsApi.runProjectSyncs).mockReset()
     vi.mocked(settingsApi.get).mockReset()
     pushRoute.mockReset()
+    replaceRoute.mockReset()
+    delete routeParams.stageId
     const stage = projectFixture({
       id: 'stage-id',
       name: 'Глава 3',
@@ -403,6 +409,42 @@ describe('ProjectDetailPage progress sharing', () => {
     expect(pushRoute).toHaveBeenCalledWith({
       name: 'integrations',
       query: { projectId: 'project-id', stageId: 'source-id-2' },
+    })
+    wrapper.unmount()
+  })
+
+  it('allows deleting a shared-project source from its detail page', async () => {
+    routeParams.stageId = 'source-id'
+    const source = projectFixture({
+      id: 'source-id',
+      name: 'Источник 1',
+      infinite: true,
+      goal: null,
+      parent_project_id: 'project-id',
+    })
+    const sharedProject = projectFixture({
+      id: 'project-id',
+      name: 'Общий проект',
+      infinite: true,
+      goal: null,
+      stages_enabled: true,
+      stages: [source],
+    })
+    vi.mocked(projectsApi.get).mockResolvedValue(sharedProject)
+    vi.mocked(projectsApi.removeStage).mockResolvedValue(undefined)
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    const deleteButton = wrapper.get('.project-delete-button')
+    expect(deleteButton.text()).toContain('Удалить источник')
+    await deleteButton.trigger('click')
+    await flushPromises()
+
+    expect(projectsApi.removeStage).toHaveBeenCalledWith('project-id', 'source-id')
+    expect(replaceRoute).toHaveBeenCalledWith({
+      name: 'project-detail',
+      params: { projectId: 'project-id' },
     })
     wrapper.unmount()
   })

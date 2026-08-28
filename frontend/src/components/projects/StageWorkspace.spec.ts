@@ -77,7 +77,7 @@ describe('StageWorkspace', () => {
     expect(wrapper.find('.progress-ring').exists()).toBe(true)
   })
 
-  it('protects shared-project sources from edit and deletion', () => {
+  it('protects shared-project sources from edit while allowing deletion', async () => {
     const stage = projectFixture({ id: 'source-a', infinite: true, goal: null })
     const wrapper = mount(StageWorkspace, {
       props: {
@@ -93,8 +93,15 @@ describe('StageWorkspace', () => {
       global: { plugins: [createPinia()], stubs: { IonIcon: true } },
     })
 
-    const protectedButtons = wrapper.findAll('.stage-action-button')
+    const protectedButtons = wrapper.findAll('.stage-action-button').filter((button) =>
+      !button.classes('stage-action-button--danger'))
     expect(protectedButtons.every((button) => button.attributes('disabled') !== undefined)).toBe(true)
+
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    const removeButton = wrapper.get('.stage-action-button--danger')
+    expect(removeButton.attributes('disabled')).toBeUndefined()
+    await removeButton.trigger('click')
+    expect(wrapper.emitted('remove')?.[0]?.[0]).toEqual(stage)
   })
 
   it('allows adding another synchronization source to the shared project', async () => {

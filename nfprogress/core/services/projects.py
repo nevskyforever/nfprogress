@@ -408,8 +408,6 @@ class ProjectService:
     def delete_stage(self, project_id: str, stage_id: str) -> None:
         def mutate(data):
             project = self._find_project(data, project_id)
-            if self._is_shared_project(project):
-                raise ValidationError('Источники Общего проекта удаляются только вместе с ним.')
             stage = self._find_stage(project, stage_id)
             project.stages.remove(stage)
             if not project.stages:

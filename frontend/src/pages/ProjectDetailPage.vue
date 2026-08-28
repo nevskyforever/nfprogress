@@ -379,7 +379,9 @@ async function deleteProject(): Promise<void> {
   feedbackArea.value = 'global'
   const entity = detailEntity.value
   const confirmation = isStageDetail.value
-    ? t('Удалить этап «{name}» и всю его историю прогресса? Это действие нельзя отменить.', { name: entity.name })
+    ? t(isSharedProject.value
+      ? 'Удалить источник «{name}» и всю его историю прогресса? Это действие нельзя отменить.'
+      : 'Удалить этап «{name}» и всю его историю прогресса? Это действие нельзя отменить.', { name: entity.name })
     : t('Удалить проект «{name}» и все связанные данные? Это действие нельзя отменить.', { name: entity.name })
   if (!window.confirm(confirmation)) return
   if (isStageDetail.value) {
@@ -509,7 +511,7 @@ async function removeStage(stage: Project): Promise<void> {
   feedbackArea.value = 'global'
   const updated = await store.removeStage(project.value.id, stage.id)
   if (!updated) return
-  announceSuccess(t('Этап удалён.'))
+  announceSuccess(t(isSharedProject.value ? 'Источник синхронизации удалён.' : 'Этап удалён.'))
   chooseAvailableEntity()
   refreshStatistics()
 }
@@ -705,13 +707,13 @@ onBeforeUnmount(() => {
               <IonIcon :icon="checkmarkCircleOutline" aria-hidden="true" />{{ t('Завершить') }}
             </button>
             <button
-              v-if="!isSharedProject"
+              v-if="!isSharedProject || isStageDetail"
               class="nf-button project-delete-button"
               type="button"
               :disabled="store.detailBusy"
               @click="deleteProject"
             >
-              <IonIcon :icon="trashOutline" aria-hidden="true" />{{ t('Удалить проект') }}
+              <IonIcon :icon="trashOutline" aria-hidden="true" />{{ isSharedProject && isStageDetail ? t('Удалить источник') : t('Удалить проект') }}
             </button>
           </nav>
 

@@ -353,6 +353,20 @@ def test_shared_project_sources_are_infinite_and_lifecycle_is_protected(service)
         service.set_project_archived(project['id'], True)
 
 
+def test_shared_project_source_can_be_deleted_without_removing_the_project(service):
+    project = service.create_project({
+        'name': 'Общий проект', 'infinite': True, 'unit': 'symbols',
+    })
+    first = service.create_stage(project['id'], {'name': 'Источник 1'})
+    second = service.create_stage(project['id'], {'name': 'Источник 2'})
+
+    service.delete_stage(project['id'], first['id'])
+
+    updated = service.get_project(project['id'])
+    assert updated['name'] == 'Общий проект'
+    assert [stage['name'] for stage in updated['stages']] == ['Источник 2']
+
+
 def test_adding_shared_source_migrates_the_existing_legacy_sync(service):
     project = service.create_project({
         'name': 'Общий проект', 'infinite': True, 'unit': 'symbols',
