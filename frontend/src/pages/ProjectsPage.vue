@@ -772,7 +772,7 @@ onBeforeUnmount(() => {
 
 .project-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr));
   gap: var(--nf-space-4);
   transition: opacity 120ms ease;
 }
@@ -784,7 +784,7 @@ onBeforeUnmount(() => {
 
 .project-mixed-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 19rem), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15.5rem), 1fr));
   gap: var(--nf-space-4);
   transition: opacity 120ms ease;
 }
