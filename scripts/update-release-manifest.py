@@ -49,6 +49,9 @@ def main() -> int:
     else:
         artifact = Path(sys.argv[3]) if len(sys.argv) >= 4 else None
         installer = Path(sys.argv[4]) if len(sys.argv) == 5 else None
+        if artifact is None:
+            print("macOS release requires an archive to calculate sha256 and size.", file=sys.stderr)
+            return 2
     for path, label in ((artifact, "Artifact"), (installer, "Installer")):
         if path is not None and not path.is_file():
             print(f"{label} not found: {path}", file=sys.stderr)
