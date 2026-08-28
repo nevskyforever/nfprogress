@@ -111,7 +111,10 @@ describe('StageWorkspace', () => {
       global: { plugins: [createPinia()], stubs: { IonIcon: true } },
     })
 
-    await wrapper.get('button.nf-button--secondary').trigger('click')
+    const addButton = wrapper.get('button.nf-button--secondary')
+    expect(addButton.text()).toContain('Добавить источник')
+
+    await addButton.trigger('click')
 
     expect(wrapper.emitted('add')).toHaveLength(1)
   })

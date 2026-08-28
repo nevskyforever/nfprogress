@@ -47,6 +47,12 @@ const locale = useLocaleStore()
 const t = locale.translate
 const readOnly = computed(() => props.project.status === 'завершен')
 const sharedProject = computed(() => props.project.name === 'Общий проект')
+const addButtonLabel = computed(() =>
+  sharedProject.value ? t('Добавить источник') : t('Добавить этап'),
+)
+const emptyActionLabel = computed(() =>
+  sharedProject.value ? t('Создать первый источник') : t('Создать первый этап'),
+)
 const fractionDigits = computed(() => (props.project.unit === 'symbols' ? 0 : 2))
 const sort = ref<StageSort>(props.stageSort)
 const sortedStages = computed(() => [...props.project.stages].sort((left, right) => {
@@ -126,7 +132,7 @@ watch(sort, (value) => emit('sort', value))
           @click="emit('add')"
         >
           <IonIcon :icon="addOutline" aria-hidden="true" />
-          {{ t('Добавить этап') }}
+          {{ addButtonLabel }}
         </button>
       </div>
     </div>
@@ -227,10 +233,10 @@ watch(sort, (value) => emit('sort', value))
     </TransitionGroup>
 
     <div v-else class="stages-empty">
-      <p>{{ t('Разбейте рукопись на главы или другие рабочие этапы.') }}</p>
+      <p>{{ sharedProject ? t('Подключите первый источник синхронизации.') : t('Разбейте рукопись на главы или другие рабочие этапы.') }}</p>
       <button v-if="!readOnly" class="nf-button nf-button--secondary" type="button" :disabled="busy" @click="emit('add')">
         <IonIcon :icon="addOutline" aria-hidden="true" />
-        {{ t('Создать первый этап') }}
+        {{ emptyActionLabel }}
       </button>
     </div>
   </section>

@@ -376,7 +376,9 @@ describe('ProjectDetailPage progress sharing', () => {
     const wrapper = mountWorkspace()
     await flushPromises()
 
-    await wrapper.get('.project-add-source-button').trigger('click')
+    const addSourceButton = wrapper.get('.project-add-source-button')
+    expect(addSourceButton.text()).toContain('Добавить источник')
+    await addSourceButton.trigger('click')
     await wrapper.get('.stage-dialog-submit').trigger('click')
     await flushPromises()
 

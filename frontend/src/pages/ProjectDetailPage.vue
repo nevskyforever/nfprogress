@@ -655,7 +655,7 @@ onBeforeUnmount(() => {
               :disabled="store.detailBusy"
               @click="openStageCreate"
             >
-              <IonIcon :icon="addOutline" aria-hidden="true" />{{ t('Добавить этап') }}
+              <IonIcon :icon="addOutline" aria-hidden="true" />{{ t('Добавить источник') }}
             </button>
             <RouterLink
               class="nf-button nf-button--secondary project-notes-button"
