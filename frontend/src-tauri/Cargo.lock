@@ -2333,6 +2333,7 @@ version = "5.1.1"
 dependencies = [
  "getrandom 0.3.4",
  "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",

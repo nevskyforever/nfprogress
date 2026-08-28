@@ -63,8 +63,15 @@ fn backend_connection(state: State<'_, BackendState>) -> Result<BackendConnectio
         )
 }
 
+fn configure_rustls_provider() {
+    // The updater plugin installs a provider in release builds. Tauri dev does
+    // not load that plugin, so install ring here before reqwest creates TLS.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+}
+
 #[tauri::command]
 async fn fetch_update_manifest() -> Result<serde_json::Value, String> {
+    configure_rustls_provider();
     let client = reqwest::Client::builder()
         .connect_timeout(Duration::from_secs(5))
         .timeout(UPDATE_MANIFEST_TIMEOUT)
@@ -81,6 +88,17 @@ async fn fetch_update_manifest() -> Result<serde_json::Value, String> {
         .json::<serde_json::Value>()
         .await
         .map_err(|error| format!("Манифест обновления имеет неверный формат: {error}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::configure_rustls_provider;
+
+    #[test]
+    fn update_client_has_a_rustls_crypto_provider() {
+        configure_rustls_provider();
+        assert!(reqwest::Client::builder().build().is_ok());
+    }
 }
 
 fn shell_literal(value: impl AsRef<str>) -> String {
