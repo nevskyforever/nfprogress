@@ -1,6 +1,6 @@
 [package]
 name = "nfprogress-desktop"
-version = "5.1.2"
+version = "5.1.3"
 description = "nfprogress desktop shell"
 authors = ["nfprogress contributors"]
 edition = "2021"
