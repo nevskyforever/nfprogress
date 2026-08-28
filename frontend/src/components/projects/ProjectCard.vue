@@ -189,7 +189,12 @@ const progressAriaLabel = computed(() =>
 }
 
 .project-card--with-cover .project-card__content {
+  height: 15.5rem;
   padding-left: var(--nf-space-5);
+}
+
+.project-card--with-cover .project-card__title-row {
+  min-height: 3.8rem;
 }
 
 .project-card__header,
