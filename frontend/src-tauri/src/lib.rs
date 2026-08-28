@@ -3,7 +3,7 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
@@ -93,12 +93,61 @@ async fn fetch_update_manifest() -> Result<serde_json::Value, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::configure_rustls_provider;
+    #[cfg(target_os = "macos")]
+    use std::io::Write;
+    use std::path::Path;
+    #[cfg(target_os = "macos")]
+    use std::process::{Command, Stdio};
+
+    use super::{build_macos_updater_script, configure_rustls_provider};
 
     #[test]
     fn update_client_has_a_rustls_crypto_provider() {
         configure_rustls_provider();
         assert!(reqwest::Client::builder().build().is_ok());
+    }
+
+    #[test]
+    fn macos_updater_can_install_an_app_from_a_nested_dmg() {
+        let script = build_macos_updater_script(
+            "https://nfproject.ru/app/update.zip",
+            Path::new("/Applications/nfprogress.app"),
+            "aabbcc",
+            42,
+            Path::new("/tmp/nfprogress-update.log"),
+            123,
+        );
+
+        assert!(script.contains("DMG_PATH=$(find"));
+        assert!(script.contains("hdiutil attach \"$DMG_PATH\""));
+        assert!(script.contains("find \"$MOUNT_POINT\""));
+        assert!(script.contains("ditto \"$NEW_APP\" \"$TARGET_PATH\""));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_updater_script_has_valid_shell_syntax() {
+        let script = build_macos_updater_script(
+            "https://nfproject.ru/app/update.zip",
+            Path::new("/Applications/nfprogress.app"),
+            "aabbcc",
+            42,
+            Path::new("/tmp/nfprogress-update.log"),
+            123,
+        );
+        let mut child = Command::new("/bin/sh")
+            .arg("-n")
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("shell must start");
+        child
+            .stdin
+            .take()
+            .expect("shell stdin must be piped")
+            .write_all(script.as_bytes())
+            .expect("script must be written to shell");
+
+        assert!(child.wait().expect("shell must finish").success());
     }
 }
 
@@ -111,6 +160,107 @@ fn macos_app_bundle(executable: &Path) -> Option<PathBuf> {
         .ancestors()
         .find(|path| path.extension().is_some_and(|extension| extension == "app"))
         .map(Path::to_path_buf)
+}
+
+fn build_macos_updater_script(
+    download_url: &str,
+    target: &Path,
+    sha256: &str,
+    size: u64,
+    log_path: &Path,
+    parent_pid: u32,
+) -> String {
+    let target_name = target.file_name().unwrap_or_default().to_string_lossy();
+    format!(
+        r#"#!/bin/sh
+set -u
+DOWNLOAD_URL={url}
+SHA256={sha256}
+SIZE={size}
+TARGET_PATH={target}
+TARGET_NAME={target_name}
+PARENT_PID={pid}
+LOG_PATH={log_path}
+MOUNT_POINT=""
+
+log() {{
+    printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$1" >> "$LOG_PATH"
+}}
+
+fail() {{
+    log "failed: $1"
+    if [ -n "$MOUNT_POINT" ]; then
+        hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
+    fi
+    osascript -e 'display alert "nfprogress" message "Не удалось установить обновление. Подробности: '"$LOG_PATH"'"' >/dev/null 2>&1 || true
+    exit 1
+}}
+
+log "waiting for application process $PARENT_PID"
+while kill -0 "$PARENT_PID" >/dev/null 2>&1; do sleep 1; done
+sleep 1
+
+WORK_DIR=$(mktemp -d "${{TMPDIR:-/tmp/}}nfprogress-update.XXXXXX") || fail "Не удалось создать временную папку."
+ZIP_PATH="$WORK_DIR/update.zip"
+EXTRACT_DIR="$WORK_DIR/extract"
+mkdir -p "$EXTRACT_DIR" || fail "Не удалось создать папку распаковки."
+
+log "downloading $DOWNLOAD_URL"
+curl -fL --connect-timeout 20 --retry 2 -o "$ZIP_PATH" "$DOWNLOAD_URL" || fail "Не удалось скачать архив обновления."
+[ "$(stat -f %z "$ZIP_PATH")" = "$SIZE" ] || fail "Размер архива обновления не совпадает с манифестом."
+[ "$(shasum -a 256 "$ZIP_PATH" | awk '{{print $1}}')" = "$SHA256" ] || fail "Контрольная сумма архива обновления не совпадает с манифестом."
+ditto -x -k "$ZIP_PATH" "$EXTRACT_DIR" || unzip -q "$ZIP_PATH" -d "$EXTRACT_DIR" || fail "Не удалось распаковать zip-архив."
+
+NEW_APP=$(find "$EXTRACT_DIR" -maxdepth 4 -name "$TARGET_NAME" -type d -print -quit)
+if [ -z "$NEW_APP" ]; then
+    NEW_APP=$(find "$EXTRACT_DIR" -maxdepth 4 -name "*.app" -type d -print -quit)
+fi
+
+if [ -z "$NEW_APP" ]; then
+    DMG_PATH=$(find "$EXTRACT_DIR" -maxdepth 4 -name "*.dmg" -type f -print -quit)
+    if [ -n "$DMG_PATH" ]; then
+        log "mounting $DMG_PATH"
+        MOUNT_OUTPUT=$(hdiutil attach "$DMG_PATH" -nobrowse -readonly 2>>"$LOG_PATH") || fail "Не удалось смонтировать dmg."
+        MOUNT_POINT=$(printf '%s\n' "$MOUNT_OUTPUT" | awk '/\/Volumes\// {{print substr($0, index($0, "/Volumes/")); exit}}')
+        [ -n "$MOUNT_POINT" ] || fail "Не удалось определить точку монтирования dmg."
+        NEW_APP=$(find "$MOUNT_POINT" -maxdepth 2 -name "$TARGET_NAME" -type d -print -quit)
+        if [ -z "$NEW_APP" ]; then
+            NEW_APP=$(find "$MOUNT_POINT" -maxdepth 2 -name "*.app" -type d -print -quit)
+        fi
+    fi
+fi
+
+[ -n "$NEW_APP" ] || fail "В архиве обновления не найден .app."
+
+BACKUP_PATH="$TARGET_PATH.old"
+rm -rf "$BACKUP_PATH" || fail "Не удалось удалить старую резервную копию."
+if [ -d "$TARGET_PATH" ]; then
+    mv "$TARGET_PATH" "$BACKUP_PATH" || fail "Не удалось убрать старое приложение."
+fi
+ditto "$NEW_APP" "$TARGET_PATH" || {{
+    rm -rf "$TARGET_PATH"
+    if [ -d "$BACKUP_PATH" ]; then
+        mv "$BACKUP_PATH" "$TARGET_PATH"
+    fi
+    fail "Не удалось скопировать новую версию."
+}}
+rm -rf "$BACKUP_PATH"
+
+if [ -n "$MOUNT_POINT" ]; then
+    hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
+fi
+rm -rf "$WORK_DIR"
+log "updated $TARGET_PATH"
+open "$TARGET_PATH" || log "failed to reopen $TARGET_PATH"
+"#,
+        url = shell_literal(download_url),
+        sha256 = shell_literal(sha256),
+        size = size,
+        target = shell_literal(target.to_string_lossy()),
+        target_name = shell_literal(target_name),
+        pid = parent_pid,
+        log_path = shell_literal(log_path.to_string_lossy()),
+    )
 }
 
 #[tauri::command]
@@ -139,39 +289,15 @@ fn install_macos_update(
         .map_err(|error| error.to_string())?;
     fs::create_dir_all(&update_dir).map_err(|error| error.to_string())?;
     let script_path = update_dir.join("install-update.sh");
-    let script = format!(
-        r#"#!/bin/sh
-set -eu
-URL={url}
-SHA256={sha256}
-SIZE={size}
-TARGET={target}
-PID={pid}
-while kill -0 "$PID" >/dev/null 2>&1; do sleep 1; done
-WORK=$(mktemp -d "${{TMPDIR:-/tmp/}}nfprogress-update.XXXXXX")
-ARCHIVE="$WORK/update.zip"
-curl -fL --connect-timeout 20 --retry 2 -o "$ARCHIVE" "$URL"
-[ "$(stat -f %z "$ARCHIVE")" = "$SIZE" ]
-[ "$(shasum -a 256 "$ARCHIVE" | awk '{{print $1}}')" = "$SHA256" ]
-ditto -x -k "$ARCHIVE" "$WORK/extract"
-NEW_APP=$(find "$WORK/extract" -name '*.app' -type d -print -quit)
-[ -n "$NEW_APP" ]
-BACKUP="$TARGET.old"
-rm -rf "$BACKUP"
-mv "$TARGET" "$BACKUP"
-ditto "$NEW_APP" "$TARGET"
-rm -rf "$BACKUP" "$WORK"
-open "$TARGET"
-"#,
-        url = shell_literal(url),
-        sha256 = shell_literal(sha256),
-        size = size,
-        target = shell_literal(target.to_string_lossy()),
-        pid = std::process::id(),
-    );
+    let log_path = update_dir.join("update.log");
+    let script =
+        build_macos_updater_script(&url, &target, &sha256, size, &log_path, std::process::id());
     fs::write(&script_path, script).map_err(|error| error.to_string())?;
     Command::new("/bin/sh")
         .arg(&script_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
         .map_err(|error| error.to_string())?;
     Ok(true)
