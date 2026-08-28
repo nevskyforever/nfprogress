@@ -19,6 +19,7 @@ struct BackendConnection {
     api_base_url: String,
     session_token: String,
     native_updates: bool,
+    architecture: String,
 }
 
 #[derive(Default)]
@@ -213,6 +214,7 @@ pub fn run() {
                     api_base_url: format!("http://{BACKEND_HOST}:{port}"),
                     session_token: token,
                     native_updates: native_updates_enabled(),
+                    architecture: std::env::consts::ARCH.to_string(),
                 });
             }
             if let Ok(mut managed_child) = state.child.lock() {

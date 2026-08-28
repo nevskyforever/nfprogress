@@ -9,7 +9,7 @@ import NotificationCenter from '@/components/ui/NotificationCenter.vue'
 import NotificationStack from '@/components/ui/NotificationStack.vue'
 import UpdatePrompt from '@/components/ui/UpdatePrompt.vue'
 import AppShell from '@/layouts/AppShell.vue'
-import { supportsNativeUpdates } from '@/platform/runtime'
+import { supportsUpdateChecks } from '@/platform/runtime'
 import { isSupportedLanguage, useLocaleStore } from '@/stores/locale'
 import { isMotionPreference, useMotionStore } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -31,7 +31,7 @@ const bootstrapError = ref<string | null>(null)
 let updateTimer: number | null = null
 
 function startAutomaticUpdateChecks(): void {
-  if (!supportsNativeUpdates() || updateTimer !== null) return
+  if (!supportsUpdateChecks() || updateTimer !== null) return
   void updater.checkForUpdates()
   updateTimer = window.setInterval(() => {
     void updater.checkForUpdates()
