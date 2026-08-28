@@ -216,10 +216,12 @@ jobs:
             [string]$env:MANUAL_RELEASE_NOTES
           ).Trim()
 
+          $message = ""
+
           if ([string]::IsNullOrWhiteSpace($releaseNotes)) {
             $message = (
               $env:COMMIT_MESSAGE -replace "`r`n", "`n"
-            )
+            ).Trim()
 
             $lines = $message -split "`n"
 
@@ -261,7 +263,12 @@ jobs:
           ).Trim()
 
           if ([string]::IsNullOrWhiteSpace($telegramMessage)) {
-            $telegramMessage = $releaseNotes
+            if (-not [string]::IsNullOrWhiteSpace($message)) {
+              $telegramMessage = $message
+            }
+            else {
+              $telegramMessage = $releaseNotes
+            }
           }
 
           $notesPath = Join-Path `
