@@ -133,8 +133,8 @@ onBeforeUnmount(() => clearInterval(timer))
         <strong class="session-clock">{{ remainingLabel }}</strong>
         <p>
           {{ t(session.active.intention) }} ·
-          {{ locale.formatNumber(session.active.progress, 0) }} /
-          {{ locale.formatNumber(session.active.target_symbols, 0) }} {{ t('символов') }}
+          {{ locale.formatNumber(session.active.progress, 0) }} {{ locale.formatUnit('symbols', session.active.progress) }} /
+          {{ locale.formatNumber(session.active.target_symbols, 0) }} {{ locale.formatUnit('symbols', session.active.target_symbols) }}
         </p>
       </div>
       <progress

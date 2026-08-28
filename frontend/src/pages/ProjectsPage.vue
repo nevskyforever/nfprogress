@@ -395,7 +395,7 @@ onBeforeUnmount(() => {
               <p>{{ t('Текущий писательский день') }}</p>
               <h2>{{ t('Написано сегодня') }}</h2>
             </div>
-            <strong>{{ locale.formatNumber(todaySummary.symbols, 0) }} {{ t('символов') }}</strong>
+            <strong>{{ locale.formatNumber(todaySummary.symbols, 0) }} {{ locale.formatUnit('symbols', todaySummary.symbols) }}</strong>
           </section>
 
           <section v-if="streaksEnabled && globalStreak?.enabled" class="workspace-summary workspace-summary--streak">

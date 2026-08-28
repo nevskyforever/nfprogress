@@ -105,6 +105,13 @@ _HELP_ARTICLE_SOURCES = {
 
 TRANSLATION_OVERRIDES = {
     "en": {
+        "Синхронизация завершена. Прочитано: {count} {unit}": "Synchronization complete. Read: {count} {unit}",
+        "лист A4": "A4 sheet",
+        "листа A4": "A4 sheets",
+        "листов A4": "A4 sheets",
+        "страница Ficbook": "Ficbook page",
+        "страницы Ficbook": "Ficbook pages",
+        "страниц Ficbook": "Ficbook pages",
         "Этот предмет нельзя купить.": "This item cannot be purchased.",
         "Справка всегда соответствует возможностям установленной версии приложения.": "Help always matches the features available in the installed application version.",
         _HELP_ARTICLE_SOURCES["quick_start"]: """<html>
@@ -414,6 +421,13 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Editing Pass",
     },
     "es": {
+        "Синхронизация завершена. Прочитано: {count} {unit}": "Sincronización completada. Se leyeron: {count} {unit}",
+        "лист A4": "hoja A4",
+        "листа A4": "hojas A4",
+        "листов A4": "hojas A4",
+        "страница Ficbook": "página de Ficbook",
+        "страницы Ficbook": "páginas de Ficbook",
+        "страниц Ficbook": "páginas de Ficbook",
         "Этот предмет нельзя купить.": "Este objeto no se puede comprar.",
         "Справка всегда соответствует возможностям установленной версии приложения.": "La ayuda siempre coincide con las funciones disponibles en la versión instalada de la aplicación.",
         _HELP_ARTICLE_SOURCES["quick_start"]: """<html>
@@ -724,6 +738,13 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Pase de edición",
     },
     "de": {
+        "Синхронизация завершена. Прочитано: {count} {unit}": "Synchronisierung abgeschlossen. Gelesen: {count} {unit}",
+        "лист A4": "A4-Blatt",
+        "листа A4": "A4-Blätter",
+        "листов A4": "A4-Blätter",
+        "страница Ficbook": "Ficbook-Seite",
+        "страницы Ficbook": "Ficbook-Seiten",
+        "страниц Ficbook": "Ficbook-Seiten",
         "Этот предмет нельзя купить.": "Dieser Gegenstand kann nicht gekauft werden.",
         "Справка всегда соответствует возможностям установленной версии приложения.": "Die Hilfe entspricht immer den Funktionen der installierten Anwendungsversion.",
         _HELP_ARTICLE_SOURCES["quick_start"]: """<html>
@@ -1035,6 +1056,13 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Überarbeitungsdurchgang",
     },
     "fr": {
+        "Синхронизация завершена. Прочитано: {count} {unit}": "Synchronisation terminée. Lus : {count} {unit}",
+        "лист A4": "feuille A4",
+        "листа A4": "feuilles A4",
+        "листов A4": "feuilles A4",
+        "страница Ficbook": "page de Ficbook",
+        "страницы Ficbook": "pages de Ficbook",
+        "страниц Ficbook": "pages de Ficbook",
         "Этот предмет нельзя купить.": "Cet objet ne peut pas être acheté.",
         "Справка всегда соответствует возможностям установленной версии приложения.": "L’aide correspond toujours aux fonctions disponibles dans la version installée de l’application.",
         _HELP_ARTICLE_SOURCES["quick_start"]: """<html>
@@ -1347,6 +1375,13 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Passe de révision",
     },
     "pt_BR": {
+        "Синхронизация завершена. Прочитано: {count} {unit}": "Sincronização concluída. Lidos: {count} {unit}",
+        "лист A4": "folha A4",
+        "листа A4": "folhas A4",
+        "листов A4": "folhas A4",
+        "страница Ficbook": "página do Ficbook",
+        "страницы Ficbook": "páginas do Ficbook",
+        "страниц Ficbook": "páginas do Ficbook",
         "Этот предмет нельзя купить.": "Este item não pode ser comprado.",
         "Справка всегда соответствует возможностям установленной версии приложения.": "A ajuda sempre corresponde aos recursos disponíveis na versão instalada do aplicativo.",
         _HELP_ARTICLE_SOURCES["quick_start"]: """<html>

@@ -51,7 +51,7 @@ function formatMetric(key: MetricKey): string {
   if (key === 'best_day') {
     const value = metrics.best_day
     if (!value) return '—'
-    const unit = t('Символы').toLocaleLowerCase(locale.localeTag)
+    const unit = locale.formatUnit('symbols', value.symbols)
     return `${locale.formatDate(value.date)} · ${locale.formatNumber(value.symbols, 0)} ${unit}`
   }
   if (key === 'best_weekday') {

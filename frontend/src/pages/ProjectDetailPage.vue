@@ -63,12 +63,6 @@ const store = useProjectsStore()
 const locale = useLocaleStore()
 const notifications = useNotificationsStore()
 const t = locale.translate
-const projectUnitLabels = {
-  symbols: 'символов',
-  A4: 'листов A4',
-  author_list: 'авторских листов',
-  ficbook_pages: 'страниц Ficbook',
-} as const
 const projectId = computed(() => String(route.params.projectId ?? ''))
 const detailAnimationVersion = ref(0)
 let detailViewActive = false
@@ -356,7 +350,7 @@ async function exportProgress(
       progress: entity.progress,
       coverImage: project.value.cover_image,
       statusLabel: t(entity.status === 'активен' ? 'Активен' : entity.status === 'в архиве' ? 'В архиве' : 'Завершён'),
-      progressText: `${locale.formatNumber(entity.total, fractionDigits)} / ${goalLabel} ${t(projectUnitLabels[entity.unit])}`,
+      progressText: `${locale.formatNumber(entity.total, fractionDigits)} ${locale.formatUnit(entity.unit, entity.total)} / ${goalLabel} ${locale.formatUnit(entity.unit, entity.goal ?? 0)}`,
       footerLabel: entity.deadline ? locale.formatDate(entity.deadline) : t('Без срока'),
       footerDetail: parentName || !entity.stages_enabled
         ? undefined
@@ -644,8 +638,8 @@ onBeforeUnmount(() => {
           </div>
 
           <section class="progress-hero" :aria-label="t('Прогресс проекта')">
-            <div><span>{{ t('Написано') }}</span><strong><AnimatedNumber :value="detailEntity.total" :digits="detailEntity.unit === 'symbols' ? 0 : 2" /> {{ presentation.unitLabel }}</strong></div>
-            <div><span>{{ t('Цель') }}</span><strong>{{ presentation.goalLabel }}</strong></div>
+            <div><span>{{ t('Написано') }}</span><strong><AnimatedNumber :value="detailEntity.total" :digits="detailEntity.unit === 'symbols' ? 0 : 2" /> {{ locale.formatUnit(detailEntity.unit, detailEntity.total) }}</strong></div>
+            <div><span>{{ t('Цель') }}</span><strong>{{ presentation.goalLabel }}<template v-if="!detailEntity.infinite && detailEntity.goal !== null"> {{ locale.formatUnit(detailEntity.unit, detailEntity.goal) }}</template></strong></div>
             <ProgressBar
               v-if="!detailEntity.infinite"
               :value="presentation.progress"
@@ -656,7 +650,7 @@ onBeforeUnmount(() => {
           <section class="detail-facts" :aria-label="t('Сведения о проекте')">
             <div class="fact-card"><IonIcon :icon="calendarClearOutline" aria-hidden="true" /><span>{{ t('Срок') }}</span><strong>{{ locale.formatDate(detailEntity.deadline) }}</strong></div>
             <div class="fact-card"><IonIcon :icon="documentTextOutline" aria-hidden="true" /><span>{{ t('Записей прогресса') }}</span><strong>{{ locale.formatNumber(detailEntity.progress_entries.length, 0) }}</strong></div>
-            <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ presentation.unitLabel }}</strong></div>
+            <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ locale.formatUnit(detailEntity.unit, detailEntity.today_goal) }}</strong></div>
             <StreakBadge
               v-if="displayedStreakEntity"
               class="detail-streak detail-streak--entity"

@@ -302,8 +302,9 @@ async function runSync(): Promise<void> {
     applyGameFeedback(result.progress)
     if (result.changed) announceDataChange('projects')
     success.value = result.changed
-      ? t('Синхронизация завершена. Прочитано символов: {count}', {
+      ? t('Синхронизация завершена. Прочитано: {count} {unit}', {
           count: locale.formatNumber(result.symbols, 0),
+          unit: locale.formatUnit('symbols', result.symbols),
         })
       : t('Документ не изменился. Текущий объём уже актуален.')
   } catch (runError) {
