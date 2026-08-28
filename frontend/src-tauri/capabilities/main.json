@@ -9,6 +9,7 @@
     "clipboard-manager:allow-write-image",
     "dialog:allow-open",
     "opener:allow-open-url",
+    "opener:allow-default-urls",
     "process:allow-restart",
     "process:allow-exit",
     "updater:allow-check",
