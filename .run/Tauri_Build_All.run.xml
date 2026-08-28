@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Tauri Build All" type="CompoundRunConfigurationType">
+    <toRun type="ShConfigurationType" name="Tauri Build ARM" />
+    <toRun type="ShConfigurationType" name="Tauri Build Intel" />
+    <method v="2" />
+  </configuration>
+</component>
