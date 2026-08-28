@@ -611,7 +611,7 @@ onBeforeUnmount(() => {
 
           <nav class="project-actions" :aria-label="t('Действия проекта')">
             <button
-              v-if="detailEntity.status !== 'завершен' && !isSharedProject"
+              v-if="detailEntity.status !== 'завершен'"
               class="nf-button project-sync-button"
               type="button"
               :disabled="syncLoading || syncRunning"
