@@ -7,6 +7,7 @@ import { apiErrorMessage } from '@/api/client'
 import { integrationsApi } from '@/api/integrations'
 import { useLocaleStore } from '@/stores/locale'
 import type { Project } from '@/types/api'
+import type { WordImportResult } from '@/types/integrations'
 
 const props = withDefaults(
   defineProps<{
@@ -16,7 +17,7 @@ const props = withDefaults(
 )
 
 const emit = defineEmits<{
-  imported: [project: Project]
+  imported: [result: WordImportResult, stageId: string | null]
 }>()
 
 const locale = useLocaleStore()
@@ -78,7 +79,7 @@ async function countSelected(event: Event): Promise<void> {
         selectedStageId.value || null,
       )
       symbols.value = result.symbols
-      emit('imported', result.project)
+      emit('imported', result, selectedStageId.value || null)
       message.value = result.changed
         ? t('Прогресс проекта обновлён по документу.')
         : t('Объём проекта уже совпадает с документом.')

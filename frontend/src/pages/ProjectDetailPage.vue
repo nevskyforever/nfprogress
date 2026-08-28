@@ -35,6 +35,7 @@ import ProgressBar from '@/components/ui/ProgressBar.vue'
 import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { apiErrorMessage } from '@/api/client'
+import { gameApi } from '@/api/game'
 import { integrationsApi } from '@/api/integrations'
 import { settingsApi } from '@/api/settings'
 import { onDataChange } from '@/services/dataChanges'
@@ -46,6 +47,8 @@ import {
 } from '@/platform/progressShare'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
+import { gameResponseMessages } from '@/utils/gameNotifications'
+import { progressChangeNotification } from '@/utils/progressNotifications'
 import { useProjectsStore } from '@/stores/projects'
 import type {
   EntityUpdate,
@@ -241,7 +244,10 @@ async function synchronizeProject(): Promise<void> {
     }
     announceSuccess(t('Синхронизация завершена'))
     if (failed?.error?.message) notifications.warning(t(failed.error.message))
-    for (const item of result.items) applyGameFeedback(item.progress?.game ?? null)
+    for (const item of result.items) {
+      applyProgressFeedback(item.progress, item.stage_id)
+      applyGameFeedback(item.progress?.game ?? null)
+    }
     await store.refreshCurrent(project.value.id)
     chooseAvailableEntity()
     refreshStatistics()
@@ -262,7 +268,51 @@ function announceSuccess(message: string, area: 'global' | 'progress' = 'global'
 function applyGameFeedback(game: ProgressResult['game']): void {
   if (!game) return
   notifications.setGameHistory(game.state.notifications)
-  for (const message of game.messages) notifications.success(t(message))
+  for (const message of gameResponseMessages(game)) notifications.success(t(message))
+}
+
+async function refreshGameHistory(): Promise<void> {
+  const knownUnreadIds = new Set(
+    notifications.gameHistory.unread.map((notification) => notification.id),
+  )
+  try {
+    const history = await gameApi.notifications()
+    notifications.setGameHistory(history)
+    for (const notification of history.unread) {
+      if (!knownUnreadIds.has(notification.id)) notifications.success(t(notification.text))
+    }
+  } catch {
+    // Project completion remains successful when the optional game history refresh fails.
+  }
+}
+
+function applyProgressFeedback(
+  progress: ProgressResult | null | undefined,
+  stageId?: string | null,
+  area?: 'global' | 'progress',
+): void {
+  if (!progress) return
+  const entity = stageId
+    ? progress.project.stages.find((stage) => stage.id === stageId)
+      ?? (isStageDetail.value ? detailEntity.value : project.value)
+    : progress.project
+  const feedback = progressChangeNotification(
+    progress,
+    entity,
+    t,
+    locale.formatNumber,
+    locale.formatUnit,
+  )
+  if (!feedback) return
+
+  const message = progress.warning
+    ? `${feedback.message}. ${progress.warning}`
+    : feedback.message
+  if (area) {
+    feedbackArea.value = area
+    actionSuccess.value = message
+  }
+  notifications.show(message, progress.warning ? 'warning' : feedback.kind)
 }
 
 function refreshStatistics(): void {
@@ -303,6 +353,7 @@ async function completeProject(): Promise<void> {
     : await store.completeCurrent(project.value.id)
   if (!updated) return
   announceSuccess(isStageDetail.value ? t('Этап завершён.') : t('Проект завершён.'))
+  await refreshGameHistory()
   refreshStatistics()
 }
 
@@ -441,6 +492,7 @@ async function completeStage(stage: Project): Promise<void> {
   const updated = await store.completeStage(project.value.id, stage.id)
   if (!updated) return
   announceSuccess(t('Этап завершён.'))
+  await refreshGameHistory()
   refreshStatistics()
 }
 
@@ -453,10 +505,7 @@ async function reorderStages(stageIds: string[]): Promise<void> {
 async function recordProgress(payload: ProgressCreate): Promise<void> {
   const result = await store.recordProgress(project.value.id, payload)
   if (!result) return
-  const amount = locale.formatNumber(result.added_symbols, 0)
-  announceSuccess(result.warning
-    ? `${t('Прогресс записан')}: ${amount}. ${result.warning}`
-    : `${t('Прогресс записан')}: ${amount}`, 'progress')
+  applyProgressFeedback(result, payload.stage_id, 'progress')
   applyGameFeedback(result.game)
   await loadStreakSummaries()
   refreshStatistics()

@@ -27,6 +27,8 @@ import { currentPlatform } from '@/platform/runtime'
 import { announceDataChange } from '@/services/dataChanges'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
+import { gameResponseMessages } from '@/utils/gameNotifications'
+import { progressChangeNotification } from '@/utils/progressNotifications'
 import type { ProgressResult, Project } from '@/types/api'
 import type { PlatformCapabilities } from '@/types/content'
 import type {
@@ -35,6 +37,7 @@ import type {
   SyncBatchResult,
   SyncSummary,
   SyncType,
+  WordImportResult,
 } from '@/types/integrations'
 
 const route = useRoute()
@@ -89,7 +92,25 @@ function applyGameFeedback(progress: ProgressResult | null): void {
   const game = progress?.game
   if (!game) return
   notifications.setGameHistory(game.state.notifications)
-  for (const message of game.messages) notifications.success(t(message))
+  for (const message of gameResponseMessages(game)) notifications.success(t(message))
+}
+
+function applyProgressFeedback(
+  progress: ProgressResult | null,
+  stageId: string | null = selectedStageId.value || null,
+): void {
+  if (!progress) return
+  const entity = stageId
+    ? progress.project.stages.find((stage) => stage.id === stageId) ?? selectedEntity.value ?? progress.project
+    : progress.project
+  const feedback = progressChangeNotification(
+    progress,
+    entity,
+    t,
+    locale.formatNumber,
+    locale.formatUnit,
+  )
+  if (feedback) notifications.show(feedback.message, feedback.kind)
 }
 const canConfigure = computed(
   () =>
@@ -299,6 +320,7 @@ async function runSync(): Promise<void> {
       selectedStageId.value || null,
     )
     applySyncSummary(result.sync)
+    applyProgressFeedback(result.progress)
     applyGameFeedback(result.progress)
     if (result.changed) announceDataChange('projects')
     success.value = result.changed
@@ -307,6 +329,7 @@ async function runSync(): Promise<void> {
           unit: locale.formatUnit('symbols', result.symbols),
         })
       : t('Документ не изменился. Текущий объём уже актуален.')
+    if (!result.changed) notifications.show(success.value, 'info')
   } catch (runError) {
     operationError.value = t(apiErrorMessage(runError))
   } finally {
@@ -355,7 +378,13 @@ async function runAllSync(): Promise<void> {
       selectedProjectId.value = projects.value[0]?.id ?? ''
     }
     await loadSync()
-    for (const item of result.items) applyGameFeedback(item.progress ?? null)
+    for (const item of result.items) {
+      applyProgressFeedback(item.progress ?? null, item.stage_id)
+      applyGameFeedback(item.progress ?? null)
+      if (item.ok && !item.changed) {
+        notifications.show(t('Документ не изменился. Текущий объём уже актуален.'), 'info')
+      }
+    }
     if (result.items.some((item) => item.changed)) announceDataChange('projects')
     batchResult.value = result
   } catch (batchError) {
@@ -383,9 +412,14 @@ function formatDateTime(value: string | null): string {
   }).format(date)
 }
 
-function updateImportedProject(project: Project): void {
-  const index = projects.value.findIndex(({ id }) => id === project.id)
-  if (index >= 0) projects.value.splice(index, 1, project)
+function updateImportedProject(result: WordImportResult, stageId: string | null): void {
+  const index = projects.value.findIndex(({ id }) => id === result.project.id)
+  if (index >= 0) projects.value.splice(index, 1, result.project)
+  applyProgressFeedback(result.progress, stageId)
+  applyGameFeedback(result.progress)
+  if (!result.changed) {
+    notifications.show(t('Объём проекта уже совпадает с документом.'), 'info')
+  }
   announceDataChange('projects')
 }
 

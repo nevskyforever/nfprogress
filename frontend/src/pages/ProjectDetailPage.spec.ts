@@ -261,6 +261,10 @@ describe('ProjectDetailPage progress sharing', () => {
 
     const notificationStore = useNotificationsStore(pinia)
     expect(notificationStore.notifications).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'success',
+        message: 'В проект добавлено 100 символов',
+      }),
       expect.objectContaining({ message: 'Получено 138 монет и 1 258 опыта.' }),
       expect.objectContaining({ message: 'Глобальный стрик продлён: 7 дней.' }),
     ]))

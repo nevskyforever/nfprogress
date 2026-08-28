@@ -22,6 +22,7 @@ import StatePanel from '@/components/ui/StatePanel.vue'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 import { announceDataChange, onDataChange } from '@/services/dataChanges'
+import { gameResponseMessages } from '@/utils/gameNotifications'
 import type {
   BankProductRequest,
   GameCommandResponse,
@@ -123,6 +124,22 @@ function applyState(nextState: GameState): void {
   notifications.setGameHistory(nextState.notifications)
   scheduleSessionCompletion(nextState)
   scheduleEffectsRefresh(nextState)
+}
+
+function notifyGameResponses(
+  responses: Array<Pick<GameCommandResponse, 'message' | 'messages'>>,
+  fallbackMessage?: string,
+): void {
+  const messages = responses.flatMap((response) => gameResponseMessages(response))
+  if (!messages.length && fallbackMessage) messages.push(fallbackMessage)
+  for (const message of messages) notifications.success(t(message))
+}
+
+function notifyGameResponse(
+  response: Pick<GameCommandResponse, 'message' | 'messages'>,
+  fallbackMessage = 'Изменения сохранены.',
+): void {
+  notifyGameResponses([response], fallbackMessage)
 }
 
 function serverClockDelay(serverTime: string, endsAt: string): number | null {
@@ -230,11 +247,7 @@ async function runCommand(
     applyState(response.state)
     announceDataChange('game')
     bankPreview.value = options.capturePreview ? response.result : null
-    const message =
-      response.messages.filter(Boolean).join(' ') ||
-      response.message ||
-      t(options.fallbackMessage ?? 'Изменения сохранены.')
-    notifications.success(message)
+    notifyGameResponse(response, options.fallbackMessage ?? 'Изменения сохранены.')
   } catch (caught) {
     error.value = apiErrorMessage(caught)
     notifications.error(error.value)
@@ -330,6 +343,7 @@ async function checkoutCart(useCredit: boolean, days: number, approvedCredit = f
   error.value = ''
   try {
     let currentState = {} as GameState
+    const responses: GameCommandResponse[] = []
     const shortfall = Math.max(0, cartTotal.value - state.value.profile.coins)
     if (useCredit && shortfall > 0 && !approvedCredit) {
       const preview = await gameApi.previewBankProduct({
@@ -346,6 +360,7 @@ async function checkoutCart(useCredit: boolean, days: number, approvedCredit = f
     }
     if (useCredit && shortfall > 0) {
       const credit = await gameApi.openBankCredit(shortfall, Math.floor(days))
+      responses.push(credit)
       currentState = credit.state
     }
     for (const line of cartLines.value) {
@@ -354,12 +369,13 @@ async function checkoutCart(useCredit: boolean, days: number, approvedCredit = f
         item_id: line.item.key,
         count: line.count,
       })
+      responses.push(response)
       currentState = response.state
     }
     applyState(currentState)
     cartLines.value = []
     announceDataChange('game')
-    notifications.success(t('Покупки оформлены.'))
+    notifyGameResponses(responses, 'Покупки оформлены.')
   } catch (caught) {
     error.value = apiErrorMessage(caught)
     notifications.error(error.value)
@@ -397,7 +413,7 @@ async function checkoutPurchaseWithCredit(days: number): Promise<void> {
     pendingPurchase.value = null
     applyState(purchase.state ?? credit.state)
     announceDataChange('game')
-    notifications.success(t('Покупка оформлена.'))
+    notifyGameResponses([credit, purchase], 'Покупка оформлена.')
   } catch (caught) {
     error.value = apiErrorMessage(caught)
     notifications.error(error.value)
@@ -418,9 +434,10 @@ async function useLotteryTicket(payload: InventoryCommand): Promise<void> {
       ? response.result.lottery_draws
       : []
     lotteryDraws.value = draws.filter(isLotteryDraw)
-    if (!lotteryDraws.value.length) {
-      notifications.success(response.messages.filter(Boolean).join(' ') || response.message || t('Изменения сохранены.'))
-    }
+    notifyGameResponses(
+      [response],
+      lotteryDraws.value.length ? undefined : 'Изменения сохранены.',
+    )
   } catch (caught) {
     error.value = apiErrorMessage(caught)
     notifications.error(error.value)
