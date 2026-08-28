@@ -30,6 +30,8 @@ import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 import { useProjectsStore } from '@/stores/projects'
 import { onDataChange } from '@/services/dataChanges'
+import { gameResponseMessages } from '@/utils/gameNotifications'
+import { progressChangeNotification } from '@/utils/progressNotifications'
 import { todayIsoDate, writingDayIsoDate } from '@/utils/projectPlanning'
 import type {
   GlobalStreakSummary,
@@ -39,6 +41,7 @@ import type {
   ProjectStatus,
   TodaySummary,
 } from '@/types/api'
+import type { SyncBatchItem } from '@/types/integrations'
 
 type StatusFilter = 'all' | ProjectStatus
 
@@ -259,14 +262,46 @@ async function synchronizeAll(): Promise<void> {
         : Promise.resolve(),
       streaksEnabled.value
         ? projectsApi.globalStreak().then((summary) => { globalStreak.value = summary }).catch(() => undefined)
-        : Promise.resolve(),
+      : Promise.resolve(),
     ])
     const notify = result.failed > 0 ? notifications.warning : notifications.success
     notify(t('Синхронизация завершена'))
+    for (const item of result.items) applySyncFeedback(item)
   } catch (error) {
     notifications.error(t(apiErrorMessage(error)))
   } finally {
     syncAllRunning.value = false
+  }
+}
+
+function applySyncFeedback(item: SyncBatchItem): void {
+  const progress = item.progress
+  if (progress) {
+    const entity = item.stage_id
+      ? progress.project.stages.find((stage) => stage.id === item.stage_id)
+        ?? store.projects.find((project) => project.id === item.project_id)?.stages
+          .find((stage) => stage.id === item.stage_id)
+        ?? progress.project
+      : progress.project
+    const feedback = progressChangeNotification(
+      progress,
+      entity,
+      t,
+      locale.formatNumber,
+      locale.formatUnit,
+    )
+    if (feedback) notifications.show(feedback.message, feedback.kind)
+
+    const game = progress.game
+    if (game) {
+      notifications.setGameHistory(game.state.notifications)
+      for (const message of gameResponseMessages(game)) notifications.success(t(message))
+    }
+  }
+  if (!item.ok && item.error?.message) {
+    notifications.warning(t(item.error.message))
+  } else if (item.ok && !item.changed) {
+    notifications.show(t('Документ не изменился. Текущий объём уже актуален.'), 'info')
   }
 }
 
@@ -395,7 +430,7 @@ onBeforeUnmount(() => {
               <p>{{ t('Текущий писательский день') }}</p>
               <h2>{{ t('Написано сегодня') }}</h2>
             </div>
-            <strong>{{ locale.formatNumber(todaySummary.symbols, 0) }} {{ t('символов') }}</strong>
+            <strong>{{ locale.formatNumber(todaySummary.symbols, 0) }} {{ locale.formatUnit('symbols', todaySummary.symbols) }}</strong>
           </section>
 
           <section v-if="streaksEnabled && globalStreak?.enabled" class="workspace-summary workspace-summary--streak">

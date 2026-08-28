@@ -178,7 +178,7 @@ describe('ProjectDetailPage progress sharing', () => {
       progress: 25,
       coverImage: null,
       statusLabel: 'Активен',
-      progressText: '25,000 / 100,000 символов',
+      progressText: '25,000 символов / 100,000 символов',
       footerLabel: 'Apr 30, 2027',
       footerDetail: 'Этапов: 1',
       theme: 'light',
@@ -188,7 +188,7 @@ describe('ProjectDetailPage progress sharing', () => {
       progress: 50,
       coverImage: null,
       statusLabel: 'Активен',
-      progressText: '25,000 / 100,000 символов',
+      progressText: '25,000 символов / 100,000 символов',
       footerLabel: 'Apr 30, 2027',
       footerDetail: undefined,
       theme: 'light',
@@ -261,6 +261,10 @@ describe('ProjectDetailPage progress sharing', () => {
 
     const notificationStore = useNotificationsStore(pinia)
     expect(notificationStore.notifications).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: 'success',
+        message: 'В проект добавлено 100 символов',
+      }),
       expect.objectContaining({ message: 'Получено 138 монет и 1 258 опыта.' }),
       expect.objectContaining({ message: 'Глобальный стрик продлён: 7 дней.' }),
     ]))

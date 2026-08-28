@@ -173,6 +173,21 @@ def test_notification_history_upgrades_flat_legacy_list(game_context):
     assert saved['new'][0].notification_id == history['unread'][0]['id']
 
 
+def test_game_command_returns_buffered_bank_notifications(game_context):
+    _repository, service, _project, _stage = game_context
+
+    def mutate(gamer, _projects):
+        gamer.bank_account._add_notification('Банковское событие.')
+        return {'message': None}
+
+    response = service._command(mutate)
+
+    assert response['messages'] == ['Банковское событие.']
+    assert [
+        item['text'] for item in response['state']['notifications']['unread']
+    ] == ['Банковское событие.']
+
+
 def test_writing_session_uses_server_progress_and_rewards(game_context):
     _repository, service, project, _stage = game_context
     project_key = f'project:{project.project_id}'

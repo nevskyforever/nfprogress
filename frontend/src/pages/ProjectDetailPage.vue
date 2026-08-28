@@ -35,6 +35,7 @@ import ProgressBar from '@/components/ui/ProgressBar.vue'
 import AnimatedNumber from '@/components/ui/AnimatedNumber.vue'
 import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { apiErrorMessage } from '@/api/client'
+import { gameApi } from '@/api/game'
 import { integrationsApi } from '@/api/integrations'
 import { settingsApi } from '@/api/settings'
 import { onDataChange } from '@/services/dataChanges'
@@ -46,6 +47,8 @@ import {
 } from '@/platform/progressShare'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
+import { gameResponseMessages } from '@/utils/gameNotifications'
+import { progressChangeNotification } from '@/utils/progressNotifications'
 import { useProjectsStore } from '@/stores/projects'
 import type {
   EntityUpdate,
@@ -63,12 +66,6 @@ const store = useProjectsStore()
 const locale = useLocaleStore()
 const notifications = useNotificationsStore()
 const t = locale.translate
-const projectUnitLabels = {
-  symbols: 'символов',
-  A4: 'листов A4',
-  author_list: 'авторских листов',
-  ficbook_pages: 'страниц Ficbook',
-} as const
 const projectId = computed(() => String(route.params.projectId ?? ''))
 const detailAnimationVersion = ref(0)
 let detailViewActive = false
@@ -247,7 +244,10 @@ async function synchronizeProject(): Promise<void> {
     }
     announceSuccess(t('Синхронизация завершена'))
     if (failed?.error?.message) notifications.warning(t(failed.error.message))
-    for (const item of result.items) applyGameFeedback(item.progress?.game ?? null)
+    for (const item of result.items) {
+      applyProgressFeedback(item.progress, item.stage_id)
+      applyGameFeedback(item.progress?.game ?? null)
+    }
     await store.refreshCurrent(project.value.id)
     chooseAvailableEntity()
     refreshStatistics()
@@ -268,7 +268,51 @@ function announceSuccess(message: string, area: 'global' | 'progress' = 'global'
 function applyGameFeedback(game: ProgressResult['game']): void {
   if (!game) return
   notifications.setGameHistory(game.state.notifications)
-  for (const message of game.messages) notifications.success(t(message))
+  for (const message of gameResponseMessages(game)) notifications.success(t(message))
+}
+
+async function refreshGameHistory(): Promise<void> {
+  const knownUnreadIds = new Set(
+    notifications.gameHistory.unread.map((notification) => notification.id),
+  )
+  try {
+    const history = await gameApi.notifications()
+    notifications.setGameHistory(history)
+    for (const notification of history.unread) {
+      if (!knownUnreadIds.has(notification.id)) notifications.success(t(notification.text))
+    }
+  } catch {
+    // Project completion remains successful when the optional game history refresh fails.
+  }
+}
+
+function applyProgressFeedback(
+  progress: ProgressResult | null | undefined,
+  stageId?: string | null,
+  area?: 'global' | 'progress',
+): void {
+  if (!progress) return
+  const entity = stageId
+    ? progress.project.stages.find((stage) => stage.id === stageId)
+      ?? (isStageDetail.value ? detailEntity.value : project.value)
+    : progress.project
+  const feedback = progressChangeNotification(
+    progress,
+    entity,
+    t,
+    locale.formatNumber,
+    locale.formatUnit,
+  )
+  if (!feedback) return
+
+  const message = progress.warning
+    ? `${feedback.message}. ${progress.warning}`
+    : feedback.message
+  if (area) {
+    feedbackArea.value = area
+    actionSuccess.value = message
+  }
+  notifications.show(message, progress.warning ? 'warning' : feedback.kind)
 }
 
 function refreshStatistics(): void {
@@ -309,6 +353,7 @@ async function completeProject(): Promise<void> {
     : await store.completeCurrent(project.value.id)
   if (!updated) return
   announceSuccess(isStageDetail.value ? t('Этап завершён.') : t('Проект завершён.'))
+  await refreshGameHistory()
   refreshStatistics()
 }
 
@@ -356,7 +401,7 @@ async function exportProgress(
       progress: entity.progress,
       coverImage: project.value.cover_image,
       statusLabel: t(entity.status === 'активен' ? 'Активен' : entity.status === 'в архиве' ? 'В архиве' : 'Завершён'),
-      progressText: `${locale.formatNumber(entity.total, fractionDigits)} / ${goalLabel} ${t(projectUnitLabels[entity.unit])}`,
+      progressText: `${locale.formatNumber(entity.total, fractionDigits)} ${locale.formatUnit(entity.unit, entity.total)} / ${goalLabel} ${locale.formatUnit(entity.unit, entity.goal ?? 0)}`,
       footerLabel: entity.deadline ? locale.formatDate(entity.deadline) : t('Без срока'),
       footerDetail: parentName || !entity.stages_enabled
         ? undefined
@@ -447,6 +492,7 @@ async function completeStage(stage: Project): Promise<void> {
   const updated = await store.completeStage(project.value.id, stage.id)
   if (!updated) return
   announceSuccess(t('Этап завершён.'))
+  await refreshGameHistory()
   refreshStatistics()
 }
 
@@ -459,10 +505,7 @@ async function reorderStages(stageIds: string[]): Promise<void> {
 async function recordProgress(payload: ProgressCreate): Promise<void> {
   const result = await store.recordProgress(project.value.id, payload)
   if (!result) return
-  const amount = locale.formatNumber(result.added_symbols, 0)
-  announceSuccess(result.warning
-    ? `${t('Прогресс записан')}: ${amount}. ${result.warning}`
-    : `${t('Прогресс записан')}: ${amount}`, 'progress')
+  applyProgressFeedback(result, payload.stage_id, 'progress')
   applyGameFeedback(result.game)
   await loadStreakSummaries()
   refreshStatistics()
@@ -644,8 +687,8 @@ onBeforeUnmount(() => {
           </div>
 
           <section class="progress-hero" :aria-label="t('Прогресс проекта')">
-            <div><span>{{ t('Написано') }}</span><strong><AnimatedNumber :value="detailEntity.total" :digits="detailEntity.unit === 'symbols' ? 0 : 2" /> {{ presentation.unitLabel }}</strong></div>
-            <div><span>{{ t('Цель') }}</span><strong>{{ presentation.goalLabel }}</strong></div>
+            <div><span>{{ t('Написано') }}</span><strong><AnimatedNumber :value="detailEntity.total" :digits="detailEntity.unit === 'symbols' ? 0 : 2" /> {{ locale.formatUnit(detailEntity.unit, detailEntity.total) }}</strong></div>
+            <div><span>{{ t('Цель') }}</span><strong>{{ presentation.goalLabel }}<template v-if="!detailEntity.infinite && detailEntity.goal !== null">&nbsp;{{ locale.formatUnit(detailEntity.unit, detailEntity.goal) }}</template></strong></div>
             <ProgressBar
               v-if="!detailEntity.infinite"
               :value="presentation.progress"
@@ -656,7 +699,7 @@ onBeforeUnmount(() => {
           <section class="detail-facts" :aria-label="t('Сведения о проекте')">
             <div class="fact-card"><IonIcon :icon="calendarClearOutline" aria-hidden="true" /><span>{{ t('Срок') }}</span><strong>{{ locale.formatDate(detailEntity.deadline) }}</strong></div>
             <div class="fact-card"><IonIcon :icon="documentTextOutline" aria-hidden="true" /><span>{{ t('Записей прогресса') }}</span><strong>{{ locale.formatNumber(detailEntity.progress_entries.length, 0) }}</strong></div>
-            <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ presentation.unitLabel }}</strong></div>
+            <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ locale.formatUnit(detailEntity.unit, detailEntity.today_goal) }}</strong></div>
             <StreakBadge
               v-if="displayedStreakEntity"
               class="detail-streak detail-streak--entity"
@@ -755,7 +798,7 @@ onBeforeUnmount(() => {
 .action-success { background: color-mix(in srgb, var(--nf-color-success) 10%, var(--nf-color-surface)); color: var(--nf-color-success); }
 .progress-hero { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--nf-space-5); margin-top: var(--nf-space-5); padding: var(--nf-space-5); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-lg); background: var(--nf-color-surface); box-shadow: var(--nf-shadow-card); }
 .progress-hero > div { display: grid; gap: var(--nf-space-1); }
-.progress-hero span { color: var(--nf-color-text-muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+.progress-hero > div > span { color: var(--nf-color-text-muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
 .progress-hero strong { color: var(--nf-color-text); font-size: clamp(1.1rem, 2.5vw, 1.35rem); }
 .progress-hero :deep(.progress-bar) { grid-column: 1 / -1; width: 100%; }
 .detail-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--nf-space-3); margin-top: var(--nf-space-4); }

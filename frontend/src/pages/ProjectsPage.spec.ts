@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { projectsApi } from '@/api/projects'
 import { integrationsApi } from '@/api/integrations'
 import { settingsApi } from '@/api/settings'
+import { useNotificationsStore } from '@/stores/notifications'
 import { projectFixture } from '@/test/fixtures'
 
 import ProjectsPage from './ProjectsPage.vue'
@@ -132,7 +133,29 @@ describe('ProjectsPage streak summaries', () => {
       checked: 1,
       changed: 1,
       failed: 0,
-      items: [],
+      items: [{
+        project_id: 'f184de493a344752898ea43f2988dddb',
+        stage_id: null,
+        ok: true,
+        changed: true,
+        symbols: 100,
+        progress: {
+          project: projectFixture({ total: 100 }),
+          entry: {
+            id: 'entry-id',
+            new_total: 100,
+            new_total_symbols: 100,
+            added: 100,
+            added_symbols: 100,
+            added_progress: 1,
+            created_at: '2026-08-23T18:00:00',
+          },
+          added_symbols: 100,
+          game: null,
+          warning: null,
+        },
+        error: null,
+      }],
     })
     const wrapper = mount(ProjectsPage, {
       global: {
@@ -155,6 +178,10 @@ describe('ProjectsPage streak summaries', () => {
     await flushPromises()
     expect(integrationsApi.runAllSync).toHaveBeenCalledOnce()
     expect(projectsApi.list).toHaveBeenCalledOnce()
+    expect(useNotificationsStore().notifications).toContainEqual(expect.objectContaining({
+      kind: 'success',
+      message: 'В проект добавлено 100 символов',
+    }))
     wrapper.unmount()
   })
 })

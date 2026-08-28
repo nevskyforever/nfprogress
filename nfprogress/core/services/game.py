@@ -901,7 +901,7 @@ def _bind_legacy_gamer(gamer: legacy_game.Gamer) -> Iterator[None]:
 def _bind_bank_notifications(
         gamer: legacy_game.Gamer,
         projects: JSONDict,
-) -> Iterator[dict[str, bool]]:
+) -> Iterator[dict[str, Any]]:
     """Keep legacy bank notifications inside the service transaction.
 
     ``BankAccount`` normally reloads and saves ``data.pkl`` for every
@@ -909,7 +909,7 @@ def _bind_bank_notifications(
     the authoritative project envelope in memory, so redirect those writes to
     that envelope and let :meth:`GameService._command` persist it once.
     """
-    changed = {'value': False}
+    changed: dict[str, Any] = {'value': False, 'messages': []}
     account = getattr(gamer, 'bank_account', None)
     if account is None:
         yield changed
@@ -935,6 +935,7 @@ def _bind_bank_notifications(
         notifications['read'] = read_notifications
         projects['notifications'] = notifications
         changed['value'] = True
+        changed['messages'].append(str(text))
 
     account._add_notification = add_notification
     try:
@@ -1101,9 +1102,13 @@ class GameService:
                             save=False,
                         )
                         reward_messages = self._settle_rewards(gamer)
+                    bank_messages = list(bank_notifications['messages'])
                     projects_changed = bank_notifications['value']
                     projects_changed = _append_game_notifications(
-                        projects, [message, *reward_messages],
+                        projects,
+                        self._command_messages(
+                            message, reward_messages, bank_messages,
+                        ),
                     ) or projects_changed
                     self._prepare_gamer(gamer, projects, ensure_daily=True)
                     changed = True
@@ -2252,6 +2257,7 @@ class GameService:
                 raise ConflictError(
                     'game_mode_disabled', 'Игровой режим отключён.',
                 )
+            command_messages: list[str] = []
             with _bind_legacy_gamer(gamer):
                 self._prepare_gamer(gamer, projects, ensure_daily=enabled)
                 with _bind_bank_notifications(
@@ -2272,10 +2278,13 @@ class GameService:
                     projects_changed = (
                         projects_changed or bank_notifications['value']
                     )
+                    bank_messages = list(bank_notifications['messages'])
+                    command_messages = self._command_messages(
+                        payload.get('message'), reward_messages, bank_messages,
+                    )
                 if enabled:
                     projects_changed = _append_game_notifications(
-                        projects,
-                        [payload.get('message', ''), *reward_messages],
+                        projects, command_messages,
                     ) or projects_changed
                 if enabled:
                     self._prepare_gamer(gamer, projects, ensure_daily=True)
@@ -2291,12 +2300,30 @@ class GameService:
         return {
             'ok': True,
             **payload,
-            'messages': [
-                message for message in [payload.get('message'), *reward_messages]
-                if message
-            ],
+            'messages': command_messages,
             'state': state,
         }
+
+    @staticmethod
+    def _command_messages(
+            message: Any,
+            reward_messages: list[str],
+            bank_messages: list[str],
+    ) -> list[str]:
+        """Return each user-facing event once and keep bank events separate."""
+        messages: list[str] = []
+        if isinstance(message, str) and message.strip():
+            if not bank_messages or message.strip() != '\n'.join(bank_messages):
+                messages.append(message)
+        messages.extend(
+            item for item in reward_messages
+            if isinstance(item, str) and item.strip()
+        )
+        messages.extend(
+            item for item in bank_messages
+            if isinstance(item, str) and item.strip()
+        )
+        return messages
 
     def _read_gamer(self) -> legacy_game.Gamer:
         gamer = self.repository.read_gamer()

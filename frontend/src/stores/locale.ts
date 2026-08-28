@@ -2,9 +2,31 @@ import { defineStore } from 'pinia'
 import { computed, ref } from 'vue'
 
 import { contentApi } from '@/api/content'
-import type { SupportedLanguage } from '@/types/api'
+import type { SupportedLanguage, UnitCode } from '@/types/api'
 
 const STORAGE_KEY = 'nfprogress.language'
+
+const PROJECT_UNIT_FORMS: Record<UnitCode, readonly [string, string, string]> = {
+  symbols: ['символ', 'символа', 'символов'],
+  A4: ['лист A4', 'листа A4', 'листов A4'],
+  author_list: ['авторский лист', 'авторских листа', 'авторских листов'],
+  ficbook_pages: ['страница Ficbook', 'страницы Ficbook', 'страниц Ficbook'],
+}
+
+function russianUnitFormIndex(value: number): 0 | 1 | 2 {
+  const absoluteValue = Math.abs(value)
+  if (!Number.isFinite(absoluteValue)) return 2
+  const roundedValue = Number.isInteger(absoluteValue)
+    ? absoluteValue
+    : Math.ceil(absoluteValue)
+  const lastDigit = roundedValue % 10
+  const lastTwoDigits = roundedValue % 100
+  if (lastDigit === 1 && lastTwoDigits !== 11) return 0
+  if (lastDigit >= 2 && lastDigit <= 4 && (lastTwoDigits < 10 || lastTwoDigits >= 20)) {
+    return 1
+  }
+  return 2
+}
 
 export const SUPPORTED_LANGUAGES: ReadonlyArray<{
   code: SupportedLanguage
@@ -106,6 +128,14 @@ export const useLocaleStore = defineStore('locale', () => {
     return new Intl.NumberFormat(localeTag.value, { maximumFractionDigits }).format(value)
   }
 
+  function formatUnit(unit: UnitCode, value: number): string {
+    const forms = PROJECT_UNIT_FORMS[unit]
+    const formIndex = language.value === 'ru'
+      ? russianUnitFormIndex(value)
+      : Math.abs(value) === 1 ? 0 : 2
+    return translate(forms[formIndex])
+  }
+
   function formatDate(value: string | null): string {
     if (!value) return translate('Без срока')
     const date = new Date(`${value.slice(0, 10)}T00:00:00`)
@@ -127,6 +157,7 @@ export const useLocaleStore = defineStore('locale', () => {
     setLanguage,
     initialize,
     formatNumber,
+    formatUnit,
     formatDate,
   }
 })

@@ -68,7 +68,7 @@ export const useNotificationsStore = defineStore('notifications', () => {
     if (duplicate) dismiss(duplicate.id)
 
     const id = `notice-${Date.now()}-${sequence++}`
-    if (notifications.value.length >= 4) {
+    if (notifications.value.length >= 5) {
       const oldest = notifications.value[0]
       if (oldest) dismiss(oldest.id)
     }

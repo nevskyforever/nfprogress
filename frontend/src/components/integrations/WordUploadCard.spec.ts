@@ -84,7 +84,13 @@ describe('WordUploadCard', () => {
     await flushPromises()
 
     expect(integrationsApi.importWord).toHaveBeenCalledWith(project.id, file, null)
-    expect(wrapper.emitted('imported')?.[0]?.[0]).toEqual(updated)
+    expect(wrapper.emitted('imported')?.[0]?.[0]).toEqual(expect.objectContaining({
+      project: updated,
+      changed: true,
+      symbols: 12_345,
+      progress: null,
+    }))
+    expect(wrapper.emitted('imported')?.[0]?.[1]).toBeNull()
     expect(wrapper.get('[role="status"]').text()).toContain('Прогресс проекта обновлён')
   })
 })

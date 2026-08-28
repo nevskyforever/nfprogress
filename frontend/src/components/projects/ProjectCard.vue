@@ -85,9 +85,11 @@ const progressAriaLabel = computed(() =>
               <span class="project-card__open" aria-hidden="true">↗</span>
             </div>
             <div class="project-card__progress-copy">
+              <strong><AnimatedNumber :value="project.total" :digits="project.unit === 'symbols' ? 0 : 2" /> {{ locale.formatUnit(project.unit, project.total) }}</strong>
               <span>
-                <strong><AnimatedNumber :value="project.total" :digits="project.unit === 'symbols' ? 0 : 2" /></strong>
-                <span> / <template v-if="project.infinite">{{ presentation.goalLabel }}</template><AnimatedNumber v-else :value="project.goal ?? 0" :digits="project.unit === 'symbols' ? 0 : 2" /> {{ presentation.unitLabel }}</span>
+                /
+                <template v-if="project.infinite">{{ presentation.goalLabel }}</template>
+                <template v-else><AnimatedNumber :value="project.goal ?? 0" :digits="project.unit === 'symbols' ? 0 : 2" /> {{ locale.formatUnit(project.unit, project.goal ?? 0) }}</template>
               </span>
             </div>
             <ProgressBar

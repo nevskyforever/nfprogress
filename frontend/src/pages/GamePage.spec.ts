@@ -101,6 +101,31 @@ describe('GamePage', () => {
       .toBe('Заморозка применена.')
   })
 
+  it('shows every message returned by a game command', async () => {
+    vi.mocked(gameApi.applyStreakFreeze).mockResolvedValue({
+      ok: true,
+      message: 'Первое событие.',
+      messages: ['Первое событие.', 'Второе событие.'],
+      result: null,
+      state: gameStateFixture(),
+    })
+    const pinia = createPinia()
+    const wrapper = mount(GamePage, {
+      global: { plugins: [pinia], stubs: { IonIcon: true } },
+    })
+    await flushPromises()
+
+    const freezeButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Применить заморозку'))
+    await freezeButton?.trigger('click')
+    await flushPromises()
+
+    const messages = useNotificationsStore(pinia).notifications.map(({ message }) => message)
+    expect(messages).toEqual(expect.arrayContaining(['Первое событие.', 'Второе событие.']))
+    wrapper.unmount()
+  })
+
   it('shows active bank products beside coins instead of inflation', async () => {
     vi.mocked(gameApi.state).mockResolvedValue(gameStateFixture({
       bank: {

@@ -1,6 +1,7 @@
 import { createPinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { defineComponent } from 'vue'
 
 import { integrationsApi } from '@/api/integrations'
 import { projectsApi } from '@/api/projects'
@@ -8,6 +9,7 @@ import { settingsApi } from '@/api/settings'
 import { useNotificationsStore } from '@/stores/notifications'
 import { gameStateFixture } from '@/test/gameFixtures'
 import { projectFixture } from '@/test/fixtures'
+import type { WordImportResult } from '@/types/integrations'
 
 import IntegrationsPage from './IntegrationsPage.vue'
 
@@ -181,6 +183,65 @@ describe('IntegrationsPage', () => {
     expect(useNotificationsStore(pinia).notifications).toContainEqual(expect.objectContaining({
       kind: 'success',
       message: 'Начислена награда за текст.',
+    }))
+    expect(useNotificationsStore(pinia).notifications).toContainEqual(expect.objectContaining({
+      kind: 'success',
+      message: 'В проект добавлено 100 символов',
+    }))
+    wrapper.unmount()
+  })
+
+  it('shows the project-unit delta returned by a Word import', async () => {
+    const imported: WordImportResult = {
+      changed: true,
+      symbols: 100,
+      project: projectFixture({ id: 'project-id', total: 100 }),
+      progress: {
+        project: projectFixture({ id: 'project-id', total: 100 }),
+        entry: {
+          id: 'entry-id',
+          new_total: 100,
+          new_total_symbols: 100,
+          added: 100,
+          added_symbols: 100,
+          added_progress: 1,
+          created_at: '2026-08-23T18:00:00',
+        },
+        added_symbols: 100,
+        warning: null,
+        game: null,
+      },
+    }
+    const WordUploadCardStub = defineComponent({
+      emits: ['imported'],
+      setup(_, { emit }) {
+        return {
+          emitImported: () => emit('imported', imported, null),
+        }
+      },
+      template: '<button data-testid="word-import" @click="emitImported">Импорт</button>',
+    })
+    const pinia = createPinia()
+    const wrapper = mount(IntegrationsPage, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' },
+          IonPage: { template: '<div><slot /></div>' },
+          IonIcon: true,
+          IonSpinner: true,
+          StatePanel: true,
+          WordUploadCard: WordUploadCardStub,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get('[data-testid="word-import"]').trigger('click')
+
+    expect(useNotificationsStore(pinia).notifications).toContainEqual(expect.objectContaining({
+      kind: 'success',
+      message: 'В проект добавлено 100 символов',
     }))
     wrapper.unmount()
   })

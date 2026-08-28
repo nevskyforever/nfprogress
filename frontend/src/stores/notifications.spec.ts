@@ -37,6 +37,15 @@ describe('notifications store', () => {
     expect(store.notifications).toHaveLength(0)
   })
 
+  it('keeps five simultaneous notifications like the legacy stack', () => {
+    const store = useNotificationsStore()
+    for (let index = 1; index <= 5; index += 1) {
+      store.show(`Событие ${index}`, 'info')
+    }
+
+    expect(store.notifications).toHaveLength(5)
+  })
+
   it('shares authoritative persistent game history with all UI surfaces', () => {
     const store = useNotificationsStore()
     store.setGameHistory({
