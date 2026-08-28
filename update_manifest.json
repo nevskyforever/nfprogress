@@ -1,30 +1,30 @@
 {
-  "version": "5.1.1",
-  "notes": "Обновление 5.0.1 Исправлены баги и недоработки перехода к новому интерфейсу.  В проектах и этапах появились графики прогресса.  В настройках теперь отображается версия приложения и ссылка на репозиторий GitHub",
-  "windows_version": "5.0.1",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.0.1-setup.exe",
+  "version": "5.1.2",
+  "notes": "Исправлен механизм автообновления на Mac.\n\nКнопка проверки обновлений вернулась в настройки.",
+  "windows_version": "5.1.1",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.1-setup.exe",
   "macos_arm": {
-    "version": "5.1.1",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-5.1.1.zip",
-    "sha256": "122c646b4d001a4302baa7cd87a8681c9477299af12408e3a632a60ea808e443",
-    "size": 30880552
+    "version": "5.1.2",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-5.1.2.zip",
+    "sha256": "da2157398ed1bf46bed720edf0f44d48f9f0af607fa50b717c5900b665e0706c",
+    "size": 30880138
   },
   "macos_intel": {
     "version": "5.0.0",
     "url": "https://nfproject.ru/app/nfprogress-mac-intel-5.0.0.zip"
   },
-  "macos_arm_version": "5.1.1",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.1.1.zip",
+  "macos_arm_version": "5.1.2",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.1.2.zip",
   "macos_intel_version": "5.0.0",
   "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.0.0.zip",
   "windows": {
-    "version": "5.0.1",
-    "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.0.1-setup.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.0.1-setup.exe",
-    "sha256": "560ec554cb6cf6ee0aa18eb0477c84483998b0bfed4d5ef94c3cb6f5f46d7922",
-    "size": 23050183,
+    "version": "5.1.1",
+    "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.1-setup.exe",
+    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.1-setup.exe",
+    "sha256": "3141243df64b68859105e35f7b106086945973c76883901e30e7eb1d3173616f",
+    "size": 23198349,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_sha256": "560ec554cb6cf6ee0aa18eb0477c84483998b0bfed4d5ef94c3cb6f5f46d7922",
-    "installer_size": 23050183
+    "installer_sha256": "3141243df64b68859105e35f7b106086945973c76883901e30e7eb1d3173616f",
+    "installer_size": 23198349
   }
 }
