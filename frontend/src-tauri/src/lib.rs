@@ -16,7 +16,7 @@ use tauri_plugin_shell::ShellExt;
 const BACKEND_HOST: &str = "127.0.0.1";
 const BACKEND_START_TIMEOUT: Duration = Duration::from_secs(30);
 const UPDATE_MANIFEST_URL: &str = "https://nfproject.ru/app/update_manifest.json";
-const UPDATE_MANIFEST_TIMEOUT: Duration = Duration::from_secs(15);
+const UPDATE_MANIFEST_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -66,6 +66,7 @@ fn backend_connection(state: State<'_, BackendState>) -> Result<BackendConnectio
 #[tauri::command]
 async fn fetch_update_manifest() -> Result<serde_json::Value, String> {
     let client = reqwest::Client::builder()
+        .connect_timeout(Duration::from_secs(5))
         .timeout(UPDATE_MANIFEST_TIMEOUT)
         .build()
         .map_err(|error| format!("Не удалось настроить проверку обновлений: {error}"))?;

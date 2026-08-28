@@ -16,7 +16,16 @@ export type UpdaterStatus =
   | 'restarting'
   | 'error'
 
-const CHECK_TIMEOUT_MS = 15_000
+const CHECK_TIMEOUT_MS = 10_000
+
+function withTimeout<T>(promise: Promise<T>): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error('Превышено время ожидания проверки обновлений.'))
+    }, CHECK_TIMEOUT_MS)
+    promise.then(resolve, reject).finally(() => window.clearTimeout(timeoutId))
+  })
+}
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? '')
@@ -76,7 +85,7 @@ export const useUpdaterStore = defineStore('updater', () => {
           import('@tauri-apps/api/app'),
           import('@tauri-apps/api/core'),
         ])
-        const [currentVersion, manifest] = await Promise.all([
+        const [currentVersion, manifest] = await withTimeout(Promise.all([
           getVersion(),
           invoke<{
             version?: string
@@ -84,7 +93,7 @@ export const useUpdaterStore = defineStore('updater', () => {
             macos_arm?: { version?: string; url?: string; sha256?: string; size?: number }
             macos_intel?: { version?: string; url?: string; sha256?: string; size?: number }
           }>('fetch_update_manifest'),
-        ])
+        ]))
         const platformSection = /arm64|aarch64/i.test(
           window.__NFPROGRESS_RUNTIME__?.architecture ?? '',
         )
@@ -110,7 +119,7 @@ export const useUpdaterStore = defineStore('updater', () => {
       }
 
       const { check } = await import('@tauri-apps/plugin-updater')
-      const update = await check({ timeout: CHECK_TIMEOUT_MS })
+      const update = await withTimeout(check({ timeout: CHECK_TIMEOUT_MS }))
       pendingUpdate = update
       pendingMacUrl = ''
       if (!update) {

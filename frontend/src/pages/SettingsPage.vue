@@ -367,13 +367,24 @@ onBeforeUnmount(() => controller.abort())
                 <button
                   id="settings-check-updates"
                   class="nf-button nf-button--secondary"
+                  :class="{ 'update-setting__button--current': updater.status === 'current' }"
                   type="button"
                   :disabled="updater.busy"
                   @click="checkForUpdates"
                 >
                   <IonSpinner v-if="updater.status === 'checking'" name="crescent" aria-hidden="true" />
-                  <IonIcon v-else :icon="refreshOutline" aria-hidden="true" />
-                  {{ updater.status === 'checking' ? t('Проверяем…') : t('Проверить обновления') }}
+                  <IonIcon
+                    v-else
+                    :icon="updater.status === 'current' ? checkmarkCircleOutline : refreshOutline"
+                    aria-hidden="true"
+                  />
+                  {{
+                    updater.status === 'checking'
+                      ? t('Проверяем…')
+                      : updater.status === 'current'
+                        ? t('Установлена последняя версия')
+                        : t('Проверить обновления')
+                  }}
                 </button>
               </div>
             </section>
@@ -564,6 +575,11 @@ onBeforeUnmount(() => controller.abort())
 
 .update-setting .nf-button {
   flex: 0 0 auto;
+}
+
+.update-setting .update-setting__button--current {
+  border-color: color-mix(in srgb, var(--nf-color-success), var(--nf-color-border) 35%);
+  color: var(--nf-color-success);
 }
 
 .settings-card__heading h2 {

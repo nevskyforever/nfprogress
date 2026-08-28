@@ -113,4 +113,22 @@ describe('updater store', () => {
     expect(updater.availableVersion).toBe('5.1.0')
     expect(invoke).toHaveBeenCalledWith('fetch_update_manifest')
   })
+
+  it('ends a stalled macOS check after ten seconds', async () => {
+    vi.useFakeTimers()
+    vi.mocked(supportsNativeUpdates).mockReturnValue(false)
+    vi.mocked(supportsMacUpdateChecks).mockReturnValue(true)
+    vi.mocked(getVersion).mockResolvedValue('5.1.2')
+    vi.mocked(invoke).mockImplementation(() => new Promise<never>(() => {}))
+    const updater = useUpdaterStore()
+
+    const pendingCheck = updater.checkForUpdates(true)
+    await vi.advanceTimersByTimeAsync(10_000)
+    await pendingCheck
+
+    expect(updater.status).toBe('error')
+    expect(useNotificationsStore().notifications.at(-1)?.message)
+      .toBe('Не удалось проверить обновления.')
+    vi.useRealTimers()
+  })
 })

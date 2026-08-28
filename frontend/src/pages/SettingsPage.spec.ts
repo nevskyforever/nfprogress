@@ -1,9 +1,10 @@
-import { createPinia } from 'pinia'
+import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { settingsApi } from '@/api/settings'
 import { supportsNativeUpdates, supportsUpdateChecks } from '@/platform/runtime'
+import { useUpdaterStore } from '@/stores/updater'
 import type { SettingsResponse } from '@/types/content'
 
 import SettingsPage from './SettingsPage.vue'
@@ -133,5 +134,27 @@ describe('SettingsPage', () => {
     expect(wrapper.find('#settings-background-sync').exists()).toBe(true)
     expect(wrapper.find('#settings-check-updates').exists()).toBe(true)
     expect(wrapper.text()).toContain('Подписанные обновления проверяются автоматически')
+  })
+
+  it('shows the current-version confirmation in the update button', async () => {
+    vi.mocked(settingsApi.get).mockResolvedValue(desktopSettings)
+    vi.mocked(supportsUpdateChecks).mockReturnValue(true)
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    useUpdaterStore(pinia).status = 'current'
+    const wrapper = mount(SettingsPage, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' },
+          IonPage: { template: '<div><slot /></div>' },
+          IonIcon: true,
+          IonSpinner: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('#settings-check-updates').text()).toContain('Установлена последняя версия')
   })
 })
