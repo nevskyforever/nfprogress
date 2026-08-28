@@ -755,7 +755,7 @@ onBeforeUnmount(() => {
 .action-success { background: color-mix(in srgb, var(--nf-color-success) 10%, var(--nf-color-surface)); color: var(--nf-color-success); }
 .progress-hero { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--nf-space-5); margin-top: var(--nf-space-5); padding: var(--nf-space-5); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-lg); background: var(--nf-color-surface); box-shadow: var(--nf-shadow-card); }
 .progress-hero > div { display: grid; gap: var(--nf-space-1); }
-.progress-hero span { color: var(--nf-color-text-muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
+.progress-hero > div > span { color: var(--nf-color-text-muted); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; }
 .progress-hero strong { color: var(--nf-color-text); font-size: clamp(1.1rem, 2.5vw, 1.35rem); }
 .progress-hero :deep(.progress-bar) { grid-column: 1 / -1; width: 100%; }
 .detail-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--nf-space-3); margin-top: var(--nf-space-4); }
