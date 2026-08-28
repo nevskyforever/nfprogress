@@ -2332,6 +2332,7 @@ name = "nfprogress-desktop"
 version = "5.1.1"
 dependencies = [
  "getrandom 0.3.4",
+ "reqwest",
  "serde",
  "serde_json",
  "tauri",

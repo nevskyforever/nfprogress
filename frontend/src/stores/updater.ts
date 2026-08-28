@@ -17,7 +17,6 @@ export type UpdaterStatus =
   | 'error'
 
 const CHECK_TIMEOUT_MS = 15_000
-const LEGACY_MANIFEST_URL = 'https://nfproject.ru/app/update_manifest.json'
 
 function errorText(error: unknown): string {
   return error instanceof Error ? error.message : String(error ?? '')
@@ -73,19 +72,19 @@ export const useUpdaterStore = defineStore('updater', () => {
 
     try {
       if (supportsMacUpdateChecks()) {
-        const { getVersion } = await import('@tauri-apps/api/app')
-        const currentVersion = await getVersion()
-        const response = await fetch(`${LEGACY_MANIFEST_URL}?_=${Date.now()}`, {
-          cache: 'no-store',
-          signal: AbortSignal.timeout(CHECK_TIMEOUT_MS),
-        })
-        if (!response.ok) throw new Error(`HTTP ${response.status}`)
-        const manifest = await response.json() as {
-          version?: string
-          notes?: string
-          macos_arm?: { version?: string; url?: string; sha256?: string; size?: number }
-          macos_intel?: { version?: string; url?: string; sha256?: string; size?: number }
-        }
+        const [{ getVersion }, { invoke }] = await Promise.all([
+          import('@tauri-apps/api/app'),
+          import('@tauri-apps/api/core'),
+        ])
+        const [currentVersion, manifest] = await Promise.all([
+          getVersion(),
+          invoke<{
+            version?: string
+            notes?: string
+            macos_arm?: { version?: string; url?: string; sha256?: string; size?: number }
+            macos_intel?: { version?: string; url?: string; sha256?: string; size?: number }
+          }>('fetch_update_manifest'),
+        ])
         const platformSection = /arm64|aarch64/i.test(
           window.__NFPROGRESS_RUNTIME__?.architecture ?? '',
         )

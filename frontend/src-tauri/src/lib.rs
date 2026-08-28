@@ -15,6 +15,8 @@ use tauri_plugin_shell::ShellExt;
 
 const BACKEND_HOST: &str = "127.0.0.1";
 const BACKEND_START_TIMEOUT: Duration = Duration::from_secs(30);
+const UPDATE_MANIFEST_URL: &str = "https://nfproject.ru/app/update_manifest.json";
+const UPDATE_MANIFEST_TIMEOUT: Duration = Duration::from_secs(15);
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,6 +61,25 @@ fn backend_connection(state: State<'_, BackendState>) -> Result<BackendConnectio
             || Err("Локальный backend nfprogress ещё не готов.".to_string()),
             Err,
         )
+}
+
+#[tauri::command]
+async fn fetch_update_manifest() -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::builder()
+        .timeout(UPDATE_MANIFEST_TIMEOUT)
+        .build()
+        .map_err(|error| format!("Не удалось настроить проверку обновлений: {error}"))?;
+    let response = client
+        .get(UPDATE_MANIFEST_URL)
+        .send()
+        .await
+        .map_err(|error| format!("Не удалось получить манифест обновления: {error}"))?
+        .error_for_status()
+        .map_err(|error| format!("Сервер обновлений вернул ошибку: {error}"))?;
+    response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|error| format!("Манифест обновления имеет неверный формат: {error}"))
 }
 
 fn shell_literal(value: impl AsRef<str>) -> String {
@@ -321,6 +342,7 @@ pub fn run() {
     let app = builder
         .invoke_handler(tauri::generate_handler![
             backend_connection,
+            fetch_update_manifest,
             install_macos_update
         ])
         .build(tauri::generate_context!())
