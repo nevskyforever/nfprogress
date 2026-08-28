@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+
 import { useLocaleStore } from '@/stores/locale'
 import type { GameQuests } from '@/types/game'
 
-defineProps<{
+const props = defineProps<{
   quests: GameQuests
   level: number
   busy: boolean
@@ -15,6 +17,20 @@ const emit = defineEmits<{
 
 const locale = useLocaleStore()
 const t = locale.translate
+const hideCompleted = ref(true)
+const levelSort = ref<'asc' | 'desc'>('asc')
+
+const visibleQuests = computed(() => {
+  const filtered = props.quests.items.filter((quest) => !hideCompleted.value || quest.status !== 'completed')
+  return filtered
+    .map((quest, index) => ({ quest, index }))
+    .sort((left, right) => {
+      const levelDifference = left.quest.required_level - right.quest.required_level
+      if (levelDifference !== 0) return levelSort.value === 'asc' ? levelDifference : -levelDifference
+      return left.index - right.index
+    })
+    .map(({ quest }) => quest)
+})
 
 function questStatus(status: string): string {
   const labels: Record<string, string> = {
@@ -27,14 +43,28 @@ function questStatus(status: string): string {
 </script>
 
 <template>
+  <div class="quest-controls">
+    <label class="quest-toggle">
+      <input v-model="hideCompleted" type="checkbox" />
+      <span>{{ t('Скрыть завершённые') }}</span>
+    </label>
+    <label class="quest-sort">
+      <span>{{ t('Сортировка') }}</span>
+      <select v-model="levelSort">
+        <option value="asc">{{ t('Уровень: сначала меньшие') }}</option>
+        <option value="desc">{{ t('Уровень: сначала большие') }}</option>
+      </select>
+    </label>
+  </div>
   <div class="quest-list">
-    <p v-if="quests.items.length === 0" class="notice">{{ t('Заданий пока нет.') }}</p>
-    <article v-for="quest in quests.items" v-else :key="quest.id" class="quest-card">
+    <p v-if="visibleQuests.length === 0" class="notice">{{ t('Нет заданий для отображения.') }}</p>
+    <article v-for="quest in visibleQuests" v-else :key="quest.id" class="quest-card">
       <div>
         <span class="status" :class="`status--${quest.status}`">{{ questStatus(quest.status) }}</span>
         <h3>{{ t(quest.name) }}</h3>
         <p>{{ t(quest.description) }}</p>
         <small>
+          {{ t('Уровень') }}: {{ locale.formatNumber(quest.required_level, 0) }} ·
           {{ t('Награда') }}: {{ locale.formatNumber(quest.reward.coins) }} {{ t('монет') }} ·
           {{ locale.formatNumber(quest.reward.experience) }} {{ t('опыта') }}
         </small>
@@ -62,6 +92,43 @@ function questStatus(status: string): string {
 </template>
 
 <style scoped>
+.quest-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--nf-space-3);
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--nf-space-3);
+}
+
+.quest-toggle,
+.quest-sort {
+  display: flex;
+  gap: var(--nf-space-2);
+  align-items: center;
+  color: var(--nf-color-text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.quest-toggle input {
+  width: 1rem;
+  height: 1rem;
+  accent-color: var(--nf-color-primary);
+}
+
+.quest-sort select {
+  min-height: 2.25rem;
+  max-width: 100%;
+  padding: 0 var(--nf-space-2);
+  border: 1px solid var(--nf-color-border);
+  border-radius: var(--nf-radius-sm);
+  background: var(--nf-color-surface-raised);
+  color: var(--nf-color-text);
+  font: inherit;
+  font-weight: 600;
+}
+
 .quest-list {
   display: grid;
   gap: var(--nf-space-3);
@@ -121,6 +188,15 @@ function questStatus(status: string): string {
 }
 
 @media (max-width: 44rem) {
+  .quest-controls {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .quest-sort {
+    justify-content: space-between;
+  }
+
   .quest-card {
     align-items: stretch;
     flex-direction: column;
