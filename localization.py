@@ -1716,7 +1716,7 @@ _PROJECT_LIST_HELP_TRANSLATIONS = {
 <h2>List, search and navigation</h2>
 <ul>
 <li>Click a project or stage to open its details and entries. Right-clicking shows only available actions: edit, archive, delete, complete, and synchronize.</li>
-<li>Select “Manual order” to drag projects and stages. The order is saved automatically; stage movement arrows are no longer used.</li>
+<li>Select “Manual order” and click “Edit” next to sorting. Drag projects or stages by the handle that appears, then click “Save”. The handles are hidden after saving; stage movement arrows are no longer used.</li>
 <li>The “New folder” button creates a folder for organizing projects. Use the context menu to move a project into or out of a folder; deleting a folder does not delete its projects.</li>
 <li>Search finds both projects and stages. Double-clicking a found stage clears the search, expands its parent project, and selects the stage in the regular list.</li>
 <li>The filter switches between active, archived, and completed projects. Stages are shown with their parent.</li>
@@ -1728,7 +1728,7 @@ _PROJECT_LIST_HELP_TRANSLATIONS = {
 <h2>Lista, búsqueda y navegación</h2>
 <ul>
 <li>Haz clic en un proyecto o etapa para abrir sus datos y registros. El botón derecho muestra solo las acciones disponibles: editar, archivar, eliminar, completar y sincronizar.</li>
-<li>Selecciona «Orden manual» para arrastrar proyectos y etapas. El orden se guarda automáticamente; ya no se usan flechas para mover etapas.</li>
+<li>Selecciona «Orden manual» y pulsa «Editar» junto al selector. Arrastra proyectos o etapas por el control que aparece y pulsa «Guardar». Los controles se ocultan al guardar; ya no se usan flechas para mover etapas.</li>
 <li>El botón «Nueva carpeta» crea una carpeta para organizar proyectos. Usa el menú contextual para mover un proyecto a una carpeta o sacarlo; eliminar la carpeta no elimina los proyectos.</li>
 <li>La búsqueda encuentra proyectos y etapas. Un doble clic en una etapa encontrada limpia la búsqueda, expande el proyecto principal y selecciona la etapa en la lista normal.</li>
 <li>El filtro alterna entre proyectos activos, archivados y completados. Las etapas se muestran con el proyecto principal.</li>
@@ -1740,7 +1740,7 @@ _PROJECT_LIST_HELP_TRANSLATIONS = {
 <h2>Liste, Suche und Navigation</h2>
 <ul>
 <li>Klicken Sie auf ein Projekt oder eine Etappe, um Details und Einträge zu öffnen. Ein Rechtsklick zeigt nur verfügbare Aktionen: Bearbeiten, Archivieren, Löschen, Abschließen und Synchronisieren.</li>
-<li>Wählen Sie „Manuelle Reihenfolge“, um Projekte und Etappen zu ziehen. Die Reihenfolge wird automatisch gespeichert; Pfeile zum Verschieben von Etappen werden nicht mehr verwendet.</li>
+<li>Wählen Sie „Manuelle Reihenfolge“ und klicken Sie neben der Sortierung auf „Bearbeiten“. Ziehen Sie Projekte oder Etappen am eingeblendeten Griff und klicken Sie dann auf „Speichern“. Danach werden die Griffe ausgeblendet; Verschiebepfeile werden nicht mehr verwendet.</li>
 <li>„Neuer Ordner“ erstellt einen Ordner zur Organisation von Projekten. Über das Kontextmenü verschieben Sie ein Projekt in einen Ordner oder heraus; beim Löschen des Ordners bleiben die Projekte erhalten.</li>
 <li>Die Suche findet Projekte und Etappen. Ein Doppelklick auf eine gefundene Etappe löscht die Suche, erweitert das übergeordnete Projekt und wählt die Etappe in der normalen Liste aus.</li>
 <li>Der Filter wechselt zwischen aktiven, archivierten und abgeschlossenen Projekten. Etappen werden mit ihrem übergeordneten Projekt angezeigt.</li>
@@ -1752,7 +1752,7 @@ _PROJECT_LIST_HELP_TRANSLATIONS = {
 <h2>Liste, recherche et navigation</h2>
 <ul>
 <li>Cliquez sur un projet ou une étape pour ouvrir ses informations et ses entrées. Un clic droit affiche uniquement les actions disponibles : modifier, archiver, supprimer, terminer et synchroniser.</li>
-<li>Sélectionnez « Ordre manuel » pour faire glisser les projets et les étapes. L’ordre est enregistré automatiquement ; les flèches de déplacement des étapes ne sont plus utilisées.</li>
+<li>Sélectionnez « Ordre manuel » puis cliquez sur « Modifier » à côté du tri. Faites glisser les projets ou étapes par la poignée affichée, puis cliquez sur « Enregistrer ». Les poignées sont ensuite masquées ; les flèches ne sont plus utilisées.</li>
 <li>Le bouton « Nouveau dossier » crée un dossier pour organiser les projets. Le menu contextuel permet d’y placer ou d’en retirer un projet ; supprimer le dossier ne supprime pas les projets.</li>
 <li>La recherche trouve les projets et les étapes. Un double-clic sur une étape trouvée efface la recherche, développe le projet parent et sélectionne l’étape dans la liste normale.</li>
 <li>Le filtre bascule entre les projets actifs, archivés et terminés. Les étapes sont affichées avec leur projet parent.</li>
@@ -1764,7 +1764,7 @@ _PROJECT_LIST_HELP_TRANSLATIONS = {
 <h2>Lista, pesquisa e navegação</h2>
 <ul>
 <li>Clique em um projeto ou etapa para abrir seus dados e registros. O clique com o botão direito mostra apenas as ações disponíveis: editar, arquivar, excluir, concluir e sincronizar.</li>
-<li>Selecione “Ordem manual” para arrastar projetos e etapas. A ordem é salva automaticamente; as setas para mover etapas não são mais usadas.</li>
+<li>Selecione “Ordem manual” e clique em “Editar” ao lado da ordenação. Arraste projetos ou etapas pela alça exibida e clique em “Salvar”. As alças são ocultadas após salvar; as setas de movimentação não são mais usadas.</li>
 <li>O botão “Nova pasta” cria uma pasta para organizar projetos. Use o menu de contexto para mover um projeto para dentro ou fora da pasta; excluir a pasta não exclui os projetos.</li>
 <li>A pesquisa encontra projetos e etapas. Clicar duas vezes em uma etapa encontrada limpa a pesquisa, expande o projeto pai e seleciona a etapa na lista normal.</li>
 <li>O filtro alterna entre projetos ativos, arquivados e concluídos. As etapas são mostradas com o projeto pai.</li>

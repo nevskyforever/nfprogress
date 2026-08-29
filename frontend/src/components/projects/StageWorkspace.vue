@@ -39,6 +39,8 @@ const t = locale.translate
 const readOnly = computed(() => props.project.status === 'завершен')
 const sharedProject = computed(() => props.project.name === 'Общий проект')
 const sort = ref<StageSort>(props.stageSort)
+const stageOrderEditing = ref(false)
+const manualStageIds = ref(props.project.stages.map((stage) => stage.id))
 const draggedStageId = ref<string | null>(null)
 const stageDragMimeType = 'application/x-nfprogress-stage-id'
 const pointerStageDrag = ref<{
@@ -56,7 +58,9 @@ const emptyActionLabel = computed(() => sharedProject.value ? t('Создать 
 const removeButtonLabel = computed(() => sharedProject.value ? t('Удалить источник') : t('Удалить'))
 
 const sortedStages = computed(() => [...props.project.stages].sort((left, right) => {
-  if (sort.value === 'manual') return props.project.stages.indexOf(left) - props.project.stages.indexOf(right)
+  if (sort.value === 'manual') {
+    return manualStageIds.value.indexOf(left.id) - manualStageIds.value.indexOf(right.id)
+  }
   if (sort.value === 'name') return left.name.localeCompare(right.name, locale.localeTag)
   if (sort.value === 'progress') return right.progress - left.progress
   if (sort.value === 'updated') return String(right.updated_at ?? '').localeCompare(String(left.updated_at ?? ''))
@@ -79,7 +83,7 @@ function requestRemove(stage: Project): void {
   if (confirmed) emit('remove', stage)
 }
 function startDrag(event: DragEvent, stage: Project): void {
-  if (readOnly.value || sort.value !== 'manual') { event.preventDefault(); return }
+  if (readOnly.value || sort.value !== 'manual' || !stageOrderEditing.value) { event.preventDefault(); return }
   draggedStageId.value = stage.id
   if (event.dataTransfer) {
     event.dataTransfer.effectAllowed = 'move'
@@ -92,18 +96,10 @@ function dropStage(event: DragEvent, targetStage: Project): void {
     || event.dataTransfer?.getData('text/plain')
     || draggedStageId.value
   draggedStageId.value = null
-  if (!sourceId || sourceId === targetStage.id || sort.value !== 'manual') return
-  const ids = sortedStages.value.map((stage) => stage.id)
-  const from = ids.indexOf(sourceId)
-  const to = ids.indexOf(targetStage.id)
-  if (from < 0 || to < 0) return
-  ids.splice(from, 1)
-  const targetIndex = ids.indexOf(targetStage.id)
-  ids.splice(from < to ? targetIndex + 1 : targetIndex, 0, sourceId)
-  emit('reorder', ids)
+  if (sourceId) reorderStage(sourceId, targetStage)
 }
 function reorderStage(sourceId: string, targetStage: Project): void {
-  if (sourceId === targetStage.id || sort.value !== 'manual') return
+  if (sourceId === targetStage.id || sort.value !== 'manual' || !stageOrderEditing.value) return
   const ids = sortedStages.value.map((stage) => stage.id)
   const from = ids.indexOf(sourceId)
   const to = ids.indexOf(targetStage.id)
@@ -111,7 +107,16 @@ function reorderStage(sourceId: string, targetStage: Project): void {
   ids.splice(from, 1)
   const targetIndex = ids.indexOf(targetStage.id)
   ids.splice(from < to ? targetIndex + 1 : targetIndex, 0, sourceId)
-  emit('reorder', ids)
+  manualStageIds.value = ids
+}
+function beginStageOrderEditing(): void {
+  manualStageIds.value = props.project.stages.map((stage) => stage.id)
+  stageOrderEditing.value = true
+}
+function saveStageOrder(): void {
+  if (!stageOrderEditing.value || props.busy) return
+  stageOrderEditing.value = false
+  emit('reorder', [...manualStageIds.value])
 }
 function clearStagePointerDrag(): void {
   pointerStageDrag.value = null
@@ -142,7 +147,7 @@ function finishStagePointer(event: PointerEvent): void {
   reorderStage(drag.stageId, targetStage)
 }
 function startStagePointer(event: PointerEvent, stage: Project): void {
-  if (props.busy || readOnly.value || sort.value !== 'manual' || event.button !== 0) return
+  if (props.busy || readOnly.value || sort.value !== 'manual' || !stageOrderEditing.value || event.button !== 0) return
   pointerStageDrag.value = {
     stageId: stage.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false,
   }
@@ -175,7 +180,14 @@ function selectContextAction(action: ContextAction): void {
 }
 
 watch(() => props.stageSort, (value) => { if (value !== sort.value) sort.value = value })
-watch(sort, (value) => emit('sort', value))
+watch(() => props.project.stages.map((stage) => stage.id), (ids) => {
+  if (!stageOrderEditing.value) manualStageIds.value = ids
+})
+watch(sort, (value) => {
+  stageOrderEditing.value = false
+  manualStageIds.value = props.project.stages.map((stage) => stage.id)
+  emit('sort', value)
+})
 onBeforeUnmount(clearStagePointerDrag)
 </script>
 
@@ -186,7 +198,7 @@ onBeforeUnmount(clearStagePointerDrag)
       <div class="stage-heading-actions">
         <label class="stage-sort" for="stage-sort">
           <span class="visually-hidden">{{ t('Сортировка') }}</span>
-          <select id="stage-sort" v-model="sort" :disabled="busy">
+          <select id="stage-sort" v-model="sort" :disabled="busy || stageOrderEditing">
             <option value="manual">{{ t('Свободный порядок') }}</option>
             <option value="progress">{{ t('По прогрессу') }}</option>
             <option value="updated">{{ t('Недавно изменённые') }}</option>
@@ -194,7 +206,18 @@ onBeforeUnmount(clearStagePointerDrag)
             <option value="name">{{ t('По названию') }}</option>
           </select>
         </label>
-        <button v-if="!readOnly" class="nf-button nf-button--secondary" type="button" :disabled="busy" @click="emit('add')">
+        <button
+          v-if="sort === 'manual' && !readOnly"
+          class="stage-order-toggle"
+          type="button"
+          :disabled="busy"
+          :aria-label="stageOrderEditing ? t('Сохранить') : t('Изменить')"
+          @click="stageOrderEditing ? saveStageOrder() : beginStageOrderEditing()"
+        >
+          <span v-if="!stageOrderEditing" aria-hidden="true">✎</span>
+          {{ stageOrderEditing ? t('Сохранить') : t('Изменить') }}
+        </button>
+        <button v-if="!readOnly" class="nf-button nf-button--secondary" type="button" :disabled="busy || stageOrderEditing" @click="emit('add')">
           <IonIcon :icon="addOutline" aria-hidden="true" />{{ addButtonLabel }}
         </button>
       </div>
@@ -205,14 +228,13 @@ onBeforeUnmount(clearStagePointerDrag)
         v-for="(stage, index) in sortedStages"
         :key="stage.id"
         class="stage-card"
-        :class="{ 'stage-card--sortable': !busy && !readOnly && sort === 'manual' }"
+        :class="{ 'stage-card--sortable': !busy && !readOnly && sort === 'manual' && stageOrderEditing }"
         :data-stage-id="stage.id"
         draggable="false"
         @dragstart="startDrag($event, stage)"
         @dragend="draggedStageId = null"
         @dragover.prevent
-          @drop.prevent="dropStage($event, stage)"
-        @pointerdown="startStagePointer($event, stage)"
+        @drop.prevent="dropStage($event, stage)"
         @contextmenu.prevent="openContext($event, stage)"
       >
         <button class="stage-open-button" type="button" :aria-label="`${t('Этапы')}: ${stage.name}`" @click="emit('open', stage)">
@@ -228,6 +250,18 @@ onBeforeUnmount(clearStagePointerDrag)
           </div>
         </button>
         <div class="stage-actions">
+          <button
+            v-if="stageOrderEditing"
+            class="stage-drag-handle"
+            type="button"
+            :aria-label="`${t('Свободный порядок')}: ${stage.name}`"
+            :title="t('Свободный порядок')"
+            @click.stop.prevent
+            @contextmenu.stop
+            @pointerdown.stop.prevent="startStagePointer($event, stage)"
+          >
+            <span aria-hidden="true">⠿</span>
+          </button>
           <ProgressShareMenu :label="t('Поделиться прогрессом «{name}»', { name: stage.name })" :title="stage.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined" :disabled="busy || sharing || sharedProject || stage.infinite" @copy="emit('copy', stage)" @save="emit('save', stage)" />
           <small>{{ t('Действия доступны по правой кнопке мыши') }}</small>
         </div>
@@ -252,6 +286,11 @@ onBeforeUnmount(clearStagePointerDrag)
 .stage-heading-actions { display: flex; flex-wrap: wrap; gap: var(--nf-space-2); align-items: center; }
 .stage-sort { display: inline-flex; min-height: 2.75rem; align-items: center; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface-raised); }
 .stage-sort select { min-height: 2.65rem; padding: 0 2rem 0 .75rem; border: 0; background: transparent; color: var(--nf-color-text); font: inherit; font-size: .82rem; font-weight: 700; }
+.stage-order-toggle,
+.stage-drag-handle { display: inline-grid; min-height: 2.75rem; padding: 0 .8rem; place-items: center; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); background: var(--nf-color-surface-raised); color: var(--nf-color-primary); font: inherit; font-size: .8rem; font-weight: 750; cursor: pointer; }
+.stage-order-toggle { grid-auto-flow: column; gap: var(--nf-space-1); }
+.stage-drag-handle { min-width: 2.75rem; padding: 0; font-size: 1.2rem; cursor: grab; touch-action: none; user-select: none; }
+.stage-drag-handle:active { cursor: grabbing; }
 .stage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--nf-space-3); margin: 0; padding: 0; list-style: none; }
 .stage-card { display: grid; gap: var(--nf-space-3); padding: var(--nf-space-4); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); box-shadow: var(--nf-shadow-card); }
 .stage-card--sortable { cursor: grab; user-select: none; }

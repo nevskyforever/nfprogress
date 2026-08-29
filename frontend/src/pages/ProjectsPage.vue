@@ -101,6 +101,10 @@ const cardVersions = ref<Record<string, number>>({})
 const previousCardSignatures = new Map<string, string>()
 const pendingCardAnimations = new Set<string>()
 const projectDragMimeType = 'application/x-nfprogress-project-id'
+const projectOrderEditing = ref(false)
+const projectOrderSaving = ref(false)
+const draftProjectOrder = ref<string[]>([])
+const draftProjectFolders = ref<Record<string, string | null>>({})
 const pointerProjectDrag = ref<{
   projectId: string
   pointerId: number
@@ -117,18 +121,59 @@ let stopDataChanges: (() => void) | undefined
 const hasFilters = computed(
   () => search.value.trim().length > 0 || status.value !== 'all',
 )
-const canReorderProjects = computed(() => sort.value === 'manual')
+const canReorderProjects = computed(() => sort.value === 'manual' && projectOrderEditing.value)
 const projectGroups = computed(() => {
+  const orderIndex = new Map(draftProjectOrder.value.map((id, index) => [id, index]))
+  const orderedProjects = [...store.projects].sort((left, right) =>
+    (orderIndex.get(left.id) ?? Number.MAX_SAFE_INTEGER)
+    - (orderIndex.get(right.id) ?? Number.MAX_SAFE_INTEGER),
+  )
+  const folderId = (project: Project): string | null => (
+    projectOrderEditing.value && Object.hasOwn(draftProjectFolders.value, project.id)
+      ? draftProjectFolders.value[project.id] ?? null
+      : project.folder_id
+  )
   const groups = [
-    { id: null as string | null, name: t('Без папки'), projects: store.projects.filter((project) => !project.folder_id) },
+    { id: null as string | null, name: t('Без папки'), projects: orderedProjects.filter((project) => !folderId(project)) },
     ...folders.value.map((folder) => ({
       id: folder.id as string | null,
       name: folder.name,
-      projects: store.projects.filter((project) => project.folder_id === folder.id),
+      projects: orderedProjects.filter((project) => folderId(project) === folder.id),
     })),
   ]
   return groups.filter((group) => group.projects.length || group.id !== null)
 })
+
+function beginProjectOrderEditing(): void {
+  draftProjectOrder.value = projectGroups.value.flatMap((group) => group.projects.map((project) => project.id))
+  draftProjectFolders.value = Object.fromEntries(
+    store.projects.map((project) => [project.id, project.folder_id]),
+  )
+  projectOrderEditing.value = true
+}
+
+async function saveProjectOrder(): Promise<void> {
+  if (!projectOrderEditing.value || projectOrderSaving.value) return
+  projectOrderSaving.value = true
+  try {
+    const folderUpdates = store.projects
+      .filter((project) => draftProjectFolders.value[project.id] !== project.folder_id)
+      .map((project) => projectsApi.update(project.id, {
+        folder_id: draftProjectFolders.value[project.id] ?? null,
+      }))
+    await Promise.all(folderUpdates)
+    const saved = await store.reorderProjects([...draftProjectOrder.value])
+    if (!saved) return
+    projectOrderEditing.value = false
+    draftProjectOrder.value = []
+    draftProjectFolders.value = {}
+    loadProjects()
+  } catch (error) {
+    notifications.error(t(apiErrorMessage(error)))
+  } finally {
+    projectOrderSaving.value = false
+  }
+}
 
 const resultSummary = computed(() => {
   if (store.loading || store.error) return ''
@@ -455,11 +500,11 @@ function startProjectDrag(event: DragEvent, project: Project): void {
   }
 }
 
-async function reorderProject(
+function reorderProject(
   sourceId: string,
   targetProject: Project,
   targetFolderId: string | null,
-): Promise<void> {
+): void {
   draggedProjectId.value = null
   if (!sourceId || sourceId === targetProject.id) return
   const ordered = projectGroups.value.flatMap((group) => group.projects.map((project) => project.id))
@@ -469,23 +514,19 @@ async function reorderProject(
   ordered.splice(from, 1)
   const targetIndex = ordered.indexOf(targetProject.id)
   ordered.splice(from < to ? targetIndex + 1 : targetIndex, 0, sourceId)
-  const source = store.projects.find((project) => project.id === sourceId)
-  try {
-    if (source && source.folder_id !== targetFolderId) await projectsApi.update(sourceId, { folder_id: targetFolderId })
-    await store.reorderProjects(ordered)
-    loadProjects()
-  } catch (error) { notifications.error(t(apiErrorMessage(error))) }
+  draftProjectOrder.value = ordered
+  draftProjectFolders.value = { ...draftProjectFolders.value, [sourceId]: targetFolderId }
 }
 
-async function dropProject(
+function dropProject(
   event: DragEvent,
   targetProject: Project,
   targetFolderId: string | null,
-): Promise<void> {
+): void {
   const sourceId = event.dataTransfer?.getData(projectDragMimeType)
     || event.dataTransfer?.getData('text/plain')
     || draggedProjectId.value
-  if (sourceId) await reorderProject(sourceId, targetProject, targetFolderId)
+  if (sourceId) reorderProject(sourceId, targetProject, targetFolderId)
 }
 
 function clearProjectPointerDrag(): void {
@@ -512,11 +553,14 @@ function finishProjectPointer(event: PointerEvent): void {
     ?.closest<HTMLElement>('[data-project-id]')?.dataset.projectId
   const targetProject = store.projects.find((project) => project.id === targetId)
   if (!targetProject) return
+  const targetFolderId = Object.hasOwn(draftProjectFolders.value, targetProject.id)
+    ? draftProjectFolders.value[targetProject.id] ?? null
+    : targetProject.folder_id
   window.addEventListener('click', (clickEvent) => {
     clickEvent.preventDefault()
     clickEvent.stopImmediatePropagation()
   }, { capture: true, once: true })
-  void reorderProject(drag.projectId, targetProject, targetProject.folder_id)
+  reorderProject(drag.projectId, targetProject, targetFolderId)
 }
 
 function startProjectPointer(event: PointerEvent, project: Project): void {
@@ -665,6 +709,7 @@ onBeforeUnmount(() => {
               id="project-search"
               v-model="search"
               type="search"
+              :disabled="projectOrderEditing"
               :placeholder="t('Поиск по проектам и этапам')"
               autocomplete="off"
             />
@@ -681,7 +726,7 @@ onBeforeUnmount(() => {
 
           <label class="toolbar-select" for="project-status-filter">
             <span>{{ t('Статус') }}</span>
-            <select id="project-status-filter" v-model="status">
+            <select id="project-status-filter" v-model="status" :disabled="projectOrderEditing">
               <option value="all">{{ t('Все проекты') }}</option>
               <option value="активен">{{ t('Активные') }}</option>
               <option value="в архиве">{{ t('В архиве') }}</option>
@@ -691,7 +736,7 @@ onBeforeUnmount(() => {
 
           <label class="toolbar-select" for="project-sort">
             <span>{{ t('Сортировка') }}</span>
-            <select id="project-sort" v-model="sort">
+            <select id="project-sort" v-model="sort" :disabled="projectOrderEditing">
               <option value="manual">{{ t('Свободный порядок') }}</option>
               <option value="progress">{{ t('По прогрессу') }}</option>
               <option value="updated">{{ t('Недавно изменённые') }}</option>
@@ -699,6 +744,17 @@ onBeforeUnmount(() => {
               <option value="name">{{ t('По названию') }}</option>
             </select>
           </label>
+          <button
+            v-if="sort === 'manual'"
+            class="nf-button nf-button--secondary project-order-toggle"
+            type="button"
+            :disabled="projectOrderSaving"
+            :aria-label="projectOrderEditing ? t('Сохранить') : t('Изменить')"
+            @click="projectOrderEditing ? saveProjectOrder() : beginProjectOrderEditing()"
+          >
+            <span v-if="!projectOrderEditing" aria-hidden="true">✎</span>
+            {{ projectOrderEditing ? t('Сохранить') : t('Изменить') }}
+          </button>
         </section>
 
         <p class="results-summary" aria-live="polite">{{ resultSummary }}</p>
@@ -927,7 +983,7 @@ onBeforeUnmount(() => {
 
 .project-toolbar {
   display: grid;
-  grid-template-columns: minmax(14rem, 1fr) auto auto;
+  grid-template-columns: minmax(14rem, 1fr) auto auto auto;
   gap: var(--nf-space-3);
   align-items: end;
   margin-top: var(--nf-space-7);
@@ -935,6 +991,11 @@ onBeforeUnmount(() => {
   border: 1px solid var(--nf-color-border);
   border-radius: var(--nf-radius-md);
   background: var(--nf-color-surface);
+}
+
+.project-order-toggle {
+  min-height: 3rem;
+  white-space: nowrap;
 }
 
 .search-field {

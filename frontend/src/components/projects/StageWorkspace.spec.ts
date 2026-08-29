@@ -21,6 +21,8 @@ describe('StageWorkspace', () => {
     })
 
     const cards = wrapper.findAll('.stage-card')
+    expect(cards[0]?.find('.stage-drag-handle').exists()).toBe(false)
+    await wrapper.get('.stage-order-toggle').trigger('click')
     Object.defineProperty(document, 'elementFromPoint', {
       configurable: true,
       value: vi.fn(() => cards[1]?.element ?? null),
@@ -29,11 +31,13 @@ describe('StageWorkspace', () => {
       new Event(type, { bubbles: true, cancelable: true }),
       { pointerId: { value: 1 }, button: { value: 0 }, clientX: { value: x }, clientY: { value: y } },
     )
-    cards[0]?.element.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    cards[0]?.get('.stage-drag-handle').element.dispatchEvent(pointerEvent('pointerdown', 10, 10))
     window.dispatchEvent(pointerEvent('pointermove', 30, 30))
     window.dispatchEvent(pointerEvent('pointerup', 30, 30))
     window.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
 
+    expect(wrapper.emitted('reorder')).toBeUndefined()
+    await wrapper.get('.stage-order-toggle').trigger('click')
     expect(wrapper.emitted('reorder')?.[0]?.[0]).toEqual(['stage-b', 'stage-a'])
   })
 

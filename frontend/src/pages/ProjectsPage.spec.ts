@@ -115,6 +115,8 @@ describe('ProjectsPage streak summaries', () => {
     await flushPromises()
 
     const cards = wrapper.findAll('.project-card')
+    expect(cards[0]?.find('.project-card__drag-handle').exists()).toBe(false)
+    await wrapper.get('.project-order-toggle').trigger('click')
     Object.defineProperty(document, 'elementFromPoint', {
       configurable: true,
       value: vi.fn(() => cards[1]?.element ?? null),
@@ -129,6 +131,9 @@ describe('ProjectsPage streak summaries', () => {
     window.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
     await flushPromises()
 
+    expect(projectsApi.reorder).not.toHaveBeenCalled()
+    await wrapper.get('.project-order-toggle').trigger('click')
+    await flushPromises()
     expect(projectsApi.reorder).toHaveBeenCalledWith(['project-b', 'project-a'])
     expect(cards[0]?.find('.project-card__open').exists()).toBe(false)
     wrapper.unmount()
@@ -180,6 +185,8 @@ describe('ProjectsPage streak summaries', () => {
 
     expect(wrapper.find('.project-mixed-grid').exists()).toBe(false)
     expect(wrapper.get('.project-grid').findAll('.project-card')).toHaveLength(2)
+    expect(wrapper.find('.project-card__drag-handle').exists()).toBe(false)
+    await wrapper.get('.project-order-toggle').trigger('click')
     expect(wrapper.get('.project-card').classes()).toContain('project-card--sortable')
     await wrapper.get('#project-status-filter').setValue('активен')
     await flushPromises()
