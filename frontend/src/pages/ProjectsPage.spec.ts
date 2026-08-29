@@ -180,6 +180,9 @@ describe('ProjectsPage streak summaries', () => {
     expect(wrapper.find('.project-mixed-grid').exists()).toBe(false)
     expect(wrapper.get('.project-grid').findAll('.project-card')).toHaveLength(2)
     expect(wrapper.get('.project-card').classes()).toContain('project-card--sortable')
+    await wrapper.get('#project-status-filter').setValue('активен')
+    await flushPromises()
+    expect(wrapper.get('.project-card').classes()).toContain('project-card--sortable')
     wrapper.unmount()
   })
 

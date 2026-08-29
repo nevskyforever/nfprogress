@@ -117,9 +117,7 @@ let stopDataChanges: (() => void) | undefined
 const hasFilters = computed(
   () => search.value.trim().length > 0 || status.value !== 'all',
 )
-const canReorderProjects = computed(() =>
-  sort.value === 'manual' && status.value === 'all' && !search.value.trim(),
-)
+const canReorderProjects = computed(() => sort.value === 'manual')
 const projectGroups = computed(() => {
   const groups = [
     { id: null as string | null, name: t('Без папки'), projects: store.projects.filter((project) => !project.folder_id) },

@@ -275,9 +275,33 @@ class ProjectService:
         def mutate(data):
             projects = list(data.get('projects', {}).values())
             existing_ids = {project.project_id for project in projects}
-            if set(project_ids) != existing_ids or len(project_ids) != len(existing_ids):
-                raise ValidationError('Порядок должен содержать каждый проект ровно один раз.')
-            data['project_order'] = list(project_ids)
+            requested_ids = set(project_ids)
+            if (
+                    not project_ids
+                    or len(requested_ids) != len(project_ids)
+                    or not requested_ids.issubset(existing_ids)
+            ):
+                raise ValidationError(
+                    'Порядок должен содержать известные проекты без повторений.',
+                )
+
+            saved_order = data.get('project_order', [])
+            normalized_order = [
+                project_id for project_id in saved_order
+                if isinstance(project_id, str) and project_id in existing_ids
+            ] if isinstance(saved_order, list) else []
+            normalized_order.extend(
+                project.project_id
+                for project in projects
+                if project.project_id not in normalized_order
+            )
+            visible_positions = [
+                index for index, project_id in enumerate(normalized_order)
+                if project_id in requested_ids
+            ]
+            for index, project_id in zip(visible_positions, project_ids):
+                normalized_order[index] = project_id
+            data['project_order'] = normalized_order
             by_id = {project.project_id: project for project in projects}
             return [serialize_project(by_id[project_id]) for project_id in project_ids]
 

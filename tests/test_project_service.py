@@ -281,13 +281,28 @@ def test_project_order_and_folders_round_trip(service):
     assert service.get_project(first['id'])['folder_id'] is None
 
 
-def test_project_order_requires_every_project_and_folder_names_are_unique(service):
+def test_project_order_reorders_filtered_subset_without_moving_hidden_projects(service):
+    first = service.create_project({'name': 'One', 'goal': 1000, 'unit': 'symbols'})
+    hidden = service.create_project({'name': 'Hidden', 'goal': 1000, 'unit': 'symbols'})
+    third = service.create_project({'name': 'Three', 'goal': 1000, 'unit': 'symbols'})
+
+    visible = service.reorder_projects([third['id'], first['id']])
+
+    assert [project['id'] for project in visible] == [third['id'], first['id']]
+    assert [project['id'] for project in service.list_projects(sort='manual')] == [
+        third['id'], hidden['id'], first['id'],
+    ]
+
+
+def test_project_order_rejects_unknown_or_duplicate_projects_and_folder_names_are_unique(service):
     project = service.create_project({'name': 'One', 'goal': 1000, 'unit': 'symbols'})
     service.create_project({'name': 'Two', 'goal': 1000, 'unit': 'symbols'})
     service.create_folder('Романы')
 
     with pytest.raises(ValidationError):
-        service.reorder_projects([project['id']])
+        service.reorder_projects([project['id'], project['id']])
+    with pytest.raises(ValidationError):
+        service.reorder_projects(['unknown-project'])
     with pytest.raises(ConflictError):
         service.create_folder(' романы ')
 
