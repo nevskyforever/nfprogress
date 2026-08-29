@@ -14,27 +14,27 @@ echo "Запущены Tauri-релизы: Apple Silicon (PID $ARM_PID) и Intel
 wait_with_progress() {
   local label="$1"
   local pid="$2"
-  local status=0
+  local exit_code=0
 
   while kill -0 "$pid" 2>/dev/null; do
     echo "Ожидание ${label}-релиза: сборка или загрузка ещё выполняется..."
     sleep 30
   done
 
-  wait "$pid" || status=$?
-  if [ "$status" -eq 0 ]; then
+  wait "$pid" || exit_code=$?
+  if [ "$exit_code" -eq 0 ]; then
     echo "✅ ${label}-релиз завершён успешно."
   else
-    echo "❌ ${label}-релиз завершился с кодом $status." >&2
+    echo "❌ ${label}-релиз завершился с кодом $exit_code." >&2
   fi
-  return "$status"
+  return "$exit_code"
 }
 
-status=0
-wait_with_progress "Apple Silicon" "$ARM_PID" || status=1
-wait_with_progress "Intel" "$INTEL_PID" || status=1
+overall_exit_code=0
+wait_with_progress "Apple Silicon" "$ARM_PID" || overall_exit_code=1
+wait_with_progress "Intel" "$INTEL_PID" || overall_exit_code=1
 
-if [ "$status" -eq 0 ]; then
+if [ "$overall_exit_code" -eq 0 ]; then
   echo "✅ Все Tauri-релизы завершены успешно."
 fi
-exit "$status"
+exit "$overall_exit_code"
