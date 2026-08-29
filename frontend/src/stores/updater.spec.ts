@@ -1,11 +1,15 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { check } from '@tauri-apps/plugin-updater'
-import { relaunch } from '@tauri-apps/plugin-process'
+import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 
-import { supportsMacUpdateChecks, supportsNativeUpdates } from '@/platform/runtime'
+import {
+  supportsMacUpdateChecks,
+  supportsNativeUpdates,
+} from '@/platform/runtime'
 import { useNotificationsStore } from '@/stores/notifications'
 
 import { useUpdaterStore } from './updater'
@@ -15,6 +19,7 @@ vi.mock('@tauri-apps/plugin-updater', () => ({
 }))
 
 vi.mock('@tauri-apps/plugin-process', () => ({
+  exit: vi.fn(),
   relaunch: vi.fn(),
 }))
 
@@ -26,23 +31,29 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
 
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(),
+}))
+
 vi.mock('@/platform/runtime', () => ({
   supportsNativeUpdates: vi.fn(() => true),
   supportsMacUpdateChecks: vi.fn(() => false),
-  openExternalUrl: vi.fn(),
 }))
 
 describe('updater store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.mocked(check).mockReset()
+    vi.mocked(exit).mockReset()
     vi.mocked(relaunch).mockReset()
     vi.mocked(getVersion).mockReset()
     vi.mocked(invoke).mockReset()
+    vi.mocked(listen).mockReset()
     vi.mocked(supportsNativeUpdates).mockReset()
     vi.mocked(supportsMacUpdateChecks).mockReset()
     vi.mocked(supportsNativeUpdates).mockReturnValue(true)
     vi.mocked(supportsMacUpdateChecks).mockReturnValue(false)
+    vi.mocked(listen).mockResolvedValue(() => undefined)
   })
 
   it('reports the current version after an explicit check', async () => {
@@ -130,5 +141,63 @@ describe('updater store', () => {
     expect(useNotificationsStore().notifications.at(-1)?.message)
       .toBe('Не удалось проверить обновления.')
     vi.useRealTimers()
+  })
+
+  it('installs the archive automatically from a Tauri dev app', async () => {
+    vi.mocked(supportsNativeUpdates).mockReturnValue(false)
+    vi.mocked(supportsMacUpdateChecks).mockReturnValue(true)
+    vi.mocked(getVersion).mockResolvedValue('5.0.1')
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({
+        macos_intel: {
+          version: '5.1.0',
+          url: 'https://nfproject.ru/app/nfprogress-mac-intel-5.1.0.zip',
+          sha256: 'a'.repeat(64),
+          size: 100,
+        },
+      })
+      .mockResolvedValueOnce(true)
+    vi.mocked(listen).mockImplementation(async (_event, handler) => {
+      handler({ payload: { downloadedBytes: 60, totalBytes: 100 } } as never)
+      handler({ payload: { downloadedBytes: 100, totalBytes: 100 } } as never)
+      return () => undefined
+    })
+    const updater = useUpdaterStore()
+
+    await updater.checkForUpdates()
+    await updater.installUpdate()
+
+    expect(invoke).toHaveBeenNthCalledWith(2, 'install_macos_update', {
+      url: 'https://nfproject.ru/app/nfprogress-mac-intel-5.1.0.zip',
+      sha256: 'a'.repeat(64),
+      size: 100,
+    })
+    expect(exit).toHaveBeenCalledWith(0)
+    expect(updater.progressPercent).toBe(100)
+  })
+
+  it('reports an installation error instead of opening a browser', async () => {
+    vi.mocked(supportsNativeUpdates).mockReturnValue(false)
+    vi.mocked(supportsMacUpdateChecks).mockReturnValue(true)
+    vi.mocked(getVersion).mockResolvedValue('5.0.1')
+    vi.mocked(invoke)
+      .mockResolvedValueOnce({
+        macos_intel: {
+          version: '5.1.0',
+          url: 'https://nfproject.ru/app/nfprogress-mac-intel-5.1.0.zip',
+          sha256: 'a'.repeat(64),
+          size: 100,
+        },
+      })
+      .mockResolvedValueOnce(false)
+    const updater = useUpdaterStore()
+
+    await updater.checkForUpdates()
+    await updater.installUpdate()
+
+    expect(updater.status).toBe('error')
+    expect(useNotificationsStore().notifications.at(-1)?.message)
+      .toBe('Не удалось установить обновление.')
+    expect(exit).not.toHaveBeenCalled()
   })
 })

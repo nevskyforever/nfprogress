@@ -3,13 +3,13 @@ use std::fs;
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use serde::Serialize;
-use tauri::{Manager, RunEvent, State};
+use tauri::{Emitter, Manager, RunEvent, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
@@ -25,6 +25,14 @@ struct BackendConnection {
     session_token: String,
     native_updates: bool,
     architecture: String,
+    development: bool,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct MacosUpdateProgress {
+    downloaded_bytes: u64,
+    total_bytes: u64,
 }
 
 #[derive(Default)]
@@ -92,12 +100,81 @@ async fn fetch_update_manifest() -> Result<serde_json::Value, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::configure_rustls_provider;
+    #[cfg(target_os = "macos")]
+    use std::io::Write;
+    use std::path::Path;
+    #[cfg(target_os = "macos")]
+    use std::process::{Command, Stdio};
+
+    use super::{build_macos_updater_script, configure_rustls_provider, macos_update_target};
 
     #[test]
     fn update_client_has_a_rustls_crypto_provider() {
         configure_rustls_provider();
         assert!(reqwest::Client::builder().build().is_ok());
+    }
+
+    #[test]
+    fn macos_updater_can_install_an_app_from_a_nested_dmg() {
+        let script = build_macos_updater_script(
+            Path::new("/tmp/nfprogress-update.zip"),
+            Path::new("/Applications/nfprogress.app"),
+            "aabbcc",
+            42,
+            Path::new("/tmp/nfprogress-update.log"),
+            123,
+        );
+
+        assert!(script.contains("DMG_PATH=$(find"));
+        assert!(script.contains("hdiutil attach \"$DMG_PATH\""));
+        assert!(script.contains("find \"$MOUNT_POINT\""));
+        assert!(script.contains("ditto \"$NEW_APP\" \"$TARGET_PATH\""));
+        assert!(!script.contains("curl "));
+    }
+
+    #[cfg(debug_assertions)]
+    #[test]
+    fn tauri_dev_updates_the_installed_macos_app() {
+        assert_eq!(
+            macos_update_target(Path::new("/project/target/debug/nfprogress-desktop")),
+            Some(Path::new("/Applications/nfprogress.app").to_path_buf()),
+        );
+    }
+
+    #[test]
+    fn packaged_macos_app_is_resolved_from_the_current_executable() {
+        assert_eq!(
+            macos_update_target(Path::new(
+                "/Applications/nfprogress.app/Contents/MacOS/nfprogress-desktop",
+            )),
+            Some(Path::new("/Applications/nfprogress.app").to_path_buf()),
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_updater_script_has_valid_shell_syntax() {
+        let script = build_macos_updater_script(
+            Path::new("/tmp/nfprogress-update.zip"),
+            Path::new("/Applications/nfprogress.app"),
+            "aabbcc",
+            42,
+            Path::new("/tmp/nfprogress-update.log"),
+            123,
+        );
+        let mut child = Command::new("/bin/sh")
+            .arg("-n")
+            .stdin(Stdio::piped())
+            .spawn()
+            .expect("shell must start");
+        child
+            .stdin
+            .take()
+            .expect("shell stdin must be piped")
+            .write_all(script.as_bytes())
+            .expect("script must be written to shell");
+
+        assert!(child.wait().expect("shell must finish").success());
     }
 }
 
@@ -112,67 +189,269 @@ fn macos_app_bundle(executable: &Path) -> Option<PathBuf> {
         .map(Path::to_path_buf)
 }
 
+fn macos_update_target(executable: &Path) -> Option<PathBuf> {
+    macos_app_bundle(executable)
+        .or_else(|| cfg!(debug_assertions).then(|| PathBuf::from("/Applications/nfprogress.app")))
+}
+
+fn build_macos_updater_script(
+    archive_path: &Path,
+    target: &Path,
+    sha256: &str,
+    size: u64,
+    log_path: &Path,
+    parent_pid: u32,
+) -> String {
+    let target_name = target.file_name().unwrap_or_default().to_string_lossy();
+    format!(
+        r#"#!/bin/sh
+set -u
+ARCHIVE_PATH={archive}
+SHA256={sha256}
+SIZE={size}
+TARGET_PATH={target}
+TARGET_NAME={target_name}
+PARENT_PID={pid}
+LOG_PATH={log_path}
+MOUNT_POINT=""
+
+log() {{
+    printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$1" >> "$LOG_PATH"
+}}
+
+fail() {{
+    log "failed: $1"
+    if [ -n "$MOUNT_POINT" ]; then
+        hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
+    fi
+    osascript -e 'display alert "nfprogress" message "Не удалось установить обновление. Подробности: '"$LOG_PATH"'"' >/dev/null 2>&1 || true
+    exit 1
+}}
+
+log "waiting for application process $PARENT_PID"
+while kill -0 "$PARENT_PID" >/dev/null 2>&1; do sleep 1; done
+sleep 1
+
+WORK_DIR=$(mktemp -d "${{TMPDIR:-/tmp/}}nfprogress-update.XXXXXX") || fail "Не удалось создать временную папку."
+EXTRACT_DIR="$WORK_DIR/extract"
+mkdir -p "$EXTRACT_DIR" || fail "Не удалось создать папку распаковки."
+
+log "using downloaded archive $ARCHIVE_PATH"
+[ -f "$ARCHIVE_PATH" ] || fail "Скачанный архив обновления не найден."
+[ "$(stat -f %z "$ARCHIVE_PATH")" = "$SIZE" ] || fail "Размер архива обновления не совпадает с манифестом."
+[ "$(shasum -a 256 "$ARCHIVE_PATH" | awk '{{print $1}}')" = "$SHA256" ] || fail "Контрольная сумма архива обновления не совпадает с манифестом."
+ditto -x -k "$ARCHIVE_PATH" "$EXTRACT_DIR" || unzip -q "$ARCHIVE_PATH" -d "$EXTRACT_DIR" || fail "Не удалось распаковать zip-архив."
+
+NEW_APP=$(find "$EXTRACT_DIR" -maxdepth 4 -name "$TARGET_NAME" -type d -print -quit)
+if [ -z "$NEW_APP" ]; then
+    NEW_APP=$(find "$EXTRACT_DIR" -maxdepth 4 -name "*.app" -type d -print -quit)
+fi
+
+if [ -z "$NEW_APP" ]; then
+    DMG_PATH=$(find "$EXTRACT_DIR" -maxdepth 4 -name "*.dmg" -type f -print -quit)
+    if [ -n "$DMG_PATH" ]; then
+        log "mounting $DMG_PATH"
+        MOUNT_OUTPUT=$(hdiutil attach "$DMG_PATH" -nobrowse -readonly 2>>"$LOG_PATH") || fail "Не удалось смонтировать dmg."
+        MOUNT_POINT=$(printf '%s\n' "$MOUNT_OUTPUT" | awk '/\/Volumes\// {{print substr($0, index($0, "/Volumes/")); exit}}')
+        [ -n "$MOUNT_POINT" ] || fail "Не удалось определить точку монтирования dmg."
+        NEW_APP=$(find "$MOUNT_POINT" -maxdepth 2 -name "$TARGET_NAME" -type d -print -quit)
+        if [ -z "$NEW_APP" ]; then
+            NEW_APP=$(find "$MOUNT_POINT" -maxdepth 2 -name "*.app" -type d -print -quit)
+        fi
+    fi
+fi
+
+[ -n "$NEW_APP" ] || fail "В архиве обновления не найден .app."
+
+BACKUP_PATH="$TARGET_PATH.old"
+rm -rf "$BACKUP_PATH" || fail "Не удалось удалить старую резервную копию."
+if [ -d "$TARGET_PATH" ]; then
+    mv "$TARGET_PATH" "$BACKUP_PATH" || fail "Не удалось убрать старое приложение."
+fi
+ditto "$NEW_APP" "$TARGET_PATH" || {{
+    rm -rf "$TARGET_PATH"
+    if [ -d "$BACKUP_PATH" ]; then
+        mv "$BACKUP_PATH" "$TARGET_PATH"
+    fi
+    fail "Не удалось скопировать новую версию."
+}}
+rm -rf "$BACKUP_PATH"
+
+if [ -n "$MOUNT_POINT" ]; then
+    hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
+fi
+rm -rf "$WORK_DIR"
+rm -f "$ARCHIVE_PATH"
+log "updated $TARGET_PATH"
+open "$TARGET_PATH" || log "failed to reopen $TARGET_PATH"
+"#,
+        archive = shell_literal(archive_path.to_string_lossy()),
+        sha256 = shell_literal(sha256),
+        size = size,
+        target = shell_literal(target.to_string_lossy()),
+        target_name = shell_literal(target_name),
+        pid = parent_pid,
+        log_path = shell_literal(log_path.to_string_lossy()),
+    )
+}
+
+fn archive_sha256(path: &Path) -> Result<String, String> {
+    let output = Command::new("/usr/bin/shasum")
+        .args(["-a", "256"])
+        .arg(path)
+        .output()
+        .map_err(|error| format!("Не удалось проверить SHA-256 обновления: {error}"))?;
+    if !output.status.success() {
+        return Err("Не удалось проверить SHA-256 обновления.".to_string());
+    }
+    String::from_utf8(output.stdout)
+        .map_err(|error| format!("Некорректный результат проверки SHA-256: {error}"))?
+        .split_whitespace()
+        .next()
+        .map(str::to_string)
+        .ok_or_else(|| "Не удалось получить SHA-256 обновления.".to_string())
+}
+
+async fn download_macos_update(
+    app: &tauri::AppHandle,
+    url: &str,
+    archive_path: &Path,
+    expected_size: u64,
+) -> Result<(), String> {
+    configure_rustls_provider();
+    let result = async {
+        let client = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(20))
+            .build()
+            .map_err(|error| format!("Не удалось настроить загрузку обновления: {error}"))?;
+        let mut response = client
+            .get(url)
+            .send()
+            .await
+            .map_err(|error| format!("Не удалось скачать обновление: {error}"))?
+            .error_for_status()
+            .map_err(|error| format!("Сервер обновлений вернул ошибку: {error}"))?;
+        if response
+            .content_length()
+            .is_some_and(|content_length| content_length > expected_size)
+        {
+            return Err("Сервер объявил слишком большой размер обновления.".to_string());
+        }
+
+        let mut archive = fs::File::create(archive_path)
+            .map_err(|error| format!("Не удалось создать архив обновления: {error}"))?;
+        let mut downloaded = 0_u64;
+        app.emit(
+            "macos-update-progress",
+            MacosUpdateProgress {
+                downloaded_bytes: 0,
+                total_bytes: expected_size,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+        while let Some(chunk) = response
+            .chunk()
+            .await
+            .map_err(|error| format!("Ошибка загрузки обновления: {error}"))?
+        {
+            downloaded = downloaded.saturating_add(chunk.len() as u64);
+            if downloaded > expected_size {
+                return Err("Загрузка превышает размер из манифеста.".to_string());
+            }
+            archive
+                .write_all(&chunk)
+                .map_err(|error| format!("Не удалось записать архив обновления: {error}"))?;
+            app.emit(
+                "macos-update-progress",
+                MacosUpdateProgress {
+                    downloaded_bytes: downloaded,
+                    total_bytes: expected_size,
+                },
+            )
+            .map_err(|error| error.to_string())?;
+        }
+        archive
+            .sync_all()
+            .map_err(|error| format!("Не удалось сохранить архив обновления: {error}"))?;
+        if downloaded != expected_size {
+            return Err(format!(
+                "Размер обновления не совпадает: ожидалось {expected_size}, получено {downloaded}."
+            ));
+        }
+        Ok(())
+    }
+    .await;
+    if result.is_err() {
+        let _ = fs::remove_file(archive_path);
+    }
+    result
+}
+
 #[tauri::command]
-fn install_macos_update(
+async fn install_macos_update(
     app: tauri::AppHandle,
     url: String,
     sha256: String,
     size: u64,
-) -> Result<(), String> {
+) -> Result<bool, String> {
     if !url.starts_with("https://nfproject.ru/app/") {
         return Err("Недопустимый адрес обновления macOS.".to_string());
     }
     if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) || size == 0 {
         return Err("В манифесте отсутствуют данные проверки архива macOS.".to_string());
     }
-    let executable_dir = app
-        .path()
-        .executable_dir()
-        .map_err(|error| error.to_string())?;
-    let target = macos_app_bundle(&executable_dir)
-        .ok_or_else(|| "Не удалось определить пакет приложения macOS.".to_string())?;
+    // Tauri's PathResolver::executable_dir is the user's bin directory and is
+    // unsupported on macOS; current_exe resolves the running app bundle.
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    let Some(target) = macos_update_target(&executable) else {
+        return Ok(false);
+    };
     let update_dir = app
         .path()
         .app_local_data_dir()
         .map_err(|error| error.to_string())?;
     fs::create_dir_all(&update_dir).map_err(|error| error.to_string())?;
     let script_path = update_dir.join("install-update.sh");
-    let script = format!(
-        r#"#!/bin/sh
-set -eu
-URL={url}
-SHA256={sha256}
-SIZE={size}
-TARGET={target}
-PID={pid}
-while kill -0 "$PID" >/dev/null 2>&1; do sleep 1; done
-WORK=$(mktemp -d "${{TMPDIR:-/tmp/}}nfprogress-update.XXXXXX")
-ARCHIVE="$WORK/update.zip"
-curl -fL --connect-timeout 20 --retry 2 -o "$ARCHIVE" "$URL"
-[ "$(stat -f %z "$ARCHIVE")" = "$SIZE" ]
-[ "$(shasum -a 256 "$ARCHIVE" | awk '{{print $1}}')" = "$SHA256" ]
-ditto -x -k "$ARCHIVE" "$WORK/extract"
-NEW_APP=$(find "$WORK/extract" -name '*.app' -type d -print -quit)
-[ -n "$NEW_APP" ]
-BACKUP="$TARGET.old"
-rm -rf "$BACKUP"
-mv "$TARGET" "$BACKUP"
-ditto "$NEW_APP" "$TARGET"
-rm -rf "$BACKUP" "$WORK"
-open "$TARGET"
-"#,
-        url = shell_literal(url),
-        sha256 = shell_literal(sha256),
-        size = size,
-        target = shell_literal(target.to_string_lossy()),
-        pid = std::process::id(),
+    let log_path = update_dir.join("update.log");
+    let archive_path = update_dir.join("update.zip");
+    download_macos_update(&app, &url, &archive_path, size).await?;
+    let actual_sha256 = match archive_sha256(&archive_path) {
+        Ok(value) => value,
+        Err(error) => {
+            let _ = fs::remove_file(&archive_path);
+            return Err(error);
+        }
+    };
+    if !actual_sha256.eq_ignore_ascii_case(&sha256) {
+        let _ = fs::remove_file(&archive_path);
+        return Err("Контрольная сумма архива обновления не совпадает с манифестом.".to_string());
+    }
+    let script = build_macos_updater_script(
+        &archive_path,
+        &target,
+        &sha256,
+        size,
+        &log_path,
+        std::process::id(),
     );
-    fs::write(&script_path, script).map_err(|error| error.to_string())?;
-    Command::new("/bin/sh")
+    if let Err(error) = fs::write(&script_path, script) {
+        let _ = fs::remove_file(&archive_path);
+        return Err(error.to_string());
+    }
+    // Keep the updater alive after plugin-process exits the application, matching
+    // the detached process used by the legacy macOS updater.
+    if let Err(error) = Command::new("/usr/bin/nohup")
+        .arg("/bin/sh")
         .arg(&script_path)
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .spawn()
-        .map_err(|error| error.to_string())?;
-    Ok(())
+    {
+        let _ = fs::remove_file(&archive_path);
+        return Err(error.to_string());
+    }
+    Ok(true)
 }
 
 fn reserve_loopback_port() -> Result<u16, String> {
@@ -332,6 +611,7 @@ pub fn run() {
                     session_token: token,
                     native_updates: native_updates_enabled(),
                     architecture: std::env::consts::ARCH.to_string(),
+                    development: cfg!(debug_assertions),
                 });
             }
             if let Ok(mut managed_child) = state.child.lock() {

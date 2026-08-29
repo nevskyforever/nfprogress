@@ -33,7 +33,7 @@ interface TextLayout {
 }
 
 interface ClipboardItemConstructor {
-  new (items: Record<string, Blob>): ClipboardItem
+  new (items: Record<string, Blob | Promise<Blob>>): ClipboardItem
 }
 
 function canvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
@@ -238,7 +238,7 @@ function drawBrand(context: CanvasRenderingContext2D, icon: CanvasImageSource | 
     context.fillText('nf', groupX + BRAND_ICON_SIZE / 2, BRAND_CENTER_Y + 1)
   }
 
-  context.fillStyle = '#2568AC'
+  context.fillStyle = '#2E78B8'
   context.font = '700 37px Arial, sans-serif'
   context.textAlign = 'left'
   context.fillText(BRAND_TEXT, groupX + BRAND_ICON_SIZE + BRAND_SPACING, BRAND_CENTER_Y)
@@ -386,7 +386,7 @@ function projectCardColors(theme: ProgressSharePayload['theme']): ProjectCardCol
     : {
         canvas: '#F5F5F7', surface: '#FFFFFF', surfaceMuted: '#F0F1F4', text: '#202124',
         textMuted: '#687078', border: '#C7C9CE', primary: '#4263EB', primarySoft: '#E8ECFF',
-        accent: '#4263EB', brand: '#4263EB', shadow: 'rgb(0 0 0 / 15%)',
+        accent: '#4263EB', brand: '#2E78B8', shadow: 'rgb(0 0 0 / 15%)',
       }
 }
 
@@ -634,8 +634,29 @@ function downloadImage(blob: Blob): void {
 }
 
 export async function copyProgressImage(payload: ProgressSharePayload): Promise<void> {
-  const image = await createProgressShareImage(payload)
-  if (!await copyImageToClipboard(image)) {
+  if (document.documentElement.dataset.platform === 'tauri') {
+    const image = await createProgressShareImage(payload)
+    if (!await copyImageToClipboard(image)) {
+      throw new Error('Image clipboard is unavailable.')
+    }
+    return
+  }
+
+  const ClipboardImageItem = clipboardItemConstructor()
+  if (
+    typeof navigator === 'undefined'
+    || !navigator.clipboard
+    || typeof navigator.clipboard.write !== 'function'
+    || !ClipboardImageItem
+  ) {
+    throw new Error('Image clipboard is unavailable.')
+  }
+
+  try {
+    await navigator.clipboard.write([
+      new ClipboardImageItem({ 'image/png': createProgressShareImage(payload) }),
+    ])
+  } catch {
     throw new Error('Image clipboard is unavailable.')
   }
 }
