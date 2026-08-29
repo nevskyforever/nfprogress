@@ -514,6 +514,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
 .workspace-field input,
 .workspace-field select {
   width: 100%;
+  height: 3rem;
   min-height: 3rem;
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--nf-color-border);

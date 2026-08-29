@@ -458,6 +458,7 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
 .form-field input,
 .form-field select {
   width: 100%;
+  height: 3rem;
   min-height: 3rem;
   padding: 0.65rem 0.8rem;
   border: 1px solid var(--nf-color-border);
