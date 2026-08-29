@@ -223,7 +223,13 @@ onBeforeUnmount(clearStagePointerDrag)
       </div>
     </div>
 
-    <TransitionGroup v-if="project.stages.length" tag="ol" class="stage-list">
+    <TransitionGroup
+      v-if="project.stages.length"
+      name="stage-list"
+      move-class="stage-list-move"
+      tag="ol"
+      class="stage-list"
+    >
       <li
         v-for="(stage, index) in sortedStages"
         :key="stage.id"

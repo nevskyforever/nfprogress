@@ -35,8 +35,12 @@ describe('StageWorkspace', () => {
     window.dispatchEvent(pointerEvent('pointermove', 30, 30))
     window.dispatchEvent(pointerEvent('pointerup', 30, 30))
     window.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    await wrapper.vm.$nextTick()
 
     expect(wrapper.emitted('reorder')).toBeUndefined()
+    expect(wrapper.findAll('.stage-card h3').map((title) => title.text())).toEqual([
+      'Вторая глава', 'Первая глава',
+    ])
     await wrapper.get('.stage-order-toggle').trigger('click')
     expect(wrapper.emitted('reorder')?.[0]?.[0]).toEqual(['stage-b', 'stage-a'])
   })
