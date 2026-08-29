@@ -264,6 +264,34 @@ def test_stage_order_requires_complete_permutation(service):
         service.reorder_stages(project['id'], [first['id']])
 
 
+def test_project_order_and_folders_round_trip(service):
+    first = service.create_project({'name': 'One', 'goal': 1000, 'unit': 'symbols'})
+    second = service.create_project({'name': 'Two', 'goal': 1000, 'unit': 'symbols'})
+    folder = service.create_folder('Романы')
+
+    moved = service.update_project(first['id'], {'folder_id': folder['id']})
+    ordered = service.reorder_projects([second['id'], first['id']])
+
+    assert moved['folder_id'] == folder['id']
+    assert service.list_folders() == [folder]
+    assert [project['id'] for project in ordered] == [second['id'], first['id']]
+    assert [project['id'] for project in service.list_projects(sort='manual')] == [second['id'], first['id']]
+
+    service.delete_folder(folder['id'])
+    assert service.get_project(first['id'])['folder_id'] is None
+
+
+def test_project_order_requires_every_project_and_folder_names_are_unique(service):
+    project = service.create_project({'name': 'One', 'goal': 1000, 'unit': 'symbols'})
+    service.create_project({'name': 'Two', 'goal': 1000, 'unit': 'symbols'})
+    service.create_folder('Романы')
+
+    with pytest.raises(ValidationError):
+        service.reorder_projects([project['id']])
+    with pytest.raises(ConflictError):
+        service.create_folder(' романы ')
+
+
 def test_stage_conversion_preserves_initial_total_history_and_entry_ids(service):
     project = service.create_project({
         'name': 'Book', 'goal': 1_000, 'total': 200, 'unit': 'symbols',

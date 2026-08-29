@@ -342,7 +342,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
           </select>
         </label>
         <div class="workspace-field">
-          <label for="edit-project-deadline">
+          <label class="workspace-field__inner" for="edit-project-deadline">
             <span>{{ t('Срок') }}</span>
             <input id="edit-project-deadline" v-model="form.deadline" type="date" :min="minimumDeadline" :disabled="form.infinite || form.noDeadline" @input="updateDailyGoal" @change="updateDailyGoal" />
           </label>
@@ -378,7 +378,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
             @change="updatePlanFromTotal"
           />
         </label>
-        <label class="workspace-field" for="edit-project-personal-goal">
+        <label class="workspace-field" :class="{ 'workspace-field--wide': project.stages.length }" for="edit-project-personal-goal">
           <span>{{ t('Цель на день') }}</span>
           <input
             id="edit-project-personal-goal"
@@ -446,7 +446,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  padding: var(--nf-space-5);
+  padding: var(--nf-space-5) var(--nf-space-5) var(--nf-space-4);
   background: var(--nf-color-surface);
 }
 
@@ -481,6 +481,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
 
 .workspace-dialog-content {
   --background: var(--nf-color-surface);
+  --padding-top: var(--nf-space-2);
   --padding-start: var(--nf-space-5);
   --padding-end: var(--nf-space-5);
   --padding-bottom: calc(var(--nf-space-5) + env(safe-area-inset-bottom));
@@ -490,6 +491,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--nf-space-4);
+  align-items: start;
   padding-bottom: var(--nf-space-5);
 }
 
@@ -501,6 +503,8 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
   font-size: 0.9rem;
   font-weight: 700;
 }
+
+.workspace-field__inner { display: grid; gap: var(--nf-space-2); }
 
 .workspace-field--wide,
 .workspace-form-error {

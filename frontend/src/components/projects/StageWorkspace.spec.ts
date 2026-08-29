@@ -7,9 +7,12 @@ import { projectFixture } from '@/test/fixtures'
 import StageWorkspace from './StageWorkspace.vue'
 
 describe('StageWorkspace', () => {
-  afterEach(() => vi.restoreAllMocks())
+  afterEach(() => {
+    vi.restoreAllMocks()
+    document.body.innerHTML = ''
+  })
 
-  it('exposes keyboard-friendly reorder commands with stable stage ids', async () => {
+  it('reorders stages by dragging stable stage ids', async () => {
     const first = projectFixture({ id: 'stage-a', name: 'Первая глава', goal: 10_000 })
     const second = projectFixture({ id: 'stage-b', name: 'Вторая глава', goal: 10_000 })
     const wrapper = mount(StageWorkspace, {
@@ -17,7 +20,9 @@ describe('StageWorkspace', () => {
       global: { plugins: [createPinia()], stubs: { IonIcon: true } },
     })
 
-    await wrapper.get('button[aria-label*="Опустить этап"]').trigger('click')
+    const cards = wrapper.findAll('.stage-card')
+    await cards[0]?.trigger('dragstart', { dataTransfer: { effectAllowed: '' } })
+    await cards[1]?.trigger('drop')
 
     expect(wrapper.emitted('reorder')?.[0]?.[0]).toEqual(['stage-b', 'stage-a'])
   })
@@ -30,23 +35,29 @@ describe('StageWorkspace', () => {
       global: { plugins: [createPinia()], stubs: { IonIcon: true } },
     })
 
-    const removeButton = wrapper.findAll('button').find((button) => button.text().includes('Удалить'))
-    await removeButton?.trigger('click')
+    await wrapper.get('.stage-card').trigger('contextmenu')
+    await wrapper.vm.$nextTick()
+    const contextRemove = [...document.body.querySelectorAll<HTMLButtonElement>('.context-action-menu button')]
+      .find((button) => button.textContent?.includes('Удалить'))
+    contextRemove?.click()
 
     expect(window.confirm).toHaveBeenCalled()
     expect(wrapper.emitted('remove')?.[0]?.[0]).toEqual(stage)
   })
 
-  it('does not offer completion for an infinite stage', () => {
+  it('does not offer completion for an infinite stage', async () => {
     const stage = projectFixture({ id: 'stage-a', infinite: true, goal: null })
     const wrapper = mount(StageWorkspace, {
       props: { project: projectFixture({ stages_enabled: true, stages: [stage] }), busy: false },
       global: { plugins: [createPinia()], stubs: { IonIcon: true } },
     })
 
-    const completeButton = wrapper.findAll('button').find((button) => button.text().includes('Завершить'))
+    await wrapper.get('.stage-card').trigger('contextmenu')
+    await wrapper.vm.$nextTick()
+    const completeButton = [...document.body.querySelectorAll<HTMLButtonElement>('.context-action-menu button')]
+      .find((button) => button.textContent?.includes('Завершить'))
     const shareButton = wrapper.find('.progress-share-menu button')
-    expect(completeButton?.attributes('disabled')).toBeDefined()
+    expect(completeButton).toBeUndefined()
     expect(shareButton?.attributes('disabled')).toBeDefined()
   })
 
@@ -93,14 +104,13 @@ describe('StageWorkspace', () => {
       global: { plugins: [createPinia()], stubs: { IonIcon: true } },
     })
 
-    const protectedButtons = wrapper.findAll('.stage-action-button').filter((button) =>
-      !button.classes('stage-action-button--danger'))
-    expect(protectedButtons.every((button) => button.attributes('disabled') !== undefined)).toBe(true)
-
     vi.spyOn(window, 'confirm').mockReturnValue(true)
-    const removeButton = wrapper.get('.stage-action-button--danger')
-    expect(removeButton.attributes('disabled')).toBeUndefined()
-    await removeButton.trigger('click')
+    await wrapper.get('.stage-card').trigger('contextmenu')
+    await wrapper.vm.$nextTick()
+    const menuButtons = [...document.body.querySelectorAll<HTMLButtonElement>('.context-action-menu button')]
+    expect(menuButtons.some((button) => button.textContent?.includes('Изменить'))).toBe(false)
+    const removeButton = menuButtons.find((button) => button.textContent?.includes('Удалить'))
+    removeButton?.click()
     expect(wrapper.emitted('remove')?.[0]?.[0]).toEqual(stage)
   })
 

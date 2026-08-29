@@ -31,6 +31,7 @@ class ProjectCreate(StageCreate):
     stages: list[StageCreate] = Field(default_factory=list)
     combine_stage_mindmaps: bool = False
     cover_image: str | None = Field(default=None, max_length=5_000_000)
+    folder_id: str | None = None
 
 
 class EntityUpdate(StrictModel):
@@ -51,6 +52,7 @@ class ProjectUpdate(EntityUpdate):
     stages_enabled: bool | None = None
     combine_stage_mindmaps: bool | None = None
     cover_image: str | None = Field(default=None, max_length=5_000_000)
+    folder_id: str | None = None
 
 
 class ProgressCreate(StrictModel):
@@ -60,6 +62,23 @@ class ProgressCreate(StrictModel):
 
 class ReorderStages(StrictModel):
     stage_ids: list[str]
+
+
+class ReorderProjects(StrictModel):
+    project_ids: list[str]
+
+
+class ProjectFolderCreate(StrictModel):
+    name: str
+
+
+class ProjectFolderUpdate(StrictModel):
+    name: str
+
+
+class ProjectFolderResponse(BaseModel):
+    id: str
+    name: str
 
 
 class DeveloperProfileUpdate(StrictModel):
@@ -119,6 +138,8 @@ class ProjectResponse(BaseModel):
     combine_stage_mindmaps: bool = False
     parent_project_id: str | None = None
     cover_image: str | None = None
+    folder_id: str | None = None
+    sync_available: bool = False
 
 
 class ProgressResult(BaseModel):

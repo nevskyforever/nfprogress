@@ -5,6 +5,7 @@ import type {
   Project,
   ProjectCreate,
   ProjectListQuery,
+  ProjectFolder,
   ProjectUpdate,
   EntityUpdate,
   GlobalStreakSummary,
@@ -33,6 +34,30 @@ function queryString(query: ProjectListQuery): string {
 export const projectsApi = {
   list(query: ProjectListQuery = {}, signal?: AbortSignal): Promise<Project[]> {
     return apiRequest<Project[]>(`/api/projects${queryString(query)}`, { signal })
+  },
+
+  folders(signal?: AbortSignal): Promise<ProjectFolder[]> {
+    return apiRequest<ProjectFolder[]>('/api/projects/folders', { signal })
+  },
+
+  createFolder(name: string): Promise<ProjectFolder> {
+    return apiRequest<ProjectFolder>('/api/projects/folders', { method: 'POST', body: { name } })
+  },
+
+  updateFolder(folderId: string, name: string): Promise<ProjectFolder> {
+    return apiRequest<ProjectFolder>(`/api/projects/folders/${encodeURIComponent(folderId)}`, {
+      method: 'PATCH', body: { name },
+    })
+  },
+
+  removeFolder(folderId: string): Promise<void> {
+    return apiRequest<void>(`/api/projects/folders/${encodeURIComponent(folderId)}`, { method: 'DELETE' })
+  },
+
+  reorder(projectIds: string[]): Promise<Project[]> {
+    return apiRequest<Project[]>('/api/projects/order', {
+      method: 'PUT', body: { project_ids: projectIds },
+    })
   },
 
   get(projectId: string, signal?: AbortSignal): Promise<Project> {

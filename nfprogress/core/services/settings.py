@@ -45,8 +45,8 @@ BOOLEAN_KEYS = frozenset({
 PROJECT_FILTERS = frozenset({'Активен', 'В архиве', 'Завершен'})
 PROJECT_SORTS = frozenset({'Название', 'Дедлайн', 'Прогресс'})
 FRONTEND_PROJECT_FILTERS = frozenset({'all', 'активен', 'в архиве', 'завершен'})
-FRONTEND_PROJECT_SORTS = frozenset({'name', 'deadline', 'progress', 'updated'})
-FRONTEND_STAGE_SORTS = frozenset({'name', 'deadline', 'progress', 'updated'})
+FRONTEND_PROJECT_SORTS = frozenset({'manual', 'name', 'deadline', 'progress', 'updated'})
+FRONTEND_STAGE_SORTS = frozenset({'manual', 'name', 'deadline', 'progress', 'updated'})
 
 
 class SettingsService:

@@ -1,7 +1,7 @@
 import type { GameCommandResponse } from './game'
 
 export const PROJECT_STATUSES = ['активен', 'в архиве', 'завершен'] as const
-export const PROJECT_SORTS = ['name', 'deadline', 'progress', 'updated'] as const
+export const PROJECT_SORTS = ['manual', 'name', 'deadline', 'progress', 'updated'] as const
 export const UNIT_CODES = ['symbols', 'A4', 'author_list', 'ficbook_pages'] as const
 
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
@@ -50,6 +50,13 @@ export interface Project {
   combine_stage_mindmaps: boolean
   parent_project_id: string | null
   cover_image: string | null
+  folder_id: string | null
+  sync_available: boolean
+}
+
+export interface ProjectFolder {
+  id: string
+  name: string
 }
 
 export interface StageCreate {
@@ -69,6 +76,7 @@ export interface ProjectCreate extends StageCreate {
   stages?: StageCreate[]
   combine_stage_mindmaps?: boolean
   cover_image?: string | null
+  folder_id?: string | null
 }
 
 export interface EntityUpdate {
@@ -89,6 +97,7 @@ export interface ProjectUpdate extends EntityUpdate {
   stages_enabled?: boolean
   combine_stage_mindmaps?: boolean
   cover_image?: string | null
+  folder_id?: string | null
 }
 
 export interface ProjectListQuery {

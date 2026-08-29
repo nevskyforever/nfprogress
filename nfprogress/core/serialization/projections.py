@@ -163,6 +163,13 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
             engine.normalize_project_cover_image(getattr(entity, 'cover_image', None))
             if kind == 'project' else None
         ),
+        'folder_id': (
+            getattr(entity, 'folder_id', None) if kind == 'project' else None
+        ),
+        'sync_available': bool(
+            getattr(entity, 'synch', None)
+            or (kind == 'project' and any(getattr(stage, 'synch', None) for stage in stages))
+        ),
     }
     if kind == 'stage':
         payload['parent_project_name'] = getattr(entity, 'parent_project_name', None)

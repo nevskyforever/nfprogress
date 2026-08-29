@@ -81,6 +81,26 @@ def test_project_cover_is_created_updated_and_returned_by_api(client):
     assert updated.json()['cover_image'] is None
 
 
+def test_project_folders_and_manual_order_are_exposed_by_api(client):
+    first = _create_project(client, 'Первый')
+    second = _create_project(client, 'Второй')
+    folder_response = client.post('/api/projects/folders', json={'name': 'Романы'})
+    assert folder_response.status_code == 201, folder_response.text
+    folder = folder_response.json()
+
+    moved = client.patch(
+        f"/api/projects/{first['id']}", json={'folder_id': folder['id']},
+    )
+    ordered = client.put('/api/projects/order', json={
+        'project_ids': [second['id'], first['id']],
+    })
+
+    assert moved.json()['folder_id'] == folder['id']
+    assert client.get('/api/projects/folders').json() == [folder]
+    assert [project['id'] for project in ordered.json()] == [second['id'], first['id']]
+    assert [project['id'] for project in client.get('/api/projects', params={'sort': 'manual'}).json()] == [second['id'], first['id']]
+
+
 def test_api_accepts_existing_cover_larger_than_compact_export(client):
     # Covers produced by older frontend builds can be larger than the compact
     # 1.35 MB export used now.  They must reach the service instead of failing

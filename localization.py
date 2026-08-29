@@ -69,7 +69,7 @@ UNIT_NAMES = {
 
 MINDMAP_HELP_SOURCE = """<html><body>
 <h2>Карты проектов и этапов</h2>
-<p>У каждого проекта и каждого этапа есть собственная независимая карта идей. Выберите нужную сущность на вкладке «Проекты» и нажмите «Карта» в панели действий. Редактор откроется в отдельном окне; при первом открытии корневой узел получит название проекта или этапа.</p>
+<p>У каждого проекта и каждого этапа есть собственная независимая карта идей. Раздел «Карты» в левой панели показывает плитки всех проектов. Карту можно открыть внутри раздела или в отдельном окне; выбранный путь и режим просмотра запоминаются. При первом открытии корневой узел получит название проекта или этапа.</p>
 <ul>
 <li>Дважды щёлкните узел или нажмите Space, чтобы изменить текст. Tab добавляет дочерний узел, Enter — соседний, Delete удаляет выбранный узел.</li>
 <li>«Свободный узел» — узел первого уровня вне автоматической раскладки; его дети выглядят как второй уровень. Для него действуют шорткаты, меню, ссылки и «Описание». Через меню или перетаскиванием можно отсоединить обычную ветвь со всеми детьми либо прикрепить свободную к узлу карты. Заметка поддерживает редактирование, удаление, ссылки и Tab для новой заметки рядом.</li>
@@ -84,7 +84,7 @@ MINDMAP_HELP_SOURCE = """<html><body>
 <li>Завершённый этап отмечается в общей карте значком ✅. Его существующая карта и ветвь в общей карте доступны только для просмотра. Если карта этапа не создавалась, кнопка «Карта» показывает сообщение, а в общей карте такое же пояснение выводится в нижней строке состояния, не отдельным узлом. Карта завершённого проекта также доступна только для просмотра.</li>
 <li>При удалении проекта или этапа удаляется и его карта. При преобразовании этапного проекта в обычный карты удаляемых этапов не объединяются с картой родителя.</li>
 </ul>
-<p>Редактор и его ресурсы входят в приложение, поэтому для работы с картой подключение к интернету не требуется.</p>
+<p>Редактор карты работает без подключения к интернету.</p>
 </body></html>"""
 
 
@@ -1694,6 +1694,87 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Passe de revisão",
     },
 }
+
+# Automatic translation reads "свободный" as "free of charge" outside the
+# project-list context.  Keep the UI terminology explicit in every language,
+# and let the generated catalog translate the current project-list help text
+# instead of retaining the older hand-written article.
+_MANUAL_ORDER_TRANSLATIONS = {
+    "en": "Manual order",
+    "es": "Orden manual",
+    "de": "Manuelle Reihenfolge",
+    "fr": "Ordre manuel",
+    "pt_BR": "Ordem manual",
+}
+for _language, _translation in _MANUAL_ORDER_TRANSLATIONS.items():
+    TRANSLATION_OVERRIDES[_language]["Свободный порядок"] = _translation
+    TRANSLATION_OVERRIDES[_language].pop(_HELP_ARTICLE_SOURCES["project_list"], None)
+    TRANSLATION_OVERRIDES[_language].pop(MINDMAP_HELP_SOURCE, None)
+
+_PROJECT_LIST_HELP_TRANSLATIONS = {
+    "en": """<html><body>
+<h2>List, search and navigation</h2>
+<ul>
+<li>Click a project or stage to open its details and entries. Right-clicking shows only available actions: edit, archive, delete, complete, and synchronize.</li>
+<li>Select “Manual order” to drag projects and stages. The order is saved automatically; stage movement arrows are no longer used.</li>
+<li>The “New folder” button creates a folder for organizing projects. Use the context menu to move a project into or out of a folder; deleting a folder does not delete its projects.</li>
+<li>Search finds both projects and stages. Double-clicking a found stage clears the search, expands its parent project, and selects the stage in the regular list.</li>
+<li>The filter switches between active, archived, and completed projects. Stages are shown with their parent.</li>
+<li>Deadline sorting places projects without a deadline separately; progress sorting uses the overall completion percentage. The selected filter, sorting, and manual order are saved between launches.</li>
+</ul>
+<p>The last selected project or stage is remembered and opened at the next launch.</p>
+</body></html>""",
+    "es": """<html><body>
+<h2>Lista, búsqueda y navegación</h2>
+<ul>
+<li>Haz clic en un proyecto o etapa para abrir sus datos y registros. El botón derecho muestra solo las acciones disponibles: editar, archivar, eliminar, completar y sincronizar.</li>
+<li>Selecciona «Orden manual» para arrastrar proyectos y etapas. El orden se guarda automáticamente; ya no se usan flechas para mover etapas.</li>
+<li>El botón «Nueva carpeta» crea una carpeta para organizar proyectos. Usa el menú contextual para mover un proyecto a una carpeta o sacarlo; eliminar la carpeta no elimina los proyectos.</li>
+<li>La búsqueda encuentra proyectos y etapas. Un doble clic en una etapa encontrada limpia la búsqueda, expande el proyecto principal y selecciona la etapa en la lista normal.</li>
+<li>El filtro alterna entre proyectos activos, archivados y completados. Las etapas se muestran con el proyecto principal.</li>
+<li>La ordenación por fecha límite separa los proyectos sin fecha límite; la ordenación por progreso usa el porcentaje total. El filtro, la ordenación y el orden manual se guardan entre inicios.</li>
+</ul>
+<p>El último proyecto o etapa seleccionado se recuerda y se abre en el siguiente inicio.</p>
+</body></html>""",
+    "de": """<html><body>
+<h2>Liste, Suche und Navigation</h2>
+<ul>
+<li>Klicken Sie auf ein Projekt oder eine Etappe, um Details und Einträge zu öffnen. Ein Rechtsklick zeigt nur verfügbare Aktionen: Bearbeiten, Archivieren, Löschen, Abschließen und Synchronisieren.</li>
+<li>Wählen Sie „Manuelle Reihenfolge“, um Projekte und Etappen zu ziehen. Die Reihenfolge wird automatisch gespeichert; Pfeile zum Verschieben von Etappen werden nicht mehr verwendet.</li>
+<li>„Neuer Ordner“ erstellt einen Ordner zur Organisation von Projekten. Über das Kontextmenü verschieben Sie ein Projekt in einen Ordner oder heraus; beim Löschen des Ordners bleiben die Projekte erhalten.</li>
+<li>Die Suche findet Projekte und Etappen. Ein Doppelklick auf eine gefundene Etappe löscht die Suche, erweitert das übergeordnete Projekt und wählt die Etappe in der normalen Liste aus.</li>
+<li>Der Filter wechselt zwischen aktiven, archivierten und abgeschlossenen Projekten. Etappen werden mit ihrem übergeordneten Projekt angezeigt.</li>
+<li>Die Sortierung nach Frist stellt Projekte ohne Frist separat dar; die Fortschrittssortierung verwendet den gesamten Fertigstellungsgrad. Filter, Sortierung und manuelle Reihenfolge werden gespeichert.</li>
+</ul>
+<p>Das zuletzt ausgewählte Projekt oder die Etappe wird beim nächsten Start wieder geöffnet.</p>
+</body></html>""",
+    "fr": """<html><body>
+<h2>Liste, recherche et navigation</h2>
+<ul>
+<li>Cliquez sur un projet ou une étape pour ouvrir ses informations et ses entrées. Un clic droit affiche uniquement les actions disponibles : modifier, archiver, supprimer, terminer et synchroniser.</li>
+<li>Sélectionnez « Ordre manuel » pour faire glisser les projets et les étapes. L’ordre est enregistré automatiquement ; les flèches de déplacement des étapes ne sont plus utilisées.</li>
+<li>Le bouton « Nouveau dossier » crée un dossier pour organiser les projets. Le menu contextuel permet d’y placer ou d’en retirer un projet ; supprimer le dossier ne supprime pas les projets.</li>
+<li>La recherche trouve les projets et les étapes. Un double-clic sur une étape trouvée efface la recherche, développe le projet parent et sélectionne l’étape dans la liste normale.</li>
+<li>Le filtre bascule entre les projets actifs, archivés et terminés. Les étapes sont affichées avec leur projet parent.</li>
+<li>Le tri par échéance sépare les projets sans échéance ; le tri par progression utilise le pourcentage global. Le filtre, le tri et l’ordre manuel sont conservés entre les lancements.</li>
+</ul>
+<p>Le dernier projet ou la dernière étape sélectionné est rouvert au lancement suivant.</p>
+</body></html>""",
+    "pt_BR": """<html><body>
+<h2>Lista, pesquisa e navegação</h2>
+<ul>
+<li>Clique em um projeto ou etapa para abrir seus dados e registros. O clique com o botão direito mostra apenas as ações disponíveis: editar, arquivar, excluir, concluir e sincronizar.</li>
+<li>Selecione “Ordem manual” para arrastar projetos e etapas. A ordem é salva automaticamente; as setas para mover etapas não são mais usadas.</li>
+<li>O botão “Nova pasta” cria uma pasta para organizar projetos. Use o menu de contexto para mover um projeto para dentro ou fora da pasta; excluir a pasta não exclui os projetos.</li>
+<li>A pesquisa encontra projetos e etapas. Clicar duas vezes em uma etapa encontrada limpa a pesquisa, expande o projeto pai e seleciona a etapa na lista normal.</li>
+<li>O filtro alterna entre projetos ativos, arquivados e concluídos. As etapas são mostradas com o projeto pai.</li>
+<li>A ordenação por prazo separa projetos sem prazo; a ordenação por progresso usa o percentual geral. O filtro, a ordenação e a ordem manual são salvos entre as inicializações.</li>
+</ul>
+<p>O último projeto ou etapa selecionado é lembrado e aberto na próxima inicialização.</p>
+</body></html>""",
+}
+for _language, _translation in _PROJECT_LIST_HELP_TRANSLATIONS.items():
+    TRANSLATION_OVERRIDES[_language][_HELP_ARTICLE_SOURCES["project_list"]] = _translation
 
 _current_language = "ru"
 _application_translator: QTranslator | None = None

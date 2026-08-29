@@ -6,7 +6,9 @@ import {
   cloudOfflineOutline,
   contrastOutline,
   codeSlashOutline,
+  documentTextOutline,
   folderOpenOutline,
+  gitBranchOutline,
   helpCircleOutline,
   languageOutline,
   settingsOutline,
@@ -49,23 +51,40 @@ const globalStreak = ref<GlobalStreakSummary | null>(null)
 let stopDataChanges: (() => void) | undefined
 const hasBanner = computed(() => !online.value || Boolean(startupError))
 const lastProjectPath = ref('/projects')
+const lastMapsPath = ref('/maps')
+const lastNotesPath = ref('/notes')
 try {
   const saved = sessionStorage.getItem('nfprogress:last-project-path')
   if (saved?.startsWith('/projects')) lastProjectPath.value = saved
+  const savedMaps = localStorage.getItem('nfprogress:last-maps-path')
+  const savedNotes = localStorage.getItem('nfprogress:last-notes-path')
+  if (savedMaps?.startsWith('/maps')) lastMapsPath.value = savedMaps
+  if (savedNotes?.startsWith('/notes')) lastNotesPath.value = savedNotes
 } catch {
   // Session persistence is optional in restricted embedded webviews.
 }
 const navigationItems = computed(() => [
   { to: lastProjectPath.value, label: 'Проекты', mobileLabel: 'Проекты', icon: folderOpenOutline },
+  { to: lastMapsPath.value, label: 'Карты', mobileLabel: 'Карты', icon: gitBranchOutline },
+  { to: lastNotesPath.value, label: 'Заметки', mobileLabel: 'Заметки', icon: documentTextOutline },
   { to: '/game', label: 'Игровой режим', mobileLabel: 'Игра', icon: sparklesOutline },
   { to: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
   { to: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },
 ] as const)
 
 watch(() => route.fullPath, (path) => {
-  if (!path.startsWith('/projects')) return
-  lastProjectPath.value = path
-  try { sessionStorage.setItem('nfprogress:last-project-path', path) } catch { /* optional */ }
+  try {
+    if (path.startsWith('/projects')) {
+      lastProjectPath.value = path
+      sessionStorage.setItem('nfprogress:last-project-path', path)
+    } else if (path.startsWith('/maps')) {
+      lastMapsPath.value = path
+      localStorage.setItem('nfprogress:last-maps-path', path)
+    } else if (path.startsWith('/notes')) {
+      lastNotesPath.value = path
+      localStorage.setItem('nfprogress:last-notes-path', path)
+    }
+  } catch { /* optional */ }
 }, { immediate: true })
 
 function isTypingTarget(target: EventTarget | null): boolean {

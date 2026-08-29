@@ -31,7 +31,17 @@ const stageId = computed(() => {
   return typeof value === 'string' && value ? value : null
 })
 const workspace = useProjectNotes(projectId, stageId)
-const activeView = ref<WorkspaceView>('notes')
+const defaultView = computed<WorkspaceView>(() => route.meta?.resourceView === 'mindmap' ? 'mindmap' : 'notes')
+function restoredView(): WorkspaceView {
+  const hub = typeof route.meta?.resourceHub === 'string' ? route.meta.resourceHub : ''
+  if (!hub) return defaultView.value
+  try {
+    const saved = localStorage.getItem(`nfprogress:${hub}:workspace-view`)
+    if (saved === 'notes' || saved === 'mindmap') return saved
+  } catch { /* optional state */ }
+  return defaultView.value
+}
+const activeView = ref<WorkspaceView>(restoredView())
 const search = ref('')
 const showArchived = ref(false)
 const editingNote = ref<ProjectNote | null>(null)
@@ -158,6 +168,11 @@ watch(
   },
   { immediate: true },
 )
+watch(activeView, (view) => {
+  const hub = typeof route.meta?.resourceHub === 'string' ? route.meta.resourceHub : ''
+  if (!hub) return
+  try { localStorage.setItem(`nfprogress:${hub}:workspace-view`, view) } catch { /* optional */ }
+})
 
 onBeforeUnmount(workspace.invalidate)
 </script>
@@ -166,9 +181,12 @@ onBeforeUnmount(workspace.invalidate)
   <IonPage>
     <IonContent :fullscreen="true" class="notes-content">
       <main class="notes-workspace">
-        <RouterLink class="notes-back-link" :to="{ name: 'project-detail', params: { projectId } }">
+        <RouterLink
+          class="notes-back-link"
+          :to="route.meta?.resourceHub ? { name: String(route.meta.resourceHub) } : { name: 'project-detail', params: { projectId } }"
+        >
           <IonIcon :icon="arrowBackOutline" aria-hidden="true" />
-          {{ t('Вернуться к проекту') }}
+          {{ route.meta?.resourceHub ? t('Вернуться к списку проектов') : t('Вернуться к проекту') }}
         </RouterLink>
 
         <header class="notes-header">

@@ -14,9 +14,16 @@ import type { Project } from '@/types/api'
 const props = withDefaults(defineProps<{
   project: Project
   streaksEnabled?: boolean
+  draggable?: boolean
 }>(), {
   streaksEnabled: false,
+  draggable: false,
 })
+const emit = defineEmits<{
+  context: [event: MouseEvent, project: Project]
+  dragstart: [event: DragEvent, project: Project]
+  dragend: []
+}>()
 const locale = useLocaleStore()
 const t = locale.translate
 const presentation = useProjectPresentation(() => props.project)
@@ -52,6 +59,10 @@ const progressAriaLabel = computed(() =>
       `project-card--${project.status.replaceAll(' ', '-')}`,
       { 'project-card--with-cover': project.cover_image },
     ]"
+    :draggable="draggable"
+    @contextmenu.prevent="emit('context', $event, project)"
+    @dragstart="emit('dragstart', $event, project)"
+    @dragend="emit('dragend')"
   >
     <RouterLink
       class="project-card__link"

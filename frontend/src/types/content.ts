@@ -34,8 +34,8 @@ export interface SettingsValues {
   frontend_theme?: FrontendTheme
   frontend_motion?: FrontendMotion
   frontend_project_filter?: 'all' | 'активен' | 'в архиве' | 'завершен'
-  frontend_project_sort?: 'name' | 'deadline' | 'progress' | 'updated'
-  frontend_stage_sort?: 'name' | 'deadline' | 'progress' | 'updated'
+  frontend_project_sort?: 'manual' | 'name' | 'deadline' | 'progress' | 'updated'
+  frontend_stage_sort?: 'manual' | 'name' | 'deadline' | 'progress' | 'updated'
   background_synch?: boolean
   check_updates?: boolean
   inventory_filter?: string

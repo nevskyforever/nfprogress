@@ -22,6 +22,7 @@ import ProjectCard from '@/components/projects/ProjectCard.vue'
 import ProjectCreateDialog from '@/components/projects/ProjectCreateDialog.vue'
 import StreakBadge from '@/components/projects/StreakBadge.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
+import ContextActionMenu, { type ContextAction } from '@/components/ui/ContextActionMenu.vue'
 import { projectsApi } from '@/api/projects'
 import { apiErrorMessage } from '@/api/client'
 import { integrationsApi } from '@/api/integrations'
@@ -37,6 +38,7 @@ import type {
   GlobalStreakSummary,
   Project,
   ProjectCreate,
+  ProjectFolder,
   ProjectSort,
   ProjectStatus,
   TodaySummary,
@@ -65,7 +67,7 @@ function routeStatus(): StatusFilter | null {
 
 function routeSort(): ProjectSort | null {
   const value = queryValue(route.query.sort)
-  return value === 'name' || value === 'deadline' || value === 'progress' || value === 'updated'
+  return value === 'manual' || value === 'name' || value === 'deadline' || value === 'progress' || value === 'updated'
     ? value
     : null
 }
@@ -75,13 +77,17 @@ function initialStatus(): StatusFilter {
 }
 
 function initialSort(): ProjectSort {
-  return routeSort() ?? 'progress'
+  return routeSort() ?? 'manual'
 }
 
 const search = ref(queryValue(route.query.search))
 const debouncedSearch = ref(search.value)
 const status = ref<StatusFilter>(initialStatus())
 const sort = ref<ProjectSort>(initialSort())
+const folders = ref<ProjectFolder[]>([])
+const draggedProjectId = ref<string | null>(null)
+const contextProject = ref<Project | null>(null)
+const contextPosition = ref({ x: 0, y: 0 })
 const createDialogOpen = ref(false)
 const todaySummary = ref<TodaySummary | null>(null)
 const showTodaySummary = ref(false)
@@ -103,11 +109,19 @@ let stopDataChanges: (() => void) | undefined
 const hasFilters = computed(
   () => search.value.trim().length > 0 || status.value !== 'all',
 )
-
-const hasMixedProjectCards = computed(() => {
-  const hasCoveredProject = store.projects.some((project) => Boolean(project.cover_image))
-  const hasUncoveredProject = store.projects.some((project) => !project.cover_image)
-  return hasCoveredProject && hasUncoveredProject
+const canReorderProjects = computed(() =>
+  sort.value === 'manual' && status.value === 'all' && !search.value.trim(),
+)
+const projectGroups = computed(() => {
+  const groups = [
+    { id: null as string | null, name: t('Без папки'), projects: store.projects.filter((project) => !project.folder_id) },
+    ...folders.value.map((folder) => ({
+      id: folder.id as string | null,
+      name: folder.name,
+      projects: store.projects.filter((project) => project.folder_id === folder.id),
+    })),
+  ]
+  return groups.filter((group) => group.projects.length || group.id !== null)
 })
 
 const resultSummary = computed(() => {
@@ -164,7 +178,7 @@ function preferenceStatus(value: unknown): StatusFilter | null {
 }
 
 function preferenceSort(value: unknown): ProjectSort | null {
-  if (value === 'name' || value === 'deadline' || value === 'progress' || value === 'updated') {
+  if (value === 'manual' || value === 'name' || value === 'deadline' || value === 'progress' || value === 'updated') {
     return value
   }
   const legacy: Record<string, ProjectSort> = {
@@ -185,7 +199,7 @@ function synchronizeRoute(): void {
   const query: Record<string, string> = {}
   if (debouncedSearch.value.trim()) query.search = debouncedSearch.value.trim()
   if (status.value !== 'all') query.status = status.value
-  if (sort.value !== 'progress') query.sort = sort.value
+  if (sort.value !== 'manual') query.sort = sort.value
   void router.replace({ query })
 }
 
@@ -208,6 +222,11 @@ async function initializeWorkspace(): Promise<void> {
   preferencesController = controller
   try {
     const settings = await settingsApi.get(controller.signal)
+    try {
+      folders.value = await projectsApi.folders(controller.signal)
+    } catch {
+      folders.value = []
+    }
     if (routeStatus() === null) {
       status.value = preferenceStatus(
         settings.values.frontend_project_filter ?? settings.values.project_filter,
@@ -328,6 +347,121 @@ async function createProject(payload: ProjectCreate): Promise<void> {
   await router.push({ name: 'project-detail', params: { projectId: project.id } })
 }
 
+function openProjectContext(event: MouseEvent, project: Project): void {
+  contextProject.value = project
+  contextPosition.value = { x: event.clientX, y: event.clientY }
+}
+
+const contextActions = computed<ContextAction[]>(() => {
+  const project = contextProject.value
+  if (!project) return []
+  const shared = project.name === 'Общий проект'
+  const actions: ContextAction[] = []
+  if (project.status !== 'завершен' && !shared) actions.push({ id: 'edit', label: t('Изменить') })
+  if (project.status !== 'завершен' && !shared) {
+    actions.push({ id: 'archive', label: project.status === 'в архиве' ? t('Вернуть в активные') : t('В архив') })
+  }
+  if (
+    project.status !== 'завершен' && !shared && !project.infinite
+    && project.goal !== null && project.total >= project.goal
+  ) actions.push({ id: 'complete', label: t('Завершить') })
+  if (localSyncAvailable.value && project.sync_available && project.status !== 'завершен') {
+    actions.push({ id: 'sync', label: t('Синхронизировать') })
+  }
+  for (const folder of folders.value) {
+    if (folder.id !== project.folder_id) {
+      actions.push({ id: `folder:${folder.id}`, label: t('В папку «{name}»', { name: folder.name }), separator: actions.every((item) => !item.id.startsWith('folder:')) })
+    }
+  }
+  if (project.folder_id) actions.push({ id: 'folder:', label: t('Убрать из папки') })
+  if (!shared) actions.push({ id: 'delete', label: t('Удалить'), danger: true, separator: true })
+  return actions
+})
+
+async function handleContextAction(action: ContextAction): Promise<void> {
+  const project = contextProject.value
+  contextProject.value = null
+  if (!project) return
+  try {
+    if (action.id === 'edit') {
+      await router.push({ name: 'project-detail', params: { projectId: project.id }, query: { edit: '1' } })
+      return
+    }
+    if (action.id === 'archive') await projectsApi.setArchived(project.id, project.status !== 'в архиве')
+    if (action.id === 'complete') {
+      if (!window.confirm(t('Завершить проект «{name}»? После этого он будет доступен только для просмотра.', { name: project.name }))) return
+      await projectsApi.complete(project.id)
+    }
+    if (action.id === 'delete') {
+      if (!window.confirm(t('Удалить проект «{name}» и все связанные данные? Это действие нельзя отменить.', { name: project.name }))) return
+      await projectsApi.remove(project.id)
+    }
+    if (action.id === 'sync') {
+      const result = await integrationsApi.runProjectSyncs(project.id)
+      const notify = result.failed > 0 ? notifications.warning : notifications.success
+      notify(t('Синхронизация завершена'))
+      for (const item of result.items) applySyncFeedback(item)
+    }
+    if (action.id.startsWith('folder:')) {
+      await projectsApi.update(project.id, { folder_id: action.id.slice('folder:'.length) || null })
+    }
+    loadProjects()
+  } catch (error) {
+    notifications.error(t(apiErrorMessage(error)))
+  }
+}
+
+async function createFolder(): Promise<void> {
+  const name = window.prompt(t('Название новой папки'))?.trim()
+  if (!name) return
+  try {
+    folders.value = [...folders.value, await projectsApi.createFolder(name)]
+  } catch (error) { notifications.error(t(apiErrorMessage(error))) }
+}
+
+async function renameFolder(folder: ProjectFolder): Promise<void> {
+  const name = window.prompt(t('Новое название папки'), folder.name)?.trim()
+  if (!name || name === folder.name) return
+  try {
+    const updated = await projectsApi.updateFolder(folder.id, name)
+    folders.value = folders.value.map((item) => item.id === folder.id ? updated : item)
+  } catch (error) { notifications.error(t(apiErrorMessage(error))) }
+}
+
+async function deleteFolder(folder: ProjectFolder): Promise<void> {
+  if (!window.confirm(t('Удалить папку «{name}»? Проекты останутся без папки.', { name: folder.name }))) return
+  try {
+    await projectsApi.removeFolder(folder.id)
+    folders.value = folders.value.filter((item) => item.id !== folder.id)
+    loadProjects()
+  } catch (error) { notifications.error(t(apiErrorMessage(error))) }
+}
+
+function startProjectDrag(event: DragEvent, project: Project): void {
+  if (!canReorderProjects.value) { event.preventDefault(); return }
+  draggedProjectId.value = project.id
+  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+}
+
+async function dropProject(targetProject: Project, targetFolderId: string | null): Promise<void> {
+  const sourceId = draggedProjectId.value
+  draggedProjectId.value = null
+  if (!sourceId || sourceId === targetProject.id) return
+  const ordered = projectGroups.value.flatMap((group) => group.projects.map((project) => project.id))
+  const from = ordered.indexOf(sourceId)
+  const to = ordered.indexOf(targetProject.id)
+  if (from < 0 || to < 0) return
+  ordered.splice(from, 1)
+  const targetIndex = ordered.indexOf(targetProject.id)
+  ordered.splice(from < to ? targetIndex + 1 : targetIndex, 0, sourceId)
+  const source = store.projects.find((project) => project.id === sourceId)
+  try {
+    if (source && source.folder_id !== targetFolderId) await projectsApi.update(sourceId, { folder_id: targetFolderId })
+    await store.reorderProjects(ordered)
+    loadProjects()
+  } catch (error) { notifications.error(t(apiErrorMessage(error))) }
+}
+
 watch(search, (value) => {
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(() => {
@@ -418,6 +552,9 @@ onBeforeUnmount(() => {
               <IonIcon :icon="addOutline" aria-hidden="true" />
               {{ t('Новый проект') }}
             </button>
+            <button class="nf-button nf-button--secondary" type="button" @click="createFolder">
+              {{ t('Новая папка') }}
+            </button>
           </div>
         </header>
 
@@ -483,6 +620,7 @@ onBeforeUnmount(() => {
           <label class="toolbar-select" for="project-sort">
             <span>{{ t('Сортировка') }}</span>
             <select id="project-sort" v-model="sort">
+              <option value="manual">{{ t('Свободный порядок') }}</option>
               <option value="progress">{{ t('По прогрессу') }}</option>
               <option value="updated">{{ t('Недавно изменённые') }}</option>
               <option value="deadline">{{ t('По сроку') }}</option>
@@ -534,46 +672,37 @@ onBeforeUnmount(() => {
           </button>
         </StatePanel>
 
-        <section
-          v-else-if="hasMixedProjectCards"
-          class="project-mixed-grid"
-          :class="{ 'project-grid--updating': store.loading }"
-          :aria-busy="store.loading"
-          :aria-label="t('Список проектов')"
-        >
-          <TransitionGroup tag="div" class="project-mixed-grid__covers">
-            <ProjectCard
-              v-for="project in store.projects.filter((item) => item.cover_image)"
-              :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
-              :project="project"
-              :streaks-enabled="streaksEnabled"
-            />
-          </TransitionGroup>
-          <TransitionGroup tag="div" class="project-mixed-grid__plain">
-            <ProjectCard
-              v-for="project in store.projects.filter((item) => !item.cover_image)"
-              :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
-              :project="project"
-              :streaks-enabled="streaksEnabled"
-            />
-          </TransitionGroup>
-        </section>
-
-        <TransitionGroup
-          v-else
-          tag="section"
-          class="project-grid"
-          :class="{ 'project-grid--updating': store.loading }"
-          :aria-busy="store.loading"
-          :aria-label="t('Список проектов')"
-        >
-          <ProjectCard
-            v-for="project in store.projects"
-            :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
-            :project="project"
-            :streaks-enabled="streaksEnabled"
-          />
-        </TransitionGroup>
+        <div v-else class="project-folders" :class="{ 'project-grid--updating': store.loading }">
+          <section
+            v-for="group in projectGroups"
+            :key="group.id ?? 'unfiled'"
+            class="project-folder"
+            @dragover="canReorderProjects && $event.preventDefault()"
+          >
+            <header v-if="folders.length" class="project-folder__header">
+              <h2>{{ group.name }}</h2>
+              <div v-if="group.id">
+                <button type="button" @click="renameFolder(folders.find((folder) => folder.id === group.id)!)">{{ t('Переименовать') }}</button>
+                <button type="button" class="project-folder__delete" @click="deleteFolder(folders.find((folder) => folder.id === group.id)!)">{{ t('Удалить папку') }}</button>
+              </div>
+            </header>
+            <TransitionGroup tag="div" class="project-grid" :aria-label="group.name">
+              <ProjectCard
+                v-for="project in group.projects"
+                :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
+                :project="project"
+                :streaks-enabled="streaksEnabled"
+                :draggable="canReorderProjects"
+                @context="openProjectContext"
+                @dragstart="startProjectDrag"
+                @dragend="draggedProjectId = null"
+                @dragover.prevent
+                @drop.prevent="dropProject(project, group.id)"
+              />
+            </TransitionGroup>
+            <p v-if="!group.projects.length" class="project-folder__empty">{{ t('Перетащите сюда проекты или выберите папку в контекстном меню.') }}</p>
+          </section>
+        </div>
       </div>
     </IonContent>
 
@@ -584,6 +713,15 @@ onBeforeUnmount(() => {
       :api-error="store.createError"
       @close="closeCreateDialog"
       @submit="createProject"
+    />
+    <ContextActionMenu
+      :open="contextProject !== null"
+      :x="contextPosition.x"
+      :y="contextPosition.y"
+      :label="contextProject ? t('Действия проекта') : ''"
+      :actions="contextActions"
+      @close="contextProject = null"
+      @select="handleContextAction"
     />
   </IonPage>
 </template>
@@ -811,6 +949,17 @@ onBeforeUnmount(() => {
   gap: var(--nf-space-4);
   transition: opacity 120ms ease;
 }
+
+.project-folders { display: grid; gap: var(--nf-space-6); }
+.project-folder { min-width: 0; }
+.project-folder__header { display: flex; gap: var(--nf-space-3); align-items: center; justify-content: space-between; margin: 0 0 var(--nf-space-3); }
+.project-folder__header h2 { margin: 0; font-family: var(--nf-font-serif); font-size: 1.35rem; }
+.project-folder__header div { display: flex; gap: var(--nf-space-2); }
+.project-folder__header button { padding: .35rem .55rem; border: 0; background: transparent; color: var(--nf-color-primary); font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.project-folder__header .project-folder__delete { color: var(--nf-color-danger); }
+.project-folder__empty { margin: 0; padding: var(--nf-space-5); border: 1px dashed var(--nf-color-border); border-radius: var(--nf-radius-md); color: var(--nf-color-text-muted); text-align: center; }
+.project-card[draggable="true"] { cursor: grab; }
+.project-card[draggable="true"]:active { cursor: grabbing; }
 
 .project-grid--updating {
   opacity: 0.58;

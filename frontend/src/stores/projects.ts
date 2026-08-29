@@ -177,6 +177,17 @@ export const useProjectsStore = defineStore('projects', () => {
     )
   }
 
+  async function reorderProjects(projectIds: string[]): Promise<boolean> {
+    try {
+      projects.value = await projectsApi.reorder(projectIds)
+      announceDataChange('projects')
+      return true
+    } catch (mutationError) {
+      error.value = apiErrorMessage(mutationError)
+      return false
+    }
+  }
+
   function completeCurrent(projectId: string): Promise<Project | null> {
     return runDetailMutation('complete-project', () => projectsApi.complete(projectId))
   }
@@ -318,6 +329,7 @@ export const useProjectsStore = defineStore('projects', () => {
     clearDetailActionError,
     updateCurrent,
     setArchived,
+    reorderProjects,
     completeCurrent,
     removeCurrent,
     createStage,

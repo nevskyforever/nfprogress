@@ -84,7 +84,7 @@ const isStageDetail = computed(() => openedStage.value !== null)
 const presentation = useProjectPresentation(detailEntity)
 const isSharedProject = computed(() => project.value.name === 'Общий проект')
 const streaksEnabled = ref(false)
-const stageSort = ref<StageSort>('progress')
+const stageSort = ref<StageSort>('manual')
 let stageSortSaveChain: Promise<void> = Promise.resolve()
 const displayedStreakEntity = computed<Project | null>(() => {
   if (!streaksEnabled.value || !store.currentProject) return null
@@ -184,6 +184,12 @@ async function loadProject(): Promise<void> {
   chooseAvailableEntity()
   refreshStatistics()
   await Promise.all([loadSyncSummary(), loadStreakSummaries()])
+  if (route.query?.edit === '1' && project.value.status !== 'завершен' && !isSharedProject.value) {
+    openProjectEdit()
+    const query = { ...(route.query ?? {}) }
+    delete query.edit
+    void router.replace({ name: route.name ?? undefined, params: route.params, query })
+  }
 }
 
 async function refreshChangedProject(): Promise<void> {
@@ -207,7 +213,8 @@ async function loadStreakSummaries(): Promise<void> {
     streaksEnabled.value = enabledSetting(settings.values.global_streak)
     const savedStageSort = settings.values.frontend_stage_sort
     if (
-      savedStageSort === 'name'
+      savedStageSort === 'manual'
+      || savedStageSort === 'name'
       || savedStageSort === 'deadline'
       || savedStageSort === 'progress'
       || savedStageSort === 'updated'
@@ -531,6 +538,23 @@ async function reorderStages(stageIds: string[]): Promise<void> {
   if (updated) announceSuccess(t('Порядок этапов сохранён.'))
 }
 
+async function synchronizeStage(stage: Project): Promise<void> {
+  feedbackArea.value = 'global'
+  syncRunning.value = true
+  try {
+    const result = await integrationsApi.runSync(project.value.id, stage.id)
+    applyProgressFeedback(result.progress, stage.id)
+    applyGameFeedback(result.progress?.game ?? null)
+    announceSuccess(t(result.changed ? 'Синхронизация завершена' : 'Документ не изменился. Текущий объём уже актуален.'))
+    await store.refreshCurrent(project.value.id)
+    refreshStatistics()
+  } catch (error) {
+    store.detailActionError = t(apiErrorMessage(error))
+  } finally {
+    syncRunning.value = false
+  }
+}
+
 async function recordProgress(payload: ProgressCreate): Promise<void> {
   const result = await store.recordProgress(project.value.id, payload)
   if (!result) return
@@ -764,6 +788,7 @@ onBeforeUnmount(() => {
             @copy="copyStageProgress"
             @save="downloadStageProgress"
             @open="openStage"
+            @sync="synchronizeStage"
             @sort="saveStageSort"
           />
           <ProgressWorkspace

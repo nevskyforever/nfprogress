@@ -14,6 +14,10 @@ from ..schemas import (
     ProjectCreate,
     ProjectResponse,
     ProjectUpdate,
+    ProjectFolderCreate,
+    ProjectFolderResponse,
+    ProjectFolderUpdate,
+    ReorderProjects,
     ReorderStages,
     StageCreate,
     StatisticsResponse,
@@ -29,7 +33,7 @@ def list_projects(
         services: Annotated[Services, Depends(get_services)],
         project_status: str | None = Query(default=None, alias='status'),
         search: str = '',
-        sort: Literal['name', 'deadline', 'progress', 'updated'] = 'progress',
+        sort: Literal['manual', 'name', 'deadline', 'progress', 'updated'] = 'manual',
 ):
     return services.projects.list_projects(
         status=project_status, search=search, sort=sort,
@@ -42,6 +46,47 @@ def create_project(
         services: Annotated[Services, Depends(get_services)],
 ):
     return services.projects.create_project(payload.model_dump())
+
+
+@router.get('/folders', response_model=list[ProjectFolderResponse])
+def list_project_folders(
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.projects.list_folders()
+
+
+@router.post('/folders', response_model=ProjectFolderResponse, status_code=status.HTTP_201_CREATED)
+def create_project_folder(
+        payload: ProjectFolderCreate,
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.projects.create_folder(payload.name)
+
+
+@router.patch('/folders/{folder_id}', response_model=ProjectFolderResponse)
+def update_project_folder(
+        folder_id: str,
+        payload: ProjectFolderUpdate,
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.projects.update_folder(folder_id, payload.name)
+
+
+@router.delete('/folders/{folder_id}', status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_folder(
+        folder_id: str,
+        services: Annotated[Services, Depends(get_services)],
+):
+    services.projects.delete_folder(folder_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.put('/order', response_model=list[ProjectResponse])
+def reorder_projects(
+        payload: ReorderProjects,
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.projects.reorder_projects(payload.project_ids)
 
 
 @router.get('/today', response_model=TodaySummaryResponse)

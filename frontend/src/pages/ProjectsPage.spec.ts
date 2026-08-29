@@ -11,10 +11,11 @@ import { projectFixture } from '@/test/fixtures'
 import ProjectsPage from './ProjectsPage.vue'
 
 const replaceRoute = vi.fn()
+const pushRoute = vi.fn()
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: {} }),
-  useRouter: () => ({ replace: replaceRoute, push: vi.fn() }),
+  useRouter: () => ({ replace: replaceRoute, push: pushRoute }),
 }))
 
 vi.mock('@/api/projects', () => ({
@@ -22,6 +23,7 @@ vi.mock('@/api/projects', () => ({
     list: vi.fn(),
     today: vi.fn(),
     globalStreak: vi.fn(),
+    folders: vi.fn(),
     create: vi.fn(),
   },
 }))
@@ -37,9 +39,11 @@ vi.mock('@/api/integrations', () => ({
 describe('ProjectsPage streak summaries', () => {
   beforeEach(() => {
     replaceRoute.mockReset()
+    pushRoute.mockReset()
     vi.mocked(projectsApi.list).mockResolvedValue([
       projectFixture({ streak_length: 2, streak_status: 'Active' }),
     ])
+    vi.mocked(projectsApi.folders).mockResolvedValue([])
     vi.mocked(projectsApi.globalStreak).mockResolvedValue({
       enabled: true,
       status: 'Go',
@@ -92,7 +96,32 @@ describe('ProjectsPage streak summaries', () => {
     wrapper.unmount()
   })
 
-  it('uses compact columns only when the list mixes covered and uncovered projects', async () => {
+  it('opens only available project actions from the right-click menu', async () => {
+    const wrapper = mount(ProjectsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' }, IonIcon: true,
+          IonPage: { template: '<div><slot /></div>' }, ProjectCreateDialog: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+    await wrapper.get('.project-card').trigger('contextmenu', { clientX: 20, clientY: 20 })
+    await wrapper.vm.$nextTick()
+
+    const menuButtons = [...document.body.querySelectorAll<HTMLButtonElement>('.context-action-menu button')]
+    expect(menuButtons.some((button) => button.textContent === 'Изменить')).toBe(true)
+    expect(menuButtons.some((button) => button.textContent === 'Завершить')).toBe(false)
+    menuButtons.find((button) => button.textContent === 'Изменить')?.click()
+    await flushPromises()
+    expect(pushRoute).toHaveBeenCalledWith(expect.objectContaining({ name: 'project-detail' }))
+    wrapper.unmount()
+    document.body.innerHTML = ''
+  })
+
+  it('keeps covered and uncovered projects in one freely reorderable grid', async () => {
     vi.mocked(projectsApi.list).mockResolvedValue([
       projectFixture({ id: 'covered', cover_image: 'data:image/jpeg;base64,/9j/2Q==' }),
       projectFixture({ id: 'plain', cover_image: null }),
@@ -111,9 +140,9 @@ describe('ProjectsPage streak summaries', () => {
     })
     await flushPromises()
 
-    expect(wrapper.find('.project-mixed-grid').exists()).toBe(true)
-    expect(wrapper.get('.project-mixed-grid__covers').findAll('.project-card')).toHaveLength(1)
-    expect(wrapper.get('.project-mixed-grid__plain').findAll('.project-card')).toHaveLength(1)
+    expect(wrapper.find('.project-mixed-grid').exists()).toBe(false)
+    expect(wrapper.get('.project-grid').findAll('.project-card')).toHaveLength(2)
+    expect(wrapper.get('.project-card').attributes('draggable')).toBe('true')
     wrapper.unmount()
   })
 

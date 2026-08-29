@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import uuid
 from collections import defaultdict
 from datetime import date, datetime
 from typing import Any, Callable
@@ -29,7 +30,7 @@ class ProjectService:
             *,
             status: str | None = None,
             search: str = '',
-            sort: str = 'progress',
+            sort: str = 'manual',
     ) -> list[dict[str, Any]]:
         if status is not None and status not in VALID_STATUSES:
             raise ValidationError('Неизвестный статус проекта.')
@@ -46,7 +47,23 @@ class ProjectService:
                 or any(query in stage.name.casefold() for stage in project.stages)
             ]
 
+        saved_order = data.get('project_order', [])
+        order_index = {
+            project_id: index
+            for index, project_id in enumerate(saved_order)
+            if isinstance(project_id, str)
+        } if isinstance(saved_order, list) else {}
+        fallback_index = {
+            project.project_id: index for index, project in enumerate(projects)
+        }
         sorters: dict[str, Callable[[engine.Project], Any]] = {
+            'manual': lambda project: (
+                order_index.get(
+                    project.project_id,
+                    len(order_index) + fallback_index[project.project_id],
+                ),
+                project.name.casefold(),
+            ),
             'name': lambda project: project.name.casefold(),
             'deadline': lambda project: (
                 project.deadline == 'Нет',
@@ -104,6 +121,7 @@ class ProjectService:
                 auto_freeze=bool(payload.get('auto_freeze', True)),
             )
             project.cover_image = self._validated_cover_image(payload.get('cover_image'))
+            project.folder_id = self._validated_folder_id(data, payload.get('folder_id'))
             project.set_streak_state(bool(payload.get('streak_enabled', False)))
             for stage_payload in payload.get('stages', []):
                 project.stages.append(self._new_stage(project, stage_payload))
@@ -116,6 +134,10 @@ class ProjectService:
             )
             project.get_today_goal_value()
             projects[project.name] = project
+            order = data.setdefault('project_order', [])
+            if not isinstance(order, list):
+                order = data['project_order'] = []
+            order.append(project.project_id)
             data['last'] = project.name
             return serialize_project(project)
 
@@ -128,7 +150,8 @@ class ProjectService:
             project = self._find_project(data, project_id)
             if self._is_shared_project(project):
                 raise ValidationError('Общий проект управляется через настройки.')
-            self._require_editable(project)
+            if set(payload) != {'folder_id'}:
+                self._require_editable(project)
             projects = data['projects']
             old_name = project.name
             old_unit = project.unit
@@ -196,6 +219,8 @@ class ProjectService:
                 project.auto_freeze = bool(payload['auto_freeze'])
             if 'cover_image' in payload:
                 project.cover_image = self._validated_cover_image(payload['cover_image'])
+            if 'folder_id' in payload:
+                project.folder_id = self._validated_folder_id(data, payload['folder_id'])
             if 'streak_enabled' in payload:
                 project.set_streak_state(bool(payload['streak_enabled']))
 
@@ -238,10 +263,114 @@ class ProjectService:
             if self._is_shared_project(project):
                 raise ValidationError('Общий проект можно отключить только в настройках.')
             del data['projects'][project.name]
+            order = data.get('project_order')
+            if isinstance(order, list):
+                data['project_order'] = [item for item in order if item != project.project_id]
             if data.get('last') == project.name:
                 data['last'] = None
 
         self.repository.update_projects(mutate)
+
+    def reorder_projects(self, project_ids: list[str]) -> list[dict[str, Any]]:
+        def mutate(data):
+            projects = list(data.get('projects', {}).values())
+            existing_ids = {project.project_id for project in projects}
+            if set(project_ids) != existing_ids or len(project_ids) != len(existing_ids):
+                raise ValidationError('Порядок должен содержать каждый проект ровно один раз.')
+            data['project_order'] = list(project_ids)
+            by_id = {project.project_id: project for project in projects}
+            return [serialize_project(by_id[project_id]) for project_id in project_ids]
+
+        return self.repository.update_projects(mutate)
+
+    def list_folders(self) -> list[dict[str, str]]:
+        data = self.repository.read_projects()
+        return self._normalized_folders(data)
+
+    def create_folder(self, name: str) -> dict[str, str]:
+        normalized_name = self._validated_folder_name(name)
+
+        def mutate(data):
+            folders = self._normalized_folders(data)
+            if any(folder['name'].casefold() == normalized_name.casefold() for folder in folders):
+                raise ConflictError('Папка с таким названием уже существует.')
+            folder = {'id': uuid.uuid4().hex, 'name': normalized_name}
+            folders.append(folder)
+            data['project_folders'] = folders
+            return folder
+
+        return self.repository.update_projects(mutate)
+
+    def update_folder(self, folder_id: str, name: str) -> dict[str, str]:
+        normalized_name = self._validated_folder_name(name)
+
+        def mutate(data):
+            folders = self._normalized_folders(data)
+            folder = next((item for item in folders if item['id'] == folder_id), None)
+            if folder is None:
+                raise NotFoundError('Папка не найдена.')
+            if any(
+                item['id'] != folder_id and item['name'].casefold() == normalized_name.casefold()
+                for item in folders
+            ):
+                raise ConflictError('Папка с таким названием уже существует.')
+            folder['name'] = normalized_name
+            data['project_folders'] = folders
+            return folder
+
+        return self.repository.update_projects(mutate)
+
+    def delete_folder(self, folder_id: str) -> None:
+        def mutate(data):
+            folders = self._normalized_folders(data)
+            if not any(folder['id'] == folder_id for folder in folders):
+                raise NotFoundError('Папка не найдена.')
+            data['project_folders'] = [folder for folder in folders if folder['id'] != folder_id]
+            for project in data.get('projects', {}).values():
+                if getattr(project, 'folder_id', None) == folder_id:
+                    project.folder_id = None
+
+        self.repository.update_projects(mutate)
+
+    @staticmethod
+    def _normalized_folders(data: dict[str, Any]) -> list[dict[str, str]]:
+        raw_folders = data.get('project_folders', [])
+        if not isinstance(raw_folders, list):
+            return []
+        folders: list[dict[str, str]] = []
+        seen_ids: set[str] = set()
+        for item in raw_folders:
+            if not isinstance(item, dict):
+                continue
+            folder_id = item.get('id')
+            name = item.get('name')
+            if (
+                not isinstance(folder_id, str) or not folder_id or folder_id in seen_ids
+                or not isinstance(name, str) or not name.strip()
+            ):
+                continue
+            seen_ids.add(folder_id)
+            folders.append({'id': folder_id, 'name': name.strip()[:120]})
+        return folders
+
+    @classmethod
+    def _validated_folder_id(cls, data: dict[str, Any], value: Any) -> str | None:
+        if value is None:
+            return None
+        if not isinstance(value, str) or not value:
+            raise ValidationError('Некорректная папка проекта.')
+        if not any(folder['id'] == value for folder in cls._normalized_folders(data)):
+            raise ValidationError('Папка проекта не найдена.')
+        return value
+
+    @staticmethod
+    def _validated_folder_name(value: Any) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValidationError('Введите название папки.')
+        name = value.strip()
+        if len(name) > 120:
+            raise ValidationError('Название папки не должно быть длиннее 120 символов.')
+        return name
 
     def set_project_archived(self, project_id: str, archived: bool) -> dict[str, Any]:
         def mutate(data):

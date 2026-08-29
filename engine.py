@@ -1175,6 +1175,9 @@ class Project:
         # A cropped 2:3 data URL used by the Vue project cards.  Keeping it on
         # the project makes covers available to desktop and offline clients.
         self.cover_image = None
+        # Optional stable identifier of a user-created project folder.  The
+        # folder catalogue itself lives beside the projects in the save file.
+        self.folder_id = None
 
     def migrate(self):
         """Проверяет наличие всех атрибутов и добавляет недостающие"""
@@ -1216,6 +1219,7 @@ class Project:
             'combine_stage_mindmaps': False,
             'project_notes': [],
             'cover_image': None,
+            'folder_id': None,
         }
 
         for attr, default_value in defaults.items():
@@ -1257,6 +1261,8 @@ class Project:
         if not isinstance(self.combine_stage_mindmaps, bool):
             self.combine_stage_mindmaps = False
         self.cover_image = normalize_project_cover_image(self.cover_image)
+        if not isinstance(self.folder_id, str) or not self.folder_id:
+            self.folder_id = None
 
         for index, stage in enumerate(self.stages):
             if not isinstance(stage, Stage):

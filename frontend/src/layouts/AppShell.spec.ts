@@ -80,6 +80,13 @@ describe('AppShell preferences', () => {
     vi.mocked(contentApi.locale).mockResolvedValue({})
   })
 
+  it('shows global project map and note workspaces in navigation', () => {
+    const { wrapper } = mountShell()
+    const navigation = wrapper.get('.primary-navigation').text()
+    expect(navigation).toContain('Карты')
+    expect(navigation).toContain('Заметки')
+  })
+
   it('waits for backend confirmation before changing the theme', async () => {
     let confirmUpdate: ((settings: SettingsResponse) => void) | undefined
     vi.mocked(settingsApi.update).mockReturnValue(

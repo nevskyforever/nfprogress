@@ -32,6 +32,26 @@ const router = createRouter({
       meta: { title: 'Заметки проекта' },
     },
     {
+      path: '/maps', name: 'maps',
+      component: () => import('@/pages/ProjectResourceHubPage.vue'),
+      meta: { title: 'Карты проектов', resourceView: 'mindmap' },
+    },
+    {
+      path: '/maps/:projectId', name: 'global-project-map',
+      component: () => import('@/pages/NotesPage.vue'), props: true,
+      meta: { title: 'Карта проекта', resourceView: 'mindmap', resourceHub: 'maps' },
+    },
+    {
+      path: '/notes', name: 'notes',
+      component: () => import('@/pages/ProjectResourceHubPage.vue'),
+      meta: { title: 'Заметки проектов', resourceView: 'notes' },
+    },
+    {
+      path: '/notes/:projectId', name: 'global-project-notes',
+      component: () => import('@/pages/NotesPage.vue'), props: true,
+      meta: { title: 'Заметки проекта', resourceView: 'notes', resourceHub: 'notes' },
+    },
+    {
       path: '/game',
       name: 'game',
       component: () => import('@/pages/GamePage.vue'),
