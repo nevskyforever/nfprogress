@@ -40,6 +40,7 @@ const readOnly = computed(() => props.project.status === 'завершен')
 const sharedProject = computed(() => props.project.name === 'Общий проект')
 const sort = ref<StageSort>(props.stageSort)
 const draggedStageId = ref<string | null>(null)
+const stageDragMimeType = 'application/x-nfprogress-stage-id'
 const contextStage = ref<Project | null>(null)
 const contextPosition = ref({ x: 0, y: 0 })
 const fractionDigits = computed(() => props.project.unit === 'symbols' ? 0 : 2)
@@ -73,10 +74,16 @@ function requestRemove(stage: Project): void {
 function startDrag(event: DragEvent, stage: Project): void {
   if (readOnly.value || sort.value !== 'manual') { event.preventDefault(); return }
   draggedStageId.value = stage.id
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData(stageDragMimeType, stage.id)
+    event.dataTransfer.setData('text/plain', stage.id)
+  }
 }
-function dropStage(targetStage: Project): void {
-  const sourceId = draggedStageId.value
+function dropStage(event: DragEvent, targetStage: Project): void {
+  const sourceId = event.dataTransfer?.getData(stageDragMimeType)
+    || event.dataTransfer?.getData('text/plain')
+    || draggedStageId.value
   draggedStageId.value = null
   if (!sourceId || sourceId === targetStage.id || sort.value !== 'manual') return
   const ids = sortedStages.value.map((stage) => stage.id)
@@ -146,7 +153,7 @@ watch(sort, (value) => emit('sort', value))
         @dragstart="startDrag($event, stage)"
         @dragend="draggedStageId = null"
         @dragover.prevent
-        @drop.prevent="dropStage(stage)"
+          @drop.prevent="dropStage($event, stage)"
         @contextmenu.prevent="openContext($event, stage)"
       >
         <button class="stage-open-button" type="button" :aria-label="`${t('Этапы')}: ${stage.name}`" @click="emit('open', stage)">

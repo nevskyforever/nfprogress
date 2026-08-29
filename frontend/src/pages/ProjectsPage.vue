@@ -100,6 +100,7 @@ const createPlanningDate = ref(todayIsoDate())
 const cardVersions = ref<Record<string, number>>({})
 const previousCardSignatures = new Map<string, string>()
 const pendingCardAnimations = new Set<string>()
+const projectDragMimeType = 'application/x-nfprogress-project-id'
 let projectViewActive = false
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 let preferencesController: AbortController | undefined
@@ -440,11 +441,23 @@ async function deleteFolder(folder: ProjectFolder): Promise<void> {
 function startProjectDrag(event: DragEvent, project: Project): void {
   if (!canReorderProjects.value) { event.preventDefault(); return }
   draggedProjectId.value = project.id
-  if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'
+  if (event.dataTransfer) {
+    // A data item is required for native drag-and-drop in Firefox and Safari.
+    // It also preserves the source when the drag crosses a Vue component boundary.
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData(projectDragMimeType, project.id)
+    event.dataTransfer.setData('text/plain', project.id)
+  }
 }
 
-async function dropProject(targetProject: Project, targetFolderId: string | null): Promise<void> {
-  const sourceId = draggedProjectId.value
+async function dropProject(
+  event: DragEvent,
+  targetProject: Project,
+  targetFolderId: string | null,
+): Promise<void> {
+  const sourceId = event.dataTransfer?.getData(projectDragMimeType)
+    || event.dataTransfer?.getData('text/plain')
+    || draggedProjectId.value
   draggedProjectId.value = null
   if (!sourceId || sourceId === targetProject.id) return
   const ordered = projectGroups.value.flatMap((group) => group.projects.map((project) => project.id))
@@ -697,7 +710,7 @@ onBeforeUnmount(() => {
                 @dragstart="startProjectDrag"
                 @dragend="draggedProjectId = null"
                 @dragover.prevent
-                @drop.prevent="dropProject(project, group.id)"
+                @drop.prevent="dropProject($event, project, group.id)"
               />
             </TransitionGroup>
             <p v-if="!group.projects.length" class="project-folder__empty">{{ t('Перетащите сюда проекты или выберите папку в контекстном меню.') }}</p>

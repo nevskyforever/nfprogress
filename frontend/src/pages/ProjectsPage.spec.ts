@@ -25,6 +25,7 @@ vi.mock('@/api/projects', () => ({
     globalStreak: vi.fn(),
     folders: vi.fn(),
     create: vi.fn(),
+    reorder: vi.fn(),
   },
 }))
 
@@ -93,6 +94,39 @@ describe('ProjectsPage streak summaries', () => {
     expect(wrapper.get('.workspace-summary--streak').text()).toContain('4 дн.')
     expect(wrapper.get('.workspace-summary--streak').text()).toContain('Максимум: 9')
     expect(wrapper.get('.project-card__streak').attributes('aria-label')).toContain('2 дн.')
+    wrapper.unmount()
+  })
+
+  it('uses browser drag data to reorder projects', async () => {
+    const first = projectFixture({ id: 'project-a', name: 'Первая история' })
+    const second = projectFixture({ id: 'project-b', name: 'Вторая история' })
+    vi.mocked(projectsApi.list).mockResolvedValue([first, second])
+    vi.mocked(projectsApi.reorder).mockResolvedValue([second, first])
+    const wrapper = mount(ProjectsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' }, IonIcon: true,
+          IonPage: { template: '<div><slot /></div>' }, ProjectCreateDialog: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+
+    const data = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: '',
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? '',
+    }
+    const cards = wrapper.findAll('.project-card')
+    await cards[0]?.trigger('dragstart', { dataTransfer })
+    await cards[1]?.trigger('drop', { dataTransfer })
+    await flushPromises()
+
+    expect(data.get('application/x-nfprogress-project-id')).toBe('project-a')
+    expect(projectsApi.reorder).toHaveBeenCalledWith(['project-b', 'project-a'])
     wrapper.unmount()
   })
 

@@ -21,10 +21,17 @@ describe('StageWorkspace', () => {
     })
 
     const cards = wrapper.findAll('.stage-card')
-    await cards[0]?.trigger('dragstart', { dataTransfer: { effectAllowed: '' } })
-    await cards[1]?.trigger('drop')
+    const data = new Map<string, string>()
+    const dataTransfer = {
+      effectAllowed: '',
+      setData: (type: string, value: string) => data.set(type, value),
+      getData: (type: string) => data.get(type) ?? '',
+    }
+    await cards[0]?.trigger('dragstart', { dataTransfer })
+    await cards[1]?.trigger('drop', { dataTransfer })
 
     expect(wrapper.emitted('reorder')?.[0]?.[0]).toEqual(['stage-b', 'stage-a'])
+    expect(data.get('application/x-nfprogress-stage-id')).toBe('stage-a')
   })
 
   it('confirms destructive stage deletion before emitting it', async () => {
