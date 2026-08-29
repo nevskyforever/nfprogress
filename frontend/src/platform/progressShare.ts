@@ -386,7 +386,7 @@ function projectCardColors(theme: ProgressSharePayload['theme']): ProjectCardCol
     : {
         canvas: '#F5F5F7', surface: '#FFFFFF', surfaceMuted: '#F0F1F4', text: '#202124',
         textMuted: '#687078', border: '#C7C9CE', primary: '#4263EB', primarySoft: '#E8ECFF',
-        accent: '#4263EB', brand: '#4263EB', shadow: 'rgb(0 0 0 / 15%)',
+        accent: '#4263EB', brand: '#0D236A', shadow: 'rgb(0 0 0 / 15%)',
       }
 }
 
