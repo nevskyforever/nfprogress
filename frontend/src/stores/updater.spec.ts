@@ -4,6 +4,7 @@ import { check } from '@tauri-apps/plugin-updater'
 import { exit, relaunch } from '@tauri-apps/plugin-process'
 import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
 
 import {
   supportsMacUpdateChecks,
@@ -30,6 +31,10 @@ vi.mock('@tauri-apps/api/core', () => ({
   invoke: vi.fn(),
 }))
 
+vi.mock('@tauri-apps/api/event', () => ({
+  listen: vi.fn(),
+}))
+
 vi.mock('@/platform/runtime', () => ({
   supportsNativeUpdates: vi.fn(() => true),
   supportsMacUpdateChecks: vi.fn(() => false),
@@ -43,10 +48,12 @@ describe('updater store', () => {
     vi.mocked(relaunch).mockReset()
     vi.mocked(getVersion).mockReset()
     vi.mocked(invoke).mockReset()
+    vi.mocked(listen).mockReset()
     vi.mocked(supportsNativeUpdates).mockReset()
     vi.mocked(supportsMacUpdateChecks).mockReset()
     vi.mocked(supportsNativeUpdates).mockReturnValue(true)
     vi.mocked(supportsMacUpdateChecks).mockReturnValue(false)
+    vi.mocked(listen).mockResolvedValue(() => undefined)
   })
 
   it('reports the current version after an explicit check', async () => {
@@ -150,6 +157,11 @@ describe('updater store', () => {
         },
       })
       .mockResolvedValueOnce(true)
+    vi.mocked(listen).mockImplementation(async (_event, handler) => {
+      handler({ payload: { downloadedBytes: 60, totalBytes: 100 } } as never)
+      handler({ payload: { downloadedBytes: 100, totalBytes: 100 } } as never)
+      return () => undefined
+    })
     const updater = useUpdaterStore()
 
     await updater.checkForUpdates()
@@ -161,6 +173,7 @@ describe('updater store', () => {
       size: 100,
     })
     expect(exit).toHaveBeenCalledWith(0)
+    expect(updater.progressPercent).toBe(100)
   })
 
   it('reports an installation error instead of opening a browser', async () => {

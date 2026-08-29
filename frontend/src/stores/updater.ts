@@ -150,19 +150,38 @@ export const useUpdaterStore = defineStore('updater', () => {
   async function installUpdate(): Promise<void> {
     if (pendingMacUrl) {
       try {
-        status.value = 'installing'
-        const { invoke } = await import('@tauri-apps/api/core')
-        const installationStarted = await invoke<boolean>(
-          'install_macos_update',
-          {
-            url: pendingMacUrl,
-            sha256: pendingMacSha256,
-            size: pendingMacSize,
-          },
-        )
+        status.value = 'downloading'
+        downloadedBytes.value = 0
+        totalBytes.value = pendingMacSize
+        errorMessage.value = ''
+        const [{ invoke }, { listen }] = await Promise.all([
+          import('@tauri-apps/api/core'),
+          import('@tauri-apps/api/event'),
+        ])
+        const unlisten = await listen<{
+          downloadedBytes: number
+          totalBytes: number
+        }>('macos-update-progress', ({ payload }) => {
+          downloadedBytes.value = payload.downloadedBytes
+          totalBytes.value = payload.totalBytes
+        })
+        let installationStarted = false
+        try {
+          installationStarted = await invoke<boolean>(
+            'install_macos_update',
+            {
+              url: pendingMacUrl,
+              sha256: pendingMacSha256,
+              size: pendingMacSize,
+            },
+          )
+        } finally {
+          unlisten()
+        }
         if (!installationStarted) {
           throw new Error('Не удалось определить приложение для установки обновления.')
         }
+        status.value = 'installing'
         const { exit } = await import('@tauri-apps/plugin-process')
         await exit(0)
       } catch (error) {
