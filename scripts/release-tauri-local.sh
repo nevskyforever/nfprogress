@@ -25,10 +25,17 @@ esac
 python3 "$ROOT_DIR/scripts/sync-tauri-versions.py"
 VERSION="$(python3 "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"
+SOURCE_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 
-if [ ! -f "$ARTIFACT_PATH" ]; then
+if [ -f "$ARTIFACT_PATH" ] \
+  && ! python3 "$ROOT_DIR/scripts/verify-tauri-artifact.py" "$ARTIFACT_PATH" "$SOURCE_REVISION"; then
+  echo "Существующий Tauri-архив устарел после изменений ветки; выполняется новая сборка."
+  "$ROOT_DIR/scripts/build-tauri-local.sh" "$ARCH"
+elif [ ! -f "$ARTIFACT_PATH" ]; then
   "$ROOT_DIR/scripts/build-tauri-local.sh" "$ARCH"
 fi
+
+python3 "$ROOT_DIR/scripts/verify-tauri-artifact.py" "$ARTIFACT_PATH" "$SOURCE_REVISION"
 
 echo "Локальный Tauri-архив готов: $ARTIFACT_PATH"
 

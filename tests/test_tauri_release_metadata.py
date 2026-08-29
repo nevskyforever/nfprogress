@@ -1,5 +1,6 @@
 import importlib.util
 import tomllib
+import zipfile
 from pathlib import Path
 
 
@@ -26,6 +27,9 @@ windows_release_options = _load_script(
 sync_versions = _load_script(
     'sync-tauri-versions.py', 'sync_tauri_versions',
 )
+artifact_revision = _load_script(
+    'verify-tauri-artifact.py', 'verify_tauri_artifact',
+).artifact_revision
 
 
 def test_engine_versions_are_normalized_to_three_components():
@@ -79,3 +83,15 @@ def test_windows_sidecar_has_stable_identity_and_uncompressed_payload():
     assert '--product-name=nfprogress' in options
     assert f'--file-version={version}' in options
     assert any(option.startswith('--windows-icon-from-ico=') for option in options)
+
+
+def test_tauri_archive_exposes_its_source_revision(tmp_path):
+    revision = '0123456789abcdef0123456789abcdef01234567'
+    archive_path = tmp_path / 'nfprogress-mac.zip'
+    with zipfile.ZipFile(archive_path, 'w') as archive:
+        archive.writestr(
+            'nfprogress-tauri-mac-arm-5.2.0/SOURCE_CODE.txt',
+            f'Исходный код\n\nРевизия сборки: {revision}\n',
+        )
+
+    assert artifact_revision(archive_path) == revision
