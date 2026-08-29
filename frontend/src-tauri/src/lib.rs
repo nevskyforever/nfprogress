@@ -133,6 +133,16 @@ mod tests {
         );
     }
 
+    #[test]
+    fn packaged_macos_app_is_resolved_from_the_current_executable() {
+        assert_eq!(
+            macos_update_target(Path::new(
+                "/Applications/nfprogress.app/Contents/MacOS/nfprogress-desktop",
+            )),
+            Some(Path::new("/Applications/nfprogress.app").to_path_buf()),
+        );
+    }
+
     #[cfg(target_os = "macos")]
     #[test]
     fn macos_updater_script_has_valid_shell_syntax() {
@@ -290,11 +300,10 @@ fn install_macos_update(
     if sha256.len() != 64 || !sha256.bytes().all(|byte| byte.is_ascii_hexdigit()) || size == 0 {
         return Err("В манифесте отсутствуют данные проверки архива macOS.".to_string());
     }
-    let executable_dir = app
-        .path()
-        .executable_dir()
-        .map_err(|error| error.to_string())?;
-    let Some(target) = macos_update_target(&executable_dir) else {
+    // Tauri's PathResolver::executable_dir is the user's bin directory and is
+    // unsupported on macOS; current_exe resolves the running app bundle.
+    let executable = std::env::current_exe().map_err(|error| error.to_string())?;
+    let Some(target) = macos_update_target(&executable) else {
         return Ok(false);
     };
     let update_dir = app
