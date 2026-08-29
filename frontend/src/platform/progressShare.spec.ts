@@ -82,7 +82,7 @@ describe('progressShare', () => {
     expect(context.fillText).toHaveBeenCalledWith('nfprogress', expect.any(Number), 1026)
   })
 
-  it('copies a real PNG blob when the platform supports image clipboard writes', async () => {
+  it('starts the browser clipboard write before the PNG is generated', async () => {
     const context = drawingContext()
     const image = new Blob(['png'], { type: 'image/png' })
     const write = vi.fn().mockResolvedValue(undefined)
@@ -93,15 +93,19 @@ describe('progressShare', () => {
       value: { write },
     })
     class ClipboardItemMock {
-      constructor(readonly items: Record<string, Blob>) {}
+      constructor(readonly items: Record<string, Blob | Promise<Blob>>) {}
     }
     vi.stubGlobal('ClipboardItem', ClipboardItemMock)
     installBrandImage()
 
-    await expect(copyProgressImage({ title: 'Дом у моря', progress: 25 })).resolves.toBeUndefined()
+    const copying = copyProgressImage({ title: 'Дом у моря', progress: 25 })
 
     expect(write).toHaveBeenCalledTimes(1)
     expect(write.mock.calls[0]?.[0]).toHaveLength(1)
+    const clipboardItem = write.mock.calls[0]?.[0]?.[0] as ClipboardItemMock
+    expect(clipboardItem.items['image/png']).toBeInstanceOf(Promise)
+
+    await expect(copying).resolves.toBeUndefined()
   })
 
   it('renders a covered project as a project card and retains its stage title', async () => {

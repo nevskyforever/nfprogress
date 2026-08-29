@@ -33,7 +33,7 @@ interface TextLayout {
 }
 
 interface ClipboardItemConstructor {
-  new (items: Record<string, Blob>): ClipboardItem
+  new (items: Record<string, Blob | Promise<Blob>>): ClipboardItem
 }
 
 function canvasContext(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
@@ -634,8 +634,29 @@ function downloadImage(blob: Blob): void {
 }
 
 export async function copyProgressImage(payload: ProgressSharePayload): Promise<void> {
-  const image = await createProgressShareImage(payload)
-  if (!await copyImageToClipboard(image)) {
+  if (document.documentElement.dataset.platform === 'tauri') {
+    const image = await createProgressShareImage(payload)
+    if (!await copyImageToClipboard(image)) {
+      throw new Error('Image clipboard is unavailable.')
+    }
+    return
+  }
+
+  const ClipboardImageItem = clipboardItemConstructor()
+  if (
+    typeof navigator === 'undefined'
+    || !navigator.clipboard
+    || typeof navigator.clipboard.write !== 'function'
+    || !ClipboardImageItem
+  ) {
+    throw new Error('Image clipboard is unavailable.')
+  }
+
+  try {
+    await navigator.clipboard.write([
+      new ClipboardImageItem({ 'image/png': createProgressShareImage(payload) }),
+    ])
+  } catch {
     throw new Error('Image clipboard is unavailable.')
   }
 }
