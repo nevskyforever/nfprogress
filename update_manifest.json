@@ -1,32 +1,32 @@
 {
-  "version": "5.1.4",
-  "notes": "Исправлены автообновления на macOS.\n\nНа macOS теперь тоже видно процесс загрузки обновления.",
-  "windows_version": "5.1.4",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.4-setup.exe",
+  "version": "5.2.0",
+  "notes": "Исправлен экспорт картинки шеринга прогрессом в буфер обмена.\n\nУлучшен рендеринг картинки шеринга.",
+  "windows_version": "5.1.5",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.5-setup.exe",
   "macos_arm": {
-    "version": "5.1.4",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-5.1.4.zip",
-    "sha256": "e9f9a82d7a1f5314024954b77b39ede1dd5713271361cbc4844341fae8076ab3",
-    "size": 32025221
+    "version": "5.2.0",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-5.2.0.zip",
+    "sha256": "fb006a237620abddda6fbda4710f4e485670ced5180863e7e942c75104a536bb",
+    "size": 32110533
   },
   "macos_intel": {
-    "version": "5.1.4",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-5.1.4.zip",
-    "sha256": "efb65b216a93c18608b999e1f2c3dc9ab2fd3451fe3401617383acd08663f90b",
-    "size": 30295882
+    "version": "5.1.5",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-5.1.5.zip",
+    "sha256": "8bbc4276ba68aff76cc2199e5a6955c1b4855d4ef21aaa2528c78567ee16f2d9",
+    "size": 30325236
   },
-  "macos_arm_version": "5.1.4",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.1.4.zip",
-  "macos_intel_version": "5.1.4",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.1.4.zip",
+  "macos_arm_version": "5.2.0",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.2.0.zip",
+  "macos_intel_version": "5.1.5",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.1.5.zip",
   "windows": {
-    "version": "5.1.4",
-    "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.4-setup.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.4-setup.exe",
-    "sha256": "bb9bd26eaa9efd5385222611a6a60778029ef660052dc68f9f9c1dc5935977db",
-    "size": 23213085,
+    "version": "5.1.5",
+    "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.5-setup.exe",
+    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.5-setup.exe",
+    "sha256": "2adb40b1cb04c6e407d3d37986201a898b8e7aea7297e4c6298dc8e3b30ac3e1",
+    "size": 23207321,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_sha256": "bb9bd26eaa9efd5385222611a6a60778029ef660052dc68f9f9c1dc5935977db",
-    "installer_size": 23213085
+    "installer_sha256": "2adb40b1cb04c6e407d3d37986201a898b8e7aea7297e4c6298dc8e3b30ac3e1",
+    "installer_size": 23207321
   }
 }

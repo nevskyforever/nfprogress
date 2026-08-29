@@ -1,10 +1,10 @@
 {
-  "version": "5.1.4",
-  "notes": "Исправлены автообновления на macOS.\n\nНа macOS теперь тоже видно процесс загрузки обновления.",
-  "windows_version": "5.1.4",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.4-setup.exe",
-  "macos_arm_version": "5.1.4",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.1.4.zip",
-  "macos_intel_version": "5.1.4",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.1.4.zip"
+  "version": "5.2.0",
+  "notes": "Исправлен экспорт картинки шеринга прогрессом в буфер обмена.\n\nУлучшен рендеринг картинки шеринга.",
+  "windows_version": "5.1.5",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.5-setup.exe",
+  "macos_arm_version": "5.2.0",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.2.0.zip",
+  "macos_intel_version": "5.1.5",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.1.5.zip"
 }
