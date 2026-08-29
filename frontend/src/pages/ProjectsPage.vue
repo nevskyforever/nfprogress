@@ -101,6 +101,13 @@ const cardVersions = ref<Record<string, number>>({})
 const previousCardSignatures = new Map<string, string>()
 const pendingCardAnimations = new Set<string>()
 const projectDragMimeType = 'application/x-nfprogress-project-id'
+const pointerProjectDrag = ref<{
+  projectId: string
+  pointerId: number
+  startX: number
+  startY: number
+  active: boolean
+} | null>(null)
 let projectViewActive = false
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 let preferencesController: AbortController | undefined
@@ -450,14 +457,11 @@ function startProjectDrag(event: DragEvent, project: Project): void {
   }
 }
 
-async function dropProject(
-  event: DragEvent,
+async function reorderProject(
+  sourceId: string,
   targetProject: Project,
   targetFolderId: string | null,
 ): Promise<void> {
-  const sourceId = event.dataTransfer?.getData(projectDragMimeType)
-    || event.dataTransfer?.getData('text/plain')
-    || draggedProjectId.value
   draggedProjectId.value = null
   if (!sourceId || sourceId === targetProject.id) return
   const ordered = projectGroups.value.flatMap((group) => group.projects.map((project) => project.id))
@@ -473,6 +477,62 @@ async function dropProject(
     await store.reorderProjects(ordered)
     loadProjects()
   } catch (error) { notifications.error(t(apiErrorMessage(error))) }
+}
+
+async function dropProject(
+  event: DragEvent,
+  targetProject: Project,
+  targetFolderId: string | null,
+): Promise<void> {
+  const sourceId = event.dataTransfer?.getData(projectDragMimeType)
+    || event.dataTransfer?.getData('text/plain')
+    || draggedProjectId.value
+  if (sourceId) await reorderProject(sourceId, targetProject, targetFolderId)
+}
+
+function clearProjectPointerDrag(): void {
+  pointerProjectDrag.value = null
+  window.removeEventListener('pointermove', moveProjectPointer)
+  window.removeEventListener('pointerup', finishProjectPointer)
+  window.removeEventListener('pointercancel', finishProjectPointer)
+}
+
+function moveProjectPointer(event: PointerEvent): void {
+  const drag = pointerProjectDrag.value
+  if (!drag || event.pointerId !== drag.pointerId) return
+  if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 8) return
+  drag.active = true
+  event.preventDefault()
+}
+
+function finishProjectPointer(event: PointerEvent): void {
+  const drag = pointerProjectDrag.value
+  if (!drag || event.pointerId !== drag.pointerId) return
+  clearProjectPointerDrag()
+  if (!drag.active) return
+  const targetId = document.elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>('[data-project-id]')?.dataset.projectId
+  const targetProject = store.projects.find((project) => project.id === targetId)
+  if (!targetProject) return
+  window.addEventListener('click', (clickEvent) => {
+    clickEvent.preventDefault()
+    clickEvent.stopImmediatePropagation()
+  }, { capture: true, once: true })
+  void reorderProject(drag.projectId, targetProject, targetProject.folder_id)
+}
+
+function startProjectPointer(event: PointerEvent, project: Project): void {
+  if (!canReorderProjects.value || event.button !== 0) return
+  pointerProjectDrag.value = {
+    projectId: project.id,
+    pointerId: event.pointerId,
+    startX: event.clientX,
+    startY: event.clientY,
+    active: false,
+  }
+  window.addEventListener('pointermove', moveProjectPointer, { passive: false })
+  window.addEventListener('pointerup', finishProjectPointer)
+  window.addEventListener('pointercancel', finishProjectPointer)
 }
 
 watch(search, (value) => {
@@ -531,6 +591,7 @@ onBeforeUnmount(() => {
   clearTimeout(debounceTimer)
   preferencesController?.abort()
   store.cancelList()
+  clearProjectPointerDrag()
   stopDataChanges?.()
   window.removeEventListener('nfprogress:new-project', openCreateDialog)
 })
@@ -709,6 +770,7 @@ onBeforeUnmount(() => {
                 @context="openProjectContext"
                 @dragstart="startProjectDrag"
                 @dragend="draggedProjectId = null"
+                @pointerdown="startProjectPointer"
                 @dragover.prevent
                 @drop.prevent="dropProject($event, project, group.id)"
               />
@@ -971,8 +1033,8 @@ onBeforeUnmount(() => {
 .project-folder__header button { padding: .35rem .55rem; border: 0; background: transparent; color: var(--nf-color-primary); font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
 .project-folder__header .project-folder__delete { color: var(--nf-color-danger); }
 .project-folder__empty { margin: 0; padding: var(--nf-space-5); border: 1px dashed var(--nf-color-border); border-radius: var(--nf-radius-md); color: var(--nf-color-text-muted); text-align: center; }
-.project-card[draggable="true"] { cursor: grab; }
-.project-card[draggable="true"]:active { cursor: grabbing; }
+.project-card--sortable { cursor: grab; user-select: none; }
+.project-card--sortable:active { cursor: grabbing; }
 
 .project-grid--updating {
   opacity: 0.58;

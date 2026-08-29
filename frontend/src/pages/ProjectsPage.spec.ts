@@ -97,7 +97,7 @@ describe('ProjectsPage streak summaries', () => {
     wrapper.unmount()
   })
 
-  it('uses browser drag data to reorder projects', async () => {
+  it('reorders projects through pointer events in the web interface', async () => {
     const first = projectFixture({ id: 'project-a', name: 'Первая история' })
     const second = projectFixture({ id: 'project-b', name: 'Вторая история' })
     vi.mocked(projectsApi.list).mockResolvedValue([first, second])
@@ -114,18 +114,21 @@ describe('ProjectsPage streak summaries', () => {
     })
     await flushPromises()
 
-    const data = new Map<string, string>()
-    const dataTransfer = {
-      effectAllowed: '',
-      setData: (type: string, value: string) => data.set(type, value),
-      getData: (type: string) => data.get(type) ?? '',
-    }
     const cards = wrapper.findAll('.project-card')
-    await cards[0]?.trigger('dragstart', { dataTransfer })
-    await cards[1]?.trigger('drop', { dataTransfer })
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => cards[1]?.element ?? null),
+    })
+    const pointerEvent = (type: string, x: number, y: number) => Object.defineProperties(
+      new Event(type, { bubbles: true, cancelable: true }),
+      { pointerId: { value: 1 }, button: { value: 0 }, clientX: { value: x }, clientY: { value: y } },
+    )
+    cards[0]?.element.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    window.dispatchEvent(pointerEvent('pointermove', 30, 30))
+    window.dispatchEvent(pointerEvent('pointerup', 30, 30))
+    window.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
     await flushPromises()
 
-    expect(data.get('application/x-nfprogress-project-id')).toBe('project-a')
     expect(projectsApi.reorder).toHaveBeenCalledWith(['project-b', 'project-a'])
     wrapper.unmount()
   })
@@ -176,7 +179,7 @@ describe('ProjectsPage streak summaries', () => {
 
     expect(wrapper.find('.project-mixed-grid').exists()).toBe(false)
     expect(wrapper.get('.project-grid').findAll('.project-card')).toHaveLength(2)
-    expect(wrapper.get('.project-card').attributes('draggable')).toBe('true')
+    expect(wrapper.get('.project-card').classes()).toContain('project-card--sortable')
     wrapper.unmount()
   })
 

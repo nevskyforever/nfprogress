@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { IonIcon } from '@ionic/vue'
 import { addOutline } from 'ionicons/icons'
 
@@ -41,6 +41,13 @@ const sharedProject = computed(() => props.project.name === 'Общий прое
 const sort = ref<StageSort>(props.stageSort)
 const draggedStageId = ref<string | null>(null)
 const stageDragMimeType = 'application/x-nfprogress-stage-id'
+const pointerStageDrag = ref<{
+  stageId: string
+  pointerId: number
+  startX: number
+  startY: number
+  active: boolean
+} | null>(null)
 const contextStage = ref<Project | null>(null)
 const contextPosition = ref({ x: 0, y: 0 })
 const fractionDigits = computed(() => props.project.unit === 'symbols' ? 0 : 2)
@@ -95,6 +102,54 @@ function dropStage(event: DragEvent, targetStage: Project): void {
   ids.splice(from < to ? targetIndex + 1 : targetIndex, 0, sourceId)
   emit('reorder', ids)
 }
+function reorderStage(sourceId: string, targetStage: Project): void {
+  if (sourceId === targetStage.id || sort.value !== 'manual') return
+  const ids = sortedStages.value.map((stage) => stage.id)
+  const from = ids.indexOf(sourceId)
+  const to = ids.indexOf(targetStage.id)
+  if (from < 0 || to < 0) return
+  ids.splice(from, 1)
+  const targetIndex = ids.indexOf(targetStage.id)
+  ids.splice(from < to ? targetIndex + 1 : targetIndex, 0, sourceId)
+  emit('reorder', ids)
+}
+function clearStagePointerDrag(): void {
+  pointerStageDrag.value = null
+  window.removeEventListener('pointermove', moveStagePointer)
+  window.removeEventListener('pointerup', finishStagePointer)
+  window.removeEventListener('pointercancel', finishStagePointer)
+}
+function moveStagePointer(event: PointerEvent): void {
+  const drag = pointerStageDrag.value
+  if (!drag || event.pointerId !== drag.pointerId) return
+  if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 8) return
+  drag.active = true
+  event.preventDefault()
+}
+function finishStagePointer(event: PointerEvent): void {
+  const drag = pointerStageDrag.value
+  if (!drag || event.pointerId !== drag.pointerId) return
+  clearStagePointerDrag()
+  if (!drag.active) return
+  const targetId = document.elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>('[data-stage-id]')?.dataset.stageId
+  const targetStage = props.project.stages.find((stage) => stage.id === targetId)
+  if (!targetStage) return
+  window.addEventListener('click', (clickEvent) => {
+    clickEvent.preventDefault()
+    clickEvent.stopImmediatePropagation()
+  }, { capture: true, once: true })
+  reorderStage(drag.stageId, targetStage)
+}
+function startStagePointer(event: PointerEvent, stage: Project): void {
+  if (props.busy || readOnly.value || sort.value !== 'manual' || event.button !== 0) return
+  pointerStageDrag.value = {
+    stageId: stage.id, pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false,
+  }
+  window.addEventListener('pointermove', moveStagePointer, { passive: false })
+  window.addEventListener('pointerup', finishStagePointer)
+  window.addEventListener('pointercancel', finishStagePointer)
+}
 function openContext(event: MouseEvent, stage: Project): void {
   contextStage.value = stage
   contextPosition.value = { x: event.clientX, y: event.clientY }
@@ -121,6 +176,7 @@ function selectContextAction(action: ContextAction): void {
 
 watch(() => props.stageSort, (value) => { if (value !== sort.value) sort.value = value })
 watch(sort, (value) => emit('sort', value))
+onBeforeUnmount(clearStagePointerDrag)
 </script>
 
 <template>
@@ -149,11 +205,14 @@ watch(sort, (value) => emit('sort', value))
         v-for="(stage, index) in sortedStages"
         :key="stage.id"
         class="stage-card"
-        :draggable="!busy && !readOnly && sort === 'manual'"
+        :class="{ 'stage-card--sortable': !busy && !readOnly && sort === 'manual' }"
+        :data-stage-id="stage.id"
+        draggable="false"
         @dragstart="startDrag($event, stage)"
         @dragend="draggedStageId = null"
         @dragover.prevent
           @drop.prevent="dropStage($event, stage)"
+        @pointerdown="startStagePointer($event, stage)"
         @contextmenu.prevent="openContext($event, stage)"
       >
         <button class="stage-open-button" type="button" :aria-label="`${t('Этапы')}: ${stage.name}`" @click="emit('open', stage)">
@@ -195,7 +254,7 @@ watch(sort, (value) => emit('sort', value))
 .stage-sort select { min-height: 2.65rem; padding: 0 2rem 0 .75rem; border: 0; background: transparent; color: var(--nf-color-text); font: inherit; font-size: .82rem; font-weight: 700; }
 .stage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--nf-space-3); margin: 0; padding: 0; list-style: none; }
 .stage-card { display: grid; gap: var(--nf-space-3); padding: var(--nf-space-4); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); box-shadow: var(--nf-shadow-card); }
-.stage-card[draggable="true"] { cursor: grab; }
+.stage-card--sortable { cursor: grab; user-select: none; }
 .stage-open-button { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--nf-space-3); padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .stage-open-button:focus-visible { border-radius: var(--nf-radius-sm); outline: 3px solid var(--nf-color-primary-soft); outline-offset: 3px; }
 .stage-open-button:hover h3 { color: var(--nf-color-primary); }

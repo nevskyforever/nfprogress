@@ -23,6 +23,7 @@ const emit = defineEmits<{
   context: [event: MouseEvent, project: Project]
   dragstart: [event: DragEvent, project: Project]
   dragend: []
+  pointerdown: [event: PointerEvent, project: Project]
 }>()
 const locale = useLocaleStore()
 const t = locale.translate
@@ -57,12 +58,14 @@ const progressAriaLabel = computed(() =>
     class="project-card"
     :class="[
       `project-card--${project.status.replaceAll(' ', '-')}`,
-      { 'project-card--with-cover': project.cover_image },
+      { 'project-card--with-cover': project.cover_image, 'project-card--sortable': draggable },
     ]"
-    :draggable="draggable"
+    :data-project-id="project.id"
+    draggable="false"
     @contextmenu.prevent="emit('context', $event, project)"
     @dragstart="emit('dragstart', $event, project)"
     @dragend="emit('dragend')"
+    @pointerdown="emit('pointerdown', $event, project)"
   >
     <RouterLink
       class="project-card__link"

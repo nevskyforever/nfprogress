@@ -12,7 +12,7 @@ describe('StageWorkspace', () => {
     document.body.innerHTML = ''
   })
 
-  it('reorders stages by dragging stable stage ids', async () => {
+  it('reorders stages through pointer events', async () => {
     const first = projectFixture({ id: 'stage-a', name: 'Первая глава', goal: 10_000 })
     const second = projectFixture({ id: 'stage-b', name: 'Вторая глава', goal: 10_000 })
     const wrapper = mount(StageWorkspace, {
@@ -21,17 +21,20 @@ describe('StageWorkspace', () => {
     })
 
     const cards = wrapper.findAll('.stage-card')
-    const data = new Map<string, string>()
-    const dataTransfer = {
-      effectAllowed: '',
-      setData: (type: string, value: string) => data.set(type, value),
-      getData: (type: string) => data.get(type) ?? '',
-    }
-    await cards[0]?.trigger('dragstart', { dataTransfer })
-    await cards[1]?.trigger('drop', { dataTransfer })
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => cards[1]?.element ?? null),
+    })
+    const pointerEvent = (type: string, x: number, y: number) => Object.defineProperties(
+      new Event(type, { bubbles: true, cancelable: true }),
+      { pointerId: { value: 1 }, button: { value: 0 }, clientX: { value: x }, clientY: { value: y } },
+    )
+    cards[0]?.element.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    window.dispatchEvent(pointerEvent('pointermove', 30, 30))
+    window.dispatchEvent(pointerEvent('pointerup', 30, 30))
+    window.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
 
     expect(wrapper.emitted('reorder')?.[0]?.[0]).toEqual(['stage-b', 'stage-a'])
-    expect(data.get('application/x-nfprogress-stage-id')).toBe('stage-a')
   })
 
   it('confirms destructive stage deletion before emitting it', async () => {
