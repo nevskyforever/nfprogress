@@ -238,7 +238,7 @@ function drawBrand(context: CanvasRenderingContext2D, icon: CanvasImageSource | 
     context.fillText('nf', groupX + BRAND_ICON_SIZE / 2, BRAND_CENTER_Y + 1)
   }
 
-  context.fillStyle = '#2568AC'
+  context.fillStyle = '#3B8FC0'
   context.font = '700 37px Arial, sans-serif'
   context.textAlign = 'left'
   context.fillText(BRAND_TEXT, groupX + BRAND_ICON_SIZE + BRAND_SPACING, BRAND_CENTER_Y)
@@ -386,7 +386,7 @@ function projectCardColors(theme: ProgressSharePayload['theme']): ProjectCardCol
     : {
         canvas: '#F5F5F7', surface: '#FFFFFF', surfaceMuted: '#F0F1F4', text: '#202124',
         textMuted: '#687078', border: '#C7C9CE', primary: '#4263EB', primarySoft: '#E8ECFF',
-        accent: '#4263EB', brand: '#102C78', shadow: 'rgb(0 0 0 / 15%)',
+        accent: '#4263EB', brand: '#3B8FC0', shadow: 'rgb(0 0 0 / 15%)',
       }
 }
 
