@@ -65,7 +65,6 @@ const progressAriaLabel = computed(() =>
     @contextmenu.prevent="emit('context', $event, project)"
     @dragstart="emit('dragstart', $event, project)"
     @dragend="emit('dragend')"
-    @pointerdown="emit('pointerdown', $event, project)"
   >
     <RouterLink
       class="project-card__link"
@@ -96,7 +95,6 @@ const progressAriaLabel = computed(() =>
           <div class="project-card__summary">
             <div class="project-card__title-row">
               <h2>{{ project.name }}</h2>
-              <span class="project-card__open" aria-hidden="true">↗</span>
             </div>
             <div class="project-card__progress-copy">
               <strong><AnimatedNumber :value="project.total" :digits="project.unit === 'symbols' ? 0 : 2" /> {{ locale.formatUnit(project.unit, project.total) }}</strong>
@@ -137,6 +135,18 @@ const progressAriaLabel = computed(() =>
         </footer>
       </div>
     </RouterLink>
+    <button
+      v-if="draggable"
+      class="project-card__drag-handle"
+      type="button"
+      :aria-label="`${t('Свободный порядок')}: ${project.name}`"
+      :title="t('Свободный порядок')"
+      @click.stop.prevent
+      @contextmenu.stop
+      @pointerdown.stop.prevent="emit('pointerdown', $event, project)"
+    >
+      <span aria-hidden="true">⠿</span>
+    </button>
   </article>
 </template>
 
@@ -174,6 +184,38 @@ const progressAriaLabel = computed(() =>
 .project-card--with-cover::before {
   display: none;
 }
+
+.project-card__drag-handle {
+  position: absolute;
+  z-index: 2;
+  top: var(--nf-space-4);
+  right: var(--nf-space-4);
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  padding: 0;
+  place-items: center;
+  border: 1px solid var(--nf-color-border);
+  border-radius: var(--nf-radius-sm);
+  background: color-mix(in srgb, var(--nf-color-surface) 92%, transparent);
+  box-shadow: var(--nf-shadow-card);
+  color: var(--nf-color-text-muted);
+  cursor: grab;
+  font: inherit;
+  font-size: 1.3rem;
+  line-height: 1;
+  touch-action: none;
+  user-select: none;
+}
+
+.project-card__drag-handle:hover,
+.project-card__drag-handle:focus-visible {
+  border-color: var(--nf-color-primary);
+  color: var(--nf-color-primary);
+}
+
+.project-card__drag-handle:active { cursor: grabbing; }
+.project-card--sortable .project-card__header { padding-right: 3rem; }
 
 .project-card:hover {
   border-color: color-mix(in srgb, var(--nf-color-primary) 45%, var(--nf-color-border));
@@ -275,11 +317,6 @@ const progressAriaLabel = computed(() =>
   overflow-wrap: anywhere;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
-}
-
-.project-card__open {
-  color: var(--nf-color-text-muted);
-  font-size: 1.15rem;
 }
 
 .project-card__progress-copy {

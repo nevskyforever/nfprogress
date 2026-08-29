@@ -123,13 +123,14 @@ describe('ProjectsPage streak summaries', () => {
       new Event(type, { bubbles: true, cancelable: true }),
       { pointerId: { value: 1 }, button: { value: 0 }, clientX: { value: x }, clientY: { value: y } },
     )
-    cards[0]?.element.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    cards[0]?.get('.project-card__drag-handle').element.dispatchEvent(pointerEvent('pointerdown', 10, 10))
     window.dispatchEvent(pointerEvent('pointermove', 30, 30))
     window.dispatchEvent(pointerEvent('pointerup', 30, 30))
     window.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
     await flushPromises()
 
     expect(projectsApi.reorder).toHaveBeenCalledWith(['project-b', 'project-a'])
+    expect(cards[0]?.find('.project-card__open').exists()).toBe(false)
     wrapper.unmount()
   })
 
