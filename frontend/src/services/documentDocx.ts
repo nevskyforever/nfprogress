@@ -9,14 +9,17 @@ export async function importDocx(file: ArrayBuffer): Promise<string> {
   return result.value
 }
 
-function runs(node: Record<string, any>): TextRun[] {
-  if (node.type === 'text') return [new TextRun({ text: node.text ?? '', bold: node.marks?.some((mark: any) => mark.type === 'bold'), italics: node.marks?.some((mark: any) => mark.type === 'italic'), underline: node.marks?.some((mark: any) => mark.type === 'underline') ? {} : undefined })]
+type EditorNode = { type?: string; text?: string; marks?: Array<{ type?: string }>; content?: EditorNode[]; attrs?: { level?: number } }
+
+function runs(node: EditorNode): TextRun[] {
+  if (node.type === 'text') return [new TextRun({ text: node.text ?? '', bold: node.marks?.some((mark) => mark.type === 'bold'), italics: node.marks?.some((mark) => mark.type === 'italic'), underline: node.marks?.some((mark) => mark.type === 'underline') ? {} : undefined })]
   return (node.content ?? []).flatMap(runs)
 }
 
 export async function exportDocx(content: TiptapDocument): Promise<Blob> {
-  const children = (content.content ?? []).flatMap((node: Record<string, any>) => {
-    if (node.type === 'bulletList' || node.type === 'orderedList') return (node.content ?? []).map((item: Record<string, any>) => new Paragraph({ children: runs(item), bullet: node.type === 'bulletList' ? { level: 0 } : undefined, numbering: node.type === 'orderedList' ? { reference: 'default-numbering', level: 0 } : undefined }))
+  const children = (content.content ?? []).flatMap((rawNode) => {
+    const node = rawNode as EditorNode
+    if (node.type === 'bulletList' || node.type === 'orderedList') return (node.content ?? []).map((item) => new Paragraph({ children: runs(item), bullet: node.type === 'bulletList' ? { level: 0 } : undefined, numbering: node.type === 'orderedList' ? { reference: 'default-numbering', level: 0 } : undefined }))
     if (node.type === 'heading') return [new Paragraph({ children: runs(node), heading: [HeadingLevel.HEADING_1, HeadingLevel.HEADING_2, HeadingLevel.HEADING_3][Math.max(0, Math.min(2, (node.attrs?.level ?? 1) - 1))] })]
     if (node.type === 'blockquote') return [new Paragraph({ children: runs(node), indent: { left: 720 }, border: { left: { color: '888888', space: 6, style: 'single', size: 12 } } })]
     if (node.type === 'horizontalRule') return [new Paragraph({ text: '—' })]

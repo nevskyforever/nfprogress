@@ -23,6 +23,7 @@
     "cap:open:android": "cap open android"
   },
   "dependencies": {
+    "@ant-design/icons-vue": "7.0.1",
     "@capacitor/android": "8.5.0",
     "@capacitor/app": "8.1.1",
     "@capacitor/browser": "8.0.4",
@@ -49,12 +50,16 @@
     "@tiptap/extension-task-item": "3.30.5",
     "@tiptap/extension-task-list": "3.30.5",
     "@tiptap/extension-underline": "3.30.5",
+    "@tiptap/pm": "3.30.5",
     "@tiptap/starter-kit": "3.30.5",
     "@tiptap/vue-3": "3.30.5",
+    "@vue/devtools-api": "7.7.9",
+    "ant-design-vue": "4.2.6",
     "docx": "9.7.1",
     "ionicons": "8.0.13",
     "mammoth": "1.12.2",
     "pinia": "4.0.3",
+    "tiptap-ui-kit": "0.2.0",
     "vue": "3.5.41",
     "vue-router": "4.6.4"
   },

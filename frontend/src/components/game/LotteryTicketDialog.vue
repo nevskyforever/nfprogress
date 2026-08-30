@@ -22,7 +22,7 @@ const t = locale.translate
 const currentIndex = ref(0)
 const revealedCount = ref(0)
 const rollingNumbers = ref<number[]>([1, 1, 1, 1, 1])
-let animationTimer: ReturnType<typeof window.setInterval> | undefined
+let animationTimer: number | undefined
 
 const currentDraw = computed(() => props.draws[currentIndex.value] ?? null)
 const isComplete = computed(() => revealedCount.value === 5)
