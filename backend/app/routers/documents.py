@@ -34,3 +34,7 @@ def external_docx(project_id: str, services: Annotated[Services, Depends(get_ser
 @router.put('/{project_id}/accept-word')
 def accept_word(project_id: str, payload: dict[str, Any], services: Annotated[Services, Depends(get_services)], stage_id: str | None = None):
     return services.documents.accept_word(project_id, payload['content'], payload['source_hash'], stage_id)
+
+@router.post('/{project_id}/progress')
+def record_text_progress(project_id: str, services: Annotated[Services, Depends(get_services)], stage_id: str | None = None):
+    return services.documents.record_text_progress(project_id, stage_id)

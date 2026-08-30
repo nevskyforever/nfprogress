@@ -45,6 +45,9 @@ def configure_sync(
         payload: SyncConfigure,
         services: Annotated[Services, Depends(get_services)],
 ):
+    services.documents.ensure_external_sync_can_be_configured(
+        project_id, payload.stage_id,
+    )
     return services.integrations.configure_sync(
         project_id,
         sync_type=payload.type,

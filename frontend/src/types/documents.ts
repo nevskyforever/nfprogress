@@ -12,6 +12,8 @@ export interface ProjectDocument {
   last_synced_at: string | null
   local_dirty: boolean
   word_dirty: boolean
+  symbols: number
+  has_content: boolean
 }
 
 export interface DocumentScope { projectId: string; stageId?: string }

@@ -14,14 +14,16 @@ const props = withDefaults(
     submitting?: boolean
     fixedStageId?: string | null
     syncs?: SyncSummary[]
+    textSymbols?: Record<string, number>
     error?: string | null
     success?: string | null
   }>(),
-  { submitting: false, syncs: () => [], error: null, success: null, fixedStageId: null },
+  { submitting: false, syncs: () => [], textSymbols: () => ({}), error: null, success: null, fixedStageId: null },
 )
 
 const emit = defineEmits<{
   record: [payload: ProgressCreate]
+  recordText: [stageId?: string]
   remove: [entryId: string, stageId?: string]
 }>()
 
@@ -54,6 +56,8 @@ const synchronizedEntity = computed(() => props.syncs.some((sync) =>
   sync.configured && (sync.stage_id ?? undefined) === selectedStageId.value,
 ))
 const manualEntryLocked = computed(() => lifecycleReadOnly.value || synchronizedEntity.value)
+const textSymbols = computed(() => props.textSymbols[selectedEntity.value.id] ?? 0)
+const hasTextSource = computed(() => textSymbols.value > 0)
 
 function numberFrom(value: string | number): number {
   return Number(String(value).replace(',', '.'))
@@ -106,9 +110,12 @@ watch(
           ? t('Включена синхронизация. Ручная запись прогресса недоступна.')
           : t('Завершённый проект или этап доступен только для просмотра.') }}
     </p>
+    <p v-else-if="hasTextSource" class="read-only-note">
+      {{ t('Добавьте запись, чтобы учесть текущий объём текста документа.') }}
+    </p>
 
     <div class="progress-entry-layout">
-      <form class="progress-entry-form" novalidate @submit.prevent="record">
+      <form v-if="!hasTextSource" class="progress-entry-form" novalidate @submit.prevent="record">
         <div class="progress-entry-heading">
           <h3>{{ t('Новая запись:') }}</h3>
         </div>
@@ -148,6 +155,15 @@ watch(
           </button>
         </div>
       </form>
+      <div v-else class="progress-entry-form">
+        <div class="progress-entry-heading"><h3>{{ t('Текст документа') }}</h3></div>
+        <p>{{ t('В документе') }}: <strong>{{ locale.formatNumber(textSymbols, 0) }} {{ locale.formatUnit('symbols', textSymbols) }}</strong></p>
+        <button class="nf-button" type="button" :disabled="busy || lifecycleReadOnly" @click="emit('recordText', selectedStageId)">
+          <IonSpinner v-if="submitting" name="crescent" aria-hidden="true" />
+          <IonIcon v-else :icon="addCircleOutline" aria-hidden="true" />
+          {{ submitting ? t('Сохраняем…') : t('Добавить запись') }}
+        </button>
+      </div>
 
       <div class="progress-feedback" aria-live="polite">
         <p v-if="validationError" ref="validationSummary" class="feedback-error" role="alert" tabindex="-1">

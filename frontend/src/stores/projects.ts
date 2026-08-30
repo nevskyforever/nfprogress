@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { projectsApi } from '@/api/projects'
+import { documentsApi } from '@/api/documents'
 import { announceDataChange } from '@/services/dataChanges'
 import type {
   EntityUpdate,
@@ -264,6 +265,27 @@ export const useProjectsStore = defineStore('projects', () => {
     }
   }
 
+  async function recordTextProgress(
+    projectId: string,
+    stageId?: string,
+  ): Promise<ProgressResult | null> {
+    if (detailBusy.value) return null
+    detailOperation.value = 'record-text-progress'
+    detailActionError.value = null
+    try {
+      const result = await documentsApi.recordProgress({ projectId, stageId })
+      if (!result.progress) return null
+      storeProject(result.progress.project)
+      announceDataChange('projects')
+      return result.progress
+    } catch (mutationError) {
+      detailActionError.value = apiErrorMessage(mutationError)
+      return null
+    } finally {
+      detailOperation.value = null
+    }
+  }
+
   function deleteProgress(
     projectId: string,
     entryId: string,
@@ -338,6 +360,7 @@ export const useProjectsStore = defineStore('projects', () => {
     completeStage,
     reorderStages,
     recordProgress,
+    recordTextProgress,
     deleteProgress,
     loadStatistics,
     cancelList,

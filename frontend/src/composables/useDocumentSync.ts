@@ -1,5 +1,6 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { documentsApi } from '@/api/documents'
+import { announceDataChange } from '@/services/dataChanges'
 import { blobToBase64, exportDocx, importDocx } from '@/services/documentDocx'
 import type { DocumentScope, ProjectDocument, TiptapDocument } from '@/types/documents'
 
@@ -19,6 +20,7 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
   async function save() {
     documentState.value = await documentsApi.save(scope, content.value)
     await writeLinkedWord()
+    announceDataChange('projects')
     status.value = 'Сохранено'
   }
   function scheduleSave(next: TiptapDocument) {
@@ -41,6 +43,7 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
   async function acknowledgeExternal(next: TiptapDocument, hash: string) {
     content.value = next
     documentState.value = await documentsApi.acceptWord(scope, next, hash)
+    announceDataChange('projects')
     status.value = 'Изменения Word импортированы'
   }
   async function link(path: string) { documentState.value = await documentsApi.link(scope, path); await writeLinkedWord() }

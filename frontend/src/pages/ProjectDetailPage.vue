@@ -38,6 +38,7 @@ import ProgressRing from '@/components/ui/ProgressRing.vue'
 import { apiErrorMessage } from '@/api/client'
 import { gameApi } from '@/api/game'
 import { integrationsApi } from '@/api/integrations'
+import { documentsApi } from '@/api/documents'
 import { settingsApi } from '@/api/settings'
 import { onDataChange } from '@/services/dataChanges'
 import { useProjectPresentation } from '@/composables/useProjectPresentation'
@@ -60,6 +61,7 @@ import type {
   StageCreate,
 } from '@/types/api'
 import type { SyncSummary } from '@/types/integrations'
+import type { ProjectDocument } from '@/types/documents'
 
 const route = useRoute()
 const router = useRouter()
@@ -112,6 +114,7 @@ const sharingProgress = ref(false)
 const syncSummaries = ref<SyncSummary[]>([])
 const syncLoading = ref(false)
 const syncRunning = ref(false)
+const documents = ref<ProjectDocument[]>([])
 let syncRequestSequence = 0
 
 const selectedSyncStageId = computed(() => routeStageId.value || selectedEntityId.value || null)
@@ -125,6 +128,17 @@ const selectedSyncConfigured = computed(() =>
     )
     : hasConfiguredSync.value,
 )
+const textSymbols = computed<Record<string, number>>(() => Object.fromEntries(
+  documents.value
+    .filter((document) => document.project_id === project.value.id && document.has_content)
+    .map((document) => [document.stage_id ?? document.project_id, document.symbols]),
+))
+const canOpenText = computed(() => !selectedSyncConfigured.value && (
+  isStageDetail.value || project.value.stages.length === 0
+))
+const hasTextForCurrentEntity = computed(() => (
+  textSymbols.value[isStageDetail.value ? detailEntity.value.id : project.value.id] ?? 0
+) > 0)
 const sharedSourceDefaultName = computed(() => {
   const hasLegacySource = isSharedProject.value
     && !project.value.stages.length
@@ -183,13 +197,17 @@ async function loadProject(): Promise<void> {
   await store.loadOne(projectId.value)
   chooseAvailableEntity()
   refreshStatistics()
-  await Promise.all([loadSyncSummary(), loadStreakSummaries()])
+  await Promise.all([loadSyncSummary(), loadStreakSummaries(), loadDocuments()])
   if (route.query?.edit === '1' && project.value.status !== 'завершен' && !isSharedProject.value) {
     openProjectEdit()
     const query = { ...(route.query ?? {}) }
     delete query.edit
     void router.replace({ name: route.name ?? undefined, params: route.params, query })
   }
+}
+
+async function loadDocuments(): Promise<void> {
+  try { documents.value = await documentsApi.list() } catch { documents.value = [] }
 }
 
 async function refreshChangedProject(): Promise<void> {
@@ -564,6 +582,15 @@ async function recordProgress(payload: ProgressCreate): Promise<void> {
   refreshStatistics()
 }
 
+async function recordTextProgress(stageId?: string): Promise<void> {
+  const result = await store.recordTextProgress(project.value.id, stageId)
+  if (!result) return
+  applyProgressFeedback(result, stageId, 'progress')
+  applyGameFeedback(result.game)
+  await loadStreakSummaries()
+  refreshStatistics()
+}
+
 async function deleteProgress(entryId: string, stageId?: string): Promise<void> {
   feedbackArea.value = 'progress'
   const updated = await store.deleteProgress(project.value.id, entryId, stageId)
@@ -664,7 +691,7 @@ onBeforeUnmount(() => {
 
           <nav class="project-actions" :aria-label="t('Действия проекта')">
             <button
-              v-if="detailEntity.status !== 'завершен'"
+              v-if="detailEntity.status !== 'завершен' && !hasTextForCurrentEntity"
               class="nf-button project-sync-button"
               type="button"
               :disabled="syncLoading || syncRunning"
@@ -684,6 +711,7 @@ onBeforeUnmount(() => {
               <IonIcon :icon="addOutline" aria-hidden="true" />{{ t('Добавить источник') }}
             </button>
             <RouterLink
+              v-if="canOpenText"
               class="nf-button nf-button--secondary project-notes-button"
               :to="{
                 name: 'project-notes',
@@ -797,16 +825,18 @@ onBeforeUnmount(() => {
             @sync="synchronizeStage"
             @sort="saveStageSort"
           />
-          <ProgressWorkspace
+            <ProgressWorkspace
             v-model="selectedEntityId"
             :project="project"
             :busy="store.detailBusy"
             :submitting="store.detailOperation === 'record-progress'"
             :syncs="syncSummaries"
+            :text-symbols="textSymbols"
             :error="feedbackArea === 'progress' ? store.detailActionError : null"
             :success="feedbackArea === 'progress' ? actionSuccess : null"
             :fixed-stage-id="isStageDetail ? detailEntity.id : null"
             @record="recordProgress"
+            @record-text="recordTextProgress"
             @remove="deleteProgress"
           />
           <StatisticsWorkspace
