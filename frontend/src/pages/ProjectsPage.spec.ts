@@ -161,6 +161,40 @@ describe('ProjectsPage streak summaries', () => {
     document.body.innerHTML = ''
   })
 
+  it('opens a folder submenu in the project context menu when several folders are available', async () => {
+    vi.mocked(projectsApi.folders).mockResolvedValue([
+      { id: 'folder-a', name: 'Черновики' },
+      { id: 'folder-b', name: 'Идеи' },
+    ])
+    const wrapper = mount(ProjectsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' }, IonIcon: true,
+          IonPage: { template: '<div><slot /></div>' }, ProjectCreateDialog: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+    await wrapper.get('.project-card').trigger('contextmenu', { clientX: 20, clientY: 20 })
+    await wrapper.vm.$nextTick()
+
+    const folderButton = [...document.body.querySelectorAll<HTMLButtonElement>('.context-action-menu > button')]
+      .find((button) => button.textContent === 'В папку')
+    expect(folderButton).toBeDefined()
+    folderButton?.click()
+    await wrapper.vm.$nextTick()
+
+    const submenuButtons = [...document.body.querySelectorAll<HTMLButtonElement>('.context-action-menu__submenu button')]
+    expect(submenuButtons.map((button) => button.textContent)).toEqual(['Черновики', 'Идеи'])
+    submenuButtons[1]?.click()
+    await flushPromises()
+    expect(projectsApi.update).toHaveBeenCalledWith(expect.any(String), { folder_id: 'folder-b' })
+    wrapper.unmount()
+    document.body.innerHTML = ''
+  })
+
   it('keeps covered and uncovered projects in one freely reorderable grid', async () => {
     vi.mocked(projectsApi.list).mockResolvedValue([
       projectFixture({ id: 'covered', cover_image: 'data:image/jpeg;base64,/9j/2Q==' }),

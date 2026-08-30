@@ -107,13 +107,16 @@ const cardVersions = ref<Record<string, number>>({})
 const previousCardSignatures = new Map<string, string>()
 const pendingCardAnimations = new Set<string>()
 const projectDragMimeType = 'application/x-nfprogress-project-id'
+const projectContent = ref<{ $el?: HTMLElement } | null>(null)
 const pointerProjectDrag = ref<{
   projectId: string
   pointerId: number
   startX: number
   startY: number
+  clientY: number
   active: boolean
 } | null>(null)
+let pointerAutoScrollFrame: number | undefined
 let projectViewActive = false
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 let preferencesController: AbortController | undefined
@@ -394,10 +397,21 @@ const contextActions = computed<ContextAction[]>(() => {
   if (localSyncAvailable.value && project.sync_available && project.status !== 'завершен') {
     actions.push({ id: 'sync', label: t('Синхронизировать') })
   }
-  for (const folder of folders.value) {
-    if (folder.id !== project.folder_id) {
-      actions.push({ id: `folder:${folder.id}`, label: t('В папку «{name}»', { name: folder.name }), separator: actions.every((item) => !item.id.startsWith('folder:')) })
-    }
+  const availableFolders = folders.value.filter((folder) => folder.id !== project.folder_id)
+  const onlyAvailableFolder = availableFolders[0]
+  if (availableFolders.length === 1 && onlyAvailableFolder) {
+    const folder = onlyAvailableFolder
+    actions.push({ id: `folder:${folder.id}`, label: t('В папку «{name}»', { name: folder.name }), separator: actions.length > 0 })
+  } else if (availableFolders.length > 1) {
+    actions.push({
+      id: 'folder-menu',
+      label: t('В папку'),
+      separator: actions.length > 0,
+      children: availableFolders.map((folder) => ({
+        id: `folder:${folder.id}`,
+        label: folder.name,
+      })),
+    })
   }
   if (project.folder_id) actions.push({ id: 'folder:', label: t('Убрать из папки') })
   if (!shared) actions.push({ id: 'delete', label: t('Удалить'), danger: true, separator: true })
@@ -549,17 +563,48 @@ async function dropProjectIntoFolder(event: DragEvent, targetFolderId: string | 
 }
 
 function clearProjectPointerDrag(): void {
+  if (pointerAutoScrollFrame !== undefined) {
+    window.cancelAnimationFrame(pointerAutoScrollFrame)
+    pointerAutoScrollFrame = undefined
+  }
   pointerProjectDrag.value = null
   window.removeEventListener('pointermove', moveProjectPointer)
   window.removeEventListener('pointerup', finishProjectPointer)
   window.removeEventListener('pointercancel', finishProjectPointer)
 }
 
+function scrollWhileDraggingProject(): void {
+  const drag = pointerProjectDrag.value
+  if (!drag?.active) {
+    pointerAutoScrollFrame = undefined
+    return
+  }
+  const edgeSize = 96
+  let distance = 0
+  if (drag.clientY < edgeSize) distance = drag.clientY - edgeSize
+  if (drag.clientY > window.innerHeight - edgeSize) distance = drag.clientY - (window.innerHeight - edgeSize)
+  if (distance) {
+    const contentElement = projectContent.value?.$el
+    const scrollElement = contentElement?.shadowRoot?.querySelector<HTMLElement>('.inner-scroll')
+      ?? document.scrollingElement
+    scrollElement?.scrollBy(0, Math.round(distance / edgeSize * 18))
+  }
+  pointerAutoScrollFrame = window.requestAnimationFrame(scrollWhileDraggingProject)
+}
+
+function startPointerAutoScroll(): void {
+  if (pointerAutoScrollFrame === undefined) {
+    pointerAutoScrollFrame = window.requestAnimationFrame(scrollWhileDraggingProject)
+  }
+}
+
 function moveProjectPointer(event: PointerEvent): void {
   const drag = pointerProjectDrag.value
   if (!drag || event.pointerId !== drag.pointerId) return
+  drag.clientY = event.clientY
   if (!drag.active && Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY) < 8) return
   drag.active = true
+  startPointerAutoScroll()
   event.preventDefault()
 }
 
@@ -594,6 +639,7 @@ function startProjectPointer(event: PointerEvent, project: Project): void {
     pointerId: event.pointerId,
     startX: event.clientX,
     startY: event.clientY,
+    clientY: event.clientY,
     active: false,
   }
   window.addEventListener('pointermove', moveProjectPointer, { passive: false })
@@ -665,7 +711,7 @@ onBeforeUnmount(() => {
 
 <template>
   <IonPage>
-    <IonContent :fullscreen="true" class="projects-content">
+    <IonContent ref="projectContent" :fullscreen="true" class="projects-content">
       <div class="projects-workspace">
         <header class="page-header">
           <div>
@@ -856,7 +902,7 @@ onBeforeUnmount(() => {
                 @drop.stop.prevent="dropProject($event, project, group.id)"
               />
             </TransitionGroup>
-            <p v-if="!isFolderCollapsed(group.id) && !group.projects.length" class="project-folder__empty">{{ t('Перетащите проект за правый верхний угол карточки.') }}</p>
+            <p v-if="!isFolderCollapsed(group.id) && !group.projects.length" class="project-folder__empty">{{ t('Перетащите проект за правый верхний угол карточки или добавьте его через контекстное меню правой кнопки мыши.') }}</p>
           </section>
         </div>
       </div>

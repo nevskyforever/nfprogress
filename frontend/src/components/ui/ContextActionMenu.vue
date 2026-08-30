@@ -6,6 +6,7 @@ export interface ContextAction {
   label: string
   danger?: boolean
   separator?: boolean
+  children?: ContextAction[]
 }
 
 const props = defineProps<{
@@ -17,15 +18,45 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{ close: []; select: [action: ContextAction] }>()
 const menu = ref<HTMLElement | null>(null)
+const openSubmenu = ref<ContextAction | null>(null)
+const submenuPosition = ref({ x: 0, y: 0 })
 
 function closeOnEscape(event: KeyboardEvent): void {
-  if (props.open && event.key === 'Escape') emit('close')
+  if (!props.open || event.key !== 'Escape') return
+  if (openSubmenu.value) {
+    openSubmenu.value = null
+    return
+  }
+  emit('close')
 }
 function closeOutside(event: PointerEvent): void {
   if (props.open && !menu.value?.contains(event.target as Node)) emit('close')
 }
 
+async function selectAction(action: ContextAction, event: MouseEvent): Promise<void> {
+  if (!action.children?.length) {
+    emit('select', action)
+    return
+  }
+  const trigger = event.currentTarget as HTMLElement | null
+  if (!trigger) return
+  openSubmenu.value = action
+  await nextTick()
+  const submenu = menu.value?.querySelector<HTMLElement>('.context-action-menu__submenu')
+  if (!submenu) return
+  const triggerBounds = trigger.getBoundingClientRect()
+  const submenuBounds = submenu.getBoundingClientRect()
+  const x = triggerBounds.right + 4 + submenuBounds.width <= window.innerWidth - 8
+    ? triggerBounds.right + 4
+    : triggerBounds.left - submenuBounds.width - 4
+  submenuPosition.value = {
+    x: Math.max(8, x),
+    y: Math.max(8, Math.min(triggerBounds.top, window.innerHeight - submenuBounds.height - 8)),
+  }
+}
+
 watch(() => props.open, async (open) => {
+  openSubmenu.value = null
   if (!open) return
   await nextTick()
   const element = menu.value
@@ -65,9 +96,31 @@ onBeforeUnmount(() => {
         :class="{
           'context-action-menu__item--danger': action.danger,
           'context-action-menu__item--separated': action.separator,
+          'context-action-menu__item--submenu': action.children?.length,
         }"
-        @click="emit('select', action)"
+        :aria-expanded="action.children?.length ? openSubmenu?.id === action.id : undefined"
+        :aria-haspopup="action.children?.length ? 'menu' : undefined"
+        @click="selectAction(action, $event)"
       >{{ action.label }}</button>
+      <div
+        v-if="openSubmenu"
+        class="context-action-menu context-action-menu__submenu"
+        role="menu"
+        :aria-label="openSubmenu.label"
+        :style="{ left: `${submenuPosition.x}px`, top: `${submenuPosition.y}px` }"
+      >
+        <button
+          v-for="action in openSubmenu.children"
+          :key="action.id"
+          type="button"
+          role="menuitem"
+          :class="{
+            'context-action-menu__item--danger': action.danger,
+            'context-action-menu__item--separated': action.separator,
+          }"
+          @click="emit('select', action)"
+        >{{ action.label }}</button>
+      </div>
     </div>
   </Teleport>
 </template>
@@ -78,4 +131,6 @@ onBeforeUnmount(() => {
 .context-action-menu button:hover, .context-action-menu button:focus-visible { outline: 0; background: var(--nf-color-primary-soft); color: var(--nf-color-primary); }
 .context-action-menu__item--danger { color: var(--nf-color-danger) !important; }
 .context-action-menu__item--separated { margin-top: .35rem; border-top: 1px solid var(--nf-color-border) !important; }
+.context-action-menu__item--submenu::after { content: '›'; float: right; margin-left: 1.5rem; font-size: 1.15rem; line-height: .9; }
+.context-action-menu__submenu { position: fixed; }
 </style>
