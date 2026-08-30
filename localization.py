@@ -1773,8 +1773,44 @@ _PROJECT_LIST_HELP_TRANSLATIONS = {
 <p>O último projeto ou etapa selecionado é lembrado e aberto na próxima inicialização.</p>
 </body></html>""",
 }
-for _language, _translation in _PROJECT_LIST_HELP_TRANSLATIONS.items():
-    TRANSLATION_OVERRIDES[_language][_HELP_ARTICLE_SOURCES["project_list"]] = _translation
+_PROJECT_LIST_HELP_REPLACEMENTS = {
+    "en": (
+        "<li>Select “Manual order” and click “Edit” next to sorting. Drag projects or stages by the handle that appears, then click “Save”. The handles are hidden after saving; stage movement arrows are no longer used.</li>",
+        "<li>Select “Manual order” to rearrange projects by dragging. Hover over a card’s top-right corner and drag the handle that appears; changes are saved immediately.</li>",
+        "<li>The “New folder” button creates a folder for organizing projects. Use the context menu to move a project into or out of a folder; deleting a folder does not delete its projects.</li>",
+        "<li>The “New folder” button creates a folder for organizing projects. To move a project into or out of a folder, drag the handle in the card’s top-right corner; deleting a folder does not delete its projects.</li>",
+    ),
+    "es": (
+        "<li>Selecciona «Orden manual» y pulsa «Editar» junto al selector. Arrastra proyectos o etapas por el control que aparece y pulsa «Guardar». Los controles se ocultan al guardar; ya no se usan flechas para mover etapas.</li>",
+        "<li>Selecciona «Orden manual» para reorganizar proyectos arrastrándolos. Pasa el cursor por la esquina superior derecha de una tarjeta y arrastra el control que aparece; los cambios se guardan de inmediato.</li>",
+        "<li>El botón «Nueva carpeta» crea una carpeta para organizar proyectos. Usa el menú contextual para mover un proyecto a una carpeta o sacarlo; eliminar la carpeta no elimina los proyectos.</li>",
+        "<li>El botón «Nueva carpeta» crea una carpeta para organizar proyectos. Para mover un proyecto a una carpeta o sacarlo, arrastra el control de la esquina superior derecha de la tarjeta; eliminar la carpeta no elimina los proyectos.</li>",
+    ),
+    "de": (
+        "<li>Wählen Sie „Manuelle Reihenfolge“ und klicken Sie neben der Sortierung auf „Bearbeiten“. Ziehen Sie Projekte oder Etappen am eingeblendeten Griff und klicken Sie dann auf „Speichern“. Danach werden die Griffe ausgeblendet; Verschiebepfeile werden nicht mehr verwendet.</li>",
+        "<li>Wählen Sie „Manuelle Reihenfolge“, um Projekte durch Ziehen neu anzuordnen. Bewegen Sie den Cursor in die obere rechte Ecke einer Karte und ziehen Sie den angezeigten Griff; Änderungen werden sofort gespeichert.</li>",
+        "<li>„Neuer Ordner“ erstellt einen Ordner zur Organisation von Projekten. Über das Kontextmenü verschieben Sie ein Projekt in einen Ordner oder heraus; beim Löschen des Ordners bleiben die Projekte erhalten.</li>",
+        "<li>„Neuer Ordner“ erstellt einen Ordner zur Organisation von Projekten. Um ein Projekt in einen Ordner oder heraus zu verschieben, ziehen Sie den Griff in der oberen rechten Ecke der Karte; beim Löschen des Ordners bleiben die Projekte erhalten.</li>",
+    ),
+    "fr": (
+        "<li>Sélectionnez « Ordre manuel » puis cliquez sur « Modifier » à côté du tri. Faites glisser les projets ou étapes par la poignée affichée, puis cliquez sur « Enregistrer ». Les poignées sont ensuite masquées ; les flèches ne sont plus utilisées.</li>",
+        "<li>Sélectionnez « Ordre manuel » pour réorganiser les projets par glisser-déposer. Survolez le coin supérieur droit d’une carte et faites glisser la poignée qui apparaît ; les modifications sont enregistrées immédiatement.</li>",
+        "<li>Le bouton « Nouveau dossier » crée un dossier pour organiser les projets. Le menu contextuel permet d’y placer ou d’en retirer un projet ; supprimer le dossier ne supprime pas les projets.</li>",
+        "<li>Le bouton « Nouveau dossier » crée un dossier pour organiser les projets. Pour y placer ou en retirer un projet, faites glisser la poignée dans le coin supérieur droit de la carte ; supprimer le dossier ne supprime pas les projets.</li>",
+    ),
+    "pt_BR": (
+        "<li>Selecione “Ordem manual” e clique em “Editar” ao lado da ordenação. Arraste projetos ou etapas pela alça exibida e clique em “Salvar”. As alças são ocultadas após salvar; as setas de movimentação não são mais usadas.</li>",
+        "<li>Selecione “Ordem manual” para reorganizar projetos arrastando-os. Passe o cursor sobre o canto superior direito de um cartão e arraste a alça exibida; as alterações são salvas imediatamente.</li>",
+        "<li>O botão “Nova pasta” cria uma pasta para organizar projetos. Use o menu de contexto para mover um projeto para dentro ou fora da pasta; excluir a pasta não exclui os projetos.</li>",
+        "<li>O botão “Nova pasta” cria uma pasta para organizar projetos. Para mover um projeto para dentro ou fora da pasta, arraste a alça no canto superior direito do cartão; excluir a pasta não exclui os projetos.</li>",
+    ),
+}
+for _language, (_old_order, _new_order, _old_folder, _new_folder) in _PROJECT_LIST_HELP_REPLACEMENTS.items():
+    TRANSLATION_OVERRIDES[_language][_HELP_ARTICLE_SOURCES["project_list"]] = (
+        _PROJECT_LIST_HELP_TRANSLATIONS[_language]
+        .replace(_old_order, _new_order)
+        .replace(_old_folder, _new_folder)
+    )
 
 _current_language = "ru"
 _application_translator: QTranslator | None = None

@@ -116,8 +116,7 @@ describe('ProjectsPage streak summaries', () => {
     await flushPromises()
 
     const cards = wrapper.findAll('.project-card')
-    expect(cards[0]?.find('.project-card__drag-handle').exists()).toBe(false)
-    await wrapper.get('.project-order-toggle').trigger('click')
+    expect(cards[0]?.find('.project-card__drag-handle').exists()).toBe(true)
     Object.defineProperty(document, 'elementFromPoint', {
       configurable: true,
       value: vi.fn(() => cards[1]?.element ?? null),
@@ -132,9 +131,6 @@ describe('ProjectsPage streak summaries', () => {
     window.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
     await flushPromises()
 
-    expect(projectsApi.reorder).not.toHaveBeenCalled()
-    await wrapper.get('.project-order-toggle').trigger('click')
-    await flushPromises()
     expect(projectsApi.reorder).toHaveBeenCalledWith(['project-b', 'project-a'])
     expect(cards[0]?.find('.project-card__open').exists()).toBe(false)
     wrapper.unmount()
@@ -186,8 +182,7 @@ describe('ProjectsPage streak summaries', () => {
 
     expect(wrapper.find('.project-mixed-grid').exists()).toBe(false)
     expect(wrapper.get('.project-grid').findAll('.project-card')).toHaveLength(2)
-    expect(wrapper.find('.project-card__drag-handle').exists()).toBe(false)
-    await wrapper.get('.project-order-toggle').trigger('click')
+    expect(wrapper.find('.project-card__drag-handle').exists()).toBe(true)
     expect(wrapper.get('.project-card').classes()).toContain('project-card--sortable')
     expect(wrapper.get('.project-card').attributes('draggable')).toBe('true')
     await wrapper.get('#project-status-filter').setValue('активен')
@@ -196,7 +191,7 @@ describe('ProjectsPage streak summaries', () => {
     wrapper.unmount()
   })
 
-  it('moves a project into an empty folder before saving the manual order', async () => {
+  it('moves a project into an empty folder immediately', async () => {
     const project = projectFixture({ id: 'project-a', folder_id: null })
     vi.mocked(projectsApi.list).mockResolvedValue([project])
     vi.mocked(projectsApi.folders).mockResolvedValue([{ id: 'folder-a', name: 'Черновики' }])
@@ -213,18 +208,16 @@ describe('ProjectsPage streak summaries', () => {
       },
     })
     await flushPromises()
-    await wrapper.get('.project-order-toggle').trigger('click')
     await wrapper.get('[data-folder-id="folder-a"]').trigger('drop', {
       dataTransfer: { getData: (type: string) => type === 'text/plain' ? 'project-a' : '' },
     })
-    await wrapper.get('.project-order-toggle').trigger('click')
     await flushPromises()
 
     expect(projectsApi.update).toHaveBeenCalledWith('project-a', { folder_id: 'folder-a' })
     wrapper.unmount()
   })
 
-  it('moves a project into a folder immediately outside manual-order editing', async () => {
+  it('moves a project into a folder without a separate editing mode', async () => {
     const project = projectFixture({ id: 'project-a', folder_id: null })
     vi.mocked(projectsApi.list).mockResolvedValue([project])
     vi.mocked(projectsApi.folders).mockResolvedValue([{ id: 'folder-a', name: 'Черновики' }])
@@ -251,7 +244,7 @@ describe('ProjectsPage streak summaries', () => {
     wrapper.unmount()
   })
 
-  it('moves a project into a folder with its drag handle outside manual-order editing', async () => {
+  it('moves a project into a folder with its drag handle', async () => {
     const project = projectFixture({ id: 'project-a', folder_id: null })
     vi.mocked(projectsApi.list).mockResolvedValue([project])
     vi.mocked(projectsApi.folders).mockResolvedValue([{ id: 'folder-a', name: 'Черновики' }])

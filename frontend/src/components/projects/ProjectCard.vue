@@ -210,14 +210,23 @@ const progressAriaLabel = computed(() =>
   user-select: none;
 }
 
+.project-card__drag-handle {
+  opacity: 0;
+}
+
 .project-card__drag-handle:hover,
 .project-card__drag-handle:focus-visible {
+  opacity: 1;
   border-color: var(--nf-color-primary);
   color: var(--nf-color-primary);
 }
 
 .project-card__drag-handle:active { cursor: grabbing; }
 .project-card--sortable .project-card__header { padding-right: 3rem; }
+
+@media (hover: none) {
+  .project-card__drag-handle { opacity: 1; }
+}
 
 .project-card:hover {
   border-color: color-mix(in srgb, var(--nf-color-primary) 45%, var(--nf-color-border));
