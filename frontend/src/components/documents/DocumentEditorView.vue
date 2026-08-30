@@ -46,7 +46,16 @@ async function importExternal() {
   editorContent.value = json
   await acknowledgeExternal(json, external.hash)
 }
-async function linkWord() { const path = await pickDesktopWordFile('Связать с файлом Word', 'Word'); if (path) await link(path) }
+async function linkWord() {
+  try {
+    const path = await pickDesktopWordFile('Связать с файлом Word', 'Word')
+    if (!path) return
+    await link(path)
+    status.value = t('Файл Word связан')
+  } catch (error) {
+    status.value = t(error instanceof Error ? error.message : 'Произошла непредвиденная ошибка.')
+  }
+}
 async function exportWord() {
   const blob = await exportDocx(editorContent.value); const url = URL.createObjectURL(blob); const anchor = document.createElement('a')
   anchor.href = url; anchor.download = `${props.title}.docx`; anchor.click(); URL.revokeObjectURL(url)
