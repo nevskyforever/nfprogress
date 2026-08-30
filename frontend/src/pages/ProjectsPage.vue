@@ -13,6 +13,8 @@ import {
   addOutline,
   alertCircleOutline,
   closeCircleOutline,
+  chevronDownOutline,
+  chevronForwardOutline,
   folderOpenOutline,
   refreshOutline,
   searchOutline,
@@ -86,6 +88,7 @@ const debouncedSearch = ref(search.value)
 const status = ref<StatusFilter>(initialStatus())
 const sort = ref<ProjectSort>(initialSort())
 const folders = ref<ProjectFolder[]>([])
+const collapsedFolderIds = ref(new Set<string>())
 const draggedProjectId = ref<string | null>(null)
 const contextProject = ref<Project | null>(null)
 const contextPosition = ref({ x: 0, y: 0 })
@@ -135,6 +138,17 @@ const projectGroups = computed(() => {
   ]
   return groups.filter((group) => group.projects.length || group.id !== null)
 })
+
+function isFolderCollapsed(folderId: string | null): boolean {
+  return folderId !== null && collapsedFolderIds.value.has(folderId)
+}
+
+function toggleFolder(folderId: string): void {
+  const next = new Set(collapsedFolderIds.value)
+  if (next.has(folderId)) next.delete(folderId)
+  else next.add(folderId)
+  collapsedFolderIds.value = next
+}
 
 const resultSummary = computed(() => {
   if (store.loading || store.error) return ''
@@ -456,6 +470,9 @@ async function deleteFolder(folder: ProjectFolder): Promise<void> {
   try {
     await projectsApi.removeFolder(folder.id)
     folders.value = folders.value.filter((item) => item.id !== folder.id)
+    const nextCollapsed = new Set(collapsedFolderIds.value)
+    nextCollapsed.delete(folder.id)
+    collapsedFolderIds.value = nextCollapsed
     loadProjects()
   } catch (error) { notifications.error(t(apiErrorMessage(error))) }
 }
@@ -805,13 +822,25 @@ onBeforeUnmount(() => {
             @drop.prevent="dropProjectIntoFolder($event, group.id)"
           >
             <header v-if="folders.length" class="project-folder__header">
-              <h2>{{ group.name }}</h2>
+              <h2 class="project-folder__title">
+                <IonIcon :icon="folderOpenOutline" aria-hidden="true" />
+                <span>{{ group.name }}</span>
+              </h2>
               <div v-if="group.id">
+                <button
+                  class="project-folder__toggle"
+                  type="button"
+                  :aria-label="isFolderCollapsed(group.id) ? t('Развернуть папку') : t('Свернуть папку')"
+                  :title="isFolderCollapsed(group.id) ? t('Развернуть папку') : t('Свернуть папку')"
+                  @click="toggleFolder(group.id)"
+                >
+                  <IonIcon :icon="isFolderCollapsed(group.id) ? chevronForwardOutline : chevronDownOutline" aria-hidden="true" />
+                </button>
                 <button type="button" @click="openRenameFolderDialog(folders.find((folder) => folder.id === group.id)!)">{{ t('Переименовать') }}</button>
                 <button type="button" class="project-folder__delete" @click="deleteFolder(folders.find((folder) => folder.id === group.id)!)">{{ t('Удалить папку') }}</button>
               </div>
             </header>
-            <TransitionGroup tag="div" class="project-grid" :aria-label="group.name">
+            <TransitionGroup v-if="!isFolderCollapsed(group.id)" tag="div" class="project-grid" :aria-label="group.name">
               <ProjectCard
                 v-for="project in group.projects"
                 :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
@@ -827,7 +856,7 @@ onBeforeUnmount(() => {
                 @drop.stop.prevent="dropProject($event, project, group.id)"
               />
             </TransitionGroup>
-            <p v-if="!group.projects.length" class="project-folder__empty">{{ t('Перетащите проект за правый верхний угол карточки.') }}</p>
+            <p v-if="!isFolderCollapsed(group.id) && !group.projects.length" class="project-folder__empty">{{ t('Перетащите проект за правый верхний угол карточки.') }}</p>
           </section>
         </div>
       </div>
@@ -1091,9 +1120,12 @@ onBeforeUnmount(() => {
 .project-folders { display: grid; gap: var(--nf-space-6); }
 .project-folder { min-width: 0; }
 .project-folder__header { display: flex; gap: var(--nf-space-3); align-items: center; justify-content: space-between; margin: 0 0 var(--nf-space-3); }
-.project-folder__header h2 { margin: 0; font-family: var(--nf-font-serif); font-size: 1.35rem; }
+.project-folder__title { display: flex; gap: var(--nf-space-2); align-items: center; margin: 0; font-family: var(--nf-font-serif); font-size: 1.35rem; }
+.project-folder__title ion-icon { color: var(--nf-color-primary); font-size: 1.25rem; }
 .project-folder__header div { display: flex; gap: var(--nf-space-2); }
 .project-folder__header button { padding: .35rem .55rem; border: 0; background: transparent; color: var(--nf-color-primary); font: inherit; font-size: .8rem; font-weight: 700; cursor: pointer; }
+.project-folder__header .project-folder__toggle { display: grid; width: 2rem; height: 2rem; padding: 0; place-items: center; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-sm); }
+.project-folder__toggle ion-icon { font-size: 1.1rem; }
 .project-folder__header .project-folder__delete { color: var(--nf-color-danger); }
 .project-folder__empty { margin: 0; padding: var(--nf-space-5); border: 1px dashed var(--nf-color-border); border-radius: var(--nf-radius-md); color: var(--nf-color-text-muted); text-align: center; }
 .project-card--sortable { user-select: none; }

@@ -279,6 +279,32 @@ describe('ProjectsPage streak summaries', () => {
     wrapper.unmount()
   })
 
+  it('collapses and expands a project folder from its header', async () => {
+    const project = projectFixture({ id: 'project-a', folder_id: 'folder-a' })
+    vi.mocked(projectsApi.list).mockResolvedValue([project])
+    vi.mocked(projectsApi.folders).mockResolvedValue([{ id: 'folder-a', name: 'Черновики' }])
+    const wrapper = mount(ProjectsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' }, IonIcon: true,
+          IonPage: { template: '<div><slot /></div>' }, ProjectCreateDialog: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+    const folder = wrapper.get('[data-folder-id="folder-a"]')
+
+    expect(folder.get('.project-folder__title').text()).toContain('Черновики')
+    expect(folder.find('.project-grid').exists()).toBe(true)
+    await folder.get('[aria-label="Свернуть папку"]').trigger('click')
+    expect(folder.find('.project-grid').exists()).toBe(false)
+    await folder.get('[aria-label="Развернуть папку"]').trigger('click')
+    expect(folder.find('.project-grid').exists()).toBe(true)
+    wrapper.unmount()
+  })
+
   it('offers all-source synchronization on desktop and refreshes the workspace', async () => {
     vi.mocked(settingsApi.get).mockResolvedValue({
       values: { global_streak: true, show_written_today_in_all_projects: true },
