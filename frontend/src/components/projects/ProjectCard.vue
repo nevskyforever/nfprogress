@@ -61,7 +61,7 @@ const progressAriaLabel = computed(() =>
       { 'project-card--with-cover': project.cover_image, 'project-card--sortable': draggable },
     ]"
     :data-project-id="project.id"
-    draggable="false"
+    :draggable="draggable"
     @contextmenu.prevent="emit('context', $event, project)"
     @dragstart="emit('dragstart', $event, project)"
     @dragend="emit('dragend')"

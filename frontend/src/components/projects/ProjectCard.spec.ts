@@ -77,4 +77,16 @@ describe('ProjectCard', () => {
     expect(wrapper.get('.project-card__streak').attributes('aria-label')).toContain('6 дн.')
     expect(wrapper.get('.project-card__streak').attributes('aria-label')).toContain('продлён сегодня')
   })
+
+  it('enables native dragging while the project order is being edited', () => {
+    const wrapper = mount(ProjectCard, {
+      props: { project: projectFixture(), draggable: true },
+      global: {
+        plugins: [createPinia()],
+        stubs: { IonIcon: true, RouterLink: { template: '<a><slot /></a>' } },
+      },
+    })
+
+    expect(wrapper.get('.project-card').attributes('draggable')).toBe('true')
+  })
 })

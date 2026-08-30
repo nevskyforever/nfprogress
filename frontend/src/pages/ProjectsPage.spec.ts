@@ -25,6 +25,7 @@ vi.mock('@/api/projects', () => ({
     globalStreak: vi.fn(),
     folders: vi.fn(),
     create: vi.fn(),
+    update: vi.fn(),
     reorder: vi.fn(),
   },
 }))
@@ -188,9 +189,38 @@ describe('ProjectsPage streak summaries', () => {
     expect(wrapper.find('.project-card__drag-handle').exists()).toBe(false)
     await wrapper.get('.project-order-toggle').trigger('click')
     expect(wrapper.get('.project-card').classes()).toContain('project-card--sortable')
+    expect(wrapper.get('.project-card').attributes('draggable')).toBe('true')
     await wrapper.get('#project-status-filter').setValue('активен')
     await flushPromises()
     expect(wrapper.get('.project-card').classes()).toContain('project-card--sortable')
+    wrapper.unmount()
+  })
+
+  it('moves a project into an empty folder before saving the manual order', async () => {
+    const project = projectFixture({ id: 'project-a', folder_id: null })
+    vi.mocked(projectsApi.list).mockResolvedValue([project])
+    vi.mocked(projectsApi.folders).mockResolvedValue([{ id: 'folder-a', name: 'Черновики' }])
+    vi.mocked(projectsApi.update).mockResolvedValue({ ...project, folder_id: 'folder-a' })
+    vi.mocked(projectsApi.reorder).mockResolvedValue([{ ...project, folder_id: 'folder-a' }])
+    const wrapper = mount(ProjectsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' }, IonIcon: true,
+          IonPage: { template: '<div><slot /></div>' }, ProjectCreateDialog: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+    await wrapper.get('.project-order-toggle').trigger('click')
+    await wrapper.get('[data-folder-id="folder-a"]').trigger('drop', {
+      dataTransfer: { getData: (type: string) => type === 'text/plain' ? 'project-a' : '' },
+    })
+    await wrapper.get('.project-order-toggle').trigger('click')
+    await flushPromises()
+
+    expect(projectsApi.update).toHaveBeenCalledWith('project-a', { folder_id: 'folder-a' })
     wrapper.unmount()
   })
 

@@ -543,6 +543,24 @@ function dropProject(
   if (sourceId) reorderProject(sourceId, targetProject, targetFolderId)
 }
 
+function moveProjectToFolder(sourceId: string, targetFolderId: string | null): void {
+  if (!sourceId || !store.projects.some((project) => project.id === sourceId)) return
+  const ordered = projectGroups.value
+    .flatMap((group) => group.projects.map((project) => project.id))
+    .filter((projectId) => projectId !== sourceId)
+  ordered.push(sourceId)
+  draftProjectOrder.value = ordered
+  draftProjectFolders.value = { ...draftProjectFolders.value, [sourceId]: targetFolderId }
+  draggedProjectId.value = null
+}
+
+function dropProjectIntoFolder(event: DragEvent, targetFolderId: string | null): void {
+  const sourceId = event.dataTransfer?.getData(projectDragMimeType)
+    || event.dataTransfer?.getData('text/plain')
+    || draggedProjectId.value
+  if (sourceId) moveProjectToFolder(sourceId, targetFolderId)
+}
+
 function clearProjectPointerDrag(): void {
   pointerProjectDrag.value = null
   window.removeEventListener('pointermove', moveProjectPointer)
@@ -566,15 +584,21 @@ function finishProjectPointer(event: PointerEvent): void {
   const targetId = document.elementFromPoint(event.clientX, event.clientY)
     ?.closest<HTMLElement>('[data-project-id]')?.dataset.projectId
   const targetProject = store.projects.find((project) => project.id === targetId)
-  if (!targetProject) return
-  const targetFolderId = Object.hasOwn(draftProjectFolders.value, targetProject.id)
-    ? draftProjectFolders.value[targetProject.id] ?? null
-    : targetProject.folder_id
   window.addEventListener('click', (clickEvent) => {
     clickEvent.preventDefault()
     clickEvent.stopImmediatePropagation()
   }, { capture: true, once: true })
-  reorderProject(drag.projectId, targetProject, targetFolderId)
+  if (targetProject) {
+    const targetFolderId = Object.hasOwn(draftProjectFolders.value, targetProject.id)
+      ? draftProjectFolders.value[targetProject.id] ?? null
+      : targetProject.folder_id
+    reorderProject(drag.projectId, targetProject, targetFolderId)
+    return
+  }
+  const folderElement = document.elementFromPoint(event.clientX, event.clientY)
+    ?.closest<HTMLElement>('[data-folder-id]')
+  if (!folderElement) return
+  moveProjectToFolder(drag.projectId, folderElement.dataset.folderId || null)
 }
 
 function startProjectPointer(event: PointerEvent, project: Project): void {
@@ -819,7 +843,9 @@ onBeforeUnmount(() => {
             v-for="group in projectGroups"
             :key="group.id ?? 'unfiled'"
             class="project-folder"
+            :data-folder-id="group.id ?? ''"
             @dragover="canReorderProjects && $event.preventDefault()"
+            @drop.prevent="dropProjectIntoFolder($event, group.id)"
           >
             <header v-if="folders.length" class="project-folder__header">
               <h2>{{ group.name }}</h2>
@@ -840,7 +866,7 @@ onBeforeUnmount(() => {
                 @dragend="draggedProjectId = null"
                 @pointerdown="startProjectPointer"
                 @dragover.prevent
-                @drop.prevent="dropProject($event, project, group.id)"
+                @drop.stop.prevent="dropProject($event, project, group.id)"
               />
             </TransitionGroup>
             <p v-if="!group.projects.length" class="project-folder__empty">{{ t('Перетащите сюда проекты или выберите папку в контекстном меню.') }}</p>
