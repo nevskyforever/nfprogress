@@ -257,9 +257,11 @@ bash "Build Tauri All.sh"
 
 Они собирают подходящий Nuitka sidecar, Tauri `.app`, проверенный DMG и ZIP с
 DMG, лицензией и сведениями об исходном коде. Результаты лежат в
-`build-tauri-arm/` или `build-tauri-intel/`. На Apple Silicon Intel-сборка
-требует x86_64 virtualenv с зависимостями backend; скрипт остановится с точной
-командой, если вместо него выбран arm64 Python.
+`build-tauri-arm/` или `build-tauri-intel/`. На Apple Silicon Intel-скрипт
+автоматически создаёт и поддерживает x86_64 окружение Rosetta
+`.venv-tauri-intel` с backend-зависимостями и Nuitka. Для другого окружения
+задайте `NFPROGRESS_TAURI_PYTHON` и, при необходимости,
+`NFPROGRESS_TAURI_PYTHON_ARCH=x86_64`.
 
 Скрипты `Release Tauri ARM.sh`, `Release Tauri Intel.sh` и
 `Release Tauri All.sh` по умолчанию готовят архив и загружают его на release

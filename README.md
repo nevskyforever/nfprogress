@@ -239,10 +239,10 @@ All Tauri build entry points synchronize the normalized three-component version
 from `engine.py` into the Tauri and Cargo metadata before building.
 
 The artifacts are written to `build-tauri-arm/` and `build-tauri-intel/`.
-On Apple Silicon, the Intel script requires an x86_64 Python virtual environment
-with the backend dependencies; it explains the required
-`NFPROGRESS_TAURI_PYTHON` and `NFPROGRESS_TAURI_PYTHON_ARCH` values if the
-active interpreter has the wrong architecture. The matching `Release Tauri
+On Apple Silicon, the Intel scripts automatically create and maintain the local
+Rosetta x86_64 environment `.venv-tauri-intel` with backend dependencies and
+Nuitka. To use a different environment, set `NFPROGRESS_TAURI_PYTHON` (and, if
+needed, `NFPROGRESS_TAURI_PYTHON_ARCH=x86_64`) before launch. The matching `Release Tauri
 *.sh` wrappers upload the macOS archives to the release hosting; the protected CI
 workflow downloads them, adds the Windows artifacts, and publishes the combined
 GitHub Release. Set `NFPROGRESS_TAURI_RELEASE_UPLOAD=0` to build without uploading.
