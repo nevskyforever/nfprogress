@@ -1,10 +1,10 @@
 {
   "version": "5.2.0",
-  "notes": "Исправлен экспорт картинки шеринга прогрессом в буфер обмена.\n\nУлучшен рендеринг картинки шеринга.",
-  "windows_version": "5.1.5",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.1.5-setup.exe",
+  "notes": "В левом меню появились раздел заметок и карт - теперь необязательно открывать проект для работы с его информацией.\n\nИз новых разделов карты и заметки можно открыть в отдельных окнах.\n\nДобавлена свободная сортировка проектов и этапов — теперь можно располагать их п своему усмотрению и редактировать их расположение.",
+  "windows_version": "5.2.0",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.2.0-setup.exe",
   "macos_arm_version": "5.2.0",
   "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.2.0.zip",
-  "macos_intel_version": "5.1.5",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.1.5.zip"
+  "macos_intel_version": "5.2.0",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.2.0.zip"
 }
