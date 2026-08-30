@@ -125,6 +125,8 @@ const hasFilters = computed(
   () => search.value.trim().length > 0 || status.value !== 'all',
 )
 const canReorderProjects = computed(() => sort.value === 'manual' && projectOrderEditing.value)
+const canMoveProjectsToFolders = computed(() => folders.value.length > 0 && !projectOrderSaving.value)
+const canDragProjects = computed(() => canReorderProjects.value || canMoveProjectsToFolders.value)
 const projectGroups = computed(() => {
   const orderIndex = new Map(draftProjectOrder.value.map((id, index) => [id, index]))
   const orderedProjects = [...store.projects].sort((left, right) =>
@@ -503,7 +505,7 @@ async function deleteFolder(folder: ProjectFolder): Promise<void> {
 }
 
 function startProjectDrag(event: DragEvent, project: Project): void {
-  if (!canReorderProjects.value) { event.preventDefault(); return }
+  if (!canDragProjects.value) { event.preventDefault(); return }
   draggedProjectId.value = project.id
   if (event.dataTransfer) {
     // A data item is required for native drag-and-drop in Firefox and Safari.
@@ -532,19 +534,35 @@ function reorderProject(
   draftProjectFolders.value = { ...draftProjectFolders.value, [sourceId]: targetFolderId }
 }
 
-function dropProject(
+async function dropProject(
   event: DragEvent,
   targetProject: Project,
   targetFolderId: string | null,
-): void {
+): Promise<void> {
   const sourceId = event.dataTransfer?.getData(projectDragMimeType)
     || event.dataTransfer?.getData('text/plain')
     || draggedProjectId.value
-  if (sourceId) reorderProject(sourceId, targetProject, targetFolderId)
+  if (!sourceId) return
+  if (projectOrderEditing.value) {
+    reorderProject(sourceId, targetProject, targetFolderId)
+    return
+  }
+  await moveProjectToFolder(sourceId, targetFolderId)
 }
 
-function moveProjectToFolder(sourceId: string, targetFolderId: string | null): void {
-  if (!sourceId || !store.projects.some((project) => project.id === sourceId)) return
+async function moveProjectToFolder(sourceId: string, targetFolderId: string | null): Promise<void> {
+  const sourceProject = store.projects.find((project) => project.id === sourceId)
+  if (!sourceProject) return
+  if (!projectOrderEditing.value) {
+    if (sourceProject.folder_id === targetFolderId) return
+    try {
+      await projectsApi.update(sourceId, { folder_id: targetFolderId })
+      await store.load(currentListQuery())
+    } catch (error) {
+      notifications.error(t(apiErrorMessage(error)))
+    }
+    return
+  }
   const ordered = projectGroups.value
     .flatMap((group) => group.projects.map((project) => project.id))
     .filter((projectId) => projectId !== sourceId)
@@ -554,11 +572,11 @@ function moveProjectToFolder(sourceId: string, targetFolderId: string | null): v
   draggedProjectId.value = null
 }
 
-function dropProjectIntoFolder(event: DragEvent, targetFolderId: string | null): void {
+async function dropProjectIntoFolder(event: DragEvent, targetFolderId: string | null): Promise<void> {
   const sourceId = event.dataTransfer?.getData(projectDragMimeType)
     || event.dataTransfer?.getData('text/plain')
     || draggedProjectId.value
-  if (sourceId) moveProjectToFolder(sourceId, targetFolderId)
+  if (sourceId) await moveProjectToFolder(sourceId, targetFolderId)
 }
 
 function clearProjectPointerDrag(): void {
@@ -592,17 +610,18 @@ function finishProjectPointer(event: PointerEvent): void {
     const targetFolderId = Object.hasOwn(draftProjectFolders.value, targetProject.id)
       ? draftProjectFolders.value[targetProject.id] ?? null
       : targetProject.folder_id
-    reorderProject(drag.projectId, targetProject, targetFolderId)
+    if (projectOrderEditing.value) reorderProject(drag.projectId, targetProject, targetFolderId)
+    else void moveProjectToFolder(drag.projectId, targetFolderId)
     return
   }
   const folderElement = document.elementFromPoint(event.clientX, event.clientY)
     ?.closest<HTMLElement>('[data-folder-id]')
   if (!folderElement) return
-  moveProjectToFolder(drag.projectId, folderElement.dataset.folderId || null)
+  void moveProjectToFolder(drag.projectId, folderElement.dataset.folderId || null)
 }
 
 function startProjectPointer(event: PointerEvent, project: Project): void {
-  if (!canReorderProjects.value || event.button !== 0) return
+  if (!canDragProjects.value || event.button !== 0) return
   pointerProjectDrag.value = {
     projectId: project.id,
     pointerId: event.pointerId,
@@ -844,7 +863,7 @@ onBeforeUnmount(() => {
             :key="group.id ?? 'unfiled'"
             class="project-folder"
             :data-folder-id="group.id ?? ''"
-            @dragover="canReorderProjects && $event.preventDefault()"
+            @dragover="canDragProjects && $event.preventDefault()"
             @drop.prevent="dropProjectIntoFolder($event, group.id)"
           >
             <header v-if="folders.length" class="project-folder__header">
@@ -860,7 +879,8 @@ onBeforeUnmount(() => {
                 :key="`${project.id}:${cardVersions[project.id] ?? 0}`"
                 :project="project"
                 :streaks-enabled="streaksEnabled"
-                :draggable="canReorderProjects"
+                :draggable="canDragProjects"
+                :show-drag-handle="canDragProjects"
                 @context="openProjectContext"
                 @dragstart="startProjectDrag"
                 @dragend="draggedProjectId = null"

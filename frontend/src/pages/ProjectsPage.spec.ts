@@ -224,6 +224,68 @@ describe('ProjectsPage streak summaries', () => {
     wrapper.unmount()
   })
 
+  it('moves a project into a folder immediately outside manual-order editing', async () => {
+    const project = projectFixture({ id: 'project-a', folder_id: null })
+    vi.mocked(projectsApi.list).mockResolvedValue([project])
+    vi.mocked(projectsApi.folders).mockResolvedValue([{ id: 'folder-a', name: 'Черновики' }])
+    vi.mocked(projectsApi.update).mockResolvedValue({ ...project, folder_id: 'folder-a' })
+    const wrapper = mount(ProjectsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' }, IonIcon: true,
+          IonPage: { template: '<div><slot /></div>' }, ProjectCreateDialog: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+    vi.mocked(projectsApi.reorder).mockClear()
+    await wrapper.get('[data-folder-id="folder-a"]').trigger('drop', {
+      dataTransfer: { getData: (type: string) => type === 'text/plain' ? 'project-a' : '' },
+    })
+    await flushPromises()
+
+    expect(projectsApi.update).toHaveBeenCalledWith('project-a', { folder_id: 'folder-a' })
+    expect(projectsApi.reorder).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('moves a project into a folder with its drag handle outside manual-order editing', async () => {
+    const project = projectFixture({ id: 'project-a', folder_id: null })
+    vi.mocked(projectsApi.list).mockResolvedValue([project])
+    vi.mocked(projectsApi.folders).mockResolvedValue([{ id: 'folder-a', name: 'Черновики' }])
+    vi.mocked(projectsApi.update).mockResolvedValue({ ...project, folder_id: 'folder-a' })
+    const wrapper = mount(ProjectsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' }, IonIcon: true,
+          IonPage: { template: '<div><slot /></div>' }, ProjectCreateDialog: true,
+          RouterLink: { template: '<a><slot /></a>' },
+        },
+      },
+    })
+    await flushPromises()
+    const folder = wrapper.get('[data-folder-id="folder-a"]')
+    Object.defineProperty(document, 'elementFromPoint', {
+      configurable: true,
+      value: vi.fn(() => folder.element),
+    })
+    const pointerEvent = (type: string, x: number, y: number) => Object.defineProperties(
+      new Event(type, { bubbles: true, cancelable: true }),
+      { pointerId: { value: 1 }, button: { value: 0 }, clientX: { value: x }, clientY: { value: y } },
+    )
+    const handle = wrapper.get('.project-card__drag-handle')
+    handle.element.dispatchEvent(pointerEvent('pointerdown', 10, 10))
+    window.dispatchEvent(pointerEvent('pointermove', 30, 30))
+    window.dispatchEvent(pointerEvent('pointerup', 30, 30))
+    await flushPromises()
+
+    expect(projectsApi.update).toHaveBeenCalledWith('project-a', { folder_id: 'folder-a' })
+    wrapper.unmount()
+  })
+
   it('offers all-source synchronization on desktop and refreshes the workspace', async () => {
     vi.mocked(settingsApi.get).mockResolvedValue({
       values: { global_streak: true, show_written_today_in_all_projects: true },

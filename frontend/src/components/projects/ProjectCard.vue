@@ -15,9 +15,11 @@ const props = withDefaults(defineProps<{
   project: Project
   streaksEnabled?: boolean
   draggable?: boolean
+  showDragHandle?: boolean
 }>(), {
   streaksEnabled: false,
   draggable: false,
+  showDragHandle: false,
 })
 const emit = defineEmits<{
   context: [event: MouseEvent, project: Project]
@@ -58,7 +60,7 @@ const progressAriaLabel = computed(() =>
     class="project-card"
     :class="[
       `project-card--${project.status.replaceAll(' ', '-')}`,
-      { 'project-card--with-cover': project.cover_image, 'project-card--sortable': draggable },
+      { 'project-card--with-cover': project.cover_image, 'project-card--sortable': showDragHandle },
     ]"
     :data-project-id="project.id"
     :draggable="draggable"
@@ -136,7 +138,7 @@ const progressAriaLabel = computed(() =>
       </div>
     </RouterLink>
     <button
-      v-if="draggable"
+      v-if="showDragHandle"
       class="project-card__drag-handle"
       type="button"
       :aria-label="`${t('Свободный порядок')}: ${project.name}`"
