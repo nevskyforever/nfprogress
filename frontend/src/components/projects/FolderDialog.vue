@@ -85,7 +85,7 @@ watch(() => props.open, async (open) => {
 <style>
 .folder-dialog-modal {
   --width: min(30rem, calc(100vw - 2rem));
-  --height: auto;
+  --height: min(18rem, calc(100dvh - 2rem));
   --border-radius: var(--nf-radius-lg);
   --background: var(--nf-color-surface);
 }
