@@ -8,8 +8,8 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
-use tauri::{Emitter, Manager, RunEvent, State};
+use serde::{Deserialize, Serialize};
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
@@ -17,6 +17,76 @@ const BACKEND_HOST: &str = "127.0.0.1";
 const BACKEND_START_TIMEOUT: Duration = Duration::from_secs(30);
 const UPDATE_MANIFEST_URL: &str = "https://nfproject.ru/app/update_manifest.json";
 const UPDATE_MANIFEST_TIMEOUT: Duration = Duration::from_secs(10);
+const WINDOW_STATE_FILE: &str = "main-window.json";
+
+#[derive(Clone, Deserialize, Serialize)]
+struct MainWindowState {
+    width: u32,
+    height: u32,
+    x: i32,
+    y: i32,
+}
+
+impl MainWindowState {
+    fn is_valid(&self) -> bool {
+        (820..=10_000).contains(&self.width) && (600..=10_000).contains(&self.height)
+    }
+}
+
+fn main_window_state_path(app: &tauri::AppHandle) -> Option<PathBuf> {
+    app.path()
+        .app_config_dir()
+        .ok()
+        .map(|directory| directory.join(WINDOW_STATE_FILE))
+}
+
+fn restore_main_window_state(app: &tauri::AppHandle) {
+    let Some(path) = main_window_state_path(app) else {
+        return;
+    };
+    let Ok(contents) = fs::read_to_string(path) else {
+        return;
+    };
+    let Ok(state) = serde_json::from_str::<MainWindowState>(&contents) else {
+        return;
+    };
+    if !state.is_valid() {
+        return;
+    }
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let _ = window.set_size(PhysicalSize::new(state.width, state.height));
+    let _ = window.set_position(PhysicalPosition::new(state.x, state.y));
+}
+
+fn save_main_window_state(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window("main") else {
+        return;
+    };
+    let (Ok(size), Ok(position)) = (window.inner_size(), window.outer_position()) else {
+        return;
+    };
+    let state = MainWindowState {
+        width: size.width,
+        height: size.height,
+        x: position.x,
+        y: position.y,
+    };
+    if !state.is_valid() {
+        return;
+    }
+    let Some(path) = main_window_state_path(app) else {
+        return;
+    };
+    if fs::create_dir_all(path.parent().unwrap_or_else(|| Path::new("."))).is_err() {
+        return;
+    }
+    let Ok(contents) = serde_json::to_string(&state) else {
+        return;
+    };
+    let _ = fs::write(path, contents);
+}
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -542,6 +612,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
+            restore_main_window_state(&app.handle());
             let state = app.state::<BackendState>();
             let port = match reserve_loopback_port() {
                 Ok(port) => port,
@@ -649,6 +720,7 @@ pub fn run() {
 
     app.run(|app_handle, event| {
         if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
+            save_main_window_state(app_handle);
             stop_backend(app_handle);
         }
     });

@@ -20,6 +20,7 @@ import {
 
 import ProjectCard from '@/components/projects/ProjectCard.vue'
 import ProjectCreateDialog from '@/components/projects/ProjectCreateDialog.vue'
+import FolderDialog from '@/components/projects/FolderDialog.vue'
 import StreakBadge from '@/components/projects/StreakBadge.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import ContextActionMenu, { type ContextAction } from '@/components/ui/ContextActionMenu.vue'
@@ -89,6 +90,8 @@ const draggedProjectId = ref<string | null>(null)
 const contextProject = ref<Project | null>(null)
 const contextPosition = ref({ x: 0, y: 0 })
 const createDialogOpen = ref(false)
+const folderDialogOpen = ref(false)
+const folderBeingEdited = ref<ProjectFolder | null>(null)
 const todaySummary = ref<TodaySummary | null>(null)
 const showTodaySummary = ref(false)
 const streaksEnabled = ref(false)
@@ -462,20 +465,31 @@ async function handleContextAction(action: ContextAction): Promise<void> {
   }
 }
 
-async function createFolder(): Promise<void> {
-  const name = window.prompt(t('Название новой папки'))?.trim()
-  if (!name) return
-  try {
-    folders.value = [...folders.value, await projectsApi.createFolder(name)]
-  } catch (error) { notifications.error(t(apiErrorMessage(error))) }
+function openCreateFolderDialog(): void {
+  folderBeingEdited.value = null
+  folderDialogOpen.value = true
 }
 
-async function renameFolder(folder: ProjectFolder): Promise<void> {
-  const name = window.prompt(t('Новое название папки'), folder.name)?.trim()
-  if (!name || name === folder.name) return
+function openRenameFolderDialog(folder: ProjectFolder): void {
+  folderBeingEdited.value = folder
+  folderDialogOpen.value = true
+}
+
+function closeFolderDialog(): void {
+  folderDialogOpen.value = false
+  folderBeingEdited.value = null
+}
+
+async function saveFolder(name: string): Promise<void> {
   try {
-    const updated = await projectsApi.updateFolder(folder.id, name)
-    folders.value = folders.value.map((item) => item.id === folder.id ? updated : item)
+    const folder = folderBeingEdited.value
+    if (folder) {
+      const updated = await projectsApi.updateFolder(folder.id, name)
+      folders.value = folders.value.map((item) => item.id === folder.id ? updated : item)
+    } else {
+      folders.value = [...folders.value, await projectsApi.createFolder(name)]
+    }
+    closeFolderDialog()
   } catch (error) { notifications.error(t(apiErrorMessage(error))) }
 }
 
@@ -668,7 +682,7 @@ onBeforeUnmount(() => {
               <IonIcon :icon="addOutline" aria-hidden="true" />
               {{ t('Новый проект') }}
             </button>
-            <button class="nf-button nf-button--secondary" type="button" @click="createFolder">
+            <button class="nf-button nf-button--secondary" type="button" @click="openCreateFolderDialog">
               {{ t('Новая папка') }}
             </button>
           </div>
@@ -810,7 +824,7 @@ onBeforeUnmount(() => {
             <header v-if="folders.length" class="project-folder__header">
               <h2>{{ group.name }}</h2>
               <div v-if="group.id">
-                <button type="button" @click="renameFolder(folders.find((folder) => folder.id === group.id)!)">{{ t('Переименовать') }}</button>
+                <button type="button" @click="openRenameFolderDialog(folders.find((folder) => folder.id === group.id)!)">{{ t('Переименовать') }}</button>
                 <button type="button" class="project-folder__delete" @click="deleteFolder(folders.find((folder) => folder.id === group.id)!)">{{ t('Удалить папку') }}</button>
               </div>
             </header>
@@ -842,6 +856,12 @@ onBeforeUnmount(() => {
       :api-error="store.createError"
       @close="closeCreateDialog"
       @submit="createProject"
+    />
+    <FolderDialog
+      :open="folderDialogOpen"
+      :initial-name="folderBeingEdited?.name"
+      @close="closeFolderDialog"
+      @submit="saveFolder"
     />
     <ContextActionMenu
       :open="contextProject !== null"
