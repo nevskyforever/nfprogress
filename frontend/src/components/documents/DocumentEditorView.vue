@@ -11,9 +11,11 @@ import type { DocumentScope, TiptapDocument } from '@/types/documents'
 import DocumentConflictResolver from './DocumentConflictResolver.vue'
 import { tiptapLocale } from './tiptapLocale'
 import { useLocaleStore } from '@/stores/locale'
+import { useThemeStore } from '@/stores/theme'
 
 const props = defineProps<{ scope: DocumentScope; title: string }>()
 const locale = useLocaleStore()
+const theme = useThemeStore()
 const t = locale.translate
 const editorRef = shallowRef<TiptapProEditorExpose | null>(null)
 const showConflict = ref(false)
@@ -26,7 +28,7 @@ const { content, documentState, status, scheduleSave, link, checkExternal, ackno
 let externalTimer: number | undefined
 const linked = computed(() => Boolean(documentState.value?.docx_path))
 
-function setWordTheme() { setTheme('word', document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light') }
+function setWordTheme(value: 'light' | 'dark') { setTheme('word', value) }
 function configureKitLocale() {
   // The package's public type only lists bundled locales, while its runtime
   // intentionally accepts host locale keys and message dictionaries.
@@ -53,8 +55,9 @@ function importWord() { const input = document.createElement('input'); input.typ
 
 watch(content, (next) => { editorContent.value = next }, { deep: true })
 watch(() => locale.language, configureKitLocale)
+watch(() => theme.resolved, setWordTheme, { immediate: true })
 configureKitLocale()
-onMounted(() => { setWordTheme(); const observer = new MutationObserver(setWordTheme); observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] }); externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000); onBeforeUnmount(() => observer.disconnect()) })
+onMounted(() => { externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000) })
 onBeforeUnmount(() => window.clearInterval(externalTimer))
 </script>
 
