@@ -15,6 +15,7 @@ class Services:
     settings: object
     content: object
     integrations: object
+    documents: object
 
 
 def get_services(request: Request) -> Services:

@@ -67,6 +67,7 @@ const navigationItems = computed(() => [
   { to: lastProjectPath.value, label: 'Проекты', mobileLabel: 'Проекты', icon: folderOpenOutline },
   { to: lastMapsPath.value, label: 'Карты', mobileLabel: 'Карты', icon: gitBranchOutline },
   { to: lastNotesPath.value, label: 'Заметки', mobileLabel: 'Заметки', icon: documentTextOutline },
+  { to: '/texts', label: 'Тексты', mobileLabel: 'Тексты', icon: documentTextOutline },
   { to: '/game', label: 'Игровой режим', mobileLabel: 'Игра', icon: sparklesOutline },
   { to: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
   { to: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },

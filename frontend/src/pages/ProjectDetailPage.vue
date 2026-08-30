@@ -693,6 +693,12 @@ onBeforeUnmount(() => {
             >
               <IonIcon :icon="documentTextOutline" aria-hidden="true" />{{ t('Заметки и карта') }}
             </RouterLink>
+            <RouterLink
+              class="nf-button nf-button--secondary project-notes-button"
+              :to="{ name: 'document', params: { projectId: project.id }, query: { ...(isStageDetail ? { stageId: detailEntity.id } : {}), title: detailEntity.name } }"
+            >
+              <IonIcon :icon="documentTextOutline" aria-hidden="true" />{{ t('Текст') }}
+            </RouterLink>
             <ProgressShareMenu
               :label="t('Поделиться прогрессом «{name}»', { name: detailEntity.name })"
               :title="detailEntity.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined"

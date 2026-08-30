@@ -31,6 +31,8 @@ const router = createRouter({
       props: true,
       meta: { title: 'Заметки проекта' },
     },
+    { path: '/projects/:projectId/document', name: 'document', component: () => import('@/pages/DocumentPage.vue'), meta: { title: 'Текст' } },
+    { path: '/texts', name: 'texts', component: () => import('@/pages/TextsPage.vue'), meta: { title: 'Тексты' } },
     {
       path: '/maps', name: 'maps',
       component: () => import('@/pages/ProjectResourceHubPage.vue'),

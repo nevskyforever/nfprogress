@@ -15,13 +15,14 @@ from nfprogress.core.repositories.storage import PickleRepository
 from nfprogress.core.services.content import ContentService
 from nfprogress.core.services.game import GameService
 from nfprogress.core.services.integrations import DocumentIntegrationService
+from nfprogress.core.services.documents import ProjectDocumentService
 from nfprogress.core.services.notes import ProjectNotesService
 from nfprogress.core.services.projects import ProjectService
 from nfprogress.core.services.settings import SettingsService
 
 from .config import RuntimeConfig
 from .dependencies import Services, require_session
-from .routers import content, game, integrations, notes, projects
+from .routers import content, documents, game, integrations, notes, projects
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -88,6 +89,10 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
         integrations=DocumentIntegrationService(
             repository,
             project_service,
+            allow_local_files=runtime_config.allow_local_files,
+        ),
+        documents=ProjectDocumentService(
+            repository, project_service,
             allow_local_files=runtime_config.allow_local_files,
         ),
     )
@@ -163,6 +168,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
     app.include_router(game.router, prefix='/api', dependencies=api_dependencies)
     app.include_router(content.router, prefix='/api', dependencies=api_dependencies)
     app.include_router(integrations.router, prefix='/api', dependencies=api_dependencies)
+    app.include_router(documents.router, prefix='/api', dependencies=api_dependencies)
     return app
 
 
