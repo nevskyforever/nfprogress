@@ -4,7 +4,9 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { contentApi } from '@/api/content'
+import { projectsApi } from '@/api/projects'
 import { settingsApi } from '@/api/settings'
+import { announceDataChange } from '@/services/dataChanges'
 import { useLocaleStore } from '@/stores/locale'
 import { useThemeStore } from '@/stores/theme'
 import type { SettingsResponse } from '@/types/content'
@@ -30,6 +32,12 @@ vi.mock('@/api/settings', () => ({
   settingsApi: {
     get: vi.fn(),
     update: vi.fn(),
+  },
+}))
+
+vi.mock('@/api/projects', () => ({
+  projectsApi: {
+    globalStreak: vi.fn(),
   },
 }))
 
@@ -75,7 +83,17 @@ describe('AppShell preferences', () => {
     }
     vi.mocked(settingsApi.update).mockReset()
     vi.mocked(settingsApi.get).mockReset()
-    vi.mocked(settingsApi.get).mockResolvedValue(response({ developer_mode: false }))
+    vi.mocked(settingsApi.get).mockResolvedValue(response({
+      developer_mode: false,
+      global_streak: true,
+    }))
+    vi.mocked(projectsApi.globalStreak).mockReset()
+    vi.mocked(projectsApi.globalStreak).mockResolvedValue({
+      enabled: true,
+      status: 'Active',
+      length: 4,
+      max_length: 9,
+    })
     vi.mocked(contentApi.locale).mockReset()
     vi.mocked(contentApi.locale).mockResolvedValue({})
   })
@@ -85,6 +103,26 @@ describe('AppShell preferences', () => {
     const navigation = wrapper.get('.primary-navigation').text()
     expect(navigation).toContain('Карты')
     expect(navigation).toContain('Заметки')
+  })
+
+  it('refreshes the global streak after a project freeze is applied in game mode', async () => {
+    const { wrapper } = mountShell()
+    await flushPromises()
+    vi.mocked(projectsApi.globalStreak).mockResolvedValue({
+      enabled: true,
+      status: 'Freeze',
+      length: 4,
+      max_length: 9,
+    })
+    const callsBeforeRefresh = vi.mocked(projectsApi.globalStreak).mock.calls.length
+
+    announceDataChange('game')
+    await flushPromises()
+
+    expect(vi.mocked(projectsApi.globalStreak).mock.calls.length)
+      .toBeGreaterThan(callsBeforeRefresh)
+    expect(wrapper.get('.sidebar-global-streak').text()).toContain('заморожен')
+    wrapper.unmount()
   })
 
   it('waits for backend confirmation before changing the theme', async () => {

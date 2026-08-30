@@ -155,7 +155,7 @@ onMounted(() => {
   })
   void refreshGlobalStreak()
   stopDataChanges = onDataChange((scope) => {
-    if (scope === 'projects') void refreshGlobalStreak()
+    if (scope === 'projects' || scope === 'game') void refreshGlobalStreak()
   })
 })
 onBeforeUnmount(() => {
