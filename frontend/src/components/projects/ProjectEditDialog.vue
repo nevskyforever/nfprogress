@@ -5,7 +5,7 @@ import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
 import ProjectCoverEditor from '@/components/projects/ProjectCoverEditor.vue'
-import type { Project, ProjectUpdate, UnitCode } from '@/types/api'
+import type { Project, ProjectUpdate, UnitCode, WorkMethod } from '@/types/api'
 import {
   automaticDailyGoal,
   automaticDeadlineAfterGoalChange,
@@ -52,6 +52,7 @@ const form = reactive({
   combineStageMindmaps: false,
   recalculatePlan: false,
   coverImage: null as string | null,
+  workMethod: 'manual' as WorkMethod,
 })
 
 const canRecalculatePlan = computed(() => {
@@ -81,6 +82,7 @@ function fill(): void {
   form.combineStageMindmaps = project.combine_stage_mindmaps
   form.recalculatePlan = false
   form.coverImage = project.cover_image
+  form.workMethod = project.work_method
   validationErrors.value = []
 }
 
@@ -245,6 +247,7 @@ async function submit(): Promise<void> {
   }
   if (form.stagesEnabled !== props.project.stages_enabled) payload.stages_enabled = form.stagesEnabled
   if (form.coverImage !== props.project.cover_image) payload.cover_image = form.coverImage
+  if (form.workMethod !== props.project.work_method) payload.work_method = form.workMethod
   if (
     form.stagesEnabled
     && form.combineStageMindmaps !== props.project.combine_stage_mindmaps
@@ -391,6 +394,15 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
             @input="updateDeadline"
             @change="updateDeadline"
           />
+        </label>
+        <label class="workspace-field workspace-field--wide" for="edit-project-work-method">
+          <span>{{ t('Метод работы с проектом') }}</span>
+          <select id="edit-project-work-method" v-model="form.workMethod">
+            <option value="manual">{{ t('Ручное добавление записей') }}</option>
+            <option value="sync">{{ t('Синхронизация') }}</option>
+            <option value="app">{{ t('В приложении') }}</option>
+          </select>
+          <small>{{ form.workMethod === 'manual' ? t('Записи добавляются вручную. Текст и синхронизация предложат сменить метод.') : form.workMethod === 'sync' ? t('Прогресс обновляется только из подключённого внешнего файла.') : t('Прогресс добавляется только по тексту во встроенном редакторе.') }}</small>
         </label>
 
         <div class="workspace-options workspace-field--wide">

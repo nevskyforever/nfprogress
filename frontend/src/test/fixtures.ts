@@ -35,6 +35,7 @@ export function projectFixture(overrides: Partial<Project> = {}): Project {
     cover_image: null,
     folder_id: null,
     sync_available: false,
+    work_method: 'manual',
     ...overrides,
   }
 }

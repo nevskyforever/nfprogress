@@ -128,17 +128,17 @@ const selectedSyncConfigured = computed(() =>
     )
     : hasConfiguredSync.value,
 )
+const selectedSyncEntity = computed<Project>(() => selectedSyncStageId.value
+  ? project.value.stages.find((stage) => stage.id === selectedSyncStageId.value) ?? project.value
+  : project.value)
 const textSymbols = computed<Record<string, number>>(() => Object.fromEntries(
   documents.value
     .filter((document) => document.project_id === project.value.id && document.has_content)
     .map((document) => [document.stage_id ?? document.project_id, document.symbols]),
 ))
-const canOpenText = computed(() => !selectedSyncConfigured.value && (
+const canOpenText = computed(() => detailEntity.value.work_method !== 'sync' && (
   isStageDetail.value || project.value.stages.length === 0
 ))
-const hasTextForCurrentEntity = computed(() => (
-  textSymbols.value[isStageDetail.value ? detailEntity.value.id : project.value.id] ?? 0
-) > 0)
 const sharedSourceDefaultName = computed(() => {
   const hasLegacySource = isSharedProject.value
     && !project.value.stages.length
@@ -267,6 +267,13 @@ async function loadSyncSummary(): Promise<void> {
 async function synchronizeProject(): Promise<void> {
   feedbackArea.value = 'global'
   actionSuccess.value = null
+  if (selectedSyncEntity.value.work_method === 'manual') {
+    if (!window.confirm(t('Синхронизация будет получать записи только из внешнего файла. Ручной ввод и текстовый редактор станут недоступны до следующей смены метода. Переключить метод и продолжить?'))) return
+    const updated = selectedSyncStageId.value
+      ? await store.updateStage(project.value.id, selectedSyncStageId.value, { work_method: 'sync' })
+      : await store.updateCurrent(project.value.id, { work_method: 'sync' })
+    if (!updated) return
+  }
   if (!selectedSyncConfigured.value) {
     await router.push({
       name: 'integrations',
@@ -300,6 +307,17 @@ async function synchronizeProject(): Promise<void> {
   } finally {
     syncRunning.value = false
   }
+}
+
+async function openTextEditor(): Promise<void> {
+  if (detailEntity.value.work_method === 'manual') {
+    if (!window.confirm(t('Встроенный редактор будет добавлять записи только из текста документа. Ручной ввод и синхронизация станут недоступны до следующей смены метода. Переключить метод и открыть текст?'))) return
+    const updated = isStageDetail.value
+      ? await store.updateStage(project.value.id, detailEntity.value.id, { work_method: 'app' })
+      : await store.updateCurrent(project.value.id, { work_method: 'app' })
+    if (!updated) return
+  }
+  await router.push({ name: 'document', params: { projectId: project.value.id }, query: { ...(isStageDetail.value ? { stageId: detailEntity.value.id } : {}), title: detailEntity.value.name } })
 }
 
 function announceSuccess(message: string, area: 'global' | 'progress' = 'global'): void {
@@ -557,6 +575,11 @@ async function reorderStages(stageIds: string[]): Promise<void> {
 }
 
 async function synchronizeStage(stage: Project): Promise<void> {
+  if (stage.work_method !== 'sync') {
+    if (!window.confirm(t('Синхронизация будет получать записи только из внешнего файла. Ручной ввод и текстовый редактор станут недоступны до следующей смены метода. Переключить метод и продолжить?'))) return
+    const updated = await store.updateStage(project.value.id, stage.id, { work_method: 'sync' })
+    if (!updated) return
+  }
   feedbackArea.value = 'global'
   syncRunning.value = true
   try {
@@ -691,7 +714,7 @@ onBeforeUnmount(() => {
 
           <nav class="project-actions" :aria-label="t('Действия проекта')">
             <button
-              v-if="detailEntity.status !== 'завершен' && !hasTextForCurrentEntity"
+              v-if="detailEntity.status !== 'завершен' && selectedSyncEntity.work_method !== 'app'"
               class="nf-button project-sync-button"
               type="button"
               :disabled="syncLoading || syncRunning"
@@ -711,7 +734,7 @@ onBeforeUnmount(() => {
               <IonIcon :icon="addOutline" aria-hidden="true" />{{ t('Добавить источник') }}
             </button>
             <RouterLink
-              v-if="canOpenText"
+              v-if="isStageDetail || !project.stages.length"
               class="nf-button nf-button--secondary project-notes-button"
               :to="{
                 name: 'project-notes',
@@ -721,12 +744,14 @@ onBeforeUnmount(() => {
             >
               <IonIcon :icon="documentTextOutline" aria-hidden="true" />{{ t('Заметки и карта') }}
             </RouterLink>
-            <RouterLink
+            <button
+              v-if="canOpenText"
               class="nf-button nf-button--secondary project-notes-button"
-              :to="{ name: 'document', params: { projectId: project.id }, query: { ...(isStageDetail ? { stageId: detailEntity.id } : {}), title: detailEntity.name } }"
+              type="button"
+              @click="openTextEditor"
             >
               <IonIcon :icon="documentTextOutline" aria-hidden="true" />{{ t('Текст') }}
-            </RouterLink>
+            </button>
             <ProgressShareMenu
               :label="t('Поделиться прогрессом «{name}»', { name: detailEntity.name })"
               :title="detailEntity.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined"

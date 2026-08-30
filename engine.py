@@ -1159,6 +1159,7 @@ class Project:
         self.unit = unit
         self.synch = None
         self.last_synch = None
+        self.work_method = 'manual'
         self.last_streak_bonus = None
         self.last_streak_lost_date = None
         self.freezes = 0
@@ -1185,6 +1186,9 @@ class Project:
         # в streak_status ('Off' — выключено, остальные статусы — включено).
         if hasattr(self, 'streak_enabled'):
             delattr(self, 'streak_enabled')
+        # Old saves have no ``work_method``.  Remember that before adding
+        # defaults so an existing external binding can be migrated to sync.
+        has_work_method = hasattr(self, 'work_method')
         defaults = {
             '_name': 'Без имени',
             'project_id': uuid.uuid5(
@@ -1206,6 +1210,7 @@ class Project:
             'unit': 'symbols',
             'synch': None,
             'last_synch': None,
+            'work_method': 'manual',
             'last_streak_bonus': None,
             'last_streak_lost_date': None,
             'freezes': 0,
@@ -1245,6 +1250,10 @@ class Project:
 
         if self.synch is not None and isinstance(self.synch, str):
             self.synch = {'type': 'word', 'path': self.synch}
+        if not has_work_method or getattr(self, 'work_method', None) not in {'manual', 'sync', 'app'}:
+            # Existing external bindings remain active after migration; all
+            # other legacy projects keep their established manual workflow.
+            self.work_method = 'sync' if self.synch is not None else 'manual'
 
         # deadline_set_date должен храниться как date, иначе старт плана "прыгает".
         if self.deadline_set_date is None or not isinstance(self.deadline_set_date, date):

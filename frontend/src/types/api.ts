@@ -7,6 +7,7 @@ export const UNIT_CODES = ['symbols', 'A4', 'author_list', 'ficbook_pages'] as c
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 export type ProjectSort = (typeof PROJECT_SORTS)[number]
 export type UnitCode = (typeof UNIT_CODES)[number]
+export type WorkMethod = 'manual' | 'sync' | 'app'
 
 export interface ProgressEntry {
   id: string
@@ -52,6 +53,7 @@ export interface Project {
   cover_image: string | null
   folder_id: string | null
   sync_available: boolean
+  work_method: WorkMethod
 }
 
 export interface ProjectFolder {
@@ -68,6 +70,7 @@ export interface StageCreate {
   personal_goal?: number
   streak_enabled?: boolean
   auto_freeze?: boolean
+  work_method?: WorkMethod
 }
 
 export interface ProjectCreate extends StageCreate {
@@ -89,6 +92,7 @@ export interface EntityUpdate {
   personal_goal?: number
   streak_enabled?: boolean
   auto_freeze?: boolean
+  work_method?: WorkMethod
   recalculate_plan?: boolean
   confirm_daily_goal_increase?: boolean
 }

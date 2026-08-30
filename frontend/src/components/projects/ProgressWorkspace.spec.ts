@@ -47,8 +47,8 @@ describe('ProgressWorkspace', () => {
     expect(wrapper.get('[role="alert"]').text()).toContain('отличающееся от текущего')
   })
 
-  it('blocks manual input for a synchronized stage but keeps stage selection available', () => {
-    const stage = projectFixture({ id: 'stage-1', name: 'Глава 1', total: 1_000 })
+  it('hides manual input for a synchronized stage', () => {
+    const stage = projectFixture({ id: 'stage-1', name: 'Глава 1', total: 1_000, work_method: 'sync' })
     const wrapper = mount(ProgressWorkspace, {
       props: {
         project: projectFixture({ stages_enabled: true, stages: [stage] }),
@@ -68,9 +68,9 @@ describe('ProgressWorkspace', () => {
       global: { plugins: [createPinia()], stubs: ionicStubs },
     })
 
-    expect(wrapper.get('#progress-new-total').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('button[type="submit"]').attributes('disabled')).toBeDefined()
-    expect(wrapper.get('#progress-entity').attributes('disabled')).toBeUndefined()
+    expect(wrapper.find('#progress-new-total').exists()).toBe(false)
+    expect(wrapper.find('button[type="submit"]').exists()).toBe(false)
+    expect(wrapper.find('#progress-entity').exists()).toBe(false)
     expect(wrapper.get('.read-only-note').text()).toContain('Включена синхронизация')
   })
 })

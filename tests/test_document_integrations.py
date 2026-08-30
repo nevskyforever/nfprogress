@@ -8,6 +8,7 @@ import pytest
 from docx import Document
 from fastapi.testclient import TestClient
 
+import engine
 from backend.app.config import RuntimeConfig
 from backend.app.main import create_app
 from nfprogress.core.errors import ConflictError, NotFoundError, ValidationError
@@ -28,6 +29,16 @@ def _docx_bytes(text: str) -> bytes:
 def test_uploaded_word_document_is_counted_without_persisting_manuscript():
     content = _docx_bytes('Три слова здесь')
     assert DocumentIntegrationService.count_uploaded_docx(content, 'book.docx') == 15
+
+
+def test_legacy_external_binding_migrates_to_sync_work_method():
+    project = engine.Project(name='Book', goal=100)
+    del project.work_method
+    project.synch = {'type': 'word', 'path': '/tmp/book.docx'}
+
+    project.migrate()
+
+    assert project.work_method == 'sync'
 
 
 def test_uploaded_word_document_must_be_a_bounded_zip_container():
@@ -110,6 +121,7 @@ def test_desktop_batch_sync_isolates_source_failures(tmp_path):
         if item.project_id == missing['id']
     )
     missing_project.synch = {'type': 'word', 'path': str(missing_path)}
+    missing_project.work_method = 'sync'
     repository.write_projects(data)
 
     result = service.sync_all_configured()
@@ -193,6 +205,7 @@ def test_scrivener_sync_rejects_unknown_or_stale_binder_item(tmp_path):
     stored.synch = {
         'type': 'scrivener', 'path': str(project_path), 'item_id': 'removed',
     }
+    stored.work_method = 'sync'
     repository.write_projects(data)
 
     with pytest.raises(ConflictError) as stale:
@@ -308,6 +321,7 @@ def test_synchronized_progress_rejects_invalid_or_out_of_order_timestamp(tmp_pat
         'name': 'Book', 'goal': 100, 'unit': 'symbols',
     })
     projects.record_progress(project['id'], new_total=10)
+    projects.update_project(project['id'], {'work_method': 'sync'})
 
     with pytest.raises(ValidationError) as invalid:
         projects.record_synchronized_progress(

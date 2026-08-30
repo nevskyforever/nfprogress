@@ -170,6 +170,7 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
             getattr(entity, 'synch', None)
             or (kind == 'project' and any(getattr(stage, 'synch', None) for stage in stages))
         ),
+        'work_method': getattr(entity, 'work_method', 'sync' if getattr(entity, 'synch', None) is not None else 'manual'),
     }
     if kind == 'stage':
         payload['parent_project_name'] = getattr(entity, 'parent_project_name', None)

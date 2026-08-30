@@ -144,7 +144,7 @@ class ProjectDocumentService:
             if abs(float(total) - float(entity.total_units)) < 0.009:
                 return {'changed': False, 'symbols': symbols, 'progress': None}
             changed_at = self._parse_updated_at(record.get('updated_at'))
-            progress = self.project_service.record_synchronized_progress(
+            progress = self.project_service.record_document_progress(
                 project_id, stage_id=stage_id, new_total=total,
                 source_modified_at=changed_at,
             )
@@ -173,8 +173,8 @@ class ProjectDocumentService:
         entity = self.project_service._find_stage(project, stage_id) if stage_id else project
         if stage_id is None and getattr(project, 'stages', []):
             raise ValidationError('У проекта с этапами нет отдельного текста.')
-        if getattr(entity, 'synch', None) is not None:
-            raise ValidationError('У синхронизируемого проекта или этапа нет отдельного текста.')
+        if getattr(entity, 'work_method', 'sync' if getattr(entity, 'synch', None) is not None else 'manual') != 'app':
+            raise ValidationError('Для работы с текстом выберите метод «В приложении».')
 
     @staticmethod
     def _symbol_count(value: object) -> int:

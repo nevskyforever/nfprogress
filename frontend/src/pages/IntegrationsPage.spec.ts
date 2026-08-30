@@ -43,6 +43,7 @@ describe('IntegrationsPage', () => {
       id: 'stage-id',
       name: 'Черновик',
       parent_project_id: 'project-id',
+      work_method: 'sync',
     })
     const project = projectFixture({
       id: 'project-id',

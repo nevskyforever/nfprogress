@@ -81,6 +81,7 @@ const syncTargetReady = computed(
 const entityWritable = computed(
   () => syncTargetReady.value && selectedEntity.value?.status === 'активен',
 )
+const syncMethodActive = computed(() => selectedEntity.value?.work_method === 'sync')
 const busy = computed(() => mutating.value || batchMutating.value)
 const flattenedScrivenerItems = computed(() => flattenScrivenerItems(scrivenerItems.value))
 const selectedScrivenerTitle = computed(
@@ -114,8 +115,9 @@ function applyProgressFeedback(
 }
 const canConfigure = computed(
   () =>
-    localSyncAvailable.value &&
-    entityWritable.value &&
+      localSyncAvailable.value &&
+      entityWritable.value &&
+      selectedEntity.value?.work_method !== 'app' &&
     sourcePath.value.trim().length > 0 &&
     (syncType.value === 'word' || selectedScrivenerItem.value.length > 0),
 )
@@ -284,6 +286,13 @@ function changeSyncType(): void {
 
 async function configureSync(): Promise<void> {
   if (!canConfigure.value || !selectedProjectId.value || busy.value) return
+  if (selectedEntity.value?.work_method === 'manual') {
+    if (!window.confirm(t('Синхронизация будет получать записи только из внешнего файла. Ручной ввод и текстовый редактор станут недоступны до следующей смены метода. Переключить метод и продолжить?'))) return
+    const updated = selectedStageId.value
+      ? await projectsApi.updateStage(selectedProjectId.value, selectedStageId.value, { work_method: 'sync' })
+      : await projectsApi.update(selectedProjectId.value, { work_method: 'sync' })
+    projects.value = projects.value.map((project) => project.id === updated.id ? updated : project)
+  }
   mutating.value = true
   operationError.value = null
   success.value = ''
@@ -309,6 +318,7 @@ async function runSync(): Promise<void> {
     !sync.value?.configured ||
     !selectedProjectId.value ||
     !entityWritable.value ||
+    !syncMethodActive.value ||
     busy.value
   ) return
   mutating.value = true
@@ -659,7 +669,7 @@ onMounted(loadPage)
                   </button>
                 </fieldset>
 
-                <div v-if="sync?.configured" class="sync-actions">
+                <div v-if="sync?.configured && syncMethodActive" class="sync-actions">
                   <button
                     class="nf-button"
                     type="button"

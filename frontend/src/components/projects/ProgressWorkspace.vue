@@ -52,12 +52,10 @@ const fractionDigits = computed(() => (props.project.unit === 'symbols' ? 0 : 2)
 const selectedStageId = computed(() =>
   selectedEntity.value.id === props.project.id ? undefined : selectedEntity.value.id,
 )
-const synchronizedEntity = computed(() => props.syncs.some((sync) =>
-  sync.configured && (sync.stage_id ?? undefined) === selectedStageId.value,
-))
-const manualEntryLocked = computed(() => lifecycleReadOnly.value || synchronizedEntity.value)
+const manualEntryLocked = computed(() => lifecycleReadOnly.value || selectedEntity.value.work_method !== 'manual')
 const textSymbols = computed(() => props.textSymbols[selectedEntity.value.id] ?? 0)
-const hasTextSource = computed(() => textSymbols.value > 0)
+const applicationMethod = computed(() => selectedEntity.value.work_method === 'app')
+const hasTextSource = computed(() => applicationMethod.value && textSymbols.value > 0)
 
 function numberFrom(value: string | number): number {
   return Number(String(value).replace(',', '.'))
@@ -106,16 +104,15 @@ watch(
     <p v-if="manualEntryLocked" class="read-only-note">
       {{ sharedProject
         ? t('Прогресс Общего проекта обновляется через синхронизацию.')
-        : synchronizedEntity
+        : selectedEntity.work_method === 'sync'
           ? t('Включена синхронизация. Ручная запись прогресса недоступна.')
+          : selectedEntity.work_method === 'app'
+            ? t('Прогресс добавляется из текста во встроенном редакторе.')
           : t('Завершённый проект или этап доступен только для просмотра.') }}
-    </p>
-    <p v-else-if="hasTextSource" class="read-only-note">
-      {{ t('Добавьте запись, чтобы учесть текущий объём текста документа.') }}
     </p>
 
     <div class="progress-entry-layout">
-      <form v-if="!hasTextSource" class="progress-entry-form" novalidate @submit.prevent="record">
+      <form v-if="selectedEntity.work_method === 'manual'" class="progress-entry-form" novalidate @submit.prevent="record">
         <div class="progress-entry-heading">
           <h3>{{ t('Новая запись:') }}</h3>
         </div>
@@ -155,10 +152,10 @@ watch(
           </button>
         </div>
       </form>
-      <div v-else class="progress-entry-form">
+      <div v-else-if="applicationMethod" class="progress-entry-form">
         <div class="progress-entry-heading"><h3>{{ t('Текст документа') }}</h3></div>
         <p>{{ t('В документе') }}: <strong>{{ locale.formatNumber(textSymbols, 0) }} {{ locale.formatUnit('symbols', textSymbols) }}</strong></p>
-        <button class="nf-button" type="button" :disabled="busy || lifecycleReadOnly" @click="emit('recordText', selectedStageId)">
+        <button class="nf-button" type="button" :disabled="busy || lifecycleReadOnly || !hasTextSource" @click="emit('recordText', selectedStageId)">
           <IonSpinner v-if="submitting" name="crescent" aria-hidden="true" />
           <IonIcon v-else :icon="addCircleOutline" aria-hidden="true" />
           {{ submitting ? t('Сохраняем…') : t('Добавить запись') }}

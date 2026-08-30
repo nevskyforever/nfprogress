@@ -5,7 +5,7 @@ import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
 import ProjectCoverEditor from '@/components/projects/ProjectCoverEditor.vue'
-import type { ProjectCreate, UnitCode } from '@/types/api'
+import type { ProjectCreate, UnitCode, WorkMethod } from '@/types/api'
 import {
   automaticDailyGoal,
   automaticDeadline,
@@ -52,6 +52,7 @@ const form = reactive({
   personalGoal: '0',
   infinite: false,
   stagesEnabled: false,
+  workMethod: 'manual' as WorkMethod,
   coverImage: null as string | null,
 })
 
@@ -66,6 +67,7 @@ function reset(): void {
   form.personalGoal = '0'
   form.infinite = false
   form.stagesEnabled = false
+  form.workMethod = 'manual'
   form.coverImage = null
   validationErrors.value = []
 }
@@ -176,6 +178,7 @@ async function submit(): Promise<void> {
     deadline: form.noDeadline ? null : (form.deadline || null),
     personal_goal: personalGoal,
     stages_enabled: form.stagesEnabled,
+    work_method: form.workMethod,
     stages: [],
     combine_stage_mindmaps: false,
     cover_image: form.coverImage,
@@ -329,6 +332,15 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
             @input="updateDeadline"
             @change="updateDeadline"
           />
+        </label>
+        <label class="form-field form-field--wide" for="project-work-method">
+          <span>{{ t('Метод работы с проектом') }}</span>
+          <select id="project-work-method" v-model="form.workMethod">
+            <option value="manual">{{ t('Ручное добавление записей') }}</option>
+            <option value="sync">{{ t('Синхронизация') }}</option>
+            <option value="app">{{ t('В приложении') }}</option>
+          </select>
+          <small>{{ form.workMethod === 'manual' ? t('Записи добавляются вручную. Текст и синхронизация предложат сменить метод.') : form.workMethod === 'sync' ? t('Прогресс обновляется только из подключённого внешнего файла.') : t('Прогресс добавляется только по тексту во встроенном редакторе.') }}</small>
         </label>
 
         <div class="form-options form-field--wide">

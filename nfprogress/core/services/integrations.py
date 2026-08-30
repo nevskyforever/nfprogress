@@ -65,6 +65,7 @@ class DocumentIntegrationService:
                 raise ValidationError('Завершённая сущность доступна только для просмотра.')
             entity.synch = source
             entity.last_synch = None
+            entity.work_method = 'sync'
             return self._sync_summary(project_id, stage_id, entity)
 
         return self.repository.update_projects(mutate)
@@ -166,6 +167,8 @@ class DocumentIntegrationService:
                 if stage_id else project
             )
             source = getattr(entity, 'synch', None)
+            if getattr(entity, 'work_method', 'sync' if source is not None else 'manual') != 'sync':
+                raise ValidationError('Для синхронизации выберите метод «Синхронизация».')
             if isinstance(source, str):
                 source = {'type': 'word', 'path': source}
             if not isinstance(source, dict):
@@ -218,6 +221,7 @@ class DocumentIntegrationService:
             if (
                 getattr(entity, 'status', None) == 'активен'
                 and getattr(entity, 'synch', None) is not None
+                and getattr(entity, 'work_method', 'sync') == 'sync'
             )
         ]
         return self._run_sync_targets(targets)
@@ -241,11 +245,13 @@ class DocumentIntegrationService:
                             getattr(stage, 'stage_id', None)
                             and getattr(stage, 'status', None) == 'активен'
                             and getattr(stage, 'synch', None) is not None
+                            and getattr(stage, 'work_method', 'sync') == 'sync'
                         )
                     )
                 elif (
                         getattr(project, 'status', None) == 'активен'
                         and getattr(project, 'synch', None) is not None
+                        and getattr(project, 'work_method', 'sync') == 'sync'
                 ):
                     targets.append((str(project_id), None))
 

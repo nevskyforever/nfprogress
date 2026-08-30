@@ -16,6 +16,7 @@ from nfprogress.core.serialization import serialize_note, serialize_project
 
 VALID_UNITS = frozenset({'symbols', 'A4', 'author_list', 'ficbook_pages'})
 VALID_STATUSES = frozenset({'активен', 'в архиве', 'завершен'})
+VALID_WORK_METHODS = frozenset({'manual', 'sync', 'app'})
 
 
 class ProjectService:
@@ -123,6 +124,7 @@ class ProjectService:
             project.cover_image = self._validated_cover_image(payload.get('cover_image'))
             project.folder_id = self._validated_folder_id(data, payload.get('folder_id'))
             project.set_streak_state(bool(payload.get('streak_enabled', False)))
+            project.work_method = self._validated_work_method(payload.get('work_method', 'manual'))
             for stage_payload in payload.get('stages', []):
                 project.stages.append(self._new_stage(project, stage_payload))
             if project.stages:
@@ -223,6 +225,8 @@ class ProjectService:
                 project.folder_id = self._validated_folder_id(data, payload['folder_id'])
             if 'streak_enabled' in payload:
                 project.set_streak_state(bool(payload['streak_enabled']))
+            if 'work_method' in payload:
+                project.work_method = self._validated_work_method(payload['work_method'])
 
             project._name = new_name
             project.unit = new_unit
@@ -549,6 +553,8 @@ class ProjectService:
                 stage.auto_freeze = bool(payload['auto_freeze'])
             if 'streak_enabled' in payload:
                 stage.set_streak_state(bool(payload['streak_enabled']))
+            if 'work_method' in payload:
+                stage.work_method = self._validated_work_method(payload['work_method'])
             stage.edit_date = engine.today_for_test()
             stage.get_today_goal_value(
                 recalculate_from_current_progress=bool(payload.get('recalculate_plan', False)),
@@ -631,6 +637,7 @@ class ProjectService:
             new_total=new_total,
             stage_id=stage_id,
             occurred_at=None,
+            source_method='manual',
         )
 
     def record_synchronized_progress(
@@ -648,6 +655,17 @@ class ProjectService:
             new_total=new_total,
             stage_id=stage_id,
             occurred_at=occurred_at,
+            source_method='sync',
+        )
+
+    def record_document_progress(
+            self, project_id: str, *, new_total: float,
+            source_modified_at: datetime, stage_id: str | None = None,
+    ) -> dict[str, Any]:
+        return self._record_progress(
+            project_id, new_total=new_total, stage_id=stage_id,
+            occurred_at=self._validated_source_modified_at(source_modified_at),
+            source_method='app',
         )
 
     def _record_progress(
@@ -657,6 +675,7 @@ class ProjectService:
             new_total: float,
             stage_id: str | None,
             occurred_at: datetime | None,
+            source_method: str,
     ) -> dict[str, Any]:
         event: dict[str, Any] = {}
         settings = self.repository.read_settings()
@@ -667,10 +686,9 @@ class ProjectService:
             self._require_editable(entity)
             if entity.has_stages():
                 raise ValidationError('Записывайте прогресс в конкретный этап.')
-            if occurred_at is None and getattr(entity, 'synch', None) is not None:
-                raise ValidationError(
-                    'Включена синхронизация. Ручная запись прогресса недоступна.',
-                )
+            method = getattr(entity, 'work_method', 'sync' if getattr(entity, 'synch', None) is not None else 'manual')
+            if method != source_method:
+                raise ValidationError('Этот способ добавления записей сейчас не выбран.')
             total = self._round_for_unit(
                 self._nonnegative_number(new_total, 'Новое общее значение'),
                 entity.unit,
@@ -1075,6 +1093,12 @@ class ProjectService:
             raise ValidationError('Дедлайн не может быть в прошлом.')
         return value
 
+    @staticmethod
+    def _validated_work_method(value: Any) -> str:
+        if value not in VALID_WORK_METHODS:
+            raise ValidationError('Неизвестный метод работы с проектом.')
+        return value
+
     def _new_stage(self, project: engine.Project, payload: dict[str, Any]) -> engine.Stage:
         name = self._validated_name(payload.get('name'))
         if any(stage.name == name for stage in project.stages):
@@ -1108,6 +1132,7 @@ class ProjectService:
             auto_freeze=bool(payload.get('auto_freeze', True)),
         )
         stage.set_streak_state(bool(payload.get('streak_enabled', False)))
+        stage.work_method = self._validated_work_method(payload.get('work_method', 'manual'))
         stage.get_today_goal_value()
         return stage
 

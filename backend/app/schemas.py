@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 UnitCode = Literal['symbols', 'A4', 'author_list', 'ficbook_pages']
+WorkMethod = Literal['manual', 'sync', 'app']
 ThemeCode = Literal['system', 'light', 'dark']
 
 
@@ -23,6 +24,7 @@ class StageCreate(StrictModel):
     personal_goal: float = 0
     streak_enabled: bool = False
     auto_freeze: bool = True
+    work_method: WorkMethod = 'manual'
 
 
 class ProjectCreate(StageCreate):
@@ -44,6 +46,7 @@ class EntityUpdate(StrictModel):
     personal_goal: float | None = None
     streak_enabled: bool | None = None
     auto_freeze: bool | None = None
+    work_method: WorkMethod | None = None
     recalculate_plan: bool = False
     confirm_daily_goal_increase: bool = False
 
@@ -140,6 +143,7 @@ class ProjectResponse(BaseModel):
     cover_image: str | None = None
     folder_id: str | None = None
     sync_available: bool = False
+    work_method: WorkMethod = 'manual'
 
 
 class ProgressResult(BaseModel):

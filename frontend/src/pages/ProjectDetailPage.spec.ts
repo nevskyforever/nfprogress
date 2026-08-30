@@ -142,6 +142,7 @@ describe('ProjectDetailPage progress sharing', () => {
       name: 'Глава 3',
       progress: 50,
       parent_project_id: 'project-id',
+      work_method: 'sync',
     })
     vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
       id: 'project-id',
@@ -354,6 +355,7 @@ describe('ProjectDetailPage progress sharing', () => {
       infinite: true,
       goal: null,
       parent_project_id: 'project-id',
+      work_method: 'sync',
     })
     const addedSource = projectFixture({
       id: 'source-id-2',
@@ -361,6 +363,7 @@ describe('ProjectDetailPage progress sharing', () => {
       infinite: true,
       goal: null,
       parent_project_id: 'project-id',
+      work_method: 'sync',
     })
     let sharedProject = projectFixture({
       id: 'project-id',
@@ -421,6 +424,7 @@ describe('ProjectDetailPage progress sharing', () => {
       infinite: true,
       goal: null,
       parent_project_id: 'project-id',
+      work_method: 'sync',
     })
     const sharedProject = projectFixture({
       id: 'project-id',

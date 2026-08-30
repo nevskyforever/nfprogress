@@ -394,7 +394,10 @@ const contextActions = computed<ContextAction[]>(() => {
     project.status !== 'завершен' && !shared && !project.infinite
     && project.goal !== null && project.total >= project.goal
   ) actions.push({ id: 'complete', label: t('Завершить') })
-  if (localSyncAvailable.value && project.sync_available && project.status !== 'завершен') {
+  if (
+    localSyncAvailable.value && project.sync_available && project.status !== 'завершен'
+    && project.work_method !== 'app'
+  ) {
     actions.push({ id: 'sync', label: t('Синхронизировать') })
   }
   const availableFolders = folders.value.filter((folder) => folder.id !== project.folder_id)
@@ -437,6 +440,10 @@ async function handleContextAction(action: ContextAction): Promise<void> {
       await projectsApi.remove(project.id)
     }
     if (action.id === 'sync') {
+      if (project.work_method === 'manual') {
+        if (!window.confirm(t('Синхронизация будет получать записи только из внешнего файла. Ручной ввод и текстовый редактор станут недоступны до следующей смены метода. Переключить метод и продолжить?'))) return
+        await projectsApi.update(project.id, { work_method: 'sync' })
+      }
       const result = await integrationsApi.runProjectSyncs(project.id)
       const notify = result.failed > 0 ? notifications.warning : notifications.success
       notify(t('Синхронизация завершена'))

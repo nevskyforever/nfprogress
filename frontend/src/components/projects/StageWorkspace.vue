@@ -165,7 +165,7 @@ const contextActions = computed<ContextAction[]>(() => {
   const actions: ContextAction[] = []
   if (!readOnly.value && !sharedProject.value && stage.status !== 'завершен') actions.push({ id: 'edit', label: t('Изменить') })
   if (canComplete(stage) && !sharedProject.value) actions.push({ id: 'complete', label: t('Завершить') })
-  if (stage.sync_available && stage.status !== 'завершен') actions.push({ id: 'sync', label: t('Синхронизировать') })
+  if (stage.work_method !== 'app' && stage.status !== 'завершен') actions.push({ id: 'sync', label: t('Синхронизировать') })
   if (!readOnly.value) actions.push({ id: 'delete', label: removeButtonLabel.value, danger: true, separator: true })
   return actions
 })

@@ -4,7 +4,7 @@ import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue
 import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
-import type { EntityUpdate, Project, StageCreate, UnitCode } from '@/types/api'
+import type { EntityUpdate, Project, StageCreate, UnitCode, WorkMethod } from '@/types/api'
 import {
   automaticDailyGoal,
   automaticDeadline,
@@ -65,6 +65,7 @@ const form = reactive({
   personalGoal: '0',
   infinite: false,
   recalculatePlan: false,
+  workMethod: 'manual' as WorkMethod,
 })
 
 const canRecalculatePlan = computed(() => {
@@ -85,6 +86,7 @@ function fill(): void {
   form.personalGoal = form.noDeadline ? '0' : String(props.stage?.personal_goal ?? 0)
   form.infinite = props.sharedSource || (props.stage?.infinite ?? false)
   form.recalculatePlan = false
+  form.workMethod = props.sharedSource ? 'sync' : (props.stage?.work_method ?? 'manual')
   validationErrors.value = []
 }
 
@@ -226,6 +228,7 @@ async function submit(): Promise<void> {
       }
     }
     if (form.recalculatePlan && canRecalculatePlan.value) update.recalculate_plan = true
+    if (form.workMethod !== props.stage.work_method) update.work_method = form.workMethod
     payload = update
   } else {
     payload = {
@@ -234,6 +237,7 @@ async function submit(): Promise<void> {
       deadline: props.sharedSource || form.noDeadline ? null : (form.deadline || null),
       personal_goal: props.sharedSource ? 0 : personalGoal,
       total: props.sharedSource ? 0 : total,
+      work_method: form.workMethod,
       ...((props.sharedSource || form.infinite) ? {} : { goal }),
     }
   }
@@ -361,6 +365,15 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
         <p class="stage-unit-note">
           {{ t('Единица этапа совпадает с проектом') }}: <strong>{{ projectUnitLabel }}</strong>
         </p>
+        <label v-if="!sharedSource" class="workspace-field workspace-field--wide" for="stage-work-method">
+          <span>{{ t('Метод работы с проектом') }}</span>
+          <select id="stage-work-method" v-model="form.workMethod">
+            <option value="manual">{{ t('Ручное добавление записей') }}</option>
+            <option value="sync">{{ t('Синхронизация') }}</option>
+            <option value="app">{{ t('В приложении') }}</option>
+          </select>
+          <small>{{ form.workMethod === 'manual' ? t('Записи добавляются вручную. Текст и синхронизация предложат сменить метод.') : form.workMethod === 'sync' ? t('Прогресс обновляется только из подключённого внешнего файла.') : t('Прогресс добавляется только по тексту во встроенном редакторе.') }}</small>
+        </label>
 
         <div v-if="!sharedSource" class="workspace-options workspace-field--wide">
           <label class="workspace-check">

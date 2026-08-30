@@ -13,7 +13,9 @@ def test_document_autosave_and_linked_word_change_are_tracked(tmp_path):
         data_dir=tmp_path, platform='desktop', allow_local_files=True,
     ))
     with TestClient(app) as client:
-        project = client.post('/api/projects', json={'name': 'Роман', 'goal': 1000}).json()
+        project = client.post(
+            '/api/projects', json={'name': 'Роман', 'goal': 1000, 'work_method': 'app'},
+        ).json()
         document = {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'Черновик'}]}]}
         saved = client.put(f"/api/documents/{project['id']}", json={'content': document})
         assert saved.status_code == 200
@@ -34,7 +36,9 @@ def test_document_autosave_and_linked_word_change_are_tracked(tmp_path):
 def test_text_progress_uses_document_symbols_and_document_scope_rules(tmp_path):
     app = create_app(RuntimeConfig(data_dir=tmp_path, platform='desktop', allow_local_files=True))
     with TestClient(app) as client:
-        project = client.post('/api/projects', json={'name': 'Роман', 'goal': 1000}).json()
+        project = client.post(
+            '/api/projects', json={'name': 'Роман', 'goal': 1000, 'work_method': 'app'},
+        ).json()
         content = {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'Текст'}]}]}
         assert client.put(f"/api/documents/{project['id']}", json={'content': content}).status_code == 200
         progress = client.post(f"/api/documents/{project['id']}/progress")
@@ -46,7 +50,7 @@ def test_text_progress_uses_document_symbols_and_document_scope_rules(tmp_path):
         ).json()
         client.post(
             f"/api/projects/{created_staged_project['id']}/stages",
-            json={'name': 'Этап', 'goal': 1000},
+            json={'name': 'Этап', 'goal': 1000, 'work_method': 'app'},
         )
         staged_project = client.get(
             f"/api/projects/{created_staged_project['id']}",
@@ -57,3 +61,26 @@ def test_text_progress_uses_document_symbols_and_document_scope_rules(tmp_path):
             f"/api/documents/{staged_project['id']}", params={'stage_id': stage['id']},
             json={'content': content},
         ).status_code == 200
+
+
+def test_work_methods_keep_existing_data_and_gate_record_sources(tmp_path):
+    app = create_app(RuntimeConfig(data_dir=tmp_path, platform='desktop', allow_local_files=True))
+    content = {'type': 'doc', 'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'Текст'}]}]}
+    with TestClient(app) as client:
+        project = client.post('/api/projects', json={'name': 'Роман', 'goal': 1000}).json()
+        assert project['work_method'] == 'manual'
+        assert client.post(f"/api/projects/{project['id']}/progress", json={'new_total': 1}).status_code == 200
+        assert client.put(f"/api/documents/{project['id']}", json={'content': content}).status_code == 422
+
+        app_project = client.patch(
+            f"/api/projects/{project['id']}", json={'work_method': 'app'},
+        ).json()
+        assert app_project['work_method'] == 'app'
+        assert client.put(f"/api/documents/{project['id']}", json={'content': content}).status_code == 200
+        assert client.post(f"/api/projects/{project['id']}/progress", json={'new_total': 20}).status_code == 422
+
+        restored = client.patch(
+            f"/api/projects/{project['id']}", json={'work_method': 'manual'},
+        ).json()
+        assert restored['work_method'] == 'manual'
+        assert client.get(f"/api/documents/{project['id']}").status_code == 422
