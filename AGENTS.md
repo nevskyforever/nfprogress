@@ -169,6 +169,11 @@ After making changes:
 
 If no tests cover the modified code, report that fact.
 
+For changes to the Vue interface that affect user interaction, verify the flow
+in Chromium through Playwright when practical. Use `Run Web.sh` to start the
+local application. If Chromium is not installed for Playwright, ask the user
+for permission before running `npx playwright install chromium`.
+
 ## Extending creative rhythm, cabinet, and shop
 
 The feature state belongs to `game.Gamer`. New fields must have defaults both in
