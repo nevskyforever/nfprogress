@@ -108,7 +108,12 @@ async function recordTextProgress(): Promise<void> {
   }
 }
 async function flushAndRecord(): Promise<void> {
-  await save()
+  try {
+    await save()
+  } catch (error) {
+    status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
+    return
+  }
   await recordTextProgress()
 }
 function closeEditor() {
