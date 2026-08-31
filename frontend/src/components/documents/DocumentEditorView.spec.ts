@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { documentsApi } from '@/api/documents'
 import { projectsApi } from '@/api/projects'
+import { announceDataChange } from '@/services/dataChanges'
 import { projectFixture } from '@/test/fixtures'
 import type { DocumentScope, ProjectDocument } from '@/types/documents'
 
@@ -116,6 +117,20 @@ describe('DocumentEditorView status bar', () => {
 
     expect(wrapper.find('.document-editor-view__today-goal').exists()).toBe(false)
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('Без лимита')
+    wrapper.unmount()
+  })
+
+  it('refreshes the toolbar when the project or stage is changed elsewhere', async () => {
+    const wrapper = mountEditor(projectFixture({ total: 25_000, goal: 100_000, today_goal: 26_000 }))
+    await flushPromises()
+
+    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({ total: 30_000, goal: 120_000, today_goal: 30_000 }))
+    announceDataChange('projects')
+    await flushPromises()
+
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('30')
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 120')
+    expect(wrapper.get('.document-editor-view__today-goal').text()).toBe('Цель на день выполнена!')
     wrapper.unmount()
   })
 })

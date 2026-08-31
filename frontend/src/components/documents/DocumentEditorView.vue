@@ -13,7 +13,7 @@ import { projectsApi } from '@/api/projects'
 import { documentsApi } from '@/api/documents'
 import type { Project } from '@/types/api'
 import { convertProjectUnit } from '@/utils/projectPlanning'
-import { announceDataChange } from '@/services/dataChanges'
+import { announceDataChange, onDataChange } from '@/services/dataChanges'
 import { progressChangeNotification } from '@/utils/progressNotifications'
 import { gameResponseMessages } from '@/utils/gameNotifications'
 import DocumentConflictResolver from './DocumentConflictResolver.vue'
@@ -43,6 +43,8 @@ const { content, documentState, status, save, scheduleSave, link, checkExternal,
 )
 let externalTimer: number | undefined
 let stopCloseListener: (() => void) | undefined
+let stopProjectDataChanges: (() => void) | undefined
+let projectLoadSequence = 0
 const linked = computed(() => Boolean(documentState.value?.docx_path))
 const textSymbols = computed(() => countTextSymbols(editorContent.value))
 const textUnits = computed(() => projectEntity.value
@@ -91,10 +93,17 @@ function countTextSymbols(value: unknown): number {
 }
 function setZoom(next: number) { zoom.value = Math.min(160, Math.max(70, next)) }
 async function loadProjectEntity() {
-  const project = await projectsApi.get(props.scope.projectId)
-  projectEntity.value = props.scope.stageId
-    ? project.stages.find((stage) => stage.id === props.scope.stageId) ?? null
-    : project
+  const sequence = ++projectLoadSequence
+  try {
+    const project = await projectsApi.get(props.scope.projectId)
+    if (sequence !== projectLoadSequence) return
+    projectEntity.value = props.scope.stageId
+      ? project.stages.find((stage) => stage.id === props.scope.stageId) ?? null
+      : project
+  } catch (error) {
+    if (sequence === projectLoadSequence) projectEntity.value = null
+    throw error
+  }
 }
 function resolveConflict(choice: ConflictChoice) { showConflict.value = false; pendingConflictResolve.value?.(choice); pendingConflictResolve.value = null }
 async function recordTextProgress(force = false): Promise<boolean> {
@@ -210,7 +219,10 @@ configureKitLocale()
 onMounted(() => {
   window.addEventListener('keydown', handleEscape, true)
   externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000)
-  void loadProjectEntity().catch(() => { projectEntity.value = null })
+  void loadProjectEntity().catch(() => undefined)
+  stopProjectDataChanges = onDataChange((scope) => {
+    if (scope === 'projects') void loadProjectEntity().catch(() => undefined)
+  })
   if (window.__TAURI_INTERNALS__) {
     void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
       stopCloseListener = await getCurrentWindow().onCloseRequested(async (event) => {
@@ -227,6 +239,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleEscape, true)
   window.clearInterval(externalTimer)
+  projectLoadSequence += 1
+  stopProjectDataChanges?.()
   stopCloseListener?.()
 })
 onBeforeRouteLeave(async () => { await flushAndRecord() })
