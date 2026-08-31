@@ -22,7 +22,10 @@ class StageCreate(StrictModel):
     total: float = 0
     deadline: date | None = None
     personal_goal: float = 0
-    streak_enabled: bool = False
+    # ``None`` means that the project/stage should follow the global streak
+    # setting. An explicit ``False`` remains available for integrations that
+    # intentionally disable a local streak.
+    streak_enabled: bool | None = None
     auto_freeze: bool = True
     work_method: WorkMethod = 'manual'
 

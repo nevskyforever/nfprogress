@@ -123,7 +123,7 @@ class ProjectService:
             )
             project.cover_image = self._validated_cover_image(payload.get('cover_image'))
             project.folder_id = self._validated_folder_id(data, payload.get('folder_id'))
-            project.set_streak_state(bool(payload.get('streak_enabled', False)))
+            project.set_streak_state(self._streak_enabled_for_new_entity(payload))
             project.work_method = self._validated_work_method(payload.get('work_method', 'manual'))
             for stage_payload in payload.get('stages', []):
                 project.stages.append(self._new_stage(project, stage_payload))
@@ -660,11 +660,15 @@ class ProjectService:
 
     def record_document_progress(
             self, project_id: str, *, new_total: float,
-            source_modified_at: datetime, stage_id: str | None = None,
+            source_modified_at: datetime | None = None,
+            stage_id: str | None = None,
     ) -> dict[str, Any]:
         return self._record_progress(
             project_id, new_total=new_total, stage_id=stage_id,
-            occurred_at=self._validated_source_modified_at(source_modified_at),
+            occurred_at=(
+                self._validated_source_modified_at(source_modified_at)
+                if source_modified_at is not None else None
+            ),
             source_method='app',
         )
 
@@ -1099,6 +1103,13 @@ class ProjectService:
             raise ValidationError('Неизвестный метод работы с проектом.')
         return value
 
+    def _streak_enabled_for_new_entity(self, payload: dict[str, Any]) -> bool:
+        """Use the global switch when a new entity has no local override."""
+        requested = payload.get('streak_enabled')
+        if requested is not None:
+            return bool(requested)
+        return bool(self.repository.read_settings().get('global_streak', False))
+
     def _new_stage(self, project: engine.Project, payload: dict[str, Any]) -> engine.Stage:
         name = self._validated_name(payload.get('name'))
         if any(stage.name == name for stage in project.stages):
@@ -1131,7 +1142,7 @@ class ProjectService:
             parent_project_name=project.name,
             auto_freeze=bool(payload.get('auto_freeze', True)),
         )
-        stage.set_streak_state(bool(payload.get('streak_enabled', False)))
+        stage.set_streak_state(self._streak_enabled_for_new_entity(payload))
         stage.work_method = self._validated_work_method(payload.get('work_method', 'manual'))
         stage.get_today_goal_value()
         return stage

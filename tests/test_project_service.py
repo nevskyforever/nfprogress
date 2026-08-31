@@ -57,6 +57,29 @@ def test_project_cover_round_trips_and_can_be_removed(service):
     assert updated['cover_image'] is None
 
 
+def test_new_entities_follow_global_streak_setting_without_local_form_fields(service):
+    service.repository.update_settings(
+        lambda settings: settings.update({'global_streak': True}),
+    )
+
+    project = service.create_project({
+        'name': 'Глобальный стрик', 'goal': 1_000, 'unit': 'symbols',
+        'deadline': date.today() + timedelta(days=10), 'personal_goal': 100,
+    })
+    stage = service.create_stage(project['id'], {
+        'name': 'Глава', 'goal': 500, 'deadline': date.today() + timedelta(days=10),
+        'personal_goal': 50,
+    })
+    explicitly_disabled = service.create_project({
+        'name': 'Без стрика', 'goal': 1_000, 'unit': 'symbols',
+        'streak_enabled': False,
+    })
+
+    assert project['streak_enabled'] is True
+    assert stage['streak_enabled'] is True
+    assert explicitly_disabled['streak_enabled'] is False
+
+
 def test_project_cover_rejects_invalid_data(service):
     with pytest.raises(ValidationError, match='Некорректное изображение'):
         service.create_project({

@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 
 import engine
@@ -123,3 +125,21 @@ def test_project_settings_apply_legacy_side_effects_with_backup(tmp_path):
     assert saved['global_streaks'] == []
     assert saved['last_global_streak_bonus'] is None
     assert any((tmp_path / 'backups').iterdir())
+
+
+def test_enabling_global_streak_migrates_legacy_disabled_entities(tmp_path):
+    repository = PickleRepository(tmp_path)
+    project = engine.Project(
+        name='Старый проект', goal=1_000,
+        deadline=engine.today_for_test() + timedelta(days=10),
+        personal_goal_for_the_day=100,
+    )
+    project.streak_status = 'Off'
+    repository.update_projects(
+        lambda data: data.setdefault('projects', {}).update({project.name: project}),
+    )
+
+    SettingsService(repository, platform='web').update({'global_streak': True})
+
+    saved = repository.read_projects()['projects'][project.name]
+    assert saved.streak_status == 'No'

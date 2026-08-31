@@ -143,10 +143,12 @@ class ProjectDocumentService:
             total = engine.unit_converter('symbols', symbols, entity.unit)
             if abs(float(total) - float(entity.total_units)) < 0.009:
                 return {'changed': False, 'symbols': symbols, 'progress': None}
-            changed_at = self._parse_updated_at(record.get('updated_at'))
+            # An in-app edit is a writing action, not an external sync event.
+            # Let the project service timestamp it with ``today_for_test`` so
+            # developer-mode dates and daily streaks use the same calendar day
+            # as every other in-app progress entry.
             progress = self.project_service.record_document_progress(
                 project_id, stage_id=stage_id, new_total=total,
-                source_modified_at=changed_at,
             )
             return {'changed': True, 'symbols': symbols, 'progress': progress}
 

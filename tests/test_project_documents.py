@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi.testclient import TestClient
 
@@ -73,20 +73,19 @@ def test_text_progress_uses_document_symbols_and_document_scope_rules(tmp_path):
 def test_text_progress_runs_the_game_and_streak_pipeline(tmp_path):
     app = create_app(RuntimeConfig(data_dir=tmp_path, platform='desktop', allow_local_files=True))
     with TestClient(app) as client:
+        assert client.patch(
+            '/api/settings',
+            json={'values': {'game_mode': True, 'global_streak': True}},
+        ).status_code == 200
         project = client.post(
             '/api/projects',
             json={
                 'name': 'Роман',
                 'goal': 1000,
                 'personal_goal': 1,
-                'streak_enabled': True,
                 'work_method': 'app',
             },
         ).json()
-        assert client.patch(
-            '/api/settings',
-            json={'values': {'game_mode': True, 'global_streak': True}},
-        ).status_code == 200
         content = {
             'type': 'doc',
             'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'Текст'}]}],
@@ -102,6 +101,42 @@ def test_text_progress_runs_the_game_and_streak_pipeline(tmp_path):
         assert progress['game']['result']['rewarded'] is True
         assert progress['game']['result']['streak_rewards'] == 2
         assert progress['game']['state']['profile']['experience'] > 0
+
+
+def test_internal_document_progress_uses_the_application_day(tmp_path, monkeypatch):
+    application_day = date(2026, 9, 1)
+    monkeypatch.setattr('engine.today_for_test', lambda: application_day)
+    app = create_app(RuntimeConfig(data_dir=tmp_path, platform='desktop', allow_local_files=True))
+    with TestClient(app) as client:
+        assert client.patch(
+            '/api/settings',
+            json={'values': {'game_mode': True, 'global_streak': True}},
+        ).status_code == 200
+        project = client.post(
+            '/api/projects',
+            json={
+                'name': 'Тестовый стрик',
+                'goal': 1000,
+                'personal_goal': 1,
+                'work_method': 'app',
+            },
+        ).json()
+        content = {
+            'type': 'doc',
+            'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'Текст'}]}],
+        }
+        assert client.put(
+            f"/api/documents/{project['id']}", json={'content': content},
+        ).status_code == 200
+
+        result = client.post(f"/api/documents/{project['id']}/progress")
+
+        assert result.status_code == 200, result.text
+        payload = result.json()['progress']
+        assert payload['project']['streak_enabled'] is True
+        assert payload['project']['streak_status'] == 'Start'
+        assert payload['project']['added_today'] == len('Текст')
+        assert payload['entry']['created_at'].startswith(application_day.isoformat())
 
 
 def test_saved_document_timestamp_is_normalized_to_the_local_day():

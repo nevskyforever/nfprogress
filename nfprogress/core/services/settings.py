@@ -132,6 +132,11 @@ class SettingsService:
 
             if 'inf_project' in patch:
                 self._set_infinite_project(data, patch['inf_project'])
+            if patch.get('global_streak') is True:
+                # Project forms no longer expose a local switch. Repair old
+                # entities saved as ``Off`` so the global setting really is
+                # the single switch users see in the current interface.
+                self._enable_local_streaks(data)
             if patch.get('global_streak') is False:
                 self._clear_streaks(data)
 
@@ -179,6 +184,16 @@ class SettingsService:
             for stage in getattr(project, 'stages', []):
                 stage.streaks = []
                 stage.streak_status = 'No'
+
+    @staticmethod
+    def _enable_local_streaks(data: dict[str, Any]) -> None:
+        """Migrate legacy local ``Off`` states to the global setting."""
+        for project in data.get('projects', {}).values():
+            if getattr(project, 'streak_status', 'No') == 'Off':
+                project.set_streak_state(True)
+            for stage in getattr(project, 'stages', []):
+                if getattr(stage, 'streak_status', 'No') == 'Off':
+                    stage.set_streak_state(True)
 
     @staticmethod
     def _validated_patch(patch: dict[str, Any]) -> dict[str, Any]:
