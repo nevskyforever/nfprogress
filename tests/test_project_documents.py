@@ -20,6 +20,11 @@ def test_document_autosave_and_linked_word_change_are_tracked(tmp_path):
         saved = client.put(f"/api/documents/{project['id']}", json={'content': document})
         assert saved.status_code == 200
         assert saved.json()['content'] == document
+        documents = client.get('/api/documents/list')
+        assert documents.status_code == 200
+        assert documents.json()[0]['project_id'] == project['id']
+        assert documents.json()[0]['symbols'] == len('Черновик')
+        assert documents.json()[0]['has_content'] is True
 
         path = tmp_path / 'roman.docx'
         assert client.put(f"/api/documents/{project['id']}/link", json={'path': str(path)}).status_code == 200

@@ -23,6 +23,8 @@ The application is built with Nuitka for:
 * Preserve the existing architecture and style.
 * Do not add dependencies unless necessary.
 * Do not change public application behavior without an explicit request.
+* Test data may be created, modified, and removed when needed to reproduce or
+  verify a reported issue. Keep it isolated from production user data.
 * After completing each user task, create a clear commit whose subject summarizes
   the completed change and whose body explains the important behavior and checks.
 

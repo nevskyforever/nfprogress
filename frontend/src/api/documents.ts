@@ -7,7 +7,7 @@ function path(scope: DocumentScope, suffix = ''): string {
 }
 
 export const documentsApi = {
-  list: () => apiRequest<ProjectDocument[]>('/api/documents'),
+  list: () => apiRequest<ProjectDocument[]>('/api/documents/list'),
   get: (scope: DocumentScope) => apiRequest<ProjectDocument>(path(scope)),
   save: (scope: DocumentScope, content: TiptapDocument) => apiRequest<ProjectDocument>(path(scope), { method: 'PUT', body: { content } }),
   link: (scope: DocumentScope, filePath: string) => apiRequest<ProjectDocument>(path(scope, '/link'), { method: 'PUT', body: { path: filePath } }),

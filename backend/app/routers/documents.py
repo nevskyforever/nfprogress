@@ -7,7 +7,7 @@ router = APIRouter(prefix='/documents', tags=['documents'])
 def scope(project_id: str, stage_id: str | None) -> dict[str, str | None]:
     return {'project_id': project_id, 'stage_id': stage_id}
 
-@router.get('')
+@router.get('/list')
 def list_documents(services: Annotated[Services, Depends(get_services)]):
     return services.documents.list_existing()
 
