@@ -1,4 +1,4 @@
-export type DataChangeScope = 'projects' | 'game'
+export type DataChangeScope = 'projects' | 'game' | 'game-sync'
 
 const EVENT_NAME = 'nfprogress:data-changed'
 

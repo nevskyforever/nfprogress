@@ -105,6 +105,10 @@ _HELP_ARTICLE_SOURCES = {
 
 TRANSLATION_OVERRIDES = {
     "en": {
+        "Синхронизировано: {projects} проектов, {stages} этапов.": "Synchronized: {projects} projects, {stages} stages.",
+        "Добавлено: {amount}.": "Added: {amount}.",
+        "Удалено: {amount}.": "Removed: {amount}.",
+        "Не удалось синхронизировать источников: {count}.": "Failed to synchronize sources: {count}.",
         "Синхронизация завершена. Прочитано: {count} {unit}": "Synchronization complete. Read: {count} {unit}",
         "лист A4": "A4 sheet",
         "листа A4": "A4 sheets",
@@ -421,6 +425,10 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Editing Pass",
     },
     "es": {
+        "Синхронизировано: {projects} проектов, {stages} этапов.": "Sincronizados: {projects} proyectos, {stages} etapas.",
+        "Добавлено: {amount}.": "Añadido: {amount}.",
+        "Удалено: {amount}.": "Eliminado: {amount}.",
+        "Не удалось синхронизировать источников: {count}.": "No se pudieron sincronizar fuentes: {count}.",
         "Синхронизация завершена. Прочитано: {count} {unit}": "Sincronización completada. Se leyeron: {count} {unit}",
         "лист A4": "hoja A4",
         "листа A4": "hojas A4",
@@ -738,6 +746,10 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Pase de edición",
     },
     "de": {
+        "Синхронизировано: {projects} проектов, {stages} этапов.": "Synchronisiert: {projects} Projekte, {stages} Stufen.",
+        "Добавлено: {amount}.": "Hinzugefügt: {amount}.",
+        "Удалено: {amount}.": "Entfernt: {amount}.",
+        "Не удалось синхронизировать источников: {count}.": "Quellen konnten nicht synchronisiert werden: {count}.",
         "Синхронизация завершена. Прочитано: {count} {unit}": "Synchronisierung abgeschlossen. Gelesen: {count} {unit}",
         "лист A4": "A4-Blatt",
         "листа A4": "A4-Blätter",
@@ -1056,6 +1068,10 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Überarbeitungsdurchgang",
     },
     "fr": {
+        "Синхронизировано: {projects} проектов, {stages} этапов.": "Synchronisés : {projects} projets, {stages} étapes.",
+        "Добавлено: {amount}.": "Ajouté : {amount}.",
+        "Удалено: {amount}.": "Supprimé : {amount}.",
+        "Не удалось синхронизировать источников: {count}.": "Impossible de synchroniser les sources : {count}.",
         "Синхронизация завершена. Прочитано: {count} {unit}": "Synchronisation terminée. Lus : {count} {unit}",
         "лист A4": "feuille A4",
         "листа A4": "feuilles A4",
@@ -1375,6 +1391,10 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Passe de révision",
     },
     "pt_BR": {
+        "Синхронизировано: {projects} проектов, {stages} этапов.": "Sincronizados: {projects} projetos, {stages} etapas.",
+        "Добавлено: {amount}.": "Adicionado: {amount}.",
+        "Удалено: {amount}.": "Removido: {amount}.",
+        "Не удалось синхронизировать источников: {count}.": "Não foi possível sincronizar fontes: {count}.",
         "Синхронизация завершена. Прочитано: {count} {unit}": "Sincronização concluída. Lidos: {count} {unit}",
         "лист A4": "folha A4",
         "листа A4": "folhas A4",

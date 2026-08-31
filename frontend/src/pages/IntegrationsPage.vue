@@ -25,6 +25,7 @@ import {
 } from '@/platform/files'
 import { currentPlatform } from '@/platform/runtime'
 import { announceDataChange } from '@/services/dataChanges'
+import { syncBatchNotification } from '@/utils/syncNotifications'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 import { gameResponseMessages } from '@/utils/gameNotifications'
@@ -388,14 +389,14 @@ async function runAllSync(): Promise<void> {
       selectedProjectId.value = projects.value[0]?.id ?? ''
     }
     await loadSync()
-    for (const item of result.items) {
-      applyProgressFeedback(item.progress ?? null, item.stage_id)
-      applyGameFeedback(item.progress ?? null)
-      if (item.ok && !item.changed) {
-        notifications.show(t('Документ не изменился. Текущий объём уже актуален.'), 'info')
-      }
-    }
+    const summary = syncBatchNotification(result, t, locale.formatNumber, locale.formatUnit)
+    notifications.show(summary.message, summary.kind)
+    const latestGame = [...result.items]
+      .reverse()
+      .find((item) => item.progress?.game)?.progress?.game
+    if (latestGame) notifications.setGameHistory(latestGame.state.notifications)
     if (result.items.some((item) => item.changed)) announceDataChange('projects')
+    if (latestGame) announceDataChange('game')
     batchResult.value = result
   } catch (batchError) {
     operationError.value = t(apiErrorMessage(batchError))

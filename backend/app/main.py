@@ -39,6 +39,10 @@ def _desktop_sync_state(services: Services) -> tuple[bool, object]:
     return bool(settings.get('background_synch', True)), engine.today_for_test()
 
 
+def _desktop_game_enabled(services: Services) -> bool:
+    return bool(services.repository.read_settings().get('game_mode', False))
+
+
 async def _desktop_sync_loop(services: Services) -> None:
     previous_day = None
     was_enabled = False
@@ -51,8 +55,17 @@ async def _desktop_sync_loop(services: Services) -> None:
             enabled, current_day = await asyncio.to_thread(
                 _desktop_sync_state, services,
             )
-            if enabled and (not was_enabled or current_day != previous_day):
+            is_new_writing_day = not was_enabled or current_day != previous_day
+            if enabled and is_new_writing_day:
                 await asyncio.to_thread(services.integrations.sync_all_configured)
+            # The legacy UI also settles deposits, loan payments and their
+            # notifications when its clock crosses into a new writing day.
+            # Keep those persisted transitions alive even if the Game page is
+            # never opened in this desktop session.
+            if is_new_writing_day and await asyncio.to_thread(
+                    _desktop_game_enabled, services,
+            ):
+                await asyncio.to_thread(services.game.process_bank_events)
             previous_day = current_day
             was_enabled = enabled
         except asyncio.CancelledError:

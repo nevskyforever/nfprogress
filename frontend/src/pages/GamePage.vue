@@ -465,7 +465,7 @@ onMounted(() => {
   void loadState()
   void loadInventoryPreference()
   stopDataChanges = onDataChange((scope) => {
-    if (scope === 'projects') void loadState()
+    if (scope === 'projects' || scope === 'game-sync') void loadState()
   })
 })
 onIonViewWillEnter(() => {
