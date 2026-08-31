@@ -232,11 +232,14 @@ bash "Build Tauri All.sh"
 `Build Tauri All.sh` and `Release Tauri All.sh` run ARM and Intel work in
 parallel in the current terminal. PyCharm users can run the shared `Tauri Build
 All` or `Tauri Release All` compound configuration: it starts both jobs in the
-IDE's Terminal tool window. The release workflow serializes only the shared
-update-manifest step to preserve both architecture entries.
+IDE's Terminal tool window. Each architecture uses its own ignored frontend
+workspace under `.tauri-build-workspaces/`, including `node_modules`, Vite
+output, Tauri target files, and the sidecar. The release workflow serializes
+only the shared update-manifest step to preserve both architecture entries.
 
-All Tauri build entry points synchronize the normalized three-component version
-from `engine.py` into the Tauri and Cargo metadata before building.
+The build workspace synchronizes the normalized three-component version from
+`engine.py` into the Tauri and Cargo metadata before building, without racing
+over the source frontend files.
 
 The artifacts are written to `build-tauri-arm/` and `build-tauri-intel/`.
 On Apple Silicon, the Intel scripts automatically create and maintain the local

@@ -11,9 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ENGINE = ROOT / 'engine.py'
-TAURI_CONFIG = ROOT / 'frontend' / 'src-tauri' / 'tauri.conf.json'
-CARGO_TOML = ROOT / 'frontend' / 'src-tauri' / 'Cargo.toml'
-CARGO_LOCK = ROOT / 'frontend' / 'src-tauri' / 'Cargo.lock'
+DEFAULT_FRONTEND_DIR = ROOT / 'frontend'
 ENGINE_VERSION = re.compile(r"^version\s*=\s*['\"]([^'\"]+)['\"]", re.MULTILINE)
 SEMVER = re.compile(r'^(\d+)(?:\.(\d+))?(?:\.(\d+))?([+-][0-9A-Za-z.-]+)?$')
 
@@ -33,15 +31,20 @@ def read_engine_version() -> str:
     return canonical_version(match.group(1))
 
 
-def synchronize(version: str) -> None:
-    config = json.loads(TAURI_CONFIG.read_text(encoding='utf-8'))
+def synchronize(version: str, frontend_dir: Path = DEFAULT_FRONTEND_DIR) -> None:
+    tauri_dir = frontend_dir / 'src-tauri'
+    tauri_config = tauri_dir / 'tauri.conf.json'
+    cargo_toml = tauri_dir / 'Cargo.toml'
+    cargo_lock = tauri_dir / 'Cargo.lock'
+
+    config = json.loads(tauri_config.read_text(encoding='utf-8'))
     config['version'] = version
-    TAURI_CONFIG.write_text(
+    tauri_config.write_text(
         json.dumps(config, ensure_ascii=False, indent=2) + '\n',
         encoding='utf-8',
     )
 
-    cargo = CARGO_TOML.read_text(encoding='utf-8')
+    cargo = cargo_toml.read_text(encoding='utf-8')
     cargo, count = re.subn(
         r'(?m)^(version\s*=\s*)"[^"]+"$',
         rf'\g<1>"{version}"',
@@ -49,10 +52,10 @@ def synchronize(version: str) -> None:
         count=1,
     )
     if count != 1:
-        raise ValueError(f'Could not find the package version in {CARGO_TOML}.')
-    CARGO_TOML.write_text(cargo, encoding='utf-8')
+        raise ValueError(f'Could not find the package version in {cargo_toml}.')
+    cargo_toml.write_text(cargo, encoding='utf-8')
 
-    lock = CARGO_LOCK.read_text(encoding='utf-8')
+    lock = cargo_lock.read_text(encoding='utf-8')
     lock, count = re.subn(
         r'(?ms)(\[\[package\]\]\s+name = "nfprogress-desktop"\s+version = )"[^"]+"',
         rf'\g<1>"{version}"',
@@ -60,17 +63,23 @@ def synchronize(version: str) -> None:
         count=1,
     )
     if count != 1:
-        raise ValueError(f'Could not find nfprogress-desktop in {CARGO_LOCK}.')
-    CARGO_LOCK.write_text(lock, encoding='utf-8')
+        raise ValueError(f'Could not find nfprogress-desktop in {cargo_lock}.')
+    cargo_lock.write_text(lock, encoding='utf-8')
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--version-only', action='store_true')
+    parser.add_argument(
+        '--frontend-dir',
+        type=Path,
+        default=DEFAULT_FRONTEND_DIR,
+        help='Frontend directory whose Tauri metadata should be synchronized.',
+    )
     args = parser.parse_args()
     version = read_engine_version()
     if not args.version_only:
-        synchronize(version)
+        synchronize(version, args.frontend_dir.resolve())
         print(f'Synchronized Tauri files to {version}.')
     print(version)
     return 0

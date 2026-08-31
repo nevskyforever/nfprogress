@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import tomllib
 import zipfile
 from pathlib import Path
@@ -36,6 +37,31 @@ def test_engine_versions_are_normalized_to_three_components():
     assert sync_versions.canonical_version('5.0') == '5.0.0'
     assert sync_versions.canonical_version('4.14.2') == '4.14.2'
     assert sync_versions.canonical_version('5.0-rc1') == '5.0.0-rc1'
+
+
+def test_version_sync_can_target_an_isolated_frontend_workspace(tmp_path):
+    source_tauri_dir = ROOT / 'frontend' / 'src-tauri'
+    workspace_tauri_dir = tmp_path / 'frontend' / 'src-tauri'
+    workspace_tauri_dir.mkdir(parents=True)
+    source_files = ('tauri.conf.json', 'Cargo.toml', 'Cargo.lock')
+    source_contents = {
+        filename: (source_tauri_dir / filename).read_text(encoding='utf-8')
+        for filename in source_files
+    }
+    for filename, content in source_contents.items():
+        (workspace_tauri_dir / filename).write_text(content, encoding='utf-8')
+
+    sync_versions.synchronize('9.8.7', tmp_path / 'frontend')
+
+    config = json.loads((workspace_tauri_dir / 'tauri.conf.json').read_text(encoding='utf-8'))
+    assert config['version'] == '9.8.7'
+    cargo = tomllib.loads((workspace_tauri_dir / 'Cargo.toml').read_text(encoding='utf-8'))
+    assert cargo['package']['version'] == '9.8.7'
+    assert 'name = "nfprogress-desktop"\nversion = "9.8.7"' in (
+        workspace_tauri_dir / 'Cargo.lock'
+    ).read_text(encoding='utf-8')
+    for filename, content in source_contents.items():
+        assert (source_tauri_dir / filename).read_text(encoding='utf-8') == content
 
 
 def test_release_config_creates_nsis_updater_artifacts():
