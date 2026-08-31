@@ -1720,19 +1720,17 @@ class Project:
     def get_today_display_goal_value(self):
         """Возвращает накопительную цель для отображения родительского проекта."""
         if self.has_stages() and self.deadline == 'Нет':
-            stages_with_daily_goals = [
+            # The parent is a cumulative manuscript view. Even an этап without
+            # its own deadline or daily quota contributes its current volume to
+            # that total; otherwise the displayed target incorrectly collapses
+            # to the one stage that happens to have a daily plan.
+            visible_stages = [
                 stage
                 for stage in self.stages
-                if (
-                    stage.status == 'активен'
-                    and (
-                        stage.deadline != 'Нет'
-                        or getattr(stage, 'personal_goal_for_the_day', 0)
-                    )
-                )
+                if stage.status != 'в архиве'
             ]
-            if stages_with_daily_goals:
-                return sum(stage.get_today_goal_value() for stage in stages_with_daily_goals)
+            if visible_stages:
+                return sum(stage.get_today_goal_value() for stage in visible_stages)
             if not getattr(self, 'personal_goal_for_the_day', 0):
                 return 0
         return self.get_today_goal_value()

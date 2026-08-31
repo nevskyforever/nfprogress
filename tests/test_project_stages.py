@@ -324,7 +324,7 @@ def test_parent_daily_goal_uses_original_plan_when_stages_have_no_deadlines():
     assert project.get_today_goal_value() == 190
 
 
-def test_parent_display_goal_ignores_completed_stages_with_daily_plans(monkeypatch):
+def test_parent_display_goal_includes_completed_stage_volume(monkeypatch):
     today = datetime.date(2026, 8, 8)
     monkeypatch.setattr(engine, 'today_for_test', lambda: today)
     project = engine.Project(name='Book', deadline='Нет', unit='symbols')
@@ -346,10 +346,10 @@ def test_parent_display_goal_ignores_completed_stages_with_daily_plans(monkeypat
     project.stages = [completed_stage, active_stage]
 
     assert project.get_today_goal_value() == 0
-    assert project.get_today_display_goal_value() == 0
+    assert project.get_today_display_goal_value() == 1000
 
 
-def test_parent_display_goal_excludes_active_stages_without_daily_plans(monkeypatch):
+def test_parent_display_goal_includes_every_active_stage_volume(monkeypatch):
     today = datetime.date(2026, 8, 8)
     monkeypatch.setattr(engine, 'today_for_test', lambda: today)
     project = engine.Project(name='Book', deadline='Нет', unit='symbols')
@@ -370,7 +370,7 @@ def test_parent_display_goal_excludes_active_stages_without_daily_plans(monkeypa
     project.enable_stages = True
     project.stages = [planned_stage, unplanned_stage]
 
-    assert project.get_today_display_goal_value() == 300
+    assert project.get_today_display_goal_value() == 350
 
 
 def test_stage_can_have_streak_status():
