@@ -1004,7 +1004,6 @@ class GameService:
             gamer.health = round(
                 min(gamer.get_max_health(), max(0.0, float(health))), 1,
             )
-            self._prepare_gamer(gamer, projects, ensure_daily=self._game_mode_enabled())
             settings = self.repository.read_settings()
             settings['today_for_test_mode'] = test_date_enabled
             settings['today_for_test_datetime'] = test_datetime if test_date_enabled else None
@@ -1014,10 +1013,18 @@ class GameService:
             # Persist the test clock before serializing so ``server_time`` and
             # daily state in the response already reflect the chosen date.
             self.repository.write_settings(settings)
+            # The legacy developer dialog refreshes projects immediately after
+            # saving a test date.  Apply the same date-dependent streak rules
+            # before returning the API state, rather than waiting for the
+            # desktop minute timer.
+            engine.refresh_project_streak_statuses(projects)
+            engine.global_streak_status(projects)
+            self._prepare_gamer(gamer, projects, ensure_daily=self._game_mode_enabled())
             state = self._serialize_state(
                 gamer, projects, enabled=self._game_mode_enabled(),
             )
             self.repository.write_gamer(gamer)
+            self.repository.write_projects(projects)
         return {
             'ok': True,
             'message': 'Настройки режима разработчика сохранены.',

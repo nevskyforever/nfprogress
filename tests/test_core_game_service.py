@@ -90,6 +90,33 @@ def test_developer_mode_updates_profile_and_grants_registered_item(game_context)
     assert _inventory_count(granted['state'], 'Предметы', 'Компас рукописи') == 3
 
 
+def test_developer_test_date_refreshes_streaks_before_returning(game_context, monkeypatch):
+    repository, _service, project, _stage = game_context
+    service = GameService(repository, developer_mode=True)
+    selected_day = date(2026, 9, 2)
+    refreshed_days = []
+
+    def refresh(data):
+        refreshed_days.append(engine.today_for_test())
+        data['projects'][project.name].streak_status = 'Go'
+
+    monkeypatch.setattr(engine, 'dev_mode', True)
+    monkeypatch.setattr(engine, 'refresh_project_streak_statuses', refresh)
+    monkeypatch.setattr(engine, 'global_streak_status', lambda _data, **_kwargs: 'Go')
+
+    service.update_developer_profile(
+        level=1,
+        health=100,
+        coins=0,
+        exp=0,
+        test_date_enabled=True,
+        test_datetime=datetime.combine(selected_day, datetime.min.time()),
+    )
+
+    assert refreshed_days == [selected_day]
+    assert repository.read_projects()['projects'][project.name].streak_status == 'Go'
+
+
 def test_developer_mode_endpoints_are_unavailable_in_regular_runtime(game_context):
     _repository, service, _project, _stage = game_context
 

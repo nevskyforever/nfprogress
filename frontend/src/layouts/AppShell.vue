@@ -21,7 +21,7 @@ import { settingsApi } from '@/api/settings'
 import DeveloperModeDialog from '@/components/developer/DeveloperModeDialog.vue'
 import StreakBadge from '@/components/projects/StreakBadge.vue'
 import { projectsApi } from '@/api/projects'
-import { onDataChange } from '@/services/dataChanges'
+import { announceDataChange, onDataChange } from '@/services/dataChanges'
 import {
   SUPPORTED_LANGUAGES,
   isSupportedLanguage,
@@ -134,6 +134,9 @@ function publishDeveloperState(state: GameState): void {
   window.dispatchEvent(new CustomEvent<GameState>('nfprogress:game-state-updated', {
     detail: state,
   }))
+  // A changed test clock recalculates project plans and streak statuses on the
+  // backend. Refresh every active project view immediately.
+  announceDataChange('projects')
 }
 
 async function refreshGlobalStreak(): Promise<void> {

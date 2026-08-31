@@ -334,6 +334,29 @@ describe('ProjectDetailPage progress sharing', () => {
     expect(wrapper.get('.detail-streak--entity').text()).toContain('Максимум: 11')
   })
 
+  it('keeps the daily target cumulative when a stage is open', async () => {
+    routeParams.stageId = 'stage-id'
+    const stage = projectFixture({
+      id: 'stage-id',
+      name: 'Глава 3',
+      today_goal: 200,
+      parent_project_id: 'project-id',
+    })
+    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
+      id: 'project-id',
+      today_goal: 900,
+      stages_enabled: true,
+      stages: [stage],
+    }))
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    const dailyGoal = wrapper.findAll('.fact-card')
+      .find((card) => card.text().includes('Цель на сегодня'))
+    expect(dailyGoal?.text()).toContain('900')
+    expect(dailyGoal?.text()).not.toContain('200')
+  })
+
   it('keeps project sync visible and opens setup for the selected stage', async () => {
     const wrapper = mountWorkspace()
     await flushPromises()
