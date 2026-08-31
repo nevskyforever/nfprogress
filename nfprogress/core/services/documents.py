@@ -46,14 +46,25 @@ class ProjectDocumentService:
 
     def list_existing(self) -> list[dict[str, Any]]:
         with self.repository.locked():
-            records = self._load_with_migrations().values()
+            records = self._load_with_migrations()
+            data = self.repository.read_projects()
             visible = []
-            for record in records:
+            for record in records.values():
                 if not isinstance(record, dict) or not record.get('exists'):
                     continue
+                project_id = record.get('project_id')
+                if not isinstance(project_id, str) or not project_id:
+                    continue
+                stage_id = record.get('stage_id')
                 try:
-                    self._validate_owner(record['project_id'], record.get('stage_id'))
+                    project = self.project_service._find_project(data, project_id)
+                    entity = (
+                        self.project_service._find_stage(project, stage_id)
+                        if stage_id else project
+                    )
                 except NotFoundError:
+                    continue
+                if self._work_method(entity) != 'app':
                     continue
                 visible.append(self._public(record))
             visible.sort(
@@ -194,8 +205,16 @@ class ProjectDocumentService:
         entity = self.project_service._find_stage(project, stage_id) if stage_id else project
         if stage_id is None and getattr(project, 'stages', []):
             raise ValidationError('У проекта с этапами нет отдельного текста.')
-        if getattr(entity, 'work_method', 'sync' if getattr(entity, 'synch', None) is not None else 'manual') != 'app':
+        if self._work_method(entity) != 'app':
             raise ValidationError('Для работы с текстом выберите метод «В приложении».')
+
+    @staticmethod
+    def _work_method(entity: object) -> str:
+        return getattr(
+            entity,
+            'work_method',
+            'sync' if getattr(entity, 'synch', None) is not None else 'manual',
+        )
 
     def _load_with_migrations(self) -> dict[str, dict[str, Any]]:
         records = self._load()

@@ -64,10 +64,12 @@ describe('TextsPage', () => {
       projectFixture({
         id: 'project-id',
         name: 'Роман',
+        work_method: 'app',
         stages: [projectFixture({
           id: 'stage-id',
           name: 'Глава 1',
           parent_project_id: 'project-id',
+          work_method: 'app',
         })],
         stages_enabled: true,
       }),
@@ -133,6 +135,34 @@ describe('TextsPage', () => {
     await flushPromises()
 
     expect(wrapper.findAll('a')[0]?.text()).toContain('Роман: Глава 1')
+    wrapper.unmount()
+  })
+
+  it('hides documents whose project or stage uses another work method', async () => {
+    vi.mocked(documentsApi.list).mockResolvedValue([
+      documentFixture(null),
+      documentFixture('stage-id', 24),
+      documentFixture('manual-stage', 36),
+    ])
+    vi.mocked(projectsApi.list).mockResolvedValue([
+      projectFixture({
+        id: 'project-id',
+        name: 'Роман',
+        work_method: 'manual',
+        stages: [
+          projectFixture({ id: 'stage-id', name: 'Глава 1', work_method: 'app' }),
+          projectFixture({ id: 'manual-stage', name: 'Ручной этап', work_method: 'manual' }),
+        ],
+      }),
+    ])
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.findAll('a')).toHaveLength(1)
+    expect(wrapper.text()).toContain('Роман: Глава 1')
+    expect(wrapper.text()).not.toContain('текст проекта')
+    expect(wrapper.text()).not.toContain('Ручной этап')
     wrapper.unmount()
   })
 })

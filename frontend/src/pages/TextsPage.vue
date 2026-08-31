@@ -17,6 +17,16 @@ const search = ref('')
 let loadSequence = 0
 let stopDataChanges: (() => void) | undefined
 function projectFor(document: ProjectDocument): Project | undefined { return projects.value.find((item) => item.id === document.project_id) }
+function ownerFor(document: ProjectDocument): Project | undefined {
+  const project = projectFor(document)
+  if (!project) return undefined
+  return document.stage_id
+    ? project.stages.find((stage) => stage.id === document.stage_id)
+    : project
+}
+function isAppDocument(document: ProjectDocument): boolean {
+  return ownerFor(document)?.work_method === 'app'
+}
 function stageNameFor(document: ProjectDocument): string {
   const project = projectFor(document)
   return document.stage_id
@@ -35,7 +45,7 @@ function documentTimestamp(document: ProjectDocument): number {
 }
 const visibleDocuments = computed(() => {
   const query = search.value.trim().toLocaleLowerCase(locale.localeTag)
-  const sorted = [...documents.value].sort(
+  const sorted = documents.value.filter(isAppDocument).sort(
     (left, right) => documentTimestamp(right) - documentTimestamp(left),
   )
   if (!query) return sorted

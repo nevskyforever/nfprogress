@@ -271,3 +271,29 @@ def test_work_methods_keep_existing_data_and_gate_record_sources(tmp_path):
         ).json()
         assert restored['work_method'] == 'manual'
         assert client.get(f"/api/documents/{project['id']}").status_code == 422
+
+
+def test_document_list_excludes_documents_of_non_app_entities(tmp_path):
+    app = create_app(RuntimeConfig(data_dir=tmp_path, platform='desktop'))
+    content = {
+        'type': 'doc',
+        'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'Текст'}]}],
+    }
+    with TestClient(app) as client:
+        project = client.post(
+            '/api/projects',
+            json={'name': 'Роман', 'goal': 1000, 'work_method': 'app'},
+        ).json()
+        assert client.put(
+            f"/api/documents/{project['id']}", json={'content': content},
+        ).status_code == 200
+
+        assert client.patch(
+            f"/api/projects/{project['id']}", json={'work_method': 'manual'},
+        ).status_code == 200
+        assert client.get('/api/documents/list').json() == []
+
+        assert client.patch(
+            f"/api/projects/{project['id']}", json={'work_method': 'app'},
+        ).status_code == 200
+        assert [item['project_id'] for item in client.get('/api/documents/list').json()] == [project['id']]
