@@ -17,10 +17,12 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     if (!documentState.value?.docx_path) return
     documentState.value = await documentsApi.writeDocx(scope, await blobToBase64(await exportDocx(content.value)))
   }
-  async function save() {
+  async function save(announce = true) {
+    window.clearTimeout(saveTimer)
+    saveTimer = undefined
     documentState.value = await documentsApi.save(scope, content.value)
     await writeLinkedWord()
-    announceDataChange('projects')
+    if (announce) announceDataChange('projects')
     status.value = 'Сохранено'
   }
   function scheduleSave(next: TiptapDocument) {

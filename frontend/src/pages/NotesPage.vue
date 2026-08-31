@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IonContent, IonIcon, IonPage } from '@ionic/vue'
 import {
@@ -160,6 +160,24 @@ function selectStage(event: Event): void {
   void router.replace({ name: route.name ?? undefined, params: route.params, query })
 }
 
+function leaveWorkspace(): void {
+  if (editingNote.value) {
+    editingNote.value = null
+    return
+  }
+  void router.push(
+    route.meta?.resourceHub
+      ? { name: String(route.meta.resourceHub) }
+      : { name: 'project-detail', params: { projectId: projectId.value } },
+  )
+}
+
+function handleEscape(event: KeyboardEvent): void {
+  if (event.key !== 'Escape') return
+  event.preventDefault()
+  leaveWorkspace()
+}
+
 watch(
   [projectId, stageId],
   () => {
@@ -174,6 +192,8 @@ watch(activeView, (view) => {
   try { localStorage.setItem(`nfprogress:${hub}:workspace-view`, view) } catch { /* optional */ }
 })
 
+onMounted(() => window.addEventListener('keydown', handleEscape, true))
+onBeforeUnmount(() => window.removeEventListener('keydown', handleEscape, true))
 onBeforeUnmount(workspace.invalidate)
 </script>
 
@@ -328,6 +348,7 @@ onBeforeUnmount(workspace.invalidate)
             :map="workspace.mindMap.value"
             :persist="workspace.saveMindMap"
             :focus-node-id="pendingFocusNode"
+            @escape="leaveWorkspace"
           />
         </section>
       </main>

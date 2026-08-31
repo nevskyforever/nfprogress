@@ -8,6 +8,7 @@ import { mindMapFixture, noteFixture } from '@/test/noteFixtures'
 import NotesPage from './NotesPage.vue'
 
 const replaceRoute = vi.fn()
+const pushRoute = vi.fn()
 
 vi.mock('vue-router', () => ({
   useRoute: () => ({
@@ -15,7 +16,7 @@ vi.mock('vue-router', () => ({
     query: {},
     name: 'project-notes',
   }),
-  useRouter: () => ({ replace: replaceRoute }),
+  useRouter: () => ({ replace: replaceRoute, push: pushRoute }),
 }))
 
 vi.mock('@/api/notes', () => ({
@@ -34,6 +35,7 @@ vi.mock('@/api/notes', () => ({
 describe('NotesPage', () => {
   beforeEach(() => {
     replaceRoute.mockReset()
+    pushRoute.mockReset()
     vi.mocked(notesApi.list).mockResolvedValue({
       notes: [noteFixture()],
       read_only: false,
@@ -64,5 +66,27 @@ describe('NotesPage', () => {
     expect(wrapper.get('[role="tablist"]').attributes('aria-label')).toBe('Заметки и карта')
     expect(wrapper.get('input[type="search"]').attributes('placeholder')).toBe('Поиск по заметкам')
     expect(wrapper.get('.new-note-button').text()).toBe('Новая заметка')
+    wrapper.unmount()
+  })
+
+  it('returns to the project when Escape is pressed', async () => {
+    const wrapper = mount(NotesPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonIcon: true,
+          IonSpinner: true,
+          RouterLink: { template: '<a><slot /></a>' },
+          MindMapEditor: true,
+          NoteEditorDialog: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+
+    expect(pushRoute).toHaveBeenCalledWith({ name: 'project-detail', params: { projectId: 'project-id' } })
+    wrapper.unmount()
   })
 })

@@ -21,6 +21,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   saved: [payload: MindMapResponse]
+  escape: []
 }>()
 
 const locale = useLocaleStore()
@@ -88,11 +89,18 @@ function iframeLoaded(): void {
   try {
     bridge.initialize(initialPayload())
     initialized = true
+    frame.value?.contentWindow?.addEventListener('keydown', handleFrameKeydown, true)
     pollTimer = window.setInterval(pollEvents, 150)
     pollEvents()
   } catch (reason) {
     errorMessage.value = reason instanceof Error ? reason.message : t('Не удалось загрузить редактор карты.')
   }
+}
+
+function handleFrameKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Escape') return
+  event.preventDefault()
+  emit('escape')
 }
 
 function pollEvents(): void {
@@ -195,6 +203,7 @@ function flushCurrentMap(): void {
 
 onBeforeUnmount(() => {
   flushCurrentMap()
+  frame.value?.contentWindow?.removeEventListener('keydown', handleFrameKeydown, true)
   stopPolling()
 })
 

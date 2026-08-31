@@ -191,7 +191,7 @@ class ProjectDocumentService:
         if isinstance(value, str):
             try:
                 parsed = datetime.fromisoformat(value)
-                return parsed.replace(tzinfo=None) if parsed.tzinfo else parsed
+                return parsed.astimezone().replace(tzinfo=None) if parsed.tzinfo else parsed
             except ValueError:
                 pass
         return datetime.now()

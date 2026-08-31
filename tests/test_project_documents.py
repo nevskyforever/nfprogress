@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import base64
+from datetime import datetime
 
 from fastapi.testclient import TestClient
 
 from backend.app.config import RuntimeConfig
 from backend.app.main import create_app
+from nfprogress.core.services.documents import ProjectDocumentService
 
 
 def test_document_autosave_and_linked_word_change_are_tracked(tmp_path):
@@ -66,6 +68,48 @@ def test_text_progress_uses_document_symbols_and_document_scope_rules(tmp_path):
             f"/api/documents/{staged_project['id']}", params={'stage_id': stage['id']},
             json={'content': content},
         ).status_code == 200
+
+
+def test_text_progress_runs_the_game_and_streak_pipeline(tmp_path):
+    app = create_app(RuntimeConfig(data_dir=tmp_path, platform='desktop', allow_local_files=True))
+    with TestClient(app) as client:
+        project = client.post(
+            '/api/projects',
+            json={
+                'name': 'Роман',
+                'goal': 1000,
+                'personal_goal': 1,
+                'streak_enabled': True,
+                'work_method': 'app',
+            },
+        ).json()
+        assert client.patch(
+            '/api/settings',
+            json={'values': {'game_mode': True, 'global_streak': True}},
+        ).status_code == 200
+        content = {
+            'type': 'doc',
+            'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'Текст'}]}],
+        }
+        assert client.put(
+            f"/api/documents/{project['id']}", json={'content': content},
+        ).status_code == 200
+
+        result = client.post(f"/api/documents/{project['id']}/progress")
+        assert result.status_code == 200, result.text
+        progress = result.json()['progress']
+        assert progress['project']['streak_status'] == 'Start'
+        assert progress['game']['result']['rewarded'] is True
+        assert progress['game']['result']['streak_rewards'] == 2
+        assert progress['game']['state']['profile']['experience'] > 0
+
+
+def test_saved_document_timestamp_is_normalized_to_the_local_day():
+    saved_at = datetime.fromisoformat('2026-08-31T20:00:00+00:00')
+
+    parsed = ProjectDocumentService._parse_updated_at(saved_at.isoformat())
+
+    assert parsed == saved_at.astimezone().replace(tzinfo=None)
 
 
 def test_work_methods_keep_existing_data_and_gate_record_sources(tmp_path):

@@ -34,7 +34,9 @@ const pendingConflictResolve = ref<((choice: ConflictChoice) => void) | null>(nu
 const editorContent = ref<TiptapDocument>({ type: 'doc', content: [{ type: 'paragraph' }] })
 const projectEntity = ref<Project | null>(null)
 const zoom = ref(100)
+const saving = ref(false)
 const recording = ref(false)
+const processing = computed(() => saving.value || recording.value)
 const { content, documentState, status, save, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
   props.scope,
   () => new Promise<ConflictChoice>((resolve) => { showConflict.value = true; pendingConflictResolve.value = resolve }),
@@ -66,7 +68,7 @@ function update(next: JSONContent) { const json = next as TiptapDocument; editor
 function countTextSymbols(value: unknown): number {
   if (!value || typeof value !== 'object') return 0
   const node = value as { text?: unknown; content?: unknown }
-  return (typeof node.text === 'string' ? node.text.length : 0)
+  return (typeof node.text === 'string' ? Array.from(node.text).length : 0)
     + (Array.isArray(node.content) ? node.content.reduce((total, child) => total + countTextSymbols(child), 0) : 0)
 }
 function setZoom(next: number) { zoom.value = Math.min(160, Math.max(70, next)) }
@@ -77,21 +79,21 @@ async function loadProjectEntity() {
     : project
 }
 function resolveConflict(choice: ConflictChoice) { showConflict.value = false; pendingConflictResolve.value?.(choice); pendingConflictResolve.value = null }
-async function recordTextProgress(): Promise<void> {
-  if (recording.value || !canRecordText.value) return
+async function recordTextProgress(force = false): Promise<boolean> {
+  if (recording.value || textSymbols.value <= 0 || (!force && !canRecordText.value)) return false
   recording.value = true
   try {
     const result = await documentsApi.recordProgress(props.scope)
     if (!result.progress) {
       status.value = t('Документ не изменился. Текущий объём уже актуален.')
-      return
+      return false
     }
     announceDataChange('projects')
     const progress = result.progress
-    const entity = projectEntity.value
-    if (entity) {
-      projectEntity.value = progress.project.stages.find((stage) => stage.id === entity.id) ?? progress.project
-    }
+    const entity = props.scope.stageId
+      ? progress.project.stages.find((stage) => stage.id === props.scope.stageId) ?? projectEntity.value
+      : progress.project
+    projectEntity.value = entity ?? null
     if (entity) {
       const feedback = progressChangeNotification(progress, entity, t, locale.formatNumber, locale.formatUnit)
       if (feedback) notifications.show(feedback.message, feedback.kind)
@@ -99,29 +101,63 @@ async function recordTextProgress(): Promise<void> {
     if (progress.game) {
       notifications.setGameHistory(progress.game.state.notifications)
       for (const message of gameResponseMessages(progress.game)) notifications.success(t(message))
+      announceDataChange('game')
     }
+    if (progress.warning) notifications.warning(progress.warning)
     status.value = t('Запись прогресса добавлена.')
+    return true
   } catch (error) {
     status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
+    return false
   } finally {
     recording.value = false
   }
 }
+let flushPromise: Promise<void> | null = null
 async function flushAndRecord(): Promise<void> {
+  if (flushPromise) return flushPromise
+  const operation = (async () => {
+    const latest = editorRef.value?.getJSON()
+    if (latest) {
+      editorContent.value = latest as TiptapDocument
+      content.value = editorContent.value
+    }
+    saving.value = true
+    try {
+      // The progress endpoint reads the persisted document, so its request
+      // must follow this immediate save rather than the debounce timer.
+      await save(false)
+    } catch (error) {
+      status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
+      return
+    } finally {
+      saving.value = false
+    }
+    const recorded = await recordTextProgress(true)
+    // The document itself may have changed even when rounding/duplicate
+    // protection correctly produced no progress entry. Keep project counters
+    // and cached detail views in sync with that saved content as well.
+    if (!recorded) announceDataChange('projects')
+  })()
+  flushPromise = operation
   try {
-    await save()
-  } catch (error) {
-    status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
-    return
+    await operation
+  } finally {
+    if (flushPromise === operation) flushPromise = null
   }
-  await recordTextProgress()
 }
+function onRecordClick(): void { void flushAndRecord() }
 function closeEditor() {
   if (props.scope.stageId) {
     void router.push({ name: 'stage-detail', params: { projectId: props.scope.projectId, stageId: props.scope.stageId } })
     return
   }
   void router.push({ name: 'project-detail', params: { projectId: props.scope.projectId } })
+}
+function handleEscape(event: KeyboardEvent): void {
+  if (event.key !== 'Escape' || showConflict.value || processing.value) return
+  event.preventDefault()
+  closeEditor()
 }
 async function importExternal() {
   const external = await checkExternal()
@@ -154,12 +190,13 @@ watch(() => locale.language, configureKitLocale)
 watch(() => theme.resolved, setWordTheme, { immediate: true })
 configureKitLocale()
 onMounted(() => {
+  window.addEventListener('keydown', handleEscape, true)
   externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000)
   void loadProjectEntity().catch(() => { projectEntity.value = null })
   if (window.__TAURI_INTERNALS__) {
     void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
       stopCloseListener = await getCurrentWindow().onCloseRequested(async (event) => {
-        if (recording.value) {
+        if (processing.value) {
           event.preventDefault()
           return
         }
@@ -170,6 +207,7 @@ onMounted(() => {
   }
 })
 onBeforeUnmount(() => {
+  window.removeEventListener('keydown', handleEscape, true)
   window.clearInterval(externalTimer)
   stopCloseListener?.()
 })
@@ -185,8 +223,8 @@ onBeforeRouteLeave(async () => { await flushAndRecord() })
       </div>
       <div class="document-editor-view__actions">
         <span aria-live="polite">{{ status }}</span>
-        <button class="nf-button" type="button" :disabled="recording || !canRecordText" @click="recordTextProgress">
-          {{ recording ? t('Сохраняем…') : t('Добавить запись') }}
+        <button class="nf-button" type="button" :disabled="processing || !canRecordText" @click="onRecordClick">
+          {{ processing ? t('Сохраняем…') : t('Добавить запись') }}
         </button>
         <button class="nf-button nf-button--secondary" type="button" title="Импортировать документ Word" aria-label="Импортировать документ Word" @click="importWord">Импорт DOCX</button>
         <button class="nf-button nf-button--secondary" type="button" title="Экспортировать документ Word" aria-label="Экспортировать документ Word" @click="exportWord">Экспорт DOCX</button>
