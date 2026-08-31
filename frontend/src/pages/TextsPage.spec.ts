@@ -19,6 +19,7 @@ vi.mock('@/api/projects', () => ({
 
 const ionicStubs = {
   IonContent: { template: '<div><slot /></div>' },
+  IonIcon: true,
   IonPage: { template: '<div><slot /></div>' },
   RouterLink: { template: '<a><slot /></a>' },
 }
@@ -76,6 +77,31 @@ describe('TextsPage', () => {
     expect(wrapper.text()).toContain('Роман')
     expect(wrapper.text()).toContain('текст проекта')
     expect(wrapper.text()).toContain('этап: Глава 1')
+    expect(wrapper.findAll('a')).toHaveLength(2)
+    wrapper.unmount()
+  })
+
+  it('filters project and stage documents by their names', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const search = wrapper.get('input[type="search"]')
+
+    await search.setValue('роман')
+
+    expect(wrapper.findAll('a')).toHaveLength(2)
+
+    await search.setValue('глава')
+
+    expect(wrapper.findAll('a')).toHaveLength(1)
+    expect(wrapper.text()).toContain('этап: Глава 1')
+    expect(wrapper.text()).not.toContain('текст проекта')
+
+    await search.setValue('не существует')
+
+    expect(wrapper.findAll('a')).toHaveLength(0)
+    expect(wrapper.text()).toContain('Ничего не найдено')
+
+    await wrapper.get('button[aria-label="Очистить поиск"]').trigger('click')
     expect(wrapper.findAll('a')).toHaveLength(2)
     wrapper.unmount()
   })
