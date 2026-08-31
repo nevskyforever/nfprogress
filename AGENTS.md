@@ -171,6 +171,12 @@ After making changes:
 
 If no tests cover the modified code, report that fact.
 
+When testing the local application, it is permitted to terminate an already
+running development instance of this project (including `Run Web.sh`,
+`Run Tauri.sh`, and their verified child processes) when it blocks the required
+port or prevents a clean test run. First verify the process command and project
+path; do not terminate an unrelated application or a production build.
+
 For changes to the Vue interface that affect user interaction, verify the flow
 in Chromium through Playwright when practical. Use `Run Web.sh` to start the
 local application. If Chromium is not installed for Playwright, ask the user

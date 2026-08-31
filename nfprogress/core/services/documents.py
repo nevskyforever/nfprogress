@@ -32,18 +32,27 @@ class ProjectDocumentService:
     def get(self, project_id: str, stage_id: str | None = None) -> dict[str, Any]:
         key = self._key(project_id, stage_id)
         with self.repository.locked():
+            records = self._load_with_migrations()
             self._validate_document_owner(project_id, stage_id)
-            return self._public(self._load().get(key) or self._new(project_id, stage_id))
+            return self._public(records.get(key) or self._new(project_id, stage_id))
+
+    def move_project_document_to_stage(self, project_id: str, stage_id: str) -> None:
+        """Move a legacy project document to the first stage after conversion."""
+        with self.repository.locked():
+            self._validate_owner(project_id, stage_id)
+            records = self._load()
+            if self._move_project_document(records, project_id, stage_id):
+                self._write(records)
 
     def list_existing(self) -> list[dict[str, Any]]:
         with self.repository.locked():
-            records = self._load().values()
+            records = self._load_with_migrations().values()
             visible = []
             for record in records:
-                if not record.get('exists'):
+                if not isinstance(record, dict) or not record.get('exists'):
                     continue
                 try:
-                    self._validate_document_owner(record['project_id'], record.get('stage_id'))
+                    self._validate_owner(record['project_id'], record.get('stage_id'))
                 except NotFoundError:
                     continue
                 visible.append(self._public(record))
@@ -54,8 +63,8 @@ class ProjectDocumentService:
             raise ValidationError('Документ должен быть в формате Tiptap JSON.')
         key = self._key(project_id, stage_id)
         with self.repository.locked():
+            records = self._load_with_migrations()
             self._validate_document_owner(project_id, stage_id)
-            records = self._load()
             record = records.get(key) or self._new(project_id, stage_id)
             record.update({'content': content, 'exists': True, 'updated_at': self._now(), 'local_dirty': True})
             records[key] = record
@@ -70,8 +79,8 @@ class ProjectDocumentService:
             raise ValidationError('Поддерживаются только документы Word .docx.')
         key = self._key(project_id, stage_id)
         with self.repository.locked():
+            records = self._load_with_migrations()
             self._validate_document_owner(project_id, stage_id)
-            records = self._load()
             record = records.get(key) or self._new(project_id, stage_id)
             record.update({'docx_path': str(source), 'exists': True, 'updated_at': self._now(), 'local_dirty': True})
             records[key] = record
@@ -85,8 +94,9 @@ class ProjectDocumentService:
         except (ValueError, TypeError) as error:
             raise ValidationError('Некорректные данные DOCX.') from error
         with self.repository.locked():
+            records = self._load_with_migrations()
             self._validate_document_owner(project_id, stage_id)
-            records = self._load(); record = records.get(key)
+            record = records.get(key)
             if not record or not record.get('docx_path'):
                 raise ValidationError('Сначала свяжите документ с файлом Word.')
             path = Path(record['docx_path'])
@@ -105,8 +115,9 @@ class ProjectDocumentService:
     def read_external_docx(self, project_id: str, stage_id: str | None = None) -> dict[str, Any]:
         key = self._key(project_id, stage_id)
         with self.repository.locked():
+            records = self._load_with_migrations()
             self._validate_document_owner(project_id, stage_id)
-            records = self._load(); record = records.get(key)
+            record = records.get(key)
             if not record or not record.get('docx_path'): return {'state': 'unlinked'}
             path = Path(record['docx_path'])
             if not path.is_file(): return {'state': 'missing'}
@@ -120,8 +131,9 @@ class ProjectDocumentService:
     def accept_word(self, project_id: str, content: dict[str, Any], source_hash: str, stage_id: str | None = None) -> dict[str, Any]:
         key = self._key(project_id, stage_id)
         with self.repository.locked():
+            records = self._load_with_migrations()
             self._validate_document_owner(project_id, stage_id)
-            records = self._load(); record = records.get(key) or self._new(project_id, stage_id)
+            record = records.get(key) or self._new(project_id, stage_id)
             record.update({'content': content, 'exists': True, 'updated_at': self._now(), 'last_synced_hash': source_hash, 'last_synced_at': self._now(), 'local_dirty': False, 'word_dirty': False, 'sync_state': 'synced'})
             records[key] = record; self._write(records)
             return self._public(record)
@@ -132,8 +144,9 @@ class ProjectDocumentService:
         """Create a normal synchronized progress entry from the internal text."""
         key = self._key(project_id, stage_id)
         with self.repository.locked():
+            records = self._load_with_migrations()
             self._validate_document_owner(project_id, stage_id)
-            record = self._load().get(key)
+            record = records.get(key)
             symbols = self._symbol_count(record.get('content', {})) if record else 0
             if symbols <= 0:
                 raise ValidationError('Сначала добавьте текст в документ.')
@@ -158,7 +171,7 @@ class ProjectDocumentService:
         """Keep file synchronization and an internal manuscript mutually exclusive."""
         key = self._key(project_id, stage_id)
         with self.repository.locked():
-            record = self._load().get(key)
+            record = self._load_with_migrations().get(key)
             if record and self._symbol_count(record.get('content', {})) > 0:
                 raise ValidationError(
                     'Сначала очистите текст документа или используйте «Добавить запись».',
@@ -177,6 +190,55 @@ class ProjectDocumentService:
             raise ValidationError('У проекта с этапами нет отдельного текста.')
         if getattr(entity, 'work_method', 'sync' if getattr(entity, 'synch', None) is not None else 'manual') != 'app':
             raise ValidationError('Для работы с текстом выберите метод «В приложении».')
+
+    def _load_with_migrations(self) -> dict[str, dict[str, Any]]:
+        records = self._load()
+        if self._migrate_project_documents_to_first_stages(records):
+            self._write(records)
+        return records
+
+    def _migrate_project_documents_to_first_stages(
+            self, records: dict[str, dict[str, Any]],
+    ) -> bool:
+        data = self.repository.read_projects()
+        projects = data.get('projects', {}) if isinstance(data, dict) else {}
+        changed = False
+        for project in projects.values():
+            project_id = getattr(project, 'project_id', None)
+            stages = getattr(project, 'stages', [])
+            first_stage_id = (
+                getattr(stages[0], 'stage_id', None)
+                if isinstance(stages, list) and stages else None
+            )
+            if project_id and first_stage_id:
+                changed = self._move_project_document(
+                    records, project_id, first_stage_id,
+                ) or changed
+        return changed
+
+    def _move_project_document(
+            self, records: dict[str, dict[str, Any]],
+            project_id: str, stage_id: str,
+    ) -> bool:
+        source_key = self._key(project_id, None)
+        target_key = self._key(project_id, stage_id)
+        source = records.get(source_key)
+        if not isinstance(source, dict) or not source.get('exists'):
+            return False
+
+        target = records.get(target_key)
+        if isinstance(target, dict) and target.get('exists') and (
+                self._symbol_count(target.get('content', {})) > 0
+                or target.get('docx_path')
+        ):
+            del records[source_key]
+            return True
+
+        moved = dict(source)
+        moved.update({'project_id': project_id, 'stage_id': stage_id})
+        records[target_key] = moved
+        del records[source_key]
+        return True
 
     @staticmethod
     def _symbol_count(value: object) -> int:

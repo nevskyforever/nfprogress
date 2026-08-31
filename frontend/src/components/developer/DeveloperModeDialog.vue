@@ -36,7 +36,10 @@ const selectedItems = computed(
 )
 
 function datetimeLocal(value: string | null): string {
-  return value ? value.slice(0, 16) : new Date().toISOString().slice(0, 16)
+  const date = value ? new Date(value) : new Date()
+  if (Number.isNaN(date.getTime())) return value?.slice(0, 16) ?? ''
+  const offset = date.getTimezoneOffset()
+  return new Date(date.getTime() - offset * 60_000).toISOString().slice(0, 16)
 }
 
 function fill(state: DeveloperModeState): void {
@@ -98,7 +101,9 @@ async function saveProfile(): Promise<void> {
       coins: form.coins,
       exp: form.exp,
       test_date_enabled: form.testDateEnabled,
-      test_datetime: form.testDateEnabled ? new Date(form.testDatetime).toISOString() : null,
+      // This is a logical writing date; preserve the value selected in the
+      // local datetime input instead of shifting it to UTC.
+      test_datetime: form.testDateEnabled ? form.testDatetime : null,
     })
     success.value = t(result.message ?? 'Настройки режима разработчика сохранены.')
     emit('updated', result.state)

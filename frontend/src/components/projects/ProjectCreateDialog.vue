@@ -365,7 +365,7 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
             <input v-model="form.stagesEnabled" name="stages_enabled" type="checkbox" />
             <span>
               <strong>{{ t('Проект с этапами') }}</strong>
-              <small>{{ t('Текущая цель и прогресс перейдут в первый этап') }}</small>
+              <small>{{ t('Текущая цель, прогресс и текст проекта перейдут в первый этап') }}</small>
             </span>
           </label>
           <label v-if="globalStreakEnabled" class="check-field">

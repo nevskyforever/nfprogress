@@ -952,7 +952,7 @@ class GameService:
 
     def __init__(self, repository: Any, *, developer_mode: bool = False) -> None:
         self.repository = repository
-        self.developer_mode = developer_mode
+        self.developer_mode = bool(developer_mode)
         self._lock = RLock()
 
     def _require_developer_mode(self) -> None:
@@ -1005,6 +1005,16 @@ class GameService:
                 min(gamer.get_max_health(), max(0.0, float(health))), 1,
             )
             settings = self.repository.read_settings()
+            previous_test_date_enabled = bool(
+                settings.get('today_for_test_mode', False),
+            )
+            previous_test_datetime = settings.get('today_for_test_datetime')
+            test_clock_changed = (
+                previous_test_date_enabled != test_date_enabled
+                or previous_test_datetime != (
+                    test_datetime if test_date_enabled else None
+                )
+            )
             settings['today_for_test_mode'] = test_date_enabled
             settings['today_for_test_datetime'] = test_datetime if test_date_enabled else None
             settings['today_for_test_date'] = (
@@ -1017,8 +1027,10 @@ class GameService:
             # saving a test date.  Apply the same date-dependent streak rules
             # before returning the API state, rather than waiting for the
             # desktop minute timer.
-            engine.refresh_project_streak_statuses(projects)
-            engine.global_streak_status(projects)
+            engine.refresh_project_streak_statuses(
+                projects, force=test_clock_changed,
+            )
+            engine.global_streak_status(projects, force=test_clock_changed)
             self._prepare_gamer(gamer, projects, ensure_daily=self._game_mode_enabled())
             state = self._serialize_state(
                 gamer, projects, enabled=self._game_mode_enabled(),

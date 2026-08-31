@@ -28,6 +28,19 @@ from ..schemas import (
 router = APIRouter(prefix='/projects', tags=['projects'])
 
 
+def _migrate_first_stage_document(
+        services: Services, project_id: str, was_single_project: bool,
+) -> None:
+    if not was_single_project:
+        return
+    project = services.projects.get_project(project_id)
+    stages = project.get('stages', [])
+    first_stage = stages[0] if isinstance(stages, list) and stages else None
+    stage_id = first_stage.get('id') if isinstance(first_stage, dict) else None
+    if isinstance(stage_id, str) and stage_id:
+        services.documents.move_project_document_to_stage(project_id, stage_id)
+
+
 @router.get('', response_model=list[ProjectResponse])
 def list_projects(
         services: Annotated[Services, Depends(get_services)],
@@ -117,9 +130,13 @@ def update_project(
         payload: ProjectUpdate,
         services: Annotated[Services, Depends(get_services)],
 ):
-    return services.projects.update_project(
+    current = services.projects.get_project(project_id)
+    was_single_project = not current.get('stages')
+    result = services.projects.update_project(
         project_id, payload.model_dump(exclude_unset=True),
     )
+    _migrate_first_stage_document(services, project_id, was_single_project and payload.stages_enabled is True)
+    return result
 
 
 @router.delete('/{project_id}', status_code=status.HTTP_204_NO_CONTENT)
@@ -157,7 +174,11 @@ def create_stage(
         payload: StageCreate,
         services: Annotated[Services, Depends(get_services)],
 ):
-    return services.projects.create_stage(project_id, payload.model_dump())
+    current = services.projects.get_project(project_id)
+    was_single_project = not current.get('stages')
+    result = services.projects.create_stage(project_id, payload.model_dump())
+    _migrate_first_stage_document(services, project_id, was_single_project)
+    return result
 
 
 @router.patch('/{project_id}/stages/{stage_id}', response_model=ProjectResponse)

@@ -70,6 +70,85 @@ def test_text_progress_uses_document_symbols_and_document_scope_rules(tmp_path):
         ).status_code == 200
 
 
+def test_first_stage_creation_moves_project_document_and_keeps_text_list_available(tmp_path):
+    app = create_app(RuntimeConfig(
+        data_dir=tmp_path, platform='desktop', allow_local_files=True,
+    ))
+    content = {
+        'type': 'doc',
+        'content': [{'type': 'paragraph', 'content': [
+            {'type': 'text', 'text': 'Текст проекта'},
+        ]}],
+    }
+    with TestClient(app) as client:
+        project = client.post(
+            '/api/projects',
+            json={'name': 'Роман', 'goal': 1000, 'work_method': 'app'},
+        ).json()
+        assert client.put(
+            f"/api/documents/{project['id']}", json={'content': content},
+        ).status_code == 200
+
+        created = client.post(
+            f"/api/projects/{project['id']}/stages",
+            json={'name': 'Первый этап', 'goal': 1000, 'work_method': 'app'},
+        )
+        assert created.status_code == 201, created.text
+
+        staged_project = client.get(f"/api/projects/{project['id']}").json()
+        stage = staged_project['stages'][0]
+        stage_document = client.get(
+            f"/api/documents/{project['id']}", params={'stage_id': stage['id']},
+        )
+        assert stage_document.status_code == 200
+        assert stage_document.json()['content'] == content
+
+        documents = client.get('/api/documents/list')
+        assert documents.status_code == 200, documents.text
+        assert [
+            (item['project_id'], item['stage_id'], item['has_content'])
+            for item in documents.json()
+        ] == [(project['id'], stage['id'], True)]
+
+
+def test_project_stage_conversion_keeps_project_document_editable(tmp_path):
+    app = create_app(RuntimeConfig(
+        data_dir=tmp_path, platform='desktop', allow_local_files=True,
+    ))
+    content = {
+        'type': 'doc',
+        'content': [{'type': 'paragraph', 'content': [
+            {'type': 'text', 'text': 'Текст при конверсии'},
+        ]}],
+    }
+    with TestClient(app) as client:
+        project = client.post(
+            '/api/projects',
+            json={
+                'name': 'Конверсия',
+                'goal': 1000,
+                'total': 50,
+                'work_method': 'app',
+            },
+        ).json()
+        assert client.put(
+            f"/api/documents/{project['id']}", json={'content': content},
+        ).status_code == 200
+
+        converted = client.patch(
+            f"/api/projects/{project['id']}", json={'stages_enabled': True},
+        )
+        assert converted.status_code == 200, converted.text
+        stage = client.get(f"/api/projects/{project['id']}").json()['stages'][0]
+        assert stage['work_method'] == 'app'
+
+        document = client.get(
+            f"/api/documents/{project['id']}", params={'stage_id': stage['id']},
+        )
+        assert document.status_code == 200
+        assert document.json()['content'] == content
+
+
 def test_text_progress_runs_the_game_and_streak_pipeline(tmp_path):
     app = create_app(RuntimeConfig(data_dir=tmp_path, platform='desktop', allow_local_files=True))
     with TestClient(app) as client:

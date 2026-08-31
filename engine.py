@@ -1757,7 +1757,7 @@ class Project:
             return float('inf')
         return unit_converter('symbols', need_sym, self.unit)
 
-    def get_streak_status(self):
+    def get_streak_status(self, *, force=False):
         """Возвращает статус локального стрика проекта (статусы потери только в день потери)."""
         if self.streak_status == 'Off':
             return 'Off'
@@ -1792,7 +1792,7 @@ class Project:
         # После изменения времени начала суток эффективная дата временно может
         # стать меньше даты уже сохранённого стрика. Это не пропуск дня, и
         # автоматическая проверка не должна сбрасывать стрик.
-        if streak_has_day_after(self.streaks, today):
+        if not force and streak_has_day_after(self.streaks, today):
             return self.streak_status
 
         day_completed = total >= planned
@@ -2001,6 +2001,11 @@ class Project:
         )
         stage.synch = self.synch
         stage.last_synch = self.last_synch
+        stage.work_method = getattr(
+            self,
+            'work_method',
+            'sync' if self.synch is not None else 'manual',
+        )
         stage.last_streak_bonus = None
         stage.last_streak_lost_date = None
         stage.freezes = 0
@@ -2655,7 +2660,7 @@ def get_data_directory_info():
         'data_file_size': data_file.stat().st_size if data_file.exists() else 0
     }
 
-def global_streak_status(data, today=None):
+def global_streak_status(data, today=None, *, force=False):
     """Возвращает статус глобального стрика. Статусы потери возвращаются только в день потери."""
     if today is None:
         today = today_for_test()
@@ -2687,9 +2692,10 @@ def global_streak_status(data, today=None):
     # Не пересчитываем стрик назад при изменении времени начала суток после
     # полуночи. Иначе сохранённая за текущую календарную дату запись выглядит
     # как дата из будущего и ошибочно трактуется как разрыв.
-    if (streak_has_day_after(streaks, today) or
+    if (not force and (
+            streak_has_day_after(streaks, today) or
             any(streak_has_day_after(source.streaks, today)
-                for source in _iter_streak_sources(projects))):
+                for source in _iter_streak_sources(projects)))):
         return prev_status
 
     if (not streaks and
@@ -2717,7 +2723,7 @@ def global_streak_status(data, today=None):
     for project in _iter_streak_sources(projects):
         if isinstance(project, Project):
             # ВАЖНО: обязательно вызываем метод для актуализации статуса на текущий день
-            actual_status = project.get_streak_status()
+            actual_status = project.get_streak_status(force=force)
 
             # Проект активен или завершен
             if project.status in ['активен', 'завершен']:
@@ -2865,7 +2871,7 @@ def _iter_streak_sources(projects):
         yield from get_project_streak_sources(project)
 
 
-def refresh_project_streak_statuses(data):
+def refresh_project_streak_statuses(data, *, force=False):
     """Актуализирует локальные стрики проектов без UI-уведомлений."""
     projects = data.get('projects', {})
     global_streaks = data.setdefault('global_streaks', [])
@@ -2895,7 +2901,7 @@ def refresh_project_streak_statuses(data):
                 old_max_streak = getattr(streak_source, 'max_streak', 0)
                 old_freeze_count = sum(1 for entry in old_streaks if entry == STREAK_FREEZE_MARKER)
 
-                streak_source.get_streak_status()
+                streak_source.get_streak_status(force=force)
 
                 freeze_days = [
                     effective_day

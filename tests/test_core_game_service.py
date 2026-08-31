@@ -95,9 +95,11 @@ def test_developer_test_date_refreshes_streaks_before_returning(game_context, mo
     service = GameService(repository, developer_mode=True)
     selected_day = date(2026, 9, 2)
     refreshed_days = []
+    force_values = []
 
-    def refresh(data):
+    def refresh(data, **kwargs):
         refreshed_days.append(engine.today_for_test())
+        force_values.append(kwargs.get('force'))
         data['projects'][project.name].streak_status = 'Go'
 
     monkeypatch.setattr(engine, 'dev_mode', True)
@@ -114,7 +116,64 @@ def test_developer_test_date_refreshes_streaks_before_returning(game_context, mo
     )
 
     assert refreshed_days == [selected_day]
+    assert force_values == [True]
     assert repository.read_projects()['projects'][project.name].streak_status == 'Go'
+
+
+def test_developer_test_date_rechecks_all_streak_sources_after_clock_rollback(
+        game_context, monkeypatch,
+):
+    repository, _service, project, stage = game_context
+    monkeypatch.setattr(engine, 'dev_mode', True)
+    later_day = date(2026, 9, 4)
+    selected_day = date(2026, 9, 2)
+
+    single = engine.Project(
+        name='Обычный проект',
+        goal=1000,
+        deadline=selected_day + timedelta(days=10),
+        total_symbols=0,
+        personal_goal_for_the_day=100,
+    )
+    single.streaks = [later_day]
+    single.streak_status = 'Active'
+    stage.deadline = selected_day + timedelta(days=10)
+    stage.personal_goal_for_the_day = 100
+    stage.total_units = 0
+    stage.streaks = [later_day]
+    stage.streak_status = 'Active'
+
+    data = repository.read_projects()
+    data['projects'] = {single.name: single, project.name: project}
+    data['global_streaks'] = [later_day]
+    data['global_streak_status'] = 'Active'
+    data['max_global_streak'] = 1
+    repository.write_projects(data)
+    settings = repository.read_settings()
+    settings.update({
+        'game_mode': True,
+        'global_streak': True,
+        'today_for_test_mode': True,
+        'today_for_test_datetime': datetime.combine(later_day, datetime.min.time()),
+        'today_for_test_date': later_day,
+    })
+    repository.write_settings(settings)
+
+    service = GameService(repository, developer_mode=True)
+    service.update_developer_profile(
+        level=1,
+        health=100,
+        coins=0,
+        exp=0,
+        test_date_enabled=True,
+        test_datetime=datetime.combine(selected_day, datetime.min.time()),
+    )
+
+    saved = repository.read_projects()
+    assert saved['projects']['Обычный проект'].streak_status == 'Lose 1'
+    assert saved['projects']['Роман'].stages[0].streak_status == 'Lose 1'
+    assert saved['global_streak_status'] == 'Lose 1'
+    assert saved['global_streaks'] == []
 
 
 def test_developer_mode_endpoints_are_unavailable_in_regular_runtime(game_context):
