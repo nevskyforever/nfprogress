@@ -207,7 +207,21 @@ async function loadProject(): Promise<void> {
 }
 
 async function loadDocuments(): Promise<void> {
-  try { documents.value = await documentsApi.list() } catch { documents.value = [] }
+  const entities = project.value.stages.length
+    ? project.value.stages
+    : [project.value]
+  const scopes = entities
+    .filter((entity) => entity.work_method === 'app')
+    .map((entity) => ({
+      projectId: project.value.id,
+      ...(entity.id === project.value.id ? {} : { stageId: entity.id }),
+    }))
+  const results = await Promise.all(
+    scopes.map(async (scope) => {
+      try { return await documentsApi.get(scope) } catch { return null }
+    }),
+  )
+  documents.value = results.filter((document): document is ProjectDocument => document !== null)
 }
 
 async function refreshChangedProject(): Promise<void> {

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { projectsApi } from '@/api/projects'
 import { integrationsApi } from '@/api/integrations'
+import { documentsApi } from '@/api/documents'
 import { settingsApi } from '@/api/settings'
 import { copyProgressImage, downloadProgressImage } from '@/platform/progressShare'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -27,6 +28,10 @@ vi.mock('@/api/integrations', () => ({
     getProjectSyncs: vi.fn(),
     runProjectSyncs: vi.fn(),
   },
+}))
+
+vi.mock('@/api/documents', () => ({
+  documentsApi: { get: vi.fn() },
 }))
 
 vi.mock('@/api/projects', () => ({
@@ -78,8 +83,9 @@ function workspaceStubs() {
     IonPage: { template: '<div><slot /></div>' },
     IonSpinner: true,
     ProgressWorkspace: {
+      props: ['textSymbols'],
       emits: ['record'],
-      template: '<button class="progress-record" type="button" @click="$emit(\'record\', { new_total: 25100 })">record</button>',
+      template: '<div><output class="text-symbols">{{ textSymbols }}</output><button class="progress-record" type="button" @click="$emit(\'record\', { new_total: 25100 })">record</button></div>',
     },
     ProjectEditDialog: true,
     ProgressShareMenu: {
@@ -133,6 +139,7 @@ describe('ProjectDetailPage progress sharing', () => {
     vi.mocked(downloadProgressImage).mockReset()
     vi.mocked(integrationsApi.getProjectSyncs).mockReset()
     vi.mocked(integrationsApi.runProjectSyncs).mockReset()
+    vi.mocked(documentsApi.get).mockReset()
     vi.mocked(settingsApi.get).mockReset()
     pushRoute.mockReset()
     replaceRoute.mockReset()
@@ -172,6 +179,13 @@ describe('ProjectDetailPage progress sharing', () => {
         desktop_only: true,
       }],
     })
+    vi.mocked(documentsApi.get).mockResolvedValue({
+      project_id: 'project-id', stage_id: null,
+      content: { type: 'doc', content: [] }, exists: false, updated_at: null,
+      docx_path: null, sync_state: 'unlinked', last_synced_hash: null,
+      last_synced_at: null, local_dirty: false, word_dirty: false,
+      symbols: 0, has_content: false,
+    })
     vi.mocked(settingsApi.get).mockResolvedValue({
       values: { global_streak: true },
       platform: 'web',
@@ -183,6 +197,24 @@ describe('ProjectDetailPage progress sharing', () => {
       },
       editable_keys: ['global_streak'],
     })
+  })
+
+  it('loads the current application document directly for its progress counter', async () => {
+    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
+      id: 'project-id', stages_enabled: false, stages: [], work_method: 'app',
+    }))
+    vi.mocked(documentsApi.get).mockResolvedValue({
+      project_id: 'project-id', stage_id: null,
+      content: { type: 'doc', content: [{ type: 'paragraph' }] }, exists: true,
+      updated_at: '2026-08-31T13:00:00+00:00', docx_path: null,
+      sync_state: 'unlinked', last_synced_hash: null, last_synced_at: null,
+      local_dirty: false, word_dirty: false, symbols: 12, has_content: true,
+    })
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    expect(documentsApi.get).toHaveBeenCalledWith({ projectId: 'project-id' })
+    expect(wrapper.get('.text-symbols').text()).toContain('12')
   })
 
   it('creates cards locally for both a project and its selected stage', async () => {
