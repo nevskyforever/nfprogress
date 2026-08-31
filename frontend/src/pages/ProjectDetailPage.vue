@@ -619,15 +619,6 @@ async function recordProgress(payload: ProgressCreate): Promise<void> {
   refreshStatistics()
 }
 
-async function recordTextProgress(stageId?: string): Promise<void> {
-  const result = await store.recordTextProgress(project.value.id, stageId)
-  if (!result) return
-  applyProgressFeedback(result, stageId, 'progress')
-  applyGameFeedback(result.game)
-  await loadStreakSummaries()
-  refreshStatistics()
-}
-
 async function deleteProgress(entryId: string, stageId?: string): Promise<void> {
   feedbackArea.value = 'progress'
   const updated = await store.deleteProgress(project.value.id, entryId, stageId)
@@ -875,7 +866,6 @@ onBeforeUnmount(() => {
             :success="feedbackArea === 'progress' ? actionSuccess : null"
             :fixed-stage-id="isStageDetail ? detailEntity.id : null"
             @record="recordProgress"
-            @record-text="recordTextProgress"
             @remove="deleteProgress"
           />
           <StatisticsWorkspace

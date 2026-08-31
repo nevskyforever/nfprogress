@@ -24,7 +24,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   record: [payload: ProgressCreate]
-  recordText: [stageId?: string]
   remove: [entryId: string, stageId?: string]
 }>()
 
@@ -159,11 +158,7 @@ watch(
       <div v-else-if="applicationMethod" class="progress-entry-form">
         <div class="progress-entry-heading"><h3>{{ t('Текст документа') }}</h3></div>
         <p>{{ t('В документе') }}: <strong>{{ locale.formatNumber(textSymbols, 0) }} {{ locale.formatUnit('symbols', textSymbols) }}</strong></p>
-        <button class="nf-button" type="button" :disabled="busy || lifecycleReadOnly || !hasTextSource" @click="emit('recordText', selectedStageId)">
-          <IonSpinner v-if="submitting" name="crescent" aria-hidden="true" />
-          <IonIcon v-else :icon="addCircleOutline" aria-hidden="true" />
-          {{ submitting ? t('Сохраняем…') : t('Добавить запись') }}
-        </button>
+        <p class="read-only-note">{{ hasTextSource ? t('Добавление записи доступно в редакторе текста.') : t('Текущий объём текста уже записан в прогрессе.') }}</p>
       </div>
 
       <div class="progress-feedback" aria-live="polite">

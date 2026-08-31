@@ -74,15 +74,14 @@ describe('ProgressWorkspace', () => {
     expect(wrapper.get('.read-only-note').text()).toContain('Включена синхронизация')
   })
 
-  it('disables adding text when the document total matches progress', () => {
+  it('does not offer a duplicate text entry in the project workspace', () => {
     const project = projectFixture({ work_method: 'app', total: 12 })
     const wrapper = mount(ProgressWorkspace, {
       props: { project, busy: false, textSymbols: { [project.id]: 12 } },
       global: { plugins: [createPinia()], stubs: ionicStubs },
     })
 
-    const button = wrapper.get('button:not([type="submit"])')
-    expect(button.text()).toContain('Добавить запись')
-    expect(button.attributes('disabled')).toBeDefined()
+    expect(wrapper.find('button:not([type="submit"])').exists()).toBe(false)
+    expect(wrapper.get('.progress-entry-form').text()).toContain('уже записан')
   })
 })

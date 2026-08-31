@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { JSONContent } from '@tiptap/core'
-import { useRouter } from 'vue-router'
+import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { createI18n, TiptapProEditor, setTheme, type TiptapProEditorExpose } from 'tiptap-ui-kit'
 import 'tiptap-ui-kit/style.css'
 import 'ant-design-vue/dist/reset.css'
@@ -10,16 +10,22 @@ import { useDocumentSync, type ConflictChoice } from '@/composables/useDocumentS
 import { exportDocx } from '@/services/documentDocx'
 import type { DocumentScope, TiptapDocument } from '@/types/documents'
 import { projectsApi } from '@/api/projects'
+import { documentsApi } from '@/api/documents'
 import type { Project } from '@/types/api'
 import { convertProjectUnit } from '@/utils/projectPlanning'
+import { announceDataChange } from '@/services/dataChanges'
+import { progressChangeNotification } from '@/utils/progressNotifications'
+import { gameResponseMessages } from '@/utils/gameNotifications'
 import DocumentConflictResolver from './DocumentConflictResolver.vue'
 import { tiptapLocale } from './tiptapLocale'
 import { useLocaleStore } from '@/stores/locale'
+import { useNotificationsStore } from '@/stores/notifications'
 import { useThemeStore } from '@/stores/theme'
 
 const props = defineProps<{ scope: DocumentScope; title: string }>()
 const router = useRouter()
 const locale = useLocaleStore()
+const notifications = useNotificationsStore()
 const theme = useThemeStore()
 const t = locale.translate
 const editorRef = shallowRef<TiptapProEditorExpose | null>(null)
@@ -28,11 +34,13 @@ const pendingConflictResolve = ref<((choice: ConflictChoice) => void) | null>(nu
 const editorContent = ref<TiptapDocument>({ type: 'doc', content: [{ type: 'paragraph' }] })
 const projectEntity = ref<Project | null>(null)
 const zoom = ref(100)
-const { content, documentState, status, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
+const recording = ref(false)
+const { content, documentState, status, save, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
   props.scope,
   () => new Promise<ConflictChoice>((resolve) => { showConflict.value = true; pendingConflictResolve.value = resolve }),
 )
 let externalTimer: number | undefined
+let stopCloseListener: (() => void) | undefined
 const linked = computed(() => Boolean(documentState.value?.docx_path))
 const textSymbols = computed(() => countTextSymbols(editorContent.value))
 const textUnits = computed(() => projectEntity.value
@@ -41,6 +49,12 @@ const textUnits = computed(() => projectEntity.value
 const textUnitLabel = computed(() => projectEntity.value && textUnits.value !== null
   ? `${locale.formatNumber(textUnits.value, projectEntity.value.unit === 'symbols' ? 0 : 1)} ${locale.formatUnit(projectEntity.value.unit, textUnits.value)}`
   : '')
+const canRecordText = computed(() => Boolean(
+  projectEntity.value
+  && textSymbols.value > 0
+  && textUnits.value !== null
+  && Math.abs(textUnits.value - projectEntity.value.total) >= 0.009,
+))
 
 function setWordTheme(value: 'light' | 'dark') { setTheme('word', value) }
 function configureKitLocale() {
@@ -63,6 +77,40 @@ async function loadProjectEntity() {
     : project
 }
 function resolveConflict(choice: ConflictChoice) { showConflict.value = false; pendingConflictResolve.value?.(choice); pendingConflictResolve.value = null }
+async function recordTextProgress(): Promise<void> {
+  if (recording.value || !canRecordText.value) return
+  recording.value = true
+  try {
+    const result = await documentsApi.recordProgress(props.scope)
+    if (!result.progress) {
+      status.value = t('Документ не изменился. Текущий объём уже актуален.')
+      return
+    }
+    announceDataChange('projects')
+    const progress = result.progress
+    const entity = projectEntity.value
+    if (entity) {
+      projectEntity.value = progress.project.stages.find((stage) => stage.id === entity.id) ?? progress.project
+    }
+    if (entity) {
+      const feedback = progressChangeNotification(progress, entity, t, locale.formatNumber, locale.formatUnit)
+      if (feedback) notifications.show(feedback.message, feedback.kind)
+    }
+    if (progress.game) {
+      notifications.setGameHistory(progress.game.state.notifications)
+      for (const message of gameResponseMessages(progress.game)) notifications.success(t(message))
+    }
+    status.value = t('Запись прогресса добавлена.')
+  } catch (error) {
+    status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
+  } finally {
+    recording.value = false
+  }
+}
+async function flushAndRecord(): Promise<void> {
+  await save()
+  await recordTextProgress()
+}
 function closeEditor() {
   if (props.scope.stageId) {
     void router.push({ name: 'stage-detail', params: { projectId: props.scope.projectId, stageId: props.scope.stageId } })
@@ -103,8 +151,24 @@ configureKitLocale()
 onMounted(() => {
   externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000)
   void loadProjectEntity().catch(() => { projectEntity.value = null })
+  if (window.__TAURI_INTERNALS__) {
+    void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
+      stopCloseListener = await getCurrentWindow().onCloseRequested(async (event) => {
+        if (recording.value) {
+          event.preventDefault()
+          return
+        }
+        event.preventDefault()
+        try { await flushAndRecord() } finally { await getCurrentWindow().destroy() }
+      })
+    })
+  }
 })
-onBeforeUnmount(() => window.clearInterval(externalTimer))
+onBeforeUnmount(() => {
+  window.clearInterval(externalTimer)
+  stopCloseListener?.()
+})
+onBeforeRouteLeave(async () => { await flushAndRecord() })
 </script>
 
 <template>
@@ -116,6 +180,9 @@ onBeforeUnmount(() => window.clearInterval(externalTimer))
       </div>
       <div class="document-editor-view__actions">
         <span aria-live="polite">{{ status }}</span>
+        <button class="nf-button" type="button" :disabled="recording || !canRecordText" @click="recordTextProgress">
+          {{ recording ? t('Сохраняем…') : t('Добавить запись') }}
+        </button>
         <button class="nf-button nf-button--secondary" type="button" title="Импортировать документ Word" aria-label="Импортировать документ Word" @click="importWord">Импорт DOCX</button>
         <button class="nf-button nf-button--secondary" type="button" title="Экспортировать документ Word" aria-label="Экспортировать документ Word" @click="exportWord">Экспорт DOCX</button>
         <button class="nf-button nf-button--secondary" type="button" title="Связать документ с локальным файлом Word" aria-label="Связать документ с локальным файлом Word" @click="linkWord">{{ linked ? 'Файл Word связан' : 'Связать с Word' }}</button>
