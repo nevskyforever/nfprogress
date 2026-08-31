@@ -1,7 +1,16 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { IonIcon } from '@ionic/vue'
-import { flameOutline, snowOutline } from 'ionicons/icons'
+import {
+  flameOutline,
+  heartDislikeOutline,
+  hourglassOutline,
+  moonOutline,
+  powerOutline,
+  rocketOutline,
+  snowOutline,
+  trophyOutline,
+} from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
 
@@ -57,6 +66,20 @@ const statusLabel = computed(() => {
   return t('ещё не начат')
 })
 
+// Mirror the distinct legacy streak states with vector icons rather than
+// relying on one flame for every state or on emoji glyphs.
+const statusIcon = computed(() => {
+  const status = props.status ?? 'No'
+  if (status === 'Go') return rocketOutline
+  if (status === 'Freeze') return snowOutline
+  if (status === 'Active') return hourglassOutline
+  if (status === 'Complete') return trophyOutline
+  if (status === 'Off') return powerOutline
+  if (status.startsWith('Lose ')) return heartDislikeOutline
+  if (status === 'No') return moonOutline
+  return flameOutline
+})
+
 const accessibleLabel = computed(() => {
   const parts = [
     `${title.value}: ${locale.formatNumber(props.length, 0)} ${t('дн.')}`,
@@ -79,7 +102,7 @@ const accessibleLabel = computed(() => {
     role="status"
     :aria-label="accessibleLabel"
   >
-    <IonIcon :icon="statusKind === 'frozen' ? snowOutline : flameOutline" aria-hidden="true" />
+    <IonIcon :icon="statusIcon" aria-hidden="true" />
     <span class="streak-badge__copy">
       <span class="streak-badge__title">{{ title }}</span>
       <span class="streak-badge__value">
