@@ -6,6 +6,7 @@ import { addCircleOutline, chevronDownOutline, layersOutline, trashOutline } fro
 import { useLocaleStore } from '@/stores/locale'
 import type { ProgressCreate, ProgressEntry, Project } from '@/types/api'
 import type { SyncSummary } from '@/types/integrations'
+import { convertProjectUnit } from '@/utils/projectPlanning'
 
 const props = withDefaults(
   defineProps<{
@@ -55,7 +56,10 @@ const selectedStageId = computed(() =>
 const manualEntryLocked = computed(() => lifecycleReadOnly.value || selectedEntity.value.work_method !== 'manual')
 const textSymbols = computed(() => props.textSymbols[selectedEntity.value.id] ?? 0)
 const applicationMethod = computed(() => selectedEntity.value.work_method === 'app')
-const hasTextSource = computed(() => applicationMethod.value && textSymbols.value > 0)
+const textTotal = computed(() => convertProjectUnit(textSymbols.value, 'symbols', selectedEntity.value.unit))
+const hasTextSource = computed(() => applicationMethod.value
+  && textSymbols.value > 0
+  && Math.abs(textTotal.value - selectedEntity.value.total) >= 0.009)
 
 function numberFrom(value: string | number): number {
   return Number(String(value).replace(',', '.'))
