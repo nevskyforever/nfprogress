@@ -42,13 +42,23 @@ describe('ProjectCreateDialog', () => {
     expect((wrapper.get('#project-deadline').element as HTMLInputElement).disabled).toBe(false)
   })
 
-  it('keeps streak controls in global settings instead of the project form', () => {
+  it('keeps local streak controls hidden until the global setting is enabled', () => {
     const wrapper = mount(ProjectCreateDialog, {
       props: { open: true }, global: { plugins: [createPinia()], stubs: ionicStubs },
     })
 
     expect(wrapper.text()).not.toContain('Отслеживать серию')
     expect(wrapper.text()).not.toContain('Использовать заморозку автоматически')
+  })
+
+  it('enables streak tracking by default when the global setting is available', () => {
+    const wrapper = mount(ProjectCreateDialog, {
+      props: { open: true, globalStreakEnabled: true, gameModeEnabled: true },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    expect((wrapper.get('#project-streak-enabled').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('#project-auto-freeze').element as HTMLInputElement).checked).toBe(true)
   })
 
   it('emits a typed finite-project payload from the form', async () => {
@@ -70,6 +80,8 @@ describe('ProjectCreateDialog', () => {
       total: 1_200,
       unit: 'symbols',
       infinite: false,
+      streak_enabled: true,
+      auto_freeze: true,
     })
   })
 

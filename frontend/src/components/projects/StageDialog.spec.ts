@@ -68,6 +68,26 @@ describe('StageDialog', () => {
     expect(wrapper.emitted('submit')?.[0]?.[0]).not.toHaveProperty('recalculate_plan')
   })
 
+  it('enables and persists local streak tracking for stages', async () => {
+    const wrapper = mount(StageDialog, {
+      props: {
+        open: true,
+        projectUnit: 'symbols',
+        globalStreakEnabled: true,
+        gameModeEnabled: true,
+        stage: projectFixture({ id: 'stage-1', streak_enabled: true, auto_freeze: true }),
+      },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    expect((wrapper.get('#stage-streak-enabled').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('#stage-auto-freeze').element as HTMLInputElement).checked).toBe(true)
+    await wrapper.get('#stage-streak-enabled').setValue(false)
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({ streak_enabled: false })
+  })
+
   it('creates a shared-project source as an infinite zero-baseline stage', async () => {
     const wrapper = mount(StageDialog, {
       props: {

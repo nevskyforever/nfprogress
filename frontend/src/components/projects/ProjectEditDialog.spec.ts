@@ -103,6 +103,25 @@ describe('ProjectEditDialog', () => {
     expect(wrapper.get('.cover-editor').classes()).toContain('workspace-field--wide')
   })
 
+  it('loads and updates local streak settings', async () => {
+    const wrapper = mount(ProjectEditDialog, {
+      props: {
+        open: true,
+        globalStreakEnabled: true,
+        gameModeEnabled: true,
+        project: projectFixture({ streak_enabled: true, auto_freeze: true }),
+      },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    expect((wrapper.get('#edit-project-streak-enabled').element as HTMLInputElement).checked).toBe(true)
+    expect((wrapper.get('#edit-project-auto-freeze').element as HTMLInputElement).checked).toBe(true)
+    await wrapper.get('#edit-project-streak-enabled').setValue(false)
+    await wrapper.get('form').trigger('submit')
+
+    expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({ streak_enabled: false })
+  })
+
   it('confirms and requests the preserving stages-to-single conversion', async () => {
     vi.spyOn(window, 'confirm').mockReturnValue(true)
     const stage = projectFixture({ id: 'stage-1', name: 'Черновик' })

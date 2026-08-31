@@ -20,11 +20,15 @@ const props = withDefaults(
     submitting?: boolean
     apiError?: string | null
     planningDate?: string
+    globalStreakEnabled?: boolean
+    gameModeEnabled?: boolean
   }>(),
   {
     submitting: false,
     apiError: null,
     planningDate: undefined,
+    globalStreakEnabled: false,
+    gameModeEnabled: false,
   },
 )
 
@@ -52,6 +56,8 @@ const form = reactive({
   personalGoal: '0',
   infinite: false,
   stagesEnabled: false,
+  streakEnabled: true,
+  autoFreeze: true,
   workMethod: 'manual' as WorkMethod,
   coverImage: null as string | null,
 })
@@ -67,6 +73,8 @@ function reset(): void {
   form.personalGoal = '0'
   form.infinite = false
   form.stagesEnabled = false
+  form.streakEnabled = true
+  form.autoFreeze = true
   form.workMethod = 'manual'
   form.coverImage = null
   validationErrors.value = []
@@ -177,6 +185,8 @@ async function submit(): Promise<void> {
     total,
     deadline: form.noDeadline ? null : (form.deadline || null),
     personal_goal: personalGoal,
+    streak_enabled: form.streakEnabled,
+    auto_freeze: form.autoFreeze,
     stages_enabled: form.stagesEnabled,
     work_method: form.workMethod,
     stages: [],
@@ -356,6 +366,23 @@ watch(() => form.total, updatePlanFromAmount, { flush: 'sync' })
             <span>
               <strong>{{ t('Проект с этапами') }}</strong>
               <small>{{ t('Текущая цель и прогресс перейдут в первый этап') }}</small>
+            </span>
+          </label>
+          <label v-if="globalStreakEnabled" class="check-field">
+            <input id="project-streak-enabled" v-model="form.streakEnabled" name="streak_enabled" type="checkbox" />
+            <span>
+              <strong>{{ t('Отслеживать серию') }}</strong>
+              <small>{{ t('Поддерживать ежедневный ритм работы') }}</small>
+            </span>
+          </label>
+          <label
+            v-if="globalStreakEnabled && gameModeEnabled && form.streakEnabled"
+            class="check-field check-field--nested"
+          >
+            <input id="project-auto-freeze" v-model="form.autoFreeze" name="auto_freeze" type="checkbox" />
+            <span>
+              <strong>{{ t('Использовать заморозку автоматически') }}</strong>
+              <small>{{ t('Если дневная цель не выполнена') }}</small>
             </span>
           </label>
         </div>

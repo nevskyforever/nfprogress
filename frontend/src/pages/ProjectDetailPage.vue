@@ -86,6 +86,7 @@ const isStageDetail = computed(() => openedStage.value !== null)
 const presentation = useProjectPresentation(detailEntity)
 const isSharedProject = computed(() => project.value.name === 'Общий проект')
 const streaksEnabled = ref(false)
+const gameModeEnabled = ref(false)
 const stageSort = ref<StageSort>('manual')
 let stageSortSaveChain: Promise<void> = Promise.resolve()
 const displayedStreakEntity = computed<Project | null>(() => {
@@ -243,6 +244,7 @@ async function loadStreakSummaries(): Promise<void> {
   try {
     const settings = await settingsApi.get()
     streaksEnabled.value = enabledSetting(settings.values.global_streak)
+    gameModeEnabled.value = enabledSetting(settings.values.game_mode)
     const savedStageSort = settings.values.frontend_stage_sort
     if (
       savedStageSort === 'manual'
@@ -253,6 +255,7 @@ async function loadStreakSummaries(): Promise<void> {
     ) stageSort.value = savedStageSort
   } catch {
     streaksEnabled.value = false
+    gameModeEnabled.value = false
   }
 }
 
@@ -888,6 +891,7 @@ onBeforeUnmount(() => {
       :submitting="store.detailOperation === 'update-project'"
       :api-error="store.detailActionError"
       :global-streak-enabled="streaksEnabled"
+      :game-mode-enabled="gameModeEnabled"
       @close="editDialogOpen = false"
       @submit="saveProject"
     />
@@ -902,6 +906,7 @@ onBeforeUnmount(() => {
       :submitting="Boolean(store.detailOperation?.includes('stage'))"
       :api-error="store.detailActionError"
       :global-streak-enabled="streaksEnabled"
+      :game-mode-enabled="gameModeEnabled"
       @close="stageDialogOpen = false"
       @submit="saveStage"
     />

@@ -22,8 +22,14 @@ const props = withDefaults(
     submitting?: boolean
     apiError?: string | null
     globalStreakEnabled?: boolean
+    gameModeEnabled?: boolean
   }>(),
-  { submitting: false, apiError: null, globalStreakEnabled: false },
+  {
+    submitting: false,
+    apiError: null,
+    globalStreakEnabled: false,
+    gameModeEnabled: false,
+  },
 )
 
 const emit = defineEmits<{
@@ -49,6 +55,8 @@ const form = reactive({
   personalGoal: '',
   infinite: false,
   stagesEnabled: false,
+  streakEnabled: false,
+  autoFreeze: true,
   combineStageMindmaps: false,
   recalculatePlan: false,
   coverImage: null as string | null,
@@ -79,6 +87,8 @@ function fill(): void {
   form.personalGoal = form.noDeadline ? '0' : String(project.personal_goal)
   form.infinite = project.infinite
   form.stagesEnabled = project.stages_enabled
+  form.streakEnabled = project.streak_enabled ?? project.streak_status !== 'Off'
+  form.autoFreeze = project.auto_freeze ?? true
   form.combineStageMindmaps = project.combine_stage_mindmaps
   form.recalculatePlan = false
   form.coverImage = project.cover_image
@@ -248,6 +258,8 @@ async function submit(): Promise<void> {
   if (form.stagesEnabled !== props.project.stages_enabled) payload.stages_enabled = form.stagesEnabled
   if (form.coverImage !== props.project.cover_image) payload.cover_image = form.coverImage
   if (form.workMethod !== props.project.work_method) payload.work_method = form.workMethod
+  if (form.streakEnabled !== props.project.streak_enabled) payload.streak_enabled = form.streakEnabled
+  if (form.autoFreeze !== (props.project.auto_freeze ?? true)) payload.auto_freeze = form.autoFreeze
   if (
     form.stagesEnabled
     && form.combineStageMindmaps !== props.project.combine_stage_mindmaps
@@ -413,6 +425,17 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
           <label class="workspace-check">
             <input v-model="form.stagesEnabled" type="checkbox" />
             <span><strong>{{ t('Проект с этапами') }}</strong></span>
+          </label>
+          <label v-if="globalStreakEnabled" class="workspace-check">
+            <input id="edit-project-streak-enabled" v-model="form.streakEnabled" name="streak_enabled" type="checkbox" />
+            <span><strong>{{ t('Отслеживать серию') }}</strong></span>
+          </label>
+          <label
+            v-if="globalStreakEnabled && gameModeEnabled && form.streakEnabled"
+            class="workspace-check"
+          >
+            <input id="edit-project-auto-freeze" v-model="form.autoFreeze" name="auto_freeze" type="checkbox" />
+            <span><strong>{{ t('Использовать заморозку автоматически') }}</strong></span>
           </label>
           <label v-if="form.stagesEnabled" class="workspace-check">
             <input v-model="form.combineStageMindmaps" type="checkbox" />

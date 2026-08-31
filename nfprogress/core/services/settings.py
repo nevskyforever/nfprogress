@@ -133,9 +133,9 @@ class SettingsService:
             if 'inf_project' in patch:
                 self._set_infinite_project(data, patch['inf_project'])
             if patch.get('global_streak') is True:
-                # Project forms no longer expose a local switch. Repair old
-                # entities saved as ``Off`` so the global setting really is
-                # the single switch users see in the current interface.
+                # Keep legacy entities with an explicit ``Off`` state usable
+                # when the global mechanism is enabled again. New and edited
+                # entities can still opt out through their local form switch.
                 self._enable_local_streaks(data)
             if patch.get('global_streak') is False:
                 self._clear_streaks(data)

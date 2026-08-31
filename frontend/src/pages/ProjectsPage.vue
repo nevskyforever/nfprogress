@@ -96,6 +96,7 @@ const folderBeingEdited = ref<ProjectFolder | null>(null)
 const todaySummary = ref<TodaySummary | null>(null)
 const showTodaySummary = ref(false)
 const streaksEnabled = ref(false)
+const gameModeEnabled = ref(false)
 const globalStreak = ref<GlobalStreakSummary | null>(null)
 const localSyncAvailable = ref(false)
 const syncAllRunning = ref(false)
@@ -266,6 +267,7 @@ async function initializeWorkspace(): Promise<void> {
     }
     showTodaySummary.value = enabledSetting(settings.values.show_written_today_in_all_projects)
     streaksEnabled.value = enabledSetting(settings.values.global_streak)
+    gameModeEnabled.value = enabledSetting(settings.values.game_mode)
     localSyncAvailable.value = settings.capabilities.local_file_sync === true
     createPlanningDate.value = writingDayIsoDate(settings.values.start_day_time)
     const summaryRequests: Promise<void>[] = []
@@ -288,6 +290,8 @@ async function initializeWorkspace(): Promise<void> {
     if (caught instanceof DOMException && caught.name === 'AbortError') return
     todaySummary.value = null
     globalStreak.value = null
+    streaksEnabled.value = false
+    gameModeEnabled.value = false
   } finally {
     if (controller.signal.aborted || preferencesController !== controller) return
     preferencesReady.value = true
@@ -895,6 +899,8 @@ onBeforeUnmount(() => {
       :planning-date="createPlanningDate"
       :submitting="store.creating"
       :api-error="store.createError"
+      :global-streak-enabled="streaksEnabled"
+      :game-mode-enabled="gameModeEnabled"
       @close="closeCreateDialog"
       @submit="createProject"
     />

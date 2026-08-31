@@ -80,6 +80,34 @@ def test_new_entities_follow_global_streak_setting_without_local_form_fields(ser
     assert explicitly_disabled['streak_enabled'] is False
 
 
+def test_local_streak_and_auto_freeze_options_round_trip_for_projects_and_stages(service):
+    project = service.create_project({
+        'name': 'Локальные настройки', 'goal': 1_000, 'unit': 'symbols',
+        'streak_enabled': False, 'auto_freeze': False,
+    })
+    assert project['streak_enabled'] is False
+    assert project['auto_freeze'] is False
+
+    enabled_project = service.update_project(project['id'], {
+        'streak_enabled': True, 'auto_freeze': True,
+    })
+    assert enabled_project['streak_enabled'] is True
+    assert enabled_project['auto_freeze'] is True
+
+    stage = service.create_stage(project['id'], {
+        'name': 'Локальный этап', 'goal': 500, 'streak_enabled': False,
+        'auto_freeze': False,
+    })
+    assert stage['streak_enabled'] is False
+    assert stage['auto_freeze'] is False
+
+    enabled_stage = service.update_stage(project['id'], stage['id'], {
+        'streak_enabled': True, 'auto_freeze': True,
+    })
+    assert enabled_stage['streak_enabled'] is True
+    assert enabled_stage['auto_freeze'] is True
+
+
 def test_project_cover_rejects_invalid_data(service):
     with pytest.raises(ValidationError, match='Некорректное изображение'):
         service.create_project({

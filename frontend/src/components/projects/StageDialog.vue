@@ -25,6 +25,7 @@ const props = withDefaults(
     submitting?: boolean
     apiError?: string | null
     globalStreakEnabled?: boolean
+    gameModeEnabled?: boolean
   }>(),
   {
     stage: null,
@@ -34,6 +35,7 @@ const props = withDefaults(
     submitting: false,
     apiError: null,
     globalStreakEnabled: false,
+    gameModeEnabled: false,
   },
 )
 
@@ -64,6 +66,8 @@ const form = reactive({
   noDeadline: false,
   personalGoal: '0',
   infinite: false,
+  streakEnabled: true,
+  autoFreeze: true,
   recalculatePlan: false,
   workMethod: 'manual' as WorkMethod,
 })
@@ -85,6 +89,9 @@ function fill(): void {
   // Stages without a deadline cannot have a personal daily plan, as in legacy.
   form.personalGoal = form.noDeadline ? '0' : String(props.stage?.personal_goal ?? 0)
   form.infinite = props.sharedSource || (props.stage?.infinite ?? false)
+  form.streakEnabled = props.stage?.streak_enabled
+    ?? (props.stage ? props.stage.streak_status !== 'Off' : true)
+  form.autoFreeze = props.stage?.auto_freeze ?? true
   form.recalculatePlan = false
   form.workMethod = props.sharedSource ? 'sync' : (props.stage?.work_method ?? 'manual')
   validationErrors.value = []
@@ -229,6 +236,8 @@ async function submit(): Promise<void> {
     }
     if (form.recalculatePlan && canRecalculatePlan.value) update.recalculate_plan = true
     if (form.workMethod !== props.stage.work_method) update.work_method = form.workMethod
+    if (form.streakEnabled !== props.stage.streak_enabled) update.streak_enabled = form.streakEnabled
+    if (form.autoFreeze !== (props.stage.auto_freeze ?? true)) update.auto_freeze = form.autoFreeze
     payload = update
   } else {
     payload = {
@@ -237,6 +246,8 @@ async function submit(): Promise<void> {
       deadline: props.sharedSource || form.noDeadline ? null : (form.deadline || null),
       personal_goal: props.sharedSource ? 0 : personalGoal,
       total: props.sharedSource ? 0 : total,
+      streak_enabled: props.sharedSource ? false : form.streakEnabled,
+      auto_freeze: props.sharedSource ? true : form.autoFreeze,
       work_method: form.workMethod,
       ...((props.sharedSource || form.infinite) ? {} : { goal }),
     }
@@ -379,6 +390,17 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
           <label class="workspace-check">
             <input v-model="form.infinite" type="checkbox" @change="toggleInfinite" />
             <span><strong>{{ t('Этап без конечной цели') }}</strong></span>
+          </label>
+          <label v-if="globalStreakEnabled" class="workspace-check">
+            <input id="stage-streak-enabled" v-model="form.streakEnabled" name="streak_enabled" type="checkbox" />
+            <span><strong>{{ t('Отслеживать серию') }}</strong></span>
+          </label>
+          <label
+            v-if="globalStreakEnabled && gameModeEnabled && form.streakEnabled"
+            class="workspace-check"
+          >
+            <input id="stage-auto-freeze" v-model="form.autoFreeze" name="auto_freeze" type="checkbox" />
+            <span><strong>{{ t('Использовать заморозку автоматически') }}</strong></span>
           </label>
           <label v-if="canRecalculatePlan" class="workspace-check">
             <input v-model="form.recalculatePlan" type="checkbox" @change="updateDeadline" />
