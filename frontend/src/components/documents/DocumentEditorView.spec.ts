@@ -1,0 +1,121 @@
+import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+import { documentsApi } from '@/api/documents'
+import { projectsApi } from '@/api/projects'
+import { projectFixture } from '@/test/fixtures'
+import type { DocumentScope, ProjectDocument } from '@/types/documents'
+
+import DocumentEditorView from './DocumentEditorView.vue'
+
+vi.mock('vue-router', () => ({
+  onBeforeRouteLeave: vi.fn(),
+  useRouter: () => ({ push: vi.fn() }),
+}))
+
+vi.mock('tiptap-ui-kit', () => ({
+  createI18n: vi.fn(),
+  setTheme: vi.fn(),
+  TiptapProEditor: { template: '<div class="tiptap-stub" />' },
+}))
+
+vi.mock('@/api/projects', () => ({
+  projectsApi: { get: vi.fn() },
+}))
+
+vi.mock('@/api/documents', () => ({
+  documentsApi: {
+    acceptWord: vi.fn(),
+    external: vi.fn(),
+    get: vi.fn(),
+    link: vi.fn(),
+    save: vi.fn(),
+    writeDocx: vi.fn(),
+  },
+}))
+
+const documentFixture: ProjectDocument = {
+  project_id: 'project-id',
+  stage_id: null,
+  content: { type: 'doc', content: [{ type: 'paragraph' }] },
+  exists: false,
+  updated_at: null,
+  docx_path: null,
+  sync_state: 'unlinked',
+  last_synced_hash: null,
+  last_synced_at: null,
+  local_dirty: false,
+  word_dirty: false,
+  symbols: 0,
+  has_content: false,
+}
+
+function mountEditor(project = projectFixture(), scope: DocumentScope = { projectId: 'project-id' }) {
+  vi.mocked(projectsApi.get).mockResolvedValue(project)
+  vi.mocked(documentsApi.get).mockResolvedValue({ ...documentFixture, stage_id: scope.stageId ?? null })
+  vi.mocked(documentsApi.save).mockResolvedValue({ ...documentFixture, stage_id: scope.stageId ?? null })
+  return mount(DocumentEditorView, {
+    props: { scope, title: 'Текст' },
+    global: { plugins: [createPinia()] },
+  })
+}
+
+describe('DocumentEditorView status bar', () => {
+  beforeEach(() => {
+    vi.mocked(projectsApi.get).mockReset()
+    vi.mocked(documentsApi.get).mockReset()
+    vi.mocked(documentsApi.save).mockReset()
+  })
+
+  it('shows project progress and the existing cumulative daily target', async () => {
+    const wrapper = mountEditor(projectFixture({ total: 25_000, goal: 100_000, today_goal: 26_000 }))
+    await flushPromises()
+
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('25')
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 100')
+    expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('Цель на сегодня')
+    expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('26')
+    wrapper.unmount()
+  })
+
+  it('uses the existing total-versus-today-goal state for completion', async () => {
+    const wrapper = mountEditor(projectFixture({ total: 26_000, today_goal: 26_000 }))
+    await flushPromises()
+
+    const dailyGoal = wrapper.get('.document-editor-view__today-goal')
+    expect(dailyGoal.text()).toBe('Цель на день выполнена!')
+    expect(dailyGoal.classes()).toContain('document-editor-view__today-goal--complete')
+    wrapper.unmount()
+  })
+
+  it('uses the selected stage total, goal, and daily target', async () => {
+    const stage = projectFixture({
+      id: 'stage-id',
+      total: 4_000,
+      goal: 10_000,
+      today_goal: 4_500,
+      parent_project_id: 'project-id',
+    })
+    const wrapper = mountEditor(
+      projectFixture({ total: 90_000, goal: 100_000, today_goal: 99_000, stages: [stage] }),
+      { projectId: 'project-id', stageId: 'stage-id' },
+    )
+    await flushPromises()
+
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('4')
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 10')
+    expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('4')
+    expect(wrapper.get('.document-editor-view__today-goal').text()).not.toContain('99')
+    wrapper.unmount()
+  })
+
+  it('does not render a daily target when the project has none', async () => {
+    const wrapper = mountEditor(projectFixture({ goal: null, infinite: true, today_goal: null }))
+    await flushPromises()
+
+    expect(wrapper.find('.document-editor-view__today-goal').exists()).toBe(false)
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('Без лимита')
+    wrapper.unmount()
+  })
+})

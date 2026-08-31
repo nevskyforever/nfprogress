@@ -2637,6 +2637,7 @@
   "Цель должна быть числом": "The goal must be a number",
   "Цель должна быть числом!": "The goal must be a number!",
   "Цель на день": "Goal for the day",
+  "Цель на день выполнена!": "Goal for the day accomplished!",
   "Цель на день не может быть отрицательной.": "The daily goal cannot be negative.",
   "Цель на сегодня": "Goal for today",
   "Цель на сегодня выполнена! ({0})": "Goal accomplished for today! ({0})",
