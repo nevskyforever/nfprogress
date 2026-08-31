@@ -56,6 +56,12 @@ class ProjectDocumentService:
                 except NotFoundError:
                     continue
                 visible.append(self._public(record))
+            visible.sort(
+                key=lambda record: self._parse_updated_at(
+                    record.get('updated_at'),
+                ) if record.get('updated_at') else datetime.min,
+                reverse=True,
+            )
             return visible
 
     def save(self, project_id: str, content: dict[str, Any], stage_id: str | None = None) -> dict[str, Any]:

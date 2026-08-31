@@ -211,6 +211,29 @@ def test_project_stage_and_progress_projections_are_json_safe(tmp_path):
     json.dumps(project_payload, ensure_ascii=False, allow_nan=False)
 
 
+def test_project_projection_exposes_latest_resource_update_from_stages():
+    project = engine.Project(name='Роман', goal=10_000)
+    project.notes_updated_at = '2026-08-31T09:00:00+00:00'
+    project.mindmap_updated_at = '2026-08-31T10:00:00+00:00'
+    stage = engine.Stage(
+        name='Глава 1',
+        goal=5_000,
+        parent_project_name=project.name,
+        stage_id='stage-id',
+    )
+    stage.notes_updated_at = '2026-08-31T11:00:00+00:00'
+    stage.mindmap_updated_at = '2026-08-31T12:00:00+00:00'
+    project.enable_stages = True
+    project.stages = [stage]
+
+    payload = serialize_project(project)
+
+    assert payload['notes_updated_at'] == '2026-08-31T11:00:00+00:00'
+    assert payload['mindmap_updated_at'] == '2026-08-31T12:00:00+00:00'
+    assert payload['stages'][0]['notes_updated_at'] == '2026-08-31T11:00:00+00:00'
+    assert payload['stages'][0]['mindmap_updated_at'] == '2026-08-31T12:00:00+00:00'
+
+
 def test_project_projection_uses_legacy_cumulative_today_goal(monkeypatch):
     today = date(2026, 8, 25)
     monkeypatch.setattr(engine, 'today_for_test', lambda: today)

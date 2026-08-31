@@ -206,6 +206,29 @@ def test_mindmap_note_reconciliation_is_two_way_for_text_and_delete():
     assert repository.project(project.project_id).project_notes == []
 
 
+def test_resource_change_timestamps_are_kept_for_empty_resources(monkeypatch):
+    monkeypatch.setattr(
+        'nfprogress.core.services.notes._now_iso',
+        lambda: '2026-09-01T12:00:00+00:00',
+    )
+    project = engine.Project(name='Book', goal=1000)
+    repository = MemoryProjectsRepository(project)
+    service = ProjectNotesService(repository, project.project_id)
+
+    service.update_mindmap({
+        'nodeData': {'id': 'root', 'topic': 'Book', 'children': []},
+    })
+    stored = repository.project(project.project_id)
+    assert stored.mindmap_updated_at == '2026-09-01T12:00:00+00:00'
+
+    note = service.create_note()
+    assert repository.project(project.project_id).notes_updated_at == '2026-09-01T12:00:00+00:00'
+    service.delete_note(note['id'])
+    stored = repository.project(project.project_id)
+    assert stored.notes_updated_at == '2026-09-01T12:00:00+00:00'
+    assert stored.project_notes == []
+
+
 def test_project_view_uses_aggregate_ids_and_routes_stage_mutations():
     draft = engine.Stage(
         name='Черновик',

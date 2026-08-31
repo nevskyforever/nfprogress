@@ -1171,8 +1171,10 @@ class Project:
         self.stages = []
         self.is_stage = False
         self.mindmap_data = None
+        self.mindmap_updated_at = None
         self.combine_stage_mindmaps = False
         self.project_notes = []
+        self.notes_updated_at = None
         # A cropped 2:3 data URL used by the Vue project cards.  Keeping it on
         # the project makes covers available to desktop and offline clients.
         self.cover_image = None
@@ -1221,8 +1223,10 @@ class Project:
             'stages': [],
             'is_stage': False,
             'mindmap_data': None,
+            'mindmap_updated_at': None,
             'combine_stage_mindmaps': False,
             'project_notes': [],
+            'notes_updated_at': None,
             'cover_image': None,
             'folder_id': None,
         }
@@ -1267,6 +1271,16 @@ class Project:
                 and not _mindmap_data_has_valid_root(self.mindmap_data)
         ):
             self.mindmap_data = None
+        if not isinstance(
+                getattr(self, 'mindmap_updated_at', None),
+                (str, datetime, date),
+        ):
+            self.mindmap_updated_at = None
+        if not isinstance(
+                getattr(self, 'notes_updated_at', None),
+                (str, datetime, date),
+        ):
+            self.notes_updated_at = None
         if not isinstance(self.combine_stage_mindmaps, bool):
             self.combine_stage_mindmaps = False
         self.cover_image = normalize_project_cover_image(self.cover_image)
@@ -1296,6 +1310,12 @@ class Project:
                 converted_stage.last_synch = getattr(stage, 'last_synch', None)
                 converted_stage.mindmap_data = normalize_mindmap_data(
                     getattr(stage, 'mindmap_data', None)
+                )
+                converted_stage.mindmap_updated_at = getattr(
+                    stage, 'mindmap_updated_at', None,
+                )
+                converted_stage.notes_updated_at = getattr(
+                    stage, 'notes_updated_at', None,
                 )
                 converted_stage.project_notes = normalize_project_note_records(
                     getattr(stage, 'project_notes', [])

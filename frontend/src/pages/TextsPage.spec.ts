@@ -24,13 +24,17 @@ const ionicStubs = {
   RouterLink: { template: '<a><slot /></a>' },
 }
 
-function documentFixture(stageId: string | null, symbols = 12): ProjectDocument {
+function documentFixture(
+  stageId: string | null,
+  symbols = 12,
+  updatedAt = '2026-08-31T10:00:00Z',
+): ProjectDocument {
   return {
     project_id: 'project-id',
     stage_id: stageId,
     content: { type: 'doc' },
     exists: true,
-    updated_at: '2026-08-31T10:00:00Z',
+    updated_at: updatedAt,
     docx_path: null,
     sync_state: 'unlinked',
     last_synced_hash: null,
@@ -76,7 +80,7 @@ describe('TextsPage', () => {
 
     expect(wrapper.text()).toContain('Роман')
     expect(wrapper.text()).toContain('текст проекта')
-    expect(wrapper.text()).toContain('этап: Глава 1')
+    expect(wrapper.text()).toContain('Роман: Глава 1')
     expect(wrapper.findAll('a')).toHaveLength(2)
     wrapper.unmount()
   })
@@ -93,7 +97,7 @@ describe('TextsPage', () => {
     await search.setValue('глава')
 
     expect(wrapper.findAll('a')).toHaveLength(1)
-    expect(wrapper.text()).toContain('этап: Глава 1')
+    expect(wrapper.text()).toContain('Роман: Глава 1')
     expect(wrapper.text()).not.toContain('текст проекта')
 
     await search.setValue('не существует')
@@ -115,8 +119,20 @@ describe('TextsPage', () => {
     await flushPromises()
 
     expect(documentsApi.list).toHaveBeenCalledTimes(2)
-    expect(wrapper.text()).toContain('этап: Глава 1')
+    expect(wrapper.text()).toContain('Роман: Глава 1')
     expect(wrapper.text()).not.toContain('текст проекта')
+    wrapper.unmount()
+  })
+
+  it('places the most recently changed text first', async () => {
+    vi.mocked(documentsApi.list).mockResolvedValue([
+      documentFixture(null, 12, '2026-08-31T09:00:00Z'),
+      documentFixture('stage-id', 24, '2026-08-31T11:00:00Z'),
+    ])
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(wrapper.findAll('a')[0]?.text()).toContain('Роман: Глава 1')
     wrapper.unmount()
   })
 })

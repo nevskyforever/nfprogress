@@ -31,6 +31,8 @@ export interface Project {
   unit: UnitCode
   created_at: string | null
   updated_at: string | null
+  notes_updated_at: string | null
+  mindmap_updated_at: string | null
   completed_at: string | null
   personal_goal: number
   today_goal: number | null

@@ -13,6 +13,8 @@ export function projectFixture(overrides: Partial<Project> = {}): Project {
     unit: 'symbols',
     created_at: '2026-08-01',
     updated_at: '2026-08-15',
+    notes_updated_at: null,
+    mindmap_updated_at: null,
     completed_at: null,
     personal_goal: 1_000,
     today_goal: 26_000,

@@ -575,6 +575,8 @@ class ProjectNotesService:
         if len(reconciled) != len(records):
             changed = True
         entity.project_notes = reconciled
+        if changed:
+            self._touch_notes(entity)
         return changed
 
     def _reconcile_view(self, project: object, entity: object) -> bool:
@@ -803,6 +805,7 @@ class ProjectNotesService:
                 'revision': 0,
             }
             entity.project_notes.append(record)
+            self._touch_notes(entity)
             notes = self._project_all(project, entity)
             view_id = self._view_note_id(
                 entity,
@@ -895,6 +898,7 @@ class ProjectNotesService:
                                 'Не удалось обновить заметку карты.'
                             )
                         owner.mindmap_data = updated_map
+                        self._touch_mindmap(owner)
                         map_text_changed = True
                         changed = True
             else:
@@ -912,6 +916,7 @@ class ProjectNotesService:
             if changed:
                 record['updated_at'] = _now_iso()
                 record['revision'] += 1
+                self._touch_notes(owner)
             note = self._project_note(
                 owner,
                 record,
@@ -945,6 +950,7 @@ class ProjectNotesService:
                 self._remember(notes)
                 return {'deleted': False, 'id': note_id, 'notes': notes}
             self._require_writable(owner)
+            self._touch_notes(owner)
             source_node_id = record['source_node_id']
             if record['source_type'] == 'mindmap':
                 updated_map = remove_mindmap_note(
@@ -956,6 +962,7 @@ class ProjectNotesService:
                         'Связанная заметка карты больше не существует.'
                     )
                 owner.mindmap_data = updated_map
+                self._touch_mindmap(owner)
             owner.project_notes = [
                 item for item in owner.project_notes
                 if item['id'] != record['id']
@@ -1003,6 +1010,7 @@ class ProjectNotesService:
                         record['sort_order'] = order
                         record['updated_at'] = _now_iso()
                         record['revision'] += 1
+                        self._touch_notes(owner)
                         changed = True
             notes = self._project_all(project, entity)
             self._remember(notes)
@@ -1074,6 +1082,16 @@ class ProjectNotesService:
                 record['updated_at'] = now
                 record['revision'] += 1
 
+    @staticmethod
+    def _touch_mindmap(entity: object) -> None:
+        """Remember the last successful modification of an entity's map."""
+        entity.mindmap_updated_at = _now_iso()
+
+    @staticmethod
+    def _touch_notes(entity: object) -> None:
+        """Remember note changes even when the last note is deleted."""
+        entity.notes_updated_at = _now_iso()
+
     def update_mindmap(self, mindmap_data: object) -> dict:
         """Validate and persist a map, then reconcile its linked note cards."""
         normalized = engine.normalize_mindmap_data(mindmap_data)
@@ -1090,6 +1108,11 @@ class ProjectNotesService:
                 and getattr(project, 'combine_stage_mindmaps', False)
             )
             affected = [entity]
+            old_maps_by_owner = {
+                id(entity): engine.normalize_mindmap_data(
+                    getattr(entity, 'mindmap_data', None),
+                ),
+            }
             old_notes_by_owner = {
                 id(entity): {
                     note['id']: note['text']
@@ -1116,6 +1139,9 @@ class ProjectNotesService:
                     stage_map = stage_maps.get(getattr(stage, 'stage_id', None))
                     if stage_map is None or self._is_read_only(stage):
                         continue
+                    old_maps_by_owner[id(stage)] = engine.normalize_mindmap_data(
+                        getattr(stage, 'mindmap_data', None),
+                    )
                     old_notes_by_owner[id(stage)] = {
                         note['id']: note['text']
                         for note in extract_mindmap_notes(
@@ -1129,6 +1155,11 @@ class ProjectNotesService:
 
             aggregate = self._is_aggregate_view(project, entity)
             for owner in affected:
+                new_map = engine.normalize_mindmap_data(
+                    getattr(owner, 'mindmap_data', None),
+                )
+                if old_maps_by_owner.get(id(owner)) != new_map:
+                    self._touch_mindmap(owner)
                 self._bump_map_record_revisions(
                     owner,
                     old_notes_by_owner.get(id(owner), {}),

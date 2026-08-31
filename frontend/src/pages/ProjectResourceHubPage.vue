@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { IonContent, IonIcon, IonPage } from '@ionic/vue'
+import { IonContent, IonIcon, IonPage, onIonViewWillEnter } from '@ionic/vue'
 import { documentTextOutline, gitBranchOutline, openOutline, searchOutline } from 'ionicons/icons'
 
 import StatePanel from '@/components/ui/StatePanel.vue'
@@ -23,11 +23,20 @@ const kind = computed<ResourceKind>(() => route.name === 'maps' ? 'maps' : 'note
 const storageKey = computed(() => `nfprogress:${kind.value}:hub-state`)
 const search = ref('')
 
+function resourceTimestamp(project: Project): number {
+  const value = kind.value === 'maps' ? project.mindmap_updated_at : project.notes_updated_at
+  if (!value) return 0
+  const timestamp = Date.parse(value)
+  return Number.isFinite(timestamp) ? timestamp : 0
+}
+
 const visibleProjects = computed(() => {
   const query = search.value.trim().toLocaleLowerCase(locale.localeTag)
-  return store.projects.filter((project) =>
-    !query || project.name.toLocaleLowerCase(locale.localeTag).includes(query),
-  )
+  return store.projects
+    .filter((project) =>
+      !query || project.name.toLocaleLowerCase(locale.localeTag).includes(query),
+    )
+    .sort((left, right) => resourceTimestamp(right) - resourceTimestamp(left))
 })
 const title = computed(() => kind.value === 'maps' ? t('Карты проектов') : t('Заметки проектов'))
 const description = computed(() => kind.value === 'maps'
@@ -63,7 +72,9 @@ watch(kind, () => restoreState())
 watch(search, (value) => {
   try { localStorage.setItem(storageKey.value, JSON.stringify({ search: value })) } catch { /* optional */ }
 })
-onMounted(() => { restoreState(); void store.load({ sort: 'manual' }) })
+function loadProjects(): void { void store.load({ sort: 'manual' }) }
+onMounted(() => { restoreState(); loadProjects() })
+onIonViewWillEnter(loadProjects)
 </script>
 
 <template>

@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import uuid
 from collections.abc import Mapping
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from enum import Enum
 from pathlib import Path
@@ -97,6 +97,38 @@ def serialize_stage(stage: Any) -> dict[str, Any]:
     return _serialize_entity(stage, kind='stage')
 
 
+def _timestamp_key(value: str) -> datetime:
+    """Parse stored date/timestamps consistently for latest-resource fields."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return datetime.min.replace(tzinfo=timezone.utc)
+    if parsed.tzinfo is None:
+        return parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def _latest_timestamp(*values: Any) -> str | None:
+    candidates: list[str] = []
+    for value in values:
+        try:
+            safe_value = to_json_safe(value)
+        except TypeError:
+            continue
+        if isinstance(safe_value, str) and safe_value:
+            candidates.append(safe_value)
+    return max(candidates, key=_timestamp_key, default=None)
+
+
+def _entity_mindmap_timestamp(entity: Any, mindmap: dict | None) -> str | None:
+    timestamp = getattr(entity, 'mindmap_updated_at', None)
+    if timestamp in (None, '') and mindmap is not None:
+        # Legacy saves predate the dedicated timestamp. The edit date is the
+        # best available lower-resolution indication for an existing map.
+        timestamp = getattr(entity, 'edit_date', None)
+    return _latest_timestamp(timestamp)
+
+
 def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
     goal = entity.goal
     infinite = isinstance(goal, (int, float)) and math.isinf(goal)
@@ -110,6 +142,22 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
     )
     mindmap = engine.normalize_mindmap_data(getattr(entity, 'mindmap_data', None))
     stages = getattr(entity, 'stages', []) if kind == 'project' else []
+    serialized_stages = [serialize_stage(stage) for stage in stages]
+    notes_updated_at = _latest_timestamp(
+        getattr(entity, 'notes_updated_at', None),
+        *(note.get('updated_at') for note in project_notes),
+        *(
+            stage.get('notes_updated_at')
+            for stage in serialized_stages
+        ),
+    )
+    mindmap_updated_at = _latest_timestamp(
+        _entity_mindmap_timestamp(entity, mindmap),
+        *(
+            stage.get('mindmap_updated_at')
+            for stage in serialized_stages
+        ),
+    )
     today_goal = _today_goal_for_display(entity, kind=kind, infinite=infinite)
     plan = getattr(entity, 'project_plan', {})
     daily_goal_symbols = plan.get('daily_goal_symbols') if isinstance(plan, dict) else None
@@ -126,6 +174,8 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
         'unit': entity.unit,
         'created_at': to_json_safe(getattr(entity, 'create_date', None)),
         'updated_at': to_json_safe(getattr(entity, 'edit_date', None)),
+        'notes_updated_at': notes_updated_at,
+        'mindmap_updated_at': mindmap_updated_at,
         'completed_at': to_json_safe(getattr(entity, 'complete_date', None)),
         'personal_goal': to_json_safe(
             getattr(entity, 'personal_goal_for_the_day', 0),
@@ -151,7 +201,7 @@ def _serialize_entity(entity: Any, *, kind: str) -> dict[str, Any]:
         ],
         'project_notes': [serialize_project_note(note) for note in project_notes],
         'mindmap': to_json_safe(mindmap),
-        'stages': [serialize_stage(stage) for stage in stages],
+        'stages': serialized_stages,
         'stages_enabled': bool(
             kind == 'project' and getattr(entity, 'enable_stages', False)
         ),

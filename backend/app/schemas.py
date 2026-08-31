@@ -124,6 +124,8 @@ class ProjectResponse(BaseModel):
     unit: UnitCode
     created_at: str | None = None
     updated_at: str | None = None
+    notes_updated_at: str | None = None
+    mindmap_updated_at: str | None = None
     completed_at: str | None = None
     personal_goal: float = 0
     today_goal: float | None = None

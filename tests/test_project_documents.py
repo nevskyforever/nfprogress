@@ -40,6 +40,30 @@ def test_document_autosave_and_linked_word_change_are_tracked(tmp_path):
         assert external['content_base64'] == base64.b64encode(b'word-v2').decode('ascii')
 
 
+def test_document_list_is_sorted_by_latest_change(tmp_path, monkeypatch):
+    app = create_app(RuntimeConfig(data_dir=tmp_path, platform='web'))
+    timestamps = iter((
+        '2026-08-31T09:00:00+00:00',
+        '2026-08-31T11:00:00+00:00',
+    ))
+    monkeypatch.setattr(app.state.services.documents, '_now', lambda: next(timestamps))
+    content = {'type': 'doc', 'content': [{'type': 'paragraph'}]}
+
+    with TestClient(app) as client:
+        first = client.post(
+            '/api/projects', json={'name': 'Первый', 'goal': 1000, 'work_method': 'app'},
+        ).json()
+        second = client.post(
+            '/api/projects', json={'name': 'Второй', 'goal': 1000, 'work_method': 'app'},
+        ).json()
+        client.put(f"/api/documents/{first['id']}", json={'content': content})
+        client.put(f"/api/documents/{second['id']}", json={'content': content})
+
+        documents = client.get('/api/documents/list').json()
+
+    assert [item['project_id'] for item in documents] == [second['id'], first['id']]
+
+
 def test_text_progress_uses_document_symbols_and_document_scope_rules(tmp_path):
     app = create_app(RuntimeConfig(data_dir=tmp_path, platform='desktop', allow_local_files=True))
     with TestClient(app) as client:
