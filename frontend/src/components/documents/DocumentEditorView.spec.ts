@@ -18,7 +18,10 @@ vi.mock('vue-router', () => ({
 vi.mock('tiptap-ui-kit', () => ({
   createI18n: vi.fn(),
   setTheme: vi.fn(),
-  TiptapProEditor: { template: '<div class="tiptap-stub" />' },
+  TiptapProEditor: {
+    emits: ['update'],
+    template: `<button class="tiptap-stub" type="button" @click="$emit('update', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] })" />`,
+  },
 }))
 
 vi.mock('@/api/projects', () => ({
@@ -77,6 +80,21 @@ describe('DocumentEditorView status bar', () => {
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 100')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('Цель на сегодня')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('26')
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('96')
+    wrapper.unmount()
+  })
+
+  it('animates the daily goal preview while text is edited', async () => {
+    const wrapper = mountEditor(projectFixture({ total: 0, today_goal: 2 }))
+    await flushPromises()
+
+    const progress = wrapper.get('[role="progressbar"]')
+    expect(progress.attributes('aria-valuenow')).toBe('0')
+
+    await wrapper.get('.tiptap-stub').trigger('click')
+
+    expect(progress.attributes('aria-valuenow')).toBe('50')
+    expect(wrapper.get('.document-editor-view__today-goal-progress-fill').attributes('style')).toContain('width: 50%')
     wrapper.unmount()
   })
 
