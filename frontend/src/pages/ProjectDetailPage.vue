@@ -83,11 +83,6 @@ const openedStage = computed<Project | null>(() =>
 )
 const detailEntity = computed<Project>(() => openedStage.value ?? project.value)
 const isStageDetail = computed(() => openedStage.value !== null)
-// The daily target is a project-wide cumulative plan for a staged manuscript.
-// Keep it anchored to the parent even while a particular stage is open.
-const dailyGoalEntity = computed<Project>(() =>
-  project.value.stages_enabled ? project.value : detailEntity.value,
-)
 const presentation = useProjectPresentation(detailEntity)
 const isSharedProject = computed(() => project.value.name === 'Общий проект')
 const streaksEnabled = ref(false)
@@ -825,7 +820,7 @@ onBeforeUnmount(() => {
           <section class="detail-facts" :aria-label="t('Сведения о проекте')">
             <div class="fact-card"><IonIcon :icon="calendarClearOutline" aria-hidden="true" /><span>{{ t('Срок') }}</span><strong>{{ locale.formatDate(detailEntity.deadline) }}</strong></div>
             <div class="fact-card"><IonIcon :icon="documentTextOutline" aria-hidden="true" /><span>{{ t('Записей прогресса') }}</span><strong>{{ locale.formatNumber(detailEntity.progress_entries.length, 0) }}</strong></div>
-            <div v-if="dailyGoalEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(dailyGoalEntity.today_goal) }} {{ locale.formatUnit(dailyGoalEntity.unit, dailyGoalEntity.today_goal) }}</strong></div>
+            <div v-if="detailEntity.today_goal !== null" class="fact-card"><IonIcon :icon="layersOutline" aria-hidden="true" /><span>{{ t('Цель на сегодня') }}</span><strong>{{ numberForProject(detailEntity.today_goal) }} {{ locale.formatUnit(detailEntity.unit, detailEntity.today_goal) }}</strong></div>
             <StreakBadge
               v-if="displayedStreakEntity"
               class="detail-streak detail-streak--entity"

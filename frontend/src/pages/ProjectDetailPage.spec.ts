@@ -334,7 +334,7 @@ describe('ProjectDetailPage progress sharing', () => {
     expect(wrapper.get('.detail-streak--entity').text()).toContain('Максимум: 11')
   })
 
-  it('keeps the daily target cumulative when a stage is open', async () => {
+  it('shows the stage daily target when a stage is open', async () => {
     routeParams.stageId = 'stage-id'
     const stage = projectFixture({
       id: 'stage-id',
@@ -353,8 +353,8 @@ describe('ProjectDetailPage progress sharing', () => {
 
     const dailyGoal = wrapper.findAll('.fact-card')
       .find((card) => card.text().includes('Цель на сегодня'))
-    expect(dailyGoal?.text()).toContain('900')
-    expect(dailyGoal?.text()).not.toContain('200')
+    expect(dailyGoal?.text()).toContain('200')
+    expect(dailyGoal?.text()).not.toContain('900')
   })
 
   it('keeps project sync visible and opens setup for the selected stage', async () => {
