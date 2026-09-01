@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue'
+import { IonContent, IonFooter, IonHeader, IonIcon, IonModal, IonSpinner, IonToolbar } from '@ionic/vue'
 import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
@@ -322,7 +322,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
     </IonHeader>
 
     <IonContent class="workspace-dialog-content">
-      <form class="workspace-form" novalidate @submit.prevent="submit">
+      <form id="project-edit-form" class="workspace-form" novalidate @submit.prevent="submit">
         <div
           v-if="validationErrors.length"
           ref="errorSummary"
@@ -450,17 +450,21 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
           </label>
         </div>
 
-        <footer class="workspace-form-actions workspace-field--wide">
+      </form>
+    </IonContent>
+    <IonFooter class="workspace-dialog-footer ion-no-border">
+      <IonToolbar>
+        <div class="workspace-form-actions">
           <button class="nf-button nf-button--secondary" type="button" :disabled="submitting" @click="requestClose">
             {{ t('Отмена') }}
           </button>
-          <button class="nf-button" type="submit" :disabled="submitting">
+          <button class="nf-button" type="submit" form="project-edit-form" :disabled="submitting">
             <IonSpinner v-if="submitting" name="crescent" aria-hidden="true" />
             {{ submitting ? t('Сохраняем…') : t('Сохранить') }}
           </button>
-        </footer>
-      </form>
-    </IonContent>
+        </div>
+      </IonToolbar>
+    </IonFooter>
   </IonModal>
 </template>
 
@@ -519,7 +523,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
   --padding-top: var(--nf-space-2);
   --padding-start: var(--nf-space-5);
   --padding-end: var(--nf-space-5);
-  --padding-bottom: calc(var(--nf-space-5) + env(safe-area-inset-bottom));
+  --padding-bottom: var(--nf-space-5);
 }
 
 .workspace-form {
@@ -620,10 +624,21 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
   background: transparent;
 }
 
+.workspace-dialog-footer ion-toolbar {
+  --background: var(--nf-color-surface);
+  --border-color: var(--nf-color-border);
+  --padding-bottom: env(safe-area-inset-bottom);
+  --padding-end: var(--nf-space-5);
+  --padding-start: var(--nf-space-5);
+  --padding-top: var(--nf-space-3);
+  border-top: 1px solid var(--nf-color-border);
+}
+
 .workspace-form-actions {
   display: flex;
   gap: var(--nf-space-3);
   justify-content: flex-end;
+  padding-bottom: var(--nf-space-3);
 }
 
 @media (max-width: 37.5rem) {
@@ -631,7 +646,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
   .workspace-form { grid-template-columns: 1fr; }
   .workspace-field--wide,
   .workspace-form-error { grid-column: auto; }
-  .workspace-form-actions { position: sticky; bottom: 0; padding: var(--nf-space-3) 0; background: var(--nf-color-surface); }
+  .workspace-dialog-footer ion-toolbar { --padding-end: var(--nf-space-4); --padding-start: var(--nf-space-4); }
   .workspace-form-actions .nf-button { flex: 1; }
 }
 </style>

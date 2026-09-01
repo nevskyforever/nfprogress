@@ -10,10 +10,11 @@ import type { DocumentScope, ProjectDocument } from '@/types/documents'
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, insertContent, onCloseRequested } = vi.hoisted(() => ({
+const { destroyWindow, insertContent, onCloseRequested, setLineHeight } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
   insertContent: vi.fn(),
   onCloseRequested: vi.fn(),
+  setLineHeight: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -32,7 +33,10 @@ vi.mock('tiptap-ui-kit', () => ({
     emits: ['update'],
     setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
       expose({
-        getEditor: () => ({ commands: { insertContent } }),
+        getEditor: () => ({
+          commands: { insertContent },
+          chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
+        }),
         getJSON: () => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] }),
       })
       return {}
@@ -88,6 +92,7 @@ describe('DocumentEditorView status bar', () => {
     vi.mocked(documentsApi.get).mockReset()
     vi.mocked(documentsApi.save).mockReset()
     insertContent.mockReset()
+    setLineHeight.mockReset()
     destroyWindow.mockReset()
     onCloseRequested.mockReset()
     delete window.__TAURI_INTERNALS__
@@ -103,7 +108,7 @@ describe('DocumentEditorView status bar', () => {
     }))
     await flushPromises()
 
-    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('25')
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('0')
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 100')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('Цель на сегодня')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('26')
@@ -122,11 +127,13 @@ describe('DocumentEditorView status bar', () => {
 
     const progress = wrapper.get('[role="progressbar"]')
     expect(progress.attributes('aria-valuenow')).toBe('40')
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('0 / 100')
 
     await wrapper.get('.tiptap-stub').trigger('click')
 
     expect(progress.attributes('aria-valuenow')).toBe('41')
     expect(wrapper.get('.document-editor-view__today-goal-progress-fill').attributes('style')).toContain('width: 41%')
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('1 / 100')
     wrapper.unmount()
   })
 
@@ -143,7 +150,17 @@ describe('DocumentEditorView status bar', () => {
     await flushPromises()
 
     expect(wrapper.find('.document-editor-view__actions select').exists()).toBe(false)
-    expect(wrapper.get('.word-toolbar .document-editor-view__font-controls').findAll('select')).toHaveLength(2)
+    expect(wrapper.get('.word-toolbar .document-editor-view__font-controls').findAll('select')).toHaveLength(3)
+    wrapper.unmount()
+  })
+
+  it('sets the selected line spacing for the current paragraph', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    await wrapper.get('select[aria-label="Межстрочный интервал"]').setValue('2')
+
+    expect(setLineHeight).toHaveBeenCalledWith('2')
     wrapper.unmount()
   })
 
@@ -188,7 +205,7 @@ describe('DocumentEditorView status bar', () => {
     wrapper.unmount()
   })
 
-  it('uses the selected stage total, goal, and daily target', async () => {
+  it('uses the selected stage goal and daily target while displaying document text', async () => {
     const stage = projectFixture({
       id: 'stage-id',
       total: 4_000,
@@ -202,7 +219,7 @@ describe('DocumentEditorView status bar', () => {
     )
     await flushPromises()
 
-    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('4')
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('0')
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 10')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('4')
     expect(wrapper.get('.document-editor-view__today-goal').text()).not.toContain('99')
@@ -226,7 +243,7 @@ describe('DocumentEditorView status bar', () => {
     announceDataChange('projects')
     await flushPromises()
 
-    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('30')
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('0')
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 120')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toBe('Цель на день выполнена!')
     wrapper.unmount()

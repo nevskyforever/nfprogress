@@ -136,22 +136,19 @@ def get_test_data_dir():
 
 
 def sync_test_data():
-    """Копирует рабочие файлы данных в папку test_data, если они новее.
+    """Копирует все рабочие файлы данных в папку ``test_data``.
 
-    Для каждого *.pkl файла из основной директории данных создаёт
-    (или перезаписывает) одноимённый файл в test_data, но только если
-    рабочий файл отсутствует в test_data или новее уже лежащей там копии
-    (по времени последнего изменения). Более свежие файлы в test_data
-    не затираются устаревшими рабочими файлами. Файлы, которых нет
-    в основной директории, не создаются и не удаляются в test_data.
+    При каждом запуске в режиме разработчика одноимённые тестовые файлы
+    перезаписываются. Это гарантирует, что тексты проектов и этапов, как и
+    остальные реальные данные, доступны в тестовой копии. Файлы, которых нет
+    в основной директории, не создаются и не удаляются в ``test_data``.
     """
     import shutil
     source_dir = get_app_data_dir()
     test_dir = get_test_data_dir()
     for data_file in source_dir.glob('*.pkl'):
         test_file = test_dir / data_file.name
-        if not test_file.exists() or data_file.stat().st_mtime > test_file.stat().st_mtime:
-            shutil.copy2(data_file, test_file)
+        shutil.copy2(data_file, test_file)
 
 
 def get_data_file_path(name):

@@ -13,9 +13,14 @@ import type { SettingsResponse } from '@/types/content'
 
 import AppShell from './AppShell.vue'
 
+const routerMock = vi.hoisted(() => ({
+  route: { meta: { title: 'Проекты' }, fullPath: '/projects', name: 'projects' },
+  push: vi.fn().mockResolvedValue(undefined),
+}))
+
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ meta: { title: 'Проекты' }, fullPath: '/projects', name: 'projects' }),
-  useRouter: () => ({ push: vi.fn().mockResolvedValue(undefined) }),
+  useRoute: () => routerMock.route,
+  useRouter: () => ({ push: routerMock.push }),
 }))
 
 vi.mock('@/composables/useNetworkStatus', () => ({
@@ -75,6 +80,8 @@ function mountShell() {
 
 describe('AppShell preferences', () => {
   beforeEach(() => {
+    Object.assign(routerMock.route, { meta: { title: 'Проекты' }, fullPath: '/projects', name: 'projects' })
+    routerMock.push.mockClear()
     try {
       window.localStorage?.removeItem('nfprogress.theme')
       window.localStorage?.removeItem('nfprogress.language')
@@ -103,6 +110,15 @@ describe('AppShell preferences', () => {
     const navigation = wrapper.get('.primary-navigation').text()
     expect(navigation).toContain('Карты')
     expect(navigation).toContain('Заметки')
+  })
+
+  it('returns to the section home when its active navigation item is pressed again', async () => {
+    routerMock.route.fullPath = '/projects/project-42'
+    const { wrapper } = mountShell()
+
+    await wrapper.findAll('.navigation-link')[0]?.trigger('click')
+
+    expect(routerMock.push).toHaveBeenCalledWith('/projects')
   })
 
   it('refreshes the global streak after a project freeze is applied in game mode', async () => {

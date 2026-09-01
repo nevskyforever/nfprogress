@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import pickle
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
@@ -16,6 +17,30 @@ from nfprogress.core.serialization import (
     to_json_safe,
 )
 from nfprogress.core.storage import PickleRepository
+
+
+def test_sync_test_data_replaces_modified_test_copies_with_working_data(
+        tmp_path, monkeypatch):
+    working_dir = tmp_path / 'working'
+    test_dir = working_dir / 'test_data'
+    working_dir.mkdir()
+    test_dir.mkdir()
+    (working_dir / 'data.pkl').write_bytes(b'project and stage texts from working data')
+    (working_dir / 'gamer.pkl').write_bytes(b'working game data')
+    (test_dir / 'data.pkl').write_bytes(b'modified test project text')
+    (test_dir / 'gamer.pkl').write_bytes(b'modified test game data')
+    for file_name in ('data.pkl', 'gamer.pkl'):
+        working_file = working_dir / file_name
+        newer_timestamp = working_file.stat().st_mtime + 10
+        os.utime(test_dir / file_name, (newer_timestamp, newer_timestamp))
+
+    monkeypatch.setattr(engine, 'get_app_data_dir', lambda: working_dir)
+    monkeypatch.setattr(engine, 'get_test_data_dir', lambda: test_dir)
+
+    engine.sync_test_data()
+
+    assert (test_dir / 'data.pkl').read_bytes() == b'project and stage texts from working data'
+    assert (test_dir / 'gamer.pkl').read_bytes() == b'working game data'
 
 
 def test_repository_uses_only_explicit_base_dir_and_restores_context(

@@ -267,8 +267,9 @@ shared versioned agreement gate when acceptance is missing.
 ## Developer data parity
 
 Source-mode `main_UI.py` imports `engine` with `dev_mode=True`. The import
-refreshes `get_app_data_dir()/test_data` from newer top-level pickle stores and
-then routes reads and writes to that test copy. The API CLI exposes the same
+refreshes every top-level pickle store in `get_app_data_dir()/test_data` from
+the working copy and then routes reads and writes to that test copy. The API
+CLI exposes the same
 behavior through `--dev-data`; it calls `engine.sync_test_data()` and passes
 the resulting directory explicitly to `PickleRepository`. `Run Web.sh` uses
 this flag, while a Tauri debug build adds it to the sidecar arguments. Release

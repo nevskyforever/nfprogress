@@ -64,13 +64,13 @@ try {
   // Session persistence is optional in restricted embedded webviews.
 }
 const navigationItems = computed(() => [
-  { to: lastProjectPath.value, label: 'Проекты', mobileLabel: 'Проекты', icon: folderOpenOutline },
-  { to: lastMapsPath.value, label: 'Карты', mobileLabel: 'Карты', icon: gitBranchOutline },
-  { to: lastNotesPath.value, label: 'Заметки', mobileLabel: 'Заметки', icon: documentTextOutline },
-  { to: '/texts', label: 'Тексты', mobileLabel: 'Тексты', icon: documentTextOutline },
-  { to: '/game', label: 'Игровой режим', mobileLabel: 'Игра', icon: sparklesOutline },
-  { to: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
-  { to: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },
+  { to: lastProjectPath.value, home: '/projects', label: 'Проекты', mobileLabel: 'Проекты', icon: folderOpenOutline },
+  { to: lastMapsPath.value, home: '/maps', label: 'Карты', mobileLabel: 'Карты', icon: gitBranchOutline },
+  { to: lastNotesPath.value, home: '/notes', label: 'Заметки', mobileLabel: 'Заметки', icon: documentTextOutline },
+  { to: '/texts', home: '/texts', label: 'Тексты', mobileLabel: 'Тексты', icon: documentTextOutline },
+  { to: '/game', home: '/game', label: 'Игровой режим', mobileLabel: 'Игра', icon: sparklesOutline },
+  { to: '/help', home: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
+  { to: '/settings', home: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },
 ] as const)
 
 watch(() => route.fullPath, (path) => {
@@ -87,6 +87,14 @@ watch(() => route.fullPath, (path) => {
     }
   } catch { /* optional */ }
 }, { immediate: true })
+
+function returnToSectionHome(event: MouseEvent, home: string): void {
+  const currentPath = route.fullPath.split(/[?#]/, 1)[0] ?? ''
+  if (currentPath !== home && !currentPath.startsWith(`${home}/`)) return
+
+  event.preventDefault()
+  if (route.fullPath !== home) void router.push(home)
+}
 
 function isTypingTarget(target: EventTarget | null): boolean {
   return target instanceof HTMLInputElement
@@ -257,6 +265,7 @@ watchEffect(() => {
           :key="item.to"
           class="navigation-link"
           :to="item.to"
+          @click="returnToSectionHome($event, item.home)"
         >
           <IonIcon :icon="item.icon" aria-hidden="true" />
           <span>{{ t(item.label) }}</span>
