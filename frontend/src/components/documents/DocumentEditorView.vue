@@ -359,6 +359,7 @@ onBeforeRouteLeave(async () => { await flushAndRecord() })
       </div>
       <footer class="document-editor-view__statusbar" aria-label="Статус документа">
         <div v-if="projectEntity" class="document-editor-view__status-info">
+          <span class="document-editor-view__document-symbols" aria-live="polite">{{ t('Символов в документе: {count}', { count: locale.formatNumber(textSymbols, 0) }) }}</span>
           <span class="document-editor-view__unit-count">{{ t('Прогресс') }}: <strong>{{ entityProgressLabel }}</strong></span>
           <span
             v-if="projectEntity.today_goal !== null"

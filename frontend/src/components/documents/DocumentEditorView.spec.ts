@@ -127,11 +127,13 @@ describe('DocumentEditorView status bar', () => {
 
     const progress = wrapper.get('[role="progressbar"]')
     expect(progress.attributes('aria-valuenow')).toBe('40')
+    expect(wrapper.get('.document-editor-view__document-symbols').text()).toBe('Символов в документе: 0')
 
     await wrapper.get('.tiptap-stub').trigger('click')
 
     expect(progress.attributes('aria-valuenow')).toBe('41')
     expect(wrapper.get('.document-editor-view__today-goal-progress-fill').attributes('style')).toContain('width: 41%')
+    expect(wrapper.get('.document-editor-view__document-symbols').text()).toBe('Символов в документе: 1')
     wrapper.unmount()
   })
 
