@@ -10,12 +10,16 @@ import type { DocumentScope, ProjectDocument } from '@/types/documents'
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, insertContent, onCloseRequested, setLineHeight } = vi.hoisted(() => ({
+const { destroyWindow, editorSelection, insertContent, onCloseRequested, scrollIntoView, setLineHeight, setTextSelection } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
+  editorSelection: { from: 1 },
   insertContent: vi.fn(),
   onCloseRequested: vi.fn(),
+  scrollIntoView: vi.fn(),
   setLineHeight: vi.fn(),
+  setTextSelection: vi.fn(),
 }))
+const positionStorage = new Map<string, string>()
 
 vi.mock('vue-router', () => ({
   onBeforeRouteLeave: vi.fn(),
@@ -34,14 +38,15 @@ vi.mock('tiptap-ui-kit', () => ({
     setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
       expose({
         getEditor: () => ({
-          commands: { insertContent },
+          commands: { insertContent, scrollIntoView, setTextSelection },
+          state: { selection: editorSelection, doc: { content: { size: 100 } } },
           chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
         }),
         getJSON: () => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] }),
       })
       return {}
     },
-    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] })" /></div>`,
+    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="word-document-container"><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] })" /></div></div>`,
   },
 }))
 
@@ -88,14 +93,27 @@ function mountEditor(project = projectFixture(), scope: DocumentScope = { projec
 
 describe('DocumentEditorView status bar', () => {
   beforeEach(() => {
+    positionStorage.clear()
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => positionStorage.get(key) ?? null,
+        removeItem: (key: string) => { positionStorage.delete(key) },
+        setItem: (key: string, value: string) => { positionStorage.set(key, value) },
+      },
+    })
     vi.mocked(projectsApi.get).mockReset()
     vi.mocked(documentsApi.get).mockReset()
     vi.mocked(documentsApi.save).mockReset()
     insertContent.mockReset()
+    setTextSelection.mockReset()
+    scrollIntoView.mockReset()
     setLineHeight.mockReset()
     destroyWindow.mockReset()
     onCloseRequested.mockReset()
     delete window.__TAURI_INTERNALS__
+    editorSelection.from = 1
+    window.localStorage?.removeItem('nfprogress:document-position:project-id:project')
   })
 
   it('uses written-today progress against the daily plan target', async () => {
@@ -193,6 +211,30 @@ describe('DocumentEditorView status bar', () => {
     expect(event.defaultPrevented).toBe(true)
     expect(insertContent).toHaveBeenCalledWith({ type: 'text', text: '\t' })
     wrapper.unmount()
+  })
+
+  it('restores the last text position for the opened document', async () => {
+    window.localStorage?.setItem(
+      'nfprogress:document-position:project-id:project',
+      JSON.stringify({ selection: 48, scrollTop: 360 }),
+    )
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    expect(setTextSelection).toHaveBeenCalledWith(48)
+    expect(scrollIntoView).toHaveBeenCalled()
+    expect(wrapper.get('.word-document-container').element.scrollTop).toBe(360)
+    wrapper.unmount()
+  })
+
+  it('remembers the cursor position when the editor closes', async () => {
+    editorSelection.from = 37
+    const wrapper = mountEditor()
+    await flushPromises()
+    wrapper.unmount()
+
+    expect(JSON.parse(window.localStorage?.getItem('nfprogress:document-position:project-id:project') ?? '{}'))
+      .toMatchObject({ selection: 37 })
   })
 
   it('uses the existing total-versus-today-goal state for completion', async () => {

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import type { JSONContent } from '@tiptap/core'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { createI18n, TiptapProEditor, setTheme, type TiptapProEditorExpose } from 'tiptap-ui-kit'
@@ -55,6 +55,8 @@ let stopProjectDataChanges: (() => void) | undefined
 let projectLoadSequence = 0
 let closeInProgress = false
 let toolbarObserver: MutationObserver | undefined
+let positionSaveTimer: number | undefined
+type EditorPosition = { selection: number; scrollTop: number }
 const linked = computed(() => Boolean(documentState.value?.docx_path))
 const textSymbols = computed(() => countTextSymbols(editorContent.value))
 const textUnits = computed(() => projectEntity.value
@@ -98,6 +100,62 @@ const canRecordText = computed(() => Boolean(
 ))
 
 function setWordTheme(value: 'light' | 'dark') { setTheme('word', value) }
+function positionStorageKey(): string {
+  return `nfprogress:document-position:${props.scope.projectId}:${props.scope.stageId ?? 'project'}`
+}
+function savedEditorPosition(): EditorPosition | null {
+  try {
+    const stored = JSON.parse(localStorage.getItem(positionStorageKey()) ?? '') as Partial<EditorPosition>
+    if (
+      typeof stored.selection !== 'number'
+      || typeof stored.scrollTop !== 'number'
+      || !Number.isFinite(stored.selection)
+      || !Number.isFinite(stored.scrollTop)
+    ) return null
+    return { selection: Math.max(1, Math.floor(stored.selection)), scrollTop: Math.max(0, stored.scrollTop) }
+  } catch {
+    return null
+  }
+}
+function editorScrollContainer(): HTMLElement | null {
+  return editorShell.value?.querySelector<HTMLElement>('.word-document-container') ?? null
+}
+function saveEditorPosition(): void {
+  const editor = editorRef.value?.getEditor()
+  if (!editor) return
+  try {
+    const selection = editor.state.selection.from
+    const scrollTop = editorScrollContainer()?.scrollTop ?? 0
+    localStorage.setItem(positionStorageKey(), JSON.stringify({ selection, scrollTop } satisfies EditorPosition))
+  } catch {
+    // Position memory is optional in restricted embedded webviews.
+  }
+}
+async function restoreEditorPosition(): Promise<void> {
+  const saved = savedEditorPosition()
+  const editor = editorRef.value?.getEditor()
+  if (!saved || !editor) return
+
+  await nextTick()
+  const position = Math.min(saved.selection, Math.max(1, editor.state.doc.content.size))
+  editor.commands.setTextSelection(position)
+  editor.commands.scrollIntoView()
+  const scrollContainer = editorScrollContainer()
+  if (scrollContainer) scrollContainer.scrollTop = saved.scrollTop
+}
+function schedulePositionSave(): void {
+  if (positionSaveTimer !== undefined) return
+  positionSaveTimer = window.setTimeout(() => {
+    positionSaveTimer = undefined
+    saveEditorPosition()
+  }, 250)
+}
+function handleEditorSelectionChange(): void {
+  const selection = window.getSelection()
+  const anchor = selection?.anchorNode
+  if (!anchor || !editorShell.value?.contains(anchor)) return
+  schedulePositionSave()
+}
 function configureKitLocale() {
   // The package's public type only lists bundled locales, while its runtime
   // intentionally accepts host locale keys and message dictionaries.
@@ -262,12 +320,18 @@ function findToolbarTarget(): void {
   toolbarObserver = undefined
 }
 
-watch(content, (next) => { editorContent.value = next }, { deep: true })
+watch(content, (next) => {
+  editorContent.value = next
+  void restoreEditorPosition()
+}, { deep: true })
 watch(() => locale.language, configureKitLocale)
 watch(() => theme.resolved, setWordTheme, { immediate: true })
 configureKitLocale()
 onMounted(() => {
   window.addEventListener('keydown', handleEscape, true)
+  window.addEventListener('pagehide', saveEditorPosition)
+  document.addEventListener('selectionchange', handleEditorSelectionChange)
+  editorShell.value?.addEventListener('scroll', schedulePositionSave, true)
   externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000)
   void loadProjectEntity().catch(() => undefined)
   stopProjectDataChanges = onDataChange((scope) => {
@@ -278,6 +342,7 @@ onMounted(() => {
     toolbarObserver = new MutationObserver(findToolbarTarget)
     toolbarObserver.observe(editorShell.value, { childList: true, subtree: true })
   }
+  void restoreEditorPosition()
   if (window.__TAURI_INTERNALS__) {
     void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
       stopCloseListener = await getCurrentWindow().onCloseRequested(async (event) => {
@@ -285,6 +350,7 @@ onMounted(() => {
         if (closeInProgress) return
         closeInProgress = true
         try {
+          saveEditorPosition()
           await flushAndRecord()
         } finally {
           const removeCloseListener = stopCloseListener
@@ -298,6 +364,11 @@ onMounted(() => {
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleEscape, true)
+  window.removeEventListener('pagehide', saveEditorPosition)
+  document.removeEventListener('selectionchange', handleEditorSelectionChange)
+  editorShell.value?.removeEventListener('scroll', schedulePositionSave, true)
+  if (positionSaveTimer !== undefined) window.clearTimeout(positionSaveTimer)
+  saveEditorPosition()
   window.clearInterval(externalTimer)
   projectLoadSequence += 1
   toolbarObserver?.disconnect()
@@ -305,7 +376,7 @@ onBeforeUnmount(() => {
   stopProjectDataChanges?.()
   stopCloseListener?.()
 })
-onBeforeRouteLeave(async () => { await flushAndRecord() })
+onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
 </script>
 
 <template>
