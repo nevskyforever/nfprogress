@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { IonContent, IonHeader, IonIcon, IonModal, IonSpinner } from '@ionic/vue'
+import { IonContent, IonFooter, IonHeader, IonIcon, IonModal, IonSpinner, IonToolbar } from '@ionic/vue'
 import { closeOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
@@ -302,7 +302,7 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
     </IonHeader>
 
     <IonContent class="workspace-dialog-content">
-      <form class="workspace-form" novalidate @submit.prevent="submit">
+      <form id="stage-form" class="workspace-form" novalidate @submit.prevent="submit">
         <div
           v-if="validationErrors.length"
           ref="errorSummary"
@@ -408,17 +408,21 @@ watch(() => form.recalculatePlan, updateDeadline, { flush: 'sync' })
           </label>
         </div>
 
-        <footer class="workspace-form-actions workspace-field--wide">
+      </form>
+    </IonContent>
+    <IonFooter class="workspace-dialog-footer ion-no-border">
+      <IonToolbar>
+        <div class="workspace-form-actions">
           <button class="nf-button nf-button--secondary" type="button" :disabled="submitting" @click="requestClose">
             {{ t('Отмена') }}
           </button>
-          <button class="nf-button" type="submit" :disabled="submitting">
+          <button class="nf-button" type="submit" form="stage-form" :disabled="submitting">
             <IonSpinner v-if="submitting" name="crescent" aria-hidden="true" />
             {{ submitting ? t('Сохраняем…') : t('Сохранить') }}
           </button>
-        </footer>
-      </form>
-    </IonContent>
+        </div>
+      </IonToolbar>
+    </IonFooter>
   </IonModal>
 </template>
 
