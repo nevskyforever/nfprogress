@@ -1,32 +1,32 @@
 {
-  "version": "5.3.0",
-  "notes": "Доработан функционал папок с проектами - их теперь можно сворачивать. Улучшена работа со свободным расположением проектов - теперь перемещать проекты можно не включая режим редактирования. Улучшено контекстное меню - если папок с проектами несколько - появится дополнительное меню для выбора папки с проектами.",
-  "windows_version": "5.2.1",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.2.1-setup.exe",
+  "version": "5.3.1",
+  "notes": "Теперь в проектах и этапах модно писать тексты, не переходя в другой текстовый редактор.\n\nВ параметрах проекта/этапа появился «метод работы» — по умолчанию у каждого проекта «ручное добавление записей». У проектов, которые синхронизируются с внешним файлом он будет «Синхронизация». При выборе метода «В приложении» внутри этапа/проекта станет доступна кнопка «Текст», открывающая доступ к текстовому редактору.  В текстовом редакторе доступен импорт/экспорт с Word, а так же «связка» с Word-файлом - все изменения сразу будут доступны в выбранном вами файле.\n\nИз редактора можно сразу добавлять запись прогресса, отслеживать выполнение общей цели и цели на день. Записьв. пронресс автоматически добавляется при выходе из редактора, выход доступен по кнопке esc.\n\nДоступно масштабирование страницы в редакторе. Пока набор шрифтов ограничен.\n\nИсправлены баги и недочеты перехода на новый интерфейс, добавлены новые.",
+  "windows_version": "5.3.0",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.0-setup.exe",
   "macos_arm": {
-    "version": "5.3.0",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.0.zip",
-    "sha256": "9e9da88b6fb725419667c4364545f93604b76d548ca56d3ce391616f3a8d93ee",
-    "size": 33086199
+    "version": "5.3.1",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.1.zip",
+    "sha256": "20ec3f2a332ad02f9fc5f258efe472642d79ebdbc4a1d1e2bf9ce50a4e262290",
+    "size": 33086561
   },
   "macos_intel": {
-    "version": "5.3.0",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.0.zip",
-    "sha256": "8440176aeb1fd05f5dbebfa1cf49dbe70d8de4d5513a324de1ee1802a4a8efca",
-    "size": 31347621
+    "version": "5.3.1",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.1.zip",
+    "sha256": "6149bb8da6b62664c69444f4d8712d7c76de08bfdc25635a932108d539314aa9",
+    "size": 31348073
   },
-  "macos_arm_version": "5.3.0",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.0.zip",
-  "macos_intel_version": "5.3.0",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.0.zip",
+  "macos_arm_version": "5.3.1",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.1.zip",
+  "macos_intel_version": "5.3.1",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.1.zip",
   "windows": {
-    "version": "5.2.1",
-    "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.2.1-setup.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.2.1-setup.exe",
-    "sha256": "5f6669b78f2eb26aa2779ce1a52db417a6ad8f66043bf3fa73eb0388d248118c",
-    "size": 23297217,
+    "version": "5.3.0",
+    "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.0-setup.exe",
+    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.0-setup.exe",
+    "sha256": "2743b602720345215f93fc6958927dd7a48ae35f2625c30283e121a85387a66e",
+    "size": 24250969,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_sha256": "5f6669b78f2eb26aa2779ce1a52db417a6ad8f66043bf3fa73eb0388d248118c",
-    "installer_size": 23297217
+    "installer_sha256": "2743b602720345215f93fc6958927dd7a48ae35f2625c30283e121a85387a66e",
+    "installer_size": 24250969
   }
 }
