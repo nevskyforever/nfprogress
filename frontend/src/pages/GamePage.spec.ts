@@ -217,4 +217,53 @@ describe('GamePage', () => {
     expect(wrapper.findAll('.buff-panel .buff-list')).toHaveLength(2)
     wrapper.unmount()
   })
+
+  it('opens purchase confirmation for an item bought from the inventory', async () => {
+    vi.mocked(gameApi.state).mockResolvedValue(gameStateFixture({
+      inventory: {
+        categories: [{
+          key: 'Зелья',
+          name: 'Зелья',
+          items: [{
+            id: 'Зелья:Зелье воскрешения',
+            key: 'Зелье воскрешения',
+            category: 'Зелья',
+            name: 'Зелье воскрешения',
+            description: 'Полностью восстанавливает здоровье',
+            price: 100,
+            count: 1,
+            sellable: true,
+            usable: true,
+            buy: true,
+            can_buy: true,
+          }],
+        }],
+      },
+    }))
+    const wrapper = mount(GamePage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonIcon: true,
+          PurchaseConfirmDialog: {
+            props: ['item', 'count'],
+            template: '<div v-if="item" class="purchase-confirm-stub">{{ item.name }} ×{{ count }}</div>',
+          },
+        },
+      },
+    })
+    await flushPromises()
+
+    const inventoryTab = wrapper.findAll('[role="tab"]')
+      .find((button) => button.text() === 'Инвентарь')
+    await inventoryTab?.trigger('click')
+
+    const buyButton = wrapper.findAll('.item-card button')
+      .find((button) => button.text() === 'Купить')
+    await buyButton?.trigger('click')
+
+    expect(wrapper.get('.purchase-confirm-stub').text())
+      .toContain('Зелье воскрешения ×1')
+    wrapper.unmount()
+  })
 })
