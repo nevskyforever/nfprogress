@@ -37,7 +37,7 @@ vi.mock('tiptap-ui-kit', () => ({
       })
       return {}
     },
-    template: `<div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] })" />`,
+    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] })" /></div>`,
   },
 }))
 
@@ -143,11 +143,11 @@ describe('DocumentEditorView status bar', () => {
     await flushPromises()
 
     expect(wrapper.find('.document-editor-view__actions select').exists()).toBe(false)
-    expect(wrapper.get('.document-editor-view__workspace .document-editor-view__font-controls').findAll('select')).toHaveLength(2)
+    expect(wrapper.get('.word-toolbar .document-editor-view__font-controls').findAll('select')).toHaveLength(2)
     wrapper.unmount()
   })
 
-  it('saves and records changes before a desktop close request', async () => {
+  it('closes the desktop window when there are no pending changes', async () => {
     let closeHandler: ((event: { preventDefault: () => void }) => Promise<void>) | undefined
     onCloseRequested.mockImplementation(async (handler) => {
       closeHandler = handler
@@ -157,7 +157,6 @@ describe('DocumentEditorView status bar', () => {
     const wrapper = mountEditor()
     await flushPromises()
 
-    await wrapper.get('.tiptap-stub').trigger('click')
     const preventDefault = vi.fn()
     await closeHandler?.({ preventDefault })
 
