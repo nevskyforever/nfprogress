@@ -194,6 +194,15 @@ function handleEscape(event: KeyboardEvent): void {
   event.preventDefault()
   closeEditor()
 }
+function handleEditorKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return
+  const target = event.target
+  if (!(target instanceof Element) || !target.closest('.ProseMirror[contenteditable="true"]')) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  editorRef.value?.getEditor()?.commands.insertContent({ type: 'text', text: '\t' })
+}
 async function importExternal() {
   const external = await checkExternal()
   if (!external || !editorRef.value) return
@@ -271,7 +280,7 @@ onBeforeRouteLeave(async () => { await flushAndRecord() })
         <button class="nf-button nf-button--secondary" type="button" title="Связать документ с локальным файлом Word" aria-label="Связать документ с локальным файлом Word" @click="linkWord">{{ linked ? 'Файл Word связан' : 'Связать с Word' }}</button>
       </div>
     </header>
-    <div class="document-editor-view__workspace">
+    <div class="document-editor-view__workspace" @keydown.capture="handleEditorKeydown">
       <TiptapProEditor
         ref="editorRef"
         v-model="editorContent"

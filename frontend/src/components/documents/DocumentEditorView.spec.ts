@@ -10,6 +10,8 @@ import type { DocumentScope, ProjectDocument } from '@/types/documents'
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
+const { insertContent } = vi.hoisted(() => ({ insertContent: vi.fn() }))
+
 vi.mock('vue-router', () => ({
   onBeforeRouteLeave: vi.fn(),
   useRouter: () => ({ push: vi.fn() }),
@@ -20,7 +22,11 @@ vi.mock('tiptap-ui-kit', () => ({
   setTheme: vi.fn(),
   TiptapProEditor: {
     emits: ['update'],
-    template: `<button class="tiptap-stub" type="button" @click="$emit('update', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] })" />`,
+    setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
+      expose({ getEditor: () => ({ commands: { insertContent } }) })
+      return {}
+    },
+    template: `<div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] })" />`,
   },
 }))
 
@@ -70,6 +76,7 @@ describe('DocumentEditorView status bar', () => {
     vi.mocked(projectsApi.get).mockReset()
     vi.mocked(documentsApi.get).mockReset()
     vi.mocked(documentsApi.save).mockReset()
+    insertContent.mockReset()
   })
 
   it('uses written-today progress against the daily plan target', async () => {
@@ -106,6 +113,18 @@ describe('DocumentEditorView status bar', () => {
 
     expect(progress.attributes('aria-valuenow')).toBe('41')
     expect(wrapper.get('.document-editor-view__today-goal-progress-fill').attributes('style')).toContain('width: 41%')
+    wrapper.unmount()
+  })
+
+  it('inserts a tab character instead of moving focus outside the editor', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    wrapper.get('.tiptap-stub').element.dispatchEvent(event)
+
+    expect(event.defaultPrevented).toBe(true)
+    expect(insertContent).toHaveBeenCalledWith({ type: 'text', text: '\t' })
     wrapper.unmount()
   })
 
