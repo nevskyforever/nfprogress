@@ -330,13 +330,11 @@ onBeforeRouteLeave(async () => { await flushAndRecord() })
         <Teleport v-if="toolbarTarget" :to="toolbarTarget">
           <div class="document-editor-view__font-controls">
             <label class="document-editor-view__font-control">
-              <span class="sr-only">{{ t('Шрифт') }}</span>
               <select v-model="selectedFontFamily" :aria-label="t('Шрифт')" @change="setFontFamily">
                 <option v-for="font in WORD_FONT_FAMILIES" :key="font" :value="font">{{ font }}</option>
               </select>
             </label>
             <label class="document-editor-view__font-control">
-              <span class="sr-only">{{ t('Размер текста') }}</span>
               <select v-model="selectedFontSize" :aria-label="t('Размер текста')" @change="setFontSize">
                 <option v-for="size in WORD_FONT_SIZES" :key="size" :value="size">{{ size }} pt</option>
               </select>
