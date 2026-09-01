@@ -72,29 +72,40 @@ describe('DocumentEditorView status bar', () => {
     vi.mocked(documentsApi.save).mockReset()
   })
 
-  it('shows project progress and the existing cumulative daily target', async () => {
-    const wrapper = mountEditor(projectFixture({ total: 25_000, goal: 100_000, today_goal: 26_000 }))
+  it('uses written-today progress against the daily plan target', async () => {
+    const wrapper = mountEditor(projectFixture({
+      total: 25_000,
+      goal: 100_000,
+      today_goal: 26_000,
+      plan_daily_goal: 1_000,
+      added_today: 400,
+    }))
     await flushPromises()
 
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('25')
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 100')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('Цель на сегодня')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('26')
-    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('96')
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('40')
     wrapper.unmount()
   })
 
   it('animates the daily goal preview while text is edited', async () => {
-    const wrapper = mountEditor(projectFixture({ total: 0, today_goal: 2 }))
+    const wrapper = mountEditor(projectFixture({
+      total: 0,
+      today_goal: 100,
+      plan_daily_goal: 100,
+      added_today: 40,
+    }))
     await flushPromises()
 
     const progress = wrapper.get('[role="progressbar"]')
-    expect(progress.attributes('aria-valuenow')).toBe('0')
+    expect(progress.attributes('aria-valuenow')).toBe('40')
 
     await wrapper.get('.tiptap-stub').trigger('click')
 
-    expect(progress.attributes('aria-valuenow')).toBe('50')
-    expect(wrapper.get('.document-editor-view__today-goal-progress-fill').attributes('style')).toContain('width: 50%')
+    expect(progress.attributes('aria-valuenow')).toBe('41')
+    expect(wrapper.get('.document-editor-view__today-goal-progress-fill').attributes('style')).toContain('width: 41%')
     wrapper.unmount()
   })
 
