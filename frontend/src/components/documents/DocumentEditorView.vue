@@ -56,6 +56,7 @@ let projectLoadSequence = 0
 let closeInProgress = false
 let toolbarObserver: MutationObserver | undefined
 let positionSaveTimer: number | undefined
+let hasRestoredEditorPosition = false
 type EditorPosition = { selection: number; scrollTop: number }
 const linked = computed(() => Boolean(documentState.value?.docx_path))
 const textSymbols = computed(() => countTextSymbols(editorContent.value))
@@ -73,11 +74,15 @@ const entityProgressLabel = computed(() => {
   const documentValue = textUnits.value ?? 0
   return `${locale.formatNumber(documentValue, entityFractionDigits.value)} / ${goalLabel} ${locale.formatUnit(entity.unit, unitValue)}`
 })
+const todayGoalCurrentValue = computed(() => {
+  const entity = projectEntity.value
+  if (!entity) return 0
+  return textSymbols.value > 0 ? textUnits.value ?? entity.total : entity.total
+})
 const todayGoalCompleted = computed(() => {
   const entity = projectEntity.value
   if (!entity || entity.today_goal === null) return false
-  // today_goal is the cumulative target calculated by the existing project plan.
-  return entity.total >= entity.today_goal
+  return todayGoalCurrentValue.value >= entity.today_goal
 })
 const todayGoalLabel = computed(() => {
   const entity = projectEntity.value
@@ -85,12 +90,9 @@ const todayGoalLabel = computed(() => {
   return `${locale.formatNumber(entity.today_goal, entityFractionDigits.value)} ${locale.formatUnit(entity.unit, entity.today_goal)}`
 })
 const todayGoalProgressPercent = computed(() => {
-  const entity = projectEntity.value
-  if (!entity || entity.today_goal === null || entity.plan_daily_goal === null || entity.plan_daily_goal <= 0) return 0
-  // Show a live preview from the editor while the next progress record is pending.
-  const currentValue = textSymbols.value > 0 ? textUnits.value ?? entity.total : entity.total
-  const writtenToday = entity.added_today + currentValue - entity.total
-  return Math.min(100, Math.max(0, (writtenToday / entity.plan_daily_goal) * 100))
+  const target = projectEntity.value?.today_goal
+  if (target === null || target === undefined || target <= 0) return 0
+  return Math.min(100, Math.max(0, (todayGoalCurrentValue.value / target) * 100))
 })
 const canRecordText = computed(() => Boolean(
   projectEntity.value
@@ -322,7 +324,10 @@ function findToolbarTarget(): void {
 
 watch(content, (next) => {
   editorContent.value = next
-  void restoreEditorPosition()
+  if (!hasRestoredEditorPosition) {
+    hasRestoredEditorPosition = true
+    void restoreEditorPosition()
+  }
 }, { deep: true })
 watch(() => locale.language, configureKitLocale)
 watch(() => theme.resolved, setWordTheme, { immediate: true })
@@ -342,7 +347,6 @@ onMounted(() => {
     toolbarObserver = new MutationObserver(findToolbarTarget)
     toolbarObserver.observe(editorShell.value, { childList: true, subtree: true })
   }
-  void restoreEditorPosition()
   if (window.__TAURI_INTERNALS__) {
     void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
       stopCloseListener = await getCurrentWindow().onCloseRequested(async (event) => {
