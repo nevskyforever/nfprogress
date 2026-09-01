@@ -245,6 +245,7 @@ onBeforeUnmount(() => controller.abort())
               <p v-if="response.capabilities.remote_api">
                 {{ t('Адрес удалённого API задаётся конфигурацией приложения, а не хранится как пользовательский секрет.') }}
               </p>
+              <p class="platform-card__author">{{ t('Автор') }}: nevskyforever / nfproject</p>
             </div>
           </aside>
 
@@ -408,6 +409,7 @@ onBeforeUnmount(() => controller.abort())
 
             <div class="settings-app-meta">
               <span>{{ t('Версия приложения') }} {{ response?.version ?? '5.0' }}</span>
+              <span>{{ t('Автор') }}: nevskyforever / nfproject</span>
               <a
                 class="nf-button nf-button--secondary settings-repository-link"
                 href="https://github.com/nevskyforever/nfprogress"
@@ -510,6 +512,11 @@ onBeforeUnmount(() => controller.abort())
 .platform-card h2,
 .platform-card p {
   margin: 0;
+}
+
+.platform-card .platform-card__author {
+  margin-top: var(--nf-space-5);
+  font-weight: 700;
 }
 
 .platform-card h2 {

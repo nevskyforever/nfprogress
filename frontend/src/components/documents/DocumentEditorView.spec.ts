@@ -116,6 +116,14 @@ describe('DocumentEditorView status bar', () => {
     wrapper.unmount()
   })
 
+  it('does not offer desktop Word linking in the web editor', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('Связать с Word')
+    wrapper.unmount()
+  })
+
   it('inserts a tab character instead of moving focus outside the editor', async () => {
     const wrapper = mountEditor()
     await flushPromises()

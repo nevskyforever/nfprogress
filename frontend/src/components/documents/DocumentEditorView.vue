@@ -6,6 +6,7 @@ import { createI18n, TiptapProEditor, setTheme, type TiptapProEditorExpose } fro
 import 'tiptap-ui-kit/style.css'
 import 'ant-design-vue/dist/reset.css'
 import { pickDesktopWordFile } from '@/platform/files'
+import { currentPlatform } from '@/platform/runtime'
 import { useDocumentSync, type ConflictChoice } from '@/composables/useDocumentSync'
 import { exportDocx, WORD_FONT_FAMILIES, WORD_FONT_SIZES } from '@/services/documentDocx'
 import type { DocumentScope, TiptapDocument } from '@/types/documents'
@@ -36,6 +37,7 @@ const projectEntity = ref<Project | null>(null)
 const zoom = ref(100)
 const selectedFontFamily = ref<(typeof WORD_FONT_FAMILIES)[number]>('Arial')
 const selectedFontSize = ref<(typeof WORD_FONT_SIZES)[number]>(12)
+const canLinkWord = currentPlatform() === 'tauri'
 const saving = ref(false)
 const recording = ref(false)
 const processing = computed(() => saving.value || recording.value)
@@ -297,7 +299,7 @@ onBeforeRouteLeave(async () => { await flushAndRecord() })
         </button>
         <button class="nf-button nf-button--secondary" type="button" title="Импортировать документ Word" aria-label="Импортировать документ Word" @click="importWord">Импорт DOCX</button>
         <button class="nf-button nf-button--secondary" type="button" title="Экспортировать документ Word" aria-label="Экспортировать документ Word" @click="exportWord">Экспорт DOCX</button>
-        <button class="nf-button nf-button--secondary" type="button" title="Связать документ с локальным файлом Word" aria-label="Связать документ с локальным файлом Word" @click="linkWord">{{ linked ? 'Файл Word связан' : 'Связать с Word' }}</button>
+        <button v-if="canLinkWord" class="nf-button nf-button--secondary" type="button" title="Связать документ с локальным файлом Word" aria-label="Связать документ с локальным файлом Word" @click="linkWord">{{ linked ? 'Файл Word связан' : 'Связать с Word' }}</button>
       </div>
     </header>
     <div class="document-editor-view__workspace" @keydown.capture="handleEditorKeydown">

@@ -100,6 +100,7 @@ describe('SettingsPage', () => {
     expect(wrapper.find('#settings-written-today').exists()).toBe(true)
     expect(wrapper.find('#settings-notification-time').exists()).toBe(true)
     expect(wrapper.find('#settings-motion').exists()).toBe(true)
+    expect(wrapper.text()).toContain('Автор: nevskyforever / nfproject')
     await wrapper.get('#settings-game-mode').setValue(true)
     await wrapper.get('#settings-notification-time').setValue(20)
     await wrapper.get('#settings-motion').setValue('reduced')
