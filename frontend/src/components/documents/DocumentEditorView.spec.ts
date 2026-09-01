@@ -10,11 +10,19 @@ import type { DocumentScope, ProjectDocument } from '@/types/documents'
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { insertContent } = vi.hoisted(() => ({ insertContent: vi.fn() }))
+const { destroyWindow, insertContent, onCloseRequested } = vi.hoisted(() => ({
+  destroyWindow: vi.fn(),
+  insertContent: vi.fn(),
+  onCloseRequested: vi.fn(),
+}))
 
 vi.mock('vue-router', () => ({
   onBeforeRouteLeave: vi.fn(),
   useRouter: () => ({ push: vi.fn() }),
+}))
+
+vi.mock('@tauri-apps/api/window', () => ({
+  getCurrentWindow: () => ({ destroy: destroyWindow, onCloseRequested }),
 }))
 
 vi.mock('tiptap-ui-kit', () => ({
@@ -23,7 +31,10 @@ vi.mock('tiptap-ui-kit', () => ({
   TiptapProEditor: {
     emits: ['update'],
     setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
-      expose({ getEditor: () => ({ commands: { insertContent } }) })
+      expose({
+        getEditor: () => ({ commands: { insertContent } }),
+        getJSON: () => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] }),
+      })
       return {}
     },
     template: `<div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] })" />`,
@@ -77,6 +88,9 @@ describe('DocumentEditorView status bar', () => {
     vi.mocked(documentsApi.get).mockReset()
     vi.mocked(documentsApi.save).mockReset()
     insertContent.mockReset()
+    destroyWindow.mockReset()
+    onCloseRequested.mockReset()
+    delete window.__TAURI_INTERNALS__
   })
 
   it('uses written-today progress against the daily plan target', async () => {
@@ -121,6 +135,35 @@ describe('DocumentEditorView status bar', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('Связать с Word')
+    wrapper.unmount()
+  })
+
+  it('keeps font controls within the editor toolbar area', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    expect(wrapper.find('.document-editor-view__actions select').exists()).toBe(false)
+    expect(wrapper.get('.document-editor-view__workspace .document-editor-view__font-controls').findAll('select')).toHaveLength(2)
+    wrapper.unmount()
+  })
+
+  it('saves and records changes before a desktop close request', async () => {
+    let closeHandler: ((event: { preventDefault: () => void }) => Promise<void>) | undefined
+    onCloseRequested.mockImplementation(async (handler) => {
+      closeHandler = handler
+      return vi.fn()
+    })
+    window.__TAURI_INTERNALS__ = {}
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    await wrapper.get('.tiptap-stub').trigger('click')
+    const preventDefault = vi.fn()
+    await closeHandler?.({ preventDefault })
+
+    expect(preventDefault).toHaveBeenCalledOnce()
+    expect(documentsApi.save).toHaveBeenCalled()
+    expect(destroyWindow).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
 
