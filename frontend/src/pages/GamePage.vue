@@ -91,8 +91,10 @@ const cartCreditAllowed = computed(() => cartLines.value.every(
 const pendingPurchaseItem = computed(() => {
   const payload = pendingPurchase.value
   if (!payload || !state.value) return null
-  return state.value.shop.categories.flatMap((category) => category.items)
-    .find((item) => item.category === payload.category && item.key === payload.item_id) ?? null
+  const findItem = (categories: GameState['shop']['categories']) =>
+    categories.flatMap((category) => category.items)
+      .find((item) => item.category === payload.category && item.key === payload.item_id)
+  return findItem(state.value.shop.categories) ?? findItem(state.value.inventory.categories) ?? null
 })
 let stopDataChanges: (() => void) | undefined
 let stateController: AbortController | undefined
