@@ -28,6 +28,10 @@ case "$ARCH" in
     ;;
 esac
 
+WORKSPACE_DIR="$ROOT_DIR/.tauri-build-workspaces/$ARCH"
+FRONTEND_SOURCE_DIR="$ROOT_DIR/frontend"
+FRONTEND_DIR="$WORKSPACE_DIR/frontend"
+
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "Локальная Tauri-сборка macOS должна выполняться на macOS."
   exit 2
@@ -47,6 +51,10 @@ if ! command -v cargo >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; th
 fi
 if ! command -v npm >/dev/null 2>&1; then
   echo "Не найден npm. Установите Node.js 20.19 или новее."
+  exit 1
+fi
+if ! command -v rsync >/dev/null 2>&1; then
+  echo "Не найден rsync. Он нужен для изолированной Tauri-сборки."
   exit 1
 fi
 if ! run_python -m nuitka --version >/dev/null; then
@@ -73,7 +81,29 @@ if ! rustup target list --installed | grep -Fxq "$TARGET"; then
   exit 1
 fi
 
-FRONTEND_DIR="$ROOT_DIR/frontend"
+prepare_frontend_workspace() {
+  echo "Подготавливается изолированный frontend-workspace для $ARCH-сборки..."
+  mkdir -p "$WORKSPACE_DIR"
+  rsync --archive --delete \
+    --exclude '.DS_Store' \
+    --exclude 'node_modules/' \
+    --exclude 'dist/' \
+    --exclude '.vite/' \
+    --exclude 'coverage/' \
+    --exclude 'public/mindmap-assets/' \
+    --exclude 'src-tauri/target/' \
+    --exclude 'src-tauri/binaries/' \
+    "$FRONTEND_SOURCE_DIR/" "$FRONTEND_DIR/"
+  rsync --archive --delete \
+    "$ROOT_DIR/mindmap_assets/" "$WORKSPACE_DIR/mindmap_assets/"
+  cp -p \
+    "$ROOT_DIR/Icon-256.png" \
+    "$ROOT_DIR/appicon.icns" \
+    "$ROOT_DIR/icon.ico" \
+    "$WORKSPACE_DIR/"
+}
+
+prepare_frontend_workspace
 NODE_MODULES_LOCK="$FRONTEND_DIR/node_modules/.package-lock.json"
 if [ ! -f "$NODE_MODULES_LOCK" ] \
   || [ "$FRONTEND_DIR/package.json" -nt "$NODE_MODULES_LOCK" ] \
@@ -82,15 +112,18 @@ if [ ! -f "$NODE_MODULES_LOCK" ] \
   (cd "$FRONTEND_DIR" && npm ci)
 fi
 
-run_python "$ROOT_DIR/scripts/sync-tauri-versions.py"
+run_python "$ROOT_DIR/scripts/sync-tauri-versions.py" --frontend-dir "$FRONTEND_DIR"
 VERSION="$(run_python "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)"
 DMG_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.dmg"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"
 PACKAGE_NAME="$ARTIFACT_PREFIX-$VERSION"
 
 mkdir -p "$BUILD_DIR"
-run_python "$ROOT_DIR/scripts/build-backend-sidecar.py" --target "$TARGET"
-"$ROOT_DIR/scripts/build-tauri-dmg.sh" "$TARGET" "$DMG_PATH"
+run_python "$ROOT_DIR/scripts/build-backend-sidecar.py" \
+  --target "$TARGET" \
+  --frontend-dir "$FRONTEND_DIR"
+NFPROGRESS_TAURI_FRONTEND_DIR="$FRONTEND_DIR" \
+  "$ROOT_DIR/scripts/build-tauri-dmg.sh" "$TARGET" "$DMG_PATH"
 
 STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nfprogress-tauri-package.XXXXXX")"
 trap 'rm -rf -- "$STAGING_DIR"' EXIT

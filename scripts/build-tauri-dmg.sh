@@ -6,6 +6,7 @@ SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 TARGET="${1:-}"
+FRONTEND_DIR="${NFPROGRESS_TAURI_FRONTEND_DIR:-$ROOT_DIR/frontend}"
 
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "This script creates a macOS DMG and must run on macOS."
@@ -20,11 +21,12 @@ case "$TARGET" in
     ;;
 esac
 
-python3 "$ROOT_DIR/scripts/sync-tauri-versions.py"
-APP_PATH="$ROOT_DIR/frontend/src-tauri/target/$TARGET/release/bundle/macos/nfprogress.app"
-SIDECAR_PATH="$ROOT_DIR/frontend/src-tauri/binaries/nfprogress-backend-$TARGET"
+FRONTEND_DIR="$(cd -- "$FRONTEND_DIR" && pwd -P)"
+python3 "$ROOT_DIR/scripts/sync-tauri-versions.py" --frontend-dir "$FRONTEND_DIR"
+APP_PATH="$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle/macos/nfprogress.app"
+SIDECAR_PATH="$FRONTEND_DIR/src-tauri/binaries/nfprogress-backend-$TARGET"
 VERSION="$(python3 "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)"
-OUTPUT_PATH="${2:-$ROOT_DIR/frontend/src-tauri/target/$TARGET/release/bundle/dmg/nfprogress-$VERSION-$TARGET.dmg}"
+OUTPUT_PATH="${2:-$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle/dmg/nfprogress-$VERSION-$TARGET.dmg}"
 
 if [ ! -x "$SIDECAR_PATH" ]; then
   echo "Build the matching Python sidecar first:"
@@ -32,8 +34,9 @@ if [ ! -x "$SIDECAR_PATH" ]; then
   exit 1
 fi
 
-cd "$ROOT_DIR/frontend"
-npx tauri build --target "$TARGET" --bundles app
+cd "$FRONTEND_DIR"
+CARGO_TARGET_DIR="$FRONTEND_DIR/src-tauri/target" \
+  npx tauri build --target "$TARGET" --bundles app
 
 if [ ! -d "$APP_PATH" ]; then
   echo "Tauri did not produce the expected app bundle: $APP_PATH"

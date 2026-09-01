@@ -13,7 +13,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-BINARIES = ROOT / 'frontend' / 'src-tauri' / 'binaries'
+DEFAULT_FRONTEND_DIR = ROOT / 'frontend'
 SUPPORTED_TARGETS = {
     'aarch64-apple-darwin',
     'x86_64-apple-darwin',
@@ -49,12 +49,18 @@ def _validate_target(target: str) -> None:
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--target', default=None, help='Rust target triple; defaults to rustc host.')
+    parser.add_argument(
+        '--frontend-dir',
+        type=Path,
+        default=DEFAULT_FRONTEND_DIR,
+        help='Frontend directory that receives the sidecar binary.',
+    )
     return parser
 
 
-def _windows_release_options() -> list[str]:
+def _windows_release_options(frontend_dir: Path = DEFAULT_FRONTEND_DIR) -> list[str]:
     cargo = tomllib.loads(
-        (ROOT / 'frontend' / 'src-tauri' / 'Cargo.toml').read_text(encoding='utf-8'),
+        (frontend_dir / 'src-tauri' / 'Cargo.toml').read_text(encoding='utf-8'),
     )
     version = str(cargo['package']['version']).split('-', 1)[0].split('+', 1)[0]
     return [
@@ -71,14 +77,25 @@ def _windows_release_options() -> list[str]:
 
 
 def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    frontend_dir = args.frontend_dir.resolve()
+    if not (frontend_dir / 'src-tauri' / 'Cargo.toml').is_file():
+        raise SystemExit(f'Frontend directory does not contain src-tauri/Cargo.toml: {frontend_dir}')
+
     subprocess.run(
-        [sys.executable, str(ROOT / 'scripts' / 'sync-tauri-versions.py')],
+        [
+            sys.executable,
+            str(ROOT / 'scripts' / 'sync-tauri-versions.py'),
+            '--frontend-dir',
+            str(frontend_dir),
+        ],
         cwd=ROOT,
         check=True,
     )
-    target = _parser().parse_args(argv).target or _host_target()
+    target = args.target or _host_target()
     _validate_target(target)
-    BINARIES.mkdir(parents=True, exist_ok=True)
+    binaries = frontend_dir / 'src-tauri' / 'binaries'
+    binaries.mkdir(parents=True, exist_ok=True)
     executable_name = f'nfprogress-backend-{target}'
     if target.endswith('windows-msvc'):
         executable_name += '.exe'
@@ -90,7 +107,7 @@ def main(argv: list[str] | None = None) -> int:
         '--onefile',
         '--assume-yes-for-downloads',
         '--remove-output',
-        f'--output-dir={BINARIES}',
+        f'--output-dir={binaries}',
         f'--output-filename={executable_name}',
         '--include-package=backend',
         '--include-package=nfprogress',
@@ -103,11 +120,11 @@ def main(argv: list[str] | None = None) -> int:
     if target.endswith('windows-msvc'):
         # Keep the signed Windows executable identifiable and avoid an extra
         # compressed payload layer that can provoke packer heuristics.
-        command.extend(_windows_release_options())
+        command.extend(_windows_release_options(frontend_dir))
     command.append(str(ROOT / 'backend_sidecar.py'))
     subprocess.run(command, cwd=ROOT, check=True)
 
-    output = BINARIES / executable_name
+    output = binaries / executable_name
     if not output.is_file():
         raise SystemExit(f'Nuitka completed without the expected sidecar: {output}')
     print(output)
