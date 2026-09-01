@@ -68,7 +68,8 @@ const entityProgressLabel = computed(() => {
     ? t('Без лимита')
     : locale.formatNumber(entity.goal, entityFractionDigits.value)
   const unitValue = entity.goal ?? entity.total
-  return `${locale.formatNumber(entity.total, entityFractionDigits.value)} / ${goalLabel} ${locale.formatUnit(entity.unit, unitValue)}`
+  const documentValue = textUnits.value ?? 0
+  return `${locale.formatNumber(documentValue, entityFractionDigits.value)} / ${goalLabel} ${locale.formatUnit(entity.unit, unitValue)}`
 })
 const todayGoalCompleted = computed(() => {
   const entity = projectEntity.value
@@ -359,8 +360,7 @@ onBeforeRouteLeave(async () => { await flushAndRecord() })
       </div>
       <footer class="document-editor-view__statusbar" aria-label="Статус документа">
         <div v-if="projectEntity" class="document-editor-view__status-info">
-          <span class="document-editor-view__document-symbols" aria-live="polite">{{ t('Символов в документе: {count}', { count: locale.formatNumber(textSymbols, 0) }) }}</span>
-          <span class="document-editor-view__unit-count">{{ t('Прогресс') }}: <strong>{{ entityProgressLabel }}</strong></span>
+          <span class="document-editor-view__unit-count" aria-live="polite">{{ t('Прогресс') }}: <strong>{{ entityProgressLabel }}</strong></span>
           <span
             v-if="projectEntity.today_goal !== null"
             class="document-editor-view__today-goal"
