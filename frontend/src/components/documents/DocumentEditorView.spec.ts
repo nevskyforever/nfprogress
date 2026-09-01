@@ -10,9 +10,10 @@ import type { DocumentScope, ProjectDocument } from '@/types/documents'
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, editorSelection, insertContent, onCloseRequested, scrollIntoView, setLineHeight, setTextSelection } = vi.hoisted(() => ({
+const { destroyWindow, editorSelection, focusEditor, insertContent, onCloseRequested, scrollIntoView, setLineHeight, setTextSelection } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
   editorSelection: { from: 1 },
+  focusEditor: vi.fn(),
   insertContent: vi.fn(),
   onCloseRequested: vi.fn(),
   scrollIntoView: vi.fn(),
@@ -38,7 +39,7 @@ vi.mock('tiptap-ui-kit', () => ({
     setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
       expose({
         getEditor: () => ({
-          commands: { insertContent, scrollIntoView, setTextSelection },
+          commands: { focus: focusEditor, insertContent, scrollIntoView, setTextSelection },
           state: { selection: editorSelection, doc: { content: { size: 100 } } },
           chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
         }),
@@ -106,6 +107,7 @@ describe('DocumentEditorView status bar', () => {
     vi.mocked(documentsApi.get).mockReset()
     vi.mocked(documentsApi.save).mockReset()
     insertContent.mockReset()
+    focusEditor.mockReset()
     setTextSelection.mockReset()
     scrollIntoView.mockReset()
     setLineHeight.mockReset()
@@ -222,6 +224,7 @@ describe('DocumentEditorView status bar', () => {
     await flushPromises()
 
     expect(setTextSelection).toHaveBeenCalledWith(48)
+    expect(focusEditor).toHaveBeenCalledOnce()
     expect(scrollIntoView).toHaveBeenCalled()
     expect(wrapper.get('.word-document-container').element.scrollTop).toBe(360)
     wrapper.unmount()
