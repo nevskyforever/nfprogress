@@ -73,10 +73,11 @@ const todayGoalLabel = computed(() => {
 })
 const todayGoalProgressPercent = computed(() => {
   const entity = projectEntity.value
-  if (!entity || entity.today_goal === null || entity.today_goal <= 0) return 0
+  if (!entity || entity.today_goal === null || entity.plan_daily_goal === null || entity.plan_daily_goal <= 0) return 0
   // Show a live preview from the editor while the next progress record is pending.
   const currentValue = textSymbols.value > 0 ? textUnits.value ?? entity.total : entity.total
-  return Math.min(100, Math.max(0, (currentValue / entity.today_goal) * 100))
+  const writtenToday = entity.added_today + currentValue - entity.total
+  return Math.min(100, Math.max(0, (writtenToday / entity.plan_daily_goal) * 100))
 })
 const canRecordText = computed(() => Boolean(
   projectEntity.value
