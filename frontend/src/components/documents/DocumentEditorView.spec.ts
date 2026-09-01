@@ -10,10 +10,11 @@ import type { DocumentScope, ProjectDocument } from '@/types/documents'
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, insertContent, onCloseRequested } = vi.hoisted(() => ({
+const { destroyWindow, insertContent, onCloseRequested, setLineHeight } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
   insertContent: vi.fn(),
   onCloseRequested: vi.fn(),
+  setLineHeight: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -32,7 +33,10 @@ vi.mock('tiptap-ui-kit', () => ({
     emits: ['update'],
     setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
       expose({
-        getEditor: () => ({ commands: { insertContent } }),
+        getEditor: () => ({
+          commands: { insertContent },
+          chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
+        }),
         getJSON: () => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] }),
       })
       return {}
@@ -88,6 +92,7 @@ describe('DocumentEditorView status bar', () => {
     vi.mocked(documentsApi.get).mockReset()
     vi.mocked(documentsApi.save).mockReset()
     insertContent.mockReset()
+    setLineHeight.mockReset()
     destroyWindow.mockReset()
     onCloseRequested.mockReset()
     delete window.__TAURI_INTERNALS__
@@ -143,7 +148,17 @@ describe('DocumentEditorView status bar', () => {
     await flushPromises()
 
     expect(wrapper.find('.document-editor-view__actions select').exists()).toBe(false)
-    expect(wrapper.get('.word-toolbar .document-editor-view__font-controls').findAll('select')).toHaveLength(2)
+    expect(wrapper.get('.word-toolbar .document-editor-view__font-controls').findAll('select')).toHaveLength(3)
+    wrapper.unmount()
+  })
+
+  it('sets the selected line spacing for the current paragraph', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    await wrapper.get('select[aria-label="Межстрочный интервал"]').setValue('2')
+
+    expect(setLineHeight).toHaveBeenCalledWith('2')
     wrapper.unmount()
   })
 
