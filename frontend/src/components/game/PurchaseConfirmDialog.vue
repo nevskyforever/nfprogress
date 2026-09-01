@@ -30,6 +30,21 @@ const t = locale.translate
   </IonModal>
 </template>
 
+<style>
+.purchase-confirm-modal {
+  --width: 100%;
+  --height: 100%;
+  --background: transparent;
+  --box-shadow: none;
+  --border-width: 0;
+  --border-radius: 0;
+}
+
+.purchase-confirm-modal::part(content) {
+  background: transparent;
+}
+</style>
+
 <style scoped>
 .purchase-confirm { --background: transparent; }
 .purchase-confirm__card { width: min(30rem, calc(100% - 2rem)); margin: max(1rem, 20vh) auto; padding: 1.5rem; border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-xl, 1.5rem); background: var(--nf-color-surface-raised); box-shadow: var(--nf-shadow-card); }
