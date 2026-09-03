@@ -1,32 +1,32 @@
 {
-  "version": "5.3.2",
-  "notes": "Улучшен прогресс-бар цели на день в текстовом редакторе - теперь показывается прогресс цели на день исходя из написанного сегодня, а не общих значений. Это позволяет наглядно увидеть прогресс выполнения цели, а не постоянно незаполненный прогресс-бар.",
-  "windows_version": "5.3.1",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.1-setup.exe",
+  "version": "5.3.4",
+  "notes": "Улучшение интерфейса - повторный клик по открытому разделу в левом меню открывает главную страницу этого раздела.\n\nОбщий счетчик единиц в текстовом редакторе \"ожил\".",
+  "windows_version": "5.3.3",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.3-setup.exe",
   "macos_arm": {
-    "version": "5.3.2",
-    "url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.2.zip",
-    "sha256": "09b84e0416ce58418a0371a648057aa284b5606265bf9f5f85db3429903931c5",
-    "size": 33091767
+    "version": "5.3.4",
+    "url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.4.zip",
+    "sha256": "b777051b23a94ceaed162ee6741b6219aff96d5211d5f59f0ae29c10aa812738",
+    "size": 33094309
   },
   "macos_intel": {
-    "version": "5.3.2",
-    "url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.2.zip",
-    "sha256": "f91583ab862d72040dae5884e69d78bbbb7a0932bc6f6ae9a315d6196ca11a0f",
-    "size": 31353861
+    "version": "5.3.4",
+    "url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.4.zip",
+    "sha256": "f42842ab266778de2e1d902998019c8068d46a5ed99ac39b17ac24d3977d526b",
+    "size": 31355604
   },
-  "macos_arm_version": "5.3.2",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.2.zip",
-  "macos_intel_version": "5.3.2",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.2.zip",
+  "macos_arm_version": "5.3.4",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.4.zip",
+  "macos_intel_version": "5.3.4",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.4.zip",
   "windows": {
-    "version": "5.3.1",
-    "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.1-setup.exe",
-    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.1-setup.exe",
-    "sha256": "cd10f980d646a045f155ae7304b3cc60c049bd996fc35ae0e8cf5a57fe4044e5",
-    "size": 24252115,
+    "version": "5.3.3",
+    "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.3-setup.exe",
+    "installer_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.3-setup.exe",
+    "sha256": "2cf3faeb211df3250e13b064a15bc876b905273af2427404afc608211df927b3",
+    "size": 24256622,
     "entry_point": "nfprogress/nfprogress.exe",
-    "installer_sha256": "cd10f980d646a045f155ae7304b3cc60c049bd996fc35ae0e8cf5a57fe4044e5",
-    "installer_size": 24252115
+    "installer_sha256": "2cf3faeb211df3250e13b064a15bc876b905273af2427404afc608211df927b3",
+    "installer_size": 24256622
   }
 }
