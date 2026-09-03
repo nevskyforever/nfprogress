@@ -966,6 +966,10 @@ jobs:
               "$target:$SSH_UPLOAD_DIR/"
           done
 
+          SSH_UPLOAD_KEY_PATH="$key_path" \
+          SSH_UPLOAD_STRICT_HOST_KEY_CHECKING=accept-new \
+          bash scripts/prune-release-hosting.sh
+
 
       # ------------------------------------------------------------
       # GitHub Release

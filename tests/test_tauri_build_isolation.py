@@ -98,13 +98,20 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
             done
             ;;
           *build-backend-sidecar.py)
+            target=""
+            frontend_dir=""
             while [ "$#" -gt 0 ]; do
+              if [ "$1" = "--target" ]; then
+                target="$2"
+              fi
               if [ "$1" = "--frontend-dir" ]; then
+                frontend_dir="$2"
                 printf '%s\\n' "$2" >> "$TEST_SIDECAR_LOG"
-                break
               fi
               shift
             done
+            mkdir -p "$frontend_dir/src-tauri/binaries"
+            : > "$frontend_dir/src-tauri/binaries/nfprogress-backend-$target"
             ;;
           *)
             exit 2
@@ -118,6 +125,8 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
         #!/bin/bash
         set -euo pipefail
         printf '%s\\n' "$NFPROGRESS_TAURI_FRONTEND_DIR" >> "$TEST_DMG_LOG"
+        mkdir -p "$NFPROGRESS_TAURI_FRONTEND_DIR/src-tauri/target/$1/release/bundle"
+        : > "$NFPROGRESS_TAURI_FRONTEND_DIR/src-tauri/target/$1/release/bundle/temporary-app-output"
         mkdir -p "$(dirname "$2")"
         : > "$2"
         """,
@@ -143,6 +152,14 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
 
 def test_parallel_architecture_builds_use_separate_frontend_workspaces(tmp_path):
     root, bin_dir = _create_build_fixture(tmp_path)
+    for arch, prefix in (
+        ('arm', 'nfprogress-tauri-mac-arm'),
+        ('intel', 'nfprogress-tauri-mac-intel'),
+    ):
+        build_dir = root / f'build-tauri-{arch}'
+        build_dir.mkdir()
+        (build_dir / f'{prefix}-4.9.0.zip').write_bytes(b'old zip')
+        (build_dir / f'{prefix}-4.9.0.dmg').write_bytes(b'old dmg')
     npm_log = tmp_path / 'npm.log'
     sidecar_log = tmp_path / 'sidecar.log'
     dmg_log = tmp_path / 'dmg.log'
@@ -193,3 +210,13 @@ def test_parallel_architecture_builds_use_separate_frontend_workspaces(tmp_path)
         str(arm_frontend),
         str(intel_frontend),
     ])
+    assert sorted(path.name for path in (root / 'build-tauri-arm').iterdir()) == [
+        'nfprogress-tauri-mac-arm-5.3.0.zip',
+    ]
+    assert sorted(path.name for path in (root / 'build-tauri-intel').iterdir()) == [
+        'nfprogress-tauri-mac-intel-5.3.0.zip',
+    ]
+    assert not (arm_frontend / 'src-tauri' / 'target' / 'aarch64-apple-darwin' / 'release' / 'bundle').exists()
+    assert not (intel_frontend / 'src-tauri' / 'target' / 'x86_64-apple-darwin' / 'release' / 'bundle').exists()
+    assert not (arm_frontend / 'src-tauri' / 'binaries' / 'nfprogress-backend-aarch64-apple-darwin').exists()
+    assert not (intel_frontend / 'src-tauri' / 'binaries' / 'nfprogress-backend-x86_64-apple-darwin').exists()

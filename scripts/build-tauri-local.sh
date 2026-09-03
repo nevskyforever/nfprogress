@@ -141,4 +141,17 @@ SOURCE_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 rm -f "$ARTIFACT_PATH"
 ditto -c -k --norsrc --keepParent "$PACKAGE_DIR" "$ARTIFACT_PATH"
 
+# The ZIP is the local release artifact.  The DMG and older versioned archives
+# have already served their purpose and otherwise accumulate with every build.
+rm -f -- "$DMG_PATH"
+find "$BUILD_DIR" -mindepth 1 -maxdepth 1 -type f \
+  -name "$ARTIFACT_PREFIX-*" \
+  ! -name "$(basename "$ARTIFACT_PATH")" \
+  -delete
+
+# Keep the dependency caches in the isolated workspace, but not the completed
+# app bundle and sidecar that are already contained in the release ZIP.
+rm -rf -- "$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle"
+rm -f -- "$FRONTEND_DIR/src-tauri/binaries/nfprogress-backend-$TARGET"
+
 echo "✅ Локальная Tauri-сборка завершена: $ARTIFACT_PATH"
