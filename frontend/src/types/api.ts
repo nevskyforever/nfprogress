@@ -2,6 +2,7 @@ import type { GameCommandResponse } from './game'
 import type { ProgressUnit } from '@/core/projects/types'
 
 export type { ProgressUnit } from '@/core/projects/types'
+export type { Statistics, StatisticsMetrics } from '@/core/statistics/types'
 export type UnitCode = ProgressUnit
 
 export const PROJECT_STATUSES = ['активен', 'в архиве', 'завершен'] as const
@@ -149,39 +150,6 @@ export interface GlobalStreakSummary {
   max_length: number
 }
 
-export interface Statistics {
-  entity_id: string
-  unit: UnitCode
-  metrics: StatisticsMetrics
-  timeline: Array<{
-    date: string
-    symbols: number
-    value: number
-  }>
-}
-
-export interface StatisticsMetrics {
-  entries_count: number
-  total: number
-  average_symbols_per_active_day: number
-  average_symbols_per_entry: number
-  average_entries_per_active_day: number
-  freezes_used: number
-  best_day: {
-    date: string
-    symbols: number
-    value: number
-  } | null
-  best_weekday: {
-    weekday: number
-    symbols: number
-  } | null
-  current_streak: number
-  max_streak: number
-  days_since_start: number
-  active_days: number
-  active_days_percent: number
-}
 
 export interface LanguageOption {
   code: SupportedLanguage

@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { projectsApi } from '@/api/projects'
+import { adaptStatistics } from '@/services/statisticsAdapter'
 import { announceDataChange } from '@/services/dataChanges'
 import type {
   EntityUpdate,
@@ -280,7 +281,11 @@ export const useProjectsStore = defineStore('projects', () => {
     statisticsError.value = null
     try {
       const result = await projectsApi.statistics(projectId, stageId)
-      if (sequence === statisticsSequence) statistics.value = result
+      const project = currentProject.value
+      const adapted = project?.id === projectId
+        ? adaptStatistics(project, result, stageId)
+        : result
+      if (sequence === statisticsSequence) statistics.value = adapted
     } catch (loadError) {
       if (sequence === statisticsSequence) {
         statistics.value = null

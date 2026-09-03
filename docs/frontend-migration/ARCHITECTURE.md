@@ -33,7 +33,7 @@ regression test enforces that Python-only boundary.
 
 | Area | Legacy source | Shared/new source | Boundary |
 | --- | --- | --- | --- |
-| Projects, stages, progress, statistics, streaks | `engine.py` | `nfprogress/core/services/projects.py` | Stable-ID commands wrap the existing models and calculations |
+| Projects, stages, progress, statistics, streaks | `engine.py` | `nfprogress/core/services/projects.py` + `frontend/src/core/statistics` | TypeScript owns verified pure read-only statistics calculations; Python remains authoritative for mutations and streak/freeze state |
 | Storage | `engine.py`, `game.py` | `nfprogress/core/repositories/storage.py` | Explicit data root, in-process/cross-process locking, atomic legacy files |
 | Game rules | `game.py`, `game_data.py` | `nfprogress/core/services/game.py` | `Gamer` remains authoritative; commands return JSON-safe projections |
 | Desktop orchestration | `main_UI.py`, `game_UI.py` | FastAPI routers and Vue pages | UI validation and rewards move behind application commands |

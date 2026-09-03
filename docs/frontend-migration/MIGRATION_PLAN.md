@@ -37,6 +37,17 @@ rounding rules, and use `null` with an explicit `infinite` flag for unbounded
 goals. This phase does not change the API, PKL, SQLite shadow mirror, or Python
 runtime calls.
 
+## TS Core migration phase 2: read-only statistics
+
+`frontend/src/core/statistics` calculates the verified pure subset from JSON-safe
+project/stage data: entry counts, totals, averages, best day/weekday, project
+age, active-day percentage, and timeline. Stage projects aggregate stage entries
+as `get_notes_with_stage_names()` does; a selected stage uses only its entries.
+Dates come from serialized effective writing-day dates and the explicit planning
+date, so the core never reads the browser clock. The adapter merges these
+results with Python-owned `freezes_used`, `current_streak`, and `max_streak`.
+`/statistics`, PKL, and the SQLite shadow mirror remain unchanged.
+
 ## 1. Shared Python application layer
 
 1. Add a context-local data directory override and repository lock.
