@@ -27,6 +27,15 @@ can be deleted and rebuilt from PKL. The intended future sequence is:
 Phases 3–5 are not implemented here; SQLite is not yet the TypeScript
 authoritative database.
 
+### Stage 3: read-only SQLite project repository
+
+The first SQLite-to-TypeScript path is limited to project, stage, and progress
+reads. Tauri's Rust bridge uses `rusqlite` in `SQLITE_OPEN_READ_ONLY` mode and
+exposes fixed queries only. The API remains the fallback and the only command
+source; no TypeScript SQLite writes or migrations are allowed. Manual list
+ordering is intentionally API-owned until `project_order` is represented safely
+in the mirror.
+
 ## TS Core migration phase 1: pure project calculations
 
 The first TypeScript Core slice contains only verified, side-effect-free unit

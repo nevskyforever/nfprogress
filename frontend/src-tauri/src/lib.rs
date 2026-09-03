@@ -13,6 +13,39 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
+#[derive(Serialize)]
+struct SqliteEntityRow {
+    id: String,
+    project_id: Option<String>,
+    name: Option<String>,
+    goal: Option<f64>,
+    infinite: i64,
+    unit: String,
+    status: String,
+    created_at: Option<String>,
+    updated_at: Option<String>,
+    payload_json: String,
+}
+
+#[derive(Serialize)]
+struct SqliteProgressRow {
+    id: String,
+    project_id: String,
+    stage_id: Option<String>,
+    created_at: Option<String>,
+    added_symbols: Option<f64>,
+    added_progress: Option<f64>,
+    payload_json: String,
+}
+
+#[derive(Serialize)]
+struct SqliteProjectReadModel {
+    mirror_status: String,
+    projects: Vec<SqliteEntityRow>,
+    stages: Vec<SqliteEntityRow>,
+    progress_entries: Vec<SqliteProgressRow>,
+}
+
 const BACKEND_HOST: &str = "127.0.0.1";
 const BACKEND_START_TIMEOUT: Duration = Duration::from_secs(30);
 const UPDATE_MANIFEST_URL: &str = "https://nfproject.ru/app/update_manifest.json";
@@ -139,6 +172,112 @@ fn backend_connection(state: State<'_, BackendState>) -> Result<BackendConnectio
             || Err("Локальный backend nfprogress ещё не готов.".to_string()),
             Err,
         )
+}
+
+fn sqlite_data_root() -> Result<PathBuf, String> {
+    if let Ok(path) = std::env::var("NFPROGRESS_DATA_DIR") {
+        return Ok(PathBuf::from(path));
+    }
+    let home = dirs_fallback_home()?;
+    let root = if cfg!(target_os = "windows") {
+        std::env::var_os("APPDATA")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| home.join("AppData").join("Roaming"))
+            .join("nfprogress")
+    } else if cfg!(target_os = "macos") {
+        home.join("Documents").join("nfprogress")
+    } else {
+        let documents = home.join("Documents");
+        if documents.exists() {
+            documents.join("nfprogress")
+        } else {
+            home.join(".local").join("share").join("nfprogress")
+        }
+    };
+    if cfg!(debug_assertions) {
+        Ok(root.join("test_data"))
+    } else {
+        Ok(root)
+    }
+}
+
+fn dirs_fallback_home() -> Result<PathBuf, String> {
+    std::env::var_os("HOME")
+        .or_else(|| std::env::var_os("USERPROFILE"))
+        .map(PathBuf::from)
+        .ok_or_else(|| "Не удалось определить домашнюю директорию пользователя.".to_string())
+}
+
+fn read_sqlite_entity_rows(
+    connection: &rusqlite::Connection,
+    table: &str,
+) -> Result<Vec<SqliteEntityRow>, String> {
+    let sql = match table {
+        "projects" => "SELECT id, NULL, name, goal, infinite, unit, status, created_at, updated_at, payload_json FROM projects",
+        "stages" => "SELECT id, project_id, name, goal, infinite, unit, status, created_at, updated_at, payload_json FROM stages ORDER BY rowid",
+        _ => return Err("Недопустимая таблица SQLite.".to_string()),
+    };
+    let mut statement = connection.prepare(sql).map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(SqliteEntityRow {
+                id: row.get(0)?,
+                project_id: row.get(1)?,
+                name: row.get(2)?,
+                goal: row.get(3)?,
+                infinite: row.get(4)?,
+                unit: row.get(5)?,
+                status: row.get(6)?,
+                created_at: row.get(7)?,
+                updated_at: row.get(8)?,
+                payload_json: row.get(9)?,
+            })
+        })
+        .map_err(|error| error.to_string())?;
+    rows.map(|row| row.map_err(|error| error.to_string()))
+        .collect()
+}
+
+#[tauri::command]
+fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
+    let database = sqlite_data_root()?.join("nfprogress.db");
+    let connection =
+        rusqlite::Connection::open_with_flags(database, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
+            .map_err(|error| error.to_string())?;
+    let status: String = connection
+        .query_row(
+            "SELECT sync_status FROM mirror_state WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if status != "healthy" {
+        return Err(format!("SQLite mirror status is {status}"));
+    }
+    let mut progress = connection
+        .prepare("SELECT id, project_id, stage_id, created_at, added_symbols, added_progress, payload_json FROM progress_entries ORDER BY rowid")
+        .map_err(|error| error.to_string())?;
+    let progress_entries = progress
+        .query_map([], |row| {
+            Ok(SqliteProgressRow {
+                id: row.get(0)?,
+                project_id: row.get(1)?,
+                stage_id: row.get(2)?,
+                created_at: row.get(3)?,
+                added_symbols: row.get(4)?,
+                added_progress: row.get(5)?,
+                payload_json: row.get(6)?,
+            })
+        })
+        .map_err(|error| error.to_string())?
+        .map(|row| row.map_err(|error| error.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(SqliteProjectReadModel {
+        mirror_status: status,
+        projects: read_sqlite_entity_rows(&connection, "projects")?,
+        stages: read_sqlite_entity_rows(&connection, "stages")?,
+        progress_entries,
+    })
 }
 
 fn configure_rustls_provider() {
@@ -712,6 +851,7 @@ pub fn run() {
     let app = builder
         .invoke_handler(tauri::generate_handler![
             backend_connection,
+            read_sqlite_projects,
             fetch_update_manifest,
             install_macos_update
         ])

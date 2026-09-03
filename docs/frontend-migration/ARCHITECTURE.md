@@ -21,6 +21,22 @@ Vue/Ionic clients
               atomic data.pkl/settings.pkl/gamer.pkl          SQLite shadow mirror
 ```
 
+For the new desktop read path the boundary is:
+
+```text
+                         READ
+                          ↓
+                 ┌── SQLite (healthy) ──┐
+                 │                      ↓
+Vue → ProjectReadRepository → TypeScript Core
+                 │
+                 └── API → Python
+
+                         WRITE
+                          ↓
+Vue → API → Python → PKL → SQLite mirror
+```
+
 The Python core wraps proven logic in `engine.py`, `game.py`, and
 `game_data.py` rather than rewriting its formulas. Keeping `Project`, `Stage`,
 `Gamer`, and `Buff` at their legacy module paths is deliberate: existing pickle
@@ -129,7 +145,9 @@ fields rather than pretending their compatibility format is closed.
 
 `data.pkl`, `settings.pkl`, and `gamer.pkl` remain the authoritative persistence
 format. SQLite (`nfprogress.db`) is a secondary, diagnostic shadow mirror and
-is not read by the runtime or TypeScript. Repository operations are serialized
+is a Python-maintained shadow mirror. On Tauri desktop, TypeScript may read its
+project data through a Rust command that opens the database read-only.
+Repository operations are serialized
 by a shared process lock and a cross-platform advisory lock scoped to the
 explicit data directory. Writes use the existing atomic replacement behavior.
 Streak rewards keep an idempotency
@@ -145,6 +163,13 @@ backup first. `python -m nfprogress.sqlite_verify --data-dir PATH` performs a
 semantic comparison and returns non-zero on mismatch. Original pickle files
 are never deleted or rewritten in a SQLite operation. Tests use temporary
 directories only.
+
+The command checks `mirror_state.sync_status = 'healthy'` and runs fixed
+`SELECT` statements for projects, stages, and progress entries. A
+storage-neutral mapper reconstructs the API `Project` DTO, using `payload_json`
+only for fields not yet normalized. Missing, unhealthy, malformed, or
+unavailable SQLite data falls back to the API. Manual project ordering remains
+API owned because the mirror does not yet contain `project_order`.
 
 The historical UI still has direct read-modify-write sequences that do not
 acquire the repository's cross-process transaction lock. It is unsupported and

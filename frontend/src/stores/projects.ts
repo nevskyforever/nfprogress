@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { projectsApi } from '@/api/projects'
+import { getProjectReadRepository } from '@/infrastructure/projects/projectReadRepository'
 import { adaptStatistics } from '@/services/statisticsAdapter'
 import { announceDataChange } from '@/services/dataChanges'
 import type {
@@ -36,6 +37,7 @@ export const useProjectsStore = defineStore('projects', () => {
   let listController: AbortController | null = null
   let detailController: AbortController | null = null
   let statisticsSequence = 0
+  const projectReadRepository = getProjectReadRepository()
 
   const projectCount = computed(() => projects.value.length)
   const detailBusy = computed(() => detailOperation.value !== null)
@@ -95,7 +97,7 @@ export const useProjectsStore = defineStore('projects', () => {
     loading.value = true
     error.value = null
     try {
-      projects.value = await projectsApi.list(query, controller.signal)
+      projects.value = await projectReadRepository.listProjects(query, controller.signal)
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === 'AbortError') return
       error.value = apiErrorMessage(loadError)
@@ -120,7 +122,9 @@ export const useProjectsStore = defineStore('projects', () => {
     statisticsError.value = null
     currentProject.value = null
     try {
-      storeProject(await projectsApi.get(projectId, controller.signal))
+      const project = await projectReadRepository.getProject(projectId, controller.signal)
+      if (!project) throw new Error('Проект не найден.')
+      storeProject(project)
     } catch (loadError) {
       if (loadError instanceof DOMException && loadError.name === 'AbortError') return
       detailError.value = apiErrorMessage(loadError)
@@ -134,7 +138,9 @@ export const useProjectsStore = defineStore('projects', () => {
 
   async function refreshCurrent(projectId: string): Promise<Project | null> {
     try {
-      const project = storeProject(await projectsApi.get(projectId))
+      const loaded = await projectReadRepository.getProject(projectId)
+      if (!loaded) throw new Error('Проект не найден.')
+      const project = storeProject(loaded)
       announceDataChange('projects')
       return project
     } catch (refreshError) {
