@@ -1,10 +1,10 @@
 {
-  "version": "5.3.4",
-  "notes": "Улучшение интерфейса - повторный клик по открытому разделу в левом меню открывает главную страницу этого раздела.\n\nОбщий счетчик единиц в текстовом редакторе \"ожил\".",
-  "windows_version": "5.3.3",
-  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.3-setup.exe",
-  "macos_arm_version": "5.3.4",
-  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.4.zip",
-  "macos_intel_version": "5.3.4",
-  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.4.zip"
+  "version": "5.3.6",
+  "notes": "Исправлены старые баги, добавлены новые.",
+  "windows_version": "5.3.5",
+  "windows_url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.5-setup.exe",
+  "macos_arm_version": "5.3.6",
+  "macos_arm_url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.6.zip",
+  "macos_intel_version": "5.3.6",
+  "macos_intel_url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.6.zip"
 }
