@@ -4,8 +4,9 @@
 
 Vue/Ionic is the supported interface over a shared, Qt-free application layer.
 Historical PySide6 source remains only for behavior and pickle compatibility;
-it is not built or published. Existing pickle files remain authoritative, and
-neither the API nor the frontend reads or writes them directly.
+it is not built or published. Ownership is per subsystem, so SQLite and PKL
+currently coexist. Neither the API nor the frontend reads PKL directly; the
+Python compatibility layer does so for PKL-owned domains.
 
 ```text
 Vue/Ionic clients
@@ -18,8 +19,43 @@ Vue/Ionic clients
                                                 │
                          ┌──────────────────────┴──────────────────────┐
                          v                                             v
-              atomic data.pkl/settings.pkl/gamer.pkl          SQLite shadow mirror
+              PKL compatibility stores                         SQLite database
+              (projects and game authoritative)          (settings/Notes authoritative;
+                                                         projects/game mirror)
 ```
+
+### Current transitional desktop architecture
+
+```text
+Desktop Vue/TypeScript
+   ├─ Rust/Tauri ───────────────→ SQLite
+   │                               ├─ settings authoritative
+   │                               └─ notes authoritative
+   └─ local FastAPI/Python sidecar
+       ├─ SQLite authoritative settings/Notes compatibility operations
+       └─ PKL authoritative projects/stages/progress and game
+```
+
+Tauri still launches the Python/Nuitka sidecar for project mutations,
+statistics, game, filesystem integrations and map compatibility workflows.
+Notes ordinary CRUD/order and ordinary settings commands already have a direct
+Rust/SQLite path.
+
+### Target desktop architecture
+
+```text
+Vue / TypeScript
+       ↓
+TypeScript Core
+       ↓
+Rust / Tauri storage boundary
+       ↓
+SQLite
+```
+
+The target removes the local FastAPI sidecar, Nuitka packaging and runtime PKL
+reads. A separately deployed FastAPI/Python server may remain for Web/cloud;
+that server decision is independent of the desktop target.
 
 For the new desktop read path the boundary is:
 
@@ -49,12 +85,12 @@ regression test enforces that Python-only boundary.
 
 | Area | Legacy source | Shared/new source | Boundary |
 | --- | --- | --- | --- |
-| Projects, stages, progress, statistics, streaks | `engine.py` | `nfprogress/core/services/projects.py` + `frontend/src/core/statistics` | TypeScript owns verified pure read-only statistics calculations; Python remains authoritative for mutations and streak/freeze state |
+| Projects, stages, progress, statistics, streaks | `engine.py` | `nfprogress/core/services/projects.py` + `frontend/src/core/statistics` | TypeScript owns verified pure calculations and some desktop reads; Python/PKL remains authoritative for mutations, progress history and streak/freeze state |
 | Storage | `engine.py`, `game.py` | `nfprogress/core/repositories/storage.py` | Explicit data root, in-process/cross-process locking, atomic legacy files |
 | Game rules | `game.py`, `game_data.py` | `nfprogress/core/services/game.py` | `Gamer` remains authoritative; commands return JSON-safe projections |
 | Desktop orchestration | `main_UI.py`, `game_UI.py` | FastAPI routers and Vue pages | UI validation and rewards move behind application commands |
-| Project notes | `project_notes.py` | `nfprogress/core/services/notes.py` | Preserve save-compatible note records and `#карта` synchronization |
-| Mind maps | `engine.py`, `mindmap.py`, `mindmap_assets/` | notes service plus Vue adapter | Keep server normalization and reuse Mind Elixir without the Qt bridge |
+| Project notes | legacy `project_notes` in `engine.py`/PKL | `nfprogress/core/sqlite/notes.py` + `nfprogress/core/services/notes.py` | SQLite is authoritative; PKL records are compatibility input only, while map documents remain transitional Python-owned data |
+| Mind maps | `engine.py`, `mindmap.py`, `mindmap_assets/` | notes service plus Vue adapter | Notes are SQLite-authoritative, but map normalization, combined maps and XMind import still use Python/API |
 | Settings | `engine.py`, Qt settings dialog | `nfprogress/core/services/settings.py` | Backend exposes only allow-listed, platform-applicable keys |
 | Localization/help | `localization.py`, `translations_catalog.py`, `help_content.py` | content service, exporter, Vue locale/help clients | Russian catalog and `HELP_SECTIONS` remain canonical |
 | Word/Scrivener | `engine.py`, `scrivener_parser.py`, Qt workers | `nfprogress/core/services/integrations.py` | Desktop paths or explicit `.docx` upload; progress still uses project service |
@@ -143,10 +179,13 @@ fields rather than pretending their compatibility format is closed.
 
 ## Persistence and data safety
 
-`data.pkl` and `gamer.pkl` remain authoritative for their domains. Settings are
-authoritative in the `settings` table of `nfprogress.db`; `settings.pkl` is a
-retained legacy/import artifact and does not affect runtime after cutover. On
-Tauri desktop, TypeScript uses typed Rust settings commands with fixed SQL.
+`data.pkl` remains authoritative for projects/stages/progress and `gamer.pkl`
+remains authoritative for game. Settings are authoritative in the `settings`
+table of `nfprogress.db`; `settings.pkl` is a retained legacy/import artifact
+and does not affect runtime after cutover. Notes are authoritative in the
+`notes` table; legacy note records inside `data.pkl` do not affect runtime after
+cutover. On Tauri desktop, TypeScript uses typed Rust settings commands with
+fixed SQL.
 Repository operations are serialized
 by a shared process lock and a cross-platform advisory lock scoped to the
 explicit data directory. Writes use the existing atomic replacement behavior.
@@ -159,18 +198,20 @@ Successful repository writes best-effort rebuild the SQLite mirror after the
 PKL write. Mirror failures are logged and marked dirty; they never fail the
 user operation or modify PKL. Full rebuild is explicit with
 `python -m nfprogress.sqlite_migrate --data-dir PATH`; it creates a timestamped
-backup first. `python -m nfprogress.sqlite_verify --data-dir PATH` performs a
-semantic comparison and returns non-zero on mismatch. Original pickle files
-are never deleted or rewritten in a SQLite operation. Tests use temporary
-directories only.
+backup first and rebuilds only PKL-owned domains. Authoritative SQLite domains
+must be recovered from the database backup, not reconstructed from stale PKL.
+`python -m nfprogress.sqlite_verify --data-dir PATH` performs a semantic
+comparison for applicable legacy-owned domains and returns non-zero on
+mismatch. Original pickle files are never deleted or rewritten in a SQLite
+operation. Tests use temporary directories only.
 
 Storage ownership is tracked independently of mirror health in the versioned
 `storage_ownership` table. Current owners are `projects = pickle`,
 `settings = sqlite`, `notes = sqlite`, and `game = pickle`. The projects domain
 includes projects, stages, and progress entries. Mirror rebuilds synchronize
 only pickle-owned domains, so a SQLite-owned domain is never overwritten by a
-normal PKL rebuild. Settings completed the controlled cutover; no other domain
-has been cut over:
+normal PKL rebuild. Settings and Notes have completed controlled cutovers;
+Projects and Game have not.
 
 ```text
                  ownership
@@ -197,6 +238,8 @@ project/stage metadata and map documents. Tauri exposes fixed parameterized
 Notes commands with a fixed DB path, ownership and healthy-mirror relation
 guards, and no database creation or arbitrary SQL. Native map/XMind operations
 remain API-only during this phase so Mind Elixir normalization stays in Python.
+Legacy PKL data is retained only for PKL-owned domains and a future explicit
+import/recovery path; it is not a target desktop runtime store.
 
 The command checks `mirror_state.sync_status = 'healthy'` and runs fixed
 `SELECT` statements for projects, stages, and progress entries. A

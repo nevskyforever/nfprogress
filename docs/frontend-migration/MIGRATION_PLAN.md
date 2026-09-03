@@ -1,129 +1,228 @@
-# Frontend migration plan
+# NFProgress — полный план миграции
 
-Migration is delivered as verified vertical slices. Legacy packaging is
-retired; each slice must preserve existing user data and must not touch real
-user files in tests.
+Актуально после Notes cutover commit
+`9862658b7eede1cbcce098ac4b255f5f7171d888`.
 
-## Persistence preparation: PKL-authoritative shadow mirror
+Этот документ описывает миграцию runtime и ownership, а не только наличие
+готовых Vue/API экранов. `done` для feature означает реализованный workflow;
+мигрированным считается только subsystem, для которого authoritative state и
+mutations переведены на целевой storage.
 
-This stage deliberately does not migrate runtime reads or business logic:
+## Целевая архитектура
+
+### Desktop
 
 ```text
-Vue / TypeScript -> FastAPI -> Python Core -> PickleRepository -> PKL (authoritative)
-                                                               \-> SQLite (shadow)
+Vue / TypeScript
+       ↓
+TypeScript Core
+       ↓
+Rust / Tauri storage boundary
+       ↓
+SQLite
 ```
 
-The versioned `nfprogress.db` schema stores relational project, stage, progress,
-note, and settings rows. Complex legacy state, including the game state and
-extensible Mind Elixir data, remains standard UTF-8 JSON payload text. SQLite
-can be deleted and rebuilt from PKL. The intended future sequence is:
+Desktop не должен требовать Python, FastAPI, Nuitka sidecar или PKL для
+обычной работы. Legacy PKL importer может оставаться отдельным recovery/import
+инструментом.
 
-1. Phase 1: Python writes PKL and mirrors successful writes to SQLite.
-2. Phase 2: Python remains authoritative while mirror health is monitored.
-3. Phase 3: selected subsystems may write SQLite from TypeScript.
-4. Phase 4: TypeScript uses SQLite; Python is a compatibility layer.
-5. Phase 5: PKL is retained only as legacy import/backup format.
+### Web и cloud
 
-Phase 5 is now complete for settings and Notes. At startup, pickle-owned
-settings and Notes are imported and verified in separate SQLite transactions
-before their ownership rows change to SQLite. Projects/stages/progress and game
-remain pickle-owned.
+```text
+Vue / TypeScript → HTTPS → server backend → SQLite
+```
 
-### Storage ownership safety
+FastAPI/Python не удаляется только потому, что он больше не нужен desktop.
+Будущий web/cloud backend может остаться Python/FastAPI либо быть заменён
+отдельным server implementation; это не является desktop dependency.
 
-Ownership is recorded per subsystem in `storage_ownership`, separately from
-`mirror_state`. Current ownership is `projects = pickle`, `settings = sqlite`,
-`notes = sqlite`, and `game = pickle`. The mirror synchronizes the projects
-domain (projects/stages/progress) and each other domain independently, and
-skips any domain owned by SQLite. This prepares a future final-sync, verify,
-transactional-owner-switch cutover without introducing bidirectional sync.
-Settings and Notes use typed SQLite access from Python and fixed-command Tauri
-access from TypeScript. Their PKL representations remain legacy artifacts and
-are ignored after ownership switches. Projects/stages/progress and Game remain
-PKL-authoritative and continue to mirror into SQLite.
+## Текущая точка
 
-### Stage 3: read-only SQLite project repository
+```text
+projects/stages/progress = pickle authoritative
+settings                 = SQLite authoritative
+notes                    = SQLite authoritative
+game                     = pickle authoritative
+```
 
-The first SQLite-to-TypeScript path is limited to project, stage, and progress
-reads. Tauri's Rust bridge uses `rusqlite` in `SQLITE_OPEN_READ_ONLY` mode and
-exposes fixed queries only. The API remains the fallback and the only command
-source; no TypeScript SQLite writes or migrations are allowed. Manual list
-ordering is intentionally API-owned until `project_order` is represented safely
-in the mirror.
+```text
+Desktop Vue/TS
+   ├─ typed Rust → SQLite (settings, Notes CRUD/order, project reads)
+   └─ FastAPI/Python sidecar → SQLite + PKL (остальные операции)
+```
 
-## TS Core migration phase 1: pure project calculations
+SQLite остаётся mirror для PKL-owned projects/stages/progress и game. Mirror не
+имеет права перезаписывать SQLite-owned settings или Notes.
 
-The first TypeScript Core slice contains only verified, side-effect-free unit
-conversion, percentage, remaining-work, and project-form planning calculations.
-Python remains authoritative for persisted mutations and all model-derived
-plans. The TypeScript functions receive dates explicitly, preserve the legacy
-rounding rules, and use `null` with an explicit `infinite` flag for unbounded
-goals. This phase does not change the API, PKL, SQLite shadow mirror, or Python
-runtime calls.
+## Уже завершено
 
-## TS Core migration phase 2: read-only statistics
+1. SQLite schema/migration runner, shadow mirror, ownership table, explicit data
+   roots, locking, backup и verifier.
+2. TypeScript Core для pure project calculations.
+3. TypeScript Core для pure statistics subset; UI пока получает полный
+   statistics contract через API из-за Python-owned freezes/streaks.
+4. Read-only SQLite → Rust → TypeScript project repository с API fallback.
+5. Settings cutover: import/verify/switch transactionally; `settings.pkl` —
+   legacy/non-authoritative.
+6. Notes cutover: canonical DTO, stable IDs, map metadata, transaction-safe
+   import, SQLite Python repository, typed Rust CRUD/order, API fallback для
+   Mind Elixir/XMind, lifecycle deletion handling.
 
-`frontend/src/core/statistics` calculates the verified pure subset from JSON-safe
-project/stage data: entry counts, totals, averages, best day/weekday, project
-age, active-day percentage, and timeline. Stage projects aggregate stage entries
-as `get_notes_with_stage_names()` does; a selected stage uses only its entries.
-Dates come from serialized effective writing-day dates and the explicit planning
-date, so the core never reads the browser clock. The adapter merges these
-results with Python-owned `freezes_used`, `current_streak`, and `max_streak`.
-`/statistics`, PKL, and the SQLite shadow mirror remain unchanged.
+## Runtime inventory и оставшиеся Python dependencies
 
-## 1. Shared Python application layer
+| Subsystem | Current owner | Why Python is still required | Target | Blocker / stage |
+| --- | --- | --- | --- | --- |
+| Project/stage/progress mutations | PKL | `ProjectService`, legacy model, writing-day rules, validation and persistence run in Python; Vue sends mutations to API | TS Core rules + Rust SQLite commands/transactions | split storage and game side effects; stages P2–P4 |
+| Project reads | PKL, SQLite mirror | desktop already reads SQLite where possible, but manual ordering and API fallback still depend on PKL/API | complete SQLite read model including `project_order` | P1 |
+| Statistics | derived from PKL progress | full response still includes Python-owned streak/freeze semantics | TS Core + SQLite progress/read model | P3 |
+| Notes ordinary CRUD | SQLite | desktop direct path is Rust; Web/API compatibility remains Python | Rust SQLite + API server adapter | completed |
+| Notes map/XMind | SQLite note state + PKL map document | `engine.normalize_mindmap_data`, combined maps and XMind parser/reconciliation are Python | Rust/TS map core and SQLite map/document state, or retained server adapter | blocks Python removal for map workflows; P5 |
+| Settings | SQLite | project-coupled transitions (`inf_project`, global streak) still use API/Python | Rust transactions for all settings/project transitions | P4 |
+| Game state/rules | PKL | `game.py`, `game_data.py`, rewards, sessions, streaks, cabinet and inventory | TS Core + SQLite game tables/JSON DTO | depends on project/progress event contract; P6–P7 |
+| Word `.docx` | project PKL via Python service | local file parsing and progress application run in Python sidecar | Rust/TS DOCX reader and project command boundary | blocks sidecar removal; P5 |
+| Scrivener | project PKL via Python service | package/binder parsing, source snapshots and sync rules run in Python | Rust filesystem/parser service | blocks sidecar removal; P5 |
+| Documents | PKL/API | document metadata and project relation are served by Python; browser editor is TS | SQLite document repository + Rust local-file boundary | relation contract; P5 |
+| XMind import | API/Python | `xmind_import.py` and validation are server-side | TS/Rust importer or explicit server-only feature | blocks Python-free import; P5 |
+| Background synchronization | Python sidecar | async worker calls Word/Scrivener services and applies progress | Rust background worker with explicit event/locking model | blocks sidecar removal; P5 |
+| Startup | FastAPI/Nuitka sidecar | Tauri launches backend, waits for `/health`, obtains token/base URL | Tauri opens SQLite and initializes TS app directly | P8 |
+| Backup/restore/import | mixed | backup copies PKL and DB; no complete restore wizard exists | SQLite snapshot/restore plus isolated legacy importer | recovery design; P8 |
 
-1. Add a context-local data directory override and repository lock.
-2. Add JSON-safe serializers for projects, stages, progress, statistics,
-   settings, notes, mind maps, game state, inventory, challenges, sessions,
-   achievements, localization, and help.
-3. Implement project/stage CRUD, progress, statistics, notes/mind-map,
-   settings, game, and file-integration services.
-4. Cover storage isolation and service commands with focused tests.
+Compatibility imports of `engine.Project`, `Stage`, `Gamer`, and `Buff` must
+remain until all required legacy data can be read without those Python module
+paths.
 
-## 2. FastAPI contract
+## Dependency-driven remaining stages
 
-1. Add an application factory with dependency injection, centralized domain
-   errors, CORS, optional desktop session token, `/health`, and OpenAPI.
-2. Add thin routers for projects/stages/progress/statistics, notes/maps,
-   settings/content, game/session commands, and desktop file integrations.
-3. Add API tests for the critical workflows and malformed input.
+### Audit stage — current
 
-## 3. Vue/Ionic application
+Keep ownership unchanged. Maintain a dependency inventory, explicit desktop/web
+boundary, and exit criteria. No runtime cutover belongs in this stage.
 
-1. Create Vue 3 + TypeScript + Vite + Ionic Vue, Router, and Pinia setup.
-2. Add design tokens, responsive shell, theme selection, accessible focus and
-   reduced-motion behavior.
-3. Implement project workspace, stages, progress history, statistics, notes,
-   mind maps, game/rhythm/session surfaces, settings, and help against the real
-   API client.
-4. Add typecheck, Vitest/Vue Test Utils tests, production build, and focused
-   Playwright coverage when the browser environment supports it.
+### P1. Complete SQLite project read model
 
-## 4. Runtime targets
+Add stable representations for `project_order`, all project/stage fields used by
+Vue, effective writing-day dates and progress projections. Verify read parity
+without changing the project owner. Remove misleading “fully migrated” labels
+from documentation.
 
-1. Add Web/PWA manifest, direct-route fallback documentation, network/error
-   state, and environment-based remote API configuration. Do not claim an
-   offline shell or offline mutation queue until one is implemented.
-2. Add Capacitor iOS/Android targets, safe-area/platform styling, status bar,
-   external links, explicit file selection, icons/splash, and `cap sync` checks.
-3. Add Tauri 2 shell, minimal capabilities, dynamic loopback port/token,
-   Nuitka sidecar build scripts, health wait, startup errors, and reliable child
-   termination. Run `cargo check` and platform builds where SDKs exist.
+### P2. Project metadata and ordering boundary
 
-## 5. Parity and handoff
+Move project ordering and non-progress metadata commands behind storage-neutral
+interfaces and typed Rust commands. Keep project/stage lifecycle in compatibility
+mode until relation, Notes cleanup, backup and game side effects are covered.
 
-1. Run focused Python compatibility and service tests, frontend tests/typecheck/build,
-   Capacitor sync, and Tauri checks.
-2. Exercise critical end-to-end flows with a temporary data directory.
-3. Update README, architecture, platform limitations, and migration status.
-4. Keep compatibility code only where existing data or regression evidence
-   still requires it; do not publish PySide6 packages.
+### P3. Progress and calculation boundary
 
-## Definition of a migrated subsystem
+Move progress entries, unit conversion, goals, deadlines, writing-day semantics
+and pure statistics inputs to SQLite/TypeScript Core. Preserve exact legacy
+rounding and dates. Define a durable progress event/transaction contract before
+changing project ownership.
 
-A subsystem is marked done only when its real persistent data is read and
-mutated through the shared service/API, the frontend exposes its supported
-workflow without mock data, and relevant automated checks pass. A generated
-screen without backend integration remains in progress.
+### P4. Project/stage lifecycle and cross-domain effects
+
+Migrate create/update/delete/archive/complete flows, stage lifecycle, rename/move,
+manual ordering, Notes relations, map relations and backup behavior. Project and
+stage deletion must remove SQLite-owned Notes consistently. Do not switch owner
+until game/streak side effects have a defined single source of truth.
+
+### P5. Desktop filesystem and document boundary
+
+Replace or isolate Python implementations for Word, Scrivener, document metadata,
+XMind import, Mind Elixir map persistence and background synchronization. A
+temporary API-only path is acceptable, but it cannot satisfy the final
+Python-free desktop exit criteria. Verify local paths, stale/future sources,
+atomic detach, map reconciliation and imports.
+
+### P6. Game read model and pure rules
+
+Separate pure calculations from persistent `Gamer` state. Port catalog lookups,
+levels, rewards, challenges, sessions, motivation, mastery, cabinet and other
+pure rules to TypeScript Core with canonical Russian keys unchanged. Keep game
+owner PKL while parity tests and event inputs are built.
+
+### P7. Game persistence and project event integration
+
+Move game state to SQLite and make project progress/reward effects transactional
+or event-driven. Verify that one progress action cannot update PKL game and
+SQLite project state inconsistently. Only after this stage may project and game
+ownership switches be completed.
+
+### P8. Remove desktop Python runtime
+
+Move remaining startup, settings transitions, backup/restore, imports and local
+file operations behind Tauri/Rust. Remove FastAPI sidecar launch, `externalBin`
+Python backend, Nuitka desktop packaging and mandatory Python startup checks.
+Retain FastAPI as a separately deployed Web/cloud backend if desired.
+
+### P9. Legacy retirement and recovery
+
+Keep a separately tested PKL importer for existing users if required. PKL must
+not be read as runtime state. Define SQLite backup restore, schema upgrades,
+corruption recovery and migration diagnostics. Do not delete legacy data until
+recovery and release rollback procedures are proven.
+
+## Projects cutover blockers
+
+Projects cannot be switched as one blind monolith while project progress still
+triggers Python-owned game/streak updates. The safe decomposition is P1–P4,
+followed by P5 filesystem relations and P6–P7 game integration. Specific checks:
+
+- project/stage IDs and `project_order` must survive migration;
+- progress entries must preserve unit conversion, effective writing day,
+  deadlines, goals and statistics history;
+- Notes and Mind Elixir relations must use IDs, not object identity or position;
+- project/stage deletion must explicitly delete SQLite-owned Notes;
+- game rewards, streaks, freezes, sessions and creative-rhythm state must not
+  have a second authoritative copy;
+- Word/Scrivener/document bindings and backups must remain recoverable.
+
+Therefore Projects migration must be split into several stages, not implemented
+as a single storage flip.
+
+## Integration policy
+
+| Integration | Transitional policy | Final desktop target | Blocks Python removal |
+| --- | --- | --- | --- |
+| Word `.docx` | Python sidecar/API | Rust/TS local parser and progress command | yes |
+| Scrivener | Python sidecar/API | Rust parser and filesystem worker | yes |
+| XMind | API/Python | TS/Rust importer or explicitly server-only Web feature | yes for local desktop import |
+| Mind Elixir | TS editor, Python map normalization | TS/Rust canonical map core and SQLite persistence | yes while map edits require API |
+| Documents | TS editor + Python metadata API | SQLite metadata and Rust file boundary | yes if desktop needs local sync |
+| Background sync | Python only | Rust worker with explicit lock/event model | yes |
+
+## Backup, restore and compatibility
+
+`nfprogress.db` is already included in backups and contains authoritative
+settings and Notes. During mixed mode, backups also retain `data.pkl`,
+`settings.pkl`, and `gamer.pkl` for PKL-owned domains. The current repository has
+no complete restore wizard; replacing an SQLite-owned database with a legacy
+PKL-only backup must be an explicit compatibility import, never a silent startup
+fallback. Future recovery must restore SQLite as the authoritative snapshot and
+run PKL import only in a controlled, verified path.
+
+## Final desktop exit criteria
+
+- [ ] projects/stages/progress are SQLite-authoritative;
+- [x] settings are SQLite-authoritative;
+- [x] notes are SQLite-authoritative;
+- [ ] game is SQLite-authoritative;
+- [ ] all desktop business logic works without Python;
+- [ ] imports/exports work without the Python sidecar, or are explicitly
+  documented as server-only for Web;
+- [ ] Word/Scrivener have non-Python desktop implementations;
+- [ ] XMind import and Mind Elixir persistence work without Python;
+- [ ] backup/restore is SQLite-authoritative and tested;
+- [ ] startup does not launch FastAPI sidecar;
+- [ ] Tauri `externalBin` Python backend is removed;
+- [ ] Nuitka backend is absent from desktop builds;
+- [ ] PKL is not used as runtime storage;
+- [ ] legacy PKL import remains separately tested if retained;
+- [ ] desktop tests pass without an installed Python runtime;
+- [ ] Web/cloud backend contract is independently tested and documented.
+
+## Rules for each cutover
+
+Use a canonical DTO, controlled import, parity verification, transaction-safe
+ownership switch, explicit owner guards, idempotent startup, no write fallback
+to PKL after cutover, and focused cross-language tests. Never combine a storage
+switch with unrelated UI refactoring or the next subsystem migration.
