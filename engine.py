@@ -920,13 +920,38 @@ def now_for_test():
 
 def today_for_test():
     """Возвращает дату текущих суток с учетом выбранного времени их начала."""
-    current_datetime = now_for_test()
-    start_day_time = get_start_day_time()
-    current_time = current_datetime.time().replace(tzinfo=None)
+    return writing_day_for_datetime(now_for_test())
 
+
+def writing_day_for_datetime(value, settings=None):
+    """Возвращает писательский день, которому принадлежит ``value``.
+
+    Записи прогресса хранят дату именно этого дня, а не календарную дату
+    момента записи. Это позволяет всем расчётам дневной цели, написанного за
+    день и дедлайнов использовать одну и ту же границу суток.
+    """
+    if isinstance(value, datetime):
+        current_time = value.time().replace(tzinfo=None)
+        current_date = value.date()
+    elif isinstance(value, date):
+        return value
+    else:
+        raise TypeError('Ожидалась дата или дата и время.')
+
+    start_day_time = get_start_day_time() if settings is None else get_start_day_time(settings)
     if current_time < start_day_time:
-        return current_datetime.date() - timedelta(days=1)
-    return current_datetime.date()
+        return current_date - timedelta(days=1)
+    return current_date
+
+
+def writing_day_timestamp(value, settings=None):
+    """Сохраняет время записи, заменяя календарную дату датой её писательского дня."""
+    if not isinstance(value, datetime):
+        raise TypeError('Ожидались дата и время.')
+    return datetime.combine(
+        writing_day_for_datetime(value, settings),
+        value.time().replace(tzinfo=None),
+    )
 
 
 def get_start_day_time(settings=None):
@@ -1501,11 +1526,10 @@ class Project:
     @staticmethod
     def _get_note_progress_date(note):
         """Возвращает дату записи с учётом настроенного начала писательских суток."""
-        note_datetime = note.date_create
-        note_date = note_datetime.date()
-        if note_datetime.time().replace(tzinfo=None) < get_start_day_time():
-            return note_date - timedelta(days=1)
-        return note_date
+        # ``Note`` already stores its date as the writing-day date. Applying
+        # the start-of-day offset here a second time moved entries created
+        # before the boundary back by two calendar days.
+        return note.get_date_create()
 
     @property
     def progress(self):
@@ -2084,6 +2108,7 @@ class Project:
                 added_progress,
                 note.date_create,
                 entry_id=getattr(note, 'entry_id', None),
+                writing_day=note.get_date_create(),
             ))
 
         self.notes = merged
@@ -2323,7 +2348,7 @@ class Note:
 
     def __init__(
             self, new_total, added_symbols, added_progress, date_create=None,
-            entry_id=None):
+            entry_id=None, writing_day=None):
         if date_create is None:
             now = datetime.now()
             today = today_for_test()
@@ -2334,8 +2359,18 @@ class Note:
                 hour=now.hour,
                 minute=now.minute
             )
+        elif isinstance(writing_day, date):
+            self.date_create = datetime.combine(
+                writing_day,
+                date_create.time().replace(tzinfo=None),
+            )
         else:
-            self.date_create = date_create
+            # Explicit timestamps arrive from synchronization sources with
+            # their calendar date. Store them in the same writing-day form as
+            # regular progress entries, otherwise work made before the custom
+            # day start is excluded from today's amount and shifts the plan by
+            # one daily step.
+            self.date_create = writing_day_timestamp(date_create)
 
         self.new_total = new_total
         self.added_symbols = added_symbols

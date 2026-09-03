@@ -1550,7 +1550,8 @@ class MainWindow(QMainWindow, main_window_ui):
                         note.get_new_total(),
                         note.get_added_symbols(),
                         added_progress,
-                        note.date_create
+                        note.date_create,
+                        writing_day=note.get_date_create(),
                     )
 
                     # Заменяем заметку в списке

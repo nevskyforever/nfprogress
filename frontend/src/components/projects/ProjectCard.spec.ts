@@ -1,6 +1,6 @@
 import { createPinia } from 'pinia'
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { projectFixture } from '@/test/fixtures'
 
@@ -88,5 +88,22 @@ describe('ProjectCard', () => {
     })
 
     expect(wrapper.get('.project-card').attributes('draggable')).toBe('true')
+  })
+
+  it('uses the server writing day when marking a deadline overdue', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-26T01:30:00'))
+    const wrapper = mount(ProjectCard, {
+      props: {
+        project: projectFixture({ deadline: '2026-08-26', planning_date: '2026-08-25' }),
+      },
+      global: {
+        plugins: [createPinia()],
+        stubs: { IonIcon: true, RouterLink: { template: '<a><slot /></a>' } },
+      },
+    })
+
+    expect(wrapper.find('.project-card__deadline--overdue').exists()).toBe(false)
+    vi.useRealTimers()
   })
 })

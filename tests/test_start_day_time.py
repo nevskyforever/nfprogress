@@ -1,6 +1,7 @@
 from datetime import datetime, date
 
 import engine
+from nfprogress.core.serialization import serialize_project
 
 
 def test_day_before_start_time_belongs_to_previous_calendar_date(monkeypatch):
@@ -22,6 +23,29 @@ def test_midnight_is_used_when_setting_is_missing(monkeypatch):
     monkeypatch.setattr(engine, 'load_settings', lambda: {})
 
     assert engine.today_for_test() == date(2026, 7, 23)
+
+
+def test_progress_before_day_start_uses_the_current_writing_day(monkeypatch):
+    """A pre-boundary entry must not advance the displayed daily target."""
+    monkeypatch.setattr(engine, 'now_for_test', lambda: datetime(2026, 7, 23, 1, 30))
+    monkeypatch.setattr(engine, 'load_settings', lambda: {'start_day_time': '06:00:00'})
+
+    note = engine.Note(200, 100, 10, datetime(2026, 7, 23, 1, 20))
+    project = engine.Project(
+        name='Book', goal=1_000, deadline=date(2026, 7, 31), total_symbols=200,
+        personal_goal_for_the_day=100,
+    )
+    project.notes = [note]
+    project.project_plan = {}
+
+    assert note.get_date_create() == date(2026, 7, 22)
+    assert project.get_added_symbols_today_value() == 100
+    assert project.get_today_goal_value() == 200
+
+    payload = serialize_project(project)
+    assert payload['planning_date'] == '2026-07-22'
+    assert payload['added_today'] == 100
+    assert payload['today_goal'] == 200
 
 
 def test_project_streak_is_not_lost_when_day_start_time_moves_back(monkeypatch):

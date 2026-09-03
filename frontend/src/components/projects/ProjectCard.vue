@@ -38,7 +38,7 @@ const stageCountLabel = computed(() => {
 
 const isOverdue = computed(() => {
   if (!props.project.deadline || props.project.status !== 'активен') return false
-  return props.project.deadline.slice(0, 10) < new Date().toISOString().slice(0, 10)
+  return props.project.deadline.slice(0, 10) < props.project.planning_date
 })
 
 const showStreak = computed(() =>
