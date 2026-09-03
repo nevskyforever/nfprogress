@@ -124,8 +124,15 @@ class SQLiteMirrorRepository:
                 self._rows_for_entity(progress_rows, stage, project_id, stage['id'])
             self._rows_for_entity(progress_rows, payload, project_id, None)
 
+        preserve_notes = self.ownership.get_owner(Subsystem.NOTES) == StorageOwner.SQLITE
         with open_database(self.data_root) as db:
             with db:
+                preserved_notes = (
+                    db.execute(
+                        'SELECT id, project_id, stage_id, updated_at, payload_json FROM notes',
+                    ).fetchall()
+                    if preserve_notes else []
+                )
                 db.execute('DELETE FROM progress_entries')
                 db.execute('DELETE FROM stages')
                 db.execute('DELETE FROM projects')
@@ -141,6 +148,17 @@ class SQLiteMirrorRepository:
                     'INSERT INTO progress_entries(id,project_id,stage_id,created_at,added_symbols,added_progress,payload_json) VALUES(?,?,?,?,?,?,?)',
                     progress_rows,
                 )
+                if preserve_notes and preserved_notes:
+                    valid_projects = {row[0] for row in db.execute('SELECT id FROM projects')}
+                    valid_stages = {row[0] for row in db.execute('SELECT id FROM stages')}
+                    db.executemany(
+                        'INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json) VALUES(?,?,?,?,?)',
+                        [
+                            tuple(row) for row in preserved_notes
+                            if row['project_id'] in valid_projects
+                            and (row['stage_id'] is None or row['stage_id'] in valid_stages)
+                        ],
+                    )
 
     def sync_notes(self, projects: dict[str, Any]) -> None:
         """Synchronize only the notes table, leaving parent rows untouched."""

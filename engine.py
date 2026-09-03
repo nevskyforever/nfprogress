@@ -386,8 +386,23 @@ def normalize_project_note_records(value):
         if not isinstance(raw_record, dict):
             continue
         note_id = raw_record.get('id')
-        if not isinstance(note_id, str) or not note_id or note_id in seen_ids:
-            continue
+        if not isinstance(note_id, str) or not note_id:
+            # Old note dictionaries did not always carry an identity. Derive
+            # one from their stable position/content instead of silently
+            # losing them during model migration. The same legacy row gets
+            # the same ID on every load.
+            seed = json.dumps(
+                raw_record, ensure_ascii=False, sort_keys=True, default=str,
+            )
+            note_id = uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f'nfprogress-legacy-note:{index}:{seed}',
+            ).hex
+        if note_id in seen_ids:
+            note_id = uuid.uuid5(
+                uuid.NAMESPACE_URL,
+                f'nfprogress-legacy-note-collision:{index}:{note_id}',
+            ).hex
 
         source_type = raw_record.get('source_type', 'project')
         if source_type not in {'project', 'mindmap'}:

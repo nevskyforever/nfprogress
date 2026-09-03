@@ -16,6 +16,8 @@ export interface NoteChecklistItem {
 
 export interface ProjectNote {
   id: string
+  project_id: string
+  stage_id: string | null
   title: string
   display_title: string
   content: string
@@ -38,6 +40,7 @@ export interface ProjectNote {
   owner_order: number
   stage_name: string | null
   read_only: boolean
+  metadata?: JsonObject
 }
 
 export interface NotesViewContext {

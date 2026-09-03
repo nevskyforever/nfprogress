@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use std::thread;
 use std::time::{Duration, Instant};
 
+use rusqlite::OptionalExtension;
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
@@ -49,6 +50,574 @@ struct SqliteProjectReadModel {
 fn open_settings_database() -> Result<rusqlite::Connection, String> {
     let database = sqlite_data_root()?.join("nfprogress.db");
     rusqlite::Connection::open(database).map_err(|error| error.to_string())
+}
+
+fn open_notes_database(write: bool) -> Result<rusqlite::Connection, String> {
+    let database = sqlite_data_root()?.join("nfprogress.db");
+    if !database.is_file() {
+        return Err("База данных nfprogress не найдена.".to_string());
+    }
+    let flags = if write {
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
+    } else {
+        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
+    };
+    rusqlite::Connection::open_with_flags(database, flags)
+        .map_err(|error| format!("Не удалось открыть базу данных Notes: {error}"))
+}
+
+fn require_sqlite_notes_owner(connection: &rusqlite::Connection) -> Result<(), String> {
+    let owner: String = connection
+        .query_row(
+            "SELECT owner FROM storage_ownership WHERE subsystem = 'notes'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("Не удалось проверить ownership заметок: {error}"))?;
+    if owner != "sqlite" {
+        return Err("Прямая запись заметок недоступна до завершения миграции.".to_string());
+    }
+    Ok(())
+}
+
+fn require_note_relation(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<(), String> {
+    let healthy: String = connection
+        .query_row(
+            "SELECT sync_status FROM mirror_state WHERE id = 1",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("Не удалось проверить состояние SQLite mirror: {error}"))?;
+    if healthy != "healthy" {
+        return Err("SQLite mirror проектов недоступен для проверки связи заметки.".to_string());
+    }
+    connection
+        .query_row(
+            "SELECT 1 FROM projects WHERE id = ?1",
+            [project_id],
+            |_row| Ok(()),
+        )
+        .map_err(|_| "Проект больше не существует.".to_string())?;
+    if let Some(stage_id) = stage_id {
+        let parent: String = connection
+            .query_row(
+                "SELECT project_id FROM stages WHERE id = ?1",
+                [stage_id],
+                |row| row.get(0),
+            )
+            .map_err(|_| "Этап больше не существует.".to_string())?;
+        if parent != project_id {
+            return Err("Этап не относится к указанному проекту.".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn require_note_writable(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<(), String> {
+    let project_status: String = connection
+        .query_row(
+            "SELECT status FROM projects WHERE id = ?1",
+            [project_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if project_status == "завершен" {
+        return Err("Заметки завершённого проекта доступны только для просмотра.".to_string());
+    }
+    if let Some(stage_id) = stage_id {
+        let stage_status: String = connection
+            .query_row(
+                "SELECT status FROM stages WHERE id = ?1",
+                [stage_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if stage_status == "завершен" {
+            return Err("Заметки завершённого этапа доступны только для просмотра.".to_string());
+        }
+    }
+    Ok(())
+}
+
+fn note_time(connection: &rusqlite::Connection) -> Result<String, String> {
+    connection
+        .query_row("SELECT strftime('%Y-%m-%dT%H:%M:%SZ', 'now')", [], |row| {
+            row.get(0)
+        })
+        .map_err(|error| error.to_string())
+}
+
+fn raw_note_id(note_id: &str, aggregate: bool) -> &str {
+    if aggregate {
+        note_id.rsplit(':').next().unwrap_or(note_id)
+    } else {
+        note_id
+    }
+}
+
+fn new_note_id() -> Result<String, String> {
+    let mut bytes = [0_u8; 16];
+    getrandom::fill(&mut bytes).map_err(|error| error.to_string())?;
+    let mut value = String::with_capacity(32);
+    for byte in bytes {
+        write!(&mut value, "{byte:02x}").expect("writing to a String cannot fail");
+    }
+    Ok(value)
+}
+
+fn decorate_note(
+    connection: &rusqlite::Connection,
+    mut note: serde_json::Value,
+    aggregate: bool,
+) -> Result<serde_json::Value, String> {
+    let object = note
+        .as_object_mut()
+        .ok_or_else(|| "Некорректный payload заметки.".to_string())?;
+    let project_id = object
+        .get("project_id")
+        .and_then(|value| value.as_str())
+        .ok_or_else(|| "У заметки отсутствует project_id.".to_string())?;
+    let stage_id = object
+        .get("stage_id")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    let project_status: String = connection
+        .query_row(
+            "SELECT status FROM projects WHERE id = ?1",
+            [project_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let (owner_type, owner_id, stage_name, owner_order, stage_status) = if let Some(stage_id) =
+        stage_id.as_deref()
+    {
+        let (name, status): (String, String) = connection
+            .query_row(
+                "SELECT name, status FROM stages WHERE id = ?1",
+                [stage_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|error| error.to_string())?;
+        let order: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM stages WHERE project_id = ?1 AND rowid <= (SELECT rowid FROM stages WHERE id = ?2)",
+                rusqlite::params![project_id, stage_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        (
+            "stage",
+            stage_id.to_string(),
+            Some(name),
+            order,
+            Some(status),
+        )
+    } else {
+        ("project", project_id.to_string(), None, 0, None)
+    };
+    if aggregate {
+        let raw_id = object
+            .get("id")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        object.insert(
+            "id".to_string(),
+            serde_json::Value::String(format!("{owner_type}:{owner_id}:{raw_id}")),
+        );
+    }
+    object.insert(
+        "owner_type".to_string(),
+        serde_json::Value::String(owner_type.to_string()),
+    );
+    object.insert("owner_id".to_string(), serde_json::Value::String(owner_id));
+    object.insert(
+        "owner_order".to_string(),
+        serde_json::Value::Number(owner_order.into()),
+    );
+    object.insert(
+        "stage_name".to_string(),
+        stage_name.map_or(serde_json::Value::Null, serde_json::Value::String),
+    );
+    let content = object
+        .get("content")
+        .and_then(|value| value.as_str())
+        .unwrap_or_default();
+    if object.get("source_type").and_then(|value| value.as_str()) == Some("mindmap") {
+        let title = object
+            .get("title")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        let display = if title.is_empty() {
+            content
+                .lines()
+                .find(|line| !line.trim().is_empty())
+                .unwrap_or("Заметка карты")
+                .chars()
+                .take(100)
+                .collect()
+        } else {
+            title.to_string()
+        };
+        object.insert(
+            "display_title".to_string(),
+            serde_json::Value::String(display),
+        );
+        object.insert("system_tags".to_string(), serde_json::json!(["карта"]));
+    } else {
+        object.insert(
+            "display_title".to_string(),
+            object
+                .get("title")
+                .cloned()
+                .unwrap_or(serde_json::Value::String(String::new())),
+        );
+        object.insert("system_tags".to_string(), serde_json::json!([]));
+    }
+    object.insert(
+        "read_only".to_string(),
+        serde_json::Value::Bool(
+            project_status == "завершен" || stage_status.as_deref() == Some("завершен"),
+        ),
+    );
+    Ok(note)
+}
+
+#[tauri::command]
+fn list_notes(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
+    let connection = open_notes_database(false)?;
+    require_sqlite_notes_owner(&connection)?;
+    let mut notes = Vec::new();
+    if let Some(stage_id) = stage_id.as_deref() {
+        let mut statement = connection.prepare("SELECT payload_json FROM notes WHERE project_id = ?1 AND stage_id = ?2 ORDER BY json_extract(payload_json, '$.archived'), json_extract(payload_json, '$.pinned') DESC, json_extract(payload_json, '$.sort_order'), json_extract(payload_json, '$.created_at'), rowid").map_err(|error| error.to_string())?;
+        for row in statement
+            .query_map(rusqlite::params![project_id, stage_id], |row| {
+                row.get::<_, String>(0)
+            })
+            .map_err(|error| error.to_string())?
+        {
+            let payload = row.map_err(|error| error.to_string())?;
+            notes.push(
+                serde_json::from_str::<serde_json::Value>(&payload)
+                    .map_err(|error| error.to_string())?,
+            );
+        }
+    } else {
+        let mut statement = connection.prepare("SELECT payload_json FROM notes WHERE project_id = ?1 ORDER BY json_extract(payload_json, '$.archived'), json_extract(payload_json, '$.pinned') DESC, json_extract(payload_json, '$.sort_order'), json_extract(payload_json, '$.created_at'), rowid").map_err(|error| error.to_string())?;
+        for row in statement
+            .query_map(rusqlite::params![project_id], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?
+        {
+            let payload = row.map_err(|error| error.to_string())?;
+            notes.push(
+                serde_json::from_str::<serde_json::Value>(&payload)
+                    .map_err(|error| error.to_string())?,
+            );
+        }
+    }
+    let aggregate = stage_id.is_none();
+    let notes = notes
+        .into_iter()
+        .map(|note| decorate_note(&connection, note, aggregate))
+        .collect::<Result<Vec<_>, _>>()?;
+    let stages = if aggregate {
+        let mut rows = connection
+            .prepare("SELECT id, name FROM stages WHERE project_id = ?1 ORDER BY rowid")
+            .map_err(|error| error.to_string())?;
+        let values = rows.query_map([&project_id], |row| Ok(serde_json::json!({"id": row.get::<_, String>(0)?, "name": row.get::<_, String>(1)?})))
+            .map_err(|error| error.to_string())?.map(|row| row.map_err(|error| error.to_string())).collect::<Result<Vec<_>, _>>()?
+            ;
+        values
+    } else {
+        Vec::new()
+    };
+    let status: String = connection
+        .query_row(
+            "SELECT status FROM projects WHERE id = ?1",
+            [&project_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(
+        serde_json::json!({"notes": notes, "read_only": status == "завершен", "context": {"hasStages": !stages.is_empty(), "stages": stages}}),
+    )
+}
+
+#[tauri::command]
+fn get_note(
+    project_id: String,
+    note_id: String,
+    stage_id: Option<String>,
+) -> Result<Option<serde_json::Value>, String> {
+    let response = list_notes(project_id, stage_id.clone())?;
+    let notes = response
+        .get("notes")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    Ok(notes.into_iter().find(|note| {
+        let id = note.get("id").and_then(|value| value.as_str());
+        id == Some(note_id.as_str())
+            || (stage_id.is_none()
+                && id.is_some_and(|value| value.ends_with(&format!(":{note_id}"))))
+    }))
+}
+
+#[tauri::command]
+fn create_note(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    require_note_relation(&connection, &project_id, stage_id.as_deref())?;
+    require_note_writable(&connection, &project_id, stage_id.as_deref())?;
+    let now = note_time(&connection)?;
+    let id = new_note_id()?;
+    let sort_order: i64 = connection.query_row(
+        "SELECT COALESCE(MAX(json_extract(payload_json, '$.sort_order')), -1) + 1 FROM notes WHERE project_id = ?1",
+        [&project_id], |row| row.get(0),
+    ).map_err(|error| error.to_string())?;
+    let payload = serde_json::json!({"id": id, "project_id": project_id, "stage_id": stage_id, "title": "", "content": "", "content_format": "html", "checklist": [], "color": "default", "pinned": false, "archived": false, "sort_order": sort_order, "tags": [], "source_type": "project", "source_map_id": null, "source_node_id": null, "created_at": now, "updated_at": now, "revision": 0, "metadata": {}});
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    tx.execute("INSERT INTO notes(id, project_id, stage_id, updated_at, payload_json) VALUES(?1, ?2, ?3, ?4, ?5)", rusqlite::params![id, project_id, stage_id, now, payload.to_string()]).map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())?;
+    get_note(project_id, id, stage_id)?.ok_or_else(|| "Созданная заметка не найдена.".to_string())
+}
+
+#[tauri::command]
+fn update_note(
+    project_id: String,
+    note_id: String,
+    patch: serde_json::Value,
+    stage_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    require_note_relation(&connection, &project_id, stage_id.as_deref())?;
+    require_note_writable(&connection, &project_id, stage_id.as_deref())?;
+    let raw_id = raw_note_id(&note_id, stage_id.is_none()).to_string();
+    let mut note: serde_json::Value = connection
+        .query_row(
+            "SELECT payload_json FROM notes WHERE id = ?1 AND project_id = ?2",
+            rusqlite::params![raw_id, project_id],
+            |row| row.get::<_, String>(0),
+        )
+        .map_err(|_| "Заметка больше не существует.".to_string())
+        .and_then(|value| serde_json::from_str(&value).map_err(|error| error.to_string()))?;
+    let note_stage_id = note
+        .get("stage_id")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    require_note_relation(&connection, &project_id, note_stage_id.as_deref())?;
+    require_note_writable(&connection, &project_id, note_stage_id.as_deref())?;
+    let patch = patch
+        .as_object()
+        .ok_or_else(|| "Некорректные данные заметки.".to_string())?;
+    let target = note
+        .as_object_mut()
+        .ok_or_else(|| "Некорректный payload заметки.".to_string())?;
+    for key in patch.keys() {
+        if !matches!(
+            key.as_str(),
+            "title" | "content" | "tags" | "checklist" | "color" | "pinned" | "archived"
+        ) {
+            return Err(format!("Недопустимое поле заметки: {key}"));
+        }
+    }
+    for (key, value) in patch {
+        match key.as_str() {
+            "title" | "content" | "color" => {
+                let text = value
+                    .as_str()
+                    .unwrap_or_else(|| if value.is_null() { "" } else { "\0" });
+                if text.contains('\0') {
+                    return Err(format!("Поле {key} имеет неверный тип."));
+                }
+                let limit = if key == "title" { 500 } else { 300_000 };
+                if text.chars().count() > limit {
+                    return Err(if key == "content" {
+                        "Текст заметки слишком длинный.".to_string()
+                    } else {
+                        "Заголовок заметки слишком длинный.".to_string()
+                    });
+                }
+                let normalized = if key == "color"
+                    && !matches!(
+                        text,
+                        "default"
+                            | "coral"
+                            | "orange"
+                            | "yellow"
+                            | "green"
+                            | "teal"
+                            | "blue"
+                            | "purple"
+                            | "pink"
+                            | "brown"
+                            | "gray"
+                    ) {
+                    "default"
+                } else {
+                    text
+                };
+                target.insert(
+                    key.clone(),
+                    serde_json::Value::String(normalized.to_string()),
+                );
+            }
+            "tags" => {
+                if value.is_null() {
+                    target.insert(key.clone(), serde_json::json!([]));
+                } else if let Some(tags) = value.as_array() {
+                    if tags.iter().any(|tag| !tag.is_string()) {
+                        return Err(format!("Поле {key} имеет неверный тип."));
+                    }
+                    target.insert(key.clone(), value.clone());
+                } else {
+                    return Err(format!("Поле {key} имеет неверный тип."));
+                }
+            }
+            "checklist" => {
+                if value.is_null() || value.is_array() {
+                    target.insert(
+                        key.clone(),
+                        if value.is_null() {
+                            serde_json::json!([])
+                        } else {
+                            value.clone()
+                        },
+                    );
+                } else {
+                    return Err(format!("Поле {key} имеет неверный тип."));
+                }
+            }
+            "pinned" | "archived" => {
+                if value.is_null() {
+                    target.insert(key.clone(), serde_json::Value::Bool(false));
+                } else if value.is_boolean() {
+                    target.insert(key.clone(), value.clone());
+                } else {
+                    return Err(format!("Поле {key} имеет неверный тип."));
+                }
+            }
+            _ => unreachable!("validated note patch key"),
+        }
+    }
+    let now = note_time(&connection)?;
+    let revision = target
+        .get("revision")
+        .and_then(|value| value.as_i64())
+        .unwrap_or(0)
+        .saturating_add(1);
+    target.insert("revision".to_string(), revision.into());
+    target.insert(
+        "updated_at".to_string(),
+        serde_json::Value::String(now.clone()),
+    );
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    tx.execute(
+        "UPDATE notes SET updated_at = ?1, payload_json = ?2 WHERE id = ?3 AND project_id = ?4",
+        rusqlite::params![now, note.to_string(), raw_id, project_id],
+    )
+    .map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())?;
+    get_note(project_id, note_id, stage_id)?
+        .ok_or_else(|| "Изменённая заметка не найдена.".to_string())
+}
+
+#[tauri::command]
+fn delete_note(
+    project_id: String,
+    note_id: String,
+    stage_id: Option<String>,
+) -> Result<(), String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    require_note_relation(&connection, &project_id, stage_id.as_deref())?;
+    require_note_writable(&connection, &project_id, stage_id.as_deref())?;
+    let raw_id = raw_note_id(&note_id, stage_id.is_none()).to_string();
+    let note_payload: String = connection
+        .query_row(
+            "SELECT payload_json FROM notes WHERE id = ?1 AND project_id = ?2",
+            rusqlite::params![raw_id, project_id],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Заметка больше не существует.".to_string())?;
+    let note_stage_id = serde_json::from_str::<serde_json::Value>(&note_payload)
+        .map_err(|error| error.to_string())?
+        .get("stage_id")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
+    require_note_relation(&connection, &project_id, note_stage_id.as_deref())?;
+    require_note_writable(&connection, &project_id, note_stage_id.as_deref())?;
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    let deleted = tx
+        .execute(
+            "DELETE FROM notes WHERE id = ?1 AND project_id = ?2",
+            rusqlite::params![raw_id, project_id],
+        )
+        .map_err(|error| error.to_string())?;
+    if deleted != 1 {
+        return Err("Заметка больше не существует.".to_string());
+    }
+    tx.commit().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn reorder_notes(
+    project_id: String,
+    note_ids: Vec<String>,
+    stage_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let mut connection = open_notes_database(true)?;
+    require_sqlite_notes_owner(&connection)?;
+    require_note_relation(&connection, &project_id, stage_id.as_deref())?;
+    require_note_writable(&connection, &project_id, stage_id.as_deref())?;
+    let aggregate = stage_id.is_none();
+    for note_id in &note_ids {
+        let raw_id = raw_note_id(note_id, aggregate);
+        let payload: Option<String> = connection
+            .query_row(
+                "SELECT payload_json FROM notes WHERE id = ?1 AND project_id = ?2",
+                rusqlite::params![raw_id, project_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        if let Some(payload) = payload {
+            let note = serde_json::from_str::<serde_json::Value>(&payload)
+                .map_err(|error| error.to_string())?;
+            let note_stage_id = note
+                .get("stage_id")
+                .and_then(|value| value.as_str())
+                .map(str::to_string);
+            require_note_relation(&connection, &project_id, note_stage_id.as_deref())?;
+            require_note_writable(&connection, &project_id, note_stage_id.as_deref())?;
+        }
+    }
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    for (index, note_id) in note_ids.iter().enumerate() {
+        let raw_id = raw_note_id(note_id, aggregate);
+        tx.execute(
+            "UPDATE notes SET updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), payload_json = json_set(payload_json, '$.sort_order', ?1, '$.revision', COALESCE(json_extract(payload_json, '$.revision'), 0) + 1) WHERE id = ?2 AND project_id = ?3",
+            rusqlite::params![index as i64, raw_id, project_id],
+        ).map_err(|error| error.to_string())?;
+    }
+    tx.commit().map_err(|error| error.to_string())?;
+    list_notes(project_id, stage_id)
 }
 
 fn require_sqlite_settings_owner(connection: &rusqlite::Connection) -> Result<(), String> {
@@ -918,6 +1487,12 @@ pub fn run() {
             read_sqlite_projects,
             get_settings,
             set_settings,
+            list_notes,
+            get_note,
+            create_note,
+            update_note,
+            delete_note,
+            reorder_notes,
             fetch_update_manifest,
             install_macos_update
         ])

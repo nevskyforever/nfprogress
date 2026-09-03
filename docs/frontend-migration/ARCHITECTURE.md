@@ -166,7 +166,7 @@ directories only.
 
 Storage ownership is tracked independently of mirror health in the versioned
 `storage_ownership` table. Current owners are `projects = pickle`,
-`settings = sqlite`, `notes = pickle`, and `game = pickle`. The projects domain
+`settings = sqlite`, `notes = sqlite`, and `game = pickle`. The projects domain
 includes projects, stages, and progress entries. Mirror rebuilds synchronize
 only pickle-owned domains, so a SQLite-owned domain is never overwritten by a
 normal PKL rebuild. Settings completed the controlled cutover; no other domain
@@ -178,14 +178,25 @@ has been cut over:
 
 projects → pickle ─────→ SQLite mirror
 settings → sqlite ─────── SQLite authoritative
-notes    → pickle ─────→ SQLite mirror
+notes    → sqlite ─────── SQLite authoritative
 game     → pickle ─────→ SQLite mirror
 ```
 
-Startup imports the complete legacy settings state, verifies its JSON
-projection, and commits the ownership switch in the same transaction. Normal
-backups include `nfprogress.db` when present; web and non-Tauri clients retain
-the FastAPI settings path.
+Startup imports the complete legacy settings and Notes state, verifies each JSON
+projection, and commits each ownership switch in its own SQLite transaction.
+Notes are reconstructed from `Project.project_notes` and `Stage.project_notes`;
+map-note text is materialized from `mindmap_data` while `source_map_id` and
+`source_node_id` preserve the bidirectional link. Missing legacy note IDs get
+deterministic UUID5 identities. PKL note records remain as compatibility data,
+but are never read by the Notes service after the switch. Normal backups always
+include `nfprogress.db`. There is no restore wizard; a PKL-only legacy backup
+is imported on startup when the Notes ownership row is still `pickle`.
+
+Python selects `SQLiteNotesRepository` after cutover and uses PKL only for
+project/stage metadata and map documents. Tauri exposes fixed parameterized
+Notes commands with a fixed DB path, ownership and healthy-mirror relation
+guards, and no database creation or arbitrary SQL. Native map/XMind operations
+remain API-only during this phase so Mind Elixir normalization stays in Python.
 
 The command checks `mirror_state.sync_status = 'healthy'` and runs fixed
 `SELECT` statements for projects, stages, and progress entries. A

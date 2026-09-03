@@ -148,6 +148,7 @@ class ProjectService:
     def update_project(
             self, project_id: str, payload: dict[str, Any],
     ) -> dict[str, Any]:
+        notes_repository = getattr(self.repository, 'notes_repository', lambda: None)()
         def mutate(data):
             project = self._find_project(data, project_id)
             if self._is_shared_project(project):
@@ -175,6 +176,9 @@ class ProjectService:
             requested_stages = payload.get('stages_enabled')
             convert_to_stages = requested_stages is True and not project.has_stages()
             if requested_stages is False and project.has_stages():
+                if notes_repository is not None:
+                    for stage in project.stages:
+                        notes_repository.delete_for_stage(project.project_id, stage.stage_id)
                 project.convert_to_single()
 
             if 'infinite' in payload or 'goal' in payload:
@@ -262,6 +266,14 @@ class ProjectService:
         return normalized
 
     def delete_project(self, project_id: str) -> None:
+        notes_repository = getattr(self.repository, 'notes_repository', lambda: None)()
+        if notes_repository is not None:
+            self._find_project(self.repository.read_projects(), project_id)
+            # Notes are a separate authoritative domain. Remove them before
+            # removing the PKL project so no orphaned SQLite notes survive a
+            # normal project deletion.
+            notes_repository.delete_for_project(project_id)
+
         def mutate(data):
             project = self._find_project(data, project_id)
             if self._is_shared_project(project):
@@ -565,6 +577,12 @@ class ProjectService:
         return self.repository.update_projects(mutate)
 
     def delete_stage(self, project_id: str, stage_id: str) -> None:
+        notes_repository = getattr(self.repository, 'notes_repository', lambda: None)()
+        if notes_repository is not None:
+            project = self._find_project(self.repository.read_projects(), project_id)
+            self._find_stage(project, stage_id)
+            notes_repository.delete_for_stage(project_id, stage_id)
+
         def mutate(data):
             project = self._find_project(data, project_id)
             stage = self._find_stage(project, stage_id)

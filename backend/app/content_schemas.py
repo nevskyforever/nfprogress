@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, JsonValue
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 SupportedLanguage = Literal['ru', 'en', 'es', 'de', 'fr', 'pt_BR']
@@ -72,6 +72,8 @@ class NoteChecklistItemResponse(ResponseModel):
 
 class ProjectNoteResponse(ResponseModel):
     id: str
+    project_id: str | None = None
+    stage_id: str | None = None
     title: str
     display_title: str
     content: str
@@ -94,6 +96,7 @@ class ProjectNoteResponse(ResponseModel):
     owner_order: int
     stage_name: str | None
     read_only: bool
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
 
 
 class NotesContextStageResponse(ResponseModel):

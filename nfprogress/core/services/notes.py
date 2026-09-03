@@ -390,6 +390,16 @@ class ProjectNotesService:
         self.developer_mode = bool(developer_mode)
         self._cache: dict[str, dict] = {}
         self._map_commands: list[dict[str, str]] = []
+        # The legacy implementation remains available for pickle-owned data
+        # and compatibility tests. Once Notes ownership switches, all note
+        # reads and writes are delegated to the SQLite-backed service; project
+        # objects are used only for project/stage metadata and map documents.
+        notes_repository = getattr(repository, 'notes_repository', lambda: None)()
+        self._sqlite_service = (
+            _SQLiteNotesService(repository, notes_repository, project_id, stage_id,
+                                developer_mode=developer_mode)
+            if notes_repository is not None else None
+        )
 
     @property
     def entity_key(self) -> tuple[str, str]:
@@ -399,10 +409,14 @@ class ProjectNotesService:
 
     @property
     def last_map_command(self) -> dict[str, str] | None:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.last_map_command
         return deepcopy(self._map_commands[-1]) if self._map_commands else None
 
     def consume_map_commands(self) -> list[dict[str, str]]:
         """Return and clear UI synchronization commands produced by CRUD."""
+        if self._sqlite_service is not None:
+            return self._sqlite_service.consume_map_commands()
         commands = deepcopy(self._map_commands)
         self._map_commands.clear()
         return commands
@@ -691,6 +705,8 @@ class ProjectNotesService:
         return {'hasStages': bool(stages), 'stages': stages}
 
     def load_notes(self) -> dict:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.load_notes()
         project, entity = self._load_reconciled()
         notes = self._project_all(project, entity)
         self._remember(notes)
@@ -732,6 +748,8 @@ class ProjectNotesService:
         return None, None, None
 
     def get_note(self, note_id: str) -> dict | None:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.get_note(note_id)
         project, entity = self._load_reconciled()
         owner, record, stage_name = self._find_record(
             project,
@@ -748,6 +766,8 @@ class ProjectNotesService:
         )
 
     def get_map_target(self, note_id: str) -> dict | None:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.get_map_target(note_id)
         project, entity = self._load_reconciled()
         owner, record, _stage_name = self._find_record(
             project,
@@ -769,6 +789,8 @@ class ProjectNotesService:
         }
 
     def create_note(self) -> dict:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.create_note()
         self._map_commands.clear()
 
         def mutate(data: dict[str, Any]) -> dict:
@@ -818,6 +840,8 @@ class ProjectNotesService:
         return self.repository.update_projects(mutate)
 
     def update_note(self, note_id: str, patch: object) -> dict:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.update_note(note_id, patch)
         if not isinstance(patch, dict):
             raise ValidationError('Некорректные данные заметки.')
         self._map_commands.clear()
@@ -935,6 +959,8 @@ class ProjectNotesService:
         return self.repository.update_projects(mutate)
 
     def delete_note(self, note_id: str) -> dict:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.delete_note(note_id)
         self._map_commands.clear()
 
         def mutate(data: dict[str, Any]) -> dict:
@@ -980,6 +1006,8 @@ class ProjectNotesService:
         return self.repository.update_projects(mutate)
 
     def update_order(self, note_ids: object) -> dict:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.update_order(note_ids)
         if not isinstance(note_ids, list):
             return {'changed': False, 'notes': self.load_notes()['notes']}
 
@@ -1054,6 +1082,8 @@ class ProjectNotesService:
         }
 
     def get_mindmap(self) -> dict:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.get_mindmap()
         data = self.repository.read_projects()
         project, entity = self._resolve(data)
         return self._mindmap_payload(project, entity)
@@ -1093,6 +1123,8 @@ class ProjectNotesService:
         entity.notes_updated_at = _now_iso()
 
     def update_mindmap(self, mindmap_data: object) -> dict:
+        if self._sqlite_service is not None:
+            return self._sqlite_service.update_mindmap(mindmap_data)
         """Validate and persist a map, then reconcile its linked note cards."""
         normalized = engine.normalize_mindmap_data(mindmap_data)
         if normalized is None:
@@ -1183,6 +1215,343 @@ class ProjectNotesService:
     def update_map(self, mindmap_data: object) -> dict:
         """API-friendly alias for :meth:`update_mindmap`."""
         return self.update_mindmap(mindmap_data)
+
+
+class _SQLiteNotesService:
+    """Notes behavior over SQLite while projects/maps remain PKL-owned."""
+
+    def __init__(self, repository, notes_repository, project_id, stage_id, *, developer_mode=False):
+        self.repository = repository
+        self.notes_repository = notes_repository
+        self.project_id = project_id
+        self.stage_id = stage_id
+        self.developer_mode = bool(developer_mode)
+        self._map_commands: list[dict[str, str]] = []
+
+    def _resolve(self, data):
+        projects = data.get('projects', {}) if isinstance(data, dict) else {}
+        project = next((item for item in projects.values()
+                        if getattr(item, 'project_id', None) == self.project_id), None)
+        if project is None:
+            raise NotFoundError('Проект больше не существует.')
+        if self.stage_id is None:
+            return project, project
+        stage = next((item for item in getattr(project, 'stages', [])
+                      if getattr(item, 'stage_id', None) == self.stage_id), None)
+        if stage is None:
+            raise NotFoundError('Этап больше не существует.')
+        return project, stage
+
+    @staticmethod
+    def _aggregate(project, entity):
+        return entity is project and _has_stages(project)
+
+    @staticmethod
+    def _identity(entity):
+        return ('stage', str(entity.stage_id)) if _is_stage(entity) else ('project', str(entity.project_id))
+
+    @classmethod
+    def _view_id(cls, entity, note_id, aggregate):
+        if not aggregate:
+            return note_id
+        kind, owner_id = cls._identity(entity)
+        return f'{kind}:{owner_id}:{note_id}'
+
+    @staticmethod
+    def _read_only(entity, developer_mode):
+        return getattr(entity, 'status', None) == 'завершен' and (_is_stage(entity) or not developer_mode)
+
+    def _require_writable(self, entity):
+        if self._read_only(entity, self.developer_mode):
+            raise ValidationError('Заметки завершённого проекта доступны только для просмотра.')
+
+    @staticmethod
+    def _map_payload(project, entity):
+        combined = bool(entity is project and _has_stages(project)
+                        and getattr(project, 'combine_stage_mindmaps', False))
+        data = (engine.compose_project_mindmap(project) if combined else
+                engine.normalize_mindmap_data(getattr(entity, 'mindmap_data', None)))
+        return {
+            'project_id': str(project.project_id),
+            'stage_id': str(entity.stage_id) if _is_stage(entity) else None,
+            'name': str(entity.name), 'data': deepcopy(data), 'combined': combined,
+            'read_only': _SQLiteNotesService._read_only(entity, False),
+            'has_empty_completed_stage_map': bool(combined and any(
+                getattr(stage, 'status', None) == 'завершен'
+                and not engine.mindmap_has_content(getattr(stage, 'mindmap_data', None), str(stage.name))
+                for stage in getattr(project, 'stages', []))),
+        }
+
+    def _owners(self, project, entity):
+        if not self._aggregate(project, entity):
+            return [(entity, None)]
+        return [(project, None), *[(stage, str(stage.name)) for stage in project.stages]]
+
+    def _project_note(self, entity, raw, aggregate, stage_name=None, owner_order=0):
+        note = deepcopy(raw)
+        note['id'] = self._view_id(entity, raw['id'], aggregate)
+        note['owner_type'], note['owner_id'] = self._identity(entity)
+        note['owner_order'] = owner_order
+        note['stage_name'] = stage_name if aggregate else None
+        if raw.get('source_type') == 'mindmap':
+            note['display_title'] = raw.get('title') or _derived_map_title(raw.get('content', ''))
+            note['system_tags'] = [SYSTEM_MAP_TAG]
+        else:
+            note['content'] = sanitize_note_html(raw.get('content', ''))
+            note['display_title'] = raw.get('title', '')
+            note['system_tags'] = []
+        note['read_only'] = self._read_only(entity, self.developer_mode)
+        return note
+
+    def _all(self, project, entity):
+        aggregate = self._aggregate(project, entity)
+        projected = []
+        for order, (owner, stage_name) in enumerate(self._owners(project, entity)):
+            stage_id = str(owner.stage_id) if _is_stage(owner) else None
+            for raw in self.notes_repository.list(self.project_id, stage_id):
+                projected.append((order, self._project_note(owner, raw, aggregate, stage_name, order)))
+        projected.sort(key=lambda item: (item[1]['archived'], not item[1]['pinned'],
+                                         item[1]['sort_order'], item[1]['created_at'], item[0]))
+        return [item[1] for item in projected]
+
+    def load_notes(self):
+        project, entity = self._resolve(self.repository.read_projects())
+        notes = self._all(project, entity)
+        stages = [{'id': str(stage.stage_id), 'name': str(stage.name)} for stage in project.stages]
+        return {'notes': notes, 'read_only': self._read_only(entity, self.developer_mode),
+                'context': {'hasStages': bool(stages) if entity is project else False,
+                            'stages': stages if entity is project else []}}
+
+    def get_note(self, note_id):
+        project, entity = self._resolve(self.repository.read_projects())
+        aggregate = self._aggregate(project, entity)
+        for order, (owner, stage_name) in enumerate(self._owners(project, entity)):
+            stage_id = str(owner.stage_id) if _is_stage(owner) else None
+            for raw in self.notes_repository.list(self.project_id, stage_id):
+                if self._view_id(owner, raw['id'], aggregate) == note_id:
+                    return self._project_note(owner, raw, aggregate, stage_name, order)
+        return None
+
+    def get_map_target(self, note_id):
+        note = self.get_note(note_id)
+        if note is None or note.get('source_type') != 'mindmap':
+            return None
+        return {'project_id': self.project_id, 'stage_id': note.get('stage_id'),
+                'node_id': note.get('source_node_id')}
+
+    def create_note(self):
+        self._map_commands.clear()
+        project, entity = self._resolve(self.repository.read_projects())
+        self._require_writable(entity)
+        stage_id = str(entity.stage_id) if _is_stage(entity) else None
+        current = self.notes_repository.list_all(self.project_id)
+        now = _now_iso()
+        raw = {
+            'id': uuid.uuid4().hex, 'project_id': self.project_id, 'stage_id': stage_id,
+            'title': '', 'content': '', 'content_format': 'html', 'checklist': [],
+            'color': 'default', 'pinned': False, 'archived': False,
+            'sort_order': max((item.get('sort_order', -1) for item in current), default=-1) + 1,
+            'tags': [], 'source_type': 'project', 'source_map_id': None,
+            'source_node_id': None, 'created_at': now, 'updated_at': now,
+            'revision': 0, 'metadata': {},
+        }
+        self.notes_repository.create(raw)
+        note = self.get_note(raw['id'])
+        assert note is not None
+        return note
+
+    def update_note(self, note_id, patch):
+        self._map_commands.clear()
+        if not isinstance(patch, dict):
+            raise ValidationError('Некорректные данные заметки.')
+        project, entity = self._resolve(self.repository.read_projects())
+        aggregate = self._aggregate(project, entity)
+        owner = record = stage_name = None
+        for candidate, candidate_stage in self._owners(project, entity):
+            stage_id = str(candidate.stage_id) if _is_stage(candidate) else None
+            for raw in self.notes_repository.list(self.project_id, stage_id):
+                if self._view_id(candidate, raw['id'], aggregate) == note_id:
+                    owner, record, stage_name = candidate, raw, candidate_stage
+                    break
+            if record is not None:
+                break
+        if owner is None or record is None:
+            raise NotFoundError('Заметка больше не существует.')
+        self._require_writable(owner)
+        update = {}
+        if 'title' in patch:
+            update['title'] = str(patch.get('title') or '').replace('\x00', '')[:MAX_TITLE_LENGTH]
+        if 'tags' in patch:
+            update['tags'] = _normalize_tags(patch['tags'])
+        if 'color' in patch:
+            update['color'] = patch['color'] if patch['color'] in engine.PROJECT_NOTE_COLORS else 'default'
+        for field in ('pinned', 'archived'):
+            if field in patch:
+                update[field] = bool(patch[field])
+        if record.get('source_type') == 'mindmap' and 'content' in patch:
+            text = str(patch.get('content') or '').replace('\x00', '')[:MAX_CONTENT_LENGTH]
+            def save_map(data):
+                project_value, map_owner = self._resolve(data)
+                if _is_stage(owner):
+                    map_owner = next(
+                        stage for stage in getattr(project_value, 'stages', [])
+                        if str(stage.stage_id) == str(owner.stage_id)
+                    )
+                else:
+                    map_owner = project_value
+                updated = set_mindmap_note_text(getattr(map_owner, 'mindmap_data', None), record['source_node_id'], text)
+                if updated is None:
+                    raise ConflictError('Связанная заметка карты больше не существует.')
+                map_owner.mindmap_data = updated
+                map_owner.mindmap_updated_at = _now_iso()
+            self.repository.update_projects(save_map)
+            update['content'] = text
+            self._map_commands.append({'command': 'update', 'node_id': record['source_node_id'], 'text': text})
+        elif 'content' in patch:
+            update['content'] = sanitize_note_html(patch['content'])
+        if 'checklist' in patch and record.get('source_type') == 'project':
+            update['checklist'] = _normalize_checklist(patch['checklist'])
+        if update:
+            update['updated_at'] = _now_iso()
+            update['revision'] = int(record.get('revision', 0)) + 1
+            self.notes_repository.update(record['id'], update)
+        result = self.get_note(note_id)
+        assert result is not None
+        return result
+
+    def delete_note(self, note_id):
+        self._map_commands.clear()
+        note = self.get_note(note_id)
+        if note is None:
+            return {'deleted': False, 'id': note_id, 'notes': self.load_notes()['notes']}
+        project, entity = self._resolve(self.repository.read_projects())
+        owner = entity if note.get('owner_type') == 'project' else next(
+            stage for stage in project.stages if str(stage.stage_id) == note.get('owner_id'))
+        self._require_writable(owner)
+        if note.get('source_type') == 'mindmap':
+            def save_map(data):
+                project_value, map_owner = self._resolve(data)
+                if _is_stage(owner):
+                    map_owner = next(
+                        stage for stage in getattr(project_value, 'stages', [])
+                        if str(stage.stage_id) == str(owner.stage_id)
+                    )
+                else:
+                    map_owner = project_value
+                updated = remove_mindmap_note(getattr(map_owner, 'mindmap_data', None), note['source_node_id'])
+                if updated is None:
+                    raise ConflictError('Связанная заметка карты больше не существует.')
+                map_owner.mindmap_data = updated
+                map_owner.mindmap_updated_at = _now_iso()
+            self.repository.update_projects(save_map)
+            self._map_commands.append({'command': 'delete', 'node_id': note['source_node_id'], 'text': ''})
+        self.notes_repository.delete(note_id.split(':')[-1] if note['id'] != note_id else note_id,
+                                     project_id=self.project_id)
+        return {'deleted': True, 'id': note_id, 'notes': self.load_notes()['notes']}
+
+    def update_order(self, note_ids):
+        if not isinstance(note_ids, list):
+            return {'changed': False, 'notes': self.load_notes()['notes']}
+        project, entity = self._resolve(self.repository.read_projects())
+        order = {value: index for index, value in enumerate(note_ids) if isinstance(value, str)}
+        changed = False
+        aggregate = self._aggregate(project, entity)
+        for owner, _stage in self._owners(project, entity):
+            stage_id = str(owner.stage_id) if _is_stage(owner) else None
+            for raw in self.notes_repository.list(self.project_id, stage_id):
+                view_id = self._view_id(owner, raw['id'], aggregate)
+                if view_id in order and raw.get('sort_order') != order[view_id]:
+                    self.notes_repository.update(raw['id'], {
+                        'sort_order': order[view_id], 'updated_at': _now_iso(),
+                        'revision': int(raw.get('revision', 0)) + 1,
+                    })
+                    changed = True
+        return {'changed': changed, 'notes': self.load_notes()['notes']}
+
+    def get_mindmap(self):
+        project, entity = self._resolve(self.repository.read_projects())
+        result = self._map_payload(project, entity)
+        result['read_only'] = self._read_only(entity, self.developer_mode)
+        return result
+
+    def _sync_map_notes(self, entity):
+        map_data = engine.normalize_mindmap_data(getattr(entity, 'mindmap_data', None))
+        map_notes = {item['id']: item['text'] for item in extract_mindmap_notes(map_data)}
+        map_id = map_data['nodeData']['id'] if map_data else None
+        stage_id = str(entity.stage_id) if _is_stage(entity) else None
+        existing = self.notes_repository.list(self.project_id, stage_id)
+        by_source = {item.get('source_node_id'): item for item in existing if item.get('source_type') == 'mindmap'}
+        next_order = max((item.get('sort_order', -1) for item in existing), default=-1) + 1
+        for source_id, text in map_notes.items():
+            item = by_source.get(source_id)
+            if item is None:
+                now = _now_iso()
+                item = {
+                    'id': f'mindmap-{hashlib.sha256(source_id.encode()).hexdigest()[:28]}',
+                    'project_id': self.project_id, 'stage_id': stage_id, 'title': '',
+                    'content': text, 'content_format': 'plain', 'checklist': [],
+                    'color': 'default', 'pinned': False, 'archived': False,
+                    'sort_order': next_order, 'tags': [], 'source_type': 'mindmap',
+                    'source_map_id': map_id, 'source_node_id': source_id,
+                    'created_at': now, 'updated_at': now, 'revision': 0, 'metadata': {},
+                }
+                self.notes_repository.create(item)
+                next_order += 1
+            elif item.get('content') != text or item.get('source_map_id') != map_id:
+                self.notes_repository.update(item['id'], {
+                    'content': text, 'source_map_id': map_id,
+                    'updated_at': _now_iso(), 'revision': int(item.get('revision', 0)) + 1,
+                })
+        for item in existing:
+            if item.get('source_type') == 'mindmap' and item.get('source_node_id') not in map_notes:
+                self.notes_repository.delete(item['id'], project_id=self.project_id)
+
+    def update_mindmap(self, mindmap_data):
+        self._map_commands.clear()
+        normalized = engine.normalize_mindmap_data(mindmap_data)
+        if normalized is None:
+            raise ValidationError('Редактор вернул повреждённые данные карты.')
+        project, entity = self._resolve(self.repository.read_projects())
+        self._require_writable(entity)
+        combined = entity is project and _has_stages(project) and getattr(project, 'combine_stage_mindmaps', False)
+        def save_map(data):
+            project_value, target = self._resolve(data)
+            if combined:
+                try:
+                    project_map, stage_maps = engine.split_combined_project_mindmap(project_value, normalized)
+                except ValueError as error:
+                    raise ValidationError('Редактор вернул повреждённые данные карты.') from error
+                project_value.mindmap_data = project_map
+                project_value.mindmap_updated_at = _now_iso()
+                for stage in getattr(project_value, 'stages', []):
+                    stage_map = stage_maps.get(getattr(stage, 'stage_id', None))
+                    if stage_map is not None and not self._read_only(stage, self.developer_mode):
+                        stage.mindmap_data = stage_map
+                        stage.mindmap_updated_at = _now_iso()
+            else:
+                target.mindmap_data = normalized
+                target.mindmap_updated_at = _now_iso()
+        self.repository.update_projects(save_map)
+        saved_project, saved_entity = self._resolve(self.repository.read_projects())
+        if combined:
+            self._sync_map_notes(saved_project)
+            for stage in saved_project.stages:
+                if not self._read_only(stage, self.developer_mode):
+                    self._sync_map_notes(stage)
+        else:
+            self._sync_map_notes(saved_entity)
+        result = self.get_mindmap()
+        result['notes'] = self.load_notes()['notes']
+        return result
+
+    def consume_map_commands(self):
+        commands = deepcopy(self._map_commands)
+        self._map_commands.clear()
+        return commands
+
+    @property
+    def last_map_command(self):
+        return deepcopy(self._map_commands[-1]) if self._map_commands else None
 
 
 __all__ = [

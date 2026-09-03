@@ -3,6 +3,8 @@ import type { MindMapResponse, ProjectNote } from '@/types/notes'
 export function noteFixture(overrides: Partial<ProjectNote> = {}): ProjectNote {
   return {
     id: 'note-id',
+    project_id: 'project-id',
+    stage_id: null,
     title: 'Первая встреча',
     display_title: 'Первая встреча',
     content: '<p>Герои встречаются у старого маяка.</p>',

@@ -1,6 +1,6 @@
 import { computed, ref, type Ref } from 'vue'
 
-import { notesApi } from '@/api/notes'
+import { getNotesRepository } from '@/infrastructure/notes/notesRepository'
 import { apiErrorMessage } from '@/api/client'
 import type {
   JsonObject,
@@ -31,6 +31,7 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
   const mutating = ref(false)
   const error = ref<string | null>(null)
   let loadSequence = 0
+  const repository = getNotesRepository()
 
   const scope = computed<NotesScope>(() => ({
     projectId: projectId.value,
@@ -50,9 +51,9 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
     error.value = null
     try {
       const [notePayload, mapPayload, projectContextPayload] = await Promise.all([
-        notesApi.list(scope.value),
-        notesApi.mindMap(scope.value),
-        stageId.value ? notesApi.list({ projectId: projectId.value }) : Promise.resolve(null),
+        repository.list(scope.value),
+        repository.mindMap(scope.value),
+        stageId.value ? repository.list({ projectId: projectId.value }) : Promise.resolve(null),
       ])
       if (sequence !== loadSequence) return
       notes.value = notePayload.notes
@@ -70,7 +71,7 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
     mutating.value = true
     error.value = null
     try {
-      const note = await notesApi.create(scope.value)
+      const note = await repository.create(scope.value)
       replaceNote(note)
       return note
     } catch (reason) {
@@ -85,7 +86,7 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
     mutating.value = true
     error.value = null
     try {
-      const note = await notesApi.update(scope.value, noteId, patch)
+      const note = await repository.update(scope.value, noteId, patch)
       replaceNote(note)
       return note
     } catch (reason) {
@@ -100,7 +101,7 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
     mutating.value = true
     error.value = null
     try {
-      await notesApi.remove(scope.value, noteId)
+      await repository.delete(scope.value, noteId)
       notes.value = notes.value.filter(({ id }) => id !== noteId)
       return true
     } catch (reason) {
@@ -115,7 +116,7 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
     mutating.value = true
     error.value = null
     try {
-      const result = await notesApi.reorder(scope.value, noteIds)
+      const result = await repository.reorder(scope.value, noteIds)
       notes.value = result.notes
       return true
     } catch (reason) {
@@ -130,7 +131,7 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
     data: JsonObject,
     requestedScope: NotesScope = scope.value,
   ): Promise<MindMapResponse> {
-    const result = await notesApi.saveMindMap(requestedScope, data)
+    const result = await repository.saveMindMap(requestedScope, data)
     const stillCurrent =
       projectId.value === requestedScope.projectId &&
       stageId.value === (requestedScope.stageId ?? null)
@@ -144,7 +145,7 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
   async function refreshMindMap(): Promise<MindMapResponse | null> {
     error.value = null
     try {
-      const result = await notesApi.mindMap(scope.value)
+      const result = await repository.mindMap(scope.value)
       mindMap.value = result
       return result
     } catch (reason) {

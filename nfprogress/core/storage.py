@@ -186,6 +186,16 @@ class PickleRepository:
         with self.locked():
             return game.load_game()
 
+    def notes_repository(self):
+        """Return the Notes repository selected by the ownership table."""
+        from nfprogress.core.sqlite import (
+            SQLiteNotesRepository, StorageOwner, StorageOwnershipRepository,
+            Subsystem,
+        )
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.NOTES) == StorageOwner.SQLITE:
+            return SQLiteNotesRepository(self.base_dir)
+        return None
+
     def write_gamer(self, gamer: Any) -> None:
         """Atomically write a game-state object without changing its format."""
         with self.locked():
@@ -242,7 +252,10 @@ class PickleRepository:
                 if source.is_file():
                     shutil.copy2(source, backup_dir / source.name)
             database = self.base_dir / 'nfprogress.db'
-            if database.is_file() and (names is None or 'settings' in store_names):
+            # The SQLite database may contain authoritative settings and Notes,
+            # so every backup is a recoverable application snapshot regardless
+            # of which legacy pickle store triggered it.
+            if database.is_file():
                 shutil.copy2(database, backup_dir / database.name)
             return backup_dir
 
