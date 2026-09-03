@@ -10,6 +10,8 @@ retired.
 
 ## Subsystem matrix
 
+| SQLite shadow mirror | [done] | Versioned sqlite3 schema, transactional rebuild/import, stable-ID relational rows, JSON payload for complex legacy state, best-effort repository-boundary synchronization, mirror metadata, verifier, and temporary-directory tests. SQLite is not a runtime read source and is not authoritative for TypeScript |
+
 | Subsystem | Status | Evidence and remaining work |
 | --- | --- | --- |
 | Repository/dependency audit | [done] | Core, UI, game, storage, integrations, build scripts, and available native SDKs audited |

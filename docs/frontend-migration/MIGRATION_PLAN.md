@@ -4,6 +4,29 @@ Migration is delivered as verified vertical slices. Legacy packaging is
 retired; each slice must preserve existing user data and must not touch real
 user files in tests.
 
+## Persistence preparation: PKL-authoritative shadow mirror
+
+This stage deliberately does not migrate runtime reads or business logic:
+
+```text
+Vue / TypeScript -> FastAPI -> Python Core -> PickleRepository -> PKL (authoritative)
+                                                               \-> SQLite (shadow)
+```
+
+The versioned `nfprogress.db` schema stores relational project, stage, progress,
+note, and settings rows. Complex legacy state, including the game state and
+extensible Mind Elixir data, remains standard UTF-8 JSON payload text. SQLite
+can be deleted and rebuilt from PKL. The intended future sequence is:
+
+1. Phase 1: Python writes PKL and mirrors successful writes to SQLite.
+2. Phase 2: Python remains authoritative while mirror health is monitored.
+3. Phase 3: selected subsystems may write SQLite from TypeScript.
+4. Phase 4: TypeScript uses SQLite; Python is a compatibility layer.
+5. Phase 5: PKL is retained only as legacy import/backup format.
+
+Phases 3–5 are not implemented here; SQLite is not yet the TypeScript
+authoritative database.
+
 ## 1. Shared Python application layer
 
 1. Add a context-local data directory override and repository lock.

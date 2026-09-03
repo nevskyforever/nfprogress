@@ -16,7 +16,9 @@ Vue/Ionic clients
                                       │                 │
                                       └──── repositories┘
                                                 │
-                                                └── atomic data.pkl/settings.pkl/gamer.pkl
+                         ┌──────────────────────┴──────────────────────┐
+                         v                                             v
+              atomic data.pkl/settings.pkl/gamer.pkl          SQLite shadow mirror
 ```
 
 The Python core wraps proven logic in `engine.py`, `game.py`, and
@@ -119,20 +121,24 @@ fields rather than pretending their compatibility format is closed.
 
 ## Persistence and data safety
 
-`data.pkl`, `settings.pkl`, and `gamer.pkl` remain the production persistence
-format. Repository operations are serialized by a shared process lock and a
-cross-platform advisory lock scoped to the explicit data directory. Writes use
-the existing atomic replacement behavior. Streak rewards keep an idempotency
+`data.pkl`, `settings.pkl`, and `gamer.pkl` remain the authoritative persistence
+format. SQLite (`nfprogress.db`) is a secondary, diagnostic shadow mirror and
+is not read by the runtime or TypeScript. Repository operations are serialized
+by a shared process lock and a cross-platform advisory lock scoped to the
+explicit data directory. Writes use the existing atomic replacement behavior.
+Streak rewards keep an idempotency
 marker in `gamer.pkl`, allowing a later request to repair the compatibility
 marker in `data.pkl` without granting a second reward after an interrupted
 two-file update.
 
-Tests and sidecar smoke checks use an explicit temporary data directory via a
-context-local override, so they do not migrate real user files. No JSON or
-SQLite conversion runs automatically, and original pickle files are not
-deleted. Any future format migration must be a separate versioned operation
-that first creates a timestamped backup, writes a new destination, validates
-it, and leaves the source intact.
+Successful repository writes best-effort rebuild the SQLite mirror after the
+PKL write. Mirror failures are logged and marked dirty; they never fail the
+user operation or modify PKL. Full rebuild is explicit with
+`python -m nfprogress.sqlite_migrate --data-dir PATH`; it creates a timestamped
+backup first. `python -m nfprogress.sqlite_verify --data-dir PATH` performs a
+semantic comparison and returns non-zero on mismatch. Original pickle files
+are never deleted or rewritten in a SQLite operation. Tests use temporary
+directories only.
 
 The historical UI still has direct read-modify-write sequences that do not
 acquire the repository's cross-process transaction lock. It is unsupported and

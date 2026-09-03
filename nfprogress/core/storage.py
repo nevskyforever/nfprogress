@@ -118,6 +118,7 @@ class PickleRepository:
             raise TypeError('project data must be a dictionary')
         with self.locked():
             engine.atomic_pickle_save(data, engine.get_data_file_path('data'))
+            self._sync_shadow_after_pickle_save()
 
     def update_projects(self, mutator: Callable[[dict[str, Any]], T]) -> T:
         """Read, mutate, and save project data as one re-entrant transaction.
@@ -132,6 +133,7 @@ class PickleRepository:
             data = engine.load_data()
             result = mutator(data)
             engine.atomic_pickle_save(data, engine.get_data_file_path('data'))
+            self._sync_shadow_after_pickle_save()
             return result
 
     def read_settings(self) -> dict[str, Any]:
@@ -143,6 +145,7 @@ class PickleRepository:
             raise TypeError('settings data must be a dictionary')
         with self.locked():
             engine.atomic_pickle_save(data, engine.get_data_file_path('settings'))
+            self._sync_shadow_after_pickle_save()
 
     def update_settings(self, mutator: Callable[[dict[str, Any]], T]) -> T:
         """Read, mutate, and save settings without a lost-update window."""
@@ -154,6 +157,7 @@ class PickleRepository:
             engine.atomic_pickle_save(
                 settings, engine.get_data_file_path('settings'),
             )
+            self._sync_shadow_after_pickle_save()
             return result
 
     def read_gamer(self) -> Any:
@@ -167,6 +171,35 @@ class PickleRepository:
         """Atomically write a game-state object without changing its format."""
         with self.locked():
             engine.atomic_pickle_save(gamer, engine.get_data_file_path('gamer'))
+            self._sync_shadow_after_pickle_save()
+
+    def synchronize_shadow(self) -> None:
+        """Rebuild SQLite from PKL; PKL remains untouched and authoritative."""
+        from nfprogress.core.sqlite import SQLiteMirrorRepository
+
+        with self.locked():
+            try:
+                SQLiteMirrorRepository(self.base_dir).rebuild(
+                    engine.load_data(),
+                    engine.load_settings(),
+                    __import__('game').load_game(),
+                )
+            except Exception as error:
+                SQLiteMirrorRepository(self.base_dir).mark_dirty(error)
+                raise
+
+    def _sync_shadow_after_pickle_save(self) -> None:
+        """Best-effort mirror update after a successful legacy write."""
+        from nfprogress.core.sqlite import SQLiteMirrorRepository
+
+        try:
+            SQLiteMirrorRepository(self.base_dir).rebuild(
+                engine.load_data(),
+                engine.load_settings(),
+                __import__('game').load_game(),
+            )
+        except Exception as error:
+            SQLiteMirrorRepository(self.base_dir).mark_dirty(error)
 
     def create_backup(self, names: Iterable[str] | str | None = None) -> Path:
         """Copy existing stores into a unique timestamped snapshot directory.
