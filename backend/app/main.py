@@ -19,6 +19,9 @@ from nfprogress.core.services.documents import ProjectDocumentService
 from nfprogress.core.services.notes import ProjectNotesService
 from nfprogress.core.services.projects import ProjectService
 from nfprogress.core.services.settings import SettingsService
+from nfprogress.core.sqlite import (
+    StorageOwner, StorageOwnershipRepository, Subsystem, cutover_settings,
+)
 
 from .config import RuntimeConfig
 from .dependencies import Services, require_session
@@ -84,6 +87,12 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
             else engine.get_app_data_dir()
         )
     repository = PickleRepository(data_dir)
+    if StorageOwnershipRepository(data_dir).get_owner(Subsystem.SETTINGS) == StorageOwner.PICKLE:
+        try:
+            with repository.locked():
+                cutover_settings(data_dir, engine.load_settings())
+        except Exception:
+            _LOGGER.exception('Settings SQLite cutover failed; keeping pickle ownership.')
     game_service = GameService(
         repository, developer_mode=runtime_config.developer_mode,
     )

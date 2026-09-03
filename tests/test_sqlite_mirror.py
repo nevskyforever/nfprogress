@@ -67,16 +67,16 @@ def test_existing_schema_migrates_ownership_without_touching_data(tmp_path):
         }
 
 
-def test_sqlite_owned_settings_survive_pickle_mirror_rebuild(tmp_path):
+def test_sqlite_owned_settings_are_written_to_sqlite_not_pickle(tmp_path):
     repository = _seed_repository(tmp_path)
     ownership = StorageOwnershipRepository(tmp_path)
     ownership.set_owner(Subsystem.SETTINGS, StorageOwner.SQLITE)
     with open_database(tmp_path) as db:
         db.execute("UPDATE settings SET value_json='\"sqlite-marker\"' WHERE key='language'")
         db.commit()
-    repository.write_settings({'language': 'pickle-change'})
+    repository.write_settings({'language': 'sqlite-change'})
     with open_database(tmp_path) as db:
-        assert json.loads(db.execute("SELECT value_json FROM settings WHERE key='language'").fetchone()[0]) == 'sqlite-marker'
+        assert json.loads(db.execute("SELECT value_json FROM settings WHERE key='language'").fetchone()[0]) == 'sqlite-change'
 
 
 def test_sqlite_owned_projects_domain_survives_rebuild(tmp_path):
@@ -91,7 +91,7 @@ def test_sqlite_owned_projects_domain_survives_rebuild(tmp_path):
         assert db.execute("SELECT value_json FROM settings WHERE key='new'").fetchone()
 
 
-def test_mixed_mode_syncs_only_pickle_domains(tmp_path):
+def test_mixed_mode_writes_sqlite_owned_settings_without_pickle_mirror(tmp_path):
     repository = _seed_repository(tmp_path)
     ownership = StorageOwnershipRepository(tmp_path)
     ownership.set_owner(Subsystem.PROJECTS, StorageOwner.SQLITE)
@@ -99,9 +99,9 @@ def test_mixed_mode_syncs_only_pickle_domains(tmp_path):
     with open_database(tmp_path) as db:
         db.execute("UPDATE settings SET value_json='\"sqlite-marker\"' WHERE key='language'")
         db.commit()
-    repository.write_settings({'language': 'pickle-change'})
+    repository.write_settings({'language': 'sqlite-change'})
     with open_database(tmp_path) as db:
-        assert json.loads(db.execute("SELECT value_json FROM settings WHERE key='language'").fetchone()[0]) == 'sqlite-marker'
+        assert json.loads(db.execute("SELECT value_json FROM settings WHERE key='language'").fetchone()[0]) == 'sqlite-change'
         assert db.execute('SELECT COUNT(*) FROM notes').fetchone()[0] == 1
         assert db.execute('SELECT payload_json FROM game_state').fetchone()[0]
 

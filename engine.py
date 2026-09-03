@@ -914,6 +914,11 @@ def now_for_test():
         selected_datetime = settings.get('today_for_test_datetime')
         if isinstance(selected_datetime, datetime):
             return selected_datetime
+        if isinstance(selected_datetime, str):
+            try:
+                return datetime.fromisoformat(selected_datetime)
+            except ValueError:
+                pass
 
     return datetime.combine(date.today(), datetime.now().time())
 
@@ -1113,6 +1118,12 @@ def rebuild_streak_ending_at(end_day, length):
 def load_settings():
     """Загружает данные из кроссплатформенной директории"""
     data_file = get_data_file_path('settings')
+    from nfprogress.core.sqlite import (
+        SQLiteSettingsRepository, StorageOwner,
+        StorageOwnershipRepository, Subsystem,
+    )
+    if StorageOwnershipRepository(data_file.parent).get_owner(Subsystem.SETTINGS) == StorageOwner.SQLITE:
+        return SQLiteSettingsRepository(data_file.parent).get_all()
     try:
         with open(data_file, 'rb') as f:
             return pickle.load(f)
@@ -1131,6 +1142,13 @@ def load_settings():
 def save_settings(data):
     """Сохраняет данные в кроссплатформенную директорию"""
     data_file = get_data_file_path('settings')
+    from nfprogress.core.sqlite import (
+        SQLiteSettingsRepository, StorageOwner,
+        StorageOwnershipRepository, Subsystem,
+    )
+    if StorageOwnershipRepository(data_file.parent).get_owner(Subsystem.SETTINGS) == StorageOwner.SQLITE:
+        SQLiteSettingsRepository(data_file.parent).write_all(data)
+        return
     atomic_pickle_save(data, data_file)
 
 

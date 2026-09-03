@@ -918,21 +918,22 @@ class ProjectService:
         # the running frontend. Apply the same legacy day-boundary transitions
         # as project and global-streak reads before reporting today's totals.
         data = self._read_projects_with_streak_refresh()
-        today = engine.today_for_test()
         projects: list[dict[str, Any]] = []
         total_symbols = 0.0
-        for project in data.get('projects', {}).values():
-            symbols = float(project.get_added_symbols_today_value())
-            total_symbols += symbols
-            if not symbols:
-                continue
-            projects.append({
-                'id': project.project_id,
-                'name': project.name,
-                'symbols': symbols,
-                'unit': project.unit,
-                'value': engine.unit_converter('symbols', symbols, project.unit),
-            })
+        with self.repository.storage_context():
+            today = engine.today_for_test()
+            for project in data.get('projects', {}).values():
+                symbols = float(project.get_added_symbols_today_value())
+                total_symbols += symbols
+                if not symbols:
+                    continue
+                projects.append({
+                    'id': project.project_id,
+                    'name': project.name,
+                    'symbols': symbols,
+                    'unit': project.unit,
+                    'value': engine.unit_converter('symbols', symbols, project.unit),
+                })
         return {
             'date': today.isoformat(),
             'symbols': total_symbols,

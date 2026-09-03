@@ -137,12 +137,25 @@ class PickleRepository:
             return result
 
     def read_settings(self) -> dict[str, Any]:
+        from nfprogress.core.sqlite import (
+            SQLiteSettingsRepository, StorageOwner,
+            StorageOwnershipRepository, Subsystem,
+        )
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.SETTINGS) == StorageOwner.SQLITE:
+            return SQLiteSettingsRepository(self.base_dir).get_all()
         with self.locked():
             return engine.load_settings()
 
     def write_settings(self, data: dict[str, Any]) -> None:
         if not isinstance(data, dict):
             raise TypeError('settings data must be a dictionary')
+        from nfprogress.core.sqlite import (
+            SQLiteSettingsRepository, StorageOwner,
+            StorageOwnershipRepository, Subsystem,
+        )
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.SETTINGS) == StorageOwner.SQLITE:
+            SQLiteSettingsRepository(self.base_dir).write_all(data)
+            return
         with self.locked():
             engine.atomic_pickle_save(data, engine.get_data_file_path('settings'))
             self._sync_shadow_after_pickle_save()
@@ -151,6 +164,12 @@ class PickleRepository:
         """Read, mutate, and save settings without a lost-update window."""
         if not callable(mutator):
             raise TypeError('mutator must be callable')
+        from nfprogress.core.sqlite import (
+            SQLiteSettingsRepository, StorageOwner,
+            StorageOwnershipRepository, Subsystem,
+        )
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.SETTINGS) == StorageOwner.SQLITE:
+            return SQLiteSettingsRepository(self.base_dir).update(mutator)
         with self.locked():
             settings = engine.load_settings()
             result = mutator(settings)
@@ -222,6 +241,9 @@ class PickleRepository:
                 source = self.base_dir / f'{name}.pkl'
                 if source.is_file():
                     shutil.copy2(source, backup_dir / source.name)
+            database = self.base_dir / 'nfprogress.db'
+            if database.is_file() and (names is None or 'settings' in store_names):
+                shutil.copy2(database, backup_dir / database.name)
             return backup_dir
 
     def backup(self, names: Iterable[str] | str | None = None) -> Path:

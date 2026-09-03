@@ -143,10 +143,10 @@ fields rather than pretending their compatibility format is closed.
 
 ## Persistence and data safety
 
-`data.pkl`, `settings.pkl`, and `gamer.pkl` remain the authoritative persistence
-format. SQLite (`nfprogress.db`) is a secondary, diagnostic shadow mirror and
-is a Python-maintained shadow mirror. On Tauri desktop, TypeScript may read its
-project data through a Rust command that opens the database read-only.
+`data.pkl` and `gamer.pkl` remain authoritative for their domains. Settings are
+authoritative in the `settings` table of `nfprogress.db`; `settings.pkl` is a
+retained legacy/import artifact and does not affect runtime after cutover. On
+Tauri desktop, TypeScript uses typed Rust settings commands with fixed SQL.
 Repository operations are serialized
 by a shared process lock and a cross-platform advisory lock scoped to the
 explicit data directory. Writes use the existing atomic replacement behavior.
@@ -165,22 +165,27 @@ are never deleted or rewritten in a SQLite operation. Tests use temporary
 directories only.
 
 Storage ownership is tracked independently of mirror health in the versioned
-`storage_ownership` table. The current domains are `projects`, `settings`,
-`notes`, and `game`; all currently have `owner = 'pickle'`. The projects domain
+`storage_ownership` table. Current owners are `projects = pickle`,
+`settings = sqlite`, `notes = pickle`, and `game = pickle`. The projects domain
 includes projects, stages, and progress entries. Mirror rebuilds synchronize
-only pickle-owned domains, so a future SQLite-owned domain is never overwritten
-by a normal PKL rebuild. Ownership changes are transactional infrastructure for
-a controlled cutover and no domain has been cut over yet:
+only pickle-owned domains, so a SQLite-owned domain is never overwritten by a
+normal PKL rebuild. Settings completed the controlled cutover; no other domain
+has been cut over:
 
 ```text
                  ownership
                     ↓
 
 projects → pickle ─────→ SQLite mirror
-settings → pickle ─────→ SQLite mirror
+settings → sqlite ─────── SQLite authoritative
 notes    → pickle ─────→ SQLite mirror
 game     → pickle ─────→ SQLite mirror
 ```
+
+Startup imports the complete legacy settings state, verifies its JSON
+projection, and commits the ownership switch in the same transaction. Normal
+backups include `nfprogress.db` when present; web and non-Tauri clients retain
+the FastAPI settings path.
 
 The command checks `mirror_state.sync_status = 'healthy'` and runs fixed
 `SELECT` statements for projects, stages, and progress entries. A

@@ -46,6 +46,70 @@ struct SqliteProjectReadModel {
     progress_entries: Vec<SqliteProgressRow>,
 }
 
+fn open_settings_database() -> Result<rusqlite::Connection, String> {
+    let database = sqlite_data_root()?.join("nfprogress.db");
+    rusqlite::Connection::open(database).map_err(|error| error.to_string())
+}
+
+fn require_sqlite_settings_owner(connection: &rusqlite::Connection) -> Result<(), String> {
+    let owner: String = connection
+        .query_row(
+            "SELECT owner FROM storage_ownership WHERE subsystem = 'settings'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("Не удалось проверить ownership настроек: {error}"))?;
+    if owner != "sqlite" {
+        return Err("Прямая запись настроек недоступна до завершения миграции.".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn get_settings() -> Result<serde_json::Map<String, serde_json::Value>, String> {
+    let connection = open_settings_database()?;
+    let mut statement = connection
+        .prepare("SELECT key, value_json FROM settings")
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            let key: String = row.get(0)?;
+            let value: String = row.get(1)?;
+            Ok((key, value))
+        })
+        .map_err(|error| error.to_string())?;
+    let mut values = serde_json::Map::new();
+    for row in rows {
+        let (key, value) = row.map_err(|error| error.to_string())?;
+        let parsed = serde_json::from_str(&value)
+            .map_err(|error| format!("Некорректное значение настройки {key}: {error}"))?;
+        values.insert(key, parsed);
+    }
+    Ok(values)
+}
+
+#[tauri::command]
+fn set_settings(values: serde_json::Map<String, serde_json::Value>) -> Result<(), String> {
+    let mut connection = open_settings_database()?;
+    require_sqlite_settings_owner(&connection)?;
+    let transaction = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    for (key, value) in values {
+        let encoded = serde_json::to_string(&value).map_err(|error| error.to_string())?;
+        transaction
+            .execute(
+                concat!(
+                    "INSERT INTO settings(key, value_json) VALUES(?1, ?2) ",
+                    "ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",
+                ),
+                rusqlite::params![key, encoded],
+            )
+            .map_err(|error| error.to_string())?;
+    }
+    transaction.commit().map_err(|error| error.to_string())
+}
+
 const BACKEND_HOST: &str = "127.0.0.1";
 const BACKEND_START_TIMEOUT: Duration = Duration::from_secs(30);
 const UPDATE_MANIFEST_URL: &str = "https://nfproject.ru/app/update_manifest.json";
@@ -852,6 +916,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             backend_connection,
             read_sqlite_projects,
+            get_settings,
+            set_settings,
             fetch_update_manifest,
             install_macos_update
         ])

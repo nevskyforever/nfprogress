@@ -24,18 +24,21 @@ can be deleted and rebuilt from PKL. The intended future sequence is:
 4. Phase 4: TypeScript uses SQLite; Python is a compatibility layer.
 5. Phase 5: PKL is retained only as legacy import/backup format.
 
-Phases 3–5 are not implemented here; SQLite is not yet the TypeScript
-authoritative database.
+Phase 5 is now in progress for settings only. At startup, pickle-owned
+settings are imported and verified in one SQLite transaction before ownership
+changes to SQLite. Projects, notes, and game remain pickle-owned.
 
 ### Storage ownership safety
 
 Ownership is recorded per subsystem in `storage_ownership`, separately from
-`mirror_state`. Defaults are `projects = pickle`, `settings = pickle`,
+`mirror_state`. Current ownership is `projects = pickle`, `settings = sqlite`,
 `notes = pickle`, and `game = pickle`. The mirror synchronizes the projects
 domain (projects/stages/progress) and each other domain independently, and
 skips any domain owned by SQLite. This prepares a future final-sync, verify,
-transactional-owner-switch cutover without introducing bidirectional sync or
-changing the current PKL authority.
+transactional-owner-switch cutover without introducing bidirectional sync.
+Settings now use typed SQLite access from Python and fixed-command Tauri access
+from TypeScript; `settings.pkl` remains a legacy artifact and is ignored after
+the ownership switch.
 
 ### Stage 3: read-only SQLite project repository
 
