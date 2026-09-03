@@ -57,6 +57,7 @@ backend/app/
   schemas.py           # Pydantic request and selected response models
 frontend/
   src/
+    core/projects/       # framework-independent, side-effect-free calculations
     api/               # the only HTTP transport implementation
     components/        # reusable Vue single-file components
     composables/       # platform, theme, network, and runtime behavior
@@ -77,6 +78,11 @@ runtime deliberately reads the same data from the content API instead of
 shipping a second independently consumed locale catalog.
 
 ## Dependency direction
+
+Pure project calculations are a lower-level dependency and import no Vue,
+Pinia, API, platform, DOM, filesystem, or storage code. They accept explicit
+dates and return JSON-safe values; an infinite goal is represented by the
+existing `infinite` flag and `null`, never JavaScript `Infinity`.
 
 ```text
 Vue SFC pages/components

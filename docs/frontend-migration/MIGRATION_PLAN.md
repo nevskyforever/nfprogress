@@ -27,6 +27,16 @@ can be deleted and rebuilt from PKL. The intended future sequence is:
 Phases 3–5 are not implemented here; SQLite is not yet the TypeScript
 authoritative database.
 
+## TS Core migration phase 1: pure project calculations
+
+The first TypeScript Core slice contains only verified, side-effect-free unit
+conversion, percentage, remaining-work, and project-form planning calculations.
+Python remains authoritative for persisted mutations and all model-derived
+plans. The TypeScript functions receive dates explicitly, preserve the legacy
+rounding rules, and use `null` with an explicit `infinite` flag for unbounded
+goals. This phase does not change the API, PKL, SQLite shadow mirror, or Python
+runtime calls.
+
 ## 1. Shared Python application layer
 
 1. Add a context-local data directory override and repository lock.

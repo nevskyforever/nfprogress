@@ -1,6 +1,6 @@
 # Frontend migration status
 
-Updated: 2026-08-23
+Updated: 2026-09-04
 
 `[done]` means the repository implementation for that row exists and has been
 checked on an available host; it does not imply that every native release is
@@ -9,6 +9,8 @@ blocker. Tauri is the supported desktop release target; PySide6 packaging is
 retired.
 
 ## Subsystem matrix
+
+| TypeScript Core phase 1 | [done] | `frontend/src/core/projects` owns verified pure unit, progress, remaining, and planning calculations. Vue uses the shared calculation layer for display/preview only; Python remains authoritative for persisted mutations, cached daily plans, streaks, rewards, PKL, and the SQLite shadow mirror |
 
 | SQLite shadow mirror | [done] | Versioned sqlite3 schema, transactional rebuild/import, stable-ID relational rows, JSON payload for complex legacy state, best-effort repository-boundary synchronization, mirror metadata, verifier, and temporary-directory tests. SQLite is not a runtime read source and is not authoritative for TypeScript |
 

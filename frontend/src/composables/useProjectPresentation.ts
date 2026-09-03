@@ -2,6 +2,7 @@ import { computed, reactive, toValue, type MaybeRefOrGetter } from 'vue'
 
 import { useLocaleStore } from '@/stores/locale'
 import type { Project, ProjectStatus } from '@/types/api'
+import { progressPercentage } from '@/core/projects/calculations'
 
 const STATUS_LABELS: Record<ProjectStatus, string> = {
   активен: 'Активен',
@@ -12,7 +13,7 @@ const STATUS_LABELS: Record<ProjectStatus, string> = {
 export function useProjectPresentation(project: MaybeRefOrGetter<Project>) {
   const locale = useLocaleStore()
   const value = computed(() => toValue(project))
-  const progress = computed(() => Math.min(100, Math.max(0, value.value.progress || 0)))
+  const progress = computed(() => Math.min(100, Math.max(0, progressPercentage(value.value))))
   const statusLabel = computed(() => locale.translate(STATUS_LABELS[value.value.status]))
   const unitLabel = computed(() => locale.formatUnit(value.value.unit, value.value.total))
   const fractionDigits = computed(() => (value.value.unit === 'symbols' ? 0 : 2))

@@ -1,12 +1,15 @@
 import type { GameCommandResponse } from './game'
+import type { ProgressUnit } from '@/core/projects/types'
+
+export type { ProgressUnit } from '@/core/projects/types'
+export type UnitCode = ProgressUnit
 
 export const PROJECT_STATUSES = ['активен', 'в архиве', 'завершен'] as const
 export const PROJECT_SORTS = ['manual', 'name', 'deadline', 'progress', 'updated'] as const
-export const UNIT_CODES = ['symbols', 'A4', 'author_list', 'ficbook_pages'] as const
+export const UNIT_CODES: readonly ProgressUnit[] = ['symbols', 'A4', 'author_list', 'ficbook_pages']
 
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number]
 export type ProjectSort = (typeof PROJECT_SORTS)[number]
-export type UnitCode = (typeof UNIT_CODES)[number]
 export type WorkMethod = 'manual' | 'sync' | 'app'
 
 export interface ProgressEntry {
