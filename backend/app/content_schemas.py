@@ -133,6 +133,15 @@ class MindMapUpdateResponse(MindMapResponse):
     notes: list[ProjectNoteResponse]
 
 
+class XMindSheetResponse(ResponseModel):
+    title: str
+    data: dict[str, JsonValue]
+
+
+class XMindImportResponse(ResponseModel):
+    sheets: list[XMindSheetResponse]
+
+
 __all__ = [
     'HelpSectionResponse',
     'LanguageOptionResponse',
@@ -143,4 +152,6 @@ __all__ = [
     'PlatformCapabilitiesResponse',
     'ProjectNoteResponse',
     'SettingsResponse',
+    'XMindImportResponse',
+    'XMindSheetResponse',
 ]

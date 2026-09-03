@@ -80,6 +80,10 @@ export interface MindMapResponse {
   notes?: ProjectNote[]
 }
 
+export interface XMindImportResponse {
+  sheets: Array<{ title: string; data: JsonObject }>
+}
+
 export interface NotesScope {
   projectId: string
   stageId?: string | null

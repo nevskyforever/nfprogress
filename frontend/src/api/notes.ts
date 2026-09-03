@@ -3,6 +3,7 @@ import { apiRequest } from './client'
 import type {
   JsonObject,
   MindMapResponse,
+  XMindImportResponse,
   NoteOrderResponse,
   NotesResponse,
   NotesScope,
@@ -72,6 +73,15 @@ export const notesApi = {
         method: 'PUT',
         body: { data },
       },
+    )
+  },
+
+  importXMind(scope: NotesScope, file: File): Promise<XMindImportResponse> {
+    const body = new FormData()
+    body.append('file', file)
+    return apiRequest<XMindImportResponse>(
+      withScope(`${projectPath(scope.projectId)}/mindmap/import/xmind`, scope),
+      { method: 'POST', rawBody: body },
     )
   },
 }

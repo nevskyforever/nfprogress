@@ -4,6 +4,7 @@ import { IonIcon, IonSpinner } from '@ionic/vue'
 import { locateOutline, saveOutline } from 'ionicons/icons'
 
 import { apiErrorMessage } from '@/api/client'
+import { notesApi } from '@/api/notes'
 import {
   mindMapBridge,
   parseMindMapData,
@@ -31,6 +32,10 @@ const ready = ref(false)
 const saving = ref(false)
 const statusMessage = ref(t('Загрузка карты…'))
 const errorMessage = ref<string | null>(null)
+const fileInput = ref<HTMLInputElement | null>(null)
+const importSheets = ref<Array<{ title: string; data: JsonObject }>>([])
+const selectedImportSheet = ref(0)
+const importing = ref(false)
 let pollTimer: number | null = null
 let pendingData: JsonObject | null = null
 let saveLoopRunning = false
@@ -179,6 +184,55 @@ function saveNow(): void {
   pollEvents()
 }
 
+function hasUserNodes(): boolean {
+  const root = props.map.data?.nodeData
+  return isRecord(root) && Array.isArray(root.children) && root.children.length > 0
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function chooseImportFile(): void {
+  fileInput.value?.click()
+}
+
+async function importXMind(event: Event): Promise<void> {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  importing.value = true
+  errorMessage.value = null
+  try {
+    const response = await notesApi.importXMind(persistenceScope, file)
+    if (!response.sheets.length) throw new Error(t('Карта XMind пуста.'))
+    importSheets.value = response.sheets
+    selectedImportSheet.value = 0
+    if (response.sheets.length === 1) await applyImport()
+  } catch (reason) {
+    errorMessage.value = apiErrorMessage(reason)
+  } finally {
+    importing.value = false
+  }
+}
+
+function cancelImport(): void {
+  importSheets.value = []
+}
+
+async function applyImport(): Promise<void> {
+  const selected = importSheets.value[selectedImportSheet.value]
+  if (!selected || props.map.read_only) return
+  if (hasUserNodes() && !window.confirm(t('Импорт XMind заменит текущую структуру карты. Продолжить?'))) return
+  const bridge = mindMapBridge(frame.value)
+  if (!bridge) return
+  importSheets.value = []
+  bridge.initialize({ ...initialPayload(), data: selected.data })
+  lastSavedSerialized = ''
+  queueSave(selected.data)
+}
+
 function centerMap(): void {
   mindMapBridge(frame.value)?.toCenter()
 }
@@ -225,6 +279,21 @@ defineExpose({ focusNode, updateNodeNote, removeNodeNote, saveNow })
         <span>{{ statusMessage }}</span>
       </div>
       <div class="mindmap-editor__actions">
+        <input
+          ref="fileInput"
+          class="mindmap-editor__file-input"
+          type="file"
+          accept=".xmind,application/zip"
+          @change="importXMind"
+        />
+        <button
+          class="nf-button nf-button--secondary"
+          type="button"
+          :disabled="!ready || saving || importing || map.read_only"
+          @click="chooseImportFile"
+        >
+          {{ t('Импорт из XMind…') }}
+        </button>
         <button class="nf-button nf-button--secondary" type="button" :disabled="!ready" @click="centerMap">
           <IonIcon :icon="locateOutline" aria-hidden="true" />
           {{ t('По центру') }}
@@ -240,6 +309,24 @@ defineExpose({ focusNode, updateNodeNote, removeNodeNote, saveNow })
         </button>
       </div>
     </header>
+
+    <div v-if="importSheets.length" class="mindmap-editor__import-dialog" role="dialog" aria-modal="true">
+      <div class="mindmap-editor__import-card">
+        <h2>{{ t('Выберите лист XMind') }}</h2>
+        <label>
+          {{ t('Лист карты') }}
+          <select v-model.number="selectedImportSheet">
+            <option v-for="(sheet, index) in importSheets" :key="`${sheet.title}-${index}`" :value="index">
+              {{ sheet.title }}
+            </option>
+          </select>
+        </label>
+        <div class="mindmap-editor__import-actions">
+          <button class="nf-button nf-button--secondary" type="button" @click="cancelImport">{{ t('Отмена') }}</button>
+          <button class="nf-button" type="button" @click="applyImport">{{ t('Импортировать') }}</button>
+        </div>
+      </div>
+    </div>
 
     <p v-if="map.combined" class="mindmap-editor__notice">
       {{ t('Показана объединённая карта проекта и этапов.') }}
@@ -287,6 +374,14 @@ defineExpose({ focusNode, updateNodeNote, removeNodeNote, saveNow })
   gap: var(--nf-space-2);
   align-items: center;
 }
+
+.mindmap-editor__file-input { display: none; }
+.mindmap-editor__import-dialog { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 1rem; background: rgb(0 0 0 / 35%); }
+.mindmap-editor__import-card { display: grid; gap: 1rem; width: min(28rem, 100%); padding: 1.25rem; border-radius: var(--nf-radius-lg); background: var(--nf-color-surface); box-shadow: var(--nf-shadow-card); }
+.mindmap-editor__import-card h2 { margin: 0; font-family: var(--nf-font-serif); }
+.mindmap-editor__import-card label { display: grid; gap: .4rem; font-weight: 700; }
+.mindmap-editor__import-card select { min-height: 2.5rem; padding: .4rem; }
+.mindmap-editor__import-actions { display: flex; justify-content: flex-end; gap: var(--nf-space-2); }
 
 .mindmap-editor__status {
   color: var(--nf-color-text-muted);
