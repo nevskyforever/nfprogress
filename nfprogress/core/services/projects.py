@@ -708,8 +708,18 @@ class ProjectService:
             self._require_editable(entity)
             if entity.has_stages():
                 raise ValidationError('Записывайте прогресс в конкретный этап.')
-            method = getattr(entity, 'work_method', 'sync' if getattr(entity, 'synch', None) is not None else 'manual')
+            # Older synchronized records may have ``synch`` without the newer
+            # explicit work_method field. The source binding is authoritative
+            # for this guard, so manual progress must not bypass it.
+            method = (
+                'sync' if getattr(entity, 'synch', None) is not None
+                else getattr(entity, 'work_method', 'manual')
+            )
             if method != source_method:
+                if source_method == 'manual' and method == 'sync':
+                    raise ValidationError(
+                        'Включена синхронизация. Ручная запись прогресса недоступна.',
+                    )
                 raise ValidationError('Этот способ добавления записей сейчас не выбран.')
             total = self._round_for_unit(
                 self._nonnegative_number(new_total, 'Новое общее значение'),

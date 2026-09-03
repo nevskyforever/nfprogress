@@ -157,6 +157,85 @@ def test_project_metadata_success_survives_mirror_failure(client, monkeypatch):
         assert connection.execute('SELECT sync_status FROM mirror_state').fetchone()[0] == 'dirty'
 
 
+def test_manual_progress_boundary_updates_entry_and_mirror(client):
+    project = _create_project(client)
+    added = client.post(f"/api/projects/{project['id']}/progress", json={
+        'new_total': 1_250,
+    })
+    assert added.status_code == 200, added.text
+    result = added.json()
+    assert result['entry']['id']
+    assert result['project']['total'] == 1_250
+
+    database = client.app.state.services.repository.base_dir / 'nfprogress.db'
+    import sqlite3
+    with sqlite3.connect(database) as connection:
+        row = connection.execute(
+            'SELECT id, project_id, stage_id, added_symbols FROM progress_entries',
+        ).fetchone()
+    assert row == (result['entry']['id'], project['id'], None, 1_250)
+
+    removed = client.delete(
+        f"/api/projects/{project['id']}/progress/{result['entry']['id']}",
+    )
+    assert removed.status_code == 200, removed.text
+    assert removed.json()['progress_entries'] == []
+    with sqlite3.connect(database) as connection:
+        assert connection.execute('SELECT COUNT(*) FROM progress_entries').fetchone()[0] == 0
+
+
+def test_stage_progress_boundary_preserves_stage_relation(client):
+    created = client.post('/api/projects', json={
+        'name': 'Stages',
+        'goal': 10_000,
+        'unit': 'symbols',
+        'stages': [{'name': 'Draft', 'goal': 5_000}],
+    })
+    assert created.status_code == 201, created.text
+    project = created.json()
+    stage_id = project['stages'][0]['id']
+
+    added = client.post(f"/api/projects/{project['id']}/progress", json={
+        'new_total': 750,
+        'stage_id': stage_id,
+    })
+    assert added.status_code == 200, added.text
+    assert added.json()['project']['stages'][0]['total'] == 750
+
+    database = client.app.state.services.repository.base_dir / 'nfprogress.db'
+    import sqlite3
+    with sqlite3.connect(database) as connection:
+        row = connection.execute(
+            'SELECT project_id, stage_id, added_symbols FROM progress_entries',
+        ).fetchone()
+    assert row == (project['id'], stage_id, 750)
+
+
+def test_progress_authoritative_write_survives_mirror_failure(client, monkeypatch):
+    project = _create_project(client)
+
+    def fail(*args, **kwargs):
+        raise OSError('disk full')
+
+    monkeypatch.setattr(SQLiteMirrorRepository, 'rebuild', fail)
+    added = client.post(f"/api/projects/{project['id']}/progress", json={
+        'new_total': 400,
+    })
+
+    assert added.status_code == 200, added.text
+    assert added.json()['project']['total'] == 400
+    repository = client.app.state.services.repository
+    stored = repository.read_projects()
+    stored_project = next(iter(stored['projects'].values()))
+    assert stored_project.total_units == 400
+    database = repository.base_dir / 'nfprogress.db'
+    import sqlite3
+    with sqlite3.connect(database) as connection:
+        assert connection.execute(
+            'SELECT sync_status FROM mirror_state',
+        ).fetchone()[0] == 'dirty'
+
+
 def test_api_accepts_existing_cover_larger_than_compact_export(client):
     # Covers produced by older frontend builds can be larger than the compact
     # 1.35 MB export used now.  They must reach the service instead of failing

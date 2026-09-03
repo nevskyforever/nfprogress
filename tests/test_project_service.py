@@ -284,6 +284,26 @@ def test_progress_is_server_calculated_and_deletable(service):
     assert len(updated['progress_entries']) == 1
 
 
+def test_progress_mutation_keeps_game_side_effect_after_authoritative_save(tmp_path):
+    class GameRecorder:
+        def __init__(self):
+            self.calls = []
+
+        def record_project_progress(self, **payload):
+            self.calls.append(payload)
+            return {'ok': True}
+
+    game = GameRecorder()
+    projects = ProjectService(PickleRepository(tmp_path), game_service=game)
+    project = projects.create_project({'name': 'Game', 'goal': 1_000, 'unit': 'symbols'})
+
+    result = projects.record_progress(project['id'], new_total=250)
+
+    assert result['game'] == {'ok': True}
+    assert game.calls[0]['added_symbols'] == 250
+    assert projects.get_project(project['id'])['total'] == 250
+
+
 def test_synchronized_entity_rejects_manual_progress_but_accepts_sync_result(service):
     project = service.create_project({'name': 'Synced', 'goal': 1_000, 'unit': 'symbols'})
 

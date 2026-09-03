@@ -72,7 +72,7 @@ class ProjectMetadataPatch(StrictModel):
 
 
 class ProgressCreate(StrictModel):
-    new_total: float
+    new_total: float = Field(allow_inf_nan=False)
     stage_id: str | None = None
 
 

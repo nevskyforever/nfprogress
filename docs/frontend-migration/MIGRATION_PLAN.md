@@ -113,12 +113,16 @@ authoritative and writes PKL before the existing SQLite mirror rebuild. Keep
 project/stage lifecycle in compatibility mode until relation, Notes cleanup,
 backup and game side effects are covered.
 
-### P3. Progress and calculation boundary
+### P3. Progress and calculation boundary — complete transitional boundary
 
-Move progress entries, unit conversion, goals, deadlines, writing-day semantics
-and pure statistics inputs to SQLite/TypeScript Core. Preserve exact legacy
-rounding and dates. Define a durable progress event/transaction contract before
-changing project ownership.
+Audit the complete progress mutation surface, keep PKL authoritative, and add a
+storage-neutral typed `ProgressRepository`. Desktop manual project/stage add and
+stable-ID delete use narrow Tauri commands; Web uses the API adapter. Port only
+parity-tested pure conversion, normalization, date-input, and statistics
+calculations to TypeScript Core. Sync, document, game, streak, completion, and
+other lifecycle side effects continue through the Python service. This is not a
+SQLite-authoritative Progress cutover; durable progress event/storage ownership
+work remains a P4/P7 dependency.
 
 ### P4. Project/stage lifecycle and cross-domain effects
 

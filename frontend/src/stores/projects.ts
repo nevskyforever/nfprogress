@@ -5,6 +5,7 @@ import { apiErrorMessage } from '@/api/client'
 import { projectsApi } from '@/api/projects'
 import { getProjectReadRepository } from '@/infrastructure/projects/projectReadRepository'
 import { getProjectMetadataRepository } from '@/infrastructure/projects/projectMetadataRepository'
+import { getProgressRepository } from '@/infrastructure/projects/progressRepository'
 import { adaptStatistics } from '@/services/statisticsAdapter'
 import { announceDataChange } from '@/services/dataChanges'
 import type {
@@ -41,6 +42,7 @@ export const useProjectsStore = defineStore('projects', () => {
   let statisticsSequence = 0
   const projectReadRepository = getProjectReadRepository()
   const projectMetadataRepository = getProjectMetadataRepository()
+  const progressRepository = getProgressRepository()
 
   const projectCount = computed(() => projects.value.length)
   const detailBusy = computed(() => detailOperation.value !== null)
@@ -266,7 +268,12 @@ export const useProjectsStore = defineStore('projects', () => {
     detailOperation.value = 'record-progress'
     detailActionError.value = null
     try {
-      const result = await projectsApi.recordProgress(projectId, payload)
+      const result = await progressRepository.add({
+        kind: 'manual',
+        projectId,
+        stageId: payload.stage_id,
+        newTotal: payload.new_total,
+      })
       storeProject(result.project)
       announceDataChange('projects')
       return result
@@ -284,7 +291,7 @@ export const useProjectsStore = defineStore('projects', () => {
     stageId?: string,
   ): Promise<Project | null> {
     return runDetailMutation(`delete-progress:${entryId}`, () =>
-      projectsApi.deleteProgress(projectId, entryId, stageId),
+      progressRepository.remove({ projectId, entryId, stageId }),
     )
   }
 

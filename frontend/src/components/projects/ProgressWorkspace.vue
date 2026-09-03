@@ -4,6 +4,7 @@ import { IonIcon, IonSpinner } from '@ionic/vue'
 import { addCircleOutline, chevronDownOutline, layersOutline, trashOutline } from 'ionicons/icons'
 
 import { useLocaleStore } from '@/stores/locale'
+import { normalizeProgressTotal } from '@/core/progress/calculations'
 import type { ProgressCreate, ProgressEntry, Project } from '@/types/api'
 import type { SyncSummary } from '@/types/integrations'
 import { convertProjectUnit } from '@/utils/projectPlanning'
@@ -65,7 +66,10 @@ function numberFrom(value: string | number): number {
 }
 
 async function record(): Promise<void> {
-  const total = numberFrom(newTotal.value)
+  const rawTotal = numberFrom(newTotal.value)
+  const total = Number.isFinite(rawTotal) && rawTotal >= 0
+    ? normalizeProgressTotal(rawTotal, selectedEntity.value.unit)
+    : rawTotal
   validationError.value = null
   if (!Number.isFinite(total) || total < 0) {
     validationError.value = t('Новое общее значение не может быть отрицательным.')

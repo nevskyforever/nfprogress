@@ -1,5 +1,5 @@
 import type { FiniteGoal, ProgressUnit } from './types'
-import { convertUnits } from './units'
+import { convertUnits, roundHalfEven } from './units'
 
 function localDate(value: string): Date | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return null
@@ -26,6 +26,7 @@ function roundedPlanValue(value: number, unit: ProgressUnit): number {
 }
 
 export { convertUnits }
+export { roundHalfEven }
 
 export function progressPercentage({ goal, total, infinite }: FiniteGoal): number {
   if (infinite || goal === null || goal <= 0) return 0

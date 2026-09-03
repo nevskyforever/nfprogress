@@ -1,4 +1,4 @@
-import { convertUnits } from '@/core/projects/calculations'
+import { convertUnits, roundHalfEven } from '@/core/projects/calculations'
 import type { PureStatistics, StatisticsInput } from './types'
 
 const MS_PER_DAY = 86_400_000
@@ -14,18 +14,6 @@ function parseIsoDate(value: string): Date | null {
 function datePart(value: string): string | null {
   const match = /^(\d{4}-\d{2}-\d{2})/.exec(value)
   return match && parseIsoDate(match[1]!) ? match[1]! : null
-}
-
-/** Python's round uses ties-to-even; Math.round does not. */
-function roundHalfEven(value: number, digits = 0): number {
-  if (!Number.isFinite(value)) return value
-  const factor = 10 ** digits
-  const scaled = value * factor
-  const lower = Math.floor(scaled)
-  const fraction = scaled - lower
-  const rounded = fraction < 0.5 || (fraction === 0.5 && lower % 2 === 0)
-    ? lower : lower + 1
-  return rounded / factor
 }
 
 function daysInclusive(start: string | null, end: string): number {

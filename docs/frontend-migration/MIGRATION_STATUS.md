@@ -20,6 +20,8 @@ left the desktop runtime.
 - [x] Settings controlled cutover to SQLite.
 - [x] Notes controlled cutover to SQLite, including stable IDs and map metadata.
 - [x] P2 typed project metadata/order boundary; Projects remain PKL-authoritative.
+- [x] P3 typed progress add/delete boundary and verified pure progress
+  calculations; Projects/progress remain PKL-authoritative.
 
 ## Current ownership
 
@@ -32,7 +34,7 @@ game                     = pickle authoritative
 
 | Domain | Owner | Current desktop path | Migration state |
 | --- | --- | --- | --- |
-| Projects/stages/progress | PKL | SQLite read projection; typed metadata/order desktop commands call the Python authoritative service; API remains for compatibility mutations | P2 boundary, not cut over |
+| Projects/stages/progress | PKL | SQLite read projection; typed metadata/order and manual progress desktop commands call the Python authoritative service; sync/document/integration paths remain API/Python | P3 boundary, not cut over |
 | Settings | SQLite | typed Rust commands for ordinary settings; API for coupled transitions | cut over |
 | Notes | SQLite | typed Rust CRUD/order; API/Python for map/XMind compatibility operations | cut over |
 | Game | PKL | API/Python service and PKL persistence | not cut over |
@@ -41,10 +43,10 @@ game                     = pickle authoritative
 
 | Area | Status | Actual boundary and remaining work |
 | --- | --- | --- |
-| Project calculations | done | Pure TypeScript calculations exist; persisted project rules remain Python-owned. |
+| Project calculations | done | Pure TypeScript calculations and P3 progress normalization/conversion helpers exist; persisted project rules remain Python-owned. |
 | Statistics | partial migration | Pure subset exists, but the UI still requests the complete API response because freezes, streaks and other state are Python/game-owned. |
 | Project read repository | read model complete | Healthy Tauri reads use the ordered SQLite mirror for projects, stages, and progress; API remains the fallback for stale, unhealthy, missing, or malformed mirror data. Projects remain PKL-authoritative. |
-| Projects/stages/progress feature | implemented, not migrated | CRUD, lifecycle, units, goals, deadlines and statistics are API-backed over PKL. Project mutation side effects can update streak/game state. |
+| Projects/stages/progress feature | typed transitional boundary | Manual add/delete use `ProgressRepository`; sync, documents, lifecycle, units, goals, deadlines and statistics remain API-backed over PKL. Project mutation side effects can update streak/game state. |
 | Notes/Mind Elixir | storage cut over | Notes ordinary CRUD/order use SQLite; map normalization, combined maps, XMind import and map reconciliation remain API/Python-backed. |
 | Settings | storage cut over | Ordinary settings use SQLite; project-coupled destructive transitions still use Python/API. |
 | Game | implemented, not migrated | Profile, rewards, sessions, challenges, cabinet, inventory and notifications remain PKL/Python authoritative. |
@@ -63,8 +65,8 @@ game                     = pickle authoritative
    for the current read contract; this is not a Projects storage cutover.
 3. **P2 project metadata/order boundary** — typed Rust commands and
    storage-neutral interfaces for non-progress project metadata and ordering.
-4. **P3 progress/calculation boundary** — move progress history and exact
-   writing-day/unit rules toward SQLite and TypeScript Core.
+4. **P3 progress/calculation boundary** — **Complete** typed manual progress
+   boundary and parity-tested pure calculations; no ownership cutover.
 5. **P4 project/stage lifecycle** — migrate lifecycle, relations, deletion and
    backups after game/streak side effects have a single-source contract.
 6. **P5 desktop integrations** — replace or isolate Word, Scrivener, documents,
@@ -107,7 +109,7 @@ to make one oversized cutover.
 
 ## Next recommended stage
 
-Do not start it automatically. The next implementation stage is **P3:
-progress/calculation boundary**. P2 added only the typed metadata/order
-boundary; lifecycle, progress, and game side effects remain in the compatibility
-path.
+Do not start it automatically. The next implementation stage is **P4:
+project/stage lifecycle and cross-domain effects**. P3 added only the typed
+manual progress boundary; lifecycle, integration, and game side effects remain
+in the compatibility path.

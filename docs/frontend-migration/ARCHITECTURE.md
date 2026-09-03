@@ -70,7 +70,7 @@ Vue → ProjectReadRepository → TypeScript Core
 
                          WRITE
                           ↓
-Vue → typed metadata/order boundary → Python → PKL → SQLite mirror
+Vue → typed project/progress boundary → Python → PKL → SQLite mirror
 ```
 
 The Python core wraps proven logic in `engine.py`, `game.py`, and
@@ -83,12 +83,25 @@ regression test enforces that Python-only boundary.
 
 P2 adds a storage-neutral `ProjectMetadataRepository` for the allow-listed
 project fields `name`, `goal`, `unit`, `deadline`, and `infinite`, plus manual
-ordering. Web uses the strict FastAPI metadata endpoint; desktop uses typed
-Tauri commands that forward to the local authenticated sidecar. The Python
+ordering. P3 adds a storage-neutral `ProgressRepository` for manual project or
+stage adds and stable-ID deletes. Web uses API adapters; desktop uses typed
+Tauri commands forwarding to the local authenticated sidecar. The Python
 `ProjectService` remains authoritative, so PKL is written first and the
-existing best-effort mirror rebuild follows. Rust never writes project SQLite
-tables. Mixed project options, status/archive/completion, stages, progress,
-Notes cleanup, maps, documents, and integrations remain outside P2.
+existing best-effort mirror rebuild follows. Rust never writes project or
+progress SQLite tables. Sync, document, upload, lifecycle, and game-heavy
+paths remain their existing Python compatibility paths.
+
+Progress mutation boundary:
+
+```text
+Vue/store → ProgressRepository
+             ├─ Tauri: add_project_progress / add_stage_progress / delete_progress
+             │          → authenticated FastAPI sidecar
+             └─ Web: existing narrow progress API
+                         ↓
+                 ProjectService → PKL → best-effort SQLite mirror
+                                  └→ streak/game/lifecycle effects
+```
 
 ## Source boundaries
 

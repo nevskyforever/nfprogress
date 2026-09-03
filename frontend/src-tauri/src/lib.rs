@@ -828,6 +828,30 @@ impl<'de> Deserialize<'de> for MetadataDeadline {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AddProjectProgressCommand {
+    project_id: String,
+    new_total: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct AddStageProgressCommand {
+    project_id: String,
+    stage_id: String,
+    new_total: f64,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct DeleteProgressCommand {
+    project_id: String,
+    entry_id: String,
+    #[serde(default)]
+    stage_id: Option<String>,
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MacosUpdateProgress {
@@ -967,6 +991,90 @@ async fn reorder_projects(
         reqwest::Method::PUT,
         "/api/projects/order".to_string(),
         serde_json::json!({"project_ids": project_ids}),
+    )
+    .await
+}
+
+fn validate_progress_command(
+    project_id: &str,
+    new_total: f64,
+    stage_id: Option<&str>,
+) -> Result<(), String> {
+    if project_id.is_empty() || stage_id.is_some_and(str::is_empty) {
+        return Err("Идентификатор проекта или этапа не может быть пустым.".to_string());
+    }
+    if !new_total.is_finite() || new_total < 0.0 {
+        return Err("Новое общее значение должно быть конечным и неотрицательным.".to_string());
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn add_project_progress(
+    state: State<'_, BackendState>,
+    command: AddProjectProgressCommand,
+) -> Result<serde_json::Value, String> {
+    validate_progress_command(&command.project_id, command.new_total, None)?;
+    backend_json_request(
+        state,
+        reqwest::Method::POST,
+        format!(
+            "/api/projects/{}/progress",
+            encode_path_segment(&command.project_id)
+        ),
+        serde_json::json!({"new_total": command.new_total, "stage_id": null}),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn add_stage_progress(
+    state: State<'_, BackendState>,
+    command: AddStageProgressCommand,
+) -> Result<serde_json::Value, String> {
+    validate_progress_command(
+        &command.project_id,
+        command.new_total,
+        Some(&command.stage_id),
+    )?;
+    backend_json_request(
+        state,
+        reqwest::Method::POST,
+        format!(
+            "/api/projects/{}/progress",
+            encode_path_segment(&command.project_id)
+        ),
+        serde_json::json!({"new_total": command.new_total, "stage_id": command.stage_id}),
+    )
+    .await
+}
+
+#[tauri::command]
+async fn delete_progress(
+    state: State<'_, BackendState>,
+    command: DeleteProgressCommand,
+) -> Result<serde_json::Value, String> {
+    if command.project_id.is_empty() || command.entry_id.is_empty() {
+        return Err("Идентификаторы проекта и записи не могут быть пустыми.".to_string());
+    }
+    if command.stage_id.as_deref().is_some_and(str::is_empty) {
+        return Err("Идентификатор этапа не может быть пустым.".to_string());
+    }
+    let query = command
+        .stage_id
+        .as_deref()
+        .map(|stage_id| format!("?stage_id={}", encode_path_segment(stage_id)))
+        .unwrap_or_default();
+    backend_json_request(
+        state,
+        reqwest::Method::DELETE,
+        format!(
+            "/api/projects/{}/progress/{}{}",
+            encode_path_segment(&command.project_id),
+            encode_path_segment(&command.entry_id),
+            query,
+        ),
+        serde_json::json!({}),
     )
     .await
 }
@@ -1147,7 +1255,8 @@ mod tests {
 
     use super::{
         build_macos_updater_script, configure_rustls_provider, encode_path_segment,
-        macos_update_target, ProjectMetadataPatch,
+        macos_update_target, AddProjectProgressCommand, AddStageProgressCommand,
+        DeleteProgressCommand, ProjectMetadataPatch,
     };
 
     #[test]
@@ -1164,6 +1273,49 @@ mod tests {
             .is_err()
         );
         assert_eq!(encode_path_segment("id/ два"), "id%2F%20%D0%B4%D0%B2%D0%B0");
+    }
+
+    #[test]
+    fn progress_commands_are_strict_and_keep_stage_target_explicit() {
+        let project: AddProjectProgressCommand = serde_json::from_value(serde_json::json!({
+            "projectId": "project/1",
+            "newTotal": 42.5,
+        }))
+        .expect("project progress command must deserialize");
+        assert_eq!(project.project_id, "project/1");
+        assert!(
+            serde_json::from_value::<AddProjectProgressCommand>(serde_json::json!({
+                "projectId": "p",
+                "newTotal": 1,
+                "stageId": "unexpected",
+            }))
+            .is_err()
+        );
+
+        let stage: AddStageProgressCommand = serde_json::from_value(serde_json::json!({
+            "projectId": "p",
+            "stageId": "s",
+            "newTotal": 42,
+        }))
+        .expect("stage progress command must deserialize");
+        assert_eq!(stage.stage_id, "s");
+        assert!(
+            serde_json::from_value::<DeleteProgressCommand>(serde_json::json!({
+                "projectId": "p",
+                "entryId": "e",
+                "arbitrarySql": "DELETE FROM progress_entries",
+            }))
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn progress_command_validation_rejects_invalid_numeric_values() {
+        assert!(super::validate_progress_command("p", -1.0, None).is_err());
+        assert!(super::validate_progress_command("p", f64::NAN, None).is_err());
+        assert!(super::validate_progress_command("p", f64::INFINITY, None).is_err());
+        assert!(super::validate_progress_command("p", 1.0, Some("")).is_err());
+        assert!(super::validate_progress_command("p", 1.0, Some("s")).is_ok());
     }
 
     #[test]
@@ -1703,6 +1855,9 @@ pub fn run() {
             read_sqlite_projects,
             update_project_metadata,
             reorder_projects,
+            add_project_progress,
+            add_stage_progress,
+            delete_progress,
             get_settings,
             set_settings,
             list_notes,
