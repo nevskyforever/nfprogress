@@ -6,7 +6,12 @@ import engine
 import game
 import pytest
 
-from nfprogress.core.sqlite import SQLiteMirrorRepository
+from nfprogress.core.sqlite import (
+    SQLiteMirrorRepository,
+    StorageOwner,
+    StorageOwnershipRepository,
+    Subsystem,
+)
 from nfprogress.core.sqlite.connection import open_database
 from nfprogress.core.storage import PickleRepository
 from nfprogress.sqlite_verify import verify
@@ -42,9 +47,83 @@ def test_empty_database_and_idempotent_migrations(tmp_path):
     first = open_database(tmp_path)
     first.close()
     second = open_database(tmp_path)
-    assert second.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 1
+    assert second.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 2
     assert second.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'").fetchone()
     second.close()
+
+
+def test_existing_schema_migrates_ownership_without_touching_data(tmp_path):
+    connection = sqlite3.connect(tmp_path / 'nfprogress.db')
+    connection.executescript((__import__('pathlib').Path('nfprogress/core/sqlite/migrations/001_initial.sql')).read_text())
+    connection.execute('INSERT INTO projects VALUES(?,?,?,?,?,?,?,?,?)', ('p', 'old', 1, 0, 'symbols', 'активен', None, None, '{}'))
+    connection.execute('CREATE TABLE schema_info (schema_version INTEGER NOT NULL)')
+    connection.execute('INSERT INTO schema_info VALUES(1)')
+    connection.commit()
+    connection.close()
+    with open_database(tmp_path) as db:
+        assert db.execute('SELECT name FROM projects').fetchone()['name'] == 'old'
+        assert dict(db.execute('SELECT subsystem, owner FROM storage_ownership').fetchall()) == {
+            'projects': 'pickle', 'settings': 'pickle', 'notes': 'pickle', 'game': 'pickle',
+        }
+
+
+def test_sqlite_owned_settings_survive_pickle_mirror_rebuild(tmp_path):
+    repository = _seed_repository(tmp_path)
+    ownership = StorageOwnershipRepository(tmp_path)
+    ownership.set_owner(Subsystem.SETTINGS, StorageOwner.SQLITE)
+    with open_database(tmp_path) as db:
+        db.execute("UPDATE settings SET value_json='\"sqlite-marker\"' WHERE key='language'")
+        db.commit()
+    repository.write_settings({'language': 'pickle-change'})
+    with open_database(tmp_path) as db:
+        assert json.loads(db.execute("SELECT value_json FROM settings WHERE key='language'").fetchone()[0]) == 'sqlite-marker'
+
+
+def test_sqlite_owned_projects_domain_survives_rebuild(tmp_path):
+    repository = _seed_repository(tmp_path)
+    StorageOwnershipRepository(tmp_path).set_owner(Subsystem.PROJECTS, StorageOwner.SQLITE)
+    with open_database(tmp_path) as db:
+        db.execute("UPDATE projects SET name='sqlite-marker' WHERE id=(SELECT id FROM projects LIMIT 1)")
+        db.commit()
+    repository.write_settings({'new': True})
+    with open_database(tmp_path) as db:
+        assert db.execute('SELECT name FROM projects').fetchone()['name'] == 'sqlite-marker'
+        assert db.execute("SELECT value_json FROM settings WHERE key='new'").fetchone()
+
+
+def test_mixed_mode_syncs_only_pickle_domains(tmp_path):
+    repository = _seed_repository(tmp_path)
+    ownership = StorageOwnershipRepository(tmp_path)
+    ownership.set_owner(Subsystem.PROJECTS, StorageOwner.SQLITE)
+    ownership.set_owner(Subsystem.SETTINGS, StorageOwner.SQLITE)
+    with open_database(tmp_path) as db:
+        db.execute("UPDATE settings SET value_json='\"sqlite-marker\"' WHERE key='language'")
+        db.commit()
+    repository.write_settings({'language': 'pickle-change'})
+    with open_database(tmp_path) as db:
+        assert json.loads(db.execute("SELECT value_json FROM settings WHERE key='language'").fetchone()[0]) == 'sqlite-marker'
+        assert db.execute('SELECT COUNT(*) FROM notes').fetchone()[0] == 1
+        assert db.execute('SELECT payload_json FROM game_state').fetchone()[0]
+
+
+def test_verifier_ignores_sqlite_owned_domain(tmp_path):
+    _seed_repository(tmp_path)
+    StorageOwnershipRepository(tmp_path).set_owner(Subsystem.SETTINGS, StorageOwner.SQLITE)
+    with open_database(tmp_path) as db:
+        db.execute("UPDATE settings SET value_json='\"independent\"' WHERE key='language'")
+        db.commit()
+    consistent, messages = verify(tmp_path)
+    assert consistent
+    assert not any(message.startswith('Settings:') for message in messages)
+
+
+def test_missing_ownership_is_fail_safe(tmp_path):
+    _seed_repository(tmp_path)
+    with open_database(tmp_path) as db:
+        db.execute("DELETE FROM storage_ownership WHERE subsystem='settings'")
+        db.commit()
+    with pytest.raises(RuntimeError, match='missing storage ownership'):
+        PickleRepository(tmp_path).synchronize_shadow()
 
 
 def test_empty_import_and_metadata(tmp_path):

@@ -12,7 +12,7 @@ retired.
 
 | TypeScript Core phase 1 | [done] | `frontend/src/core/projects` owns verified pure unit, progress, remaining, and planning calculations. Vue uses the shared calculation layer for display/preview only; Python remains authoritative for persisted mutations, cached daily plans, streaks, rewards, PKL, and the SQLite shadow mirror |
 
-| SQLite shadow mirror | [in progress] | PKL remains authoritative and Python maintains the mirror. Tauri now has a read-only Rust/`rusqlite` bridge for healthy project/stage/progress reads; TypeScript maps rows to the API `Project` DTO. API remains the fallback for unhealthy/missing/schema-invalid mirrors and for manual `project_order` list ordering. No TypeScript writes or migrations |
+| SQLite shadow mirror | [in progress] | PKL remains authoritative and Python maintains the mirror. Storage ownership is tracked per subsystem (`projects`, `settings`, `notes`, `game`), currently all `pickle`; the projects domain includes projects/stages/progress. Mirror rebuilds are subsystem-aware and never overwrite a future `sqlite`-owned domain. Tauri has a read-only Rust/`rusqlite` bridge for healthy project/stage/progress reads; TypeScript maps rows to the API `Project` DTO. API remains the fallback for unhealthy/missing/schema-invalid mirrors. No subsystem cutover or TypeScript writes |
 
 | Subsystem | Status | Evidence and remaining work |
 | --- | --- | --- |

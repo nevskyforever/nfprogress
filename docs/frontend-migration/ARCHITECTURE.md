@@ -164,6 +164,24 @@ semantic comparison and returns non-zero on mismatch. Original pickle files
 are never deleted or rewritten in a SQLite operation. Tests use temporary
 directories only.
 
+Storage ownership is tracked independently of mirror health in the versioned
+`storage_ownership` table. The current domains are `projects`, `settings`,
+`notes`, and `game`; all currently have `owner = 'pickle'`. The projects domain
+includes projects, stages, and progress entries. Mirror rebuilds synchronize
+only pickle-owned domains, so a future SQLite-owned domain is never overwritten
+by a normal PKL rebuild. Ownership changes are transactional infrastructure for
+a controlled cutover and no domain has been cut over yet:
+
+```text
+                 ownership
+                    ↓
+
+projects → pickle ─────→ SQLite mirror
+settings → pickle ─────→ SQLite mirror
+notes    → pickle ─────→ SQLite mirror
+game     → pickle ─────→ SQLite mirror
+```
+
 The command checks `mirror_state.sync_status = 'healthy'` and runs fixed
 `SELECT` statements for projects, stages, and progress entries. A
 storage-neutral mapper reconstructs the API `Project` DTO, using `payload_json`

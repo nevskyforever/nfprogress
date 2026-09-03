@@ -27,6 +27,16 @@ can be deleted and rebuilt from PKL. The intended future sequence is:
 Phases 3–5 are not implemented here; SQLite is not yet the TypeScript
 authoritative database.
 
+### Storage ownership safety
+
+Ownership is recorded per subsystem in `storage_ownership`, separately from
+`mirror_state`. Defaults are `projects = pickle`, `settings = pickle`,
+`notes = pickle`, and `game = pickle`. The mirror synchronizes the projects
+domain (projects/stages/progress) and each other domain independently, and
+skips any domain owned by SQLite. This prepares a future final-sync, verify,
+transactional-owner-switch cutover without introducing bidirectional sync or
+changing the current PKL authority.
+
 ### Stage 3: read-only SQLite project repository
 
 The first SQLite-to-TypeScript path is limited to project, stage, and progress

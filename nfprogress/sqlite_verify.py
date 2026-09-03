@@ -10,24 +10,30 @@ from collections.abc import Mapping
 import engine
 from nfprogress.core.serialization import serialize_project
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core.sqlite.ownership import StorageOwner, StorageOwnershipRepository, Subsystem
 from nfprogress.core.sqlite.repository import _legacy_json
 from nfprogress.core.storage import PickleRepository
 
 
-def _expected(repository):
+def _expected(repository, owners):
+    needs_projects = (
+        owners[Subsystem.PROJECTS] == StorageOwner.PICKLE
+        or owners[Subsystem.NOTES] == StorageOwner.PICKLE
+    )
     with repository.locked():
-        data = engine.load_data()
-        settings = engine.load_settings()
-        gamer = __import__('game').load_game()
+        data = engine.load_data() if needs_projects else {}
+        settings = engine.load_settings() if owners[Subsystem.SETTINGS] == StorageOwner.PICKLE else {}
+        gamer = (__import__('game').load_game()
+                 if owners[Subsystem.GAME] == StorageOwner.PICKLE else None)
     projects = data.get('projects', {}) if isinstance(data, dict) else {}
     entities = [entity for project in projects.values() for entity in [project, *getattr(project, 'stages', [])]]
     return {
-        'projects': {p.project_id: serialize_project(p) for p in projects.values()},
-        'stages': {stage.stage_id: serialize_project(stage) for project in projects.values() for stage in getattr(project, 'stages', [])},
-        'progress': {entry['id']: entry for entity in entities for entry in serialize_project(entity).get('progress_entries', [])},
-        'notes': {note['id']: note for entity in entities for note in serialize_project(entity).get('project_notes', []) if note.get('id')},
+        'projects': {p.project_id: serialize_project(p) for p in projects.values()} if needs_projects else {},
+        'stages': {stage.stage_id: serialize_project(stage) for project in projects.values() for stage in getattr(project, 'stages', [])} if needs_projects else {},
+        'progress': {entry['id']: entry for entity in entities for entry in serialize_project(entity).get('progress_entries', [])} if needs_projects else {},
+        'notes': {note['id']: note for entity in entities for note in serialize_project(entity).get('project_notes', []) if note.get('id')} if needs_projects else {},
         'settings': {str(key): _legacy_json(value) for key, value in settings.items()},
-        'game': _legacy_json(vars(gamer)),
+        'game': _legacy_json(vars(gamer)) if gamer is not None else None,
     }
 
 
@@ -45,8 +51,15 @@ def _actual(repository):
 
 def verify(data_dir: str) -> tuple[bool, list[str]]:
     repository = PickleRepository(data_dir)
-    expected, actual = _expected(repository), _actual(repository)
-    labels = [('projects', 'Projects'), ('stages', 'Stages'), ('progress', 'Progress'), ('notes', 'Notes'), ('settings', 'Settings'), ('game', 'Game state')]
+    owners = StorageOwnershipRepository(data_dir).owners()
+    expected, actual = _expected(repository, owners), _actual(repository)
+    domains = {
+        Subsystem.PROJECTS: (('projects', 'Projects'), ('stages', 'Stages'), ('progress', 'Progress')),
+        Subsystem.NOTES: (('notes', 'Notes'),),
+        Subsystem.SETTINGS: (('settings', 'Settings'),),
+        Subsystem.GAME: (('game', 'Game state'),),
+    }
+    labels = [item for subsystem in domains for item in domains[subsystem] if owners[subsystem] == StorageOwner.PICKLE]
     messages, consistent = [], True
     for key, label in labels:
         expected_value, actual_value = expected[key], actual[key]
