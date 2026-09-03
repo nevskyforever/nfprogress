@@ -28,6 +28,7 @@ export interface SqliteProjectReadModel {
   projects: SqliteEntityRow[]
   stages: SqliteEntityRow[]
   progress_entries: SqliteProgressRow[]
+  project_order: string[]
 }
 
 function objectPayload(value: string): Record<string, unknown> {
@@ -86,6 +87,12 @@ function entity(
 
 export function mapProjects(model: SqliteProjectReadModel): Project[] {
   if (model.mirror_status !== 'healthy') throw new Error('SQLite mirror is not healthy')
+  const projectIds = new Set(model.projects.map((row) => row.id))
+  if (model.project_order.length !== model.projects.length
+    || new Set(model.project_order).size !== model.project_order.length
+    || model.project_order.some((id) => !projectIds.has(id))) {
+    throw new Error('SQLite project ordering is incomplete')
+  }
   const entriesByEntity = new Map<string, ProgressEntry[]>()
   for (const row of model.progress_entries) {
     const entries = entriesByEntity.get(row.stage_id ?? row.project_id) ?? []
@@ -98,9 +105,13 @@ export function mapProjects(model: SqliteProjectReadModel): Project[] {
     stages.push(entity(row, entriesByEntity.get(row.id) ?? [], []))
     stagesByProject.set(row.project_id ?? '', stages)
   }
-  return model.projects.map((row) => entity(
+  const rowsById = new Map(model.projects.map((row) => [row.id, row]))
+  return model.project_order.map((id) => rowsById.get(id)).map((row) => {
+    if (!row) throw new Error('SQLite project ordering is incomplete')
+    return entity(
     row,
     entriesByEntity.get(row.id) ?? [],
     stagesByProject.get(row.id) ?? [],
-  ))
+    )
+  })
 }

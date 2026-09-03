@@ -11,7 +11,7 @@ import engine
 from nfprogress.core.serialization import serialize_project
 from nfprogress.core.sqlite.connection import open_database
 from nfprogress.core.sqlite.ownership import StorageOwner, StorageOwnershipRepository, Subsystem
-from nfprogress.core.sqlite.repository import _legacy_json
+from nfprogress.core.sqlite.repository import SQLiteMirrorRepository, _legacy_json
 from nfprogress.core.storage import PickleRepository
 
 
@@ -34,6 +34,9 @@ def _expected(repository, owners):
         'notes': {note['id']: note for entity in entities for note in serialize_project(entity).get('project_notes', []) if note.get('id')} if needs_projects else {},
         'settings': {str(key): _legacy_json(value) for key, value in settings.items()},
         'game': _legacy_json(vars(gamer)) if gamer is not None else None,
+        'project_order': SQLiteMirrorRepository._normalized_project_order(
+            data, [project.project_id for project in projects.values()],
+        ) if needs_projects else [],
     }
 
 
@@ -46,7 +49,15 @@ def _actual(repository):
         settings = {row['key']: json.loads(row['value_json']) for row in db.execute('SELECT * FROM settings')}
         row = db.execute('SELECT payload_json FROM game_state WHERE id=1').fetchone()
         game = json.loads(row['payload_json']) if row else None
-    return {'projects': projects, 'stages': stages, 'progress': progress, 'notes': notes, 'settings': settings, 'game': game}
+        order_rows = db.execute(
+            'SELECT project_id, position FROM project_order ORDER BY position, project_id',
+        ).fetchall()
+        project_order = (
+            [row['project_id'] for row in order_rows]
+            if [row['position'] for row in order_rows] == list(range(len(order_rows)))
+            else None
+        )
+    return {'projects': projects, 'stages': stages, 'progress': progress, 'notes': notes, 'settings': settings, 'game': game, 'project_order': project_order}
 
 
 def verify(data_dir: str) -> tuple[bool, list[str]]:
@@ -59,6 +70,7 @@ def verify(data_dir: str) -> tuple[bool, list[str]]:
         Subsystem.SETTINGS: (('settings', 'Settings'),),
         Subsystem.GAME: (('game', 'Game state'),),
     }
+    domains[Subsystem.PROJECTS] += (('project_order', 'Project order'),)
     labels = [item for subsystem in domains for item in domains[subsystem] if owners[subsystem] == StorageOwner.PICKLE]
     messages, consistent = [], True
     for key, label in labels:

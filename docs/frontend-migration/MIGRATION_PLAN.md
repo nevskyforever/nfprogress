@@ -73,7 +73,7 @@ SQLite остаётся mirror для PKL-owned projects/stages/progress и game
 | Subsystem | Current owner | Why Python is still required | Target | Blocker / stage |
 | --- | --- | --- | --- | --- |
 | Project/stage/progress mutations | PKL | `ProjectService`, legacy model, writing-day rules, validation and persistence run in Python; Vue sends mutations to API | TS Core rules + Rust SQLite commands/transactions | split storage and game side effects; stages P2–P4 |
-| Project reads | PKL, SQLite mirror | desktop already reads SQLite where possible, but manual ordering and API fallback still depend on PKL/API | complete SQLite read model including `project_order` | P1 |
+| Project reads | PKL, SQLite mirror | desktop reads the complete ordered SQLite projection when healthy; API remains the safe fallback | complete SQLite read model including `project_order` | P1 |
 | Statistics | derived from PKL progress | full response still includes Python-owned streak/freeze semantics | TS Core + SQLite progress/read model | P3 |
 | Notes ordinary CRUD | SQLite | desktop direct path is Rust; Web/API compatibility remains Python | Rust SQLite + API server adapter | completed |
 | Notes map/XMind | SQLite note state + PKL map document | `engine.normalize_mindmap_data`, combined maps and XMind parser/reconciliation are Python | Rust/TS map core and SQLite map/document state, or retained server adapter | blocks Python removal for map workflows; P5 |
@@ -102,8 +102,8 @@ boundary, and exit criteria. No runtime cutover belongs in this stage.
 
 Add stable representations for `project_order`, all project/stage fields used by
 Vue, effective writing-day dates and progress projections. Verify read parity
-without changing the project owner. Remove misleading “fully migrated” labels
-from documentation.
+without changing the project owner. P1 completes the SQLite project read model,
+including persisted project ordering; it is not a Projects storage cutover.
 
 ### P2. Project metadata and ordering boundary
 

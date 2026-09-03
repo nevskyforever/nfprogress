@@ -47,8 +47,9 @@ def test_empty_database_and_idempotent_migrations(tmp_path):
     first = open_database(tmp_path)
     first.close()
     second = open_database(tmp_path)
-    assert second.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 2
+    assert second.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 3
     assert second.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'").fetchone()
+    assert second.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='project_order'").fetchone()
     second.close()
 
 
@@ -160,6 +161,43 @@ def test_projects_stages_progress_notes_settings_game_and_unicode(tmp_path):
         assert isinstance(game_payload['writing_session']['started_at'], str)
         assert 'nodeData' in json.loads(project['payload_json'])['mindmap']
     assert verify(tmp_path)[0]
+
+
+def test_project_order_is_mirrored_and_verified(tmp_path):
+    repository = PickleRepository(tmp_path)
+    projects = [engine.Project(name, 100) for name in ('A', 'B', 'C')]
+    envelope = {
+        'projects': {project.name: project for project in projects},
+        'project_order': [projects[2].project_id, projects[0].project_id, projects[1].project_id],
+    }
+    repository.write_projects(envelope)
+    with open_database(tmp_path) as db:
+        assert [row['project_id'] for row in db.execute(
+            'SELECT project_id FROM project_order ORDER BY position',
+        )] == [project.project_id for project in (projects[2], projects[0], projects[1])]
+
+        db.execute(
+            'UPDATE project_order SET position = 3 WHERE project_id = ?',
+            (projects[0].project_id,),
+        )
+        db.commit()
+    assert not verify(tmp_path)[0]
+
+
+def test_project_mirror_rebuild_preserves_sqlite_owned_notes(tmp_path):
+    repository = _seed_repository(tmp_path)
+    StorageOwnershipRepository(tmp_path).set_owner(Subsystem.NOTES, StorageOwner.SQLITE)
+    with open_database(tmp_path) as db:
+        db.execute(
+            "UPDATE notes SET payload_json = ?, updated_at = ?",
+            ('{"id":"note-1","content":"sqlite-owned"}', 'sqlite-marker'),
+        )
+        db.commit()
+    repository.synchronize_shadow()
+    with open_database(tmp_path) as db:
+        note = db.execute('SELECT updated_at, payload_json FROM notes WHERE id = ?', ('note-1',)).fetchone()
+        assert note['updated_at'] == 'sqlite-marker'
+        assert json.loads(note['payload_json'])['content'] == 'sqlite-owned'
 
 
 def test_repeated_import_has_no_duplicates_and_rebuild_is_possible(tmp_path):

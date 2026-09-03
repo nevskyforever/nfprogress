@@ -242,11 +242,14 @@ Legacy PKL data is retained only for PKL-owned domains and a future explicit
 import/recovery path; it is not a target desktop runtime store.
 
 The command checks `mirror_state.sync_status = 'healthy'` and runs fixed
-`SELECT` statements for projects, stages, and progress entries. A
-storage-neutral mapper reconstructs the API `Project` DTO, using `payload_json`
-only for fields not yet normalized. Missing, unhealthy, malformed, or
-unavailable SQLite data falls back to the API. Manual project ordering remains
-API owned because the mirror does not yet contain `project_order`.
+`SELECT` statements for normalized `project_order`, projects, stages, and
+progress entries. The project query joins the order table and stage/progress
+queries preserve their serialized legacy sequences. A storage-neutral mapper
+reconstructs the API `Project` DTO, using `payload_json` only for fields not yet
+normalized. Missing, unhealthy, malformed, incomplete, or unavailable SQLite
+data falls back to the API. `project_order` is mirrored from the PKL-owned
+Projects envelope; it is not a new ownership domain and does not add project
+writes to Rust.
 
 The historical UI still has direct read-modify-write sequences that do not
 acquire the repository's cross-process transaction lock. It is unsupported and

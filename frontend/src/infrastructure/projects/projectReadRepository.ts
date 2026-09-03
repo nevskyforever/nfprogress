@@ -13,8 +13,7 @@ class FallbackProjectReadRepository implements ProjectReadRepository {
   private readonly sqlite = new SQLiteProjectReadRepository()
 
   async listProjects(query: ProjectListQuery = {}, signal?: AbortSignal) {
-    // The mirror has no project_order column. Preserve manual PKL ordering via API.
-    if (!desktopRuntime() || (query.sort ?? 'manual') === 'manual') {
+    if (!desktopRuntime()) {
       return apiRepository.listProjects(query, signal)
     }
     try {

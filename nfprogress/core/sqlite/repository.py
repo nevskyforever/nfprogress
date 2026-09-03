@@ -115,6 +115,17 @@ class SQLiteMirrorRepository:
         stage_rows: list[tuple[Any, ...]] = []
         progress_rows: list[tuple[Any, ...]] = []
         project_map = projects.get('projects', {}) if isinstance(projects, dict) else {}
+        project_ids = [
+            project.project_id
+            for project in project_map.values()
+            if hasattr(project, 'project_id')
+        ] if isinstance(project_map, Mapping) else []
+        order_rows = [
+            (project_id, position)
+            for position, project_id in enumerate(
+                self._normalized_project_order(projects, project_ids),
+            )
+        ]
         for project in project_map.values() if isinstance(project_map, Mapping) else []:
             payload = serialize_project(project)
             project_id = payload['id']
@@ -134,6 +145,7 @@ class SQLiteMirrorRepository:
                     if preserve_notes else []
                 )
                 db.execute('DELETE FROM progress_entries')
+                db.execute('DELETE FROM project_order')
                 db.execute('DELETE FROM stages')
                 db.execute('DELETE FROM projects')
                 db.executemany(
@@ -148,6 +160,10 @@ class SQLiteMirrorRepository:
                     'INSERT INTO progress_entries(id,project_id,stage_id,created_at,added_symbols,added_progress,payload_json) VALUES(?,?,?,?,?,?,?)',
                     progress_rows,
                 )
+                db.executemany(
+                    'INSERT INTO project_order(project_id,position) VALUES(?,?)',
+                    order_rows,
+                )
                 if preserve_notes and preserved_notes:
                     valid_projects = {row[0] for row in db.execute('SELECT id FROM projects')}
                     valid_stages = {row[0] for row in db.execute('SELECT id FROM stages')}
@@ -159,6 +175,26 @@ class SQLiteMirrorRepository:
                             and (row['stage_id'] is None or row['stage_id'] in valid_stages)
                         ],
                     )
+
+    @staticmethod
+    def _normalized_project_order(
+            projects: Mapping[str, Any], project_ids: list[str],
+    ) -> list[str]:
+        """Return a complete, deterministic projection of legacy order.
+
+        Unknown and duplicate legacy IDs are discarded; projects missing from
+        the legacy list are appended in the pickle mapping's order.  This only
+        normalizes the mirror and never changes authoritative PKL data.
+        """
+        saved_order = projects.get('project_order') if isinstance(projects, Mapping) else None
+        known = set(project_ids)
+        result: list[str] = []
+        if isinstance(saved_order, list):
+            for project_id in saved_order:
+                if isinstance(project_id, str) and project_id in known and project_id not in result:
+                    result.append(project_id)
+        result.extend(project_id for project_id in project_ids if project_id not in result)
+        return result
 
     def sync_notes(self, projects: dict[str, Any]) -> None:
         """Synchronize only the notes table, leaving parent rows untouched."""

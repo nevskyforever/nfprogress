@@ -27,14 +27,14 @@ describe('project read repository resolver', () => {
 
   it('falls back to API when the mirror is unhealthy', async () => {
     Object.assign(window, { __TAURI_INTERNALS__: {} })
-    invoke.mockResolvedValue({ mirror_status: 'dirty', projects: [], stages: [], progress_entries: [] })
+    invoke.mockResolvedValue({ mirror_status: 'dirty', projects: [], stages: [], progress_entries: [], project_order: [] })
     await expect(getProjectReadRepository().getProject('p')).resolves.toMatchObject({ id: 'api' })
     expect(apiGet).toHaveBeenCalledWith('p', undefined)
   })
 
   it('uses healthy SQLite for a non-manual list', async () => {
     Object.assign(window, { __TAURI_INTERNALS__: {} })
-    invoke.mockResolvedValue({ mirror_status: 'healthy', projects: [], stages: [], progress_entries: [] })
+    invoke.mockResolvedValue({ mirror_status: 'healthy', projects: [], stages: [], progress_entries: [], project_order: [] })
     await expect(getProjectReadRepository().listProjects({ sort: 'name' })).resolves.toEqual([])
     expect(invoke).toHaveBeenCalledWith('read_sqlite_projects')
     expect(apiList).not.toHaveBeenCalled()

@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::fmt::Write as _;
 use std::fs;
 use std::io::{Read, Write};
@@ -42,6 +43,7 @@ struct SqliteProgressRow {
 #[derive(Serialize)]
 struct SqliteProjectReadModel {
     mirror_status: String,
+    project_order: Vec<String>,
     projects: Vec<SqliteEntityRow>,
     stages: Vec<SqliteEntityRow>,
     progress_entries: Vec<SqliteProgressRow>,
@@ -846,7 +848,7 @@ fn read_sqlite_entity_rows(
     table: &str,
 ) -> Result<Vec<SqliteEntityRow>, String> {
     let sql = match table {
-        "projects" => "SELECT id, NULL, name, goal, infinite, unit, status, created_at, updated_at, payload_json FROM projects",
+        "projects" => "SELECT p.id, NULL, p.name, p.goal, p.infinite, p.unit, p.status, p.created_at, p.updated_at, p.payload_json FROM projects p JOIN project_order o ON o.project_id = p.id ORDER BY o.position",
         "stages" => "SELECT id, project_id, name, goal, infinite, unit, status, created_at, updated_at, payload_json FROM stages ORDER BY rowid",
         _ => return Err("Недопустимая таблица SQLite.".to_string()),
     };
@@ -905,9 +907,42 @@ fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
         .map_err(|error| error.to_string())?
         .map(|row| row.map_err(|error| error.to_string()))
         .collect::<Result<Vec<_>, _>>()?;
+    let project_order_rows = connection
+        .prepare("SELECT project_id, position FROM project_order ORDER BY position, project_id")
+        .map_err(|error| error.to_string())?
+        .query_map([], |row| {
+            Ok((row.get::<_, i64>(1)?, row.get::<_, String>(0)?))
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    if project_order_rows
+        .iter()
+        .enumerate()
+        .any(|(expected, (position, _))| *position != expected as i64)
+    {
+        return Err("SQLite project ordering positions are invalid.".to_string());
+    }
+    let project_order: Vec<String> = project_order_rows
+        .into_iter()
+        .map(|(_, project_id)| project_id)
+        .collect();
+    let project_ids: HashSet<&str> = project_order.iter().map(String::as_str).collect();
+    if project_order.len() != project_ids.len() {
+        return Err("SQLite project ordering contains duplicates.".to_string());
+    }
+    let project_rows = read_sqlite_entity_rows(&connection, "projects")?;
+    if project_order.len() != project_rows.len()
+        || project_rows
+            .iter()
+            .any(|row| !project_ids.contains(row.id.as_str()))
+    {
+        return Err("SQLite project ordering is incomplete.".to_string());
+    }
     Ok(SqliteProjectReadModel {
         mirror_status: status,
-        projects: read_sqlite_entity_rows(&connection, "projects")?,
+        project_order,
+        projects: project_rows,
         stages: read_sqlite_entity_rows(&connection, "stages")?,
         progress_entries,
     })

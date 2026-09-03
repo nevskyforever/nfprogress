@@ -15,6 +15,8 @@ left the desktop runtime.
 - [x] TypeScript pure project calculations.
 - [x] TypeScript pure statistics subset and parity tests.
 - [x] Read-only SQLite project repository through Rust/Tauri.
+- [x] Complete SQLite project read model, including persisted project ordering
+  and safe fallback for incomplete ordering.
 - [x] Settings controlled cutover to SQLite.
 - [x] Notes controlled cutover to SQLite, including stable IDs and map metadata.
 
@@ -40,7 +42,7 @@ game                     = pickle authoritative
 | --- | --- | --- |
 | Project calculations | done | Pure TypeScript calculations exist; persisted project rules remain Python-owned. |
 | Statistics | partial migration | Pure subset exists, but the UI still requests the complete API response because freezes, streaks and other state are Python/game-owned. |
-| Project read repository | partial migration | Desktop can read SQLite mirror data, with API fallback; manual `project_order` and stale/missing mirror handling remain API-dependent. |
+| Project read repository | read model complete | Healthy Tauri reads use the ordered SQLite mirror for projects, stages, and progress; API remains the fallback for stale, unhealthy, missing, or malformed mirror data. Projects remain PKL-authoritative. |
 | Projects/stages/progress feature | implemented, not migrated | CRUD, lifecycle, units, goals, deadlines and statistics are API-backed over PKL. Project mutation side effects can update streak/game state. |
 | Notes/Mind Elixir | storage cut over | Notes ordinary CRUD/order use SQLite; map normalization, combined maps, XMind import and map reconciliation remain API/Python-backed. |
 | Settings | storage cut over | Ordinary settings use SQLite; project-coupled destructive transitions still use Python/API. |
@@ -55,8 +57,9 @@ game                     = pickle authoritative
 ## Remaining dependency stages
 
 1. **Audit and plan** — current stage; documentation only, ownership unchanged.
-2. **P1 project read model** — complete project DTO, ordering, effective dates and
-   progress projections in SQLite without changing owner.
+2. **P1 project read model** — complete project DTO, persisted ordering, effective
+   dates and progress projections in SQLite without changing owner. **Complete**
+   for the current read contract; this is not a Projects storage cutover.
 3. **P2 project metadata/order boundary** — typed Rust commands and
    storage-neutral interfaces for non-progress project metadata and ordering.
 4. **P3 progress/calculation boundary** — move progress history and exact
@@ -103,7 +106,7 @@ to make one oversized cutover.
 
 ## Next recommended stage
 
-Do not start it automatically. The next implementation stage should be **P1:
-complete the SQLite project read model and `project_order` representation**.
-It is the smallest dependency-reducing step, supports later project mutation
-work, and does not require prematurely mixing project writes with game rewards.
+Do not start it automatically. The next implementation stage is **P2: project
+metadata/order boundary**. It requires typed Rust commands and storage-neutral
+interfaces for project metadata and ordering, while lifecycle, progress, and
+game side effects remain in the compatibility path.
