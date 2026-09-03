@@ -169,6 +169,15 @@ function loadProjects(): void {
   void store.load(currentListQuery())
 }
 
+function refreshWorkspaceSummaries(): void {
+  if (showTodaySummary.value) {
+    void projectsApi.today().then((summary) => { todaySummary.value = summary }).catch(() => undefined)
+  }
+  if (streaksEnabled.value) {
+    void projectsApi.globalStreak().then((summary) => { globalStreak.value = summary }).catch(() => undefined)
+  }
+}
+
 function projectAnimationSignature(project: Project): string {
   return JSON.stringify({
     total: project.total,
@@ -674,6 +683,7 @@ onMounted(() => {
   stopDataChanges = onDataChange((scope) => {
     if (scope === 'projects') {
       loadProjects()
+      refreshWorkspaceSummaries()
       return
     }
     void initializeWorkspace()

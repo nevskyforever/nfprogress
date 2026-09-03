@@ -49,6 +49,10 @@ const developerAvailable = ref(false)
 const developerDialogOpen = ref(false)
 const globalStreak = ref<GlobalStreakSummary | null>(null)
 let stopDataChanges: (() => void) | undefined
+let writingDayTimer: number | undefined
+let lastWritingDay: string | null = null
+let writingDayRefreshInFlight = false
+const WRITING_DAY_CHECK_INTERVAL_MS = 5 * 60 * 1000
 const hasBanner = computed(() => !online.value || Boolean(startupError))
 const lastProjectPath = ref('/projects')
 const lastMapsPath = ref('/maps')
@@ -160,18 +164,41 @@ async function refreshGlobalStreak(): Promise<void> {
   }
 }
 
+async function refreshWritingDay(): Promise<void> {
+  if (writingDayRefreshInFlight) return
+  writingDayRefreshInFlight = true
+  try {
+    // The backend owns the custom start-of-day rule. Polling this lightweight
+    // summary keeps an already open workspace in sync even when no user
+    // action happens at the writing-day boundary.
+    const summary = await projectsApi.today()
+    const previousDay = lastWritingDay
+    lastWritingDay = summary.date
+    if (previousDay !== null && previousDay !== summary.date) {
+      announceDataChange('projects')
+    }
+  } catch {
+    // The next interval retries; temporary offline state is shown separately.
+  } finally {
+    writingDayRefreshInFlight = false
+  }
+}
+
 onMounted(() => {
   window.addEventListener('keydown', handleShortcut)
   void settingsApi.get().then((settings) => {
     developerAvailable.value = settings.values.developer_mode === true
   })
   void refreshGlobalStreak()
+  void refreshWritingDay()
+  writingDayTimer = window.setInterval(() => { void refreshWritingDay() }, WRITING_DAY_CHECK_INTERVAL_MS)
   stopDataChanges = onDataChange((scope) => {
     if (scope === 'projects' || scope === 'game') void refreshGlobalStreak()
   })
 })
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleShortcut)
+  if (writingDayTimer !== undefined) window.clearInterval(writingDayTimer)
   stopDataChanges?.()
 })
 

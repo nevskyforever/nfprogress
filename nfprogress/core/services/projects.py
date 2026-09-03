@@ -914,7 +914,10 @@ class ProjectService:
         on stages. Keep that calculation in Python so the Vue workspace does
         not reconstruct writing-day rules from serialized notes.
         """
-        data = self.repository.read_projects()
+        # Reading the daily summary is also the lightweight heartbeat used by
+        # the running frontend. Apply the same legacy day-boundary transitions
+        # as project and global-streak reads before reporting today's totals.
+        data = self._read_projects_with_streak_refresh()
         today = engine.today_for_test()
         projects: list[dict[str, Any]] = []
         total_symbols = 0.0

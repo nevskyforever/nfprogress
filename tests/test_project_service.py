@@ -245,7 +245,8 @@ def test_project_reads_refresh_automatic_local_and_global_streaks(
 
     assert service.get_project(project['id'])['id'] == project['id']
     assert service.list_projects()[0]['id'] == project['id']
-    assert len(refreshed) == 2
+    assert service.today_summary()['date'] == engine.today_for_test().isoformat()
+    assert len(refreshed) == 3
 
 
 def test_project_names_are_unique_and_lookup_uses_stable_id(service):

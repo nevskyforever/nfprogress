@@ -43,6 +43,7 @@ vi.mock('@/api/settings', () => ({
 vi.mock('@/api/projects', () => ({
   projectsApi: {
     globalStreak: vi.fn(),
+    today: vi.fn(),
   },
 }))
 
@@ -101,6 +102,12 @@ describe('AppShell preferences', () => {
       length: 4,
       max_length: 9,
     })
+    vi.mocked(projectsApi.today).mockReset()
+    vi.mocked(projectsApi.today).mockResolvedValue({
+      date: '2026-08-25',
+      symbols: 0,
+      projects: [],
+    })
     vi.mocked(contentApi.locale).mockReset()
     vi.mocked(contentApi.locale).mockResolvedValue({})
   })
@@ -139,6 +146,25 @@ describe('AppShell preferences', () => {
       .toBeGreaterThan(callsBeforeRefresh)
     expect(wrapper.get('.sidebar-global-streak').text()).toContain('заморожен')
     wrapper.unmount()
+  })
+
+  it('refreshes open workspaces after the backend reports a new writing day', async () => {
+    vi.useFakeTimers()
+    vi.mocked(projectsApi.today)
+      .mockResolvedValueOnce({ date: '2026-08-25', symbols: 0, projects: [] })
+      .mockResolvedValueOnce({ date: '2026-08-26', symbols: 0, projects: [] })
+    const { wrapper } = mountShell()
+    await flushPromises()
+    const callsBeforeRefresh = vi.mocked(projectsApi.globalStreak).mock.calls.length
+
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000)
+    await flushPromises()
+
+    expect(projectsApi.today).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(projectsApi.globalStreak).mock.calls.length)
+      .toBeGreaterThan(callsBeforeRefresh)
+    wrapper.unmount()
+    vi.useRealTimers()
   })
 
   it('waits for backend confirmation before changing the theme', async () => {
