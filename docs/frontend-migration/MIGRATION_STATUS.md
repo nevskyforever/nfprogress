@@ -1,115 +1,98 @@
 # NFProgress — migration status
 
-Updated: 2026-09-04
+Updated against baseline `04b62c3970b22c43b9f604f79ee6de17243179f2` on
+2026-09-04.
 
-This status distinguishes implemented application features from authoritative
-storage ownership. A feature marked done does not mean Python/PKL has already
-left the desktop runtime.
-
-## Completed migration foundations
-
-- [x] SQLite schema and versioned migration runner.
-- [x] Shadow mirror, ownership table, mirror health and verifier.
-- [x] Explicit data roots, process/advisory locking and atomic PKL writes.
-- [x] SQLite database included in backups.
-- [x] TypeScript pure project calculations.
-- [x] TypeScript pure statistics subset and parity tests.
-- [x] Read-only SQLite project repository through Rust/Tauri.
-- [x] Complete SQLite project read model, including persisted project ordering
-  and safe fallback for incomplete ordering.
-- [x] Settings controlled cutover to SQLite.
-- [x] Notes controlled cutover to SQLite, including stable IDs and map metadata.
-- [x] P2 typed project metadata/order boundary; Projects remain PKL-authoritative.
-- [x] P3 typed progress add/delete boundary and verified pure progress
-  calculations; Projects/progress remain PKL-authoritative.
+This status distinguishes implemented features from authoritative storage.
+No implementation milestone was started by the fast-track audit.
 
 ## Current ownership
 
 ```text
-projects/stages/progress = pickle authoritative
+projects/stages/progress = PKL authoritative
 settings                 = SQLite authoritative
 notes                    = SQLite authoritative
-game                     = pickle authoritative
+game                     = PKL authoritative
 ```
 
-| Domain | Owner | Current desktop path | Migration state |
-| --- | --- | --- | --- |
-| Projects/stages/progress | PKL | SQLite read projection; typed metadata/order and manual progress desktop commands call the Python authoritative service; sync/document/integration paths remain API/Python | P3 boundary, not cut over |
-| Settings | SQLite | typed Rust commands for ordinary settings; API for coupled transitions | cut over |
-| Notes | SQLite | typed Rust CRUD/order; API/Python for map/XMind compatibility operations | cut over |
-| Game | PKL | API/Python service and PKL persistence | not cut over |
-
-## Feature implementation status
-
-| Area | Status | Actual boundary and remaining work |
+| Domain | Current desktop path | Status |
 | --- | --- | --- |
-| Project calculations | done | Pure TypeScript calculations and P3 progress normalization/conversion helpers exist; persisted project rules remain Python-owned. |
-| Statistics | partial migration | Pure subset exists, but the UI still requests the complete API response because freezes, streaks and other state are Python/game-owned. |
-| Project read repository | read model complete | Healthy Tauri reads use the ordered SQLite mirror for projects, stages, and progress; API remains the fallback for stale, unhealthy, missing, or malformed mirror data. Projects remain PKL-authoritative. |
-| Projects/stages/progress feature | typed transitional boundary | Manual add/delete use `ProgressRepository`; sync, documents, lifecycle, units, goals, deadlines and statistics remain API-backed over PKL. Project mutation side effects can update streak/game state. |
-| Notes/Mind Elixir | storage cut over | Notes ordinary CRUD/order use SQLite; map normalization, combined maps, XMind import and map reconciliation remain API/Python-backed. |
-| Settings | storage cut over | Ordinary settings use SQLite; project-coupled destructive transitions still use Python/API. |
-| Game | implemented, not migrated | Profile, rewards, sessions, challenges, cabinet, inventory and notifications remain PKL/Python authoritative. |
-| Word/Scrivener | implemented, Python-dependent | Local parsing, source snapshots and progress application run in the Python sidecar. |
-| Documents | partial migration | Vue editor is TypeScript, but metadata, project relations and local integration workflows remain API/Python-dependent. |
-| Background synchronization | Python-dependent | Desktop sidecar worker runs configured Word/Scrivener sources. |
-| Backup/restore | mixed | DB is backed up with PKL; no complete SQLite restore wizard exists. |
-| Desktop startup | Python-dependent | Tauri launches target-specific Nuitka FastAPI sidecar, waits for `/health`, then Vue connects. |
-| Web/cloud | separate backend | Web and Capacitor use a separately deployed FastAPI HTTP backend; this is not a reason to retain Python in desktop. |
+| Projects/stages/progress | Healthy SQLite read projection; typed metadata/order and manual progress commands call authenticated Python, which writes PKL and rebuilds the mirror | Transitional P3 boundary; not cut over |
+| Settings | Typed Rust SQLite commands for ordinary settings; coupled project transitions still call Python/API | SQLite-authoritative, coupled behavior remains Python |
+| Notes | Typed Rust SQLite CRUD/order; map normalization, reconciliation and XMind still use Python/API | SQLite-authoritative notes; map document path remains transitional |
+| Game | Python GameService and `gamer.pkl`; broad `game_state` mirror | Not cut over |
+| Documents | Vue/Tiptap plus Python `documents.json` service | Separate JSON store; not in SQLite |
+| Word/Scrivener/sync | Python sidecar parser and minute background task | Python-dependent |
 
-## Remaining dependency stages
+## Completed foundations
 
-1. **Audit and plan** — current stage; documentation only, ownership unchanged.
-2. **P1 project read model** — complete project DTO, persisted ordering, effective
-   dates and progress projections in SQLite without changing owner. **Complete**
-   for the current read contract; this is not a Projects storage cutover.
-3. **P2 project metadata/order boundary** — typed Rust commands and
-   storage-neutral interfaces for non-progress project metadata and ordering.
-4. **P3 progress/calculation boundary** — **Complete** typed manual progress
-   boundary and parity-tested pure calculations; no ownership cutover.
-5. **P4 project/stage lifecycle** — migrate lifecycle, relations, deletion and
-   backups after game/streak side effects have a single-source contract.
-6. **P5 desktop integrations** — replace or isolate Word, Scrivener, documents,
-   XMind, Mind Elixir persistence and background sync from Python.
-7. **P6 game pure rules** — separate portable game calculations/catalogs from
-   persistent `Gamer` state.
-8. **P7 game persistence and events** — move game state to SQLite and make
-   progress/reward effects transaction-safe across domains.
-9. **P8 Python-free desktop runtime** — remove sidecar startup, FastAPI local
-   dependency, Nuitka packaging and mandatory Python startup checks.
-10. **P9 legacy recovery** — retain only an explicit, tested PKL importer and
-    SQLite-native backup/restore path.
+- versioned SQLite schema through v3, ownership table, mirror health and
+  semantic verifier;
+- explicit data roots, process/advisory locking and atomic PKL writes;
+- SQLite Settings and Notes controlled cutovers;
+- complete ordered Projects/Stages/Progress read projection;
+- P2 typed metadata/order boundary;
+- P3 typed manual progress add/delete boundary and parity-tested TS
+  conversion/normalization/statistics helpers;
+- typed Tauri DTOs and fixed SQL for current direct Settings/Notes/read paths.
 
-Projects migration is intentionally split across P1–P4. Game integration and
-filesystem integrations are blockers for a safe final owner switch, not reasons
-to make one oversized cutover.
+These foundations are retained. They do not prove that Projects or Game are
+SQLite-authoritative and do not prove that the v3 database is a lossless user
+backup.
 
-## Python desktop dependency inventory
+## Audit conclusions
 
-| Dependency | Why it remains | Target / blocker |
+- `projects`, `stages`, `progress_entries`, `project_order`, Settings, Notes
+  and broad Game JSON are present in SQLite under the conditions described in
+  [`FAST_TRACK_AUDIT.md`](FAST_TRACK_AUDIT.md).
+- Project envelope fields (`project_folders`, notifications/global streak),
+  actual `synch`/`last_synch` bindings, `documents.json`, unknown Project
+  attributes and external files are not guaranteed in SQLite.
+- The current Rust path does not run the Python schema migrations. A final
+  direct upgrade therefore needs a migration-only importer and Rust/open
+  migration support.
+- No additional user-facing bridge release is recommended if the final
+  distribution provides a separately tested one-shot legacy importer. Without
+  that helper, a bridge release is mandatory.
+
+## Known baseline Python failures
+
+The suite at this baseline reports `517 passed, 8 failed, 15 skipped`.
+
+| Test | Classification | Migration impact |
 | --- | --- | --- |
-| FastAPI sidecar | Current Tauri transport for project mutations, statistics, game, integrations and maps | Remove only after P2–P8 commands exist. |
-| `engine.py` models | PKL class paths and project/progress/map compatibility | Replace with SQLite DTOs plus legacy importer. |
-| `game.py` / `game_data.py` | Persistent game state and reward invariants | P6–P7; depends on project progress events. |
-| Word/Scrivener parsers | Local filesystem synchronization | Rust implementation required for Python-free desktop. |
-| Mind Elixir normalization/XMind | Combined maps and map-note reconciliation | TS/Rust map core or explicitly server-only import. |
-| Background worker | Scheduled local manuscript sync | Rust worker with locking and lifecycle semantics. |
-| PKL files | Projects and game are still authoritative | Remove runtime reads only after P4/P7; preserve importer if needed. |
+| `tests/test_accessibility.py::test_ui_templates_expose_names_labels_and_tab_order` | Legacy PySide6 UI template: `lottery_ticket.ui` has focusable controls but no `<tabstops>` | Obsolete for Vue/Tauri; does not block desktop migration, but must be retired or fixed before claiming the full legacy suite is green. |
+| `tests/test_api_game_contracts.py::test_openapi_exposes_game_state_catalog_and_command_models` | Game API schema contract: developer endpoint returns `DeveloperModeResponse`, while the test assumes all non-read paths are `GameCommandResponse` | Relevant to the Python oracle/API contract; resolve or explicitly narrow the test before F3 parity sign-off. |
+| `tests/test_api_game_contracts.py::test_representative_full_game_state_and_commands_validate` | Game contract fixture observes no eligible streak-freeze project after current date/test-clock behavior | Relevant to Game/progress parity; blocks F3 until behavior is fixed, test clock is isolated, or the behavior is explicitly retired with a replacement. |
+| `tests/test_core_game_service.py::test_progress_streak_events_are_idempotent_per_server_day` | Date/test-clock mismatch: saved reward marker is 2026-09-04 while the assertion expects 2026-09-03 | Relevant to progress/Game event parity; blocks F2/F3 time semantics. |
+| `tests/test_core_game_service.py::test_streak_recovery_repairs_project_marker_without_duplicate_reward` | Same date/test-clock mismatch in recovery marker | Relevant to idempotent recovery; blocks F3. |
+| `tests/test_project_service.py::test_project_stage_progress_and_statistics_round_trip` | Same date/test-clock mismatch in progress statistics | Relevant to F2 progress parity; blocks F2 until deterministic clock ownership is established. |
+| `tests/test_project_service.py::test_project_reads_refresh_automatic_local_and_global_streaks` | Same date/test-clock mismatch in today summary | Relevant to lifecycle/streak read semantics; blocks F2 if today summaries remain supported. |
+| `tests/test_quests_catalog.py::test_week_symbol_quest_counts_last_seven_days` | Week quest boundary/date behavior does not match the test fixture | Relevant to F3 only; not a storage blocker, but must be fixed or retired before quest parity. |
 
-## Platform state
+The six date/game/progress failures must not be relabeled “pre-existing” and
+then carried through the port without a decision. The accessibility failure is
+legacy UI-only. The OpenAPI failure is a contract-test mismatch, not evidence
+of storage loss.
 
-- Web production build and remote API configuration are available; HTTPS,
-  authentication and SPA fallback remain deployment concerns.
-- Tauri macOS ARM/Intel app and sidecar checks are documented; Windows release
-  and signing still require the appropriate CI/host credentials.
-- Capacitor projects and sync exist; native iOS/Android builds remain
-  toolchain-blocked on the audit host.
-- Tauri cannot yet be called Python-free: `externalBin` still names
-  `nfprogress-backend`, and `lib.rs` launches the sidecar.
+## New roadmap status
 
-## Next recommended stage
+| Milestone | Status | Risk / Codex recommendation |
+| --- | --- | --- |
+| F1 storage contract, Rust migrations and one-shot legacy importer | Not started | Very High / Luna High; Sol only for pickle/parser or integrity design |
+| F2 Projects/Stages/Progress SQLite-authoritative cutover | Not started | Very High / Luna High |
+| F3 Game SQLite/event cutover | Not started | Very High / Luna High |
+| F4 Mind Elixir/XMind | Not started | High / Luna Medium–High |
+| F5 Documents/Word/Scrivener/background sync | Not started | High / Luna Medium–High |
+| F6 Python-free Tauri packaging/runtime | Not started | High / Luna Medium–High |
+| F7 migration, backup/restore and release qualification | Not started | Very High / Luna High; Sol for cross-platform release/integrity issues |
 
-Do not start it automatically. The next implementation stage is **P4:
-project/stage lifecycle and cross-domain effects**. P3 added only the typed
-manual progress boundary; lifecycle, integration, and game side effects remain
-in the compatibility path.
+P1–P3 are complete foundations and are absorbed into F1/F2. P4 is absorbed
+into F2 with a durable Game event contract. P5 is split into F4 and F5. P6/P7
+are combined into F3. P8 is F6. P9 is split between F1 and F7.
+
+## Do not start automatically
+
+The next action after this documentation commit requires explicit approval to
+start F1. This replan does not switch ownership, change the schema, delete
+Python, delete sidecar/PKL, or begin Projects/Game/Integration implementation.
