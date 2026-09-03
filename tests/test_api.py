@@ -13,6 +13,7 @@ from backend.app.config import RuntimeConfig
 from backend.app import __main__ as backend_cli
 from backend.app.__main__ import main as backend_main
 from backend.app.main import create_app
+from nfprogress.core.sqlite.repository import SQLiteMirrorRepository
 
 
 TOKEN = 'test-session-token'
@@ -99,6 +100,61 @@ def test_project_folders_and_manual_order_are_exposed_by_api(client):
     assert client.get('/api/projects/folders').json() == [folder]
     assert [project['id'] for project in ordered.json()] == [second['id'], first['id']]
     assert [project['id'] for project in client.get('/api/projects', params={'sort': 'manual'}).json()] == [second['id'], first['id']]
+
+
+def test_project_metadata_boundary_is_allow_listed_and_uses_authoritative_service(client):
+    project = _create_project(client)
+    updated = client.patch(
+        f"/api/projects/{project['id']}/metadata",
+        json={'name': 'Новое имя', 'deadline': None, 'unit': 'A4'},
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()['name'] == 'Новое имя'
+    assert updated.json()['unit'] == 'A4'
+    rejected = client.patch(
+        f"/api/projects/{project['id']}/metadata", json={'total': 10},
+    )
+    assert rejected.status_code == 422
+
+
+def test_project_metadata_boundary_preserves_non_metadata_state(client):
+    project = _create_project(client)
+    repository = client.app.state.services.repository
+
+    def seed(data):
+        stored = next(iter(data['projects'].values()))
+        stored.mindmap_data = {
+            'nodeData': {'id': 'root', 'topic': 'Keep', 'children': []},
+        }
+        stored.synch = {'type': 'word', 'path': '/tmp/keep.docx'}
+
+    repository.update_projects(seed)
+    updated = client.patch(
+        f"/api/projects/{project['id']}/metadata", json={'name': 'Без потерь'},
+    )
+    assert updated.status_code == 200, updated.text
+    stored = next(iter(repository.read_projects()['projects'].values()))
+    assert stored.mindmap_data['nodeData']['id'] == 'root'
+    assert stored.synch == {'type': 'word', 'path': '/tmp/keep.docx'}
+
+
+def test_project_metadata_success_survives_mirror_failure(client, monkeypatch):
+    project = _create_project(client)
+
+    def fail(*args, **kwargs):
+        raise OSError('disk full')
+
+    monkeypatch.setattr(SQLiteMirrorRepository, 'rebuild', fail)
+    updated = client.patch(
+        f"/api/projects/{project['id']}/metadata", json={'name': 'PKL сохранён'},
+    )
+
+    assert updated.status_code == 200, updated.text
+    assert updated.json()['name'] == 'PKL сохранён'
+    database = client.app.state.services.repository.base_dir / 'nfprogress.db'
+    import sqlite3
+    with sqlite3.connect(database) as connection:
+        assert connection.execute('SELECT sync_status FROM mirror_state').fetchone()[0] == 'dirty'
 
 
 def test_api_accepts_existing_cover_larger_than_compact_export(client):

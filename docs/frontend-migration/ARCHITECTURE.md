@@ -70,7 +70,7 @@ Vue → ProjectReadRepository → TypeScript Core
 
                          WRITE
                           ↓
-Vue → API → Python → PKL → SQLite mirror
+Vue → typed metadata/order boundary → Python → PKL → SQLite mirror
 ```
 
 The Python core wraps proven logic in `engine.py`, `game.py`, and
@@ -80,6 +80,15 @@ payloads encode those paths, and moving them would require a data migration
 without improving the service boundary. The service and API layers, including
 these compatibility domain modules, have no PySide6 or UI imports; a subprocess
 regression test enforces that Python-only boundary.
+
+P2 adds a storage-neutral `ProjectMetadataRepository` for the allow-listed
+project fields `name`, `goal`, `unit`, `deadline`, and `infinite`, plus manual
+ordering. Web uses the strict FastAPI metadata endpoint; desktop uses typed
+Tauri commands that forward to the local authenticated sidecar. The Python
+`ProjectService` remains authoritative, so PKL is written first and the
+existing best-effort mirror rebuild follows. Rust never writes project SQLite
+tables. Mixed project options, status/archive/completion, stages, progress,
+Notes cleanup, maps, documents, and integrations remain outside P2.
 
 ## Source boundaries
 

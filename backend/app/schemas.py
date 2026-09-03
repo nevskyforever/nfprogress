@@ -61,6 +61,16 @@ class ProjectUpdate(EntityUpdate):
     folder_id: str | None = None
 
 
+class ProjectMetadataPatch(StrictModel):
+    """Narrow, PKL-authoritative project write contract for P2."""
+
+    name: str | None = None
+    goal: float | None = None
+    unit: UnitCode | None = None
+    deadline: date | None = None
+    infinite: bool | None = None
+
+
 class ProgressCreate(StrictModel):
     new_total: float
     stage_id: str | None = None

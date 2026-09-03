@@ -10,6 +10,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use rusqlite::OptionalExtension;
+use serde::de::{self, Visitor};
 use serde::{Deserialize, Serialize};
 use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
@@ -766,6 +767,67 @@ struct BackendConnection {
     development: bool,
 }
 
+#[derive(Default, Deserialize)]
+#[serde(rename_all = "camelCase")]
+#[serde(default)]
+#[serde(deny_unknown_fields)]
+struct ProjectMetadataPatch {
+    name: Option<String>,
+    goal: Option<f64>,
+    unit: Option<String>,
+    // None means omitted; Some(Null) is an explicit JSON null.
+    deadline: MetadataDeadline,
+    infinite: Option<bool>,
+}
+
+#[derive(Default)]
+enum MetadataDeadline {
+    #[default]
+    Absent,
+    Null,
+    Value(String),
+}
+
+impl<'de> Deserialize<'de> for MetadataDeadline {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct DeadlineVisitor;
+        impl<'de> Visitor<'de> for DeadlineVisitor {
+            type Value = MetadataDeadline;
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("a nullable deadline string")
+            }
+            fn visit_unit<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(MetadataDeadline::Null)
+            }
+            fn visit_none<E>(self) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(MetadataDeadline::Null)
+            }
+            fn visit_str<E>(self, value: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(MetadataDeadline::Value(value.to_string()))
+            }
+            fn visit_string<E>(self, value: String) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                Ok(MetadataDeadline::Value(value))
+            }
+        }
+        deserializer.deserialize_any(DeadlineVisitor)
+    }
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MacosUpdateProgress {
@@ -807,6 +869,106 @@ fn backend_connection(state: State<'_, BackendState>) -> Result<BackendConnectio
             || Err("Локальный backend nfprogress ещё не готов.".to_string()),
             Err,
         )
+}
+
+async fn backend_json_request<T: serde::Serialize>(
+    state: State<'_, BackendState>,
+    method: reqwest::Method,
+    path: String,
+    body: T,
+) -> Result<serde_json::Value, String> {
+    let connection = state
+        .connection
+        .lock()
+        .map_err(|_| "Не удалось получить соединение с локальным backend.".to_string())?
+        .clone()
+        .ok_or_else(|| "Локальный backend nfprogress ещё не готов.".to_string())?;
+    let response = reqwest::Client::new()
+        .request(method, format!("{}{path}", connection.api_base_url))
+        .header("X-NFProgress-Token", connection.session_token)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|error| format!("Не удалось выполнить project metadata command: {error}"))?;
+    let status = response.status();
+    let payload = response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|error| format!("Некорректный ответ project metadata command: {error}"))?;
+    if !status.is_success() {
+        return Err(payload
+            .get("detail")
+            .and_then(|detail| detail.get("message"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("Project metadata command завершился ошибкой.")
+            .to_string());
+    }
+    Ok(payload)
+}
+
+fn encode_path_segment(value: &str) -> String {
+    value.bytes().fold(String::new(), |mut encoded, byte| {
+        if byte.is_ascii_alphanumeric() || b"-._~".contains(&byte) {
+            encoded.push(byte as char);
+        } else {
+            write!(&mut encoded, "%{byte:02X}").expect("writing to a String cannot fail");
+        }
+        encoded
+    })
+}
+
+#[tauri::command]
+async fn update_project_metadata(
+    state: State<'_, BackendState>,
+    project_id: String,
+    patch: ProjectMetadataPatch,
+) -> Result<serde_json::Value, String> {
+    let mut body = serde_json::Map::new();
+    if let Some(value) = patch.name {
+        body.insert("name".into(), value.into());
+    }
+    if let Some(value) = patch.goal {
+        body.insert("goal".into(), value.into());
+    }
+    if let Some(value) = patch.unit {
+        body.insert("unit".into(), value.into());
+    }
+    match patch.deadline {
+        MetadataDeadline::Null => {
+            body.insert("deadline".into(), serde_json::Value::Null);
+        }
+        MetadataDeadline::Value(value) => {
+            body.insert("deadline".into(), value.into());
+        }
+        MetadataDeadline::Absent => {}
+    }
+    if let Some(value) = patch.infinite {
+        body.insert("infinite".into(), value.into());
+    }
+    backend_json_request(
+        state,
+        reqwest::Method::PATCH,
+        format!(
+            "/api/projects/{}/metadata",
+            encode_path_segment(&project_id)
+        ),
+        body,
+    )
+    .await
+}
+
+#[tauri::command]
+async fn reorder_projects(
+    state: State<'_, BackendState>,
+    project_ids: Vec<String>,
+) -> Result<serde_json::Value, String> {
+    backend_json_request(
+        state,
+        reqwest::Method::PUT,
+        "/api/projects/order".to_string(),
+        serde_json::json!({"project_ids": project_ids}),
+    )
+    .await
 }
 
 fn sqlite_data_root() -> Result<PathBuf, String> {
@@ -983,7 +1145,26 @@ mod tests {
     #[cfg(target_os = "macos")]
     use std::process::{Command, Stdio};
 
-    use super::{build_macos_updater_script, configure_rustls_provider, macos_update_target};
+    use super::{
+        build_macos_updater_script, configure_rustls_provider, encode_path_segment,
+        macos_update_target, ProjectMetadataPatch,
+    };
+
+    #[test]
+    fn project_metadata_payload_is_narrow_and_encodes_ids() {
+        let patch: ProjectMetadataPatch =
+            serde_json::from_value(serde_json::json!({"name": "Новый", "deadline": null}))
+                .expect("allow-listed metadata must deserialize");
+        assert_eq!(patch.name.as_deref(), Some("Новый"));
+        assert!(matches!(patch.deadline, super::MetadataDeadline::Null));
+        assert!(
+            serde_json::from_value::<ProjectMetadataPatch>(serde_json::json!({
+                "total": 10
+            }))
+            .is_err()
+        );
+        assert_eq!(encode_path_segment("id/ два"), "id%2F%20%D0%B4%D0%B2%D0%B0");
+    }
 
     #[test]
     fn update_client_has_a_rustls_crypto_provider() {
@@ -1520,6 +1701,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             backend_connection,
             read_sqlite_projects,
+            update_project_metadata,
+            reorder_projects,
             get_settings,
             set_settings,
             list_notes,

@@ -518,7 +518,7 @@ async function reorderProject(
     if (sourceProject.folder_id !== targetFolderId) {
       await projectsApi.update(sourceId, { folder_id: targetFolderId })
     }
-    await projectsApi.reorder(ordered)
+    if (!await store.reorderProjects(ordered)) return
     await store.load(currentListQuery())
   } catch (error) {
     notifications.error(t(apiErrorMessage(error)))

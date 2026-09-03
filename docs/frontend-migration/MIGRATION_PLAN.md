@@ -105,11 +105,13 @@ Vue, effective writing-day dates and progress projections. Verify read parity
 without changing the project owner. P1 completes the SQLite project read model,
 including persisted project ordering; it is not a Projects storage cutover.
 
-### P2. Project metadata and ordering boundary
+### P2. Project metadata and ordering boundary — complete
 
-Move project ordering and non-progress metadata commands behind storage-neutral
-interfaces and typed Rust commands. Keep project/stage lifecycle in compatibility
-mode until relation, Notes cleanup, backup and game side effects are covered.
+Project ordering and the allow-listed non-progress metadata commands now use
+storage-neutral interfaces and typed Rust commands. The Python service remains
+authoritative and writes PKL before the existing SQLite mirror rebuild. Keep
+project/stage lifecycle in compatibility mode until relation, Notes cleanup,
+backup and game side effects are covered.
 
 ### P3. Progress and calculation boundary
 

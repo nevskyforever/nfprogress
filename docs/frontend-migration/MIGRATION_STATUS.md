@@ -19,6 +19,7 @@ left the desktop runtime.
   and safe fallback for incomplete ordering.
 - [x] Settings controlled cutover to SQLite.
 - [x] Notes controlled cutover to SQLite, including stable IDs and map metadata.
+- [x] P2 typed project metadata/order boundary; Projects remain PKL-authoritative.
 
 ## Current ownership
 
@@ -31,7 +32,7 @@ game                     = pickle authoritative
 
 | Domain | Owner | Current desktop path | Migration state |
 | --- | --- | --- | --- |
-| Projects/stages/progress | PKL | SQLite read projection where safe; API/Python for mutations and fallbacks | not cut over |
+| Projects/stages/progress | PKL | SQLite read projection; typed metadata/order desktop commands call the Python authoritative service; API remains for compatibility mutations | P2 boundary, not cut over |
 | Settings | SQLite | typed Rust commands for ordinary settings; API for coupled transitions | cut over |
 | Notes | SQLite | typed Rust CRUD/order; API/Python for map/XMind compatibility operations | cut over |
 | Game | PKL | API/Python service and PKL persistence | not cut over |
@@ -106,7 +107,7 @@ to make one oversized cutover.
 
 ## Next recommended stage
 
-Do not start it automatically. The next implementation stage is **P2: project
-metadata/order boundary**. It requires typed Rust commands and storage-neutral
-interfaces for project metadata and ordering, while lifecycle, progress, and
-game side effects remain in the compatibility path.
+Do not start it automatically. The next implementation stage is **P3:
+progress/calculation boundary**. P2 added only the typed metadata/order
+boundary; lifecycle, progress, and game side effects remain in the compatibility
+path.

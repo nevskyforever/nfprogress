@@ -1,4 +1,5 @@
 import { apiRequest } from './client'
+import type { ProjectMetadataPatch } from '@/core/repositories/projectMetadata'
 import type {
   ProgressCreate,
   ProgressResult,
@@ -78,6 +79,10 @@ export const projectsApi = {
 
   update(projectId: string, payload: ProjectUpdate): Promise<Project> {
     return apiRequest<Project>(projectPath(projectId), { method: 'PATCH', body: payload })
+  },
+
+  updateMetadata(projectId: string, patch: ProjectMetadataPatch): Promise<Project> {
+    return apiRequest<Project>(`${projectPath(projectId)}/metadata`, { method: 'PATCH', body: patch })
   },
 
   remove(projectId: string): Promise<void> {

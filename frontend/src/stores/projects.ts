@@ -4,6 +4,7 @@ import { computed, ref } from 'vue'
 import { apiErrorMessage } from '@/api/client'
 import { projectsApi } from '@/api/projects'
 import { getProjectReadRepository } from '@/infrastructure/projects/projectReadRepository'
+import { getProjectMetadataRepository } from '@/infrastructure/projects/projectMetadataRepository'
 import { adaptStatistics } from '@/services/statisticsAdapter'
 import { announceDataChange } from '@/services/dataChanges'
 import type {
@@ -17,6 +18,7 @@ import type {
   StageCreate,
   Statistics,
 } from '@/types/api'
+import type { ProjectMetadataPatch } from '@/core/repositories/projectMetadata'
 
 export const useProjectsStore = defineStore('projects', () => {
   const projects = ref<Project[]>([])
@@ -38,6 +40,7 @@ export const useProjectsStore = defineStore('projects', () => {
   let detailController: AbortController | null = null
   let statisticsSequence = 0
   const projectReadRepository = getProjectReadRepository()
+  const projectMetadataRepository = getProjectMetadataRepository()
 
   const projectCount = computed(() => projects.value.length)
   const detailBusy = computed(() => detailOperation.value !== null)
@@ -175,7 +178,11 @@ export const useProjectsStore = defineStore('projects', () => {
   }
 
   function updateCurrent(projectId: string, payload: ProjectUpdate): Promise<Project | null> {
-    return runDetailMutation('update-project', () => projectsApi.update(projectId, payload))
+    const safeKeys = ['name', 'goal', 'unit', 'deadline', 'infinite']
+    const isSafeMetadata = Object.keys(payload).every((key) => safeKeys.includes(key))
+    return runDetailMutation('update-project', () => isSafeMetadata
+      ? projectMetadataRepository.updateMetadata(projectId, payload as ProjectMetadataPatch)
+      : projectsApi.update(projectId, payload))
   }
 
   function setArchived(projectId: string, archived: boolean): Promise<Project | null> {
@@ -186,7 +193,7 @@ export const useProjectsStore = defineStore('projects', () => {
 
   async function reorderProjects(projectIds: string[]): Promise<boolean> {
     try {
-      projects.value = await projectsApi.reorder(projectIds)
+      projects.value = await projectMetadataRepository.reorderProjects(projectIds)
       announceDataChange('projects')
       return true
     } catch (mutationError) {

@@ -14,6 +14,7 @@ from ..schemas import (
     ProjectCreate,
     ProjectResponse,
     ProjectUpdate,
+    ProjectMetadataPatch,
     ProjectFolderCreate,
     ProjectFolderResponse,
     ProjectFolderUpdate,
@@ -137,6 +138,17 @@ def update_project(
     )
     _migrate_first_stage_document(services, project_id, was_single_project and payload.stages_enabled is True)
     return result
+
+
+@router.patch('/{project_id}/metadata', response_model=ProjectResponse)
+def update_project_metadata(
+        project_id: str,
+        payload: ProjectMetadataPatch,
+        services: Annotated[Services, Depends(get_services)],
+):
+    return services.projects.update_project(
+        project_id, payload.model_dump(exclude_unset=True),
+    )
 
 
 @router.delete('/{project_id}', status_code=status.HTTP_204_NO_CONTENT)
