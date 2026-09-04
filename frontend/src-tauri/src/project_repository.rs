@@ -527,6 +527,11 @@ impl<'connection> ProjectsRepository<'connection> {
 
     pub fn delete_stage_storage(&mut self, stage_id: &str) -> Result<(), RepositoryError> {
         let transaction = self.connection.transaction()?;
+        transaction.execute(
+            "DELETE FROM document_bindings WHERE document_id IN (SELECT id FROM documents WHERE stage_id=?1)",
+            [stage_id],
+        )?;
+        transaction.execute("DELETE FROM documents WHERE stage_id=?1", [stage_id])?;
         transaction.execute("DELETE FROM stage_order WHERE stage_id=?1", [stage_id])?;
         transaction.execute("DELETE FROM project_bindings WHERE stage_id=?1", [stage_id])?;
         transaction.execute(
@@ -552,6 +557,11 @@ impl<'connection> ProjectsRepository<'connection> {
         project_id: &str,
     ) -> Result<(), RepositoryError> {
         let transaction = self.connection.transaction()?;
+        transaction.execute(
+            "DELETE FROM document_bindings WHERE document_id IN (SELECT id FROM documents WHERE stage_id=?1)",
+            [stage_id],
+        )?;
+        transaction.execute("DELETE FROM documents WHERE stage_id=?1", [stage_id])?;
         transaction.execute(
             "DELETE FROM notes WHERE project_id=?1 AND stage_id=?2",
             params![project_id, stage_id],
@@ -596,6 +606,11 @@ impl<'connection> ProjectsRepository<'connection> {
             "DELETE FROM project_order WHERE project_id=?1",
             [project_id],
         )?;
+        transaction.execute(
+            "DELETE FROM document_bindings WHERE document_id IN (SELECT id FROM documents WHERE project_id=?1)",
+            [project_id],
+        )?;
+        transaction.execute("DELETE FROM documents WHERE project_id=?1", [project_id])?;
         transaction.execute(
             "DELETE FROM project_bindings WHERE project_id=?1",
             [project_id],
@@ -646,6 +661,11 @@ impl<'connection> ProjectsRepository<'connection> {
             "DELETE FROM project_order WHERE project_id=?1",
             [project_id],
         )?;
+        transaction.execute(
+            "DELETE FROM document_bindings WHERE document_id IN (SELECT id FROM documents WHERE project_id=?1)",
+            [project_id],
+        )?;
+        transaction.execute("DELETE FROM documents WHERE project_id=?1", [project_id])?;
         transaction.execute(
             "DELETE FROM project_bindings WHERE project_id=?1",
             [project_id],

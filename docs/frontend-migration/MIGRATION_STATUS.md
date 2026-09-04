@@ -1,7 +1,7 @@
 # NFProgress — migration status
 
-Updated for F4 against implementation HEAD
-`aad08cdd34cd5bc9a10c28e862c2f8aa6860da7c` on 2026-09-04.
+Updated for F6 against implementation HEAD `89898945ff0ed71b27148e36ab00f9b90e1cd3ed`
+on 2026-09-04.
 
 This status distinguishes implemented features from authoritative storage.
 F1/F2 storage foundations and the F3 Game owner switch are implemented. The
@@ -15,6 +15,8 @@ projects/stages/progress = SQLite authoritative
 settings                 = SQLite authoritative
 notes                    = SQLite authoritative
 game                     = SQLite authoritative
+documents                = SQLite authoritative; documents.json is migration/recovery input only
+Word/Scrivener/sync      = typed Tauri commands → Rust bounded filesystem services
 ```
 
 | Domain | Current desktop path | Status |
@@ -23,12 +25,12 @@ game                     = SQLite authoritative
 | Settings | Typed Rust SQLite commands for ordinary settings; coupled project transitions still call Python/API | SQLite-authoritative, coupled behavior remains Python |
 | Notes/maps | Typed Rust SQLite Notes CRUD/order plus typed map load/save/import | SQLite-authoritative; normal desktop map/XMind path is Python-free, Web remains API-backed |
 | Game | Vue typed Tauri commands → Rust Game service → SQLite; Web keeps API adapter | SQLite-authoritative; normal desktop has no Python Game dependency |
-| Documents | Vue/Tiptap plus Python `documents.json` service | Separate JSON store; not in SQLite |
-| Word/Scrivener/sync | Python sidecar parser and minute background task | Python-dependent |
+| Documents | Vue/Tiptap → typed Tauri commands → Rust → SQLite | SQLite-authoritative; legacy JSON is not normal source |
+| Word/Scrivener/sync | Tauri → bounded Rust DOCX/Scrivener/filesystem boundary | Python-free feature path; Web remains API-backed |
 
 ## Completed foundations
 
-- versioned SQLite schema through v5, ownership table, mirror health and
+- versioned SQLite schema through v6, ownership table, mirror health and
   semantic verifier;
 - explicit data roots, process/advisory locking and atomic PKL writes;
 - SQLite Settings and Notes controlled cutovers;
@@ -56,8 +58,9 @@ F6 concerns; the SQLite backup now contains authoritative Game state.
   [`FAST_TRACK_AUDIT.md`](FAST_TRACK_AUDIT.md).
 - Project folders, actual `synch`/`last_synch` bindings, unknown
   Project/Stage fields and stable progress order are now represented in v4.
-- Notifications/global streak are now Game-owned in SQLite; `documents.json`
-  and external files remain F6 concerns.
+- Notifications/global streak are now Game-owned in SQLite; F6 has moved
+  `documents.json` records to SQLite and keeps external files as user-owned
+  synchronization peers.
 - A migration-only Python helper is selected for legacy PKL parsing. Rust does
   not execute arbitrary pickle object behavior and now runs the shared schema
   migrations at DB open.
@@ -67,7 +70,7 @@ F6 concerns; the SQLite backup now contains authoritative Game state.
 
 ## Known baseline Python failures
 
-The suite at the F4 starting HEAD reports `539 passed, 3 failed, 15 skipped,
+The suite at the F6 baseline reports `542 passed, 3 failed, 15 skipped,
 2 subtests passed`.
 
 | Test | Classification | Migration impact |
@@ -89,13 +92,24 @@ the remaining relevant legacy-oracle issue and is recorded for parity follow-up.
 | F3 Game SQLite/event cutover | Complete (development authority) | Very High / Luna High |
 | F4 Game runtime completion | Complete (development desktop path) | Very High / Luna High; production upgrade remains separate |
 | F5 Mind Elixir/XMind | Complete (development desktop path) | High / Luna Medium–High; production legacy-variant qualification remains F8 |
-| F6 Documents/Word/Scrivener/background sync | Not started | High / Luna Medium–High |
+| F6 Documents/Word/Scrivener/background sync | Complete (development desktop path) | High / external-format and release qualification remain F8 |
 | F7 Python-free Tauri sidecar/packaging removal | Not started | High / Luna Medium–High |
 | F8 migration, backup/restore and release qualification | Not started | Very High / Luna High; Sol for cross-platform release/integrity issues |
 
 P1–P3 are complete foundations and are absorbed into F1/F2. P4 is absorbed
 into F2 with a durable Game event contract. P5 is split into F5 and F6. P6/P7
 are completed by F3/F4. P8 is F7. P9 is split between F1 and F8.
+
+## F6 implementation status
+
+F6 moves the normal desktop Documents/integration path to SQLite and typed
+Tauri commands. The Rust boundary owns document migration, stable IDs,
+structured Tiptap JSON, SHA-256 file identity, bounded DOCX parsing/generation,
+Scrivener binder inspection/read counting, atomic Word writes, conflict states,
+and trusted idempotent progress events. A native 60-second polling task invokes
+the Rust batch command; unchanged hashes are coalesced and self-writes record
+the expected final hash. The global Python sidecar still exists for unrelated
+transitional domains and is intentionally F7 scope.
 
 ## F1 boundary
 

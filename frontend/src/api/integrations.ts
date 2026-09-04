@@ -1,4 +1,5 @@
 import { apiRequest } from './client'
+import { currentPlatform } from '@/platform/runtime'
 import type {
   ScrivenerItem,
   ProjectSyncs,
@@ -23,16 +24,30 @@ function stageQuery(stageId?: string | null): string {
   return `?${new URLSearchParams({ stage_id: stageId }).toString()}`
 }
 
+async function nativeInvoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
+  const { invoke } = await import('@tauri-apps/api/core')
+  return invoke<T>(command, args)
+}
+
 export const integrationsApi = {
   getSync(projectId: string, stageId?: string | null): Promise<SyncSummary> {
+    if (currentPlatform() === 'tauri') {
+      return nativeInvoke<SyncSummary>('get_document_sync', { projectId, stageId: stageId ?? null })
+    }
     return apiRequest<SyncSummary>(`${projectSyncPath(projectId)}${stageQuery(stageId)}`)
   },
 
   getProjectSyncs(projectId: string): Promise<ProjectSyncs> {
+    if (currentPlatform() === 'tauri') {
+      return nativeInvoke<ProjectSyncs>('get_project_document_syncs', { projectId })
+    }
     return apiRequest<ProjectSyncs>(`${projectSyncPath(projectId)}/all`)
   },
 
   configureSync(projectId: string, payload: SyncConfigure): Promise<SyncSummary> {
+    if (currentPlatform() === 'tauri') {
+      return nativeInvoke<SyncSummary>('configure_document_sync', { projectId, ...payload })
+    }
     return apiRequest<SyncSummary>(projectSyncPath(projectId), {
       method: 'PUT',
       body: payload,
@@ -40,12 +55,18 @@ export const integrationsApi = {
   },
 
   removeSync(projectId: string, stageId?: string | null): Promise<SyncSummary> {
+    if (currentPlatform() === 'tauri') {
+      return nativeInvoke<SyncSummary>('remove_document_sync', { projectId, stageId: stageId ?? null })
+    }
     return apiRequest<SyncSummary>(`${projectSyncPath(projectId)}${stageQuery(stageId)}`, {
       method: 'DELETE',
     })
   },
 
   runSync(projectId: string, stageId?: string | null): Promise<SyncRunResult> {
+    if (currentPlatform() === 'tauri') {
+      return nativeInvoke<SyncRunResult>('run_document_sync', { projectId, stageId: stageId ?? null })
+    }
     return apiRequest<SyncRunResult>(
       `${projectSyncPath(projectId)}/run${stageQuery(stageId)}`,
       { method: 'POST' },
@@ -53,23 +74,38 @@ export const integrationsApi = {
   },
 
   runProjectSyncs(projectId: string): Promise<SyncBatchResult> {
+    if (currentPlatform() === 'tauri') {
+      return nativeInvoke<SyncBatchResult>('run_project_document_syncs', { projectId })
+    }
     return apiRequest<SyncBatchResult>(`${projectSyncPath(projectId)}/run-all`, {
       method: 'POST',
     })
   },
 
   runAllSync(): Promise<SyncBatchResult> {
+    if (currentPlatform() === 'tauri') {
+      return nativeInvoke<SyncBatchResult>('run_all_document_sync')
+    }
     return apiRequest<SyncBatchResult>('/api/integrations/sync/run-all', {
       method: 'POST',
     })
   },
 
   inspectScrivener(path: string): Promise<ScrivenerItem[]> {
+    if (currentPlatform() === 'tauri') {
+      return nativeInvoke<ScrivenerItem[]>('inspect_scrivener', { path })
+    }
     const params = new URLSearchParams({ path })
     return apiRequest<ScrivenerItem[]>(`/api/integrations/scrivener/items?${params.toString()}`)
   },
 
   countWord(file: File): Promise<WordCountResult> {
+    if (currentPlatform() === 'tauri') {
+      return file.arrayBuffer().then((buffer) => nativeInvoke<number>('count_word_document', {
+        bytes: Array.from(new Uint8Array(buffer)),
+        filename: file.name,
+      }).then((symbols) => ({ symbols })))
+    }
     const body = new FormData()
     body.set('file', file, file.name)
     return apiRequest<WordCountResult>('/api/integrations/word/count', {
@@ -83,6 +119,14 @@ export const integrationsApi = {
     file: File,
     stageId?: string | null,
   ): Promise<WordImportResult> {
+    if (currentPlatform() === 'tauri') {
+      return file.arrayBuffer().then((buffer) => nativeInvoke<WordImportResult>('import_word_document', {
+        projectId,
+        stageId: stageId ?? null,
+        bytes: Array.from(new Uint8Array(buffer)),
+        filename: file.name,
+      }))
+    }
     const body = new FormData()
     body.set('file', file, file.name)
     return apiRequest<WordImportResult>(

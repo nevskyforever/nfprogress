@@ -251,12 +251,13 @@ state referenced by validated paths/hashes.
 **Work:**
 
 - migrate `documents.json` records to SQLite and include them in snapshots;
-- retain Tiptap and existing TS `mammoth`/`docx` conversion where parity holds;
-- implement Rust local file access, atomic writes, hashes, snapshots and
-  stale/future/change-during-read checks;
-- port Scrivener binder/XML/RTF parsing to Rust;
-- implement a cancellable Rust watcher/scheduler with per-source failures and
-  the same writing-day/event semantics;
+- preserve structured Tiptap JSON with a versioned content format;
+- implement Rust local file access, atomic writes, SHA-256 hashes, snapshots
+  and change-during-read checks;
+- port the supported Scrivener binder/XML/RTF read/count boundary to Rust;
+- implement native polling with bounded per-source failures, hash-based
+  coalescing and self-write suppression; a native event watcher is not added
+  because the audited product behavior is polling;
 - explicitly define which remote upload workflows remain Web-only.
 
 **Python dependencies:** no desktop document/integration worker; Python may
@@ -266,9 +267,18 @@ remain for remote FastAPI upload endpoints.
 item IDs and missing-file bindings; backup must include records and manifest,
 not external files implicitly.
 
-**Tests / exit criteria:** DOCX import/export/count parity; Scrivener fixtures;
-stale/missing/unreadable/changing-source tests; atomic writes; watcher
-cancellation and isolation; external path manifest; clean-profile restore.
+**F6 result:** completed for the development desktop path. Typed commands are
+`list_documents`, `get_document`, `save_document`, `record_document_progress`,
+`rename_document`, `delete_document`, `bind_document_file`,
+`read_document_external`, `accept_document_external`,
+`parse_word_document`, `import_word_document`, `export_word_document`,
+`configure_document_sync`, `get_document_sync`, `get_project_document_syncs`,
+`remove_document_sync`, `run_document_sync`, and
+`run_all_document_sync`. DOCX limits, XML/archive traversal protection,
+Scrivener symlink/size protection, stable IDs, conflict states, and external
+file ownership are covered by Rust tests and the existing Python oracle suite.
+The external path manifest is included in transitional backups. F8 still owns
+full restore and cross-platform release qualification.
 
 **Pre-existing failures:** integration/document failures block; unrelated
 legacy UI failures may remain only if retired from desktop scope.

@@ -60,6 +60,12 @@ async function initializeTauriRuntime(): Promise<void> {
         error instanceof Error ? error.message : String(error || 'Не удалось запустить приложение.'),
     }
   }
+  // Native document synchronization is deliberately independent of the
+  // legacy localhost service.  The command is idempotent and hashes/coalesces
+  // unchanged sources on the Rust side.
+  window.setInterval(() => {
+    void invoke('run_all_document_sync').catch(() => undefined)
+  }, 60_000)
 }
 
 async function initializeCapacitorRuntime(): Promise<void> {

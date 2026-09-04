@@ -1,6 +1,7 @@
 # F5 — Python-free Mind Elixir / XMind runtime
 
-Status: development desktop runtime complete. F6 has not started.
+Status: development desktop runtime complete. F6 document/integration runtime
+is complete for the development desktop path.
 
 ## Baseline
 
@@ -136,6 +137,11 @@ invalid JSON/XML and failed-import non-mutation. The two implementations need
 not be byte-identical for generated XMind IDs, but their tree shape, topics and
 ordering are equivalent; imported external IDs are intentionally remapped.
 
+F6 keeps this boundary intact: Documents, Word, Scrivener and filesystem sync
+now use their own typed Rust/Tauri boundary and do not route through the map
+runtime or the Python sidecar. Map payloads remain nested in the owning
+Project/Stage SQLite record; no duplicate document/map authority is introduced.
+
 MigrationBundle v1 is unchanged: maps already travel losslessly in the
 Projects DTO payload, so adding a duplicate map section would create another
 truth model. The Legacy Migration Service continues to decode old PKL state in
@@ -160,5 +166,5 @@ new desktop runtime never reads pickle or calls Python for maps.
 Normal desktop map calls to localhost/FastAPI/Python are zero after F5. Python
 remains only in the Web adapter, legacy migration service and oracle tests;
 the sidecar remains for Documents and other integrations. Production Python
-bridge updates remain allowed through F8. Remaining F6 blockers are Documents,
-Word, Scrivener, filesystem watchers and the general synchronization boundary.
+bridge updates remain allowed through F8. F7 still owns global sidecar and
+packaging removal; F8 owns release qualification and recovery matrices.

@@ -1,6 +1,6 @@
 # NFProgress — migration architecture
 
-Baseline: F4 implementation starts at `aad08cdd34cd5bc9a10c28e862c2f8aa6860da7c`.
+F6 implementation baseline: `89898945ff0ed71b27148e36ab00f9b90e1cd3ed`.
 
 The supported user interface is Vue/Ionic in `frontend/`. PySide6 is legacy
 source and is not part of the supported desktop architecture.
@@ -22,8 +22,7 @@ Vue / TypeScript
         ├─ Projects/Stages/Progress mutation → SQLite + durable event outbox
         ├─ Web/cloud Game compatibility façade → SQLite Game aggregate
         ├─ Notes map/XMind compatibility operations
-        ├─ Documents → documents.json
-        └─ Word/Scrivener/background synchronization
+        └─ Web/cloud compatibility API (Documents and integrations)
 ```
 
 Current ownership is deliberately explicit:
@@ -33,15 +32,19 @@ projects/stages/progress = SQLite authoritative
 settings                 = SQLite authoritative
 notes                    = SQLite authoritative
 game                     = SQLite authoritative
+documents                = SQLite authoritative
+external files           = user-owned synchronization peers
 ```
 
-The v5 database is authoritative for the cut-over Projects and Game domains.
+The v6 database is authoritative for the cut-over Projects, Game and Documents domains.
 It adds typed folders, project/stage sync bindings, stable progress ordering,
 extension payloads, Game provenance and retryable domain-event processing.
 Legacy PKL is retained only as a recovery/migration artifact. The one-shot
 canonical importer still reads legacy PKL and `documents.json` in migration
 tooling; Documents and external files are not yet part of the authority
-cutover.
+cutover. Documents are migrated from `documents.json` once at native database
+open; the JSON file is retained as a recovery artifact and is not a normal
+runtime source after its migration marker is committed.
 
 ## Target desktop architecture
 
@@ -58,8 +61,9 @@ SQLite + validated external user files
 The final desktop target does not start FastAPI, Python, Nuitka or a PKL runtime
 for Game operation. F4 establishes that Game reads, mutations and event
 processing use the typed Rust/Tauri boundary. The sidecar remains available to
-the current desktop shell for Documents and integrations until the later
-sidecar-removal milestone. FastAPI/Python also remains a separately deployed
+Documents and integrations now use typed Rust/Tauri commands on desktop; the
+global sidecar still exists for transitional unrelated startup plumbing until
+F7. FastAPI/Python also remains a separately deployed
 Web/cloud backend.
 
 ## Ownership model after cutover
@@ -168,17 +172,18 @@ and top-level pickle fields need explicit importer rules.
 | Notes CRUD | Rust fixed SQL after Notes cutover | Retain direct Rust/SQLite path |
 | Mind Elixir | JS editor, Python normalization/reconciliation | Existing JS editor + TS pure map core + Rust/SQLite |
 | XMind | Python ZIP/XML importer | Rust bounded archive/XML parser + TS tree mapper |
-| Word | TS `mammoth`/`docx` conversion, Python local path/count | TS conversion plus Rust local file/hash boundary |
-| Scrivener | Python XML/RTF/filesystem parser | Rust package/XML/RTF parser and worker |
+| Word | TS editor conversion, Python local path/count | Rust bounded DOCX parser/generator and file/hash boundary |
+| Scrivener | Python XML/RTF/filesystem parser | Rust bounded package/XML/RTF read/count boundary |
 | Documents | Vue/Tiptap + Python `documents.json` | SQLite document repository + Rust file boundary |
-| Background sync | FastAPI lifespan task and Python services | cancellable Rust worker with explicit locks/events |
+| Background sync | FastAPI lifespan task and Python services | native Tauri timer → idempotent Rust batch command |
 | Web/cloud | remote FastAPI contract | independent server deployment; not a desktop blocker |
 
 Mind Elixir does not justify a Python bridge: the editor is already
 JavaScript-based, and normalization/reconciliation are portable data rules.
 XMind parsing is isolated enough for a direct bounded Rust port. Filesystem-
-heavy Word/Scrivener behavior belongs in Rust; existing TS DOCX dependencies
-can be reused where parity tests confirm the result.
+heavy Word/Scrivener behavior belongs in Rust. Existing TS DOCX dependencies
+remain for Web/browser compatibility and are not used by native editor
+import/export/synchronization.
 
 ## Startup and packaging boundary
 
@@ -188,10 +193,10 @@ the sidecar URL to the webview. `tauri.conf.json` includes
 `binaries/nfprogress-backend` as `externalBin`; build scripts compile it with
 Nuitka.
 
-F6 removes the sidecar child state, token/port health flow, backend connection
+F7 removes the sidecar child state, token/port health flow, backend connection
 command, `externalBin`, sidecar build artifacts and mandatory Python startup.
-Direct Tauri commands open/upgrade SQLite and expose migration status. Web and
-Capacitor keep their remote API client independently.
+F6 only removes the Documents/Word/Scrivener/filesystem feature dependency from
+the desktop path. Web and Capacitor keep their remote API client independently.
 
 ## Backup and recovery boundary
 
@@ -261,3 +266,35 @@ are bounded; unsafe paths and XML DTD/entity declarations are rejected.
 Multiple sheets are presented to the user for explicit selection. See
 [`F5_MINDMAP_XMIND_RUNTIME.md`](F5_MINDMAP_XMIND_RUNTIME.md) for the complete
 audit and verification matrix.
+
+## F6 Documents and integrations boundary
+
+The development desktop path is now:
+
+```text
+Vue/Tiptap → typed TS adapters → typed Tauri commands
+  → Rust DocumentService/FileService/WordCodec/Scrivener boundary
+  → SQLite documents + user-owned external files
+```
+
+Schema v6 adds `documents`, `document_bindings`, `document_metadata` and
+`document_migration_orphans`. The migration preserves existing IDs, derives a
+deterministic ID from the stable project/stage scope when an old record has no
+ID, stores structured Tiptap JSON with `tiptap-json/v1`, and places unknown
+legacy fields in `extensions_json`. A marker makes the `documents.json`
+conversion idempotent; stale JSON cannot overwrite SQLite on later startups.
+
+Word is bounded DOCX ZIP/XML parsing and deterministic generation in Rust; it
+does not invoke Office, fetch relationships or execute macros. Scrivener
+supports the audited binder XML shape and RTF item counting under `Files/Docs`
+or `Files/Data`, rejecting malformed XML, unsafe symlinks and oversized trees.
+External sync uses SHA-256 plus internal revision and reports
+`synced`, `local_changed`, `external_changed`, `conflict`,
+`missing_external`/typed errors. Conflicts are never auto-resolved. Writes use
+an fsynced temporary file and replacement; external files are never deleted by
+document metadata lifecycle operations. The native 60-second polling command
+coalesces unchanged hashes and records expected self-write hashes.
+
+F6 preserves the FastAPI implementation for Web clients, the legacy Python
+oracle and migration tooling. It does not remove global sidecar startup or
+Nuitka packaging; those are explicitly F7.

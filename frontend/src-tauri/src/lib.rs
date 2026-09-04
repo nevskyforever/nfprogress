@@ -16,6 +16,7 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
+mod documents;
 mod game;
 mod mindmap;
 #[allow(dead_code)]
@@ -80,6 +81,149 @@ fn process_game_events() -> Result<game::ProcessSummary, String> {
         return Err("Игра ещё не переведена в SQLite authoritative storage.".to_string());
     }
     game::process_pending_events(&mut connection, 100)
+}
+
+#[tauri::command]
+fn list_documents() -> Result<Vec<serde_json::Value>, String> {
+    documents::list_documents()
+}
+
+#[tauri::command]
+fn get_document(scope: documents::DocumentScope) -> Result<serde_json::Value, String> {
+    documents::get_document(scope)
+}
+
+#[tauri::command]
+fn save_document(command: documents::DocumentSaveCommand) -> Result<serde_json::Value, String> {
+    documents::save_document(command)
+}
+
+#[tauri::command]
+fn record_document_progress(
+    command: documents::DocumentProgressCommand,
+) -> Result<serde_json::Value, String> {
+    documents::record_document_progress(command)
+}
+
+#[tauri::command]
+fn rename_document(command: documents::DocumentRenameCommand) -> Result<serde_json::Value, String> {
+    documents::rename_document(command)
+}
+
+#[tauri::command]
+fn delete_document(scope: documents::DocumentScope) -> Result<(), String> {
+    documents::delete_document(scope)
+}
+
+#[tauri::command]
+fn bind_document_file(
+    command: documents::DocumentFileCommand,
+) -> Result<serde_json::Value, String> {
+    documents::bind_document_file(command)
+}
+
+#[tauri::command]
+fn write_document_word(
+    command: documents::DocumentWordWriteCommand,
+) -> Result<serde_json::Value, String> {
+    documents::write_document_word(command)
+}
+
+#[tauri::command]
+fn read_document_external(
+    scope: documents::DocumentScope,
+) -> Result<documents::ExternalDocumentResult, String> {
+    documents::read_external(scope)
+}
+
+#[tauri::command]
+fn accept_document_external(
+    command: documents::DocumentExternalAcceptCommand,
+) -> Result<serde_json::Value, String> {
+    documents::accept_external(command)
+}
+
+#[tauri::command]
+fn count_word_document(command: documents::WordImportCommand) -> Result<usize, String> {
+    documents::count_word(command)
+}
+
+#[tauri::command]
+fn parse_word_document(
+    command: documents::WordImportCommand,
+) -> Result<documents::WordImportResult, String> {
+    documents::parse_word(command)
+}
+
+#[tauri::command]
+fn import_word_document(
+    command: documents::WordImportCommand,
+) -> Result<documents::WordImportResult, String> {
+    documents::import_word(command)
+}
+
+#[tauri::command]
+fn export_word_document(command: documents::WordExportCommand) -> Result<(), String> {
+    documents::export_word(command)
+}
+
+#[tauri::command]
+fn write_document_word_content(
+    project_id: String,
+    stage_id: Option<String>,
+    content: serde_json::Value,
+) -> Result<serde_json::Value, String> {
+    documents::write_document_word_content(project_id, stage_id, content)
+}
+
+#[tauri::command]
+fn inspect_scrivener(
+    command: documents::ScrivenerInspectCommand,
+) -> Result<Vec<documents::ScrivenerItem>, String> {
+    documents::inspect_scrivener(command)
+}
+
+#[tauri::command]
+fn configure_document_sync(
+    command: documents::SyncConfigureCommand,
+) -> Result<documents::SyncSummary, String> {
+    documents::configure_sync(command)
+}
+
+#[tauri::command]
+fn get_document_sync(
+    command: documents::SyncScopeCommand,
+) -> Result<documents::SyncSummary, String> {
+    documents::get_sync(command)
+}
+
+#[tauri::command]
+fn get_project_document_syncs(project_id: String) -> Result<serde_json::Value, String> {
+    documents::get_project_syncs(project_id)
+}
+
+#[tauri::command]
+fn remove_document_sync(
+    command: documents::SyncScopeCommand,
+) -> Result<documents::SyncSummary, String> {
+    documents::remove_sync(command)
+}
+
+#[tauri::command]
+fn run_document_sync(
+    command: documents::SyncScopeCommand,
+) -> Result<documents::SyncRunResult, String> {
+    documents::run_sync(command)
+}
+
+#[tauri::command]
+fn run_all_document_sync() -> Result<documents::SyncBatchResult, String> {
+    documents::run_all_sync()
+}
+
+#[tauri::command]
+fn run_project_document_syncs(project_id: String) -> Result<documents::SyncBatchResult, String> {
+    documents::run_project_syncs(project_id)
 }
 
 // Explicit Game commands.  These are deliberately one command per use case;
@@ -3020,7 +3164,7 @@ fn create_stage(
     payload["streak_enabled"] = command.streak_enabled.into();
     payload["auto_freeze"] = command.auto_freeze.into();
     let stage = StageRecord {
-        id: stage_id,
+        id: stage_id.clone(),
         project_id: project_id.clone(),
         name,
         goal,
@@ -3048,6 +3192,7 @@ fn create_stage(
         .update_project_payload(&project_id, &project_payload_value)
         .map_err(|error| error.to_string())?;
     drop(repository);
+    documents::move_project_document_to_stage(&project_id, &stage_id)?;
     refresh_project_totals(&mut connection, &project_id)?;
     project_payload(&mut connection, &project_id)
 }
@@ -4519,6 +4664,29 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             backend_connection,
             process_game_events,
+            list_documents,
+            get_document,
+            save_document,
+            record_document_progress,
+            rename_document,
+            delete_document,
+            bind_document_file,
+            write_document_word,
+            read_document_external,
+            accept_document_external,
+            count_word_document,
+            parse_word_document,
+            import_word_document,
+            export_word_document,
+            write_document_word_content,
+            inspect_scrivener,
+            configure_document_sync,
+            get_document_sync,
+            get_project_document_syncs,
+            remove_document_sync,
+            run_document_sync,
+            run_all_document_sync,
+            run_project_document_syncs,
             game_state,
             game_notifications,
             mark_game_notification_read,

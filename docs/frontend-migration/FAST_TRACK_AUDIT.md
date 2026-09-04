@@ -462,3 +462,50 @@ separate SQLite Notes in one transaction. Existing Python normalization and
 XMind tests remain the oracle; the normal Tauri path does not invoke them. See
 [`F5_MINDMAP_XMIND_RUNTIME.md`](F5_MINDMAP_XMIND_RUNTIME.md) for the operation
 matrix, contract, limits, deletion semantics and verification results.
+
+## F6 Documents/Word/Scrivener/filesystem implementation audit
+
+The audited legacy runtime consisted of `ProjectDocumentService` storing
+records in `documents.json`, `DocumentIntegrationService` mutating project
+`synch`/`last_synch` fields and counting Word/Scrivener sources, and the
+FastAPI lifespan task polling configured sources every 60 seconds. The Vue
+editor had a 700 ms autosave, a five-second external check, a serialized
+persistence queue, and protections against stale initial-load and save
+responses. The persisted document fields were:
+
+```text
+project_id, stage_id, content, exists, updated_at, docx_path,
+sync_state, last_synced_hash, last_synced_at, local_dirty, word_dirty,
+symbols, has_content
+```
+
+F6 adds SQLite schema v6 with `documents`, `document_bindings`,
+`document_metadata` and `document_migration_orphans`. Document content remains
+structured Tiptap JSON (`tiptap-json/v1`). Existing IDs are retained; missing
+IDs use SHA-256 of stable project/stage scope. Unknown legacy fields are kept
+in `extensions_json`. The migration is transactionally marked and idempotent;
+later stale `documents.json` content is ignored. Backups copy the legacy JSON
+as recovery evidence and include an external binding manifest, while linked
+user files are not copied or deleted implicitly.
+
+| Operation | Native desktop target | Web compatibility | External side effect |
+| --- | --- | --- | --- |
+| create/open/list/save/rename/delete | typed Tauri → Rust → SQLite | existing FastAPI repository | metadata delete never removes user files |
+| project/stage document relation | stable IDs; first-stage conversion preserves binding | existing service semantics | none |
+| Word import/count/export | bounded Rust DOCX parser/generator | existing Python endpoint | only explicit selected output writes |
+| Word binding/sync | Rust binding/hash/revision service | existing Python service | selected `.docx` read; atomic write on request |
+| Scrivener inspect/sync | Rust binder/XML/RTF boundary | existing Python parser | source tree is read-only |
+| external change/background sync | native timer → idempotent Rust batch; editor poll | Python lifespan poll | hash coalescing and self-write suppression |
+
+DOCX is limited to 100 MiB input, 10,000 entries and 250 MiB declared
+expansion. Traversal, malformed archives, DTD/entity constructs and non-DOCX
+extensions are rejected; relationships are never fetched and macros are not
+executed. Supported formatting is paragraphs, headings, bold/italic/
+underline/strike, tabs and line breaks. Scrivener supports the observed
+`project.scrivx`, root `.scrivx` and `binder.scrivproj` binder hierarchy plus
+RTF files under `Files/Docs` or `Files/Data`; unsupported Scrivener metadata,
+snapshots, research, comments, compile settings and attachments remain
+outside the contract.
+
+The feature-specific native command surface and remaining sidecar boundary are
+documented in `F6_DOCUMENTS_INTEGRATIONS_RUNTIME.md`.

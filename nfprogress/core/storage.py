@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import shutil
 import os
+import json
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -280,12 +281,32 @@ class PickleRepository:
                 source = self.base_dir / f'{name}.pkl'
                 if source.is_file():
                     shutil.copy2(source, backup_dir / source.name)
+            documents = self.base_dir / 'documents.json'
+            if documents.is_file():
+                shutil.copy2(documents, backup_dir / documents.name)
             database = self.base_dir / 'nfprogress.db'
             # The SQLite database may contain authoritative settings and Notes,
             # so every backup is a recoverable application snapshot regardless
             # of which legacy pickle store triggered it.
             if database.is_file():
                 shutil.copy2(database, backup_dir / database.name)
+                try:
+                    connection = open_database(self.base_dir)
+                    rows = connection.execute(
+                        'SELECT document_id, binding_type, external_path, source_id, '
+                        'last_external_hash, last_synced_revision, last_synced_hash, '
+                        'last_synced_at FROM document_bindings ORDER BY document_id',
+                    ).fetchall()
+                    manifest = [dict(row) for row in rows]
+                    connection.close()
+                    (backup_dir / 'external_file_manifest.json').write_text(
+                        json.dumps(manifest, ensure_ascii=False, indent=2),
+                        encoding='utf-8',
+                    )
+                except Exception:
+                    # A backup must still contain the SQLite snapshot even if
+                    # an older database has no F6 binding table yet.
+                    pass
             return backup_dir
 
     def backup(self, names: Iterable[str] | str | None = None) -> Path:

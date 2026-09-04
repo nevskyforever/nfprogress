@@ -1,5 +1,6 @@
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { documentsApi } from '@/api/documents'
+import { currentPlatform } from '@/platform/runtime'
 import { announceDataChange } from '@/services/dataChanges'
 import { blobToBase64, exportDocx, importDocx } from '@/services/documentDocx'
 import type { DocumentProgressResult, DocumentScope, ProjectDocument, TiptapDocument } from '@/types/documents'
@@ -25,7 +26,9 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
   }
   async function writeLinkedWord(next = content.value) {
     if (!documentState.value?.docx_path) return
-    documentState.value = await documentsApi.writeDocx(scope, await blobToBase64(await exportDocx(next)))
+    documentState.value = currentPlatform() === 'tauri'
+      ? await documentsApi.writeDocxContent(scope, next)
+      : await documentsApi.writeDocx(scope, await blobToBase64(await exportDocx(next)))
   }
   function save(announce = true, requestedContent?: TiptapDocument): Promise<void> {
     window.clearTimeout(saveTimer)
@@ -65,7 +68,7 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => void save().catch(() => { status.value = 'Не удалось сохранить' }), 700)
   }
-  async function checkExternal(): Promise<{ html: string; hash: string } | undefined> {
+  async function checkExternal(): Promise<{ html?: string; content?: TiptapDocument; hash: string } | undefined> {
     if (!documentState.value?.docx_path) return
     const external = await documentsApi.external(scope)
     if (!external.content_base64 || !external.hash) return
@@ -75,6 +78,10 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
       if (choice === 'both') await downloadWordCopy()
     }
     const bytes = Uint8Array.from(atob(external.content_base64), (letter) => letter.charCodeAt(0))
+    if (currentPlatform() === 'tauri') {
+      const parsed = await documentsApi.parseWord(bytes, 'document.docx')
+      return { content: parsed.content, hash: external.hash }
+    }
     return { html: await importDocx(bytes.buffer), hash: external.hash }
   }
   async function acknowledgeExternal(next: TiptapDocument, hash: string) {

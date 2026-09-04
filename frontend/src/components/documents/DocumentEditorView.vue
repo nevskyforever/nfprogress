@@ -5,7 +5,7 @@ import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { createI18n, TiptapProEditor, setTheme, type TiptapProEditorExpose } from 'tiptap-ui-kit'
 import 'tiptap-ui-kit/style.css'
 import 'ant-design-vue/dist/reset.css'
-import { pickDesktopWordFile } from '@/platform/files'
+import { pickDesktopWordFile, pickDesktopWordSavePath } from '@/platform/files'
 import { currentPlatform } from '@/platform/runtime'
 import { useDocumentSync, type ConflictChoice } from '@/composables/useDocumentSync'
 import { exportDocx, WORD_FONT_FAMILIES, WORD_FONT_SIZES } from '@/services/documentDocx'
@@ -351,8 +351,12 @@ async function importExternal() {
   if (!external || !editorRef.value) return
   const editor = editorRef.value.getEditor()
   if (!editor) return
-  editor.commands.setContent(external.html)
-  const json = editor.getJSON() as TiptapDocument
+  if (external.content) {
+    editor.commands.setContent(external.content)
+  } else if (external.html) {
+    editor.commands.setContent(external.html)
+  }
+  const json = external.content ?? editor.getJSON() as TiptapDocument
   editorContent.value = json
   await acknowledgeExternal(json, external.hash)
 }
@@ -367,10 +371,17 @@ async function linkWord() {
   }
 }
 async function exportWord() {
+  if (currentPlatform() === 'tauri') {
+    const targetPath = await pickDesktopWordSavePath('Экспортировать документ Word', `${props.title}.docx`)
+    if (!targetPath) return
+    const { invoke } = await import('@tauri-apps/api/core')
+    await invoke('export_word_document', { content: editorContent.value, targetPath })
+    return
+  }
   const blob = await exportDocx(editorContent.value); const url = URL.createObjectURL(blob); const anchor = document.createElement('a')
   anchor.href = url; anchor.download = `${props.title}.docx`; anchor.click(); URL.revokeObjectURL(url)
 }
-function importWord() { const input = document.createElement('input'); input.type = 'file'; input.accept = '.docx'; input.onchange = async () => { const file = input.files?.[0]; if (!file || !editorRef.value) return; const { importDocx } = await import('@/services/documentDocx'); const html = await importDocx(await file.arrayBuffer()); editorRef.value.getEditor()?.commands.setContent(html) }; input.click() }
+function importWord() { const input = document.createElement('input'); input.type = 'file'; input.accept = '.docx'; input.onchange = async () => { const file = input.files?.[0]; if (!file || !editorRef.value) return; if (currentPlatform() === 'tauri') { const parsed = await (await import('@/api/documents')).documentsApi.parseWord(new Uint8Array(await file.arrayBuffer()), file.name); setContent(parsed.content); editorRef.value.getEditor()?.commands.setContent(parsed.content); return } const { importDocx } = await import('@/services/documentDocx'); const html = await importDocx(await file.arrayBuffer()); editorRef.value.getEditor()?.commands.setContent(html) }; input.click() }
 
 function findToolbarTarget(): void {
   const toolbar = editorShell.value?.querySelector<HTMLElement>('.word-toolbar')

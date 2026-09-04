@@ -1,0 +1,2560 @@
+//! SQLite-owned document records and bounded local Word/Scrivener boundaries.
+//!
+//! The frontend only passes typed document data or bytes selected by the user.
+//! This module never exposes an arbitrary read/write filesystem bridge.
+
+use std::fs::{self, OpenOptions};
+use std::io::{Cursor, Read, Write};
+use std::path::{Component, Path, PathBuf};
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use quick_xml::events::Event;
+use quick_xml::Reader;
+use rusqlite::{params, OptionalExtension};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use sha2::{Digest, Sha256};
+use zip::write::SimpleFileOptions;
+use zip::ZipArchive;
+
+const EMPTY_DOCUMENT: &str = r#"{"type":"doc","content":[{"type":"paragraph"}]}"#;
+const MAX_DOCX_BYTES: usize = 100 * 1024 * 1024;
+const MAX_DOCX_ENTRIES: usize = 10_000;
+const MAX_DOCX_EXPANDED_BYTES: u64 = 250 * 1024 * 1024;
+const MAX_XML_BYTES: usize = 16 * 1024 * 1024;
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WordImportResult {
+    pub content: Value,
+    pub symbols: usize,
+    pub hash: String,
+    pub changed: bool,
+    pub project: Option<Value>,
+    pub progress: Option<Value>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DocumentScope {
+    pub project_id: String,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DocumentSaveCommand {
+    pub project_id: String,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+    pub content: Value,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DocumentRenameCommand {
+    pub project_id: String,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+    pub title: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DocumentFileCommand {
+    pub project_id: String,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+    pub path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DocumentWordWriteCommand {
+    pub project_id: String,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+    pub content_base64: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DocumentExternalAcceptCommand {
+    pub project_id: String,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+    pub content: Value,
+    pub source_hash: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WordImportCommand {
+    #[serde(default)]
+    pub project_id: Option<String>,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+    pub bytes: Vec<u8>,
+    #[serde(default)]
+    pub filename: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct WordExportCommand {
+    pub content: Value,
+    pub target_path: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct DocumentProgressCommand {
+    pub project_id: String,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+    #[serde(default)]
+    pub content: Option<Value>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExternalDocumentResult {
+    pub state: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub content_base64: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ScrivenerItem {
+    pub id: String,
+    pub title: String,
+    pub children: Vec<ScrivenerItem>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct ScrivenerInspectCommand {
+    pub path: String,
+}
+
+#[derive(Debug)]
+struct SourceSnapshot {
+    bytes: Vec<u8>,
+    hash: String,
+    modified_at: String,
+}
+
+fn now() -> String {
+    let seconds = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let days = seconds / 86_400;
+    let remainder = seconds % 86_400;
+    let (year, month, day) = civil_from_days(days as i64);
+    format!(
+        "{year:04}-{month:02}-{day:02}T{:02}:{:02}:{:02}Z",
+        remainder / 3600,
+        (remainder % 3600) / 60,
+        remainder % 60
+    )
+}
+
+fn civil_from_days(days: i64) -> (i64, i64, i64) {
+    let z = days + 719_468;
+    let era = if z >= 0 { z } else { z - 146_096 } / 146_097;
+    let doe = z - era * 146_097;
+    let yoe = (doe - doe / 1_460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = doy - (153 * mp + 2) / 5 + 1;
+    let m = mp + if mp < 10 { 3 } else { -9 };
+    (y + if m <= 2 { 1 } else { 0 }, m, d)
+}
+
+fn sha256(bytes: &[u8]) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(bytes);
+    format!("{:x}", hasher.finalize())
+}
+
+fn scope_key(project_id: &str, stage_id: Option<&str>) -> String {
+    format!("{project_id}:{}", stage_id.unwrap_or("project"))
+}
+
+fn stable_id(scope: &str) -> String {
+    format!("document-{}", &sha256(scope.as_bytes())[..40])
+}
+
+fn binding_id(document_id: &str) -> String {
+    format!("document-binding-{}", &sha256(document_id.as_bytes())[..40])
+}
+
+fn document_id_for_scope(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<String, String> {
+    let scope = scope_key(project_id, stage_id);
+    connection
+        .query_row(
+            "SELECT id FROM documents WHERE scope_key=?1",
+            [scope],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())
+        .map(|value: Option<String>| {
+            value.unwrap_or_else(|| stable_id(&scope_key(project_id, stage_id)))
+        })
+}
+
+fn validate_content(content: &Value) -> Result<(), String> {
+    if content.get("type").and_then(Value::as_str) != Some("doc") {
+        return Err("Документ должен быть в формате Tiptap JSON.".to_string());
+    }
+    if serde_json::to_vec(content)
+        .map_err(|_| "Некорректный документ.".to_string())?
+        .len()
+        > 32 * 1024 * 1024
+    {
+        return Err("Документ превышает допустимый размер 32 МБ.".to_string());
+    }
+    Ok(())
+}
+
+fn symbols(value: &Value) -> usize {
+    match value {
+        Value::Object(object) => {
+            object
+                .get("text")
+                .and_then(Value::as_str)
+                .map_or(0, |text| text.chars().count())
+                + object
+                    .get("content")
+                    .and_then(Value::as_array)
+                    .map_or(0, |items| items.iter().map(symbols).sum())
+        }
+        Value::Array(items) => items.iter().map(symbols).sum(),
+        _ => 0,
+    }
+}
+
+fn open() -> Result<(rusqlite::Connection, PathBuf), String> {
+    let root = crate::sqlite_data_root()?;
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("Не удалось открыть data directory: {error}"))?;
+    let mut connection = crate::sqlite::open_database(&root.join("nfprogress.db"))
+        .map_err(|error| error.to_string())?;
+    migrate_legacy_documents(&mut connection, &root)?;
+    Ok((connection, root))
+}
+
+fn project_entity(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<(String, Value, bool), String> {
+    let (id, raw): (String, String) = if let Some(stage_id) = stage_id {
+        connection
+            .query_row(
+                "SELECT id,payload_json FROM stages WHERE id=?1 AND project_id=?2",
+                params![stage_id, project_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|_| "Этап не найден.".to_string())?
+    } else {
+        connection
+            .query_row(
+                "SELECT id,payload_json FROM projects WHERE id=?1",
+                [project_id],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .map_err(|_| "Проект не найден.".to_string())?
+    };
+    let payload: Value =
+        serde_json::from_str(&raw).map_err(|_| "Некорректный payload проекта.".to_string())?;
+    let app = payload
+        .get("work_method")
+        .and_then(Value::as_str)
+        .unwrap_or("manual")
+        == "app";
+    Ok((id, payload, app))
+}
+
+fn validate_scope(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<(String, Value), String> {
+    let (id, payload, app) = project_entity(connection, project_id, stage_id)?;
+    if stage_id.is_none()
+        && payload
+            .get("stages")
+            .and_then(Value::as_array)
+            .is_some_and(|stages| !stages.is_empty())
+    {
+        return Err("У проекта с этапами нет отдельного текста.".to_string());
+    }
+    if !app {
+        return Err("Для работы с текстом выберите метод «В приложении».".to_string());
+    }
+    Ok((id, payload))
+}
+
+fn parse_content(raw: String) -> Result<Value, String> {
+    serde_json::from_str(&raw).map_err(|_| "Некорректный документ в SQLite.".to_string())
+}
+
+fn document_row(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<Option<Value>, String> {
+    let scope = scope_key(project_id, stage_id);
+    let row = connection
+        .query_row(
+            "SELECT id,title,content_json,content_format,created_at,updated_at,revision,extensions_json FROM documents WHERE scope_key=?1",
+            [scope.as_str()],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                    row.get::<_, Option<String>>(4)?,
+                    row.get::<_, Option<String>>(5)?,
+                    row.get::<_, i64>(6)?,
+                    row.get::<_, String>(7)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((
+        id,
+        title,
+        content_raw,
+        content_format,
+        created_at,
+        updated_at,
+        revision,
+        extensions_raw,
+    )) = row
+    else {
+        return Ok(None);
+    };
+    let content = parse_content(content_raw)?;
+    let extensions = parse_content(extensions_raw)?;
+    let binding = connection
+        .query_row(
+            "SELECT binding_type,external_path,source_id,last_external_hash,last_synced_revision,last_synced_hash,last_synced_at,sync_state,payload_json FROM document_bindings WHERE document_id=?1",
+            [id.as_str()],
+            |row| {
+                Ok(serde_json::json!({
+                    "type": row.get::<_, String>(0)?,
+                    "path": row.get::<_, String>(1)?,
+                    "source_id": row.get::<_, Option<String>>(2)?,
+                    "last_external_hash": row.get::<_, Option<String>>(3)?,
+                    "last_synced_revision": row.get::<_, i64>(4)?,
+                    "last_synced_hash": row.get::<_, Option<String>>(5)?,
+                    "last_synced_at": row.get::<_, Option<String>>(6)?,
+                    "sync_state": row.get::<_, String>(7)?,
+                    "metadata": parse_content(row.get::<_, String>(8)?).unwrap_or(Value::Object(Map::new())),
+                }))
+            },
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let state = binding
+        .as_ref()
+        .and_then(|value| value.get("sync_state"))
+        .and_then(Value::as_str)
+        .unwrap_or("unlinked");
+    let last_hash = binding
+        .as_ref()
+        .and_then(|value| value.get("last_external_hash"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    Ok(Some(serde_json::json!({
+        "document_id": id,
+        "project_id": project_id,
+        "stage_id": stage_id,
+        "title": title,
+        "content": content,
+        "content_format": content_format,
+        "created_at": created_at,
+        "updated_at": updated_at,
+        "revision": revision,
+        "extensions": extensions,
+        "exists": true,
+        "docx_path": binding.as_ref().and_then(|value| value.get("path")).cloned().unwrap_or(Value::Null),
+        "sync_state": state,
+        "last_synced_hash": last_hash,
+        "last_synced_at": binding.as_ref().and_then(|value| value.get("last_synced_at")).cloned().unwrap_or(Value::Null),
+        "local_dirty": state == "local_changed" || state == "conflict",
+        "word_dirty": state == "external_changed" || state == "conflict",
+        "symbols": symbols(&content),
+        "has_content": symbols(&content) > 0,
+    })))
+}
+
+fn new_document_value(project_id: &str, stage_id: Option<&str>, title: &str) -> Value {
+    serde_json::json!({
+        "document_id": stable_id(&scope_key(project_id, stage_id)),
+        "project_id": project_id,
+        "stage_id": stage_id,
+        "title": title,
+        "content": serde_json::from_str::<Value>(EMPTY_DOCUMENT).unwrap(),
+        "content_format": "tiptap-json/v1",
+        "created_at": Value::Null,
+        "updated_at": Value::Null,
+        "revision": 0,
+        "extensions": {},
+        "exists": false,
+        "docx_path": Value::Null,
+        "sync_state": "unlinked",
+        "last_synced_hash": Value::Null,
+        "last_synced_at": Value::Null,
+        "local_dirty": false,
+        "word_dirty": false,
+        "symbols": 0,
+        "has_content": false,
+    })
+}
+
+pub fn list_documents() -> Result<Vec<Value>, String> {
+    let (connection, _) = open()?;
+    let mut statement = connection
+        .prepare("SELECT project_id,stage_id FROM documents ORDER BY COALESCE(updated_at,''),id")
+        .map_err(|error| error.to_string())?;
+    let scopes = statement
+        .query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })
+        .map_err(|error| error.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| error.to_string())?;
+    let mut result = Vec::new();
+    for (project_id, stage_id) in scopes {
+        if let Some(value) = document_row(&connection, &project_id, stage_id.as_deref())? {
+            result.push(value);
+        }
+    }
+    result.reverse();
+    Ok(result)
+}
+
+pub fn get_document(scope: DocumentScope) -> Result<Value, String> {
+    let (connection, _) = open()?;
+    let (_, payload) = validate_scope(&connection, &scope.project_id, scope.stage_id.as_deref())?;
+    Ok(
+        document_row(&connection, &scope.project_id, scope.stage_id.as_deref())?.unwrap_or_else(
+            || {
+                new_document_value(
+                    &scope.project_id,
+                    scope.stage_id.as_deref(),
+                    payload
+                        .get("name")
+                        .and_then(Value::as_str)
+                        .unwrap_or("Текст"),
+                )
+            },
+        ),
+    )
+}
+
+pub fn save_document(command: DocumentSaveCommand) -> Result<Value, String> {
+    validate_content(&command.content)?;
+    let (mut connection, _) = open()?;
+    let (_, payload) = validate_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let scope = scope_key(&command.project_id, command.stage_id.as_deref());
+    let document_id = document_id_for_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let timestamp = now();
+    let title = payload
+        .get("name")
+        .and_then(Value::as_str)
+        .unwrap_or("Текст");
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    tx.execute(
+        "INSERT INTO documents(id,scope_key,project_id,stage_id,title,content_json,content_format,created_at,updated_at,revision,extensions_json) VALUES(?1,?2,?3,?4,?5,?6,'tiptap-json/v1',?7,?7,0,'{}') ON CONFLICT(scope_key) DO UPDATE SET content_json=excluded.content_json,updated_at=excluded.updated_at,revision=documents.revision+1,title=excluded.title",
+        params![document_id, scope, command.project_id, command.stage_id, title, command.content.to_string(), timestamp],
+    ).map_err(|error| error.to_string())?;
+    tx.execute(
+        "UPDATE document_bindings SET sync_state='local_changed',expected_external_hash=NULL WHERE document_id=?1",
+        [&document_id],
+    ).map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())?;
+    document_row(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?
+    .ok_or_else(|| "Документ не сохранён.".to_string())
+}
+
+pub fn record_document_progress(command: DocumentProgressCommand) -> Result<Value, String> {
+    if let Some(content) = command.content.clone() {
+        save_document(DocumentSaveCommand {
+            project_id: command.project_id.clone(),
+            stage_id: command.stage_id.clone(),
+            content,
+        })?;
+    }
+    let (mut connection, _) = open()?;
+    let (_, payload) = validate_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let document = document_row(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?
+    .ok_or_else(|| "Сначала добавьте текст в документ.".to_string())?;
+    let symbol_count = document.get("symbols").and_then(Value::as_u64).unwrap_or(0);
+    if symbol_count == 0 {
+        return Err("Сначала добавьте текст в документ.".to_string());
+    }
+    let total = normalize_total(
+        symbol_count as f64,
+        payload
+            .get("unit")
+            .and_then(Value::as_str)
+            .unwrap_or("symbols"),
+    )?;
+    let previous = payload.get("total").and_then(Value::as_f64).unwrap_or(0.0);
+    if (total - previous).abs() < 0.009 {
+        return Ok(
+            serde_json::json!({"changed":false,"symbols":symbol_count,"progress":null,"document":document}),
+        );
+    }
+    let document_id = document
+        .get("document_id")
+        .and_then(Value::as_str)
+        .ok_or_else(|| "У документа отсутствует идентификатор.".to_string())?;
+    let revision = document
+        .get("revision")
+        .and_then(Value::as_i64)
+        .unwrap_or(0);
+    let source_key = format!("local-document:{document_id}:{revision}");
+    let (project, entry) = record_sync_progress(
+        &mut connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+        total,
+        &source_key,
+        &now(),
+    )?;
+    Ok(serde_json::json!({
+        "changed": true,
+        "symbols": symbol_count,
+        "progress": progress_result(project, entry),
+        "document": document,
+    }))
+}
+
+pub fn rename_document(command: DocumentRenameCommand) -> Result<Value, String> {
+    if command.title.trim().is_empty() {
+        return Err("Название документа не может быть пустым.".to_string());
+    }
+    let (mut connection, _) = open()?;
+    validate_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let changed = connection
+        .execute(
+            "UPDATE documents SET title=?,updated_at=?,revision=revision+1 WHERE scope_key=?",
+            params![
+                command.title.trim(),
+                now(),
+                scope_key(&command.project_id, command.stage_id.as_deref())
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed == 0 {
+        return Err("Документ не найден.".to_string());
+    }
+    document_row(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?
+    .ok_or_else(|| "Документ не найден.".to_string())
+}
+
+pub fn delete_document(scope: DocumentScope) -> Result<(), String> {
+    let (mut connection, _) = open()?;
+    validate_scope(&connection, &scope.project_id, scope.stage_id.as_deref())?;
+    let key = scope_key(&scope.project_id, scope.stage_id.as_deref());
+    connection.execute("DELETE FROM document_bindings WHERE document_id IN (SELECT id FROM documents WHERE scope_key=?)", [&key]).map_err(|error| error.to_string())?;
+    connection
+        .execute("DELETE FROM documents WHERE scope_key=?", [&key])
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+pub fn move_project_document_to_stage(project_id: &str, stage_id: &str) -> Result<(), String> {
+    let mut connection = open()?.0;
+    let source_id = document_id_for_scope(&connection, project_id, None)?;
+    let source: Option<(String, String, Option<String>)> = connection
+        .query_row(
+            "SELECT documents.id,documents.content_json,document_bindings.external_path FROM documents LEFT JOIN document_bindings ON document_bindings.document_id=documents.id WHERE documents.scope_key=?1",
+            [scope_key(project_id, None)],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((source_document_id, content, source_path)) = source else {
+        return Ok(());
+    };
+    if source_document_id != source_id
+        || symbols(&parse_content(content)?) == 0 && source_path.is_none()
+    {
+        return Ok(());
+    }
+    let target_scope = scope_key(project_id, Some(stage_id));
+    let target: Option<(String, String, Option<String>)> = connection
+        .query_row(
+            "SELECT documents.id,documents.content_json,document_bindings.external_path FROM documents LEFT JOIN document_bindings ON document_bindings.document_id=documents.id WHERE documents.scope_key=?1",
+            [target_scope.as_str()],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    if let Some((target_id, target_content, target_path)) = target {
+        if symbols(&parse_content(target_content)?) > 0 || target_path.is_some() {
+            tx.execute(
+                "DELETE FROM document_bindings WHERE document_id=?",
+                [source_document_id.as_str()],
+            )
+            .map_err(|error| error.to_string())?;
+            tx.execute(
+                "DELETE FROM documents WHERE id=?",
+                [source_document_id.as_str()],
+            )
+            .map_err(|error| error.to_string())?;
+            tx.commit().map_err(|error| error.to_string())?;
+            return Ok(());
+        }
+        tx.execute(
+            "DELETE FROM document_bindings WHERE document_id=?",
+            [target_id.as_str()],
+        )
+        .map_err(|error| error.to_string())?;
+        tx.execute("DELETE FROM documents WHERE id=?", [target_id.as_str()])
+            .map_err(|error| error.to_string())?;
+    }
+    tx.execute(
+        "UPDATE documents SET scope_key=?,stage_id=? WHERE id=?",
+        params![target_scope, stage_id, source_document_id],
+    )
+    .map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())
+}
+
+pub fn bind_document_file(command: DocumentFileCommand) -> Result<Value, String> {
+    let path = canonical_existing_file(&command.path, "Word")?;
+    if path
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.eq_ignore_ascii_case("docx"))
+        != Some(true)
+    {
+        return Err("Поддерживаются только документы Word .docx.".to_string());
+    }
+    let (mut connection, _) = open()?;
+    let (_, payload) = validate_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let scope = scope_key(&command.project_id, command.stage_id.as_deref());
+    let document_id = document_id_for_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let timestamp = now();
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    tx.execute(
+        "INSERT INTO documents(id,scope_key,project_id,stage_id,title,content_json,content_format,created_at,updated_at,revision,extensions_json) VALUES(?1,?2,?3,?4,?5,?6,'tiptap-json/v1',?7,?7,0,'{}') ON CONFLICT(scope_key) DO NOTHING",
+        params![document_id, scope, command.project_id, command.stage_id, payload.get("name").and_then(Value::as_str).unwrap_or("Текст"), EMPTY_DOCUMENT, timestamp],
+    ).map_err(|error| error.to_string())?;
+    tx.execute(
+        "INSERT INTO document_bindings(id,document_id,binding_type,external_path,source_id,last_synced_revision,sync_state,payload_json) VALUES(?1,?2,'word',?3,NULL,0,'local_changed','{}') ON CONFLICT(document_id) DO UPDATE SET external_path=excluded.external_path,binding_type='word',sync_state='local_changed'",
+        params![binding_id(&document_id), document_id, path.to_string_lossy()],
+    ).map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())?;
+    document_row(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?
+    .ok_or_else(|| "Документ не найден.".to_string())
+}
+
+pub fn write_document_word(command: DocumentWordWriteCommand) -> Result<Value, String> {
+    let bytes = decode_base64(&command.content_base64)?;
+    let (mut connection, _) = open()?;
+    validate_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let document_id = document_id_for_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let path: String = connection
+        .query_row(
+            "SELECT external_path FROM document_bindings WHERE document_id=?",
+            [document_id.as_str()],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Сначала свяжите документ с файлом Word.".to_string())?;
+    let target = canonical_existing_or_parent(&path)?;
+    ensure_external_write_safe(&mut connection, &document_id, &target)?;
+    atomic_write(&target, &bytes)?;
+    let digest = sha256(&bytes);
+    connection.execute(
+        "UPDATE document_bindings SET last_external_hash=?,last_synced_hash=?,last_synced_revision=(SELECT revision FROM documents WHERE id=?),last_synced_at=?,sync_state='synced',expected_external_hash=? WHERE document_id=?",
+        params![digest, digest, document_id, now(), digest, document_id],
+    ).map_err(|error| error.to_string())?;
+    document_row(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?
+    .ok_or_else(|| "Документ не найден.".to_string())
+}
+
+pub fn read_external(scope: DocumentScope) -> Result<ExternalDocumentResult, String> {
+    let (mut connection, _) = open()?;
+    validate_scope(&connection, &scope.project_id, scope.stage_id.as_deref())?;
+    let document_id =
+        document_id_for_scope(&connection, &scope.project_id, scope.stage_id.as_deref())?;
+    let row = connection.query_row(
+        "SELECT binding_type,external_path,last_external_hash,last_synced_revision FROM document_bindings WHERE document_id=?",
+        [document_id.as_str()],
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, i64>(3)?)),
+    ).optional().map_err(|error| error.to_string())?;
+    let Some((binding_type, path, last_hash, last_revision)) = row else {
+        return Ok(ExternalDocumentResult {
+            state: "unlinked".to_string(),
+            content_base64: None,
+            hash: None,
+        });
+    };
+    if binding_type != "word" {
+        return Ok(ExternalDocumentResult {
+            state: "unsupported_external".to_string(),
+            content_base64: None,
+            hash: None,
+        });
+    }
+    let source = match read_stable_source(Path::new(&path)) {
+        Ok(source) => source,
+        Err(_error) if !Path::new(&path).is_file() => {
+            connection
+                .execute(
+                    "UPDATE document_bindings SET sync_state='missing_external' WHERE document_id=?",
+                    [document_id.as_str()],
+                )
+                .map_err(|update_error| update_error.to_string())?;
+            return Ok(ExternalDocumentResult {
+                state: "missing_external".to_string(),
+                content_base64: None,
+                hash: None,
+            });
+        }
+        Err(error) => return Err(error),
+    };
+    let current_revision: i64 = connection
+        .query_row(
+            "SELECT revision FROM documents WHERE id=?",
+            [document_id.as_str()],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let external_changed = last_hash.as_deref() != Some(source.hash.as_str());
+    let internal_changed = current_revision != last_revision;
+    let state = if !external_changed {
+        if internal_changed {
+            "local_changed"
+        } else {
+            "synced"
+        }
+    } else if internal_changed {
+        "conflict"
+    } else {
+        "external_changed"
+    };
+    connection
+        .execute(
+            "UPDATE document_bindings SET sync_state=?,last_external_hash=? WHERE document_id=?",
+            params![state, source.hash, document_id],
+        )
+        .map_err(|error| error.to_string())?;
+    if !external_changed {
+        return Ok(ExternalDocumentResult {
+            state: state.to_string(),
+            content_base64: None,
+            hash: None,
+        });
+    }
+    Ok(ExternalDocumentResult {
+        state: state.to_string(),
+        content_base64: Some(base64_encode(&source.bytes)),
+        hash: Some(source.hash),
+    })
+}
+
+pub fn accept_external(command: DocumentExternalAcceptCommand) -> Result<Value, String> {
+    validate_content(&command.content)?;
+    let (mut connection, _) = open()?;
+    validate_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let document_id = document_id_for_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let timestamp = now();
+    connection
+        .execute(
+            "UPDATE documents SET content_json=?,updated_at=?,revision=revision+1 WHERE id=?",
+            params![command.content.to_string(), timestamp, document_id],
+        )
+        .map_err(|error| error.to_string())?;
+    connection.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_hash=?,last_synced_revision=(SELECT revision FROM documents WHERE id=?),last_synced_at=?,sync_state='synced',expected_external_hash=? WHERE document_id=?", params![command.source_hash, command.source_hash, document_id, timestamp, command.source_hash, document_id]).map_err(|error| error.to_string())?;
+    document_row(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?
+    .ok_or_else(|| "Документ не найден.".to_string())
+}
+
+pub fn count_word(command: WordImportCommand) -> Result<usize, String> {
+    validate_docx_filename(command.filename.as_deref())?;
+    Ok(parse_docx(&command.bytes)?.1)
+}
+
+pub fn parse_word(command: WordImportCommand) -> Result<WordImportResult, String> {
+    validate_docx_filename(command.filename.as_deref())?;
+    let (content, symbols) = parse_docx(&command.bytes)?;
+    Ok(WordImportResult {
+        content,
+        symbols,
+        hash: sha256(&command.bytes),
+        changed: false,
+        project: None,
+        progress: None,
+    })
+}
+
+pub fn import_word(command: WordImportCommand) -> Result<WordImportResult, String> {
+    validate_docx_filename(command.filename.as_deref())?;
+    let (content, symbols) = parse_docx(&command.bytes)?;
+    let hash = sha256(&command.bytes);
+    let (project, progress, changed) = if let Some(project_id) = command.project_id.as_deref() {
+        let mut connection = open()?.0;
+        let (_, payload, _) = project_entity(&connection, project_id, command.stage_id.as_deref())?;
+        let unit = payload
+            .get("unit")
+            .and_then(Value::as_str)
+            .unwrap_or("symbols");
+        let total = normalize_total(symbols as f64, unit)?;
+        let previous = payload.get("total").and_then(Value::as_f64).unwrap_or(0.0);
+        if (total - previous).abs() >= 0.009 {
+            let (project, entry) = record_sync_progress(
+                &mut connection,
+                project_id,
+                command.stage_id.as_deref(),
+                total,
+                &hash,
+                &now(),
+            )?;
+            (
+                Some(project.clone()),
+                Some(progress_result(project, entry)),
+                true,
+            )
+        } else {
+            (
+                Some(crate::project_payload(&mut connection, project_id)?),
+                None,
+                false,
+            )
+        }
+    } else {
+        (None, None, false)
+    };
+    Ok(WordImportResult {
+        content,
+        symbols,
+        hash,
+        changed,
+        project,
+        progress,
+    })
+}
+
+fn validate_docx_filename(filename: Option<&str>) -> Result<(), String> {
+    if filename.is_some_and(|value| {
+        Path::new(value)
+            .extension()
+            .and_then(|extension| extension.to_str())
+            .is_none_or(|extension| !extension.eq_ignore_ascii_case("docx"))
+    }) {
+        return Err("Поддерживаются только документы Word .docx.".to_string());
+    }
+    Ok(())
+}
+
+pub fn export_word(command: WordExportCommand) -> Result<(), String> {
+    validate_content(&command.content)?;
+    let path = canonical_existing_or_parent(&command.target_path)?;
+    atomic_write(&path, &build_docx(&command.content)?)
+}
+
+pub fn write_document_word_content(
+    project_id: String,
+    stage_id: Option<String>,
+    content: Value,
+) -> Result<Value, String> {
+    validate_content(&content)?;
+    let bytes = build_docx(&content)?;
+    let (mut connection, _) = open()?;
+    validate_scope(&connection, &project_id, stage_id.as_deref())?;
+    let document_id = document_id_for_scope(&connection, &project_id, stage_id.as_deref())?;
+    let path: String = connection
+        .query_row(
+            "SELECT external_path FROM document_bindings WHERE document_id=?",
+            [document_id.as_str()],
+            |row| row.get(0),
+        )
+        .map_err(|_| "Сначала свяжите документ с файлом Word.".to_string())?;
+    let target = canonical_existing_or_parent(&path)?;
+    ensure_external_write_safe(&mut connection, &document_id, &target)?;
+    atomic_write(&target, &bytes)?;
+    let digest = sha256(&bytes);
+    connection
+        .execute(
+            "UPDATE document_bindings SET last_external_hash=?,last_synced_hash=?,last_synced_revision=(SELECT revision FROM documents WHERE id=?),last_synced_at=?,sync_state='synced',expected_external_hash=? WHERE document_id=?",
+            params![digest, digest, document_id, now(), digest, document_id],
+        )
+        .map_err(|error| error.to_string())?;
+    document_row(&connection, &project_id, stage_id.as_deref())?
+        .ok_or_else(|| "Документ не найден.".to_string())
+}
+
+pub fn inspect_scrivener(command: ScrivenerInspectCommand) -> Result<Vec<ScrivenerItem>, String> {
+    let root = canonical_existing_directory(&command.path)?;
+    let xml = find_scrivener_xml(&root)?;
+    parse_scrivener_xml(&xml)
+}
+
+pub fn configure_scrivener_binding(
+    project_id: &str,
+    stage_id: Option<&str>,
+    path: &str,
+    item_id: &str,
+) -> Result<Value, String> {
+    let root = canonical_existing_directory(path)?;
+    let xml = find_scrivener_xml(&root)?;
+    let items = parse_scrivener_xml(&xml)?;
+    if !contains_item(&items, item_id) {
+        return Err("Документ Scrivener не найден в проекте.".to_string());
+    }
+    let (mut connection, _) = open()?;
+    let (_, payload) = validate_scope(&connection, project_id, stage_id)?;
+    let scope = scope_key(project_id, stage_id);
+    let document_id = document_id_for_scope(&connection, project_id, stage_id)?;
+    let timestamp = now();
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    tx.execute("INSERT INTO documents(id,scope_key,project_id,stage_id,title,content_json,content_format,created_at,updated_at,revision,extensions_json) VALUES(?1,?2,?3,?4,?5,?6,'tiptap-json/v1',?7,?7,0,'{}') ON CONFLICT(scope_key) DO NOTHING", params![document_id,scope,project_id,stage_id,payload.get("name").and_then(Value::as_str).unwrap_or("Текст"),EMPTY_DOCUMENT,timestamp]).map_err(|error| error.to_string())?;
+    tx.execute("INSERT INTO document_bindings(id,document_id,binding_type,external_path,source_id,last_synced_revision,sync_state,payload_json) VALUES(?1,?2,'scrivener',?3,?4,0,'external_changed',?5) ON CONFLICT(document_id) DO UPDATE SET external_path=excluded.external_path,source_id=excluded.source_id,binding_type='scrivener',sync_state='external_changed',payload_json=excluded.payload_json", params![binding_id(&document_id),document_id,root.to_string_lossy(),item_id,serde_json::json!({"type":"scrivener","path":root,"item_id":item_id}).to_string()]).map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())?;
+    document_row(&connection, project_id, stage_id)?
+        .ok_or_else(|| "Документ не найден.".to_string())
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncConfigureCommand {
+    pub project_id: String,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+    #[serde(rename = "type")]
+    pub sync_type: String,
+    pub path: String,
+    #[serde(default)]
+    pub item_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct SyncScopeCommand {
+    pub project_id: String,
+    #[serde(default)]
+    pub stage_id: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct SyncSummary {
+    pub project_id: String,
+    pub stage_id: Option<String>,
+    pub configured: bool,
+    #[serde(rename = "type")]
+    pub sync_type: Option<String>,
+    pub path: Option<String>,
+    pub item_id: Option<String>,
+    pub last_synced_at: Option<String>,
+    pub desktop_only: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SyncRunResult {
+    pub changed: bool,
+    pub symbols: usize,
+    pub sync: SyncSummary,
+    pub progress: Option<Value>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SyncBatchItem {
+    pub project_id: String,
+    pub stage_id: Option<String>,
+    pub ok: bool,
+    pub changed: bool,
+    pub symbols: Option<usize>,
+    pub progress: Option<Value>,
+    pub error: Option<Value>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct SyncBatchResult {
+    pub checked: usize,
+    pub changed: usize,
+    pub failed: usize,
+    pub items: Vec<SyncBatchItem>,
+}
+
+fn validate_sync_scope(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<(String, Value), String> {
+    let (id, payload, _) = project_entity(connection, project_id, stage_id)?;
+    if stage_id.is_none()
+        && payload
+            .get("stages")
+            .and_then(Value::as_array)
+            .is_some_and(|stages| !stages.is_empty())
+    {
+        return Err("У проекта с этапами нет отдельного текста.".to_string());
+    }
+    if payload.get("status").and_then(Value::as_str) == Some("завершен") {
+        return Err("Завершённая сущность доступна только для просмотра.".to_string());
+    }
+    Ok((id, payload))
+}
+
+fn binding_for_scope(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<
+    Option<(
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+    )>,
+    String,
+> {
+    let document_id = document_id_for_scope(connection, project_id, stage_id)?;
+    connection
+        .query_row(
+            "SELECT binding_type,external_path,source_id,last_external_hash,last_synced_at FROM document_bindings WHERE document_id=?1",
+            [document_id.as_str()],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|error| error.to_string())
+}
+
+fn sync_summary(
+    connection: &rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+) -> Result<SyncSummary, String> {
+    let binding = binding_for_scope(connection, project_id, stage_id)?;
+    Ok(SyncSummary {
+        project_id: project_id.to_string(),
+        stage_id: stage_id.map(str::to_string),
+        configured: binding.is_some(),
+        sync_type: binding.as_ref().map(|value| value.0.clone()),
+        path: binding.as_ref().map(|value| value.1.clone()),
+        item_id: binding.as_ref().and_then(|value| value.2.clone()),
+        last_synced_at: binding.and_then(|value| value.4),
+        desktop_only: true,
+    })
+}
+
+pub fn configure_sync(command: SyncConfigureCommand) -> Result<SyncSummary, String> {
+    let mut connection = open()?.0;
+    validate_sync_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let document_id = document_id_for_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let (path, source_id) = match command.sync_type.as_str() {
+        "word" => {
+            let path = canonical_existing_file(&command.path, "Word")?;
+            if !path
+                .extension()
+                .and_then(|value| value.to_str())
+                .is_some_and(|value| value.eq_ignore_ascii_case("docx"))
+            {
+                return Err("Поддерживаются только документы Word .docx.".to_string());
+            }
+            (path, None)
+        }
+        "scrivener" => {
+            let root = canonical_existing_directory(&command.path)?;
+            let items = parse_scrivener_xml(&find_scrivener_xml(&root)?)?;
+            let item_id = command
+                .item_id
+                .as_deref()
+                .ok_or_else(|| "Выберите документ Scrivener.".to_string())?;
+            if !contains_item(&items, item_id) {
+                return Err("Документ Scrivener не найден в проекте.".to_string());
+            }
+            (root, Some(item_id.to_string()))
+        }
+        _ => return Err("Неизвестный тип синхронизации.".to_string()),
+    };
+    let timestamp = now();
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    let document_id = if tx
+        .query_row(
+            "SELECT 1 FROM documents WHERE id=?1",
+            [document_id.as_str()],
+            |_| Ok(()),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .is_some()
+    {
+        document_id
+    } else {
+        let scope = scope_key(&command.project_id, command.stage_id.as_deref());
+        let (_, payload) =
+            validate_sync_scope(&tx, &command.project_id, command.stage_id.as_deref())?;
+        let title = payload
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or("Текст");
+        tx.execute(
+            "INSERT INTO documents(id,scope_key,project_id,stage_id,title,content_json,content_format,created_at,updated_at,revision,extensions_json) VALUES(?1,?2,?3,?4,?5,?6,'tiptap-json/v1',NULL,NULL,0,'{}')",
+            params![document_id, scope, command.project_id, command.stage_id, title, EMPTY_DOCUMENT],
+        ).map_err(|error| error.to_string())?;
+        document_id
+    };
+    tx.execute(
+        "INSERT INTO document_bindings(id,document_id,binding_type,external_path,source_id,last_synced_revision,sync_state,payload_json) VALUES(?1,?2,?3,?4,?5,0,'external_changed',?6) ON CONFLICT(document_id) DO UPDATE SET binding_type=excluded.binding_type,external_path=excluded.external_path,source_id=excluded.source_id,sync_state='external_changed',payload_json=excluded.payload_json",
+        params![binding_id(&document_id), document_id, command.sync_type, path.to_string_lossy(), source_id, serde_json::json!({"configured_at": timestamp}).to_string()],
+    ).map_err(|error| error.to_string())?;
+    let (entity_id, mut payload) =
+        validate_sync_scope(&tx, &command.project_id, command.stage_id.as_deref())?;
+    payload["work_method"] = Value::String("sync".to_string());
+    payload["sync_available"] = Value::Bool(true);
+    payload["synch"] =
+        serde_json::json!({"type": command.sync_type, "path": path, "item_id": source_id});
+    payload["last_synch"] = Value::Null;
+    let table = if command.stage_id.is_some() {
+        "stages"
+    } else {
+        "projects"
+    };
+    tx.execute(
+        &format!("UPDATE {table} SET payload_json=?,updated_at=? WHERE id=?"),
+        params![payload.to_string(), timestamp, entity_id],
+    )
+    .map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())?;
+    sync_summary(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )
+}
+
+pub fn get_sync(command: SyncScopeCommand) -> Result<SyncSummary, String> {
+    let connection = open()?.0;
+    validate_sync_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    sync_summary(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )
+}
+
+pub fn get_project_syncs(project_id: String) -> Result<Value, String> {
+    let connection = open()?.0;
+    let has_stages: bool = connection
+        .query_row(
+            "SELECT EXISTS(SELECT 1 FROM stages WHERE project_id=?1)",
+            [project_id.as_str()],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let mut summaries = Vec::new();
+    if has_stages {
+        let mut statement = connection
+            .prepare("SELECT id FROM stages WHERE project_id=?1 ORDER BY id")
+            .map_err(|error| error.to_string())?;
+        let stages = statement
+            .query_map([project_id.as_str()], |row| row.get::<_, String>(0))
+            .map_err(|error| error.to_string())?;
+        let stage_ids = stages
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|error| error.to_string())?;
+        drop(statement);
+        for stage_id in stage_ids {
+            summaries.push(
+                serde_json::to_value(sync_summary(&connection, &project_id, Some(&stage_id))?)
+                    .map_err(|error| error.to_string())?,
+            );
+        }
+    } else {
+        summaries.push(
+            serde_json::to_value(sync_summary(&connection, &project_id, None)?)
+                .map_err(|error| error.to_string())?,
+        );
+    }
+    Ok(serde_json::json!({"project_id": project_id, "syncs": summaries}))
+}
+
+pub fn remove_sync(command: SyncScopeCommand) -> Result<SyncSummary, String> {
+    let mut connection = open()?.0;
+    validate_sync_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let document_id = document_id_for_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    connection
+        .execute(
+            "DELETE FROM document_bindings WHERE document_id=?",
+            [document_id.as_str()],
+        )
+        .map_err(|error| error.to_string())?;
+    sync_summary(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )
+}
+
+fn sync_source(
+    binding_type: &str,
+    path: &Path,
+    source_id: Option<&str>,
+) -> Result<(usize, String), String> {
+    if binding_type == "word" {
+        let source = read_stable_source(path)?;
+        let symbols = parse_docx(&source.bytes)?.1;
+        return Ok((symbols, source.hash));
+    }
+    if binding_type == "scrivener" {
+        let item_id = source_id.ok_or_else(|| "Документ Scrivener не выбран.".to_string())?;
+        let xml_path = find_scrivener_xml(path)?;
+        let xml = read_stable_source(&xml_path)?;
+        let content = read_scrivener_item(path, item_id)?;
+        let mut hash_input = xml.bytes;
+        hash_input.extend_from_slice(&content);
+        return Ok((count_rtf_symbols(&content), sha256(&hash_input)));
+    }
+    Err("Неизвестный тип синхронизации.".to_string())
+}
+
+pub fn run_sync(command: SyncScopeCommand) -> Result<SyncRunResult, String> {
+    let mut connection = open()?.0;
+    let (_, payload) = validate_sync_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    if payload.get("work_method").and_then(Value::as_str) != Some("sync") {
+        return Err("Для синхронизации выберите метод «Синхронизация».".to_string());
+    }
+    let document_id = document_id_for_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?;
+    let binding = binding_for_scope(
+        &connection,
+        &command.project_id,
+        command.stage_id.as_deref(),
+    )?
+    .ok_or_else(|| "Синхронизация не настроена.".to_string())?;
+    let (symbols, hash) = match sync_source(&binding.0, Path::new(&binding.1), binding.2.as_deref())
+    {
+        Ok(result) => result,
+        Err(error) if !Path::new(&binding.1).exists() => {
+            connection
+                .execute(
+                    "UPDATE document_bindings SET sync_state='missing_external' WHERE document_id=?",
+                    [document_id.as_str()],
+                )
+                .map_err(|update_error| update_error.to_string())?;
+            return Err(error);
+        }
+        Err(error) => return Err(error),
+    };
+    let previous_hash: Option<String> = connection
+        .query_row(
+            "SELECT last_external_hash FROM document_bindings WHERE document_id=?",
+            [document_id.as_str()],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .flatten();
+    let (current_revision, last_synced_revision): (i64, i64) = connection
+        .query_row(
+            "SELECT d.revision,b.last_synced_revision FROM documents d JOIN document_bindings b ON b.document_id=d.id WHERE d.id=?",
+            [document_id.as_str()],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .map_err(|error| error.to_string())?;
+    let internal_changed = current_revision != last_synced_revision;
+    if internal_changed
+        && previous_hash.is_some()
+        && previous_hash.as_deref() != Some(hash.as_str())
+    {
+        connection
+            .execute(
+                "UPDATE document_bindings SET sync_state='conflict' WHERE document_id=?",
+                [document_id.as_str()],
+            )
+            .map_err(|error| error.to_string())?;
+        return Err(
+            "Внутренний документ и внешний файл изменены: сначала разрешите конфликт.".to_string(),
+        );
+    }
+    let total = normalize_total(
+        symbols as f64,
+        payload
+            .get("unit")
+            .and_then(Value::as_str)
+            .unwrap_or("symbols"),
+    )?;
+    let previous = payload.get("total").and_then(Value::as_f64).unwrap_or(0.0);
+    let changed = (total - previous).abs() >= 0.009;
+    let progress = if changed && previous_hash.as_deref() != Some(hash.as_str()) {
+        let (_, entry) = record_sync_progress(
+            &mut connection,
+            &command.project_id,
+            command.stage_id.as_deref(),
+            total,
+            &hash,
+            &now(),
+        )?;
+        if internal_changed {
+            connection
+                .execute(
+                    "UPDATE document_bindings SET sync_state='local_changed',last_synced_revision=? WHERE document_id=?",
+                    params![last_synced_revision, document_id],
+                )
+                .map_err(|error| error.to_string())?;
+        }
+        Some(progress_result(
+            crate::project_payload(&mut connection, &command.project_id)?,
+            entry,
+        ))
+    } else {
+        let state = if internal_changed {
+            "local_changed"
+        } else {
+            "synced"
+        };
+        let synced_revision = if internal_changed {
+            last_synced_revision
+        } else {
+            current_revision
+        };
+        connection.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_hash=?,last_synced_revision=?,last_synced_at=?,sync_state=?,expected_external_hash=? WHERE document_id=?", params![hash,hash,synced_revision,now(),state,hash,document_id]).map_err(|error| error.to_string())?;
+        None
+    };
+    Ok(SyncRunResult {
+        changed: changed && progress.is_some(),
+        symbols,
+        sync: sync_summary(
+            &connection,
+            &command.project_id,
+            command.stage_id.as_deref(),
+        )?,
+        progress,
+    })
+}
+
+fn progress_result(project: Value, entry: Value) -> Value {
+    serde_json::json!({
+        "project": project,
+        "entry": entry,
+        "added_symbols": entry.get("added_symbols").and_then(Value::as_f64).unwrap_or(0.0),
+        "game": Value::Null,
+        "warning": Value::Null,
+    })
+}
+
+fn run_all_sync_filtered(project_filter: Option<&str>) -> Result<SyncBatchResult, String> {
+    let connection = open()?.0;
+    let mut targets = Vec::new();
+    let mut statement = connection.prepare("SELECT d.project_id,d.stage_id FROM documents d JOIN document_bindings b ON b.document_id=d.id JOIN projects p ON p.id=d.project_id LEFT JOIN stages s ON s.id=d.stage_id WHERE (?1 IS NULL OR d.project_id=?1) AND ((d.stage_id IS NULL AND json_extract(p.payload_json,'$.status')='активен' AND json_extract(p.payload_json,'$.work_method')='sync') OR (d.stage_id IS NOT NULL AND json_extract(s.payload_json,'$.status')='активен' AND json_extract(s.payload_json,'$.work_method')='sync')) ORDER BY d.project_id,d.stage_id").map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([project_filter], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?))
+        })
+        .map_err(|error| error.to_string())?;
+    for row in rows {
+        targets.push(row.map_err(|error| error.to_string())?);
+    }
+    drop(statement);
+    let mut items = Vec::new();
+    let mut changed = 0;
+    for (project_id, stage_id) in targets {
+        match run_sync(SyncScopeCommand {
+            project_id: project_id.clone(),
+            stage_id: stage_id.clone(),
+        }) {
+            Ok(result) => {
+                changed += usize::from(result.changed);
+                items.push(SyncBatchItem {
+                    project_id,
+                    stage_id,
+                    ok: true,
+                    changed: result.changed,
+                    symbols: Some(result.symbols),
+                    progress: result.progress,
+                    error: None,
+                });
+            }
+            Err(error) => items.push(SyncBatchItem {
+                project_id,
+                stage_id,
+                ok: false,
+                changed: false,
+                symbols: None,
+                progress: None,
+                error: Some(serde_json::json!({"code":"sync_failed","message":error})),
+            }),
+        }
+    }
+    Ok(SyncBatchResult {
+        checked: items.len(),
+        changed,
+        failed: items.iter().filter(|item| !item.ok).count(),
+        items,
+    })
+}
+
+pub fn run_all_sync() -> Result<SyncBatchResult, String> {
+    run_all_sync_filtered(None)
+}
+
+pub fn run_project_syncs(project_id: String) -> Result<SyncBatchResult, String> {
+    run_all_sync_filtered(Some(&project_id))
+}
+
+fn migrate_legacy_documents(
+    connection: &mut rusqlite::Connection,
+    root: &Path,
+) -> Result<(), String> {
+    let marker: Option<String> = connection
+        .query_row(
+            "SELECT value_json FROM document_metadata WHERE key='documents_json_migration'",
+            [],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    if marker.is_some() {
+        return Ok(());
+    }
+    let path = root.join("documents.json");
+    if !path.exists() {
+        connection.execute("INSERT OR REPLACE INTO document_metadata(key,value_json) VALUES('documents_json_migration','{\"status\":\"complete\",\"source\":null}')", []).map_err(|error| error.to_string())?;
+        return Ok(());
+    }
+    let metadata = fs::metadata(&path).map_err(|error| error.to_string())?;
+    if metadata.len() > 100 * 1024 * 1024 {
+        return Err("documents.json превышает допустимый размер 100 МБ.".to_string());
+    }
+    let bytes = fs::read(&path).map_err(|error| error.to_string())?;
+    let raw: Value = serde_json::from_slice(&bytes)
+        .map_err(|error| format!("documents.json повреждён: {error}"))?;
+    let records = raw
+        .as_object()
+        .ok_or_else(|| "documents.json должен содержать объект документов.".to_string())?;
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    for (source_key, value) in records {
+        let Some(record) = value.as_object() else {
+            tx.execute("INSERT OR REPLACE INTO document_migration_orphans(source_key,payload_json,reason) VALUES(?1,?2,'record is not an object')", params![source_key,value.to_string()]).map_err(|error| error.to_string())?;
+            continue;
+        };
+        let project_id = record
+            .get("project_id")
+            .and_then(Value::as_str)
+            .or_else(|| source_key.strip_suffix(":project"));
+        let stage_id = record.get("stage_id").and_then(Value::as_str);
+        let Some(project_id) = project_id.filter(|value| !value.is_empty()) else {
+            tx.execute("INSERT OR REPLACE INTO document_migration_orphans(source_key,payload_json,reason) VALUES(?1,?2,'missing project_id')", params![source_key,Value::Object(record.clone()).to_string()]).map_err(|error| error.to_string())?;
+            continue;
+        };
+        let valid = if let Some(stage_id) = stage_id {
+            tx.query_row(
+                "SELECT 1 FROM stages WHERE id=?1 AND project_id=?2",
+                params![stage_id, project_id],
+                |_| Ok(()),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .is_some()
+        } else {
+            tx.query_row("SELECT 1 FROM projects WHERE id=?1", [project_id], |_| {
+                Ok(())
+            })
+            .optional()
+            .map_err(|error| error.to_string())?
+            .is_some()
+        };
+        if !valid {
+            tx.execute("INSERT OR REPLACE INTO document_migration_orphans(source_key,payload_json,reason) VALUES(?1,?2,'project or stage does not exist')", params![source_key,Value::Object(record.clone()).to_string()]).map_err(|error| error.to_string())?;
+            continue;
+        }
+        let scope = scope_key(project_id, stage_id);
+        let id = record
+            .get("document_id")
+            .and_then(Value::as_str)
+            .or_else(|| record.get("id").and_then(Value::as_str))
+            .filter(|id| !id.is_empty())
+            .map(str::to_string)
+            .unwrap_or_else(|| stable_id(&scope));
+        let content = record
+            .get("content")
+            .cloned()
+            .unwrap_or_else(|| serde_json::from_str(EMPTY_DOCUMENT).unwrap());
+        if validate_content(&content).is_err() {
+            tx.execute("INSERT OR REPLACE INTO document_migration_orphans(source_key,payload_json,reason) VALUES(?1,?2,'invalid Tiptap content')", params![source_key,Value::Object(record.clone()).to_string()]).map_err(|error| error.to_string())?;
+            continue;
+        }
+        let known = [
+            "document_id",
+            "id",
+            "project_id",
+            "stage_id",
+            "title",
+            "content",
+            "content_format",
+            "created_at",
+            "updated_at",
+            "exists",
+            "docx_path",
+            "sync_state",
+            "last_synced_hash",
+            "last_synced_at",
+            "local_dirty",
+            "word_dirty",
+            "symbols",
+            "has_content",
+        ];
+        let extensions: Map<String, Value> = record
+            .iter()
+            .filter(|(key, _)| !known.contains(&key.as_str()))
+            .map(|(key, value)| (key.clone(), value.clone()))
+            .collect();
+        let title = record
+            .get("title")
+            .and_then(Value::as_str)
+            .unwrap_or("Текст");
+        tx.execute("INSERT OR IGNORE INTO documents(id,scope_key,project_id,stage_id,title,content_json,content_format,created_at,updated_at,revision,extensions_json) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9,0,?10)", params![id,scope,project_id,stage_id,title,content.to_string(),record.get("content_format").and_then(Value::as_str).unwrap_or("tiptap-json/v1"),record.get("created_at").and_then(Value::as_str),record.get("updated_at").and_then(Value::as_str),Value::Object(extensions).to_string()]).map_err(|error| error.to_string())?;
+        if let Some(external_path) = record.get("docx_path").and_then(Value::as_str) {
+            tx.execute("INSERT OR IGNORE INTO document_bindings(id,document_id,binding_type,external_path,source_id,last_external_hash,last_synced_at,sync_state,payload_json) VALUES(?1,?2,'word',?3,NULL,?4,?5,?6,?7)", params![binding_id(&id),id,external_path,record.get("last_synced_hash").and_then(Value::as_str),record.get("last_synced_at").and_then(Value::as_str),record.get("sync_state").and_then(Value::as_str).unwrap_or("unlinked"),serde_json::json!({"legacy_source_key":source_key}).to_string()]).map_err(|error| error.to_string())?;
+        }
+    }
+    let marker = serde_json::json!({"status":"complete","source_checksum":format!("sha256:{}",sha256(&bytes))}).to_string();
+    tx.execute("INSERT OR REPLACE INTO document_metadata(key,value_json) VALUES('documents_json_migration',?1)", [marker]).map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())
+}
+
+fn canonical_existing_file(path: &str, kind: &str) -> Result<PathBuf, String> {
+    let value = expand_user(Path::new(path));
+    if !value.is_file() {
+        return Err(format!("Документ {kind} не найден."));
+    }
+    fs::canonicalize(value).map_err(|error| format!("Не удалось открыть файл {kind}: {error}"))
+}
+
+fn canonical_existing_directory(path: &str) -> Result<PathBuf, String> {
+    let value = expand_user(Path::new(path));
+    if !value.is_dir() {
+        return Err("Проект Scrivener не найден.".to_string());
+    }
+    fs::canonicalize(value).map_err(|error| format!("Не удалось открыть проект Scrivener: {error}"))
+}
+
+fn canonical_existing_or_parent(path: &str) -> Result<PathBuf, String> {
+    let value = PathBuf::from(path);
+    let parent = value
+        .parent()
+        .ok_or_else(|| "Некорректный путь к файлу.".to_string())?;
+    if !parent.is_dir() {
+        return Err("Папка назначения не найдена.".to_string());
+    }
+    if value.exists() {
+        fs::canonicalize(value).map_err(|error| error.to_string())
+    } else {
+        let parent = fs::canonicalize(parent).map_err(|error| error.to_string())?;
+        Ok(parent.join(
+            value
+                .file_name()
+                .ok_or_else(|| "Некорректное имя файла.".to_string())?,
+        ))
+    }
+}
+
+fn expand_user(path: &Path) -> PathBuf {
+    if path.to_string_lossy().starts_with("~/") {
+        if let Some(home) = std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")) {
+            return PathBuf::from(home).join(path.strip_prefix("~/").unwrap_or(path));
+        }
+    }
+    path.to_path_buf()
+}
+
+fn read_stable_source(path: &Path) -> Result<SourceSnapshot, String> {
+    let before = fs::metadata(path).map_err(|_| "Источник синхронизации не найден.".to_string())?;
+    if before.len() > MAX_DOCX_BYTES as u64 {
+        return Err("Источник синхронизации слишком велик.".to_string());
+    }
+    let bytes =
+        fs::read(path).map_err(|_| "Не удалось прочитать источник синхронизации.".to_string())?;
+    let after = fs::metadata(path)
+        .map_err(|_| "Источник синхронизации исчез во время чтения.".to_string())?;
+    if before.len() != after.len() || before.modified().ok() != after.modified().ok() {
+        return Err("Источник синхронизации изменился во время чтения.".to_string());
+    }
+    let modified_at = before
+        .modified()
+        .ok()
+        .and_then(|value| value.duration_since(UNIX_EPOCH).ok())
+        .map_or_else(String::new, |value| value.as_secs().to_string());
+    let hash = sha256(&bytes);
+    Ok(SourceSnapshot {
+        bytes,
+        hash,
+        modified_at,
+    })
+}
+
+fn atomic_write(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "Некорректный путь к файлу.".to_string())?;
+    let name = path
+        .file_name()
+        .and_then(|value| value.to_str())
+        .ok_or_else(|| "Некорректное имя файла.".to_string())?;
+    let temporary = parent.join(format!(".nfprogress-{name}.tmp-{}", std::process::id()));
+    let mut file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(&temporary)
+        .map_err(|error| format!("Не удалось записать файл: {error}"))?;
+    file.write_all(bytes).map_err(|error| error.to_string())?;
+    file.sync_all().map_err(|error| error.to_string())?;
+    drop(file);
+    fs::rename(&temporary, path).map_err(|error| {
+        let _ = fs::remove_file(&temporary);
+        format!("Не удалось заменить файл: {error}")
+    })
+}
+
+fn ensure_external_write_safe(
+    connection: &mut rusqlite::Connection,
+    document_id: &str,
+    path: &Path,
+) -> Result<(), String> {
+    let expected: Option<String> = connection
+        .query_row(
+            "SELECT last_external_hash FROM document_bindings WHERE document_id=?",
+            [document_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .flatten();
+    let Some(expected) = expected else {
+        return Ok(());
+    };
+    let current = match read_stable_source(path) {
+        Ok(source) => source.hash,
+        Err(error) if !path.is_file() => {
+            connection
+                .execute(
+                    "UPDATE document_bindings SET sync_state='missing_external' WHERE document_id=?",
+                    [document_id],
+                )
+                .map_err(|update_error| update_error.to_string())?;
+            return Err(error);
+        }
+        Err(error) => return Err(error),
+    };
+    if current != expected {
+        connection
+            .execute(
+                "UPDATE document_bindings SET sync_state='conflict' WHERE document_id=?",
+                [document_id],
+            )
+            .map_err(|error| error.to_string())?;
+        return Err("Внешний файл изменён: сначала разрешите конфликт синхронизации.".to_string());
+    }
+    Ok(())
+}
+
+fn decode_base64(value: &str) -> Result<Vec<u8>, String> {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut output = Vec::with_capacity(value.len() * 3 / 4);
+    let mut buffer = 0u32;
+    let mut bits = 0u8;
+    for byte in value.bytes() {
+        if byte == b'=' {
+            break;
+        }
+        let digit = match byte {
+            b'A'..=b'Z' => byte - b'A',
+            b'a'..=b'z' => byte - b'a' + 26,
+            b'0'..=b'9' => byte - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            _ => return Err("Некорректные данные DOCX.".to_string()),
+        };
+        buffer = (buffer << 6) | u32::from(digit);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            output.push((buffer >> bits) as u8);
+        }
+        if output.len() > MAX_DOCX_BYTES {
+            return Err("Документ превышает допустимый размер 100 МБ.".to_string());
+        };
+    }
+    let _ = TABLE;
+    Ok(output)
+}
+
+fn base64_encode(bytes: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::new();
+    let mut i = 0;
+    while i < bytes.len() {
+        let a = bytes[i];
+        let b = bytes.get(i + 1).copied().unwrap_or(0);
+        let c = bytes.get(i + 2).copied().unwrap_or(0);
+        out.push(TABLE[(a >> 2) as usize] as char);
+        out.push(TABLE[((a & 3) << 4 | b >> 4) as usize] as char);
+        out.push(if i + 1 < bytes.len() {
+            TABLE[((b & 15) << 2 | c >> 6) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if i + 2 < bytes.len() {
+            TABLE[(c & 63) as usize] as char
+        } else {
+            '='
+        });
+        i += 3;
+    }
+    out
+}
+
+fn zip_safety(bytes: &[u8]) -> Result<ZipArchive<Cursor<&[u8]>>, String> {
+    if bytes.is_empty() || bytes.len() > MAX_DOCX_BYTES {
+        return Err("Документ превышает допустимый размер 100 МБ.".to_string());
+    }
+    let mut archive =
+        ZipArchive::new(Cursor::new(bytes)).map_err(|_| "Документ .docx повреждён.".to_string())?;
+    if archive.len() > MAX_DOCX_ENTRIES {
+        return Err("Распакованный документ слишком велик.".to_string());
+    }
+    let mut expanded = 0u64;
+    for index in 0..archive.len() {
+        let entry = archive
+            .by_index(index)
+            .map_err(|_| "Документ .docx повреждён.".to_string())?;
+        if unsafe_zip_name(entry.name()) {
+            return Err("Архив содержит небезопасный путь.".to_string());
+        }
+        expanded = expanded.saturating_add(entry.size());
+        if expanded > MAX_DOCX_EXPANDED_BYTES {
+            return Err("Распакованный документ слишком велик.".to_string());
+        }
+    }
+    Ok(archive)
+}
+
+fn unsafe_zip_name(name: &str) -> bool {
+    let path = Path::new(name);
+    name.starts_with('/')
+        || name.contains('\\')
+        || path.components().any(|component| {
+            matches!(
+                component,
+                Component::ParentDir | Component::RootDir | Component::Prefix(_)
+            )
+        })
+}
+
+fn parse_docx(bytes: &[u8]) -> Result<(Value, usize), String> {
+    let mut archive = zip_safety(bytes)?;
+    let mut xml = Vec::new();
+    archive
+        .by_name("word/document.xml")
+        .map_err(|_| "В DOCX отсутствует основной документ.".to_string())?
+        .read_to_end(&mut xml)
+        .map_err(|_| "Документ .docx повреждён.".to_string())?;
+    if xml.len() > MAX_XML_BYTES
+        || xml.windows(9).any(|w| w.eq_ignore_ascii_case(b"<!doctype"))
+        || xml.windows(8).any(|w| w.eq_ignore_ascii_case(b"<!entity"))
+    {
+        return Err("DOCX содержит запрещённые XML-конструкции.".to_string());
+    }
+    let mut reader = Reader::from_reader(xml.as_slice());
+    let mut buffer = Vec::new();
+    let mut paragraphs = Vec::new();
+    let mut current: Option<Map<String, Value>> = None;
+    let mut paragraph_content = Vec::new();
+    let mut run_text = String::new();
+    let mut run_marks: Vec<Value> = Vec::new();
+    let mut heading = None;
+    let mut in_text = false;
+    loop {
+        match reader
+            .read_event_into(&mut buffer)
+            .map_err(|_| "Документ .docx повреждён.".to_string())?
+        {
+            Event::Start(event) => {
+                let name = local_name(event.name().as_ref()).to_string();
+                match name.as_str() {
+                    "p" => {
+                        current = Some(Map::new());
+                        paragraph_content.clear();
+                        run_text.clear();
+                        run_marks.clear();
+                        heading = None;
+                    }
+                    "r" => {
+                        run_text.clear();
+                        run_marks.clear();
+                    }
+                    "pStyle" => {
+                        if let Some(value) = attr(&event, "val") {
+                            heading = value
+                                .strip_prefix("Heading")
+                                .and_then(|v| v.parse::<u64>().ok())
+                                .map(|v| v.clamp(1, 6))
+                        }
+                    }
+                    "t" => in_text = true,
+                    _ => {}
+                }
+            }
+            Event::Empty(event) => match local_name(event.name().as_ref()) {
+                "br" => paragraph_content.push(serde_json::json!({"type":"hardBreak"})),
+                "tab" => run_text.push('\t'),
+                "b" => run_marks.push(serde_json::json!({"type":"bold"})),
+                "i" => run_marks.push(serde_json::json!({"type":"italic"})),
+                "u" => run_marks.push(serde_json::json!({"type":"underline"})),
+                "strike" => run_marks.push(serde_json::json!({"type":"strike"})),
+                "pStyle" => {
+                    if let Some(value) = attr(&event, "val") {
+                        heading = value
+                            .strip_prefix("Heading")
+                            .and_then(|v| v.parse::<u64>().ok())
+                            .map(|v| v.clamp(1, 6));
+                    }
+                }
+                _ => {}
+            },
+            Event::Text(event) => {
+                if current.is_some() && in_text {
+                    run_text.push_str(
+                        &event
+                            .decode()
+                            .map_err(|_| "Документ .docx повреждён.".to_string())?,
+                    )
+                }
+            }
+            Event::End(event) => {
+                let end_name = event.name();
+                let name = local_name(end_name.as_ref());
+                match name {
+                    "t" => in_text = false,
+                    "r" => {
+                        if !run_text.is_empty() {
+                            let mut node = Map::new();
+                            node.insert("type".into(), Value::String("text".into()));
+                            node.insert("text".into(), Value::String(run_text.clone()));
+                            if !run_marks.is_empty() {
+                                node.insert("marks".into(), Value::Array(run_marks.clone()));
+                            }
+                            paragraph_content.push(Value::Object(node));
+                        }
+                        run_text.clear();
+                        run_marks.clear();
+                    }
+                    "p" => {
+                        if let Some(mut paragraph) = current.take() {
+                            paragraph.insert(
+                                "type".into(),
+                                heading.map_or(Value::String("paragraph".into()), |_| {
+                                    Value::String("heading".into())
+                                }),
+                            );
+                            if let Some(level) = heading {
+                                paragraph
+                                    .insert("attrs".into(), serde_json::json!({"level":level}));
+                            }
+                            if !paragraph_content.is_empty() {
+                                paragraph.insert(
+                                    "content".into(),
+                                    Value::Array(paragraph_content.clone()),
+                                );
+                            }
+                            paragraphs.push(Value::Object(paragraph));
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Event::Eof => break,
+            _ => {}
+        }
+        buffer.clear()
+    }
+    let content = serde_json::json!({"type":"doc","content":paragraphs});
+    Ok((content.clone(), symbols(&content)))
+}
+fn local_name(name: &[u8]) -> &str {
+    std::str::from_utf8(name)
+        .unwrap_or("")
+        .rsplit(':')
+        .next()
+        .unwrap_or("")
+}
+fn attr(event: &quick_xml::events::BytesStart<'_>, wanted: &str) -> Option<String> {
+    event.attributes().flatten().find_map(|item| {
+        (local_name(item.key.as_ref()) == wanted)
+            .then(|| String::from_utf8_lossy(&item.value).to_string())
+    })
+}
+
+fn build_docx(content: &Value) -> Result<Vec<u8>, String> {
+    let mut output = Cursor::new(Vec::new());
+    let mut archive = zip::ZipWriter::new(&mut output);
+    let options = SimpleFileOptions::default();
+    archive
+        .start_file("[Content_Types].xml", options)
+        .map_err(|e| e.to_string())?;
+    archive.write_all(br#"<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#).map_err(|e|e.to_string())?;
+    archive
+        .start_file("_rels/.rels", options)
+        .map_err(|e| e.to_string())?;
+    archive.write_all(br#"<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#).map_err(|e|e.to_string())?;
+    archive
+        .start_file("word/document.xml", options)
+        .map_err(|e| e.to_string())?;
+    let mut xml = String::from(
+        r#"<?xml version="1.0" encoding="UTF-8"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>"#,
+    );
+    if let Some(items) = content.get("content").and_then(Value::as_array) {
+        for item in items {
+            write_paragraph(&mut xml, item)
+        }
+    }
+    xml.push_str("<w:sectPr><w:pgSz w:w=\"11906\" w:h=\"16838\"/><w:pgMar w:top=\"1440\" w:right=\"1440\" w:bottom=\"1440\" w:left=\"1440\"/></w:sectPr></w:body></w:document>");
+    archive
+        .write_all(xml.as_bytes())
+        .map_err(|e| e.to_string())?;
+    archive.finish().map_err(|e| e.to_string())?;
+    Ok(output.into_inner())
+}
+fn xml_escape(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
+        .replace('"', "&quot;")
+}
+fn write_paragraph(xml: &mut String, node: &Value) {
+    xml.push_str("<w:p>");
+    if node.get("type").and_then(Value::as_str) == Some("heading") {
+        if let Some(level) = node
+            .get("attrs")
+            .and_then(|v| v.get("level"))
+            .and_then(Value::as_u64)
+        {
+            xml.push_str(&format!(
+                "<w:pPr><w:pStyle w:val=\"Heading{level}\"/></w:pPr>"
+            ))
+        }
+    }
+    if let Some(children) = node.get("content").and_then(Value::as_array) {
+        for child in children {
+            write_run(xml, child)
+        }
+    }
+    xml.push_str("</w:p>")
+}
+fn write_run(xml: &mut String, node: &Value) {
+    if node.get("type").and_then(Value::as_str) == Some("hardBreak") {
+        xml.push_str("<w:br/>");
+        return;
+    }
+    if node.get("type").and_then(Value::as_str) != Some("text") {
+        if let Some(children) = node.get("content").and_then(Value::as_array) {
+            for child in children {
+                write_run(xml, child)
+            }
+        }
+        return;
+    }
+    let mut props = String::new();
+    if let Some(marks) = node.get("marks").and_then(Value::as_array) {
+        for mark in marks {
+            match mark.get("type").and_then(Value::as_str) {
+                Some("bold") => props.push_str("<w:b/>"),
+                Some("italic") => props.push_str("<w:i/>"),
+                Some("underline") => props.push_str("<w:u w:val=\"single\"/>"),
+                Some("strike") => props.push_str("<w:strike/>"),
+                _ => {}
+            }
+        }
+    }
+    xml.push_str("<w:r>");
+    if !props.is_empty() {
+        xml.push_str("<w:rPr>");
+        xml.push_str(&props);
+        xml.push_str("</w:rPr>")
+    }
+    xml.push_str("<w:t xml:space=\"preserve\">");
+    xml.push_str(&xml_escape(
+        node.get("text").and_then(Value::as_str).unwrap_or(""),
+    ));
+    xml.push_str("</w:t></w:r>")
+}
+
+fn find_scrivener_xml(root: &Path) -> Result<PathBuf, String> {
+    let preferred = root.join("project.scrivx");
+    if preferred.is_file() {
+        if fs::symlink_metadata(&preferred)
+            .map(|metadata| metadata.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            return Err("Проект Scrivener содержит небезопасную ссылку.".to_string());
+        }
+        return Ok(preferred);
+    }
+    let old = root.join("binder.scrivproj");
+    if old.is_file() {
+        if fs::symlink_metadata(&old)
+            .map(|metadata| metadata.file_type().is_symlink())
+            .unwrap_or(false)
+        {
+            return Err("Проект Scrivener содержит небезопасную ссылку.".to_string());
+        }
+        return Ok(old);
+    }
+    for entry in
+        fs::read_dir(root).map_err(|_| "Не удалось прочитать проект Scrivener.".to_string())?
+    {
+        let path = entry
+            .map_err(|_| "Не удалось прочитать проект Scrivener.".to_string())?
+            .path();
+        if path.extension().and_then(|v| v.to_str()) == Some("scrivx") && path.is_file() {
+            if fs::symlink_metadata(&path)
+                .map(|metadata| metadata.file_type().is_symlink())
+                .unwrap_or(false)
+            {
+                return Err("Проект Scrivener содержит небезопасную ссылку.".to_string());
+            }
+            return Ok(path);
+        }
+    }
+    Err("Не найден файл проекта Scrivener.".to_string())
+}
+fn parse_scrivener_xml(path: &Path) -> Result<Vec<ScrivenerItem>, String> {
+    let bytes = fs::read(path).map_err(|_| "Не удалось прочитать проект Scrivener.".to_string())?;
+    if bytes.len() > MAX_XML_BYTES
+        || bytes
+            .windows(9)
+            .any(|w| w.eq_ignore_ascii_case(b"<!doctype"))
+        || bytes
+            .windows(8)
+            .any(|w| w.eq_ignore_ascii_case(b"<!entity"))
+    {
+        return Err("Структура проекта Scrivener повреждена.".to_string());
+    }
+    let mut reader = Reader::from_reader(bytes.as_slice());
+    let mut buffer = Vec::new();
+    let mut roots = Vec::new();
+    let mut stack: Vec<ScrivenerItem> = Vec::new();
+    let mut title = false;
+    loop {
+        match reader
+            .read_event_into(&mut buffer)
+            .map_err(|_| "Структура проекта Scrivener повреждена.".to_string())?
+        {
+            Event::Start(event) => match local_name(event.name().as_ref()) {
+                "BinderItem" => {
+                    let id = attr(&event, "UUID")
+                        .or_else(|| attr(&event, "Uuid"))
+                        .or_else(|| attr(&event, "uuid"))
+                        .or_else(|| attr(&event, "ID"))
+                        .ok_or_else(|| "Структура проекта Scrivener повреждена.".to_string())?;
+                    stack.push(ScrivenerItem {
+                        id,
+                        title: "Без названия".into(),
+                        children: Vec::new(),
+                    })
+                }
+                "Title" => title = true,
+                _ => {}
+            },
+            Event::Text(event) => {
+                if title {
+                    if let Some(item) = stack.last_mut() {
+                        item.title = event
+                            .decode()
+                            .map_err(|_| "Структура проекта Scrivener повреждена.".to_string())?
+                            .into_owned()
+                    }
+                }
+            }
+            Event::End(event) => match local_name(event.name().as_ref()) {
+                "Title" => title = false,
+                "BinderItem" => {
+                    let item = stack
+                        .pop()
+                        .ok_or_else(|| "Структура проекта Scrivener повреждена.".to_string())?;
+                    if let Some(parent) = stack.last_mut() {
+                        parent.children.push(item)
+                    } else {
+                        roots.push(item)
+                    }
+                }
+                _ => {}
+            },
+            Event::Eof => break,
+            _ => {}
+        }
+        buffer.clear()
+    }
+    Ok(roots)
+}
+fn contains_item(items: &[ScrivenerItem], id: &str) -> bool {
+    items.iter().any(|item| {
+        item.id
+            .trim_matches('{')
+            .trim_matches('}')
+            .eq_ignore_ascii_case(id.trim_matches('{').trim_matches('}'))
+            || contains_item(&item.children, id)
+    })
+}
+
+fn read_scrivener_item(root: &Path, item_id: &str) -> Result<Vec<u8>, String> {
+    let docs_root = [
+        root.join("Files").join("Docs"),
+        root.join("Files").join("Data"),
+    ]
+    .into_iter()
+    .find(|path| path.is_dir())
+    .ok_or_else(|| "Источник синхронизации не найден.".to_string())?;
+    let expected = item_id
+        .trim_matches('{')
+        .trim_matches('}')
+        .to_ascii_lowercase();
+    let mut pending = vec![docs_root];
+    let mut visited = 0usize;
+    while let Some(directory) = pending.pop() {
+        visited += 1;
+        if visited > MAX_DOCX_ENTRIES {
+            return Err("Проект Scrivener слишком велик.".to_string());
+        }
+        let metadata = fs::symlink_metadata(&directory)
+            .map_err(|_| "Не удалось прочитать проект Scrivener.".to_string())?;
+        if metadata.file_type().is_symlink() {
+            return Err("Проект Scrivener содержит небезопасную ссылку.".to_string());
+        }
+        for entry in fs::read_dir(&directory)
+            .map_err(|_| "Не удалось прочитать проект Scrivener.".to_string())?
+        {
+            let entry = entry.map_err(|_| "Не удалось прочитать проект Scrivener.".to_string())?;
+            let path = entry.path();
+            let metadata = fs::symlink_metadata(&path)
+                .map_err(|_| "Не удалось прочитать проект Scrivener.".to_string())?;
+            if metadata.file_type().is_symlink() {
+                return Err("Проект Scrivener содержит небезопасную ссылку.".to_string());
+            }
+            if metadata.is_dir() {
+                if entry
+                    .file_name()
+                    .to_string_lossy()
+                    .trim_matches('{')
+                    .trim_matches('}')
+                    .eq_ignore_ascii_case(&expected)
+                {
+                    let mut rtf_files = fs::read_dir(&path)
+                        .map_err(|_| "Не удалось прочитать документ Scrivener.".to_string())?
+                        .filter_map(Result::ok)
+                        .map(|value| value.path())
+                        .filter(|value| {
+                            value
+                                .extension()
+                                .and_then(|extension| extension.to_str())
+                                .is_some_and(|extension| extension.eq_ignore_ascii_case("rtf"))
+                        })
+                        .collect::<Vec<_>>();
+                    rtf_files.sort_by_key(|value| {
+                        value
+                            .file_name()
+                            .map(|name| name.to_string_lossy().to_ascii_lowercase())
+                    });
+                    let file = rtf_files
+                        .into_iter()
+                        .next()
+                        .ok_or_else(|| "Документ Scrivener не содержит текста.".to_string())?;
+                    let file_metadata = fs::metadata(&file)
+                        .map_err(|_| "Не удалось прочитать документ Scrivener.".to_string())?;
+                    if file_metadata.len() > MAX_DOCX_BYTES as u64 {
+                        return Err("Документ Scrivener слишком велик.".to_string());
+                    }
+                    return fs::read(file)
+                        .map_err(|_| "Не удалось прочитать документ Scrivener.".to_string());
+                }
+                pending.push(path);
+            }
+        }
+    }
+    Err("Документ Scrivener не содержит текста.".to_string())
+}
+
+fn count_rtf_symbols(bytes: &[u8]) -> usize {
+    let text = String::from_utf8_lossy(bytes);
+    let mut count = 0usize;
+    let mut chars = text.chars().peekable();
+    while let Some(character) = chars.next() {
+        match character {
+            '{' | '}' | '\\' => {
+                if character == '\\' {
+                    if let Some(next) = chars.peek().copied() {
+                        if next == '\\' || next == '{' || next == '}' {
+                            count += 1;
+                            chars.next();
+                        } else if next == '\'' {
+                            chars.next();
+                            chars.next();
+                        } else {
+                            while chars
+                                .peek()
+                                .is_some_and(|value| value.is_ascii_alphabetic())
+                            {
+                                chars.next();
+                            }
+                            if chars.peek().is_some_and(|value| *value == '-') {
+                                chars.next();
+                            }
+                            while chars.peek().is_some_and(|value| value.is_ascii_digit()) {
+                                chars.next();
+                            }
+                            if chars.peek().is_some_and(|value| *value == ' ') {
+                                chars.next();
+                            }
+                        }
+                    }
+                }
+            }
+            '\n' | '\r' => {}
+            _ => count += 1,
+        }
+    }
+    count
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn migration_ids_are_stable_for_a_scope() {
+        assert_eq!(stable_id("project:stage"), stable_id("project:stage"));
+        assert_ne!(stable_id("project:stage"), stable_id("project:other"));
+    }
+
+    #[test]
+    fn generated_docx_round_trips_supported_text_marks() {
+        let content = serde_json::json!({
+            "type": "doc",
+            "content": [{"type":"heading","attrs":{"level":2},"content":[{"type":"text","text":"Заголовок","marks":[{"type":"bold"}]}]}, {"type":"paragraph","content":[{"type":"text","text":"текст"}]}]
+        });
+        let bytes = build_docx(&content).unwrap();
+        let (parsed, symbols_count) = parse_docx(&bytes).unwrap();
+        assert_eq!(symbols_count, 14, "{parsed}");
+        assert_eq!(symbols(&parsed), 14, "{parsed}");
+        assert_eq!(parsed["content"][0]["type"], "heading");
+        assert_eq!(
+            parsed["content"][0]["content"][0]["marks"][0]["type"],
+            "bold"
+        );
+    }
+
+    #[test]
+    fn docx_archive_rejects_traversal_entry() {
+        let mut output = Cursor::new(Vec::new());
+        let mut archive = zip::ZipWriter::new(&mut output);
+        archive
+            .start_file("../document.xml", SimpleFileOptions::default())
+            .unwrap();
+        archive.write_all(b"bad").unwrap();
+        archive.finish().unwrap();
+        assert!(zip_safety(&output.into_inner()).is_err());
+    }
+
+    #[test]
+    fn rtf_counter_ignores_control_words() {
+        assert_eq!(count_rtf_symbols(br"{\rtf1\ansi Hello \b world}"), 11);
+    }
+
+    #[test]
+    fn legacy_documents_migration_is_idempotent_and_sqlite_wins() {
+        let root = std::env::temp_dir().join(format!(
+            "nfprogress-document-migration-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        fs::write(
+            root.join("documents.json"),
+            serde_json::json!({
+                "p1:project": {
+                    "id": "legacy-document",
+                    "project_id": "p1",
+                    "content": {"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"old"}]}]},
+                    "legacy_flag": true
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let mut connection = rusqlite::Connection::open_in_memory().unwrap();
+        crate::sqlite::apply_migrations(&connection).unwrap();
+        connection
+            .execute(
+                "INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json) VALUES('p1','Book',100,0,'symbols','активен',?)",
+                [serde_json::json!({"name":"Book","status":"активен","work_method":"app","stages":[]}).to_string()],
+            )
+            .unwrap();
+        migrate_legacy_documents(&mut connection, &root).unwrap();
+        connection
+            .execute(
+                "UPDATE documents SET content_json=? WHERE id='legacy-document'",
+                [serde_json::json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"new"}]}]}).to_string()],
+            )
+            .unwrap();
+        fs::write(
+            root.join("documents.json"),
+            serde_json::json!({"p1:project":{"project_id":"p1","content":{"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"stale"}]}]}}}).to_string(),
+        )
+        .unwrap();
+        migrate_legacy_documents(&mut connection, &root).unwrap();
+        assert_eq!(
+            connection
+                .query_row("SELECT COUNT(*) FROM documents", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        assert_eq!(connection.query_row("SELECT content_json FROM documents WHERE id='legacy-document'", [], |row| row.get::<_, String>(0)).unwrap(), serde_json::json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"new"}]}]}).to_string());
+        assert_eq!(connection.query_row("SELECT json_extract(extensions_json,'$.legacy_flag') FROM documents WHERE id='legacy-document'", [], |row| row.get::<_, i64>(0)).unwrap(), 1);
+        let _ = fs::remove_dir_all(root);
+    }
+}
+
+fn normalize_total(symbols: f64, unit: &str) -> Result<f64, String> {
+    let factor = match unit {
+        "symbols" => 1.0,
+        "A4" => 1800.0,
+        "author_list" => 40000.0,
+        "ficbook_pages" => 4500.0,
+        _ => return Err("Неизвестная единица прогресса.".to_string()),
+    };
+    let value = symbols / factor;
+    Ok(if unit == "author_list" {
+        value
+    } else {
+        value.ceil()
+    })
+}
+
+fn record_sync_progress(
+    connection: &mut rusqlite::Connection,
+    project_id: &str,
+    stage_id: Option<&str>,
+    total: f64,
+    source_hash: &str,
+    created_at: &str,
+) -> Result<(Value, Value), String> {
+    let document_id = document_id_for_scope(&connection, project_id, stage_id)?;
+    let last: Option<String> = connection
+        .query_row(
+            "SELECT last_external_hash FROM document_bindings WHERE document_id=?",
+            [document_id.as_str()],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?
+        .flatten();
+    if last.as_deref() == Some(source_hash) {
+        return Ok((crate::project_payload(connection, project_id)?, Value::Null));
+    }
+    let (entity_id, payload, _) = project_entity(connection, project_id, stage_id)?;
+    let previous = payload.get("total").and_then(Value::as_f64).unwrap_or(0.0);
+    let unit = payload
+        .get("unit")
+        .and_then(Value::as_str)
+        .unwrap_or("symbols");
+    let factor = match unit {
+        "symbols" => 1.0,
+        "A4" => 1800.0,
+        "author_list" => 40000.0,
+        "ficbook_pages" => 4500.0,
+        _ => return Err("Неизвестная единица прогресса.".to_string()),
+    };
+    let delta = (total - previous) * factor;
+    if delta.abs() < 0.009 {
+        connection.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_at=?,sync_state='synced' WHERE document_id=?",params![source_hash,now(),document_id]).map_err(|e|e.to_string())?;
+        return Ok((crate::project_payload(connection, project_id)?, Value::Null));
+    }
+    let entry_id = crate::new_note_id()?;
+    let goal = payload.get("goal").and_then(Value::as_f64).unwrap_or(0.0);
+    let goal_symbols = goal * factor;
+    let added_progress = if goal_symbols <= 0.0 {
+        0.0
+    } else {
+        delta / goal_symbols * 100.0
+    };
+    let entry = serde_json::json!({"id":entry_id,"new_total":total,"new_total_symbols":total*factor,"added":total-previous,"added_symbols":delta,"added_progress":added_progress,"created_at":created_at});
+    let mut next = payload.clone();
+    let mut entries = next
+        .get("progress_entries")
+        .and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default();
+    entries.push(entry.clone());
+    next["progress_entries"] = Value::Array(entries);
+    next["total"] = total.into();
+    next["updated_at"] = created_at.into();
+    let tx = connection.transaction().map_err(|e| e.to_string())?;
+    let table = if stage_id.is_some() {
+        "stages"
+    } else {
+        "projects"
+    };
+    tx.execute("INSERT INTO progress_entries(id,project_id,stage_id,created_at,added_symbols,added_progress,payload_json) VALUES(?,?,?,?,?,?,?)",params![entry_id,project_id,stage_id,created_at,delta,added_progress,entry.to_string()]).map_err(|e|e.to_string())?;
+    let pos: i64 = tx
+        .query_row(
+            "SELECT COALESCE(MAX(position),-1)+1 FROM progress_order",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    tx.execute(
+        "INSERT INTO progress_order(entry_id,position) VALUES(?,?)",
+        params![entry_id, pos],
+    )
+    .map_err(|e| e.to_string())?;
+    tx.execute(
+        &format!("UPDATE {table} SET updated_at=?,payload_json=? WHERE id=?"),
+        params![created_at, next.to_string(), entity_id],
+    )
+    .map_err(|e| e.to_string())?;
+    if stage_id.is_some() {
+        crate::refresh_project_totals_in_transaction(&tx, project_id)?
+    }
+    tx.execute("INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,stage_id,progress_id,delta_symbols,context_json,created_at) VALUES(?,'ProgressAdded',?,?,?,?,?,?)",params![format!("sync-progress:{document_id}:{source_hash}"),project_id,stage_id,entry_id,delta,serde_json::json!({"source":"trusted_document_sync","version":1,"key":format!("document:{}:{}",project_id,stage_id.unwrap_or("project"))}).to_string(),created_at]).map_err(|e|e.to_string())?;
+    tx.execute("UPDATE document_bindings SET last_external_hash=?,last_synced_at=?,last_synced_revision=(SELECT revision FROM documents WHERE id=?),sync_state='synced',expected_external_hash=? WHERE document_id=?",params![source_hash,now(),document_id,source_hash,document_id]).map_err(|e|e.to_string())?;
+    tx.commit().map_err(|e| e.to_string())?;
+    Ok((crate::project_payload(connection, project_id)?, entry))
+}

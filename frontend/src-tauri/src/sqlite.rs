@@ -8,7 +8,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 5;
+pub const CURRENT_SCHEMA_VERSION: i64 = 6;
 
 #[derive(Debug)]
 pub enum StorageError {
@@ -37,7 +37,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 5] = [
+const MIGRATIONS: [(i64, &str); 6] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -57,6 +57,10 @@ const MIGRATIONS: [(i64, &str); 5] = [
     (
         5,
         include_str!("../../../nfprogress/core/sqlite/migrations/005_game_authority.sql"),
+    ),
+    (
+        6,
+        include_str!("../../../nfprogress/core/sqlite/migrations/006_documents_authority.sql"),
     ),
 ];
 
@@ -121,13 +125,13 @@ mod tests {
     #[test]
     fn fresh_database_reaches_latest_schema() {
         let connection = Connection::open_in_memory().unwrap();
-        assert_eq!(apply_migrations(&connection).unwrap(), 5);
+        assert_eq!(apply_migrations(&connection).unwrap(), 6);
         assert_eq!(
             connection
                 .query_row("SELECT schema_version FROM schema_info", [], |row| row
                     .get::<_, i64>(0))
                 .unwrap(),
-            5
+            6
         );
         assert!(
             connection
@@ -191,7 +195,7 @@ mod tests {
                 .query_row("SELECT schema_version FROM schema_info", [], |row| row
                     .get::<_, i64>(0))
                 .unwrap(),
-            5
+            6
         );
         assert_eq!(
             connection

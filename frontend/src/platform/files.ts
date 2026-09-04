@@ -24,6 +24,11 @@ export async function pickDesktopWordFile(title: string, filterName: string): Pr
   )
 }
 
+export async function pickDesktopWordSavePath(title: string, defaultName: string): Promise<string | null> {
+  const { save } = await requireTauriDialog()
+  return save({ title, defaultPath: defaultName, filters: [{ name: 'Word', extensions: ['docx'] }] })
+}
+
 export async function pickDesktopScrivenerProject(title: string): Promise<string | null> {
   const { open } = await requireTauriDialog()
   return selectedPath(

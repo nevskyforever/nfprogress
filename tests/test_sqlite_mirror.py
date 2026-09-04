@@ -47,7 +47,7 @@ def test_empty_database_and_idempotent_migrations(tmp_path):
     first = open_database(tmp_path)
     first.close()
     second = open_database(tmp_path)
-    assert second.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 5
+    assert second.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 6
     assert second.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'").fetchone()
     assert second.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='project_order'").fetchone()
     second.close()

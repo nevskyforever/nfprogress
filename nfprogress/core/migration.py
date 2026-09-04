@@ -154,6 +154,10 @@ class MigrationBundle:
     source_manifest: dict[str, Any] = field(default_factory=dict)
     # Optional so v1 Projects bundles remain valid for Web/legacy tooling.
     game: dict[str, Any] | None = None
+    # F6 document data is optional for backward-compatible Projects bundles.
+    documents: list[dict[str, Any]] = field(default_factory=list)
+    document_bindings: list[dict[str, Any]] = field(default_factory=list)
+    external_file_manifest: list[dict[str, Any]] = field(default_factory=list)
     dto_version: int = MIGRATION_DTO_VERSION
 
     @classmethod
@@ -211,7 +215,7 @@ class MigrationBundle:
         return cls(**{key: raw.get(key, getattr(cls(), key)) for key in (
             'projects', 'project_order', 'folders', 'project_metadata',
             'root_extensions', 'source_manifest', 'dto_version',
-            'game',
+            'game', 'documents', 'document_bindings', 'external_file_manifest',
         )})
 
     def to_dict(self) -> dict[str, Any]:
@@ -223,6 +227,9 @@ class MigrationBundle:
             'project_metadata': self.project_metadata,
             'root_extensions': self.root_extensions,
             'source_manifest': self.source_manifest,
+            'documents': self.documents,
+            'document_bindings': self.document_bindings,
+            'external_file_manifest': self.external_file_manifest,
         })
         if self.game is not None:
             result['game'] = _safe(self.game)
@@ -243,6 +250,66 @@ def load_legacy_projects_bundle(data_root: str | Path) -> MigrationBundle:
         with engine.data_directory_context(data_root):
             envelope = engine.load_data()
     bundle = MigrationBundle.from_legacy(envelope)
+    documents_path = Path(data_root).expanduser().resolve() / 'documents.json'
+    if documents_path.is_file():
+        try:
+            raw_documents = json.loads(documents_path.read_text(encoding='utf-8'))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise ValueError('documents.json cannot be converted to the migration DTO') from error
+        if not isinstance(raw_documents, Mapping):
+            raise ValueError('documents.json must contain an object')
+        known = frozenset({
+            'document_id', 'id', 'project_id', 'stage_id', 'title', 'content',
+            'content_format', 'created_at', 'updated_at', 'exists', 'docx_path',
+            'sync_state', 'last_synced_hash', 'last_synced_at', 'local_dirty',
+            'word_dirty', 'symbols', 'has_content',
+        })
+        for source_key, raw_record in raw_documents.items():
+            if not isinstance(raw_record, Mapping):
+                continue
+            project_id = raw_record.get('project_id')
+            stage_id = raw_record.get('stage_id')
+            if not isinstance(project_id, str) or not project_id:
+                continue
+            scope = f'{project_id}:{stage_id or "project"}'
+            document_id = raw_record.get('document_id') or raw_record.get('id')
+            if not isinstance(document_id, str) or not document_id:
+                document_id = f'document-{hashlib.sha256(scope.encode()).hexdigest()[:40]}'
+            record = dict(raw_record)
+            record['document_id'] = document_id
+            record['project_id'] = project_id
+            record['stage_id'] = stage_id
+            record['extensions'] = {
+                str(key): _safe(value) for key, value in raw_record.items()
+                if key not in known
+            }
+            bundle.documents.append(_safe(record))
+            external_path = raw_record.get('docx_path')
+            if isinstance(external_path, str) and external_path:
+                binding = {
+                    'id': uuid.uuid5(uuid.NAMESPACE_URL, f'nfprogress-document-binding:{document_id}').hex,
+                    'document_id': document_id,
+                    'project_id': project_id,
+                    'stage_id': stage_id,
+                    'binding_type': 'word',
+                    'external_path': external_path,
+                    'source_id': None,
+                    'content_hash': raw_record.get('last_synced_hash'),
+                    'last_synced_at': raw_record.get('last_synced_at'),
+                    'payload': {'legacy_source_key': source_key},
+                }
+                bundle.document_bindings.append(_safe(binding))
+                bundle.external_file_manifest.append(_safe({
+                    'document_id': document_id,
+                    'external_path': external_path,
+                    'content_hash': raw_record.get('last_synced_hash'),
+                }))
+        bundle.source_manifest['documents.json'] = {
+            'source_format': 'legacy-json',
+            'source_schema_version': 'legacy',
+            'checksum': f'sha256:{hashlib.sha256(documents_path.read_bytes()).hexdigest()}',
+            'size_bytes': documents_path.stat().st_size,
+        }
     source = Path(data_root).expanduser().resolve() / 'data.pkl'
     if source.is_file():
         digest = hashlib.sha256(source.read_bytes()).hexdigest()

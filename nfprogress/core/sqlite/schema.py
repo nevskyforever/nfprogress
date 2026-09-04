@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 MIGRATIONS_DIR = Path(__file__).with_name('migrations')
-CURRENT_SCHEMA_VERSION = 5
+CURRENT_SCHEMA_VERSION = 6
 
 
 def apply_migrations(connection: sqlite3.Connection) -> int:
@@ -41,6 +41,7 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
             3: '003_project_order.sql',
             4: '004_projects_authority.sql',
             5: '005_game_authority.sql',
+            6: '006_documents_authority.sql',
         }[next_version]
         sql = migration.read_text(encoding='utf-8')
         # executescript is wrapped explicitly because its implicit transaction
