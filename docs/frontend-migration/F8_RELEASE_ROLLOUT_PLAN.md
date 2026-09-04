@@ -1,7 +1,7 @@
 # NFProgress — F8 release rollout plan
 
 Это план подготовки, не команда публикации. `update_manifest.json` и
-`update_manifest_legacy.json` намеренно не изменяются в F8.
+`update_manifest_legacy.json` намеренно не изменяются в F8/F9.
 
 ## Artifacts and exact later changes
 
@@ -39,6 +39,11 @@ macOS ARM/Intel targets. No private signing key belongs in the repository.
 No telemetry is introduced by this plan. Support should collect only versions,
 state codes, counts and IDs unless the user explicitly enables debug logging;
 raw note/document bodies are excluded.
+
+F9 helper invocation is explicit (`nfprogress-migration-helper detect|preview|
+prepare|verify --source <data-root>`). It is never spawned by Tauri startup.
+The helper is a separate artifact, not a Tauri sidecar, and does not require
+external Word/Scrivener assets for internal migration.
 
 ## Rollback
 

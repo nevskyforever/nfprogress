@@ -1,9 +1,10 @@
 # NFProgress — F8 release qualification
 
-Дата: 2026-09-04. Baseline: `e49069834793fe3151fcedf14e7308a577f37ea1`.
+Дата: 2026-09-04. F8 audit baseline: `e490698`; F9 qualification baseline:
+`e70ba022989d70d6ca4d8aaf4703486dad045999`.
 F8 разделяет `Architecture complete` и `Production upgrade qualified`.
 
-Итог этого аудита: **BLOCKED**. F7 доказал Python-free архитектуру и packaging
+Итог F8 был **BLOCKED**. F7 доказал Python-free архитектуру и packaging
 boundary для development runtime. F8 доказал локальные validation/recovery
 primitives и обнаружил незакрытые production gates: нет упакованного полного
 legacy helper-а, нет proof cross-generation updater/data activation и нет
@@ -183,7 +184,9 @@ production-signed artifact evidence.
 78. Personal real-data protocol and staged rollout are in
     [`F8_RELEASE_ROLLOUT_PLAN.md`](F8_RELEASE_ROLLOUT_PLAN.md) and
     [`F8_RECOVERY_RUNBOOK.md`](F8_RECOVERY_RUNBOOK.md).
-79. P0 blockers: packaged/invoked complete legacy migration helper or bridge;
+79. F9 closes the migration-helper P0: a separate packaged PyInstaller helper
+    now performs read-only detection, canonical Bundle v1 conversion and
+    staging/verified activation. Remaining P0 blockers are cross-generation updater/installer and identifier continuity proof; Windows
     cross-generation updater/installer and identifier continuity proof; Windows
     CI artifact/signature; real signed/notarized macOS evidence.
 80. P1 issues: populated v1/v2/v4/v5 historical fixtures, explicit startup
@@ -211,11 +214,13 @@ production-signed artifact evidence.
 
 ## Exact readiness and next action
 
-Production readiness: **BLOCKED**.
+Production readiness after F9: **BLOCKED — migration path qualified, release
+engineering blockers remain**.
 
 Before release, complete the P0 list, run the full matrix on copied real-data
 fixtures, obtain fresh artifacts whose embedded revision equals the release
 commit, pass Windows CI/signature and macOS signing/notarization, and add a
 qualification gate before any publish workflow can update manifests. Recommended
-next action: implement/package the standalone migration helper and perform a
-real-data rehearsal; do not publish or deploy the Web converter meanwhile.
+F9 evidence is in [`F9_MIGRATION_HELPER.md`](F9_MIGRATION_HELPER.md) and
+[`F9_BRIDGE_RELEASE_DECISION.md`](F9_BRIDGE_RELEASE_DECISION.md). Do not publish
+the helper, bridge or Web converter from this milestone.

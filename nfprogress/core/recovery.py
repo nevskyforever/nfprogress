@@ -135,7 +135,10 @@ def _external_manifest(root: Path) -> list[dict[str, Any]]:
 
 def _profile_files(root: Path, names: Iterable[str] | None) -> list[Path]:
     requested = set(names) if names is not None else {"data.pkl", "settings.pkl", "gamer.pkl"}
-    selected = {"nfprogress.db", "documents.json", *requested}
+    # The reference manifest is a source artifact when a bridge/helper has
+    # already recorded external bindings.  It is intentionally not a scan of
+    # arbitrary user files.
+    selected = {"nfprogress.db", "documents.json", "external_file_manifest.json", *requested}
     unknown = selected - KNOWN_PROFILE_FILES
     if unknown:
         raise RecoveryError(f"unknown profile files: {sorted(unknown)!r}")
@@ -299,6 +302,20 @@ def _validate_sqlite_semantics(connection: sqlite3.Connection, version: int) -> 
     }
     if not required.issubset(available):
         raise RecoveryError("corrupt_sqlite: required table is missing")
+    if version >= 4:
+        required_v4 = {
+            "project_metadata", "project_folders", "project_folder_members",
+            "stage_order", "project_bindings", "project_extensions",
+            "progress_order", "migration_sources",
+        }
+        if not required_v4.issubset(available):
+            raise RecoveryError("corrupt_sqlite: required v4 table is missing")
+    if version >= 5 and "game_metadata" not in available:
+        raise RecoveryError("corrupt_sqlite: required game metadata table is missing")
+    if version >= 6:
+        required_v6 = {"documents", "document_bindings", "document_metadata", "document_migration_orphans"}
+        if not required_v6.issubset(available):
+            raise RecoveryError("corrupt_sqlite: required v6 table is missing")
     for table in ("projects", "stages", "progress_entries", "notes", "settings", "game_state"):
         column = "value_json" if table == "settings" else "payload_json"
         for row in connection.execute(f"SELECT {column} FROM {table}"):
@@ -315,6 +332,8 @@ def _validate_sqlite_semantics(connection: sqlite3.Connection, version: int) -> 
         )]
         if len(set(owners)) != len(owners):
             raise RecoveryError("corrupt_sqlite: duplicate ownership rows")
+        if set(owners) != {"projects", "settings", "notes", "game"}:
+            raise RecoveryError("corrupt_sqlite: incomplete ownership markers")
 
 
 def validate_backup(backup_dir: str | Path) -> dict[str, Any]:
@@ -464,6 +483,30 @@ def validate_migration_bundle(bundle: Any) -> None:
             raise RecoveryError("project has an unknown folder owner")
     _validate_bindings(bundle, set(project_ids), set(stage_ids))
     _validate_documents(bundle, set(project_ids), set(stage_ids))
+    if bundle.settings is not None and not isinstance(bundle.settings, Mapping):
+        raise RecoveryError("settings section must be an object")
+    if bundle.notes is not None:
+        if not isinstance(bundle.notes, list):
+            raise RecoveryError("notes section must be a list")
+        note_ids = [item.get("id") if isinstance(item, Mapping) else None for item in bundle.notes]
+        _require_ids(note_ids, "note")
+        for note in bundle.notes:
+            if note.get("project_id") not in set(project_ids):
+                raise RecoveryError("note has an unknown project owner")
+            if note.get("stage_id") is not None and note.get("stage_id") not in set(stage_ids):
+                raise RecoveryError("note has an unknown stage owner")
+            if note.get("source_type") == "mindmap":
+                if not isinstance(note.get("source_node_id"), str) or not note["source_node_id"]:
+                    raise RecoveryError("mindmap note has no source node")
+    if not isinstance(bundle.bundle_manifest, Mapping):
+        raise RecoveryError("bundle_manifest must be an object")
+    declared_checksum = bundle.bundle_manifest.get("bundle_checksum")
+    if declared_checksum is not None:
+        if not isinstance(declared_checksum, str) or len(declared_checksum) != 64:
+            raise RecoveryError("bundle checksum is invalid")
+        from nfprogress.core.migration import bundle_checksum
+        if declared_checksum != bundle_checksum(bundle):
+            raise RecoveryError("bundle checksum mismatch")
     if not isinstance(bundle.source_manifest, Mapping):
         raise RecoveryError("source_manifest must be an object")
 
@@ -526,3 +569,7 @@ def _validate_documents(bundle: Any, project_ids: set[str], stage_ids: set[str])
             raise RecoveryError("document has an unknown project owner")
         if document.get("stage_id") is not None and document.get("stage_id") not in stage_ids:
             raise RecoveryError("document has an unknown stage owner")
+        if not isinstance(document.get("content", {}), Mapping):
+            raise RecoveryError("document content must be an object")
+        if document.get("content", {}).get("type") != "doc":
+            raise RecoveryError("document content is not Tiptap JSON")

@@ -5,6 +5,11 @@
 поведение. Legacy PKL никогда не читается Tauri: его читает только отдельный
 migration/recovery helper.
 
+F9 adds the qualified helper path for legacy profiles without changing the
+Tauri authority model. The helper detects and previews a copy of the source,
+emits MigrationBundle v1, and activates a verified SQLite v6 staging database.
+Ambiguous/corrupt profiles remain manual recovery.
+
 ## Decision key
 
 | Outcome | Meaning in F8 |

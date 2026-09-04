@@ -1,12 +1,14 @@
 # NFProgress — Bridge Release Requirements
 
-Решение F8: `CONDITIONAL`.
+Решение F9: отдельный helper `QUALIFIED`; Bridge Release: `NO` как обязательный
+путь для регулярного перехода.
 
-Текущий репозиторий содержит migration-only Python primitives, но не содержит
-отдельно упакованного и автоматически запускаемого перед Tauri полного
-multi-domain helper-а. Пока такой helper не входит в release package и не
-прошёл rehearsal на копиях реальных профилей, Python bridge release является
-обязательным безопасным вариантом для PKL-backed пользователей.
+Ранее репозиторий содержал migration-only Python primitives без отдельно
+упакованного helper-а. F9 добавляет отдельно упакованный и явно запускаемый
+перед Tauri полный
+multi-domain helper-а. F9 helper входит в отдельный release artifact и прошёл
+ARM smoke на копии профиля; Python bridge release остаётся fallback для
+профилей, которые не могут запустить этот artifact.
 
 Bridge release не должен быть скрытой частью Tauri runtime и не должен
 переводить authority через несколько временных форматов:
@@ -97,3 +99,10 @@ or bindings.
 The bridge release is not approved by this document alone. It needs a packaged
 artifact, signed distribution plan, manual real-data rehearsal and a release
 owner decision that the source matrix is complete.
+
+F9 decision: ship the helper as a separate PyInstaller artifact built on each
+target OS. The current ARM artifact was executed against a PKL fixture and
+produced verified SQLite v6. macOS Intel and Windows artifacts remain release
+engineering work. A Bridge Release remains a fallback for installations that
+cannot run the helper; it is not required for the default rollout because the
+helper is explicit, one-shot and keeps the Python-free Tauri runtime unchanged.

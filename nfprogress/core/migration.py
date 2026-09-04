@@ -12,7 +12,6 @@ from __future__ import annotations
 import json
 import hashlib
 import math
-import pickle
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -24,6 +23,7 @@ import engine
 
 from nfprogress.core.serialization import serialize_project, to_json_safe
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core.legacy_decoder import load_legacy_pickle
 
 
 GAME_MIGRATION_DTO_VERSION = 1
@@ -33,7 +33,8 @@ MIGRATION_DTO_VERSION = 1
 BUNDLE_FIELDS = frozenset({
     'dto_version', 'projects', 'project_order', 'folders', 'project_metadata',
     'root_extensions', 'source_manifest', 'game', 'documents',
-    'document_bindings', 'external_file_manifest',
+    'document_bindings', 'external_file_manifest', 'settings', 'notes',
+    'bundle_manifest',
 })
 _ROOT_PROJECT_FIELDS = frozenset({
     'projects', 'project_order', 'project_folders', 'last',
@@ -163,6 +164,11 @@ class MigrationBundle:
     documents: list[dict[str, Any]] = field(default_factory=list)
     document_bindings: list[dict[str, Any]] = field(default_factory=list)
     external_file_manifest: list[dict[str, Any]] = field(default_factory=list)
+    # Optional full-profile sections.  They extend, but do not invalidate, the
+    # Projects-only v1 contract used by earlier migration callers.
+    settings: dict[str, Any] | None = None
+    notes: list[dict[str, Any]] | None = None
+    bundle_manifest: dict[str, Any] = field(default_factory=dict)
     dto_version: int = MIGRATION_DTO_VERSION
 
     @classmethod
@@ -224,6 +230,7 @@ class MigrationBundle:
             'projects', 'project_order', 'folders', 'project_metadata',
             'root_extensions', 'source_manifest', 'dto_version',
             'game', 'documents', 'document_bindings', 'external_file_manifest',
+            'settings', 'notes', 'bundle_manifest',
         )})
 
     def to_dict(self) -> dict[str, Any]:
@@ -238,6 +245,9 @@ class MigrationBundle:
             'documents': self.documents,
             'document_bindings': self.document_bindings,
             'external_file_manifest': self.external_file_manifest,
+            'settings': self.settings,
+            'notes': self.notes,
+            'bundle_manifest': self.bundle_manifest,
         })
         if self.game is not None:
             result['game'] = _safe(self.game)
@@ -248,6 +258,19 @@ class MigrationBundle:
         return json.dumps(self.to_dict(), ensure_ascii=False, allow_nan=False, sort_keys=True)
 
 
+def bundle_checksum(bundle: MigrationBundle) -> str:
+    """Hash canonical bundle bytes without the self-referential checksum."""
+    value = bundle.to_dict()
+    manifest = dict(value.get('bundle_manifest') or {})
+    manifest.pop('bundle_checksum', None)
+    value['bundle_manifest'] = manifest
+    encoded = json.dumps(
+        value, ensure_ascii=False, allow_nan=False, sort_keys=True,
+        separators=(',', ':'),
+    ).encode('utf-8')
+    return hashlib.sha256(encoded).hexdigest()
+
+
 def load_legacy_projects_bundle(data_root: str | Path) -> MigrationBundle:
     """Build a DTO and source manifest from an explicit legacy data root."""
     from nfprogress.core.storage import PickleRepository
@@ -256,7 +279,10 @@ def load_legacy_projects_bundle(data_root: str | Path) -> MigrationBundle:
     with repository.locked():
         import engine
         with engine.data_directory_context(data_root):
-            envelope = engine.load_data()
+            source = Path(data_root).expanduser().resolve() / 'data.pkl'
+            envelope = load_legacy_pickle(source)
+    if not isinstance(envelope, Mapping):
+        raise ValueError('legacy data.pkl must contain an object envelope')
     bundle = MigrationBundle.from_legacy(envelope)
     documents_path = Path(data_root).expanduser().resolve() / 'documents.json'
     if documents_path.is_file():
@@ -410,14 +436,13 @@ def load_legacy_game_bundle(data_root: str | Path) -> GameMigrationBundle:
     repository = PickleRepository(root)
     with repository.locked():
         with engine.data_directory_context(root):
-            envelope = engine.load_data()
+            envelope = load_legacy_pickle(root / 'data.pkl')
             gamer_path = root / 'gamer.pkl'
             if gamer_path.is_file():
-                with gamer_path.open('rb') as stream:
-                    gamer = pickle.load(stream)
+                gamer = load_legacy_pickle(gamer_path)
             else:
-                import game
-                gamer = game.Gamer()
+                from game import Gamer
+                gamer = Gamer()
     # F2 may already have switched Projects while data.pkl remains a stale
     # recovery artifact.  Capture project-linked Game fields from the current
     # SQLite Projects read model, while retaining legacy envelope-only Game

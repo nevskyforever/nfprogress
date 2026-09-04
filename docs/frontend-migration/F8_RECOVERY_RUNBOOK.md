@@ -3,6 +3,18 @@
 Это manual/local runbook для release owner и поддержки. Он не удаляет legacy
 файлы и не запускает публичный converter.
 
+F9 adds the local helper commands:
+
+```text
+nfprogress-migration-helper detect --source <data-root>
+nfprogress-migration-helper preview --source <data-root>
+nfprogress-migration-helper prepare --source <data-root>
+nfprogress-migration-helper verify --source <data-root>
+```
+
+`prepare` uses an invisible staging database and replaces the destination
+SQLite file only after bundle, semantic, integrity and foreign-key checks.
+
 ## Before any migration
 
 1. Close all NFProgress processes and copy the complete data directory to an

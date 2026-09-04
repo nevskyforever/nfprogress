@@ -71,6 +71,50 @@ fn initialize_fresh_desktop_database(
         .iter()
         .any(|name| data_root.join(name).is_file())
     {
+        let prepared: i64 = connection
+            .query_row(
+                "SELECT COUNT(*) FROM storage_ownership WHERE owner='sqlite'",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|error| format!("migration_required: {error}"))?;
+        let marker: Option<String> = connection
+            .query_row(
+                "SELECT value_json FROM game_metadata WHERE key='migration_status'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| format!("migration_required: {error}"))?;
+        let documents_complete: Option<String> = connection
+            .query_row(
+                "SELECT value_json FROM document_metadata WHERE key='documents_json_migration'",
+                [],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| format!("migration_required: {error}"))?;
+        let marker_ready = marker
+            .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+            .and_then(|value| {
+                value
+                    .get("status")
+                    .and_then(|status| status.as_str())
+                    .map(str::to_owned)
+            })
+            == Some("ready_for_tauri".to_string());
+        let documents_ready = documents_complete
+            .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+            .and_then(|value| {
+                value
+                    .get("status")
+                    .and_then(|status| status.as_str())
+                    .map(str::to_owned)
+            })
+            == Some("complete".to_string());
+        if prepared != 4 || !marker_ready || !documents_ready {
+            return Err("migration_required: legacy_data_detected".to_string());
+        }
         return Ok(());
     }
     let populated: i64 = connection
@@ -4026,7 +4070,7 @@ mod tests {
     }
 
     #[test]
-    fn legacy_files_keep_empty_database_on_migration_boundary() {
+    fn legacy_files_require_explicit_migration_on_startup() {
         let root = std::env::temp_dir().join(format!(
             "nfprogress-f7-legacy-boundary-{}",
             std::process::id()
@@ -4037,8 +4081,8 @@ mod tests {
 
         let connection = Connection::open_in_memory().unwrap();
         super::sqlite::apply_migrations(&connection).unwrap();
-        super::initialize_fresh_desktop_database(&connection, &root).unwrap();
-
+        let error = super::initialize_fresh_desktop_database(&connection, &root).unwrap_err();
+        assert!(error.starts_with("migration_required:"));
         assert_eq!(
             connection
                 .query_row(
@@ -4048,13 +4092,6 @@ mod tests {
                 )
                 .unwrap(),
             "pickle"
-        );
-        assert!(
-            connection
-                .query_row("SELECT COUNT(*) FROM mirror_state", [], |row| row
-                    .get::<_, i64>(0))
-                .unwrap()
-                == 0
         );
         std::fs::remove_dir_all(root).unwrap();
     }

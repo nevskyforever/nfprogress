@@ -7,6 +7,10 @@ as a separately deployed Web/cloud backend. The plan is intentionally not
 production-safe at every intermediate commit; every milestone is nevertheless
 testable, data-preserving and committed separately.
 
+F9 is the release-engineering follow-up: it qualifies an explicit migration-only
+helper and the final Bridge Release decision without returning Python to the
+normal Tauri runtime or changing production manifests.
+
 The detailed evidence and data inventory are in
 [`FAST_TRACK_AUDIT.md`](FAST_TRACK_AUDIT.md). It is part of this plan, not an
 optional appendix.

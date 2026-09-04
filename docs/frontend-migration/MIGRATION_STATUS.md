@@ -1,7 +1,8 @@
 # NFProgress — migration status
 
-Updated for F8 against implementation baseline `e49069834793fe3151fcedf14e7308a577f37ea1`
-on 2026-09-04. F8 qualification is `BLOCKED`; the final implementation commit
+Updated for F9 against implementation baseline `e70ba022989d70d6ca4d8aaf4703486dad045999`
+on 2026-09-04. F9 qualification is `BLOCKED — migration path qualified;
+release engineering blockers remain`; the final implementation commit
 is recorded after the qualification checks.
 
 This status distinguishes implemented features from authoritative storage.
@@ -67,10 +68,9 @@ F6 concerns; the SQLite backup now contains authoritative Game state.
   migrations at DB open.
 - F8 adds a sealed application-state backup/restore primitive and strict bundle
   validation for that helper. It is not imported by the Tauri runtime.
-- No Python production version is currently proven to upgrade seamlessly from
-  PKL-backed state. A bridge release is conditional on whether a separate
-  signed/rehearsed helper is shipped before Tauri; without that helper, it is
-  mandatory.
+- The F9 helper is the default explicit migration path. A Bridge Release is not
+  required for regular rollout; it remains a fallback for users unable to run
+  the separate helper. Neither path is invoked by normal Tauri startup.
 
 ## Known baseline Python failures
 
@@ -98,7 +98,18 @@ the remaining relevant legacy-oracle issue and is recorded for parity follow-up.
 | F5 Mind Elixir/XMind | Complete (development desktop path) | High / Luna Medium–High; production legacy-variant qualification remains F8 |
 | F6 Documents/Word/Scrivener/background sync | Complete (development desktop path) | High / external-format and release qualification remain F8 |
 | F7 Python-free Tauri sidecar/packaging removal | Complete (development desktop path) | High / release qualification remains F8 |
-| F8 migration, backup/restore and release qualification | Blocked after audit | Very High; packaged legacy helper, cross-generation update and signing/Windows evidence remain |
+| F8 migration, backup/restore and release qualification | F8 blocked; F9 migration path qualified | Very High; cross-generation update and signing/Windows evidence remain |
+
+## F9 migration helper
+
+`nfprogress/migration_helper.py` is an explicit CLI/API boundary. It detects
+fresh, PKL-only, mixed v3/v4/v5/v6 and prepared-v6 profiles read-only, statically
+inspects pickle opcodes, converts Projects/Settings/Notes/Game/Maps/Documents
+and bindings to MigrationBundle v1, validates the DTO, imports a staging v6
+database, runs integrity/FK and semantic checks, and atomically activates only
+after success. `scripts/build-migration-helper.py` produces the separate
+PyInstaller artifact. The Tauri startup gate returns `migration_required` for
+legacy data unless the prepared marker and all SQLite owners are complete.
 
 P1–P3 are complete foundations and are absorbed into F1/F2. P4 is absorbed
 into F2 with a durable Game event contract. P5 is split into F5 and F6. P6/P7
