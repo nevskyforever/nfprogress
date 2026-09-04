@@ -265,12 +265,12 @@ because persistence does.
 | Projects/stages/progress/lifecycle | `engine.py`, `ProjectService`, PKL | TS use-cases + Rust repositories/services | Existing TS calculation and repository boundaries | No for ownership; business parity is F2. |
 | Game | `game.py`, `game_data.py`, PKL and data-envelope effects | TS pure rules + Rust/SQLite state and event transactions | No replacement yet; build from catalog/parity fixtures | No for final runtime, after Projects event contract. |
 | Mind Elixir | Python normalization, reconciliation and map persistence | TS normalizer/editor adapter + Rust/SQLite map payload | Editor already JS; normalizer can be ported | Map import may follow Projects cutover. |
-| XMind | `xmind_import.py`, Python ZIP/XML parser | Rust ZIP/XML parser and TS tree mapper | No required library; Rust archive/XML crates are appropriate | Yes, until F4. |
-| Word `.docx` | Python counting/local path service | TS `mammoth`/`docx` for conversion; Rust or TS for local file boundary/count | `mammoth` and `docx` already installed | Yes, until F5. |
-| Scrivener | `scrivener_parser.py`, `striprtf`, Python filesystem | Rust archive/XML/RTF parser and worker | No existing TS parser dependency | Yes, until F5. |
+| XMind | `xmind_import.py`, Python ZIP/XML parser | Rust ZIP/XML parser and TS tree mapper | No required library; Rust archive/XML crates are appropriate | Yes, until F5. |
+| Word `.docx` | Python counting/local path service | TS `mammoth`/`docx` for conversion; Rust or TS for local file boundary/count | `mammoth` and `docx` already installed | Yes, until F6. |
+| Scrivener | `scrivener_parser.py`, `striprtf`, Python filesystem | Rust archive/XML/RTF parser and worker | No existing TS parser dependency | Yes, until F6. |
 | Documents | `documents.py`, `documents.json` | SQLite document repository; Rust file/hash/write boundary; TS Tiptap model | Tiptap model already exists | The editor can stay TS while storage moves. |
 | Background sync | FastAPI lifespan task + `asyncio.to_thread` | Tauri/Rust worker, explicit lock, cancellation and per-source failures | Not applicable | Yes, but blocks sidecar removal. |
-| Startup | Tauri sidecar health/token flow | Direct Rust DB migration/open and TS bootstrap | Not applicable | No for F6. |
+| Startup | Tauri sidecar health/token flow | Direct Rust DB migration/open and TS bootstrap | Not applicable | No for F7. |
 | Web/cloud | FastAPI HTTP backend | May remain Python/FastAPI | Shared API can remain server-side | Independent of desktop. |
 
 ### Mind Elixir
@@ -304,19 +304,19 @@ document records in SQLite and include their assets/paths in backup manifests.
 
 | Current feature | Current caller | Replacement milestone |
 | --- | --- | --- |
-| Reserve loopback port/session token | `frontend/src-tauri/src/lib.rs` setup | F6: remove both for local DB commands |
-| `app.shell().sidecar("nfprogress-backend")` | Tauri setup in `lib.rs` | F6: delete startup branch and child state |
-| `/health` readiness polling | `wait_for_backend()` | F6: replace with direct DB migration/open health |
-| `backend_connection` and runtime base URL/token | `frontend/src/platform/runtime.ts`, API client | F6: local commands use typed `invoke`; remote API remains Web-only |
+| Reserve loopback port/session token | `frontend/src-tauri/src/lib.rs` setup | F7: remove both for local DB commands |
+| `app.shell().sidecar("nfprogress-backend")` | Tauri setup in `lib.rs` | F7: delete startup branch and child state |
+| `/health` readiness polling | `wait_for_backend()` | F7: replace with direct DB migration/open health |
+| `backend_connection` and runtime base URL/token | `frontend/src/platform/runtime.ts`, API client | F7: local commands use typed `invoke`; remote API remains Web-only |
 | Project metadata/order/progress commands | Rust wrappers calling API paths | F2: direct typed Rust commands/services |
-| Notes map/XMind API paths | Vue Notes API and FastAPI notes router | F4: direct map/import repositories |
-| Game API commands | Vue Game API and FastAPI game router | F3: direct typed Game commands |
-| Documents API | Vue documents API and `ProjectDocumentService` | F5: SQLite/filesystem commands |
-| Word/Scrivener sync API and minute task | integrations router and `backend/app/main.py` | F5: Rust worker |
-| Sidecar child kill/watchdog | `stop_backend`, `backend_sidecar.py` | F6: delete with sidecar |
+| Notes map/XMind API paths | Vue Notes API and FastAPI notes router | F5: direct map/import repositories |
+| Game API commands | Vue Game API and FastAPI game router | F4: direct typed Game commands |
+| Documents API | Vue documents API and `ProjectDocumentService` | F6: SQLite/filesystem commands |
+| Word/Scrivener sync API and minute task | integrations router and `backend/app/main.py` | F6: Rust worker |
+| Sidecar child kill/watchdog | `stop_backend`, `backend_sidecar.py` | F7: delete with sidecar |
 | Dev `--dev-data` sidecar mode | `backend/app/__main__.py`, Run scripts | Keep for Web/legacy tests; remove from desktop path |
-| `externalBin` bundle entry | `frontend/src-tauri/tauri.conf.json` | F6: delete |
-| Sidecar build and target scripts | `scripts/build-backend-sidecar.py`, Tauri build scripts | F6: delete desktop path; retain only separately documented migration-tool build if needed |
+| `externalBin` bundle entry | `frontend/src-tauri/tauri.conf.json` | F7: delete |
+| Sidecar build and target scripts | `scripts/build-backend-sidecar.py`, Tauri build scripts | F7: delete desktop path; retain only separately documented migration-tool build if needed |
 
 ## PKL removal checklist
 
@@ -374,7 +374,7 @@ still go to PKL until F2.
 Remaining F2 blockers are the controlled ownership guard/cutover, complete
 Projects business-lifecycle parity, explicit Notes/document relation cleanup,
 and the durable Game progress-event contract. F3 remains responsible for
-notifications, global streak and Gamer state; F5 remains responsible for
+notifications, global streak and Gamer state; F6 remains responsible for
 `documents.json` records and external-file manifests.
 
 ## F2 implementation update
@@ -392,6 +392,10 @@ The complete mutation matrix, failure semantics and sandboxed legacy migration
 service are recorded in `F2_PROJECTS_SQLITE_CUTOVER.md`.
 
 ## F3 implementation update
+
+F3 is present in the current F4 starting HEAD and is an ancestor of it. The
+remaining transitional Python Game façade was the blocker that required the
+additional F4 milestone.
 
 F3 moves Game authority to SQLite schema v5. The actual legacy Gamer inventory
 is the 46-field `Gamer.__dict__`; it includes profile/economy, coefficients,
@@ -416,6 +420,34 @@ project references. The Rust trusted boundary uses the same event DTO and
 pure transition contract.
 
 This is development architecture readiness, not the final production upgrade
-gate. A production bridge release remains allowed and must be monotonic; F7
+gate. A production bridge release remains allowed and must be monotonic; F8
 will define the minimum seamless-upgrade version and the fallback to the
 sandboxed Legacy Migration Service for older profiles.
+
+## F4 implementation update
+
+The supported desktop Game call path is now:
+
+```text
+Vue gameApi → TauriGameRepository adapter → explicit Tauri command
+  → Rust GameApplicationService → SQLite transaction
+```
+
+The audited normal desktop operations are state/notifications/catalog,
+developer-only controls, sessions, streak freeze, daily/weekly challenges,
+inspiration and creative events, specializations, skills, quests, inventory
+buy/sell/use, lottery, custom awards and bank products. They have explicit
+command names and strict `deny_unknown_fields` DTOs. Rust consumes pending F2
+events before reads and mutations, uses a transaction for each stateful
+operation, retains tagged/unknown Gamer fields, and exposes typed error
+classification.
+
+The Web adapter still calls the Python API by design. The desktop adapter has
+zero Game localhost HTTP calls and zero Python/pickle calls. The sidecar itself
+remains in scope for Documents and integrations until F7. F4 does not start
+Mind Elixir, XMind, Word, Scrivener, document storage or watcher migration.
+
+Static catalog parity is checked against `game_data.ITEM_REGISTRY`; lottery
+uses an injectable 5-of-30 RNG and persists its draw history. Production
+Python bridge maintenance and the isolated Legacy Migration Service remain
+separate from development runtime completion.

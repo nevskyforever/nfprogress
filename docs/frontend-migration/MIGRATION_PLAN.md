@@ -1,6 +1,6 @@
 # NFProgress — fast-track migration plan
 
-Baseline: `04b62c3970b22c43b9f604f79ee6de17243179f2`.
+Baseline for F4: `aad08cdd34cd5bc9a10c28e862c2f8aa6860da7c`.
 
 This plan targets the Python-free Tauri desktop only. FastAPI/Python may remain
 as a separately deployed Web/cloud backend. The plan is intentionally not
@@ -19,6 +19,10 @@ settings                 = SQLite authoritative
 notes                    = SQLite authoritative
 game                     = PKL authoritative
 ```
+
+F2 and F3 are ancestors of the F4 starting HEAD. Their effective current
+ownership is therefore SQLite for Projects, Settings, Notes and Game; the
+legacy table above is retained as historical context for the original plan.
 
 The v3 SQLite database was a useful shadow/read model. F1 adds schema v4 as a
 lossless-capable Projects substrate: project envelope extensions, folders,
@@ -48,10 +52,10 @@ unchanged until F2.
 
 ## Remaining milestones
 
-There are seven meaningful milestones including final release qualification;
-F1–F6 are implementation milestones and F7 is the release gate. Each gets its
-own commit boundary. F1 is complete as the storage foundation described below;
-F2 remains a separate implementation milestone.
+There are eight meaningful milestones including final release qualification;
+F1–F7 are implementation milestones and F8 is the release gate. F4 is an
+inserted Game-runtime-completion milestone exposed by the F3 audit; each
+milestone gets its own commit boundary.
 
 ### F1 — final storage contract and legacy migration substrate
 
@@ -68,7 +72,7 @@ still uses PKL for Projects.
 - add Rust schema upgrade/open checks and shared SQL migration source;
 - import the legacy Projects aggregate and the current v3 mirror profile;
 - recover omitted project envelope fields and sync bindings; preserve unknown
-  JSON metadata and keep Documents migration as its F5 concern;
+  JSON metadata and keep Documents migration as its F6 concern;
 - make the importer idempotent and leave all source files untouched;
 - create Python-oracle fixtures for IDs, dates, writing-day boundaries,
   ordering, maps, game state and external-file manifests.
@@ -153,8 +157,8 @@ columns; `GameMigrationBundle` imports and verifies known Gamer state,
 Game-owned envelope fields and unknown extensions; SQLite repository methods
 block normal Game PKL access after the owner switch; and deterministic
 Python/Rust consumers apply F2 events with the processed marker atomically.
-The existing HTTP façade remains over SQLite until F6 direct Tauri commands
-remove the transitional sidecar.
+The existing HTTP façade remains over SQLite for Web/compatibility; F4 direct
+Tauri commands remove it from normal desktop Game use.
 
 **Python dependencies:** no desktop Game runtime; Python remains available to
 Web and reference tests.
@@ -175,13 +179,36 @@ failure may remain outside this gate.
 **F3 evidence:** `tests/test_f3_game_sqlite.py` covers migration, failed
 verification, no reimport, stale/inaccessible PKL, unknown fields, duplicate
 effects, restart, retry/poison behavior and SQLite integrity. Development
-authority is complete; production seamless upgrade remains an F7 source
+authority is complete; production seamless upgrade remains an F8 source
 matrix and Legacy Migration Service gate.
 
 **Risk:** Very High. **Codex:** Luna High; Sol for reward-transaction design
 or difficult parity failures only.
 
-### F4 — Mind Elixir maps and XMind import
+### F4 — Python-free desktop Game runtime — complete in development
+
+**Goal:** remove Python, FastAPI and the sidecar from normal desktop Game
+reads, mutations and event processing.
+
+**Implementation:** Vue now selects a storage-neutral Game repository adapter:
+Tauri uses explicit typed commands and Web retains the existing FastAPI
+adapter. Rust `GameApplicationService` validates strict DTOs, runs atomic
+SQLite transitions, preserves tagged/unknown state, applies F2 events and
+provides injectable RNG-backed lottery rules. Economy, XP/level, health and
+resources, skills, inventory, buffs, bank, sessions, daily/weekly challenges,
+specialization effects and streak protection are native Game operations.
+
+**Python boundary:** `game.py`, `game_data.py` and `GameService` remain for Web,
+behavioral-oracle, migration and recovery use. No normal desktop Game path
+uses them, pickle, or localhost Game HTTP. Documents and integrations still
+use the sidecar and are explicitly outside F4.
+
+**Exit evidence:** native adapter tests, Rust deterministic/idempotency tests,
+strict DTOs, catalog parity fixture, SQLite restart/unknown-field coverage and
+sidecar-unavailable Game smoke coverage. Production migration readiness and
+the bridge-release matrix remain separate F8 work.
+
+### F5 — Mind Elixir maps and XMind import
 
 **Goal:** remove Python from map normalization, map persistence,
 reconciliation and local XMind import.
@@ -213,7 +240,7 @@ are not a reason to retain Python desktop runtime.
 
 **Risk:** High. **Codex:** Luna Medium, Luna High for combined-map parity.
 
-### F5 — Documents, Word/Scrivener and background synchronization
+### F6 — Documents, Word/Scrivener and background synchronization
 
 **Goal:** move remaining local filesystem behavior out of the Python sidecar.
 
@@ -249,7 +276,7 @@ legacy UI failures may remain only if retired from desktop scope.
 **Risk:** High. **Codex:** Luna Medium for isolated ports, Luna High for
 filesystem watcher/sync semantics.
 
-### F6 — Python-free desktop and packaging cutover
+### F7 — Python-free desktop sidecar and packaging cutover
 
 **Goal:** make the normal Tauri desktop path direct Vue/TS → typed Tauri →
 Rust/SQLite, with no sidecar or runtime PKL.
@@ -287,7 +314,7 @@ must be listed.
 **Risk:** High. **Codex:** Luna Medium for mechanical removal, Luna High for
 startup/packaging and release isolation.
 
-### F7 — migration, backup/restore and release qualification
+### F8 — migration, backup/restore and release qualification
 
 **Goal:** qualify the first publishable Python-free desktop release.
 
@@ -322,11 +349,11 @@ upgrade failures or data-integrity review.
 | P2 metadata/order boundary | Already complete transitional work; absorbed into F2 and replaced by direct Rust writes. |
 | P3 progress/calculation boundary | Already complete parity foundation; absorbed into F2. Its Python sidecar path is removed by F2/F6. |
 | P4 lifecycle/cross-domain effects | Absorbed into F2, with Game effects represented by an event contract rather than blocking storage cutover. |
-| P5 filesystem/document boundary | Split by dependency: maps/XMind become F4; documents/Word/Scrivener/sync become F5. |
-| P6 pure Game rules | Combined with Game persistence/orchestration in F3; pure TS rules still precede state switch inside F3. |
-| P7 Game persistence/events | Combined with P6 as F3 after F2 event contract. |
-| P8 Python-free runtime | F6, after all runtime features have direct paths. |
-| P9 recovery/legacy retirement | Importer substrate in F1; final recovery and release qualification in F7. |
+| P5 filesystem/document boundary | Split by dependency: maps/XMind become F5; documents/Word/Scrivener/sync become F6. |
+| P6 pure Game rules | Combined with Game persistence/orchestration in F4 after the F3 event contract. |
+| P7 Game persistence/events | F3 storage/event authority, completed for desktop runtime in F4. |
+| P8 Python-free runtime | F7 after integrations have direct paths; Game runtime is complete in F4. |
+| P9 recovery/legacy retirement | Importer substrate in F1; final recovery and release qualification in F8. |
 
 ## Critical path
 
@@ -334,12 +361,13 @@ upgrade failures or data-integrity review.
 F1 importer/schema contract
   → F2 Projects authority + event contract
   → F3 Game authority
-  → F4 maps/imports and F5 documents/files/sync (parallel after their inputs)
-  → F6 sidecar/PKL/Nuitka removal
-  → F7 migration + release qualification
+  → F4 Game runtime completion
+  → F5 maps/imports and F6 documents/files/sync (parallel after their inputs)
+  → F7 sidecar/PKL/Nuitka removal
+  → F8 migration + release qualification
 ```
 
-The true blockers for Python removal are F1, F2, F3, F4 and F5 only insofar
+The true blockers for Python removal are F1, F2, F3, F4, F5 and F6 only insofar
 as the corresponding desktop feature remains supported. Settings and ordinary
 Notes CRUD are already cut over. Pure TS calculations, Web backend work,
 localization, UI polish, and server-only upload features can proceed in
@@ -376,7 +404,8 @@ MigrationBundle import, owner guard, idempotent startup, typed Tauri CRUD and
 progress commands, explicit Notes cleanup, durable idempotent Game events,
 preservation of extensions/maps/bindings/folders/references, and SQLite-aware
 backup/recovery documentation. F3 adds Game SQLite authority and deterministic
-event consumption. The next milestone remains F4/F5 work; no next milestone is
+event consumption. F4 completes the exposed Game runtime façade; the next
+milestones are F5/F6 integration work; no next milestone is
 started by this change.
 
 ## Long-Term Legacy Migration Service

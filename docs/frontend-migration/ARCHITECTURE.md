@@ -1,6 +1,6 @@
 # NFProgress — migration architecture
 
-Baseline: F3 implementation HEAD `29e064dceeb2fc4dae9f1eba88bdc34cc7ac6969`.
+Baseline: F4 implementation starts at `aad08cdd34cd5bc9a10c28e862c2f8aa6860da7c`.
 
 The supported user interface is Vue/Ionic in `frontend/`. PySide6 is legacy
 source and is not part of the supported desktop architecture.
@@ -16,10 +16,11 @@ Vue / TypeScript
    ├─ typed Rust/Tauri ───────────────→ SQLite
    │    ├─ Settings authoritative
    │    ├─ Notes CRUD/order authoritative
-   │    └─ Projects and Game read/mutation boundaries
+   │    ├─ Projects and Game read/mutation boundaries
+   │    └─ Game rules, RNG and event consumer
    └─ HTTP client → local FastAPI/Nuitka sidecar
         ├─ Projects/Stages/Progress mutation → SQLite + durable event outbox
-        ├─ Game compatibility façade → SQLite Game aggregate/event consumer
+        ├─ Web/cloud Game compatibility façade → SQLite Game aggregate
         ├─ Notes map/XMind compatibility operations
         ├─ Documents → documents.json
         └─ Word/Scrivener/background synchronization
@@ -54,9 +55,12 @@ Rust services and repositories
 SQLite + validated external user files
 ```
 
-The desktop target does not start FastAPI, Python, Nuitka or a PKL runtime in
-normal operation. FastAPI/Python can remain as a separately deployed Web/cloud
-backend, with its own server storage and lifecycle.
+The final desktop target does not start FastAPI, Python, Nuitka or a PKL runtime
+for Game operation. F4 establishes that Game reads, mutations and event
+processing use the typed Rust/Tauri boundary. The sidecar remains available to
+the current desktop shell for Documents and integrations until the later
+sidecar-removal milestone. FastAPI/Python also remains a separately deployed
+Web/cloud backend.
 
 ## Ownership model after cutover
 
@@ -112,9 +116,10 @@ Python remains outside the target desktop runtime while it is useful as:
 - one-shot migration or recovery tooling until all supported profiles migrate;
 - compatibility source for legacy PKL class paths.
 
-The existing Python mirror and sidecar are not permanent target layers. Until
-F6, the sidecar's Game HTTP façade is a compatibility transport over SQLite;
-it is not allowed to read or write Game PKL after F3 ownership switch.
+The existing Python mirror and sidecar are not permanent target layers. The
+sidecar's Game HTTP façade remains a Web/compatibility implementation only; the
+normal desktop Game adapter does not call it after F4 and it is not allowed to
+read or write Game PKL after the F3 ownership switch.
 
 ## Storage and migration rules
 
@@ -214,3 +219,13 @@ only after verification. The F2 outbox is consumed by deterministic rules in
 the trusted Rust boundary (and by the transitional SQLite compatibility
 consumer), with Game state and its processed marker committed together. See
 `F3_GAME_SQLITE_CUTOVER.md`.
+
+## F4 Game runtime completion
+
+F4 moves the Vue Game adapter to explicit typed Tauri commands. Rust owns the
+Game application service, transactional state transitions, strict request
+DTOs, catalog projection, injectable RNG boundary, lottery, economy, XP/level,
+inventory, sessions, bank operations, challenge/specialization mutations and
+the pending domain-event consumer. Python remains a behavioral oracle, Web
+backend implementation and migration/recovery source, not a normal desktop
+Game dependency. See [`F4_GAME_RUNTIME_COMPLETION.md`](F4_GAME_RUNTIME_COMPLETION.md).

@@ -1,9 +1,10 @@
 # F3 — Game SQLite authority and deterministic event processing
 
-Status: implemented from the F2 desktop cutover baseline. The current branch
-HEAD used for this implementation is `29e064dceeb2fc4dae9f1eba88bdc34cc7ac6969`;
-the requested F3 reference `9af7b0597d3f3a54adce23766057546e1c122d68` is not
-the checked-out commit, so facts below describe the actual working tree.
+Status: implemented from the F2 desktop cutover baseline. F4 starts at
+`aad08cdd34cd5bc9a10c28e862c2f8aa6860da7c`; the F2 reference
+`9af7b0597d3f3a54adce23766057546e1c122d68` is an ancestor of that HEAD.
+The current document records F3 storage/event authority; F4 completes the
+normal desktop runtime boundary described in `F4_GAME_RUNTIME_COMPLETION.md`.
 
 ## Ownership and cutover
 
@@ -131,12 +132,12 @@ Project reads used by the transitional Game service are reconstructed from
 SQLite rows and Game-owned streak overlays. No normal Game operation writes
 `gamer.pkl`; stale or inaccessible PKL cannot overwrite SQLite.
 
-The present F2 desktop still has a Python sidecar for other transitional
+The present desktop still has a Python sidecar for other transitional
 features. Its Game HTTP façade uses the SQLite Game repository after cutover;
-the Rust event processor is the trusted authoritative event boundary. Moving
-all user-facing Game commands from the compatibility façade to direct typed
-Tauri commands remains part of the Python-free runtime completion (F6), not a
-new F4/F5 feature.
+the Rust event processor is the trusted authoritative event boundary. F4 moves
+all normal user-facing Game commands from that compatibility façade to direct
+typed Tauri commands. The sidecar remains for Documents and integrations until
+F7.
 
 Backups continue to include `nfprogress.db` and retain legacy PKL snapshots
 when present. After F3 the authoritative Game backup is SQLite; PKL is only a
@@ -163,7 +164,7 @@ behavioral oracle; no pickle byte equality is used as a parity criterion.
 ## Production Bridge Release Strategy
 
 Production Python releases continue to receive maintenance and bug fixes
-during F3–F7. Additional monotonic bridge releases may normalize malformed
+during F3–F8. Additional monotonic bridge releases may normalize malformed
 Game state, add stable IDs, materialize a SQLite mirror, or export a canonical
 MigrationBundle. A bridge is not a hidden prerequisite: F7 must name the
 minimum production version for seamless upgrade. A user below that version
@@ -172,6 +173,6 @@ uses the migration-only helper or the isolated Legacy Migration Service.
 This distinguishes development readiness from production upgrade readiness:
 
 ```text
-DEV Game SQLite cutover = implemented and tested
-Production seamless upgrade = gated on the final importer/source matrix in F7
+DEV Game SQLite/runtime completion = implemented and tested
+Production seamless upgrade = gated on the final importer/source matrix in F8
 ```

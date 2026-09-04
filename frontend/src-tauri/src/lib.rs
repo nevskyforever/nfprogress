@@ -60,7 +60,7 @@ struct SqliteProjectReadModel {
     progress_entries: Vec<SqliteProgressRow>,
 }
 
-fn open_projects_database() -> Result<rusqlite::Connection, String> {
+pub(crate) fn open_projects_database() -> Result<rusqlite::Connection, String> {
     sqlite::open_database(&sqlite_data_root()?.join("nfprogress.db"))
         .map_err(|error| error.to_string())
 }
@@ -79,6 +79,245 @@ fn process_game_events() -> Result<game::ProcessSummary, String> {
         return Err("Игра ещё не переведена в SQLite authoritative storage.".to_string());
     }
     game::process_pending_events(&mut connection, 100)
+}
+
+// Explicit Game commands.  These are deliberately one command per use case;
+// the frontend cannot inject an arbitrary operation name or JSON payload.
+#[tauri::command]
+fn game_state() -> Result<serde_json::Value, game::GameError> {
+    game::GameApplicationService::state()
+}
+
+#[tauri::command]
+fn game_notifications() -> Result<serde_json::Value, game::GameError> {
+    game::GameApplicationService::notifications()
+}
+
+#[tauri::command]
+fn mark_game_notification_read(
+    payload: game::NotificationRequest,
+) -> Result<serde_json::Value, game::GameError> {
+    game::GameApplicationService::mark_notification(payload.notification_id, false)
+}
+
+#[tauri::command]
+fn mark_all_game_notifications_read() -> Result<serde_json::Value, game::GameError> {
+    game::GameApplicationService::mark_notification(String::new(), true)
+}
+
+#[tauri::command]
+fn game_catalog() -> Result<serde_json::Value, game::GameError> {
+    let state = game::GameApplicationService::state()?;
+    Ok(state["shop"].clone())
+}
+
+#[tauri::command]
+fn game_developer_state() -> Result<serde_json::Value, game::GameError> {
+    game::GameApplicationService::developer_state()
+}
+
+#[tauri::command]
+fn game_update_developer_profile(
+    payload: game::DeveloperProfileRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::update_developer(payload)
+}
+
+#[tauri::command]
+fn game_grant_developer_inventory_item(
+    payload: game::InventoryRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::grant_inventory(payload)
+}
+
+#[tauri::command]
+fn game_start_writing_session(
+    payload: game::WritingSessionRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::start_session(payload)
+}
+#[tauri::command]
+fn game_finish_writing_session() -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::finish_session()
+}
+#[tauri::command]
+fn game_cancel_writing_session() -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::cancel_session()
+}
+#[tauri::command]
+fn game_select_daily_challenge(
+    payload: game::DailyChallengeRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::select_daily(payload)
+}
+#[tauri::command]
+fn game_start_weekly_challenge(
+    payload: game::WeeklyChallengeRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::start_weekly(payload)
+}
+#[tauri::command]
+fn game_activate_inspiration_ability(
+    payload: game::AbilityRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::activate_inspiration(payload.ability_id)
+}
+#[tauri::command]
+fn game_resolve_creative_event(
+    payload: game::ChoiceRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::resolve_creative(payload)
+}
+#[tauri::command]
+fn game_select_specialization(
+    payload: game::SpecializationRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::select_specialization(payload.specialization_id)
+}
+#[tauri::command]
+fn game_activate_specialization_ability() -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::activate_specialization()
+}
+#[tauri::command]
+fn game_increase_skill(
+    payload: game::SkillRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::increase_skill(payload)
+}
+#[tauri::command]
+fn game_start_quest(
+    payload: game::QuestRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::quest(payload.quest_id, true)
+}
+#[tauri::command]
+fn game_abandon_quest(
+    payload: game::QuestRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::quest(payload.quest_id, false)
+}
+#[tauri::command]
+fn game_buy_item(
+    payload: game::InventoryRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::inventory(payload.category, payload.item_id, payload.count, "buy")
+}
+#[tauri::command]
+fn game_sell_item(
+    payload: game::InventoryRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::inventory(
+        payload.category,
+        payload.item_id,
+        payload.count,
+        "sell",
+    )
+}
+#[tauri::command]
+fn game_use_item(
+    payload: game::InventoryRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::inventory(payload.category, payload.item_id, payload.count, "use")
+}
+#[tauri::command]
+fn game_apply_streak_freeze(
+    payload: game::FreezeRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::freeze(payload)
+}
+#[tauri::command]
+fn game_run_lottery() -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::run_lottery()
+}
+#[tauri::command]
+fn game_create_custom_award(
+    payload: game::CustomAwardRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::custom_award(payload)
+}
+#[tauri::command]
+fn game_update_custom_award(
+    payload: game::CustomAwardUpdateRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::update_custom_award(payload)
+}
+#[tauri::command]
+fn game_delete_custom_award(
+    payload: game::AwardIdRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::delete_custom_award(payload.award_id)
+}
+#[tauri::command]
+fn game_buy_custom_award(
+    payload: game::AwardCountRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::custom_inventory(payload.award_id, payload.count, "buy")
+}
+#[tauri::command]
+fn game_sell_custom_award(
+    payload: game::AwardCountRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::custom_inventory(payload.award_id, payload.count, "sell")
+}
+#[tauri::command]
+fn game_use_custom_award(
+    payload: game::AwardCountRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::custom_inventory(payload.award_id, payload.count, "use")
+}
+#[tauri::command]
+fn game_preview_bank_product(
+    payload: game::BankProductRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::preview_bank_product(payload)
+}
+#[tauri::command]
+fn game_open_bank_credit(
+    payload: game::BankProductRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::bank_open(payload, false)
+}
+#[tauri::command]
+fn game_open_bank_deposit(
+    payload: game::BankProductRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::bank_open(payload, true)
+}
+#[tauri::command]
+fn game_process_bank_events(
+    payload: game::BankProcessRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::process_bank_events(payload.auto_pay)
+}
+#[tauri::command]
+fn game_make_bank_loan_payment() -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::bank_close(false, false, false)
+}
+#[tauri::command]
+fn game_partially_repay_bank_credit(
+    payload: game::BankAmountRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::bank_amount(payload, false)
+}
+#[tauri::command]
+fn game_repay_bank_credit() -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::bank_close(false, false, false)
+}
+#[tauri::command]
+fn game_top_up_bank_deposit(
+    payload: game::BankAmountRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::bank_amount(payload, true)
+}
+#[tauri::command]
+fn game_withdraw_bank_deposit(
+    payload: game::BankWithdrawRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::bank_close(true, false, payload.allow_early)
+}
+#[tauri::command]
+fn game_withdraw_bank_interest() -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::bank_close(true, true, false)
 }
 
 fn require_projects_owner(connection: &rusqlite::Connection) -> Result<(), String> {
@@ -3255,6 +3494,47 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             backend_connection,
             process_game_events,
+            game_state,
+            game_notifications,
+            mark_game_notification_read,
+            mark_all_game_notifications_read,
+            game_catalog,
+            game_developer_state,
+            game_update_developer_profile,
+            game_grant_developer_inventory_item,
+            game_start_writing_session,
+            game_finish_writing_session,
+            game_cancel_writing_session,
+            game_select_daily_challenge,
+            game_start_weekly_challenge,
+            game_activate_inspiration_ability,
+            game_resolve_creative_event,
+            game_select_specialization,
+            game_activate_specialization_ability,
+            game_increase_skill,
+            game_start_quest,
+            game_abandon_quest,
+            game_buy_item,
+            game_sell_item,
+            game_use_item,
+            game_apply_streak_freeze,
+            game_run_lottery,
+            game_create_custom_award,
+            game_update_custom_award,
+            game_delete_custom_award,
+            game_buy_custom_award,
+            game_sell_custom_award,
+            game_use_custom_award,
+            game_preview_bank_product,
+            game_open_bank_credit,
+            game_open_bank_deposit,
+            game_process_bank_events,
+            game_make_bank_loan_payment,
+            game_partially_repay_bank_credit,
+            game_repay_bank_credit,
+            game_top_up_bank_deposit,
+            game_withdraw_bank_deposit,
+            game_withdraw_bank_interest,
             read_sqlite_projects,
             projects_storage_owner,
             create_project,

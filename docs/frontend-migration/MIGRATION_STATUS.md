@@ -1,11 +1,12 @@
 # NFProgress — migration status
 
-Updated for F3 against implementation HEAD
-`29e064dceeb2fc4dae9f1eba88bdc34cc7ac6969` on 2026-09-04.
+Updated for F4 against implementation HEAD
+`aad08cdd34cd5bc9a10c28e862c2f8aa6860da7c` on 2026-09-04.
 
 This status distinguishes implemented features from authoritative storage.
 F1/F2 storage foundations and the F3 Game owner switch are implemented. The
-Python sidecar remains a transitional compatibility transport until F6.
+Python sidecar remains a transitional compatibility transport for non-Game
+subsystems until F7.
 
 ## Current ownership
 
@@ -21,7 +22,7 @@ game                     = SQLite authoritative
 | Projects/stages/progress | Typed Vue/Tauri commands → Rust → SQLite, with durable Game outbox events | SQLite-authoritative; Python remains the web/compatibility adapter |
 | Settings | Typed Rust SQLite commands for ordinary settings; coupled project transitions still call Python/API | SQLite-authoritative, coupled behavior remains Python |
 | Notes | Typed Rust SQLite CRUD/order; map normalization, reconciliation and XMind still use Python/API | SQLite-authoritative notes; map document path remains transitional |
-| Game | SQLite `game_state` DTO, deterministic event consumer, compatibility HTTP façade | SQLite-authoritative; PKL recovery-only |
+| Game | Vue typed Tauri commands → Rust Game service → SQLite; Web keeps API adapter | SQLite-authoritative; normal desktop has no Python Game dependency |
 | Documents | Vue/Tiptap plus Python `documents.json` service | Separate JSON store; not in SQLite |
 | Word/Scrivener/sync | Python sidecar parser and minute background task | Python-dependent |
 
@@ -46,7 +47,7 @@ global/project streak materialization, plus atomic retryable outbox consumers
 in Python compatibility and trusted Rust boundaries.
 
 These foundations are retained. Documents and external-file manifests remain
-F5 concerns; the SQLite backup now contains authoritative Game state.
+F6 concerns; the SQLite backup now contains authoritative Game state.
 
 ## Audit conclusions
 
@@ -56,7 +57,7 @@ F5 concerns; the SQLite backup now contains authoritative Game state.
 - Project folders, actual `synch`/`last_synch` bindings, unknown
   Project/Stage fields and stable progress order are now represented in v4.
 - Notifications/global streak are now Game-owned in SQLite; `documents.json`
-  and external files remain F5 concerns.
+  and external files remain F6 concerns.
 - A migration-only Python helper is selected for legacy PKL parsing. Rust does
   not execute arbitrary pickle object behavior and now runs the shared schema
   migrations at DB open.
@@ -66,7 +67,7 @@ F5 concerns; the SQLite backup now contains authoritative Game state.
 
 ## Known baseline Python failures
 
-The suite at the F3 baseline HEAD reports `530 passed, 3 failed, 15 skipped,
+The suite at the F4 starting HEAD reports `539 passed, 3 failed, 15 skipped,
 2 subtests passed`.
 
 | Test | Classification | Migration impact |
@@ -85,15 +86,16 @@ the remaining relevant legacy-oracle issue and is recorded for parity follow-up.
 | --- | --- | --- |
 | F1 storage contract, Rust migrations and one-shot legacy importer | Complete (storage foundation) | Very High / Luna High; importer packaging/source matrix remains an F2 blocker |
 | F2 Projects/Stages/Progress SQLite-authoritative cutover | Complete | Very High / Luna High; regression and baseline classification in `F2_PROJECTS_SQLITE_CUTOVER.md` |
-| F3 Game SQLite/event cutover | Complete (development authority) | Very High / Luna High; seamless production upgrade remains an F7 gate |
-| F4 Mind Elixir/XMind | Not started | High / Luna Medium–High |
-| F5 Documents/Word/Scrivener/background sync | Not started | High / Luna Medium–High |
-| F6 Python-free Tauri packaging/runtime | Not started | High / Luna Medium–High |
-| F7 migration, backup/restore and release qualification | Not started | Very High / Luna High; Sol for cross-platform release/integrity issues |
+| F3 Game SQLite/event cutover | Complete (development authority) | Very High / Luna High |
+| F4 Game runtime completion | Complete (development desktop path) | Very High / Luna High; production upgrade remains separate |
+| F5 Mind Elixir/XMind | Not started | High / Luna Medium–High |
+| F6 Documents/Word/Scrivener/background sync | Not started | High / Luna Medium–High |
+| F7 Python-free Tauri sidecar/packaging removal | Not started | High / Luna Medium–High |
+| F8 migration, backup/restore and release qualification | Not started | Very High / Luna High; Sol for cross-platform release/integrity issues |
 
 P1–P3 are complete foundations and are absorbed into F1/F2. P4 is absorbed
-into F2 with a durable Game event contract. P5 is split into F4 and F5. P6/P7
-are combined into F3. P8 is F6. P9 is split between F1 and F7.
+into F2 with a durable Game event contract. P5 is split into F5 and F6. P6/P7
+are completed by F3/F4. P8 is F7. P9 is split between F1 and F8.
 
 ## F1 boundary
 
@@ -114,17 +116,17 @@ an explicit retry boundary, not distributed Game/Projects transactionality.
 
 Game ownership is SQLite-authoritative. A failed verifier leaves the owner as
 pickle; a second startup does not reimport PKL; and Game state plus event
-processed marker commit together. The current sidecar still exposes the
-existing Python service API for the Vue Game page, but that façade uses the
-SQLite Game repository and cannot write Game PKL. Direct typed Tauri Game
-command coverage belongs to F6's final sidecar removal.
+processed marker commit together. F4 moves normal desktop Game reads and
+mutations to typed Tauri/Rust commands. The Python Game service remains for
+Web, migration/recovery and oracle tests only; other sidecar subsystems remain
+until F7.
 
 ## Production Bridge Release Strategy
 
 Production Python continues receiving maintenance and bugfix releases during
-F3–F7. Additional bridge releases may monotonically normalize Game state,
+F3–F8. Additional bridge releases may monotonically normalize Game state,
 materialize stable IDs or export a canonical MigrationBundle. Development
-authority readiness does not imply production upgrade readiness: F7 names the
+authority readiness does not imply production upgrade readiness: F8 names the
 minimum seamless-upgrade version. Older profiles use the migration-only helper
 or the sandboxed Legacy Migration Service, in the order prepared SQLite,
 bridge-updated Python, temporary helper, then isolated web conversion.
