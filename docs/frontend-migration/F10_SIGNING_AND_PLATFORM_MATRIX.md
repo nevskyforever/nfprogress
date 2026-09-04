@@ -98,8 +98,18 @@ never forked PRs; build jobs use read-only permissions, short-lived artifacts,
 pinned actions and a protected `nfprogress-production` environment. The normal
 push workflow now builds but does not publish.
 
-## Current conclusion
+## F11 current distribution policy
 
-**BLOCKED**: structural pipeline and non-publishing workflow exist, but no
-production credentials, signed artifacts, notarized ticket, Windows
-Authenticode result, Intel helper or Windows runtime rehearsal is present here.
+The owner currently accepts unsigned/ad-hoc/self-signed distribution.
+Developer ID, notarization, and Authenticode are known release limitations
+(`P1`) rather than standalone `P0` blockers. Gatekeeper unidentified-developer
+and SmartScreen unrecognized-app warnings are expected and must be documented.
+The existing signing paths remain optional future hardening and stay
+fail-closed when explicitly enabled.
+
+## F11 current conclusion
+
+**BLOCKED** for functional qualification: the ARM helper passed, but the
+ARM app launch/restart leg, Intel runtime, Windows runtime, full
+cross-generation handoff, and production Tauri updater-key path remain
+unqualified. This status is not caused by missing OS signing credentials.

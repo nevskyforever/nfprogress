@@ -122,3 +122,14 @@ The safe strategy is selected, but F10 remains **BLOCKED** until a transitional
 release is built, signed and rehearsed on copied real data for all supported
 platforms. The checked-in manual qualification workflow builds unsigned
 evidence only and never publishes.
+
+## F11 policy addendum
+
+Unsigned/ad-hoc/self-signed platform distribution is currently accepted by the
+project owner, so OS certificates are not a standalone transition gate.
+Gatekeeper and SmartScreen warnings remain expected `P1` limitations. The
+transition itself is still a `P0`: the helper must hand off to the platform
+installer, the old writer must be closed/blocked, and the prepared SQLite must
+survive first launch and restart. Tauri updater signatures remain an
+independent cryptographic requirement wherever the Tauri updater channel is
+enabled.

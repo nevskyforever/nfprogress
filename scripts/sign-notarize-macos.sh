@@ -46,6 +46,12 @@ cleanup() {
 trap cleanup EXIT
 
 ditto "$APP_PATH" "$STAGING_DIR/nfprogress.app"
+if [ -n "$HELPER_PATH" ]; then
+  # Keep the separately signed helper inside the notarized container.  A bare
+  # helper copied beside the DMG would be signed but would not be covered by
+  # the notarization ticket.
+  cp -- "$HELPER_PATH" "$STAGING_DIR/nfprogress-migration-helper"
+fi
 ln -s /Applications "$STAGING_DIR/Applications"
 mkdir -p "$(dirname -- "$DMG_PATH")"
 rm -f -- "$DMG_PATH"

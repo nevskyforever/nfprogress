@@ -68,3 +68,14 @@ must still be rebuilt and signed by the release pipeline from the final release
 commit. The workflow contains a publish job, but F10 makes it manual-only and
 places it behind the protected `nfprogress-production` environment. The manual
 qualification workflow never publishes.
+
+## F11 evidence addendum
+
+F11 confirms that the owner currently accepts unsigned/ad-hoc/self-signed
+distribution. Developer ID, notarization, and Authenticode are therefore
+known `P1` trust limitations, with expected Gatekeeper and SmartScreen
+warnings, rather than standalone release blockers. Functional qualification
+still requires the complete helper → installer → Tauri first-launch/restart
+path on every platform included in the initial rollout. See
+`F11_PLATFORM_QUALIFICATION.md`, `F11_TRANSITION_REHEARSAL.md`, and
+`F11_RELEASE_GATE_CHECKLIST.md` for the evidence and open gates.

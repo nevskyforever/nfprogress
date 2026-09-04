@@ -111,3 +111,15 @@ withdrawing new transition metadata; do not downgrade migrated profiles.
 - final-commit artifacts and release-owner approval of manifest cutover.
 
 No public release is authorized by F10.
+
+## F11 policy and evidence addendum
+
+The project owner accepts unsigned/ad-hoc/self-signed distribution for the
+current rollout. Developer ID/notarization and Authenticode remain optional
+future hardening (`P1`) and must not be confused with Tauri updater
+cryptographic signatures. F11 produced a real local ARM Tauri build and
+packaged ARM helper smoke evidence, but could not complete the ARM app launch
+because another installed single-instance process was already active; Intel
+and Windows runners were unavailable. The functional transition gates remain
+open. See `F11_PLATFORM_QUALIFICATION.md` and
+`F11_TRANSITION_REHEARSAL.md`.
