@@ -39,6 +39,7 @@ const zoom = ref(100)
 const selectedFontFamily = ref<(typeof WORD_FONT_FAMILIES)[number]>('Arial')
 const selectedFontSize = ref<(typeof WORD_FONT_SIZES)[number]>(12)
 const selectedLineHeight = ref('1.5')
+const editorInstanceKey = ref(0)
 const LINE_HEIGHTS = ['1', '1.15', '1.5', '2'] as const
 const canLinkWord = currentPlatform() === 'tauri'
 const saving = ref(false)
@@ -168,6 +169,10 @@ function configureKitLocale() {
 }
 function update(next: JSONContent) {
   const json = next as TiptapDocument
+  // The editor kit can emit an empty document while it refreshes after an
+  // asynchronous save. That value is not a user edit and must not replace the
+  // draft that was just recorded.
+  if (processing.value && countTextSymbols(json) === 0 && countTextSymbols(editorContent.value) > 0) return
   editorContent.value = json
   scheduleSave(json)
 }
@@ -175,9 +180,25 @@ function captureEditorContent(): TiptapDocument {
   const latest = editorRef.value?.getJSON()
   if (!latest || typeof latest !== 'object') return content.value
   const json = latest as TiptapDocument
+  if (countTextSymbols(json) === 0 && countTextSymbols(content.value) > 0) return content.value
   editorContent.value = json
   setContent(json)
   return json
+}
+function repairEditorSnapshot(snapshot: TiptapDocument): void {
+  if (countTextSymbols(snapshot) === 0) return
+  const editor = editorRef.value?.getEditor()
+  if (editor && countTextSymbols(editor.getJSON()) > 0) return
+
+  editorContent.value = snapshot
+  setContent(snapshot)
+  if (editor) {
+    editor.commands.setContent(snapshot, { emitUpdate: false })
+    return
+  }
+  // If the kit destroyed its internal editor during the update, recreate the
+  // component from the saved snapshot instead of leaving an empty workspace.
+  editorInstanceKey.value += 1
 }
 function countTextSymbols(value: unknown): number {
   if (!value || typeof value !== 'object') return 0
@@ -253,22 +274,26 @@ async function flushAndRecord(recordProgress = false): Promise<void> {
   if (flushPromise) return flushPromise
   const operation = (async () => {
     const snapshot = captureEditorContent()
-    if (recordProgress) {
-      const recorded = await recordTextProgress(true, snapshot)
-      // The document itself may have changed even when rounding/duplicate
-      // protection correctly produced no progress entry. Keep project counters
-      // and cached detail views in sync with that saved content as well.
-      if (!recorded) announceDataChange('projects')
-      return
-    }
-    saving.value = true
     try {
-      await save(true, snapshot)
-    } catch (error) {
-      status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
-      return
+      if (recordProgress) {
+        const recorded = await recordTextProgress(true, snapshot)
+        // The document itself may have changed even when rounding/duplicate
+        // protection correctly produced no progress entry. Keep project counters
+        // and cached detail views in sync with that saved content as well.
+        if (!recorded) announceDataChange('projects')
+        return
+      }
+      saving.value = true
+      try {
+        await save(true, snapshot)
+      } catch (error) {
+        status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
+      } finally {
+        saving.value = false
+      }
     } finally {
-      saving.value = false
+      await nextTick()
+      repairEditorSnapshot(snapshot)
     }
   })()
   flushPromise = operation
@@ -416,6 +441,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
       <div ref="editorShell" class="document-editor-view__editor-shell">
         <TiptapProEditor
           v-if="documentState"
+          :key="editorInstanceKey"
           ref="editorRef"
           :initial-content="content"
           class="nfprogress-word-editor"

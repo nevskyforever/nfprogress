@@ -11,7 +11,7 @@ import type { DocumentScope, ProjectDocument, TiptapDocument } from '@/types/doc
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, editorJson, editorModelValue, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setLineHeight, setTextSelection } = vi.hoisted(() => ({
+const { destroyWindow, editorJson, editorModelValue, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setEditorContent, setLineHeight, setTextSelection } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
   editorJson: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
   editorModelValue: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
@@ -22,6 +22,7 @@ const { destroyWindow, editorJson, editorModelValue, editorSelection, editorUpda
   onBeforeRouteLeave: vi.fn(),
   onCloseRequested: vi.fn(),
   scrollIntoView: vi.fn(),
+  setEditorContent: vi.fn(),
   setLineHeight: vi.fn(),
   setTextSelection: vi.fn(),
 }))
@@ -46,7 +47,8 @@ vi.mock('tiptap-ui-kit', () => ({
     setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
       expose({
         getEditor: () => ({
-          commands: { focus: focusEditor, insertContent, scrollIntoView, setTextSelection },
+          commands: { focus: focusEditor, insertContent, scrollIntoView, setContent: setEditorContent, setTextSelection },
+          getJSON: () => editorJson.value,
           state: { selection: editorSelection, doc: { content: { size: 100 } } },
           chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
         }),
@@ -124,6 +126,7 @@ describe('DocumentEditorView status bar', () => {
     setTextSelection.mockReset()
     scrollIntoView.mockReset()
     setLineHeight.mockReset()
+    setEditorContent.mockReset()
     destroyWindow.mockReset()
     onCloseRequested.mockReset()
     delete window.__TAURI_INTERNALS__
@@ -328,7 +331,7 @@ describe('DocumentEditorView status bar', () => {
     wrapper.unmount()
   })
 
-  it('keeps the draft when the controlled model emits empty content during recording', async () => {
+  it('restores the draft when the editor becomes empty during recording', async () => {
     const initial: TiptapDocument = {
       type: 'doc',
       content: [{ type: 'paragraph', content: [{ type: 'text', text: 'а'.repeat(801) }] }],
@@ -340,6 +343,7 @@ describe('DocumentEditorView status bar', () => {
     editorJson.value = edited
     editorUpdate.value = edited
     vi.mocked(documentsApi.recordProgress).mockImplementation(async () => {
+      editorJson.value = { type: 'doc', content: [{ type: 'paragraph' }] }
       editorModelValue.value = { type: 'doc', content: [{ type: 'paragraph' }] }
       await wrapper.get('.tiptap-model-update').trigger('click')
       return {
@@ -374,6 +378,7 @@ describe('DocumentEditorView status bar', () => {
     await flushPromises()
 
     expect(documentsApi.recordProgress).toHaveBeenCalledWith({ projectId: 'project-id' }, edited)
+    expect(setEditorContent).toHaveBeenCalledWith(edited, { emitUpdate: false })
     expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(edited)
     expect(wrapper.text()).not.toContain('Из проекта удалено')
     wrapper.unmount()
