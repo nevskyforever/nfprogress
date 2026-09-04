@@ -10,11 +10,12 @@ import type { DocumentScope, ProjectDocument } from '@/types/documents'
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, editorSelection, focusEditor, insertContent, onCloseRequested, scrollIntoView, setLineHeight, setTextSelection } = vi.hoisted(() => ({
+const { destroyWindow, editorSelection, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setLineHeight, setTextSelection } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
   editorSelection: { from: 1 },
   focusEditor: vi.fn(),
   insertContent: vi.fn(),
+  onBeforeRouteLeave: vi.fn(),
   onCloseRequested: vi.fn(),
   scrollIntoView: vi.fn(),
   setLineHeight: vi.fn(),
@@ -23,7 +24,7 @@ const { destroyWindow, editorSelection, focusEditor, insertContent, onCloseReque
 const positionStorage = new Map<string, string>()
 
 vi.mock('vue-router', () => ({
-  onBeforeRouteLeave: vi.fn(),
+  onBeforeRouteLeave,
   useRouter: () => ({ push: vi.fn() }),
 }))
 
@@ -61,6 +62,7 @@ vi.mock('@/api/documents', () => ({
     external: vi.fn(),
     get: vi.fn(),
     link: vi.fn(),
+    recordProgress: vi.fn(),
     save: vi.fn(),
     writeDocx: vi.fn(),
   },
@@ -105,7 +107,9 @@ describe('DocumentEditorView status bar', () => {
     })
     vi.mocked(projectsApi.get).mockReset()
     vi.mocked(documentsApi.get).mockReset()
+    vi.mocked(documentsApi.recordProgress).mockReset()
     vi.mocked(documentsApi.save).mockReset()
+    onBeforeRouteLeave.mockReset()
     insertContent.mockReset()
     focusEditor.mockReset()
     setTextSelection.mockReset()
@@ -200,6 +204,50 @@ describe('DocumentEditorView status bar', () => {
     expect(preventDefault).toHaveBeenCalledOnce()
     expect(documentsApi.save).toHaveBeenCalled()
     expect(destroyWindow).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+
+  it('does not record progress during save-only route navigation', async () => {
+    const wrapper = mountEditor(projectFixture({ total: 804 }))
+    await flushPromises()
+
+    const routeLeave = onBeforeRouteLeave.mock.calls[0]?.[0] as (() => Promise<void>) | undefined
+    await routeLeave?.()
+
+    expect(documentsApi.save).toHaveBeenCalled()
+    expect(documentsApi.recordProgress).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('records only the actual positive delta from the explicit add action', async () => {
+    const project = projectFixture({ total: 804 })
+    vi.mocked(documentsApi.recordProgress).mockResolvedValue({
+      changed: true,
+      symbols: 805,
+      progress: {
+        project: projectFixture({ total: 805 }),
+        entry: {
+          id: 'entry-id',
+          new_total: 805,
+          new_total_symbols: 805,
+          added: 1,
+          added_symbols: 1,
+          added_progress: 0.001,
+          created_at: '2026-09-04T01:00:00+00:00',
+        },
+        added_symbols: 1,
+        game: null,
+        warning: null,
+      },
+    })
+    const wrapper = mountEditor(project)
+    await flushPromises()
+    await wrapper.get('.tiptap-stub').trigger('click')
+    await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
+    await flushPromises()
+
+    expect(documentsApi.recordProgress).toHaveBeenCalledOnce()
+    expect(wrapper.text()).not.toContain('Из проекта удалено')
     wrapper.unmount()
   })
 

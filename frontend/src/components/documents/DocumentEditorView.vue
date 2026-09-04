@@ -238,7 +238,7 @@ async function recordTextProgress(force = false): Promise<boolean> {
   }
 }
 let flushPromise: Promise<void> | null = null
-async function flushAndRecord(): Promise<void> {
+async function flushAndRecord(recordProgress = false): Promise<void> {
   if (flushPromise) return flushPromise
   const operation = (async () => {
     const latest = editorRef.value?.getJSON()
@@ -250,13 +250,14 @@ async function flushAndRecord(): Promise<void> {
     try {
       // The progress endpoint reads the persisted document, so its request
       // must follow this immediate save rather than the debounce timer.
-      await save(false)
+      await save(recordProgress ? false : true)
     } catch (error) {
       status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
       return
     } finally {
       saving.value = false
     }
+    if (!recordProgress) return
     const recorded = await recordTextProgress(true)
     // The document itself may have changed even when rounding/duplicate
     // protection correctly produced no progress entry. Keep project counters
@@ -270,7 +271,7 @@ async function flushAndRecord(): Promise<void> {
     if (flushPromise === operation) flushPromise = null
   }
 }
-function onRecordClick(): void { void flushAndRecord() }
+function onRecordClick(): void { void flushAndRecord(true) }
 function closeEditor() {
   if (props.scope.stageId) {
     void router.push({ name: 'stage-detail', params: { projectId: props.scope.projectId, stageId: props.scope.stageId } })
