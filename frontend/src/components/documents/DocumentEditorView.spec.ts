@@ -118,7 +118,7 @@ describe('DocumentEditorView status bar', () => {
     window.localStorage?.removeItem('nfprogress:document-position:project-id:project')
   })
 
-  it('uses the cumulative daily target displayed beside the progress bar', async () => {
+  it('uses the work written today for the daily goal progress bar', async () => {
     const wrapper = mountEditor(projectFixture({
       total: 25_000,
       goal: 100_000,
@@ -132,7 +132,7 @@ describe('DocumentEditorView status bar', () => {
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 100')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('Цель на сегодня')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('26')
-    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('96')
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('40')
     wrapper.unmount()
   })
 
@@ -146,13 +146,13 @@ describe('DocumentEditorView status bar', () => {
     await flushPromises()
 
     const progress = wrapper.get('[role="progressbar"]')
-    expect(progress.attributes('aria-valuenow')).toBe('0')
+    expect(progress.attributes('aria-valuenow')).toBe('40')
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('0 / 100')
 
     await wrapper.get('.tiptap-stub').trigger('click')
 
-    expect(progress.attributes('aria-valuenow')).toBe('1')
-    expect(wrapper.get('.document-editor-view__today-goal-progress-fill').attributes('style')).toContain('width: 1%')
+    expect(progress.attributes('aria-valuenow')).toBe('41')
+    expect(wrapper.get('.document-editor-view__today-goal-progress-fill').attributes('style')).toContain('width: 41%')
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('1 / 100')
     wrapper.unmount()
   })
@@ -254,8 +254,8 @@ describe('DocumentEditorView status bar', () => {
       .toMatchObject({ selection: 37 })
   })
 
-  it('uses the existing total-versus-today-goal state for completion', async () => {
-    const wrapper = mountEditor(projectFixture({ total: 26_000, today_goal: 26_000 }))
+  it('marks the daily goal complete after enough work is written today', async () => {
+    const wrapper = mountEditor(projectFixture({ total: 26_000, today_goal: 26_000, added_today: 1_000 }))
     await flushPromises()
 
     const dailyGoal = wrapper.get('.document-editor-view__today-goal')
@@ -298,7 +298,7 @@ describe('DocumentEditorView status bar', () => {
     const wrapper = mountEditor(projectFixture({ total: 25_000, goal: 100_000, today_goal: 26_000 }))
     await flushPromises()
 
-    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({ total: 30_000, goal: 120_000, today_goal: 30_000 }))
+    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({ total: 30_000, goal: 120_000, today_goal: 30_000, added_today: 1_000 }))
     announceDataChange('projects')
     await flushPromises()
 

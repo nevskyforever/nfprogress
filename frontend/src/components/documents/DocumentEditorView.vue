@@ -77,12 +77,15 @@ const entityProgressLabel = computed(() => {
 const todayGoalCurrentValue = computed(() => {
   const entity = projectEntity.value
   if (!entity) return 0
-  return textSymbols.value > 0 ? textUnits.value ?? entity.total : entity.total
+  const unsavedChange = textSymbols.value > 0
+    ? (textUnits.value ?? entity.total) - entity.total
+    : 0
+  return Math.max(0, entity.added_today + unsavedChange)
 })
 const todayGoalCompleted = computed(() => {
   const entity = projectEntity.value
-  if (!entity || entity.today_goal === null) return false
-  return todayGoalCurrentValue.value >= entity.today_goal
+  if (!entity || entity.plan_daily_goal === null) return false
+  return todayGoalCurrentValue.value >= entity.plan_daily_goal
 })
 const todayGoalLabel = computed(() => {
   const entity = projectEntity.value
@@ -90,7 +93,7 @@ const todayGoalLabel = computed(() => {
   return `${locale.formatNumber(entity.today_goal, entityFractionDigits.value)} ${locale.formatUnit(entity.unit, entity.today_goal)}`
 })
 const todayGoalProgressPercent = computed(() => {
-  const target = projectEntity.value?.today_goal
+  const target = projectEntity.value?.plan_daily_goal
   if (target === null || target === undefined || target <= 0) return 0
   return Math.min(100, Math.max(0, (todayGoalCurrentValue.value / target) * 100))
 })
