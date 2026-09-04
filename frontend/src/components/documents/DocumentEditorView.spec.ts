@@ -40,7 +40,8 @@ vi.mock('tiptap-ui-kit', () => ({
   createI18n: vi.fn(),
   setTheme: vi.fn(),
   TiptapProEditor: {
-    props: ['modelValue'],
+    name: 'TiptapProEditor',
+    props: ['initialContent', 'modelValue'],
     emits: ['update', 'update:modelValue'],
     setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
       expose({
@@ -53,7 +54,7 @@ vi.mock('tiptap-ui-kit', () => ({
       })
       return { editorModelValue, editorUpdate }
     },
-    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="word-document-container"><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', editorUpdate.value)" /><button class="tiptap-model-update" type="button" @click="$emit('update:modelValue', editorModelValue.value)" /><output class="tiptap-model">{{ JSON.stringify(modelValue) }}</output></div></div>`,
+    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="word-document-container"><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', editorUpdate.value)" /><button class="tiptap-model-update" type="button" @click="$emit('update:modelValue', editorModelValue.value)" /><output class="tiptap-model">{{ JSON.stringify(initialContent) }}</output></div></div>`,
   },
 }))
 
@@ -281,77 +282,49 @@ describe('DocumentEditorView status bar', () => {
     wrapper.unmount()
   })
 
-  it('keeps the current document when the initial read finishes after recording', async () => {
-    const edited: TiptapDocument = {
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Новая запись' }] }],
-    }
+  it('waits for the initial document before mounting the editor', async () => {
     let finishLoad: ((value: ProjectDocument) => void) | undefined
     vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({ total: 804 }))
     vi.mocked(documentsApi.get).mockReturnValue(new Promise((resolve) => { finishLoad = resolve }))
-    vi.mocked(documentsApi.save).mockResolvedValue(documentFixture)
-    vi.mocked(documentsApi.recordProgress).mockResolvedValue({ changed: false, symbols: 12, progress: null })
-    editorJson.value = edited
-    editorUpdate.value = edited
     const wrapper = mount(DocumentEditorView, {
       props: { scope: { projectId: 'project-id' }, title: 'Текст' },
       global: { plugins: [createPinia()] },
     })
     await flushPromises()
-    await wrapper.get('.tiptap-stub').trigger('click')
-    await flushPromises()
-    await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
-    finishLoad?.(documentFixture)
+
+    expect(wrapper.find('.tiptap-stub').exists()).toBe(false)
+
+    const loaded = {
+      ...documentFixture,
+      content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Черновик' }] }] } as TiptapDocument,
+    }
+    finishLoad?.(loaded)
     await flushPromises()
 
-    expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(edited)
+    expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(loaded.content)
     wrapper.unmount()
   })
 
-  it('keeps the latest update when getJSON returns an empty transient document', async () => {
+  it('keeps the editor uncontrolled after loading the initial document', async () => {
     const edited: TiptapDocument = {
       type: 'doc',
       content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Текст проекта' }] }],
     }
     const existing = { ...documentFixture, content: edited, exists: true, has_content: true }
     editorUpdate.value = edited
-    editorJson.value = { type: 'doc', content: [{ type: 'paragraph' }] }
+    editorJson.value = edited
     vi.mocked(documentsApi.recordProgress).mockResolvedValue({ changed: false, symbols: 12, progress: null })
     const wrapper = mountEditor(projectFixture({ total: 804 }), { projectId: 'project-id' }, existing)
     await flushPromises()
-    await wrapper.get('.tiptap-stub').trigger('click')
+
+    const editor = wrapper.findComponent({ name: 'TiptapProEditor' })
+    expect(editor.props('modelValue')).toBeUndefined()
+    expect(editor.props('initialContent')).toEqual(edited)
+
     await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
     await flushPromises()
 
     expect(documentsApi.recordProgress).toHaveBeenCalledWith({ projectId: 'project-id' }, edited)
-    wrapper.unmount()
-  })
-
-  it('ignores a transient empty update during the progress mutation', async () => {
-    const edited: TiptapDocument = {
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Текст проекта' }] }],
-    }
-    editorUpdate.value = edited
-    editorJson.value = edited
-    let wrapper: ReturnType<typeof mount>
-    vi.mocked(documentsApi.recordProgress).mockImplementation(async () => {
-      editorUpdate.value = { type: 'doc', content: [{ type: 'paragraph' }] }
-      await wrapper.get('.tiptap-stub').trigger('click')
-      return { changed: false, symbols: 12, progress: null }
-    })
-    wrapper = mountEditor(projectFixture({ total: 804 }), { projectId: 'project-id' }, {
-      ...documentFixture,
-      content: edited,
-      exists: true,
-      has_content: true,
-    })
-    await flushPromises()
-    await wrapper.get('.tiptap-stub').trigger('click')
-    await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
-    await flushPromises()
-
-    expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(edited)
     wrapper.unmount()
   })
 
@@ -366,7 +339,6 @@ describe('DocumentEditorView status bar', () => {
     }
     editorJson.value = edited
     editorUpdate.value = edited
-    let wrapper: ReturnType<typeof mount>
     vi.mocked(documentsApi.recordProgress).mockImplementation(async () => {
       editorModelValue.value = { type: 'doc', content: [{ type: 'paragraph' }] }
       await wrapper.get('.tiptap-model-update').trigger('click')
@@ -390,7 +362,7 @@ describe('DocumentEditorView status bar', () => {
         },
       }
     })
-    wrapper = mountEditor(projectFixture({ total: 801 }), { projectId: 'project-id' }, {
+    const wrapper = mountEditor(projectFixture({ total: 801 }), { projectId: 'project-id' }, {
       ...documentFixture,
       content: initial,
       exists: true,

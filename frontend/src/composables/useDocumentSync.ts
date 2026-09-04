@@ -91,11 +91,11 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
   onMounted(async () => {
     const revisionAtStart = localRevision
     const loaded = await documentsApi.get(scope)
-    documentState.value = loaded
     // A slow initial read (including a migration-backed read) must not replace
     // text entered while it was in flight.  The local edit is already the
     // current source of truth and its autosave will persist it.
     if (revisionAtStart === localRevision) content.value = loaded.content
+    documentState.value = loaded
   })
   onBeforeUnmount(() => { window.clearTimeout(saveTimer); window.clearInterval(watchTimer); void save() })
   return { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal }

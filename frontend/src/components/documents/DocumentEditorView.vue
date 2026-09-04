@@ -168,10 +168,6 @@ function configureKitLocale() {
 }
 function update(next: JSONContent) {
   const json = next as TiptapDocument
-  // Tiptap can emit a transient empty document while a save/progress response
-  // is updating the controlled editor. It is not a user deletion and must not
-  // replace the non-empty draft or schedule an empty autosave.
-  if (processing.value && countTextSymbols(json) === 0 && countTextSymbols(editorContent.value) > 0) return
   editorContent.value = json
   scheduleSave(json)
 }
@@ -179,10 +175,6 @@ function captureEditorContent(): TiptapDocument {
   const latest = editorRef.value?.getJSON()
   if (!latest || typeof latest !== 'object') return content.value
   const json = latest as TiptapDocument
-  // The kit can expose an empty JSON document for one render while its
-  // controlled value is being synchronized. Do not turn a known non-empty
-  // draft into that transient value when the user explicitly saves it.
-  if (countTextSymbols(json) === 0 && countTextSymbols(content.value) > 0) return content.value
   editorContent.value = json
   setContent(json)
   return json
@@ -342,13 +334,13 @@ function findToolbarTarget(): void {
   toolbarObserver = undefined
 }
 
-watch(content, (next) => {
-  editorContent.value = next
-  if (!hasRestoredEditorPosition) {
-    hasRestoredEditorPosition = true
-    void restoreEditorPosition()
-  }
-}, { deep: true })
+watch(content, (next) => { editorContent.value = next }, { deep: true })
+watch(documentState, async (next) => {
+  if (!next || hasRestoredEditorPosition) return
+  hasRestoredEditorPosition = true
+  await nextTick()
+  await restoreEditorPosition()
+})
 watch(() => locale.language, configureKitLocale)
 watch(() => theme.resolved, setWordTheme, { immediate: true })
 configureKitLocale()
@@ -423,8 +415,9 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
     <div class="document-editor-view__workspace" @keydown.capture="handleEditorKeydown">
       <div ref="editorShell" class="document-editor-view__editor-shell">
         <TiptapProEditor
+          v-if="documentState"
           ref="editorRef"
-          :model-value="content"
+          :initial-content="content"
           class="nfprogress-word-editor"
           :style="{ '--nf-editor-zoom': `${zoom / 100}` }"
           version="advanced"
