@@ -39,6 +39,7 @@ vi.mock('tiptap-ui-kit', () => ({
   createI18n: vi.fn(),
   setTheme: vi.fn(),
   TiptapProEditor: {
+    props: ['modelValue'],
     emits: ['update'],
     setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
       expose({
@@ -51,7 +52,7 @@ vi.mock('tiptap-ui-kit', () => ({
       })
       return { editorUpdate }
     },
-    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="word-document-container"><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', editorUpdate.value)" /></div></div>`,
+    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="word-document-container"><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', editorUpdate.value)" /><output class="tiptap-model">{{ JSON.stringify(modelValue) }}</output></div></div>`,
   },
 }))
 
@@ -272,6 +273,31 @@ describe('DocumentEditorView status bar', () => {
     await flushPromises()
 
     expect(documentsApi.save).toHaveBeenCalledWith({ projectId: 'project-id' }, edited)
+    wrapper.unmount()
+  })
+
+  it('ignores a transient empty update while the record request is in flight', async () => {
+    const edited: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Текст проекта' }] }],
+    }
+    editorUpdate.value = edited
+    editorJson.value = edited
+    let wrapper: ReturnType<typeof mount>
+    vi.mocked(documentsApi.save).mockImplementation(async () => {
+      editorUpdate.value = { type: 'doc', content: [{ type: 'paragraph' }] }
+      await wrapper.get('.tiptap-stub').trigger('click')
+      return documentFixture
+    })
+    vi.mocked(documentsApi.recordProgress).mockResolvedValue({ changed: false, symbols: 12, progress: null })
+    wrapper = mountEditor(projectFixture({ total: 804 }))
+    await flushPromises()
+    await wrapper.get('.tiptap-stub').trigger('click')
+    await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
+    await flushPromises()
+
+    expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(edited)
+    expect(documentsApi.save).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
 

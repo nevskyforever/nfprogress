@@ -167,7 +167,15 @@ function configureKitLocale() {
   // intentionally accepts host locale keys and message dictionaries.
   createI18n({ locale: 'en-US', messages: tiptapLocale(t) as never })
 }
-function update(next: JSONContent) { const json = next as TiptapDocument; editorContent.value = json; scheduleSave(json) }
+function update(next: JSONContent) {
+  const json = next as TiptapDocument
+  // Tiptap can emit a transient empty document while a save/progress response
+  // is updating the controlled editor. It is not a user deletion and must not
+  // replace the non-empty draft or schedule an empty autosave.
+  if (saving.value && countTextSymbols(json) === 0 && countTextSymbols(editorContent.value) > 0) return
+  editorContent.value = json
+  scheduleSave(json)
+}
 function countTextSymbols(value: unknown): number {
   if (!value || typeof value !== 'object') return 0
   const node = value as { text?: unknown; content?: unknown }
