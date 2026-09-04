@@ -157,22 +157,43 @@ class ProjectDocumentService:
 
     def record_text_progress(
             self, project_id: str, stage_id: str | None = None,
+            content: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        """Create a normal synchronized progress entry from the internal text."""
+        """Persist the current text and record its progress as one operation."""
+        if content is not None and (
+                not isinstance(content, dict) or content.get('type') != 'doc'
+        ):
+            raise ValidationError('Документ должен быть в формате Tiptap JSON.')
         key = self._key(project_id, stage_id)
         with self.repository.locked():
             records = self._load_with_migrations()
             self._validate_document_owner(project_id, stage_id)
             record = records.get(key)
+            if content is not None:
+                record = record or self._new(project_id, stage_id)
+                record.update({
+                    'content': content,
+                    'exists': True,
+                    'updated_at': self._now(),
+                    'local_dirty': True,
+                })
+                records[key] = record
+                self._write(records)
             symbols = self._symbol_count(record.get('content', {})) if record else 0
             if symbols <= 0:
                 raise ValidationError('Сначала добавьте текст в документ.')
+            document = self._public(record)
             data = self.repository.read_projects()
             project = self.project_service._find_project(data, project_id)
             entity = self.project_service._find_stage(project, stage_id) if stage_id else project
             total = engine.unit_converter('symbols', symbols, entity.unit)
             if abs(float(total) - float(entity.total_units)) < 0.009:
-                return {'changed': False, 'symbols': symbols, 'progress': None}
+                return {
+                    'changed': False,
+                    'symbols': symbols,
+                    'progress': None,
+                    'document': document,
+                }
             # An in-app edit is a writing action, not an external sync event.
             # Let the project service timestamp it with ``today_for_test`` so
             # developer-mode dates and daily streaks use the same calendar day
@@ -180,7 +201,12 @@ class ProjectDocumentService:
             progress = self.project_service.record_document_progress(
                 project_id, stage_id=stage_id, new_total=total,
             )
-            return {'changed': True, 'symbols': symbols, 'progress': progress}
+            return {
+                'changed': True,
+                'symbols': symbols,
+                'progress': progress,
+                'document': document,
+            }
 
     def ensure_external_sync_can_be_configured(
             self, project_id: str, stage_id: str | None = None,

@@ -271,7 +271,8 @@ describe('DocumentEditorView status bar', () => {
     await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
     await flushPromises()
 
-    expect(documentsApi.save).toHaveBeenCalledWith({ projectId: 'project-id' }, edited)
+    expect(documentsApi.recordProgress).toHaveBeenCalledWith({ projectId: 'project-id' }, edited)
+    expect(documentsApi.save).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -316,32 +317,7 @@ describe('DocumentEditorView status bar', () => {
     await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
     await flushPromises()
 
-    expect(documentsApi.save).toHaveBeenCalledWith({ projectId: 'project-id' }, edited)
-    wrapper.unmount()
-  })
-
-  it('ignores a transient empty update while the record request is in flight', async () => {
-    const edited: TiptapDocument = {
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Текст проекта' }] }],
-    }
-    editorUpdate.value = edited
-    editorJson.value = edited
-    let wrapper: ReturnType<typeof mount>
-    vi.mocked(documentsApi.save).mockImplementation(async () => {
-      editorUpdate.value = { type: 'doc', content: [{ type: 'paragraph' }] }
-      await wrapper.get('.tiptap-stub').trigger('click')
-      return documentFixture
-    })
-    vi.mocked(documentsApi.recordProgress).mockResolvedValue({ changed: false, symbols: 12, progress: null })
-    wrapper = mountEditor(projectFixture({ total: 804 }))
-    await flushPromises()
-    await wrapper.get('.tiptap-stub').trigger('click')
-    await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
-    await flushPromises()
-
-    expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(edited)
-    expect(documentsApi.save).toHaveBeenCalledOnce()
+    expect(documentsApi.recordProgress).toHaveBeenCalledWith({ projectId: 'project-id' }, edited)
     wrapper.unmount()
   })
 

@@ -13,6 +13,7 @@ vi.mock('@/api/documents', () => ({
     external: vi.fn(),
     get: vi.fn(),
     link: vi.fn(),
+    recordProgress: vi.fn(),
     save: vi.fn(),
     writeDocx: vi.fn(),
   },
@@ -89,6 +90,44 @@ describe('useDocumentSync', () => {
     await wrapper.vm.sync.save(false)
 
     expect(documentsApi.save).toHaveBeenCalledWith({ projectId: 'project-id' }, editedDocument)
+    expect(wrapper.vm.sync.content.value).toEqual(editedDocument)
+    wrapper.unmount()
+  })
+
+  it('records the explicit snapshot after an older autosave finishes', async () => {
+    const staleDocument: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Старый текст' }] }],
+    }
+    let finishAutosave: ((value: ProjectDocument) => void) | undefined
+    vi.mocked(documentsApi.get).mockResolvedValue(documentResponse())
+    vi.mocked(documentsApi.save).mockReturnValue(new Promise((resolve) => { finishAutosave = resolve }))
+    vi.mocked(documentsApi.recordProgress).mockResolvedValue({
+      changed: true,
+      symbols: 11,
+      progress: null,
+      document: documentResponse(editedDocument),
+    })
+    const wrapper = mount(defineComponent({
+      setup() {
+        const sync = useDocumentSync({ projectId: 'project-id' }, async () => 'nfprogress')
+        return { sync }
+      },
+      template: '<div />',
+    }))
+    await flushPromises()
+
+    wrapper.vm.sync.setContent(staleDocument)
+    const autosave = wrapper.vm.sync.save(false)
+    wrapper.vm.sync.setContent(editedDocument)
+    const record = wrapper.vm.sync.saveAndRecord()
+
+    expect(documentsApi.recordProgress).not.toHaveBeenCalled()
+    finishAutosave?.(documentResponse(staleDocument))
+    await autosave
+    await record
+
+    expect(documentsApi.recordProgress).toHaveBeenCalledWith({ projectId: 'project-id' }, editedDocument)
     expect(wrapper.vm.sync.content.value).toEqual(editedDocument)
     wrapper.unmount()
   })

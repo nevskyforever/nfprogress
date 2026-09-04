@@ -94,6 +94,91 @@ def test_text_progress_uses_document_symbols_and_document_scope_rules(tmp_path):
         ).status_code == 200
 
 
+def test_recording_document_progress_uses_the_same_document_snapshot(tmp_path):
+    """A late autosave must not change the text used by an explicit record."""
+    app = create_app(RuntimeConfig(data_dir=tmp_path, platform='web'))
+    initial = {
+        'type': 'doc',
+        'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'а' * 801}]}],
+    }
+    stale = {
+        'type': 'doc',
+        'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'а'}]}],
+    }
+    current = {
+        'type': 'doc',
+        'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'а' * 802}]}],
+    }
+
+    with TestClient(app) as client:
+        project = client.post(
+            '/api/projects', json={'name': 'Роман', 'goal': 1_000, 'work_method': 'app'},
+        ).json()
+        assert client.put(f"/api/documents/{project['id']}", json={'content': initial}).status_code == 200
+        assert client.post(f"/api/documents/{project['id']}/progress").status_code == 200
+
+        # This is the write order produced when an older debounced autosave
+        # reaches the server after the immediate save from "Добавить запись".
+        assert client.put(f"/api/documents/{project['id']}", json={'content': current}).status_code == 200
+        assert client.put(f"/api/documents/{project['id']}", json={'content': stale}).status_code == 200
+
+        recorded = client.post(
+            f"/api/documents/{project['id']}/progress", json={'content': current},
+        )
+
+        assert recorded.status_code == 200, recorded.text
+        assert recorded.json()['progress']['entry']['added_symbols'] == 1
+        assert client.get(f"/api/documents/{project['id']}").json()['content'] == current
+
+
+def test_recording_stage_document_progress_uses_the_same_document_snapshot(tmp_path):
+    app = create_app(RuntimeConfig(data_dir=tmp_path, platform='web'))
+    initial = {
+        'type': 'doc',
+        'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'а' * 10}]}],
+    }
+    stale = {
+        'type': 'doc',
+        'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'а'}]}],
+    }
+    current = {
+        'type': 'doc',
+        'content': [{'type': 'paragraph', 'content': [{'type': 'text', 'text': 'а' * 11}]}],
+    }
+
+    with TestClient(app) as client:
+        project = client.post(
+            '/api/projects',
+            json={
+                'name': 'Роман',
+                'goal': 1_000,
+                'stages': [{'name': 'Глава', 'goal': 1_000, 'work_method': 'app'}],
+            },
+        ).json()
+        stage_id = project['stages'][0]['id']
+        params = {'stage_id': stage_id}
+        assert client.put(
+            f"/api/documents/{project['id']}", params=params, json={'content': initial},
+        ).status_code == 200
+        assert client.post(f"/api/documents/{project['id']}/progress", params=params).status_code == 200
+        assert client.put(
+            f"/api/documents/{project['id']}", params=params, json={'content': current},
+        ).status_code == 200
+        assert client.put(
+            f"/api/documents/{project['id']}", params=params, json={'content': stale},
+        ).status_code == 200
+
+        recorded = client.post(
+            f"/api/documents/{project['id']}/progress", params=params, json={'content': current},
+        )
+
+        assert recorded.status_code == 200, recorded.text
+        assert recorded.json()['progress']['entry']['added_symbols'] == 1
+        assert client.get(
+            f"/api/documents/{project['id']}", params=params,
+        ).json()['content'] == current
+
+
 def test_first_stage_creation_moves_project_document_and_keeps_text_list_available(tmp_path):
     app = create_app(RuntimeConfig(
         data_dir=tmp_path, platform='desktop', allow_local_files=True,

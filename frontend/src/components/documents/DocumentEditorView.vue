@@ -11,7 +11,6 @@ import { useDocumentSync, type ConflictChoice } from '@/composables/useDocumentS
 import { exportDocx, WORD_FONT_FAMILIES, WORD_FONT_SIZES } from '@/services/documentDocx'
 import type { DocumentScope, TiptapDocument } from '@/types/documents'
 import { projectsApi } from '@/api/projects'
-import { documentsApi } from '@/api/documents'
 import type { Project } from '@/types/api'
 import { convertProjectUnit } from '@/utils/projectPlanning'
 import { announceDataChange, onDataChange } from '@/services/dataChanges'
@@ -45,7 +44,7 @@ const canLinkWord = currentPlatform() === 'tauri'
 const saving = ref(false)
 const recording = ref(false)
 const processing = computed(() => saving.value || recording.value)
-const { content, documentState, status, save, setContent, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
+const { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
   props.scope,
   () => new Promise<ConflictChoice>((resolve) => { showConflict.value = true; pendingConflictResolve.value = resolve }),
 )
@@ -219,7 +218,7 @@ async function recordTextProgress(force = false): Promise<boolean> {
   if (recording.value || textSymbols.value <= 0 || (!force && !canRecordText.value)) return false
   recording.value = true
   try {
-    const result = await documentsApi.recordProgress(props.scope)
+    const result = await saveAndRecord()
     if (!result.progress) {
       status.value = t('Документ не изменился. Текущий объём уже актуален.')
       return false
@@ -253,23 +252,23 @@ let flushPromise: Promise<void> | null = null
 async function flushAndRecord(recordProgress = false): Promise<void> {
   if (flushPromise) return flushPromise
   const operation = (async () => {
+    if (recordProgress) {
+      const recorded = await recordTextProgress(true)
+      // The document itself may have changed even when rounding/duplicate
+      // protection correctly produced no progress entry. Keep project counters
+      // and cached detail views in sync with that saved content as well.
+      if (!recorded) announceDataChange('projects')
+      return
+    }
     saving.value = true
     try {
-      // The progress endpoint reads the persisted document, so its request
-      // must follow this immediate save rather than the debounce timer.
-      await save(recordProgress ? false : true)
+      await save()
     } catch (error) {
       status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
       return
     } finally {
       saving.value = false
     }
-    if (!recordProgress) return
-    const recorded = await recordTextProgress(true)
-    // The document itself may have changed even when rounding/duplicate
-    // protection correctly produced no progress entry. Keep project counters
-    // and cached detail views in sync with that saved content as well.
-    if (!recorded) announceDataChange('projects')
   })()
   flushPromise = operation
   try {

@@ -1,3 +1,5 @@
+import type { ProgressResult } from './api'
+
 export type TiptapDocument = { type: 'doc'; content?: Array<Record<string, unknown>> }
 
 export interface ProjectDocument {
@@ -17,3 +19,10 @@ export interface ProjectDocument {
 }
 
 export interface DocumentScope { projectId: string; stageId?: string }
+
+export interface DocumentProgressResult {
+  changed: boolean
+  symbols: number
+  progress: ProgressResult | null
+  document?: ProjectDocument
+}
