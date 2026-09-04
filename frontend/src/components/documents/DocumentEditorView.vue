@@ -172,7 +172,7 @@ function update(next: JSONContent) {
   // Tiptap can emit a transient empty document while a save/progress response
   // is updating the controlled editor. It is not a user deletion and must not
   // replace the non-empty draft or schedule an empty autosave.
-  if (saving.value && countTextSymbols(json) === 0 && countTextSymbols(editorContent.value) > 0) return
+  if (processing.value && countTextSymbols(json) === 0 && countTextSymbols(editorContent.value) > 0) return
   editorContent.value = json
   scheduleSave(json)
 }
@@ -412,7 +412,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
       <div ref="editorShell" class="document-editor-view__editor-shell">
         <TiptapProEditor
           ref="editorRef"
-          v-model="editorContent"
+          v-model="content"
           class="nfprogress-word-editor"
           :style="{ '--nf-editor-zoom': `${zoom / 100}` }"
           version="advanced"
