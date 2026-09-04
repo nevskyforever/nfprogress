@@ -60,6 +60,7 @@ let positionRestoreTimer: number | undefined
 let hasRestoredEditorPosition = false
 type EditorPosition = { selection: number; scrollTop: number }
 const linked = computed(() => Boolean(documentState.value?.docx_path))
+const editorDocumentId = computed(() => `nfprogress-document:${props.scope.projectId}:${props.scope.stageId ?? 'project'}`)
 const textSymbols = computed(() => countTextSymbols(editorContent.value))
 const textUnits = computed(() => projectEntity.value
   ? convertProjectUnit(textSymbols.value, 'symbols', projectEntity.value.unit)
@@ -468,7 +469,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
           :style="{ '--nf-editor-zoom': `${zoom / 100}` }"
           version="advanced"
           locale="en-US"
-          document-id="nfprogress-document"
+          :document-id="editorDocumentId"
           :features="{ headerNav: true, footerNav: false, table: false, tableToolbar: false, image: false, linkBubbleMenu: false, floatingMenu: false, slashCommand: false, dragHandleMenu: false, aiChat: false, aiSettings: false }"
           @update="update"
         />

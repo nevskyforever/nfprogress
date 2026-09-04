@@ -389,6 +389,34 @@ describe('ProjectDetailPage progress sharing', () => {
     expect(dailyGoal?.text()).not.toContain('900')
   })
 
+  it('opens a stage document with the stage id in the route path', async () => {
+    routeParams.stageId = 'stage-id'
+    const stage = projectFixture({
+      id: 'stage-id',
+      name: 'Глава 3',
+      parent_project_id: 'project-id',
+      work_method: 'app',
+    })
+    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({
+      id: 'project-id',
+      stages_enabled: true,
+      stages: [stage],
+    }))
+    const wrapper = mountWorkspace()
+    await flushPromises()
+
+    const textButton = wrapper.findAll('button').find((button) => button.text().includes('Текст'))
+    expect(textButton).toBeDefined()
+    await textButton?.trigger('click')
+
+    expect(pushRoute).toHaveBeenCalledWith({
+      name: 'stage-document',
+      params: { projectId: 'project-id', stageId: 'stage-id' },
+      query: { title: 'Глава 3' },
+    })
+    wrapper.unmount()
+  })
+
   it('keeps project sync visible and opens setup for the selected stage', async () => {
     const wrapper = mountWorkspace()
     await flushPromises()

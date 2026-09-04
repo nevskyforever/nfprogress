@@ -21,7 +21,10 @@ const ionicStubs = {
   IonContent: { template: '<div><slot /></div>' },
   IonIcon: true,
   IonPage: { template: '<div><slot /></div>' },
-  RouterLink: { template: '<a><slot /></a>' },
+  RouterLink: {
+    props: ['to'],
+    template: '<a :data-route-name="to.name" :data-stage-id="to.params.stageId"><slot /></a>',
+  },
 }
 
 function documentFixture(
@@ -84,6 +87,9 @@ describe('TextsPage', () => {
     expect(wrapper.text()).toContain('текст проекта')
     expect(wrapper.text()).toContain('Роман: Глава 1')
     expect(wrapper.findAll('a')).toHaveLength(2)
+    expect(wrapper.findAll('a')[0]?.attributes('data-route-name')).toBe('document')
+    expect(wrapper.findAll('a')[1]?.attributes('data-route-name')).toBe('stage-document')
+    expect(wrapper.findAll('a')[1]?.attributes('data-stage-id')).toBe('stage-id')
     wrapper.unmount()
   })
 

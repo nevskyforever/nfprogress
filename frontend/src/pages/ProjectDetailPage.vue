@@ -334,7 +334,14 @@ async function openTextEditor(): Promise<void> {
       : await store.updateCurrent(project.value.id, { work_method: 'app' })
     if (!updated) return
   }
-  await router.push({ name: 'document', params: { projectId: project.value.id }, query: { ...(isStageDetail.value ? { stageId: detailEntity.value.id } : {}), title: detailEntity.value.name } })
+  await router.push({
+    name: isStageDetail.value ? 'stage-document' : 'document',
+    params: {
+      projectId: project.value.id,
+      ...(isStageDetail.value ? { stageId: detailEntity.value.id } : {}),
+    },
+    query: { title: detailEntity.value.name },
+  })
 }
 
 function announceSuccess(message: string, area: 'global' | 'progress' = 'global'): void {
