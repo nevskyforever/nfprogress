@@ -350,3 +350,29 @@ switching it into service, apply schema upgrades, report missing external
 files without deleting bindings, and retain the prior profile for rollback.
 Corrupt SQLite must not be overwritten by a stale PKL mirror; legacy import is
 an explicit recovery action.
+
+## F1 implementation update
+
+The F1 storage audit confirmed the v3 gaps and materialized the Projects
+substrate in schema v4. The v3 core tables remain compatible; v4 adds
+`project_metadata`, `project_folders`, `project_bindings`,
+`project_folder_members`, `project_extensions` and `progress_order`. Actual `synch`/`last_synch` data is
+now represented as typed binding columns plus the original JSON-safe binding
+payload. Unknown Project/Stage attributes and root extensions are preserved in
+extension/metadata rows; valid Mind Elixir data remains in the entity payload.
+Notes FKs are now RESTRICT so storage rebuild/delete cannot silently remove
+SQLite-authoritative Notes.
+
+The migration-only Python helper produces DTO version 1 and imports it in a
+single idempotent transaction. A Rust restricted pickle parser was not added:
+arbitrary pickle class behavior is unsafe and unnecessary for this substrate.
+Rust embeds and executes the same SQL migration files as Python, rejects
+future/corrupt schema metadata, and exposes typed internal repository
+primitives. Normal Tauri still starts the legacy sidecar and Projects writes
+still go to PKL until F2.
+
+Remaining F2 blockers are the controlled ownership guard/cutover, complete
+Projects business-lifecycle parity, explicit Notes/document relation cleanup,
+and the durable Game progress-event contract. F3 remains responsible for
+notifications, global streak and Gamer state; F5 remains responsible for
+`documents.json` records and external-file manifests.

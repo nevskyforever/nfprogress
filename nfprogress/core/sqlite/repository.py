@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import math
+import uuid
 from collections.abc import Mapping
 from datetime import date, datetime, time
 from pathlib import Path
@@ -113,7 +114,12 @@ class SQLiteMirrorRepository:
         """Synchronize the projects domain: projects, stages and progress."""
         project_rows: list[tuple[Any, ...]] = []
         stage_rows: list[tuple[Any, ...]] = []
+        stage_order_rows: list[tuple[str, str, int]] = []
+        stage_positions: dict[str, int] = {}
         progress_rows: list[tuple[Any, ...]] = []
+        progress_order_rows: list[tuple[str, int]] = []
+        binding_rows: list[tuple[Any, ...]] = []
+        extension_rows: list[tuple[str, str, str]] = []
         project_map = projects.get('projects', {}) if isinstance(projects, dict) else {}
         project_ids = [
             project.project_id
@@ -126,14 +132,59 @@ class SQLiteMirrorRepository:
                 self._normalized_project_order(projects, project_ids),
             )
         ]
+        progress_position = 0
         for project in project_map.values() if isinstance(project_map, Mapping) else []:
             payload = serialize_project(project)
             project_id = payload['id']
             project_rows.append(self._entity_row(project_id, payload))
+            extension_rows.append(self._extension_row('project', project_id, project))
+            binding_rows.extend(self._binding_rows(project, project_id, None))
             for stage in payload.get('stages', []):
                 stage_rows.append(self._entity_row(stage['id'], stage, project_id))
-                self._rows_for_entity(progress_rows, stage, project_id, stage['id'])
-            self._rows_for_entity(progress_rows, payload, project_id, None)
+                stage_position = stage_positions.get(project_id, 0)
+                stage_order_rows.append((stage['id'], project_id, stage_position))
+                stage_positions[project_id] = stage_position + 1
+                stage_object = next(
+                    (item for item in getattr(project, 'stages', [])
+                     if getattr(item, 'stage_id', None) == stage['id']),
+                    None,
+                )
+                if stage_object is not None:
+                    extension_rows.append(self._extension_row('stage', stage['id'], stage_object))
+                    extension_rows.extend(self._progress_extension_rows(stage_object))
+                    binding_rows.extend(self._binding_rows(stage_object, project_id, stage['id']))
+                progress_position = self._rows_for_entity(
+                    progress_rows, progress_order_rows, stage, project_id,
+                    stage['id'], progress_position,
+                )
+            progress_position = self._rows_for_entity(
+                progress_rows, progress_order_rows, payload, project_id, None,
+                progress_position,
+            )
+            extension_rows.extend(self._progress_extension_rows(project))
+
+        folders = self._folder_rows(projects)
+        folder_ids = {row[0] for row in folders}
+        folder_members = [
+            (project.project_id, project.folder_id)
+            for project in (project_map.values() if isinstance(project_map, Mapping) else [])
+            if isinstance(getattr(project, 'folder_id', None), str)
+            and project.folder_id in folder_ids
+        ]
+        root_fields = {
+            'projects', 'project_order', 'project_folders', 'last',
+            'notifications', 'global_streaks', 'global_streak_status',
+            'max_global_streak', 'last_global_streak_bonus',
+            'last_global_streak_lost_date', 'last_global_streak_lose_len',
+        }
+        root_extensions = {
+            key: value for key, value in projects.items()
+            if key not in root_fields
+        } if isinstance(projects, Mapping) else {}
+        metadata_rows = [
+            ('project_last', _json(projects.get('last'))),
+            ('root_extensions', _json(root_extensions)),
+        ]
 
         preserve_notes = self.ownership.get_owner(Subsystem.NOTES) == StorageOwner.SQLITE
         with open_database(self.data_root) as db:
@@ -144,8 +195,32 @@ class SQLiteMirrorRepository:
                     ).fetchall()
                     if preserve_notes else []
                 )
+                if preserve_notes:
+                    valid_projects = {row[0] for row in project_rows}
+                    valid_stages = {row[0] for row in stage_rows}
+                    if any(
+                        row['project_id'] not in valid_projects
+                        or (row['stage_id'] is not None and row['stage_id'] not in valid_stages)
+                        for row in preserved_notes
+                    ):
+                        raise RuntimeError(
+                            'SQLite-owned Notes reference a project aggregate that cannot be rebuilt safely',
+                        )
+                    # Notes are copied inside this same transaction.  The
+                    # explicit delete is required by RESTRICT FKs and is
+                    # rolled back together with the rebuild on any failure.
+                    db.execute('DELETE FROM notes')
+                else:
+                    db.execute('DELETE FROM notes')
                 db.execute('DELETE FROM progress_entries')
+                db.execute('DELETE FROM progress_order')
+                db.execute('DELETE FROM project_bindings')
+                db.execute('DELETE FROM project_extensions')
+                db.execute('DELETE FROM project_folder_members')
+                db.execute('DELETE FROM project_folders')
+                db.execute('DELETE FROM project_metadata')
                 db.execute('DELETE FROM project_order')
+                db.execute('DELETE FROM stage_order')
                 db.execute('DELETE FROM stages')
                 db.execute('DELETE FROM projects')
                 db.executemany(
@@ -157,23 +232,45 @@ class SQLiteMirrorRepository:
                     stage_rows,
                 )
                 db.executemany(
+                    'INSERT INTO stage_order(stage_id,project_id,position) VALUES(?,?,?)',
+                    stage_order_rows,
+                )
+                db.executemany(
                     'INSERT INTO progress_entries(id,project_id,stage_id,created_at,added_symbols,added_progress,payload_json) VALUES(?,?,?,?,?,?,?)',
                     progress_rows,
+                )
+                db.executemany(
+                    'INSERT INTO progress_order(entry_id,position) VALUES(?,?)',
+                    progress_order_rows,
                 )
                 db.executemany(
                     'INSERT INTO project_order(project_id,position) VALUES(?,?)',
                     order_rows,
                 )
+                db.executemany(
+                    'INSERT INTO project_folders(id,name,position,payload_json) VALUES(?,?,?,?)',
+                    folders,
+                )
+                db.executemany(
+                    'INSERT INTO project_folder_members(project_id,folder_id) VALUES(?,?)',
+                    folder_members,
+                )
+                db.executemany(
+                    'INSERT INTO project_bindings(id,project_id,stage_id,binding_type,external_path,source_id,content_hash,last_synced_at,payload_json) VALUES(?,?,?,?,?,?,?,?,?)',
+                    binding_rows,
+                )
+                db.executemany(
+                    'INSERT INTO project_extensions(entity_type,entity_id,payload_json) VALUES(?,?,?)',
+                    extension_rows,
+                )
+                db.executemany(
+                    'INSERT INTO project_metadata(key,value_json) VALUES(?,?)',
+                    metadata_rows,
+                )
                 if preserve_notes and preserved_notes:
-                    valid_projects = {row[0] for row in db.execute('SELECT id FROM projects')}
-                    valid_stages = {row[0] for row in db.execute('SELECT id FROM stages')}
                     db.executemany(
                         'INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json) VALUES(?,?,?,?,?)',
-                        [
-                            tuple(row) for row in preserved_notes
-                            if row['project_id'] in valid_projects
-                            and (row['stage_id'] is None or row['stage_id'] in valid_stages)
-                        ],
+                        [tuple(row) for row in preserved_notes],
                     )
 
     @staticmethod
@@ -243,9 +340,93 @@ class SQLiteMirrorRepository:
         )
 
     @staticmethod
-    def _rows_for_entity(progress_rows, payload, project_id, stage_id):
+    def _rows_for_entity(
+            progress_rows, order_rows, payload, project_id, stage_id, position,
+    ) -> int:
         for entry in payload.get('progress_entries', []):
             progress_rows.append((entry['id'], project_id, stage_id, entry.get('created_at'), entry.get('added_symbols'), entry.get('added_progress'), _json(entry)))
+            order_rows.append((entry['id'], position))
+            position += 1
+        return position
+
+    @staticmethod
+    def _extension_row(entity_type: str, entity_id: str, entity: Any) -> tuple[str, str, str]:
+        known = {
+            '_name', '_goal', 'project_id', 'stage_id', 'create_date', 'edit_date',
+            'complete_date', '_total_symbols', '_progress', '_deadline', '_status',
+            'notes', 'streaks', 'max_streak', 'streak_status', 'unit', 'synch',
+            'last_synch', 'work_method', 'last_streak_bonus', 'last_streak_lost_date',
+            'freezes', 'auto_freeze', 'deadline_set_date', 'personal_goal_for_the_day',
+            'project_plan', 'enable_stages', 'stages', 'is_stage', 'mindmap_data',
+            'mindmap_updated_at', 'combine_stage_mindmaps', 'project_notes',
+            'notes_updated_at', 'cover_image', 'folder_id', 'parent_project_name',
+        }
+        extras = {
+            key: value for key, value in vars(entity).items() if key not in known
+        } if hasattr(entity, '__dict__') else {}
+        return entity_type, entity_id, _json(extras)
+
+    @staticmethod
+    def _progress_extension_rows(entity: Any) -> list[tuple[str, str, str]]:
+        known = {
+            'entry_id', 'new_total', 'added_symbols', 'added_progress',
+            'date_create', 'writing_day',
+        }
+        rows = []
+        for note in getattr(entity, 'notes', []):
+            entry_id = getattr(note, 'entry_id', None)
+            if not isinstance(entry_id, str) or not entry_id:
+                continue
+            raw = _legacy_json(vars(note)) if hasattr(note, '__dict__') else {}
+            extras = {key: value for key, value in raw.items() if key not in known}
+            rows.append(('progress', entry_id, _json(extras)))
+        return rows
+
+    @staticmethod
+    def _binding_rows(entity: Any, project_id: str, stage_id: str | None) -> list[tuple[Any, ...]]:
+        binding = getattr(entity, 'synch', None)
+        if binding is None:
+            return []
+        if isinstance(binding, str):
+            binding = {'type': 'word', 'path': binding}
+        if not isinstance(binding, Mapping):
+            binding = {'value': binding}
+        payload = dict(binding)
+        binding_type = str(payload.get('type') or payload.get('kind') or 'unknown')
+        external_path = payload.get('path') or payload.get('external_path')
+        source_id = payload.get('file_id') or payload.get('source_id') or payload.get('item_id')
+        content_hash = payload.get('hash') or payload.get('content_hash')
+        last_synced = getattr(entity, 'last_synch', None)
+        if isinstance(last_synced, (datetime, date)):
+            last_synced = last_synced.isoformat()
+        seed = f'nfprogress-binding:{project_id}:{stage_id or "project"}:{_json(payload)}'
+        binding_id = uuid.uuid5(uuid.NAMESPACE_URL, seed).hex
+        return [(
+            binding_id, project_id, stage_id, binding_type,
+            str(external_path) if external_path is not None else None,
+            str(source_id) if source_id is not None else None,
+            str(content_hash) if content_hash is not None else None,
+            last_synced, _json(payload),
+        )]
+
+    @staticmethod
+    def _folder_rows(projects: Mapping[str, Any]) -> list[tuple[Any, ...]]:
+        raw = projects.get('project_folders', [])
+        if not isinstance(raw, list):
+            return []
+        rows = []
+        seen: set[str] = set()
+        for folder in raw:
+            if not isinstance(folder, Mapping):
+                continue
+            folder_id, name = folder.get('id'), folder.get('name')
+            if not isinstance(folder_id, str) or not folder_id or folder_id in seen:
+                continue
+            if not isinstance(name, str) or not name.strip():
+                continue
+            seen.add(folder_id)
+            rows.append((folder_id, name.strip()[:120], len(rows), _json(folder)))
+        return rows
 
     @staticmethod
     def _rows_for_notes(note_rows, payload, project_id, stage_id):

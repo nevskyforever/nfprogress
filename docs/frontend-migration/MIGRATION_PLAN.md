@@ -20,11 +20,13 @@ notes                    = SQLite authoritative
 game                     = PKL authoritative
 ```
 
-The v3 SQLite database is a useful shadow/read model. It is not a lossless
-copy: project envelope fields, actual sync bindings, `documents.json`, and
-external files are outside the current SQLite contract. Rust also does not yet
-run the Python schema migration runner. Therefore the existing release is not
-by itself a safe direct migration source.
+The v3 SQLite database was a useful shadow/read model. F1 adds schema v4 as a
+lossless-capable Projects substrate: project envelope extensions, folders,
+actual sync bindings, stable progress ordering and Notes-safe foreign keys.
+The v3 database is still not by itself a complete migration source for
+`documents.json`, external files, Game state, or legacy PKL fields outside the
+Projects aggregate. Rust now runs the shared migration files; ownership is
+unchanged until F2.
 
 ## Fast-track principles
 
@@ -48,23 +50,25 @@ by itself a safe direct migration source.
 
 There are seven meaningful milestones including final release qualification;
 F1–F6 are implementation milestones and F7 is the release gate. Each gets its
-own commit boundary. Do not start F1 as part of this replan task.
+own commit boundary. F1 is complete as the storage foundation described below;
+F2 remains a separate implementation milestone.
 
 ### F1 — final storage contract and legacy migration substrate
 
 **Goal:** make the final SQLite schema, Rust migration runner and one-shot
 legacy importer capable of representing all supported existing-user data.
 
-**Authoritative state:** unchanged; no ownership switch.
+**Authoritative state:** unchanged; no ownership switch. This milestone is
+implemented by the F1 storage audit and repository foundation; the runtime
+still uses PKL for Projects.
 
 **Work:**
 
-- define versioned canonical DTOs for the full Projects aggregate, Game/event
-  state, Notes/maps, Settings and Documents;
-- add Rust schema upgrade/open checks, migration manifest and atomic staging;
-- import both a legacy PKL-only profile and the current v3 mirror profile;
-- recover omitted project envelope fields, sync bindings and `documents.json`
-  from legacy sources; preserve unknown JSON metadata where supported;
+- define a versioned canonical DTO for the full Projects aggregate;
+- add Rust schema upgrade/open checks and shared SQL migration source;
+- import the legacy Projects aggregate and the current v3 mirror profile;
+- recover omitted project envelope fields and sync bindings; preserve unknown
+  JSON metadata and keep Documents migration as its F5 concern;
 - make the importer idempotent and leave all source files untouched;
 - create Python-oracle fixtures for IDs, dates, writing-day boundaries,
   ordering, maps, game state and external-file manifests.
@@ -73,7 +77,7 @@ legacy importer capable of representing all supported existing-user data.
 desktop bridge is introduced.
 
 **Migration requirement:** source matrix and ambiguous/corrupt-source refusal
-must be implemented before F2.
+must be completed around the migration-only helper before F2.
 
 **Tests / exit criteria:** Rust/TS compile and typecheck; schema upgrades from
 all supported versions; importer fixtures pass twice; JSON and semantic parity

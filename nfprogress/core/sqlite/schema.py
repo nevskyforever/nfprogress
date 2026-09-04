@@ -7,7 +7,7 @@ from pathlib import Path
 
 
 MIGRATIONS_DIR = Path(__file__).with_name('migrations')
-CURRENT_SCHEMA_VERSION = 3
+CURRENT_SCHEMA_VERSION = 4
 
 
 def apply_migrations(connection: sqlite3.Connection) -> int:
@@ -16,15 +16,20 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
         'CREATE TABLE IF NOT EXISTS schema_info '
         '(schema_version INTEGER NOT NULL)',
     )
-    row = connection.execute(
-        'SELECT schema_version FROM schema_info LIMIT 1',
-    ).fetchone()
-    version = int(row[0]) if row else 0
+    rows = connection.execute(
+        'SELECT schema_version FROM schema_info',
+    ).fetchall()
+    if len(rows) > 1:
+        raise RuntimeError('schema_info contains more than one schema version')
+    version = int(rows[0][0]) if rows else 0
+    if version > CURRENT_SCHEMA_VERSION:
+        raise RuntimeError(f'unsupported future SQLite schema version: {version}')
     for next_version in range(version + 1, CURRENT_SCHEMA_VERSION + 1):
         migration = MIGRATIONS_DIR / {
             1: '001_initial.sql',
             2: '002_storage_ownership.sql',
             3: '003_project_order.sql',
+            4: '004_projects_authority.sql',
         }[next_version]
         sql = migration.read_text(encoding='utf-8')
         # executescript is wrapped explicitly because its implicit transaction

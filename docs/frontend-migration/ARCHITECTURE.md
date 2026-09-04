@@ -34,11 +34,13 @@ notes                    = SQLite authoritative
 game                     = pickle authoritative
 ```
 
-The v3 database is a shadow/read model for PKL-owned domains. It is not a
-lossless copy of the pickle envelope. In particular, the project projection
-omits actual `synch`/`last_synch` bindings and does not contain top-level
-`project_folders`, notifications or global streak state. Documents are stored
-in `documents.json`, which is currently not included by the backup routine.
+The v4 database is still a shadow/read model for PKL-owned Projects, but it is
+now an authoritative-capable, lossless Projects storage substrate. It adds
+typed folders, project/stage sync bindings, stable progress ordering and
+extension payloads; `ON DELETE RESTRICT` protects SQLite-owned Notes. The
+one-shot canonical importer still reads legacy PKL and `documents.json` in
+migration tooling; Documents and external files are not yet part of the
+Projects authority cutover.
 
 ## Target desktop architecture
 
@@ -114,9 +116,9 @@ The existing Python mirror and sidecar are not permanent target layers.
 
 ## Storage and migration rules
 
-SQLite migrations currently run in Python through
-`nfprogress.core.sqlite.connection.open_database()` and schema v3. Rust opens
-the database but does not yet apply those migrations. F1 must close that gap.
+SQLite migrations are shared SQL files through schema v4. Python's
+`open_database()` remains compatible for the transitional sidecar, while the
+Rust Tauri opener now executes the same versioned migrations without Python.
 
 The final release requires a separately tested one-shot importer for:
 

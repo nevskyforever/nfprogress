@@ -16,6 +16,10 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
+#[allow(dead_code)]
+mod project_repository;
+mod sqlite;
+
 #[derive(Serialize)]
 struct SqliteEntityRow {
     id: String,
@@ -52,20 +56,13 @@ struct SqliteProjectReadModel {
 
 fn open_settings_database() -> Result<rusqlite::Connection, String> {
     let database = sqlite_data_root()?.join("nfprogress.db");
-    rusqlite::Connection::open(database).map_err(|error| error.to_string())
+    sqlite::open_database(&database).map_err(|error| error.to_string())
 }
 
 fn open_notes_database(write: bool) -> Result<rusqlite::Connection, String> {
     let database = sqlite_data_root()?.join("nfprogress.db");
-    if !database.is_file() {
-        return Err("База данных nfprogress не найдена.".to_string());
-    }
-    let flags = if write {
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_WRITE
-    } else {
-        rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY
-    };
-    rusqlite::Connection::open_with_flags(database, flags)
+    let _ = write;
+    sqlite::open_database(&database)
         .map_err(|error| format!("Не удалось открыть базу данных Notes: {error}"))
 }
 
@@ -1146,9 +1143,7 @@ fn read_sqlite_entity_rows(
 #[tauri::command]
 fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
     let database = sqlite_data_root()?.join("nfprogress.db");
-    let connection =
-        rusqlite::Connection::open_with_flags(database, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY)
-            .map_err(|error| error.to_string())?;
+    let connection = sqlite::open_database(&database).map_err(|error| error.to_string())?;
     let status: String = connection
         .query_row(
             "SELECT sync_status FROM mirror_state WHERE id = 1",
@@ -1754,6 +1749,11 @@ pub fn run() {
         .setup(|app| {
             restore_main_window_state(&app.handle());
             let state = app.state::<BackendState>();
+            // F1 makes Rust the canonical schema migrator. Projects remain
+            // pickle-authoritative; this only upgrades the shared database.
+            if let Err(error) = sqlite::open_database(&sqlite_data_root()?.join("nfprogress.db")) {
+                state.record_error(format!("Не удалось подготовить SQLite schema: {error}"));
+            }
             let port = match reserve_loopback_port() {
                 Ok(port) => port,
                 Err(error) => {

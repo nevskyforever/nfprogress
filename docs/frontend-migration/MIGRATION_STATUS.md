@@ -1,10 +1,10 @@
 # NFProgress — migration status
 
-Updated against baseline `04b62c3970b22c43b9f604f79ee6de17243179f2` on
+Updated against F1 baseline `84298c5154a30f86b61ae4f614a1d3fc445b091d` on
 2026-09-04.
 
 This status distinguishes implemented features from authoritative storage.
-No implementation milestone was started by the fast-track audit.
+F1 storage foundation is implemented; runtime ownership remains unchanged.
 
 ## Current ownership
 
@@ -26,7 +26,7 @@ game                     = PKL authoritative
 
 ## Completed foundations
 
-- versioned SQLite schema through v3, ownership table, mirror health and
+- versioned SQLite schema through v4, ownership table, mirror health and
   semantic verifier;
 - explicit data roots, process/advisory locking and atomic PKL writes;
 - SQLite Settings and Notes controlled cutovers;
@@ -34,23 +34,27 @@ game                     = PKL authoritative
 - P2 typed metadata/order boundary;
 - P3 typed manual progress add/delete boundary and parity-tested TS
   conversion/normalization/statistics helpers;
-- typed Tauri DTOs and fixed SQL for current direct Settings/Notes/read paths.
+- typed Tauri DTOs and fixed SQL for current direct Settings/Notes/read paths;
+- shared Python/Rust migration files, canonical Projects migration DTO,
+  transactional/idempotent import, typed Rust Projects repository primitives,
+  folders/bindings/extensions and Notes-safe FK policy.
 
-These foundations are retained. They do not prove that Projects or Game are
-SQLite-authoritative and do not prove that the v3 database is a lossless user
-backup.
+These foundations are retained. They do not switch Projects or Game to
+SQLite-authoritative runtime ownership. Documents, external-file manifests
+and Game state are not yet a complete application backup.
 
 ## Audit conclusions
 
 - `projects`, `stages`, `progress_entries`, `project_order`, Settings, Notes
   and broad Game JSON are present in SQLite under the conditions described in
   [`FAST_TRACK_AUDIT.md`](FAST_TRACK_AUDIT.md).
-- Project envelope fields (`project_folders`, notifications/global streak),
-  actual `synch`/`last_synch` bindings, `documents.json`, unknown Project
-  attributes and external files are not guaranteed in SQLite.
-- The current Rust path does not run the Python schema migrations. A final
-  direct upgrade therefore needs a migration-only importer and Rust/open
-  migration support.
+- Project folders, actual `synch`/`last_synch` bindings, unknown
+  Project/Stage fields and stable progress order are now represented in v4.
+- Notifications/global streak remain Game-owned; `documents.json` and
+  external files remain F5 concerns.
+- A migration-only Python helper is selected for legacy PKL parsing. Rust does
+  not execute arbitrary pickle object behavior and now runs the shared schema
+  migrations at DB open.
 - No additional user-facing bridge release is recommended if the final
   distribution provides a separately tested one-shot legacy importer. Without
   that helper, a bridge release is mandatory.
@@ -79,7 +83,7 @@ of storage loss.
 
 | Milestone | Status | Risk / Codex recommendation |
 | --- | --- | --- |
-| F1 storage contract, Rust migrations and one-shot legacy importer | Not started | Very High / Luna High; Sol only for pickle/parser or integrity design |
+| F1 storage contract, Rust migrations and one-shot legacy importer | Complete (storage foundation) | Very High / Luna High; importer packaging/source matrix remains an F2 blocker |
 | F2 Projects/Stages/Progress SQLite-authoritative cutover | Not started | Very High / Luna High |
 | F3 Game SQLite/event cutover | Not started | Very High / Luna High |
 | F4 Mind Elixir/XMind | Not started | High / Luna Medium–High |
@@ -91,8 +95,8 @@ P1–P3 are complete foundations and are absorbed into F1/F2. P4 is absorbed
 into F2 with a durable Game event contract. P5 is split into F4 and F5. P6/P7
 are combined into F3. P8 is F6. P9 is split between F1 and F7.
 
-## Do not start automatically
+## F1 boundary
 
-The next action after this documentation commit requires explicit approval to
-start F1. This replan does not switch ownership, change the schema, delete
-Python, delete sidecar/PKL, or begin Projects/Game/Integration implementation.
+F1 does not switch ownership, stop PKL writes, delete Python/sidecar/PKL, or
+begin Projects/Game/Integration runtime cutover. The next milestone is F2 and
+requires a separate explicit task.

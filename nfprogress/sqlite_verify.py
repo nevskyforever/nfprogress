@@ -9,6 +9,7 @@ from collections.abc import Mapping
 
 import engine
 from nfprogress.core.serialization import serialize_project
+from nfprogress.core.migration import MigrationBundle
 from nfprogress.core.sqlite.connection import open_database
 from nfprogress.core.sqlite.ownership import StorageOwner, StorageOwnershipRepository, Subsystem
 from nfprogress.core.sqlite.repository import SQLiteMirrorRepository, _legacy_json
@@ -26,8 +27,9 @@ def _expected(repository, owners):
         gamer = (__import__('game').load_game()
                  if owners[Subsystem.GAME] == StorageOwner.PICKLE else None)
     projects = data.get('projects', {}) if isinstance(data, dict) else {}
+    bundle = MigrationBundle.from_legacy(data) if needs_projects else None
     entities = [entity for project in projects.values() for entity in [project, *getattr(project, 'stages', [])]]
-    return {
+    expected = {
         'projects': {p.project_id: serialize_project(p) for p in projects.values()} if needs_projects else {},
         'stages': {stage.stage_id: serialize_project(stage) for project in projects.values() for stage in getattr(project, 'stages', [])} if needs_projects else {},
         'progress': {entry['id']: entry for entity in entities for entry in serialize_project(entity).get('progress_entries', [])} if needs_projects else {},
@@ -38,6 +40,46 @@ def _expected(repository, owners):
             data, [project.project_id for project in projects.values()],
         ) if needs_projects else [],
     }
+    if bundle is not None:
+        expected.update({
+            'folders': {folder['id']: folder for folder in bundle.folders if isinstance(folder.get('id'), str)},
+            'folder_members': {
+                project['id']: project.get('payload', {}).get('folder_id')
+                for project in bundle.projects
+                if project.get('payload', {}).get('folder_id') in {
+                    folder['id'] for folder in bundle.folders if isinstance(folder.get('id'), str)
+                }
+            },
+            'bindings': {
+                binding['id']: binding['payload']
+                for project in bundle.projects
+                for binding in ([project.get('binding')] + [stage.get('binding') for stage in project.get('stages', [])])
+                if binding
+            },
+            'extensions': {
+                ('project', project['id']): project.get('extra_fields', {})
+                for project in bundle.projects
+            } | {
+                ('stage', stage['id']): stage.get('extra_fields', {})
+                for project in bundle.projects for stage in project.get('stages', [])
+            } | {
+                ('progress', entry_id): extra_fields
+                for project in bundle.projects
+                for entry_id, extra_fields in project.get('progress_extra_fields', {}).items()
+            } | {
+                ('progress', entry_id): extra_fields
+                for project in bundle.projects
+                for stage in project.get('stages', [])
+                for entry_id, extra_fields in stage.get('progress_extra_fields', {}).items()
+            },
+            'project_metadata': {
+                **bundle.project_metadata,
+                'root_extensions': bundle.root_extensions,
+            },
+        })
+    else:
+        expected.update({'folders': {}, 'bindings': {}, 'extensions': {}, 'project_metadata': {}})
+    return expected
 
 
 def _actual(repository):
@@ -57,7 +99,18 @@ def _actual(repository):
             if [row['position'] for row in order_rows] == list(range(len(order_rows)))
             else None
         )
-    return {'projects': projects, 'stages': stages, 'progress': progress, 'notes': notes, 'settings': settings, 'game': game, 'project_order': project_order}
+        folders = {row['id']: json.loads(row['payload_json']) for row in db.execute('SELECT id, payload_json FROM project_folders')}
+        bindings = {row['id']: json.loads(row['payload_json']) for row in db.execute('SELECT id, payload_json FROM project_bindings')}
+        extensions = {
+            (row['entity_type'], row['entity_id']): json.loads(row['payload_json'])
+            for row in db.execute('SELECT entity_type, entity_id, payload_json FROM project_extensions')
+        }
+        folder_members = {
+            row['project_id']: row['folder_id']
+            for row in db.execute('SELECT project_id, folder_id FROM project_folder_members')
+        }
+        project_metadata = {row['key']: json.loads(row['value_json']) for row in db.execute('SELECT key, value_json FROM project_metadata')}
+    return {'projects': projects, 'stages': stages, 'progress': progress, 'notes': notes, 'settings': settings, 'game': game, 'project_order': project_order, 'folders': folders, 'folder_members': folder_members, 'bindings': bindings, 'extensions': extensions, 'project_metadata': project_metadata}
 
 
 def verify(data_dir: str) -> tuple[bool, list[str]]:
@@ -65,7 +118,12 @@ def verify(data_dir: str) -> tuple[bool, list[str]]:
     owners = StorageOwnershipRepository(data_dir).owners()
     expected, actual = _expected(repository, owners), _actual(repository)
     domains = {
-        Subsystem.PROJECTS: (('projects', 'Projects'), ('stages', 'Stages'), ('progress', 'Progress')),
+        Subsystem.PROJECTS: (
+            ('projects', 'Projects'), ('stages', 'Stages'), ('progress', 'Progress'),
+            ('folders', 'Project folders'), ('bindings', 'Project bindings'),
+            ('folder_members', 'Project folder relations'),
+            ('extensions', 'Project extensions'), ('project_metadata', 'Project metadata'),
+        ),
         Subsystem.NOTES: (('notes', 'Notes'),),
         Subsystem.SETTINGS: (('settings', 'Settings'),),
         Subsystem.GAME: (('game', 'Game state'),),
