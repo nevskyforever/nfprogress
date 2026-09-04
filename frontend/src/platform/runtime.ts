@@ -1,8 +1,6 @@
 import { Capacitor } from '@capacitor/core'
 
-interface DesktopBackendConnection {
-  apiBaseUrl: string
-  sessionToken: string
+interface DesktopRuntimeInfo {
   nativeUpdates: boolean
   architecture: string
   development: boolean
@@ -46,13 +44,11 @@ export function supportsUpdateChecks(): boolean {
 async function initializeTauriRuntime(): Promise<void> {
   const { invoke } = await import('@tauri-apps/api/core')
   try {
-    const connection = await invoke<DesktopBackendConnection>('backend_connection')
+    const runtime = await invoke<DesktopRuntimeInfo>('runtime_info')
     window.__NFPROGRESS_RUNTIME__ = {
-      apiBaseUrl: connection.apiBaseUrl,
-      getSessionToken: () => connection.sessionToken,
-      nativeUpdates: connection.nativeUpdates,
-      architecture: connection.architecture,
-      development: connection.development,
+      nativeUpdates: runtime.nativeUpdates,
+      architecture: runtime.architecture,
+      development: runtime.development,
     }
   } catch (error) {
     window.__NFPROGRESS_RUNTIME__ = {

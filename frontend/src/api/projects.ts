@@ -1,6 +1,7 @@
 import { apiRequest } from './client'
 import { invoke } from '@tauri-apps/api/core'
 import { getProjectReadRepository } from '@/infrastructure/projects/projectReadRepository'
+import { settingsApi } from './settings'
 import type { ProjectMetadataPatch } from '@/core/repositories/projectMetadata'
 import type {
   ProgressCreate,
@@ -81,8 +82,39 @@ function desktopEntityPatch(payload: EntityUpdate): Record<string, unknown> {
   }
 }
 
+function symbolsToUnit(symbols: number, unit: Project['unit']): number {
+  const factors: Record<Project['unit'], number> = {
+    symbols: 1, A4: 1800, author_list: 40000, ficbook_pages: 4500,
+  }
+  const value = symbols / factors[unit]
+  return unit === 'symbols' ? value : unit === 'author_list' ? Math.round(value * 10) / 10 : Math.ceil(value)
+}
+
+function nativeTodaySummary(projects: Project[]): TodaySummary {
+  const date = new Date().toISOString().slice(0, 10)
+  const summaries = projects.flatMap((project) => {
+    const entries = [
+      ...project.progress_entries,
+      ...project.stages.flatMap((stage) => stage.progress_entries),
+    ]
+    const symbols = entries
+      .filter((entry) => entry.created_at.startsWith(date))
+      .reduce((total, entry) => total + entry.added_symbols, 0)
+    return symbols > 0 ? [{
+      id: project.id, name: project.name, symbols,
+      unit: project.unit, value: symbolsToUnit(symbols, project.unit),
+    }] : []
+  })
+  return {
+    date,
+    symbols: summaries.reduce((total, project) => total + project.symbols, 0),
+    projects: summaries,
+  }
+}
+
 export const projectsApi = {
   list(query: ProjectListQuery = {}, signal?: AbortSignal): Promise<Project[]> {
+    if (desktopRuntime()) return getProjectReadRepository().listProjects(query, signal)
     return apiRequest<Project[]>(`/api/projects${queryString(query)}`, { signal })
   },
 
@@ -126,10 +158,28 @@ export const projectsApi = {
   },
 
   today(signal?: AbortSignal): Promise<TodaySummary> {
+    if (desktopRuntime()) {
+      return getProjectReadRepository().listProjects({}, signal).then(nativeTodaySummary)
+    }
     return apiRequest<TodaySummary>('/api/projects/today', { signal })
   },
 
-  globalStreak(signal?: AbortSignal): Promise<GlobalStreakSummary> {
+  async globalStreak(signal?: AbortSignal): Promise<GlobalStreakSummary> {
+    if (desktopRuntime()) {
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      const settings = await settingsApi.get(signal)
+      if (settings.values.global_streak !== true) {
+        return { enabled: false, status: 'Off', length: 0, max_length: 0 }
+      }
+      const state = await invoke<Record<string, unknown>>('game_state')
+      const streak = state.global_streak as Record<string, unknown> | undefined
+      return {
+        enabled: true,
+        status: typeof streak?.status === 'string' ? streak.status : 'No',
+        length: typeof streak?.length === 'number' ? streak.length : 0,
+        max_length: typeof streak?.max_length === 'number' ? streak.max_length : 0,
+      }
+    }
     return apiRequest<GlobalStreakSummary>('/api/projects/streaks/global', { signal })
   },
 

@@ -1117,6 +1117,23 @@ fn project_state(root: &Value, now: &str, enabled: bool) -> GameResult<Value> {
     };
     let inventory = catalog_state(gamer, true);
     let notifications = notifications_state(root_object);
+    let global = root_object
+        .get("global_streak")
+        .and_then(Value::as_object)
+        .or_else(|| root_object.get("game").and_then(Value::as_object));
+    let global_status = global
+        .and_then(|value| value.get("global_streak_status"))
+        .and_then(Value::as_str)
+        .unwrap_or("No");
+    let global_length = global
+        .and_then(|value| value.get("global_streaks"))
+        .and_then(Value::as_array)
+        .map_or(0, Vec::len);
+    let global_max = global
+        .and_then(|value| value.get("max_global_streak"))
+        .and_then(Value::as_i64)
+        .unwrap_or(global_length as i64)
+        .max(global_length as i64);
     let mut state = json!({
         "enabled": enabled, "server_time": now,
         "profile": {"level": level, "experience": number_field(gamer, "exp", 0.0).max(0.0), "next_level_experience": next_level_experience, "coins": number_field(gamer, "coins", 0.0).max(0.0), "inflation": number_field(gamer, "inflation", 1.0).max(1.0), "health": number_field(gamer, "health", max_health as f64).clamp(0.0, max_health as f64), "max_health": max_health, "inspiration": number_field(gamer, "inspiration", 0.0).clamp(0.0, 100.0), "max_inspiration": 100, "writing_session_streak": integer_field(gamer, "writing_session_streak", 0).max(0), "session_streak_shields": integer_field(gamer, "session_streak_shields", 0).clamp(0, 3), "session_grade_boosts": integer_field(gamer, "session_grade_boosts", 0).clamp(0, 1), "pending_bonuses": {"writing": number_field(gamer, "writing_reward_bonus", 0.0), "session": number_field(gamer, "session_reward_bonus", 0.0), "challenge": number_field(gamer, "challenge_reward_bonus", 0.0), "manuscript": number_field(gamer, "manuscript_reward_bonus", 0.0)}},
@@ -1127,6 +1144,11 @@ fn project_state(root: &Value, now: &str, enabled: bool) -> GameResult<Value> {
         "writing_session": {"server_time": now, "active": session_projection(gamer.get("writing_session"), now), "streak": integer_field(gamer, "writing_session_streak", 0), "history": gamer.get("writing_session_history").cloned().unwrap_or(json!([])), "modes": [{"key":"sprint","name":"Спринт","description":"15 минут.","reward_bonus":0.15},{"key":"flow","name":"Поток","description":"Сбалансированный режим.","reward_bonus":0.0},{"key":"deep","name":"Глубокая работа","description":"45 или 60 минут.","reward_bonus":0.25},{"key":"editing","name":"Редакторский проход","description":"Учитывает изменение текста.","reward_bonus":0.20}], "grades": [{"key":"gold","name":"Золото","target_ratio":1.5,"reward_multiplier":1.3},{"key":"silver","name":"Серебро","target_ratio":1.25,"reward_multiplier":1.15},{"key":"bronze","name":"Бронза","target_ratio":1.0,"reward_multiplier":1.0}], "allowed_durations_minutes":[15,25,45,60]},
         "inspiration": {"abilities": [{"key":"creative_surge","name":"Творческий импульс","description":"+25% к следующей записи.","cost":30,"bonus":0.25,"active":number_field(gamer,"writing_reward_bonus",0.0)>0.0},{"key":"session_spark","name":"Искра сессии","description":"+25% к следующей сессии.","cost":25,"bonus":0.25,"active":number_field(gamer,"session_reward_bonus",0.0)>0.0},{"key":"challenge_focus","name":"Фокус испытания","description":"+25% к следующему испытанию.","cost":40,"bonus":0.25,"active":number_field(gamer,"challenge_reward_bonus",0.0)>0.0}], "creative_event": gamer.get("pending_creative_event").cloned().unwrap_or(Value::Null), "creative_event_history": gamer.get("creative_event_history").cloned().unwrap_or(json!([]))},
         "specializations": {"selected": gamer.get("specialization").cloned().unwrap_or(Value::Null), "unlocks_at_level":3,"change_cooldown_days":14,"change_days_remaining":0,"mastery_thresholds":[0,3,8,15,25],"items":[]}, "manuscripts":{"journeys":[],"milestones":[],"cabinet":{"relics":[],"sets":[]}}, "bank":bank_projection(gamer, level), "custom_awards":custom_awards_projection(gamer), "shop": catalog_state(gamer, true)
+    });
+    state["global_streak"] = json!({
+        "status": global_status,
+        "length": global_length,
+        "max_length": global_max,
     });
     if let Some(items) = gamer.get("items").and_then(Value::as_object) {
         let inventory_categories = state["inventory"]["categories"]

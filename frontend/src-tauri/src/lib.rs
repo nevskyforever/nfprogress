@@ -1,20 +1,15 @@
 use std::collections::HashSet;
 use std::fmt::Write as _;
 use std::fs;
-use std::io::{Read, Write};
-use std::net::{TcpListener, TcpStream};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use rusqlite::OptionalExtension;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
-use tauri_plugin_shell::process::{CommandChild, CommandEvent};
-use tauri_plugin_shell::ShellExt;
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent};
 
 mod documents;
 mod game;
@@ -65,6 +60,43 @@ struct SqliteProjectReadModel {
 pub(crate) fn open_projects_database() -> Result<rusqlite::Connection, String> {
     sqlite::open_database(&sqlite_data_root()?.join("nfprogress.db"))
         .map_err(|error| error.to_string())
+}
+
+fn initialize_fresh_desktop_database(
+    connection: &rusqlite::Connection,
+    data_root: &Path,
+) -> Result<(), String> {
+    let legacy_files = ["data.pkl", "gamer.pkl", "settings.pkl", "documents.json"];
+    if legacy_files
+        .iter()
+        .any(|name| data_root.join(name).is_file())
+    {
+        return Ok(());
+    }
+    let populated: i64 = connection
+        .query_row(
+            "SELECT (SELECT COUNT(*) FROM projects) + (SELECT COUNT(*) FROM stages) + (SELECT COUNT(*) FROM progress_entries) + (SELECT COUNT(*) FROM notes) + (SELECT COUNT(*) FROM settings) + (SELECT COUNT(*) FROM game_state) + (SELECT COUNT(*) FROM documents)",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("Не удалось проверить новую SQLite базу: {error}"))?;
+    if populated != 0 {
+        return Ok(());
+    }
+
+    connection
+        .execute_batch(
+            "BEGIN IMMEDIATE;
+             UPDATE storage_ownership SET owner='sqlite', schema_version=6, updated_at=datetime('now');
+             INSERT INTO mirror_state(id,source_format,source_schema_version,last_full_sync_at,last_successful_sync_at,sync_status,last_error)
+             VALUES(1,'sqlite','6',datetime('now'),datetime('now'),'healthy',NULL)
+             ON CONFLICT(id) DO UPDATE SET source_format='sqlite',source_schema_version='6',last_full_sync_at=datetime('now'),last_successful_sync_at=datetime('now'),sync_status='healthy',last_error=NULL;
+             INSERT INTO game_state(id,schema_version,payload_json,updated_at)
+             VALUES(1,2,'{\"gamer\":{},\"game\":{}}',datetime('now'))
+             ON CONFLICT(id) DO NOTHING;
+             COMMIT;",
+        )
+        .map_err(|error| format!("Не удалось инициализировать новую SQLite базу: {error}"))
 }
 
 #[tauri::command]
@@ -2244,8 +2276,6 @@ fn set_settings(values: serde_json::Map<String, serde_json::Value>) -> Result<()
     transaction.commit().map_err(|error| error.to_string())
 }
 
-const BACKEND_HOST: &str = "127.0.0.1";
-const BACKEND_START_TIMEOUT: Duration = Duration::from_secs(30);
 const UPDATE_MANIFEST_URL: &str = "https://nfproject.ru/app/update_manifest.json";
 const UPDATE_MANIFEST_TIMEOUT: Duration = Duration::from_secs(10);
 const WINDOW_STATE_FILE: &str = "main-window.json";
@@ -2321,9 +2351,7 @@ fn save_main_window_state(app: &tauri::AppHandle) {
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-struct BackendConnection {
-    api_base_url: String,
-    session_token: String,
+struct RuntimeInfo {
     native_updates: bool,
     architecture: String,
     development: bool,
@@ -2560,75 +2588,13 @@ struct MacosUpdateProgress {
     total_bytes: u64,
 }
 
-#[derive(Default)]
-struct BackendState {
-    child: Mutex<Option<CommandChild>>,
-    connection: Mutex<Option<BackendConnection>>,
-    startup_error: Mutex<Option<String>>,
-}
-
-impl BackendState {
-    fn record_error(&self, message: String) {
-        if let Ok(mut connection) = self.connection.lock() {
-            *connection = None;
-        }
-        if let Ok(mut error) = self.startup_error.lock() {
-            *error = Some(message);
-        }
-    }
-}
-
 #[tauri::command]
-fn backend_connection(state: State<'_, BackendState>) -> Result<BackendConnection, String> {
-    if let Ok(connection) = state.connection.lock() {
-        if let Some(connection) = connection.as_ref() {
-            return Ok(connection.clone());
-        }
+fn runtime_info() -> RuntimeInfo {
+    RuntimeInfo {
+        native_updates: native_updates_enabled(),
+        architecture: std::env::consts::ARCH.to_string(),
+        development: cfg!(debug_assertions),
     }
-    state
-        .startup_error
-        .lock()
-        .ok()
-        .and_then(|error| error.clone())
-        .map_or_else(
-            || Err("Локальный backend nfprogress ещё не готов.".to_string()),
-            Err,
-        )
-}
-
-async fn backend_json_request<T: serde::Serialize>(
-    state: State<'_, BackendState>,
-    method: reqwest::Method,
-    path: String,
-    body: T,
-) -> Result<serde_json::Value, String> {
-    let connection = state
-        .connection
-        .lock()
-        .map_err(|_| "Не удалось получить соединение с локальным backend.".to_string())?
-        .clone()
-        .ok_or_else(|| "Локальный backend nfprogress ещё не готов.".to_string())?;
-    let response = reqwest::Client::new()
-        .request(method, format!("{}{path}", connection.api_base_url))
-        .header("X-NFProgress-Token", connection.session_token)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|error| format!("Не удалось выполнить project metadata command: {error}"))?;
-    let status = response.status();
-    let payload = response
-        .json::<serde_json::Value>()
-        .await
-        .map_err(|error| format!("Некорректный ответ project metadata command: {error}"))?;
-    if !status.is_success() {
-        return Err(payload
-            .get("detail")
-            .and_then(|detail| detail.get("message"))
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("Project metadata command завершился ошибкой.")
-            .to_string());
-    }
-    Ok(payload)
 }
 
 fn encode_path_segment(value: &str) -> String {
@@ -4017,6 +3983,83 @@ mod tests {
     };
 
     #[test]
+    fn fresh_desktop_database_becomes_native_authoritative() {
+        let connection = Connection::open_in_memory().unwrap();
+        super::sqlite::apply_migrations(&connection).unwrap();
+
+        super::initialize_fresh_desktop_database(
+            &connection,
+            Path::new("/nfprogress/f7-fresh-install"),
+        )
+        .unwrap();
+
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM storage_ownership WHERE owner='sqlite'",
+                    [],
+                    |row| row.get::<_, i64>(0),
+                )
+                .unwrap(),
+            4
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT sync_status FROM mirror_state WHERE id=1",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "healthy"
+        );
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT payload_json FROM game_state WHERE id=1",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "{\"gamer\":{},\"game\":{}}"
+        );
+    }
+
+    #[test]
+    fn legacy_files_keep_empty_database_on_migration_boundary() {
+        let root = std::env::temp_dir().join(format!(
+            "nfprogress-f7-legacy-boundary-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(&root).unwrap();
+        std::fs::write(root.join("data.pkl"), b"legacy").unwrap();
+
+        let connection = Connection::open_in_memory().unwrap();
+        super::sqlite::apply_migrations(&connection).unwrap();
+        super::initialize_fresh_desktop_database(&connection, &root).unwrap();
+
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT owner FROM storage_ownership WHERE subsystem='projects'",
+                    [],
+                    |row| row.get::<_, String>(0),
+                )
+                .unwrap(),
+            "pickle"
+        );
+        assert!(
+            connection
+                .query_row("SELECT COUNT(*) FROM mirror_state", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap()
+                == 0
+        );
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn project_metadata_payload_is_narrow_and_encodes_ids() {
         let patch: ProjectMetadataPatch =
             serde_json::from_value(serde_json::json!({"name": "Новый", "deadline": null}))
@@ -4469,26 +4512,6 @@ async fn install_macos_update(
     Ok(true)
 }
 
-fn reserve_loopback_port() -> Result<u16, String> {
-    let listener = TcpListener::bind((BACKEND_HOST, 0))
-        .map_err(|error| format!("Не удалось выбрать локальный порт: {error}"))?;
-    listener
-        .local_addr()
-        .map(|address| address.port())
-        .map_err(|error| format!("Не удалось определить локальный порт: {error}"))
-}
-
-fn create_session_token() -> Result<String, String> {
-    let mut bytes = [0_u8; 32];
-    getrandom::fill(&mut bytes)
-        .map_err(|error| format!("Не удалось создать ключ локальной сессии: {error}"))?;
-    let mut token = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        write!(&mut token, "{byte:02x}").expect("writing to a String cannot fail");
-    }
-    Ok(token)
-}
-
 fn native_updates_enabled() -> bool {
     matches!(
         option_env!("NFPROGRESS_UPDATER_ENABLED"),
@@ -4496,163 +4519,30 @@ fn native_updates_enabled() -> bool {
     )
 }
 
-fn backend_is_healthy(port: u16) -> bool {
-    let address = format!("{BACKEND_HOST}:{port}");
-    let Ok(socket_address) = address.parse() else {
-        return false;
-    };
-    let Ok(mut stream) = TcpStream::connect_timeout(&socket_address, Duration::from_millis(250))
-    else {
-        return false;
-    };
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(500)));
-    if stream
-        .write_all(b"GET /health HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n")
-        .is_err()
-    {
-        return false;
-    }
-    let mut response = [0_u8; 128];
-    match stream.read(&mut response) {
-        Ok(size) => {
-            let status = &response[..size];
-            status.starts_with(b"HTTP/1.1 200") || status.starts_with(b"HTTP/1.0 200")
-        }
-        Err(_) => false,
-    }
-}
-
-fn wait_for_backend(port: u16) -> Result<(), String> {
-    let deadline = Instant::now() + BACKEND_START_TIMEOUT;
-    while Instant::now() < deadline {
-        if backend_is_healthy(port) {
-            return Ok(());
-        }
-        thread::sleep(Duration::from_millis(100));
-    }
-    Err("Локальный backend nfprogress не ответил на /health за 30 секунд.".to_string())
-}
-
-fn stop_backend(app_handle: &tauri::AppHandle) {
-    let state = app_handle.state::<BackendState>();
-    if let Ok(mut child) = state.child.lock() {
-        if let Some(child) = child.take() {
-            let _ = child.kill();
-        }
-    };
-}
-
 pub fn run() {
     let mut builder = tauri::Builder::default()
-        .manage(BackendState::default())
-        .plugin(tauri_plugin_single_instance::init(|app, _arguments, _cwd| {
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-        }))
-        .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_single_instance::init(
+            |app, _arguments, _cwd| {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            },
+        ))
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             restore_main_window_state(&app.handle());
-            let state = app.state::<BackendState>();
-            // F1 makes Rust the canonical schema migrator. Projects remain
-            // pickle-authoritative; this only upgrades the shared database.
-            if let Err(error) = sqlite::open_database(&sqlite_data_root()?.join("nfprogress.db")) {
-                state.record_error(format!("Не удалось подготовить SQLite schema: {error}"));
-            }
-            let port = match reserve_loopback_port() {
-                Ok(port) => port,
-                Err(error) => {
-                    state.record_error(error);
-                    return Ok(());
-                }
-            };
-            let token = match create_session_token() {
-                Ok(token) => token,
-                Err(error) => {
-                    state.record_error(error);
-                    return Ok(());
-                }
-            };
-
-            let command = match app.shell().sidecar("nfprogress-backend") {
-                Ok(command) => command,
-                Err(error) => {
-                    state.record_error(format!("Не удалось найти локальный backend: {error}"));
-                    return Ok(());
-                }
-            };
-            let mut arguments = vec![
-                "--host".to_string(),
-                BACKEND_HOST.to_string(),
-                "--port".to_string(),
-                port.to_string(),
-                "--platform".to_string(),
-                "desktop".to_string(),
-                "--parent-pid".to_string(),
-                std::process::id().to_string(),
-                "--log-level".to_string(),
-                "warning".to_string(),
-            ];
-            if cfg!(debug_assertions) {
-                // Tauri dev must use the same synchronized test_data copy as
-                // ``python main_UI.py``. Release bundles intentionally keep
-                // their normal per-user app-data behavior.
-                arguments.push("--dev-data".to_string());
-            }
-            let spawn_result = command
-                .args(arguments)
-                .env("NFPROGRESS_SESSION_TOKEN", &token)
-                .env("NFPROGRESS_TAURI_RUNTIME", "1")
-                .env(
-                    "NFPROGRESS_ALLOWED_ORIGINS",
-                    "tauri://localhost,http://tauri.localhost,https://tauri.localhost,http://localhost:5173,http://127.0.0.1:5173",
-                )
-                .spawn();
-            let (mut events, child) = match spawn_result {
-                Ok(result) => result,
-                Err(error) => {
-                    state.record_error(format!("Не удалось запустить локальный backend: {error}"));
-                    return Ok(());
-                }
-            };
-
-            if let Err(error) = wait_for_backend(port) {
-                let _ = child.kill();
-                state.record_error(error);
-                return Ok(());
-            }
-
-            if let Ok(mut connection) = state.connection.lock() {
-                *connection = Some(BackendConnection {
-                    api_base_url: format!("http://{BACKEND_HOST}:{port}"),
-                    session_token: token,
-                    native_updates: native_updates_enabled(),
-                    architecture: std::env::consts::ARCH.to_string(),
-                    development: cfg!(debug_assertions),
-                });
-            }
-            if let Ok(mut managed_child) = state.child.lock() {
-                *managed_child = Some(child);
-            }
-
-            let app_handle = app.handle().clone();
-            tauri::async_runtime::spawn(async move {
-                while let Some(event) = events.recv().await {
-                    if let CommandEvent::Terminated(payload) = event {
-                        let state = app_handle.state::<BackendState>();
-                        state.record_error(format!(
-                            "Локальный backend завершился (код: {:?}, сигнал: {:?}).",
-                            payload.code, payload.signal
-                        ));
-                        break;
-                    }
-                }
-            });
+            // SQLite opening and migrations are native startup work. A failure
+            // aborts setup with the storage diagnostic; no legacy source or
+            // localhost service is consulted as a fallback.
+            let data_root = sqlite_data_root()?;
+            let connection = sqlite::open_database(&data_root.join("nfprogress.db"))
+                .map_err(|error| std::io::Error::other(error.to_string()))?;
+            initialize_fresh_desktop_database(&connection, &data_root)
+                .map_err(std::io::Error::other)?;
             Ok(())
         });
 
@@ -4662,7 +4552,7 @@ pub fn run() {
 
     let app = builder
         .invoke_handler(tauri::generate_handler![
-            backend_connection,
+            runtime_info,
             process_game_events,
             list_documents,
             get_document,
@@ -4769,7 +4659,6 @@ pub fn run() {
     app.run(|app_handle, event| {
         if matches!(event, RunEvent::Exit | RunEvent::ExitRequested { .. }) {
             save_main_window_state(app_handle);
-            stop_backend(app_handle);
         }
     });
 }

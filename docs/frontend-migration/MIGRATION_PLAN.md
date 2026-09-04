@@ -288,6 +288,10 @@ filesystem watcher/sync semantics.
 
 ### F7 — Python-free desktop sidecar and packaging cutover
 
+**Status:** Complete for the development desktop runtime. The implementation
+is recorded in [`F7_PYTHON_SIDECAR_REMOVAL.md`](F7_PYTHON_SIDECAR_REMOVAL.md).
+F8 release qualification remains pending.
+
 **Goal:** make the normal Tauri desktop path direct Vue/TS → typed Tauri →
 Rust/SQLite, with no sidecar or runtime PKL.
 

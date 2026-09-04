@@ -1,5 +1,3 @@
-import { discoverSessionToken } from './sessionToken'
-
 interface DomainErrorDetail {
   code?: unknown
   message?: unknown
@@ -30,8 +28,7 @@ type ApiRequestOptions = Omit<RequestInit, 'body' | 'headers'> & {
 }
 
 function configuredBaseUrl(): string {
-  const runtimeUrl = window.__NFPROGRESS_RUNTIME__?.apiBaseUrl
-  const value = runtimeUrl ?? import.meta.env.VITE_API_BASE_URL ?? ''
+  const value = import.meta.env.VITE_API_BASE_URL ?? ''
   return value.trim().replace(/\/+$/, '')
 }
 
@@ -83,11 +80,6 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   } = options
   const headers = new Headers(suppliedHeaders)
   headers.set('Accept', 'application/json')
-
-  const token = await discoverSessionToken()
-  if (token) {
-    headers.set('X-NFProgress-Token', token)
-  }
 
   let body: BodyInit | undefined
   if (jsonBody !== undefined && rawBody !== undefined) {

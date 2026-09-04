@@ -22,9 +22,6 @@ release_config = _load_script(
 update_manifest = _load_script(
     'create-tauri-update-manifest.py', 'create_tauri_update_manifest',
 ).update_manifest
-windows_release_options = _load_script(
-    'build-backend-sidecar.py', 'build_backend_sidecar',
-)._windows_release_options
 sync_versions = _load_script(
     'sync-tauri-versions.py', 'sync_tauri_versions',
 )
@@ -95,20 +92,6 @@ def test_update_manifest_embeds_signature_and_stable_release_url():
     assert windows['url'].endswith(
         '/releases/download/v4.15.0/nfprogress-windows-x86_64-4.15.0-setup.exe',
     )
-
-
-def test_windows_sidecar_has_stable_identity_and_uncompressed_payload():
-    options = windows_release_options()
-    cargo = tomllib.loads(
-        (ROOT / 'frontend' / 'src-tauri' / 'Cargo.toml').read_text(encoding='utf-8'),
-    )
-    version = cargo['package']['version'].split('-', 1)[0].split('+', 1)[0]
-
-    assert '--onefile-no-compression' in options
-    assert '--windows-console-mode=disable' in options
-    assert '--product-name=nfprogress' in options
-    assert f'--file-version={version}' in options
-    assert any(option.startswith('--windows-icon-from-ico=') for option in options)
 
 
 def test_tauri_archive_exposes_its_source_revision(tmp_path):

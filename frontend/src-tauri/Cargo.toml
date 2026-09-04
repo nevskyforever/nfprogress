@@ -1,6 +1,6 @@
 [package]
 name = "nfprogress-desktop"
-version = "5.3.8"
+version = "5.3.9"
 description = "nfprogress desktop shell"
 authors = ["nfprogress contributors"]
 edition = "2021"
@@ -27,7 +27,6 @@ tauri-plugin-clipboard-manager = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-process = "2"
-tauri-plugin-shell = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
 zip = { version = "4", default-features = false, features = ["deflate"] }

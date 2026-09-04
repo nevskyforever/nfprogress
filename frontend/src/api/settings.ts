@@ -35,9 +35,7 @@ export const settingsApi = {
   },
 
   update(values: SettingsValues): Promise<SettingsResponse> {
-    // These two legacy settings also change project data. Keep their existing
-    // transactional application service until project writes are cut over.
-    if (currentPlatform() === 'tauri' && !('inf_project' in values) && !('global_streak' in values)) {
+    if (currentPlatform() === 'tauri') {
       return sqliteSettings.setAll(values).then(() => settingsApi.get())
     }
     return apiRequest<SettingsResponse>('/api/settings', {
@@ -47,6 +45,10 @@ export const settingsApi = {
   },
 
   acceptUserAgreement(agreementId: string): Promise<SettingsResponse> {
+    if (currentPlatform() === 'tauri') {
+      if (!agreementId.trim()) return Promise.reject(new Error('Не удалось сохранить принятие соглашения.'))
+      return sqliteSettings.set('user_agreement', true).then(() => settingsApi.get())
+    }
     return apiRequest<SettingsResponse>('/api/settings/user-agreement/accept', {
       method: 'POST',
       body: { agreement_id: agreementId },

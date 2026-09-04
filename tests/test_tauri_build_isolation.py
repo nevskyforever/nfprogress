@@ -26,6 +26,10 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
     (root / 'frontend' / 'package.json').write_text('{}\n', encoding='utf-8')
     (root / 'frontend' / 'package-lock.json').write_text('{}\n', encoding='utf-8')
     (frontend_tauri_dir / 'tauri.conf.json').write_text('{}\n', encoding='utf-8')
+    (frontend_tauri_dir / 'Cargo.toml').write_text(
+        '[package]\nname = "nfprogress-desktop"\nversion = "5.3.0"\n',
+        encoding='utf-8',
+    )
     (root / 'mindmap_assets').mkdir()
     (root / 'mindmap_assets' / 'index.html').write_text('', encoding='utf-8')
     for filename in ('Icon-256.png', 'appicon.icns', 'icon.ico', 'LICENSE', 'SOURCE_CODE.txt'):
@@ -78,17 +82,25 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
         """,
     )
     _write_executable(
-        bin_dir / 'python',
+        bin_dir / 'node',
+        """
+        # The fixture only needs the version helper's observable output.
+        for argument in "$@"; do
+          if [ "$argument" = "--version-only" ]; then
+            printf '%s\\n' 5.3.0
+            exit 0
+          fi
+        done
+        printf '%s\\n' 'Synchronized Tauri files to 5.3.0.'
+        printf '%s\\n' 5.3.0
+        """,
+    )
+    _write_executable(
+        bin_dir / 'python3',
         """
         #!/bin/bash
         set -euo pipefail
         case "${1:-}" in
-          -m)
-            [ "${2:-}" = "nuitka" ] && [ "${3:-}" = "--version" ]
-            ;;
-          -c)
-            printf '%s\\n' "$TEST_PYTHON_ARCH"
-            ;;
           *sync-tauri-versions.py)
             for argument in "$@"; do
               if [ "$argument" = "--version-only" ]; then
@@ -96,22 +108,6 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
                 exit 0
               fi
             done
-            ;;
-          *build-backend-sidecar.py)
-            target=""
-            frontend_dir=""
-            while [ "$#" -gt 0 ]; do
-              if [ "$1" = "--target" ]; then
-                target="$2"
-              fi
-              if [ "$1" = "--frontend-dir" ]; then
-                frontend_dir="$2"
-                printf '%s\\n' "$2" >> "$TEST_SIDECAR_LOG"
-              fi
-              shift
-            done
-            mkdir -p "$frontend_dir/src-tauri/binaries"
-            : > "$frontend_dir/src-tauri/binaries/nfprogress-backend-$target"
             ;;
           *)
             exit 2
@@ -161,20 +157,17 @@ def test_parallel_architecture_builds_use_separate_frontend_workspaces(tmp_path)
         (build_dir / f'{prefix}-4.9.0.zip').write_bytes(b'old zip')
         (build_dir / f'{prefix}-4.9.0.dmg').write_bytes(b'old dmg')
     npm_log = tmp_path / 'npm.log'
-    sidecar_log = tmp_path / 'sidecar.log'
     dmg_log = tmp_path / 'dmg.log'
     common_env = os.environ | {
         'PATH': f'{bin_dir}{os.pathsep}{os.environ["PATH"]}',
-        'NFPROGRESS_TAURI_PYTHON': str(bin_dir / 'python'),
         'TEST_NPM_LOG': str(npm_log),
-        'TEST_SIDECAR_LOG': str(sidecar_log),
         'TEST_DMG_LOG': str(dmg_log),
     }
 
     arm_process = subprocess.Popen(
         [str(root / 'scripts' / 'build-tauri-local.sh'), 'arm'],
         cwd=root,
-        env=common_env | {'TEST_PYTHON_ARCH': 'arm64'},
+        env=common_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -182,7 +175,7 @@ def test_parallel_architecture_builds_use_separate_frontend_workspaces(tmp_path)
     intel_process = subprocess.Popen(
         [str(root / 'scripts' / 'build-tauri-local.sh'), 'intel'],
         cwd=root,
-        env=common_env | {'TEST_PYTHON_ARCH': 'x86_64'},
+        env=common_env,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
@@ -202,10 +195,6 @@ def test_parallel_architecture_builds_use_separate_frontend_workspaces(tmp_path)
         str(arm_frontend),
         str(intel_frontend),
     ])
-    assert sorted(sidecar_log.read_text(encoding='utf-8').splitlines()) == sorted([
-        str(arm_frontend),
-        str(intel_frontend),
-    ])
     assert sorted(dmg_log.read_text(encoding='utf-8').splitlines()) == sorted([
         str(arm_frontend),
         str(intel_frontend),
@@ -218,5 +207,5 @@ def test_parallel_architecture_builds_use_separate_frontend_workspaces(tmp_path)
     ]
     assert not (arm_frontend / 'src-tauri' / 'target' / 'aarch64-apple-darwin' / 'release' / 'bundle').exists()
     assert not (intel_frontend / 'src-tauri' / 'target' / 'x86_64-apple-darwin' / 'release' / 'bundle').exists()
-    assert not (arm_frontend / 'src-tauri' / 'binaries' / 'nfprogress-backend-aarch64-apple-darwin').exists()
-    assert not (intel_frontend / 'src-tauri' / 'binaries' / 'nfprogress-backend-x86_64-apple-darwin').exists()
+    assert not (arm_frontend / 'src-tauri' / 'binaries').exists()
+    assert not (intel_frontend / 'src-tauri' / 'binaries').exists()

@@ -1,20 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { apiRequest } from './client'
-import { resetSessionTokenProvider, setSessionTokenProvider } from './sessionToken'
-
 afterEach(() => {
-  resetSessionTokenProvider()
-  delete window.__NFPROGRESS_RUNTIME__
   vi.unstubAllGlobals()
 })
 
 describe('apiRequest', () => {
-  it('uses the runtime base URL and conditionally discovered session token', async () => {
-    window.__NFPROGRESS_RUNTIME__ = { apiBaseUrl: 'http://127.0.0.1:43117/' }
-    setSessionTokenProvider({
-      getSessionToken: async () => 'session-token',
-    })
+  it('uses the configured web API base URL without desktop session plumbing', async () => {
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(JSON.stringify({ status: 'ok' }), {
         status: 200,
@@ -27,8 +19,8 @@ describe('apiRequest', () => {
 
     expect(fetchMock).toHaveBeenCalledOnce()
     const [url, options] = fetchMock.mock.calls[0] as [string, RequestInit]
-    expect(url).toBe('http://127.0.0.1:43117/health')
-    expect(new Headers(options.headers).get('X-NFProgress-Token')).toBe('session-token')
+    expect(url).toBe('/health')
+    expect(new Headers(options.headers).get('X-NFProgress-Token')).toBeNull()
   })
 
   it('surfaces the backend domain error message and code', async () => {

@@ -509,3 +509,20 @@ outside the contract.
 
 The feature-specific native command surface and remaining sidecar boundary are
 documented in `F6_DOCUMENTS_INTEGRATIONS_RUNTIME.md`.
+
+## F7 completion addendum
+
+The preceding sections record the pre-F7 audit and intentionally contain
+historical sidecar references. F7 completed that boundary: Tauri setup now
+opens/migrates SQLite directly, `backend_connection` and session-token
+plumbing are gone, `externalBin` is empty, and desktop build/CI scripts no
+longer build or package Nuitka. `PlatformProjectReadRepository` does not fall
+back from native SQLite errors to the API. Bundled locale/help/agreement
+catalogs keep desktop bootstrap offline; Web API adapters remain supported.
+
+Final classification is: Desktop normal runtime — zero Python process and zero
+localhost FastAPI calls; Web/backend — Python retained; migration/recovery and
+oracle — Python retained and explicitly invoked; release metadata helpers —
+Python retained as development utilities; obsolete sidecar launcher/build
+files — removed. Release qualification, upgrade matrices and production
+readiness remain F8.

@@ -1,26 +1,21 @@
 #!/bin/bash
-# Build a local macOS Tauri archive with its matching Python sidecar.
+# Build a local macOS Tauri archive.
 set -euo pipefail
 
 ARCH="${1:-}"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
-PYTHON_BIN="${NFPROGRESS_TAURI_PYTHON:-python3}"
-PYTHON_ARCH="${NFPROGRESS_TAURI_PYTHON_ARCH:-}"
-
 case "$ARCH" in
   arm)
     TARGET="aarch64-apple-darwin"
     BUILD_DIR="$ROOT_DIR/build-tauri-arm"
     ARTIFACT_PREFIX="nfprogress-tauri-mac-arm"
-    EXPECTED_PYTHON_ARCH="arm64"
     ;;
   intel)
     TARGET="x86_64-apple-darwin"
     BUILD_DIR="$ROOT_DIR/build-tauri-intel"
     ARTIFACT_PREFIX="nfprogress-tauri-mac-intel"
-    EXPECTED_PYTHON_ARCH="x86_64"
     ;;
   *)
     echo "Использование: $0 arm|intel"
@@ -37,14 +32,6 @@ if [ "$(uname -s)" != "Darwin" ]; then
   exit 2
 fi
 
-run_python() {
-  if [ -n "$PYTHON_ARCH" ]; then
-    /usr/bin/arch "-$PYTHON_ARCH" "$PYTHON_BIN" "$@"
-  else
-    "$PYTHON_BIN" "$@"
-  fi
-}
-
 if ! command -v cargo >/dev/null 2>&1 || ! command -v rustup >/dev/null 2>&1; then
   echo "Не найдены Cargo/Rustup. Установите Rust toolchain для Tauri."
   exit 1
@@ -57,24 +44,6 @@ if ! command -v rsync >/dev/null 2>&1; then
   echo "Не найден rsync. Он нужен для изолированной Tauri-сборки."
   exit 1
 fi
-if ! run_python -m nuitka --version >/dev/null; then
-  echo "Не найдена Nuitka для $PYTHON_BIN. Установите её:"
-  echo "  $PYTHON_BIN -m pip install nuitka"
-  exit 1
-fi
-
-ACTUAL_PYTHON_ARCH="$(run_python -c 'import platform; print(platform.machine())')"
-if [ "$ACTUAL_PYTHON_ARCH" != "$EXPECTED_PYTHON_ARCH" ]; then
-  echo "Для $ARCH-сборки нужен Python архитектуры $EXPECTED_PYTHON_ARCH, найден $ACTUAL_PYTHON_ARCH."
-  if [ "$ARCH" = "intel" ] && [ "$(uname -m)" = "arm64" ]; then
-    echo "На Apple Silicon используйте x86_64 virtualenv с backend-зависимостями, например:"
-    printf '%s\n' \
-      "  NFPROGRESS_TAURI_PYTHON=/path/to/x86_64-venv/bin/python \\" \
-      "  NFPROGRESS_TAURI_PYTHON_ARCH=x86_64 bash 'Build Tauri Intel.sh'"
-  fi
-  exit 1
-fi
-
 if ! rustup target list --installed | grep -Fxq "$TARGET"; then
   echo "Не установлен Rust target $TARGET. Выполните:"
   echo "  rustup target add $TARGET"
@@ -112,16 +81,13 @@ if [ ! -f "$NODE_MODULES_LOCK" ] \
   (cd "$FRONTEND_DIR" && npm ci)
 fi
 
-run_python "$ROOT_DIR/scripts/sync-tauri-versions.py" --frontend-dir "$FRONTEND_DIR"
-VERSION="$(run_python "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)"
+node "$ROOT_DIR/scripts/sync-tauri-versions.mjs" --frontend-dir "$FRONTEND_DIR"
+VERSION="$(node "$ROOT_DIR/scripts/sync-tauri-versions.mjs" --version-only)"
 DMG_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.dmg"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"
 PACKAGE_NAME="$ARTIFACT_PREFIX-$VERSION"
 
 mkdir -p "$BUILD_DIR"
-run_python "$ROOT_DIR/scripts/build-backend-sidecar.py" \
-  --target "$TARGET" \
-  --frontend-dir "$FRONTEND_DIR"
 NFPROGRESS_TAURI_FRONTEND_DIR="$FRONTEND_DIR" \
   "$ROOT_DIR/scripts/build-tauri-dmg.sh" "$TARGET" "$DMG_PATH"
 
@@ -149,9 +115,8 @@ find "$BUILD_DIR" -mindepth 1 -maxdepth 1 -type f \
   ! -name "$(basename "$ARTIFACT_PATH")" \
   -delete
 
-# Keep the dependency caches in the isolated workspace, but not the completed
-# app bundle and sidecar that are already contained in the release ZIP.
+# Keep dependency caches in the isolated workspace, but not the completed app
+# bundle that is already contained in the release ZIP.
 rm -rf -- "$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle"
-rm -f -- "$FRONTEND_DIR/src-tauri/binaries/nfprogress-backend-$TARGET"
 
 echo "✅ Локальная Tauri-сборка завершена: $ARTIFACT_PATH"

@@ -1,6 +1,6 @@
 # NFProgress — migration architecture
 
-F6 implementation baseline: `89898945ff0ed71b27148e36ab00f9b90e1cd3ed`.
+F7 implementation baseline: `fc8b15af72762dc47a5c4e415997d8eba8175c6a`.
 
 The supported user interface is Vue/Ionic in `frontend/`. PySide6 is legacy
 source and is not part of the supported desktop architecture.
@@ -9,20 +9,14 @@ The detailed fast-track evidence, data inventory and compatibility window are
 in [`FAST_TRACK_AUDIT.md`](FAST_TRACK_AUDIT.md). The implementation sequence is
 in [`MIGRATION_PLAN.md`](MIGRATION_PLAN.md).
 
-## Current desktop architecture
+## Current desktop architecture (F7)
 
 ```text
 Vue / TypeScript
-   ├─ typed Rust/Tauri ───────────────→ SQLite
-   │    ├─ Settings authoritative
-   │    ├─ Notes CRUD/order authoritative
-   │    ├─ Projects and Game read/mutation boundaries
-   │    └─ Game rules, RNG and event consumer
-   └─ HTTP client → local FastAPI/Nuitka sidecar
-        ├─ Projects/Stages/Progress mutation → SQLite + durable event outbox
-        ├─ Web/cloud Game compatibility façade → SQLite Game aggregate
-        ├─ Notes map/XMind compatibility operations
-        └─ Web/cloud compatibility API (Documents and integrations)
+       ↓ typed Tauri commands
+Rust services and repositories
+       ↓
+SQLite + filesystem
 ```
 
 Current ownership is deliberately explicit:
@@ -58,13 +52,11 @@ Rust services and repositories
 SQLite + validated external user files
 ```
 
-The final desktop target does not start FastAPI, Python, Nuitka or a PKL runtime
-for Game operation. F4 establishes that Game reads, mutations and event
-processing use the typed Rust/Tauri boundary. The sidecar remains available to
-Documents and integrations now use typed Rust/Tauri commands on desktop; the
-global sidecar still exists for transitional unrelated startup plumbing until
-F7. FastAPI/Python also remains a separately deployed
-Web/cloud backend.
+The normal desktop target starts no FastAPI, Python, Nuitka or PKL runtime.
+Projects, Settings, Notes, Game, maps, Documents, Word, Scrivener and sync use
+the typed Rust/Tauri boundary. FastAPI/Python remains a separately deployed
+Web/cloud backend, and Python migration/recovery/oracle tooling is invoked only
+outside normal desktop startup.
 
 ## Ownership model after cutover
 
@@ -120,16 +112,15 @@ Python remains outside the target desktop runtime while it is useful as:
 - one-shot migration or recovery tooling until all supported profiles migrate;
 - compatibility source for legacy PKL class paths.
 
-The existing Python mirror and sidecar are not permanent target layers. The
-sidecar's Game HTTP façade remains a Web/compatibility implementation only; the
-normal desktop Game adapter does not call it after F4 and it is not allowed to
-read or write Game PKL after the F3 ownership switch.
+The existing Python mirror and Web API adapters remain supported outside the
+desktop runtime. They are not fallback paths for native failures and do not
+read or write desktop PKL after the ownership switches.
 
 ## Storage and migration rules
 
-SQLite migrations are shared SQL files through schema v5. Python's
-`open_database()` remains compatible for the transitional sidecar, while the
-Rust Tauri opener now executes the same versioned migrations without Python.
+SQLite migrations are shared SQL files through schema v6. Python's
+`open_database()` remains available for Web and migration tooling, while the
+Rust Tauri opener executes the same versioned migrations without Python.
 
 The final release requires a separately tested one-shot importer for:
 
@@ -187,16 +178,10 @@ import/export/synchronization.
 
 ## Startup and packaging boundary
 
-Current Tauri setup in `frontend/src-tauri/src/lib.rs` reserves a loopback port,
-creates a token, starts `nfprogress-backend`, waits for `/health`, and exposes
-the sidecar URL to the webview. `tauri.conf.json` includes
-`binaries/nfprogress-backend` as `externalBin`; build scripts compile it with
-Nuitka.
-
-F7 removes the sidecar child state, token/port health flow, backend connection
-command, `externalBin`, sidecar build artifacts and mandatory Python startup.
-F6 only removes the Documents/Word/Scrivener/filesystem feature dependency from
-the desktop path. Web and Capacitor keep their remote API client independently.
+F7 removes the former sidecar child state, token/port health flow, backend
+connection command, `externalBin`, sidecar build artifacts and mandatory
+Python startup. Tauri setup opens/migrates SQLite directly and initializes
+native services. Web and Capacitor keep their remote API client independently.
 
 ## Backup and recovery boundary
 

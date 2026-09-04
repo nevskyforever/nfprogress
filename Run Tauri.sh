@@ -46,41 +46,6 @@ if [ "$MODE" != "--check" ] && lsof -nP -iTCP:5173 -sTCP:LISTEN >/dev/null 2>&1;
   exit 1
 fi
 
-SIDECAR_PATH="$ROOT_DIR/frontend/src-tauri/binaries/nfprogress-backend-$TARGET"
-SIDECAR_REBUILD=0
-if [ ! -x "$SIDECAR_PATH" ]; then
-  SIDECAR_REBUILD=1
-else
-  if [ "$SIDECAR_REBUILD" = "0" ] \
-    && find "$ROOT_DIR" -maxdepth 1 -type f -name '*.py' \
-      -newer "$SIDECAR_PATH" -print -quit | grep -q .; then
-    SIDECAR_REBUILD=1
-  fi
-  if [ "$SIDECAR_REBUILD" = "0" ] \
-    && find "$ROOT_DIR/backend" "$ROOT_DIR/nfprogress" -type f -name '*.py' \
-      -newer "$SIDECAR_PATH" -print -quit | grep -q .; then
-    SIDECAR_REBUILD=1
-  fi
-fi
-
-if [ "$SIDECAR_REBUILD" = "1" ]; then
-  if [ "$MODE" = "--check" ]; then
-    echo "Не найден актуальный sidecar для $TARGET: $SIDECAR_PATH"
-    echo "Обычный запуск соберёт его автоматически."
-    exit 1
-  fi
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "Не найден python3, необходимый для сборки локального sidecar."
-    exit 1
-  fi
-  echo "Sidecar для $TARGET отсутствует или устарел. Собирается локальный Python backend..."
-  python3 "$ROOT_DIR/scripts/build-backend-sidecar.py" --target "$TARGET"
-  if [ ! -x "$SIDECAR_PATH" ]; then
-    echo "Сборка sidecar завершилась без ожидаемого файла: $SIDECAR_PATH"
-    exit 1
-  fi
-fi
-
 if [ ! -d "$ROOT_DIR/frontend/node_modules" ]; then
   echo "Устанавливаются frontend-зависимости..."
   (cd "$ROOT_DIR/frontend" && npm ci)
@@ -89,12 +54,9 @@ fi
 if [ "$MODE" = "--check" ]; then
   echo "Tauri development prerequisites are ready."
   echo "Rust target: $TARGET"
-  echo "Sidecar: $SIDECAR_PATH"
-  echo "Development data: Python-compatible test_data (synchronized at backend startup)"
   exit 0
 fi
 
 echo "Запускается Tauri dev. Это не production-сборка; при первом запуске Cargo может собрать debug-код."
-echo "Данные тестового запуска: Python-compatible test_data (real stores are copied when newer)"
 cd "$ROOT_DIR/frontend"
 exec npm run tauri:dev

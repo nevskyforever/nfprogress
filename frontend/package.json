@@ -16,7 +16,7 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "sync:versions": "python ../scripts/sync-tauri-versions.py",
+    "sync:versions": "node ../scripts/sync-tauri-versions.mjs",
     "tauri:build": "npm run sync:versions && tauri build",
     "cap:sync": "npm run build && cap sync",
     "cap:open:ios": "cap open ios",

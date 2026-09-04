@@ -2,10 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { contentApi } from './content'
 import { settingsApi } from './settings'
-import { resetSessionTokenProvider } from './sessionToken'
-
 afterEach(() => {
-  resetSessionTokenProvider()
   vi.unstubAllGlobals()
 })
 

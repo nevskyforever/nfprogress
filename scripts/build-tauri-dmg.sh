@@ -22,17 +22,10 @@ case "$TARGET" in
 esac
 
 FRONTEND_DIR="$(cd -- "$FRONTEND_DIR" && pwd -P)"
-python3 "$ROOT_DIR/scripts/sync-tauri-versions.py" --frontend-dir "$FRONTEND_DIR"
 APP_PATH="$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle/macos/nfprogress.app"
-SIDECAR_PATH="$FRONTEND_DIR/src-tauri/binaries/nfprogress-backend-$TARGET"
-VERSION="$(python3 "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)"
+node "$ROOT_DIR/scripts/sync-tauri-versions.mjs" --frontend-dir "$FRONTEND_DIR"
+VERSION="$(node "$ROOT_DIR/scripts/sync-tauri-versions.mjs" --version-only)"
 OUTPUT_PATH="${2:-$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle/dmg/nfprogress-$VERSION-$TARGET.dmg}"
-
-if [ ! -x "$SIDECAR_PATH" ]; then
-  echo "Build the matching Python sidecar first:"
-  echo "  python scripts/build-backend-sidecar.py --target $TARGET"
-  exit 1
-fi
 
 cd "$FRONTEND_DIR"
 CARGO_TARGET_DIR="$FRONTEND_DIR/src-tauri/target" \

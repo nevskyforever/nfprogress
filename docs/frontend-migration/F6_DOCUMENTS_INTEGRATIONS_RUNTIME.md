@@ -4,8 +4,9 @@ F6 baseline: `89898945ff0ed71b27148e36ab00f9b90e1cd3ed`.
 
 F6 is the development desktop implementation milestone. It moves the normal
 Documents, Word, Scrivener and filesystem synchronization feature path from
-the Python sidecar to typed Vue/Tauri commands and Rust. It does not remove the
-global sidecar, Nuitka packaging or startup orchestration; those remain F7.
+the Python service to typed Vue/Tauri commands and Rust. F7 subsequently
+removed the global sidecar, Nuitka packaging and startup orchestration; this
+document records the F6 feature boundary and verification.
 
 ## Audited legacy behavior
 
@@ -160,6 +161,6 @@ counting. Frontend typecheck and the full frontend test run pass (65 files,
 and 2 subtests passed; the three failures are unchanged legacy accessibility,
 OpenAPI developer-response and week-symbol date-boundary tests.
 
-The available ARM target remains blocked by the pre-existing missing bundled
-`nfprogress-backend-aarch64-apple-darwin`. No fake binary and no F7 packaging
-change was added.
+The available ARM target was blocked at the F6 baseline by the missing bundled
+`nfprogress-backend-aarch64-apple-darwin`. No fake binary was added; F7 removes
+the packaging reference, so this file is no longer a build prerequisite.

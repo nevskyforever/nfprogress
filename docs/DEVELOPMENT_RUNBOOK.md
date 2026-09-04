@@ -16,7 +16,7 @@ cd "$(git rev-parse --show-toplevel)"
 ```
 
 Проверка должна вывести путь, содержащий `frontend/package-lock.json` и
-`scripts/build-backend-sidecar.py`:
+`scripts/`:
 
 ```bash
 pwd
@@ -25,16 +25,15 @@ pwd
 ## Как устроено приложение
 
 ```text
-Vue/Ionic → FastAPI → services → Python Core → существующие .pkl-данные
-     ├─ Web
-     ├─ Tauri для desktop
-     └─ Capacitor для iOS/Android
+Desktop: Vue/Ionic → Tauri/Rust → SQLite + filesystem
+Web:     Vue/Ionic → FastAPI → services → Python Core
+Mobile:  Vue/Ionic → Capacitor → remote HTTPS API
 ```
 
-Расчёты прогресса, игры и сохранение данных остаются в Python. Новый frontend
-не читает `.pkl` напрямую: он обращается к FastAPI. Tauri запускает FastAPI как
-локальный упакованный Python sidecar, а Web и мобильные клиенты подключаются к
-отдельно запущенному FastAPI по HTTP(S).
+Новый desktop frontend не читает `.pkl` и не запускает Python: расчёты,
+SQLite-операции и файловые границы выполняются native Rust-сервисами. Web и
+мобильные клиенты подключаются к отдельно развёрнутому FastAPI по HTTP(S).
+Python остаётся для Web, миграции/восстановления и oracle-тестов.
 
 ## Подготовка PyCharm
 
@@ -185,20 +184,17 @@ npx playwright test
 
 ## Новый desktop-вариант Tauri
 
-Нужны Rust/Cargo, Node.js и Nuitka. Сначала соберите Python sidecar под текущую
-платформу:
+Нужны только Rust/Cargo и Node.js:
 
 ```bash
 cd "$(git rev-parse --show-toplevel)"
-python3 -m pip install nuitka
-python3 scripts/build-backend-sidecar.py
 cd frontend
 npm ci
 npm run tauri:dev
 ```
 
-`tauri:dev` самостоятельно запускает Tauri-окно и локальный backend. Вручную
-запускать FastAPI для него не нужно.
+`tauri:dev` самостоятельно запускает Tauri-окно и native SQLite/runtime.
+Вручную запускать FastAPI для desktop не нужно.
 
 Для обычного локального запуска нового desktop-приложения без production-пакета
 используйте из корня репозитория:
@@ -207,11 +203,8 @@ npm run tauri:dev
 bash "Run Tauri.sh"
 ```
 
-Скрипт выбирает Rust architecture текущего Mac, использует matching sidecar и
-использует Python-совместимую папку `test_data` и синхронизирует её при старте.
-Если sidecar отсутствует, не поддерживает dev-режим или старее Python-кода
-backend, скрипт пересоберёт только этот локальный Python backend; production `.app`, DMG и ZIP
-при этом не создаются.
+Скрипт выбирает Rust architecture текущего Mac и запускает native runtime.
+Production `.app`, DMG и ZIP при этом не создаются.
 Проверить prerequisites без открытия окна можно так:
 
 ```bash
@@ -222,14 +215,9 @@ bash "Run Tauri.sh" --check
 5173. Первый Tauri dev-start может скомпилировать debug Rust-код, но не создаёт
 production .app, DMG или ZIP.
 
-Если в терминале Tauri появляется Vite-сообщение
-API вернул ошибку 502 или connect ECONNREFUSED 127.0.0.1:8000 **до** строки
-Running target/debug/nfprogress-desktop, обычно его отправляет ранее открытая
-браузерная вкладка с адресом 127.0.0.1:5173. Эта вкладка тестирует Web-режим и
-ищет отдельный FastAPI на порту 8000. Закройте её или запускайте для неё
-backend отдельно. Сам Tauri не использует порт 8000: он запускает свой sidecar
-на случайном loopback-порту с session token. Проверяйте работу в открывшемся
-desktop-окне nfprogress, а не в браузере.
+Если Web в браузере сообщает об ошибке API, это относится к отдельному Web
+режиму и его FastAPI-процессу. Native Tauri не использует локальный FastAPI,
+sidecar или session token; проверяйте desktop в открывшемся окне nfprogress.
 
 Production-сборка:
 
@@ -250,8 +238,8 @@ bash "Build Tauri All.sh"
 терминале. В PyCharm выберите общую составную конфигурацию `Tauri Build All`
 или `Tauri Release All`: обе задачи будут запущены в Terminal tool window IDE.
 Для каждой архитектуры создаётся отдельный игнорируемый frontend-workspace в
-`.tauri-build-workspaces/`: в нём свои `node_modules`, Vite-вывод, Tauri target
-и sidecar. Поэтому две сборки не меняют файлы друг друга. Обновление общего
+`.tauri-build-workspaces/`: в нём свои `node_modules`, Vite-вывод и Tauri target.
+Поэтому две сборки не меняют файлы друг друга. Обновление общего
 манифеста при релизе выполняется по очереди, чтобы не потерять запись одной из
 архитектур.
 
@@ -259,13 +247,10 @@ bash "Build Tauri All.sh"
 `tauri.conf.json`, `Cargo.toml` и `Cargo.lock` внутри соответствующего
 workspace, не затрагивая исходный frontend.
 
-Они собирают подходящий Nuitka sidecar, Tauri `.app`, проверенный DMG и ZIP с
-DMG, лицензией и сведениями об исходном коде. Результаты лежат в
+Они собирают native Tauri `.app`, проверенный DMG и ZIP с DMG, лицензией и
+сведениями об исходном коде. Результаты лежат в
 `build-tauri-arm/` или `build-tauri-intel/`. На Apple Silicon Intel-скрипт
-автоматически создаёт и поддерживает x86_64 окружение Rosetta
-`.venv-tauri-intel` с backend-зависимостями и Nuitka. Для другого окружения
-задайте `NFPROGRESS_TAURI_PYTHON` и, при необходимости,
-`NFPROGRESS_TAURI_PYTHON_ARCH=x86_64`.
+использует native Rust target без отдельного Python-окружения.
 
 Скрипты `Release Tauri ARM.sh`, `Release Tauri Intel.sh` и
 `Release Tauri All.sh` по умолчанию готовят архив и загружают его на release
@@ -273,8 +258,7 @@ hosting. Защищённый CI workflow скачивает оба macOS-арх
 артефакты и публикует общий GitHub Release. Для сборки без загрузки используйте
 `NFPROGRESS_TAURI_RELEASE_UPLOAD=0`.
 
-На macOS для обычного DMG без Finder/AppleScript-оформления используйте после
-сборки соответствующего sidecar:
+На macOS для обычного DMG без Finder/AppleScript-оформления используйте:
 
 ```bash
 scripts/build-tauri-dmg.sh aarch64-apple-darwin
@@ -282,11 +266,10 @@ scripts/build-tauri-dmg.sh aarch64-apple-darwin
 
 ## Официальная Windows-сборка и обновления
 
-`.github/workflows/build.yml` собирает только новую Tauri-версию на
-Windows/MSVC. Он создаёт Nuitka sidecar и NSIS installer, проверяет запуск
-sidecar, создаёт updater artifact с отдельной Tauri-подписью и публикует
-`latest.json` в GitHub Releases. Windows-sidecar содержит иконку и версионные
-метаданные и собирается без сжатия вложенного payload.
+`.github/workflows/build.yml` собирает только новую native Tauri-версию на
+Windows/MSVC. Он создаёт NSIS installer, updater artifact с отдельной
+Tauri-подписью и публикует `latest.json` в GitHub Releases. Python в workflow
+нужен только для Web/oracle тестов и метаданных.
 
 Перед первым запуском workflow настройте GitHub Actions:
 

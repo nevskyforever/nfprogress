@@ -9,37 +9,22 @@ function desktopRuntime(): boolean {
   return typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined
 }
 
-class FallbackProjectReadRepository implements ProjectReadRepository {
+class PlatformProjectReadRepository implements ProjectReadRepository {
   private readonly sqlite = new SQLiteProjectReadRepository()
 
   async listProjects(query: ProjectListQuery = {}, signal?: AbortSignal) {
-    if (!desktopRuntime()) {
-      return apiRepository.listProjects(query, signal)
-    }
-    try {
-      return await this.sqlite.listProjects(query)
-    } catch (error) {
-      if (await this.sqlite.owner() === 'sqlite') throw error
-      console.warn('SQLite project list unavailable; using API.', error)
-      return apiRepository.listProjects(query, signal)
-    }
+    if (!desktopRuntime()) return apiRepository.listProjects(query, signal)
+    return this.sqlite.listProjects(query)
   }
 
   async getProject(id: string, signal?: AbortSignal) {
     if (!desktopRuntime()) return apiRepository.getProject(id, signal)
-    try {
-      const project = await this.sqlite.getProject(id)
-      return project
-    } catch (error) {
-      if (await this.sqlite.owner() === 'sqlite') throw error
-      console.warn('SQLite project read unavailable; using API.', error)
-      return apiRepository.getProject(id, signal)
-    }
+    return this.sqlite.getProject(id)
   }
 }
 
 let repository: ProjectReadRepository | undefined
 export function getProjectReadRepository(): ProjectReadRepository {
-  repository ??= new FallbackProjectReadRepository()
+  repository ??= new PlatformProjectReadRepository()
   return repository
 }

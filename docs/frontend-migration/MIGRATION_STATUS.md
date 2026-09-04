@@ -1,12 +1,12 @@
 # NFProgress — migration status
 
-Updated for F6 against implementation HEAD `89898945ff0ed71b27148e36ab00f9b90e1cd3ed`
+Updated for F7 against implementation HEAD `fc8b15af72762dc47a5c4e415997d8eba8175c6a`
 on 2026-09-04.
 
 This status distinguishes implemented features from authoritative storage.
 F1/F2 storage foundations and the F3 Game owner switch are implemented. The
-Python sidecar remains a transitional compatibility transport for non-Game
-subsystems until F7.
+Normal desktop runtime is Python-free after F7. FastAPI/Python remains for
+Web, migration/recovery and oracle tooling outside normal Tauri startup.
 
 ## Current ownership
 
@@ -22,7 +22,7 @@ Word/Scrivener/sync      = typed Tauri commands → Rust bounded filesystem serv
 | Domain | Current desktop path | Status |
 | --- | --- | --- |
 | Projects/stages/progress | Typed Vue/Tauri commands → Rust → SQLite, with durable Game outbox events | SQLite-authoritative; Python remains the web/compatibility adapter |
-| Settings | Typed Rust SQLite commands for ordinary settings; coupled project transitions still call Python/API | SQLite-authoritative, coupled behavior remains Python |
+| Settings | Typed Rust SQLite commands | SQLite-authoritative; Web keeps its API adapter |
 | Notes/maps | Typed Rust SQLite Notes CRUD/order plus typed map load/save/import | SQLite-authoritative; normal desktop map/XMind path is Python-free, Web remains API-backed |
 | Game | Vue typed Tauri commands → Rust Game service → SQLite; Web keeps API adapter | SQLite-authoritative; normal desktop has no Python Game dependency |
 | Documents | Vue/Tiptap → typed Tauri commands → Rust → SQLite | SQLite-authoritative; legacy JSON is not normal source |
@@ -93,7 +93,7 @@ the remaining relevant legacy-oracle issue and is recorded for parity follow-up.
 | F4 Game runtime completion | Complete (development desktop path) | Very High / Luna High; production upgrade remains separate |
 | F5 Mind Elixir/XMind | Complete (development desktop path) | High / Luna Medium–High; production legacy-variant qualification remains F8 |
 | F6 Documents/Word/Scrivener/background sync | Complete (development desktop path) | High / external-format and release qualification remain F8 |
-| F7 Python-free Tauri sidecar/packaging removal | Not started | High / Luna Medium–High |
+| F7 Python-free Tauri sidecar/packaging removal | Complete (development desktop path) | High / release qualification remains F8 |
 | F8 migration, backup/restore and release qualification | Not started | Very High / Luna High; Sol for cross-platform release/integrity issues |
 
 P1–P3 are complete foundations and are absorbed into F1/F2. P4 is absorbed
@@ -108,8 +108,8 @@ structured Tiptap JSON, SHA-256 file identity, bounded DOCX parsing/generation,
 Scrivener binder inspection/read counting, atomic Word writes, conflict states,
 and trusted idempotent progress events. A native 60-second polling task invokes
 the Rust batch command; unchanged hashes are coalesced and self-writes record
-the expected final hash. The global Python sidecar still exists for unrelated
-transitional domains and is intentionally F7 scope.
+the expected final hash. F7 removes the former global sidecar; Python remains
+only in Web, migration/recovery and oracle paths.
 
 ## F1 boundary
 

@@ -22,7 +22,7 @@ case "$ARCH" in
     ;;
 esac
 
-VERSION="$(python3 "$ROOT_DIR/scripts/sync-tauri-versions.py" --version-only)"
+VERSION="$(node "$ROOT_DIR/scripts/sync-tauri-versions.mjs" --version-only)"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"
 SOURCE_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 

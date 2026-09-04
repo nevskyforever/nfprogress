@@ -12,16 +12,12 @@ published, or supported.
 ## Architecture
 
 ```text
-Vue 3 + Ionic ── FastAPI ── shared Python Core
-                                │
-                                ├── repositories ── atomic legacy pickle files
-       │
-       ├── Web
-       ├── Tauri 2 ── bundled Nuitka Python sidecar ── Windows / macOS
-       └── Capacitor ── remote HTTPS API ────────────── iOS / Android
+Desktop: Vue 3 + Ionic ── Tauri 2/Rust ── SQLite + filesystem
+Web:     Vue 3 + Ionic ── FastAPI/Python ── server storage
+Mobile:  Vue 3 + Ionic ── Capacitor ── remote HTTPS API
 ```
 
-All clients use the same Python business rules. `Project`, `Stage`, `Gamer`,
+Web and legacy tooling retain the Python business rules. `Project`, `Stage`, `Gamer`,
 and `Buff` retain their legacy module paths so existing pickle data stays
 loadable, while the shared core and services import without Qt. The Vue
 frontend never reads pickle files or imports Qt/Python objects directly. See the detailed
@@ -55,9 +51,9 @@ frontend never reads pickle files or imports Qt/Python objects directly. See the
 | Target | Current state |
 | --- | --- |
 | Web | Production Vue build works with a configured FastAPI deployment; HTTPS, authentication/reverse-proxy policy, and SPA route fallback belong to the deployment |
-| Tauri macOS Apple Silicon | Release `.app`, fresh ARM64 Nuitka sidecar, loopback/token health check, and child cleanup verified on the current host; a plain headless DMG is available, while Finder styling remains cosmetic-only |
-| Tauri macOS Intel | Fresh x86_64 sidecar, target `cargo check`, and unsigned production `.app` bundle were built on the ARM host; authenticated sidecar startup was exercised through Rosetta within Tauri's 30-second readiness window. Physical Intel UI/signing verification remains a release-host task |
-| Tauri Windows | The workflow builds the MSVC Nuitka sidecar and Tauri NSIS installer, checks runtime health, creates the updater artifact, and publishes `latest.json` with the GitHub Release |
+| Tauri macOS Apple Silicon | Native Rust/Tauri app and ARM bundle path; production qualification remains F8 |
+| Tauri macOS Intel | Native Rust/Tauri Intel target path is preserved; physical Intel UI/signing verification remains a release-host task |
+| Tauri Windows | Native Rust/Tauri NSIS installer path; production qualification remains F8 |
 | Capacitor iOS | Native project, plugins, branding, and `cap sync` are present; native compilation is blocked on this host because full Xcode and the iPhoneOS SDK are absent |
 | Capacitor Android | Native project, plugins, branding, and `cap sync` are present; native compilation is blocked on this host by Java 8 and the absence of the Android SDK (`adb`/`sdkmanager`) |
 
@@ -75,14 +71,12 @@ from the same GitHub release channel.
 
 ## Development prerequisites
 
-- Python 3.13 (used by the official Windows build) and the dependencies in
-  `requirements-backend.txt` for the new desktop/backend targets.
+- Python 3.13 and `requirements-backend.txt` for Web, migration and oracle work.
 - Node.js 20.19 or newer for `frontend/`.
 - Rust and Cargo for Tauri.
-- Nuitka for creating the bundled desktop backend sidecar.
 - Full Xcode with the iPhoneOS SDK for an iOS build.
 - A supported JDK and Android SDK for an Android build.
-- Windows with the MSVC toolchain for the Windows sidecar and Tauri bundle.
+- Windows with the MSVC toolchain for the Tauri bundle.
 
 Clone the repository and create a Python environment:
 
@@ -180,17 +174,11 @@ When canonical source strings change, follow the localization workflow in
 
 ## Tauri desktop
 
-The packaged desktop app launches a Nuitka sidecar on an ephemeral
-`127.0.0.1` port. Tauri creates a per-run token, waits for `/health`, and stops
-the child during normal exit. The sidecar also watches the Tauri process and
-exits after a native crash. End users do not need a separate Python install.
-
-For development, install Nuitka in the active Python environment and build the
-sidecar matching the Rust host target:
+The packaged desktop app is native Rust/Tauri. It opens and migrates SQLite
+directly, uses native filesystem services, and does not start Python, FastAPI,
+or a localhost sidecar.
 
 ```bash
-python -m pip install nuitka
-python scripts/build-backend-sidecar.py
 cd frontend
 npm ci
 npm run tauri:dev
@@ -203,9 +191,7 @@ root:
 bash "Run Tauri.sh"
 ```
 
-It selects the host target, rebuilds its matching sidecar when that ignored
-local binary is absent or stale, and uses the Python-compatible synchronized
-`test_data` directory in Tauri debug mode. Use
+It selects the host target and starts the native application. Use
 bash "Run Tauri.sh" --check to validate prerequisites without opening a window.
 Stop a separately running npm run dev first, because Tauri dev uses port 5173.
 
@@ -219,8 +205,8 @@ npm run tauri:build
 ```
 
 `Build Tauri ARM.sh`, `Build Tauri Intel.sh`, and `Build Tauri All.sh`
-provide matching macOS build entry points. They build the target-matched Nuitka
-sidecar, Tauri app, verified plain DMG, and a local ZIP containing the DMG,
+provide matching macOS build entry points. They build the native Tauri app,
+verified plain DMG, and a local ZIP containing the DMG,
 license, and source-code notice:
 
 ```bash
@@ -234,7 +220,7 @@ parallel in the current terminal. PyCharm users can run the shared `Tauri Build
 All` or `Tauri Release All` compound configuration: it starts both jobs in the
 IDE's Terminal tool window. Each architecture uses its own ignored frontend
 workspace under `.tauri-build-workspaces/`, including `node_modules`, Vite
-output, Tauri target files, and the sidecar. The release workflow serializes
+output and Tauri target files. The release workflow serializes
 only the shared update-manifest step to preserve both architecture entries.
 
 The build workspace synchronizes the normalized three-component version from
@@ -242,10 +228,7 @@ The build workspace synchronizes the normalized three-component version from
 over the source frontend files.
 
 The artifacts are written to `build-tauri-arm/` and `build-tauri-intel/`.
-On Apple Silicon, the Intel scripts automatically create and maintain the local
-Rosetta x86_64 environment `.venv-tauri-intel` with backend dependencies and
-Nuitka. To use a different environment, set `NFPROGRESS_TAURI_PYTHON` (and, if
-needed, `NFPROGRESS_TAURI_PYTHON_ARCH=x86_64`) before launch. The matching `Release Tauri
+The matching `Release Tauri
 *.sh` wrappers upload the macOS archives to the release hosting; the protected CI
 workflow downloads them, adds the Windows artifacts, and publishes the combined
 GitHub Release. Set `NFPROGRESS_TAURI_RELEASE_UPLOAD=0` to build without uploading.
@@ -253,10 +236,9 @@ GitHub Release. Set `NFPROGRESS_TAURI_RELEASE_UPLOAD=0` to build without uploadi
 ### Windows release and automatic updates
 
 `.github/workflows/build.yml` is the supported Windows release path. It builds
-the x86_64 MSVC sidecar and NSIS installer, runs Python/frontend/Rust checks,
-smoke-tests the sidecar, creates the Tauri updater artifact and `latest.json`,
-then publishes one GitHub Release. The Windows Nuitka sidecar carries stable
-version/product metadata and avoids payload compression.
+the native x86_64 MSVC Tauri installer, runs Python/frontend checks for their
+respective Web/oracle scopes, creates the Tauri updater artifact and
+`latest.json`, then publishes one GitHub Release.
 
 Configure these GitHub Actions secrets before the first release:
 
@@ -285,18 +267,11 @@ scripts/build-tauri-dmg.sh aarch64-apple-darwin
 scripts/build-tauri-dmg.sh x86_64-apple-darwin
 ```
 
-After the matching Python sidecar has been built, the script builds the matching
-`.app`, then creates and verifies a UDZO DMG with `hdiutil`; it never invokes
-`osascript`.
+The script builds the matching native `.app`, then creates and verifies a UDZO
+DMG with `hdiutil`; it never invokes `osascript`.
 
-To target macOS Intel on a macOS builder, build a matching sidecar with
-`python scripts/build-backend-sidecar.py --target x86_64-apple-darwin` and use
-the same Rust target for Tauri. On Apple Silicon, invoke that command from an
-`x86_64` execution of a universal Python virtual environment with matching
-x86_64 backend dependencies; an arm64 Python cannot package arm64 extension
-modules such as `pydantic_core` into an Intel sidecar. The Windows target
-`x86_64-pc-windows-msvc` must be built on Windows; the sidecar script rejects
-cross-host Windows output by design.
+The Windows target `x86_64-pc-windows-msvc` must be built on Windows. Intel
+macOS uses the existing Rust target without a Python compatibility environment.
 
 ## Capacitor iOS and Android
 
@@ -326,10 +301,10 @@ native SDK build succeeds.
 - Tauri desktop may select local `.docx` files and Scrivener projects, inspect
   the Scrivener binder hierarchy, configure project/stage synchronization, and
   run it manually.
-- When desktop background synchronization is enabled, the sidecar performs
+- When desktop background synchronization is enabled, native Rust performs
   configured file reads outside the API event loop on enable/start and when
   the effective writing day changes. It checks the setting once per minute and
-  stops the worker with the backend.
+  uses the existing one-minute schedule.
 - Web, iOS, and Android cannot obtain arbitrary filesystem or background
   access. They can explicitly upload a selected `.docx`; the server counts it
   and applies the total through normal progress and reward rules.
@@ -339,8 +314,9 @@ native SDK build succeeds.
 
 ## Data safety
 
-- `data.pkl`, `settings.pkl`, and `gamer.pkl` remain authoritative during the
-  transition and are written atomically by the repository layer.
+- SQLite is authoritative for migrated desktop domains. `data.pkl`,
+  `settings.pkl`, `gamer.pkl` and `documents.json` remain untouched recovery
+  artifacts and are not desktop runtime sources.
 - Tests and smoke checks use explicit temporary data directories; they must not
   migrate real user files.
 - No automatic JSON/SQLite replacement or destructive pickle migration occurs.
