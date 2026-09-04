@@ -229,3 +229,35 @@ inventory, sessions, bank operations, challenge/specialization mutations and
 the pending domain-event consumer. Python remains a behavioral oracle, Web
 backend implementation and migration/recovery source, not a normal desktop
 Game dependency. See [`F4_GAME_RUNTIME_COMPLETION.md`](F4_GAME_RUNTIME_COMPLETION.md).
+
+## F5 Mind Elixir/XMind boundary
+
+F5 completes the development desktop boundary for maps:
+
+```text
+Vue/Mind Elixir → MindMapRepository → typed Tauri commands
+  → bounded Rust map core → SQLite projects/stages payload_json
+```
+
+The persisted map remains the existing opaque `mindmap` JSON section inside
+the owning Project or Stage payload. This avoids a second map authority while
+preserving the Mind Elixir envelope, child order, stable node IDs, free nodes,
+layout/style fields and unknown extensions. Only the root/node shape and the
+editor-owned free-node/floating-node fields are bounded and normalized.
+
+Map Notes remain separate rows in the SQLite `notes` table. A map note is
+identified by `source_type=mindmap` and `source_node_id`; `source_map_id` is
+updated from the map root ID and the system tag is `карта`. Map save and Note
+content/delete mutations reconcile both records in one transaction. The
+legacy Python normalizer/importer remains an oracle, Web implementation and
+isolated migration input, not a normal Tauri dependency.
+
+XMind import reads only `content.json` or `content.xml` directly from a ZIP in
+Rust and returns structural sheets to Vue. It does not extract files, follow
+links, fetch network resources or import attachments/images/relationships or
+proprietary styling. Archive entry count, compressed input size, declared
+uncompressed size, content size, sheet count, node count, depth and topic size
+are bounded; unsafe paths and XML DTD/entity declarations are rejected.
+Multiple sheets are presented to the user for explicit selection. See
+[`F5_MINDMAP_XMIND_RUNTIME.md`](F5_MINDMAP_XMIND_RUNTIME.md) for the complete
+audit and verification matrix.

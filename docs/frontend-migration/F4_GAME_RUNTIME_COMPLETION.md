@@ -93,3 +93,11 @@ expectation, and the writing-day week-symbol fixture boundary.
 Production Python bridge updates remain monotonic and independent of F4
 development readiness. The next milestone is F5 Mind Elixir/XMind only; no
 integration work is started by this commit.
+
+## F5 follow-up
+
+The next milestone is implemented separately in
+[`F5_MINDMAP_XMIND_RUNTIME.md`](F5_MINDMAP_XMIND_RUNTIME.md). It moves the
+normal desktop Mind Elixir/XMind path to typed Rust/SQLite commands while
+retaining the sidecar for Documents and remaining integrations. F6 has not
+started.

@@ -17,6 +17,7 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 mod game;
+mod mindmap;
 #[allow(dead_code)]
 mod project_repository;
 mod sqlite;
@@ -619,6 +620,878 @@ fn note_time(connection: &rusqlite::Connection) -> Result<String, String> {
         .map_err(|error| error.to_string())
 }
 
+fn stored_map(payload: &serde_json::Value) -> Option<serde_json::Value> {
+    let value = payload.get("mindmap")?;
+    if value.is_null() {
+        None
+    } else {
+        Some(value.clone())
+    }
+}
+
+fn new_stored_map(name: &str, id: &str) -> serde_json::Value {
+    serde_json::json!({"nodeData": {"id": id, "topic": name, "children": []}})
+}
+
+const MAP_INTERNAL_KEYS: [&str; 5] = [
+    "nfprogressStageId",
+    "nfprogressStageRoot",
+    "nfprogressSourceId",
+    "nfprogressReadOnly",
+    "nfprogressEmptyStageMap",
+];
+
+fn strip_map_internal(value: &serde_json::Value) -> serde_json::Value {
+    let mut cleaned = value.clone();
+    if let Some(object) = cleaned.as_object_mut() {
+        for key in MAP_INTERNAL_KEYS {
+            object.remove(key);
+        }
+    }
+    cleaned
+}
+
+fn copy_project_map_node(value: &serde_json::Value) -> Option<serde_json::Value> {
+    if value
+        .get("nfprogressStageRoot")
+        .and_then(|item| item.as_bool())
+        == Some(true)
+    {
+        return None;
+    }
+    let mut node = strip_map_internal(value);
+    if let Some(object) = node.as_object_mut() {
+        object.remove("parent");
+    }
+    let children = value
+        .get("children")
+        .and_then(|item| item.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(copy_project_map_node)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    node["children"] = serde_json::Value::Array(children);
+    Some(node)
+}
+
+fn copy_stage_map_node(
+    value: &serde_json::Value,
+    stage_id: &str,
+    is_root: bool,
+    read_only: bool,
+    source_path: &str,
+    ids: &mut std::collections::HashMap<String, String>,
+) -> Option<serde_json::Value> {
+    let source_id = value
+        .get("id")
+        .and_then(|item| item.as_str())
+        .filter(|item| !item.is_empty())
+        .unwrap_or(source_path);
+    let combined_id = if is_root {
+        format!("nfprogress-stage-{stage_id}")
+    } else {
+        format!("nfprogress-stage-{stage_id}-{source_id}")
+    };
+    ids.insert(source_id.to_string(), combined_id.clone());
+    let mut node = strip_map_internal(value);
+    if let Some(object) = node.as_object_mut() {
+        object.remove("parent");
+        object.remove("root");
+    }
+    node["id"] = combined_id.into();
+    node["nfprogressStageId"] = stage_id.into();
+    node["nfprogressSourceId"] = source_id.into();
+    if is_root {
+        node["nfprogressStageRoot"] = true.into();
+    }
+    if read_only {
+        node["nfprogressReadOnly"] = true.into();
+    }
+    let children = value
+        .get("children")
+        .and_then(|item| item.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .enumerate()
+                .filter_map(|(index, item)| {
+                    copy_stage_map_node(
+                        item,
+                        stage_id,
+                        false,
+                        read_only,
+                        &format!("{source_path}/{index}"),
+                        ids,
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    node["children"] = serde_json::Value::Array(children);
+    Some(node)
+}
+
+fn compose_combined_map(
+    project: &ProjectRecord,
+    stages: &[StageRecord],
+) -> Result<serde_json::Value, String> {
+    let mut combined = stored_map(&project.payload)
+        .map(mindmap::normalize)
+        .transpose()?
+        .unwrap_or_else(|| new_stored_map(&project.name, &format!("project-map-{}", project.id)));
+    let root = copy_project_map_node(&combined["nodeData"])
+        .ok_or_else(|| "У карты проекта отсутствует корневой узел.".to_string())?;
+    combined["nodeData"] = root;
+    let mut children = combined["nodeData"]["children"]
+        .as_array()
+        .cloned()
+        .unwrap_or_default();
+    combined["arrows"] = serde_json::Value::Array(
+        combined
+            .get("arrows")
+            .and_then(|items| items.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter(|item| item.get("nfprogressStageId").is_none())
+                    .map(strip_map_internal)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    );
+    combined["summaries"] = serde_json::Value::Array(
+        combined
+            .get("summaries")
+            .and_then(|items| items.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter(|item| item.get("nfprogressStageId").is_none())
+                    .map(strip_map_internal)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    );
+    for stage in stages {
+        let stage_map = stored_map(&stage.payload)
+            .map(mindmap::normalize)
+            .transpose()?
+            .unwrap_or_else(|| new_stored_map(&stage.name, &format!("stage-map-{}", stage.id)));
+        let read_only = stage.status == "завершен";
+        let has_content = mindmap::has_content(Some(&stage_map), &stage.name);
+        let mut ids = std::collections::HashMap::new();
+        let mut stage_root = copy_stage_map_node(
+            &stage_map["nodeData"],
+            &stage.id,
+            true,
+            read_only,
+            "generated-root",
+            &mut ids,
+        )
+        .ok_or_else(|| "У карты этапа отсутствует корневой узел.".to_string())?;
+        stage_root["topic"] = if read_only
+            && !stage_root
+                .get("topic")
+                .and_then(|item| item.as_str())
+                .unwrap_or_default()
+                .starts_with("✅ ")
+        {
+            format!("✅ {}", stage.name).into()
+        } else {
+            stage.name.clone().into()
+        };
+        if read_only && !has_content {
+            stage_root["nfprogressEmptyStageMap"] = true.into();
+        }
+        children.push(stage_root);
+        for item in stage_map
+            .get("arrows")
+            .and_then(|items| items.as_array())
+            .into_iter()
+            .flatten()
+        {
+            let Some(from) = item
+                .get("from")
+                .and_then(|item| item.as_str())
+                .and_then(|id| ids.get(id))
+            else {
+                continue;
+            };
+            let Some(to) = item
+                .get("to")
+                .and_then(|item| item.as_str())
+                .and_then(|id| ids.get(id))
+            else {
+                continue;
+            };
+            let mut arrow = strip_map_internal(item);
+            arrow["id"] = format!(
+                "nfprogress-arrow-{}-{}",
+                stage.id,
+                item.get("id")
+                    .and_then(|item| item.as_str())
+                    .unwrap_or("generated")
+            )
+            .into();
+            arrow["from"] = from.clone().into();
+            arrow["to"] = to.clone().into();
+            arrow["nfprogressStageId"] = stage.id.clone().into();
+            combined["arrows"]
+                .as_array_mut()
+                .expect("arrows array")
+                .push(arrow);
+        }
+        for item in stage_map
+            .get("summaries")
+            .and_then(|items| items.as_array())
+            .into_iter()
+            .flatten()
+        {
+            let Some(parent) = item
+                .get("parent")
+                .and_then(|item| item.as_str())
+                .and_then(|id| ids.get(id))
+            else {
+                continue;
+            };
+            let mut summary = strip_map_internal(item);
+            summary["id"] = format!(
+                "nfprogress-summary-{}-{}",
+                stage.id,
+                item.get("id")
+                    .and_then(|item| item.as_str())
+                    .unwrap_or("generated")
+            )
+            .into();
+            summary["parent"] = parent.clone().into();
+            summary["nfprogressStageId"] = stage.id.clone().into();
+            combined["summaries"]
+                .as_array_mut()
+                .expect("summaries array")
+                .push(summary);
+        }
+    }
+    combined["nodeData"]["children"] = serde_json::Value::Array(children);
+    mindmap::normalize(combined)
+}
+
+fn collect_stage_roots(
+    value: &serde_json::Value,
+    roots: &mut std::collections::HashMap<String, serde_json::Value>,
+) {
+    if value
+        .get("nfprogressStageRoot")
+        .and_then(|item| item.as_bool())
+        == Some(true)
+    {
+        if let Some(id) = value
+            .get("nfprogressStageId")
+            .and_then(|item| item.as_str())
+        {
+            roots.entry(id.to_string()).or_insert_with(|| value.clone());
+        }
+    }
+    if let Some(children) = value.get("children").and_then(|item| item.as_array()) {
+        for child in children {
+            collect_stage_roots(child, roots);
+        }
+    }
+}
+
+fn restore_stage_map_node(
+    value: &serde_json::Value,
+    is_root: bool,
+    ids: &mut std::collections::HashMap<String, String>,
+) -> Option<serde_json::Value> {
+    let mut node = strip_map_internal(value);
+    if let Some(object) = node.as_object_mut() {
+        object.remove("parent");
+        object.remove("root");
+    }
+    let current_id = value.get("id").and_then(|item| item.as_str())?;
+    let source_id = value
+        .get("nfprogressSourceId")
+        .and_then(|item| item.as_str())
+        .or_else(|| value.get("id").and_then(|item| item.as_str()))?;
+    ids.insert(current_id.to_string(), source_id.to_string());
+    node["id"] = source_id.into();
+    let children = value
+        .get("children")
+        .and_then(|item| item.as_array())
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|item| restore_stage_map_node(item, false, ids))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    node["children"] = serde_json::Value::Array(children);
+    if is_root {
+        node["id"] = source_id.into();
+    }
+    Some(node)
+}
+
+fn split_combined_map(
+    _project: &ProjectRecord,
+    stages: &[StageRecord],
+    combined: &serde_json::Value,
+) -> Result<
+    (
+        serde_json::Value,
+        std::collections::HashMap<String, serde_json::Value>,
+    ),
+    String,
+> {
+    let mut roots = std::collections::HashMap::new();
+    collect_stage_roots(&combined["nodeData"], &mut roots);
+    let project_root = copy_project_map_node(&combined["nodeData"])
+        .ok_or_else(|| "У объединённой карты отсутствует корневой узел.".to_string())?;
+    let mut project_map = combined.clone();
+    project_map["nodeData"] = project_root;
+    project_map["arrows"] = serde_json::Value::Array(
+        combined
+            .get("arrows")
+            .and_then(|items| items.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter(|item| item.get("nfprogressStageId").is_none())
+                    .map(strip_map_internal)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    );
+    project_map["summaries"] = serde_json::Value::Array(
+        combined
+            .get("summaries")
+            .and_then(|items| items.as_array())
+            .map(|items| {
+                items
+                    .iter()
+                    .filter(|item| item.get("nfprogressStageId").is_none())
+                    .map(strip_map_internal)
+                    .collect()
+            })
+            .unwrap_or_default(),
+    );
+    let mut stage_maps = std::collections::HashMap::new();
+    for stage in stages {
+        if let Some(root) = roots.get(&stage.id) {
+            let mut existing = stored_map(&stage.payload)
+                .map(mindmap::normalize)
+                .transpose()?
+                .unwrap_or_else(|| new_stored_map(&stage.name, &format!("stage-map-{}", stage.id)));
+            let original_topic = existing
+                .get("nodeData")
+                .and_then(|node_data| node_data.get("topic"))
+                .cloned();
+            let mut ids = std::collections::HashMap::new();
+            existing["nodeData"] = restore_stage_map_node(root, true, &mut ids)
+                .ok_or_else(|| "Повреждённая ветвь карты этапа.".to_string())?;
+            if original_topic
+                .as_ref()
+                .and_then(|value| value.as_str())
+                .map_or(true, |value| {
+                    value == stage.name || value.starts_with("✅ ")
+                })
+            {
+                existing["nodeData"]["topic"] = stage.name.clone().into();
+            }
+            existing["arrows"] = serde_json::Value::Array(
+                combined
+                    .get("arrows")
+                    .and_then(|items| items.as_array())
+                    .into_iter()
+                    .flatten()
+                    .filter(|item| {
+                        item.get("nfprogressStageId")
+                            .and_then(|value| value.as_str())
+                            == Some(stage.id.as_str())
+                    })
+                    .map(|item| {
+                        let mut restored = strip_map_internal(item);
+                        if let Some(value) = item
+                            .get("from")
+                            .and_then(|value| value.as_str())
+                            .and_then(|id| ids.get(id))
+                        {
+                            restored["from"] = value.clone().into();
+                        }
+                        if let Some(value) = item
+                            .get("to")
+                            .and_then(|value| value.as_str())
+                            .and_then(|id| ids.get(id))
+                        {
+                            restored["to"] = value.clone().into();
+                        }
+                        restored
+                    })
+                    .collect(),
+            );
+            existing["summaries"] = serde_json::Value::Array(
+                combined
+                    .get("summaries")
+                    .and_then(|items| items.as_array())
+                    .into_iter()
+                    .flatten()
+                    .filter(|item| {
+                        item.get("nfprogressStageId")
+                            .and_then(|value| value.as_str())
+                            == Some(stage.id.as_str())
+                    })
+                    .map(|item| {
+                        let mut restored = strip_map_internal(item);
+                        if let Some(value) = item
+                            .get("parent")
+                            .and_then(|value| value.as_str())
+                            .and_then(|id| ids.get(id))
+                        {
+                            restored["parent"] = value.clone().into();
+                        }
+                        restored
+                    })
+                    .collect(),
+            );
+            stage_maps.insert(stage.id.clone(), mindmap::normalize(existing)?);
+        }
+    }
+    Ok((mindmap::normalize(project_map)?, stage_maps))
+}
+
+fn map_writable(project_status: &str, stage_status: Option<&str>) -> Result<(), String> {
+    if project_status == "завершен" {
+        return Err("Заметки завершённого проекта доступны только для просмотра.".to_string());
+    }
+    if stage_status == Some("завершен") {
+        return Err("Заметки завершённого этапа доступны только для просмотра.".to_string());
+    }
+    Ok(())
+}
+
+fn update_stored_map(
+    transaction: &rusqlite::Transaction<'_>,
+    project_id: &str,
+    stage_id: Option<&str>,
+    map: &serde_json::Value,
+    now: &str,
+    notes_changed: bool,
+) -> Result<(), String> {
+    let mut payload: serde_json::Value = if let Some(stage_id) = stage_id {
+        transaction
+            .query_row(
+                "SELECT payload_json FROM stages WHERE id=?1 AND project_id=?2",
+                rusqlite::params![stage_id, project_id],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(|error| error.to_string())
+            .and_then(|raw| serde_json::from_str(&raw).map_err(|error| error.to_string()))?
+    } else {
+        transaction
+            .query_row(
+                "SELECT payload_json FROM projects WHERE id=?1",
+                [project_id],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(|error| error.to_string())
+            .and_then(|raw| serde_json::from_str(&raw).map_err(|error| error.to_string()))?
+    };
+    let object = payload
+        .as_object_mut()
+        .ok_or_else(|| "Некорректный payload владельца карты.".to_string())?;
+    object.insert("mindmap".to_string(), map.clone());
+    object.insert(
+        "mindmap_updated_at".to_string(),
+        serde_json::Value::String(now.to_string()),
+    );
+    if notes_changed {
+        object.insert(
+            "notes_updated_at".to_string(),
+            serde_json::Value::String(now.to_string()),
+        );
+    }
+    let table = if stage_id.is_some() {
+        "stages"
+    } else {
+        "projects"
+    };
+    let changed = if let Some(stage_id) = stage_id {
+        transaction
+            .execute(
+                "UPDATE stages SET updated_at=?1,payload_json=?2 WHERE id=?3 AND project_id=?4",
+                rusqlite::params![now, payload.to_string(), stage_id, project_id],
+            )
+            .map_err(|error| error.to_string())?
+    } else {
+        transaction
+            .execute(
+                "UPDATE projects SET updated_at=?1,payload_json=?2 WHERE id=?3",
+                rusqlite::params![now, payload.to_string(), project_id],
+            )
+            .map_err(|error| error.to_string())?
+    };
+    if changed != 1 {
+        return Err(format!("Не удалось сохранить карту в {table}."));
+    }
+    Ok(())
+}
+
+fn reconcile_map_notes(
+    transaction: &rusqlite::Transaction<'_>,
+    project_id: &str,
+    stage_id: Option<&str>,
+    map: &serde_json::Value,
+    now: &str,
+) -> Result<bool, String> {
+    let map_id = mindmap::map_id(map).map(str::to_string);
+    let map_notes = mindmap::extract_notes(map);
+    let mut rows = Vec::new();
+    {
+        let mut statement = transaction.prepare(
+            "SELECT id,payload_json FROM notes WHERE project_id=?1 AND (?2 IS NULL AND stage_id IS NULL OR stage_id=?2)",
+        ).map_err(|error| error.to_string())?;
+        for row in statement
+            .query_map(rusqlite::params![project_id, stage_id], |row| {
+                Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+            })
+            .map_err(|error| error.to_string())?
+        {
+            rows.push(row.map_err(|error| error.to_string())?);
+        }
+    }
+    let mut existing = std::collections::HashMap::<String, (String, serde_json::Value)>::new();
+    for (id, raw) in &rows {
+        let payload: serde_json::Value =
+            serde_json::from_str(raw).map_err(|error| error.to_string())?;
+        if payload.get("source_type").and_then(|value| value.as_str()) == Some("mindmap") {
+            if let Some(source_id) = payload
+                .get("source_node_id")
+                .and_then(|value| value.as_str())
+            {
+                existing.insert(source_id.to_string(), (id.clone(), payload));
+            }
+        }
+    }
+    let mut changed = false;
+    let mut seen = HashSet::new();
+    let next_order = rows
+        .iter()
+        .filter_map(|(_, raw)| serde_json::from_str::<serde_json::Value>(raw).ok())
+        .filter_map(|value| value.get("sort_order").and_then(|value| value.as_i64()))
+        .max()
+        .unwrap_or(-1)
+        + 1;
+    let mut order = next_order;
+    for (source_id, text) in map_notes {
+        if !seen.insert(source_id.clone()) {
+            continue;
+        }
+        if let Some((id, mut payload)) = existing.remove(&source_id) {
+            let old_text = payload
+                .get("content")
+                .and_then(|value| value.as_str())
+                .unwrap_or_default();
+            let old_map_id = payload
+                .get("source_map_id")
+                .and_then(|value| value.as_str());
+            if old_text != text || old_map_id != map_id.as_deref() {
+                let object = payload
+                    .as_object_mut()
+                    .ok_or_else(|| "Некорректный payload заметки карты.".to_string())?;
+                object.insert("content".to_string(), serde_json::Value::String(text));
+                object.insert(
+                    "source_map_id".to_string(),
+                    map_id
+                        .clone()
+                        .map_or(serde_json::Value::Null, serde_json::Value::String),
+                );
+                object.insert(
+                    "updated_at".to_string(),
+                    serde_json::Value::String(now.to_string()),
+                );
+                let revision = object
+                    .get("revision")
+                    .and_then(|value| value.as_i64())
+                    .unwrap_or(0)
+                    .saturating_add(1);
+                object.insert("revision".to_string(), revision.into());
+                transaction
+                    .execute(
+                        "UPDATE notes SET updated_at=?1,payload_json=?2 WHERE id=?3",
+                        rusqlite::params![now, payload.to_string(), id],
+                    )
+                    .map_err(|error| error.to_string())?;
+                changed = true;
+            }
+        } else {
+            let id = mindmap::linked_note_id(&source_id);
+            let payload = serde_json::json!({
+                "id": id, "project_id": project_id, "stage_id": stage_id,
+                "title": "", "content": text, "content_format": "plain", "checklist": [],
+                "color": "default", "pinned": false, "archived": false, "sort_order": order,
+                "tags": [], "source_type": "mindmap", "source_map_id": map_id,
+                "source_node_id": source_id, "created_at": now, "updated_at": now,
+                "revision": 0, "metadata": {}
+            });
+            transaction.execute("INSERT INTO notes(id,project_id,stage_id,updated_at,payload_json) VALUES(?1,?2,?3,?4,?5)", rusqlite::params![id, project_id, stage_id, now, payload.to_string()]).map_err(|error| error.to_string())?;
+            order += 1;
+            changed = true;
+        }
+    }
+    for (id, _) in existing.into_values() {
+        transaction
+            .execute(
+                "DELETE FROM notes WHERE id=?1 AND project_id=?2",
+                rusqlite::params![id, project_id],
+            )
+            .map_err(|error| error.to_string())?;
+        changed = true;
+    }
+    Ok(changed)
+}
+
+fn reconcile_loaded_map_view(project_id: &str, stage_id: Option<&str>) -> Result<(), String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let (project, stages) = {
+        let repository = ProjectsRepository::new(&mut connection);
+        let project = repository
+            .get_project(project_id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "Проект не найден.".to_string())?;
+        let stages = repository
+            .list_stages(project_id)
+            .map_err(|error| error.to_string())?;
+        (project, stages)
+    };
+    let combined = stage_id.is_none()
+        && project
+            .payload
+            .get("combine_stage_mindmaps")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        && !stages.is_empty();
+    let now = now_from_database(&connection)?;
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    if combined {
+        if let Some(map) = stored_map(&project.payload)
+            .map(mindmap::normalize)
+            .transpose()?
+        {
+            if reconcile_map_notes(&tx, project_id, None, &map, &now)? {
+                update_stored_map(&tx, project_id, None, &map, &now, true)?;
+            }
+        }
+        for stage in &stages {
+            if let Some(map) = stored_map(&stage.payload)
+                .map(mindmap::normalize)
+                .transpose()?
+            {
+                if reconcile_map_notes(&tx, project_id, Some(&stage.id), &map, &now)? {
+                    update_stored_map(&tx, project_id, Some(&stage.id), &map, &now, true)?;
+                }
+            }
+        }
+    } else {
+        let (map, owner_stage_id) = if let Some(stage_id) = stage_id {
+            let stage = stages
+                .iter()
+                .find(|stage| stage.id == stage_id)
+                .ok_or_else(|| "Этап не найден.".to_string())?;
+            (stored_map(&stage.payload), Some(stage.id.as_str()))
+        } else {
+            (stored_map(&project.payload), None)
+        };
+        if let Some(map) = map.map(mindmap::normalize).transpose()? {
+            if reconcile_map_notes(&tx, project_id, owner_stage_id, &map, &now)? {
+                update_stored_map(&tx, project_id, owner_stage_id, &map, &now, true)?;
+            }
+        }
+    }
+    tx.commit().map_err(|error| error.to_string())
+}
+
+fn map_response(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
+    reconcile_loaded_map_view(&project_id, stage_id.as_deref())?;
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let repository = ProjectsRepository::new(&mut connection);
+    let project = repository
+        .get_project(&project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    let stages = repository
+        .list_stages(&project_id)
+        .map_err(|error| error.to_string())?;
+    let (name, status, data, combined) = if let Some(stage_id) = stage_id.as_deref() {
+        let stage = stages
+            .iter()
+            .find(|stage| stage.id == stage_id)
+            .ok_or_else(|| "Этап не найден.".to_string())?;
+        (
+            stage.name.clone(),
+            stage.status.clone(),
+            stored_map(&stage.payload),
+            false,
+        )
+    } else {
+        let combined = project
+            .payload
+            .get("combine_stage_mindmaps")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+            && !stages.is_empty();
+        (
+            project.name.clone(),
+            project.status.clone(),
+            stored_map(&project.payload),
+            combined,
+        )
+    };
+    drop(repository);
+    let data = if combined {
+        Some(compose_combined_map(&project, &stages)?)
+    } else {
+        data.map(|value| mindmap::normalize(value)).transpose()?
+    };
+    let notes = list_notes(project_id.clone(), stage_id.clone())?
+        .get("notes")
+        .cloned()
+        .unwrap_or_else(|| serde_json::json!([]));
+    let empty_completed = combined
+        && stages.iter().any(|stage| {
+            stage.status == "завершен"
+                && !mindmap::has_content(stored_map(&stage.payload).as_ref(), &stage.name)
+        });
+    Ok(
+        serde_json::json!({"project_id": project_id, "stage_id": stage_id, "name": name, "data": data, "combined": combined, "read_only": status == "завершен", "has_empty_completed_stage_map": empty_completed, "notes": notes}),
+    )
+}
+
+#[tauri::command]
+fn load_map(project_id: String, stage_id: Option<String>) -> Result<serde_json::Value, String> {
+    map_response(project_id, stage_id)
+}
+
+#[tauri::command]
+fn save_map(command: MapCommand) -> Result<serde_json::Value, String> {
+    let normalized = mindmap::normalize(command.data)?;
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let project = {
+        let repository = ProjectsRepository::new(&mut connection);
+        repository
+            .get_project(&command.project_id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "Проект не найден.".to_string())?
+    };
+    let stage_status = if let Some(stage_id) = command.stage_id.as_deref() {
+        let repository = ProjectsRepository::new(&mut connection);
+        Some(
+            repository
+                .get_stage(stage_id)
+                .map_err(|error| error.to_string())?
+                .filter(|stage| stage.project_id == command.project_id)
+                .ok_or_else(|| "Этап не относится к указанному проекту.".to_string())?
+                .status,
+        )
+    } else {
+        None
+    };
+    map_writable(&project.status, stage_status.as_deref())?;
+    let now = now_from_database(&connection)?;
+    let stages = {
+        let repository = ProjectsRepository::new(&mut connection);
+        repository
+            .list_stages(&command.project_id)
+            .map_err(|error| error.to_string())?
+    };
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    let combined = command.stage_id.is_none()
+        && project
+            .payload
+            .get("combine_stage_mindmaps")
+            .and_then(|value| value.as_bool())
+            .unwrap_or(false)
+        && !stages.is_empty();
+    if combined {
+        let (project_map, stage_maps) = split_combined_map(&project, &stages, &normalized)?;
+        let changed = reconcile_map_notes(&tx, &command.project_id, None, &project_map, &now)?;
+        update_stored_map(&tx, &command.project_id, None, &project_map, &now, changed)?;
+        for stage in &stages {
+            if let Some(stage_map) = stage_maps.get(&stage.id) {
+                if stage.status == "завершен" {
+                    continue;
+                }
+                let changed = reconcile_map_notes(
+                    &tx,
+                    &command.project_id,
+                    Some(&stage.id),
+                    stage_map,
+                    &now,
+                )?;
+                update_stored_map(
+                    &tx,
+                    &command.project_id,
+                    Some(&stage.id),
+                    stage_map,
+                    &now,
+                    changed,
+                )?;
+            }
+        }
+    } else {
+        let changed = reconcile_map_notes(
+            &tx,
+            &command.project_id,
+            command.stage_id.as_deref(),
+            &normalized,
+            &now,
+        )?;
+        update_stored_map(
+            &tx,
+            &command.project_id,
+            command.stage_id.as_deref(),
+            &normalized,
+            &now,
+            changed,
+        )?;
+    }
+    tx.commit().map_err(|error| error.to_string())?;
+    map_response(command.project_id, command.stage_id)
+}
+
+#[tauri::command]
+fn import_xmind(command: XMindCommand) -> Result<serde_json::Value, String> {
+    if command.project_id.is_empty() || command.stage_id.as_deref().is_some_and(str::is_empty) {
+        return Err("Некорректная область карты.".to_string());
+    }
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let repository = ProjectsRepository::new(&mut connection);
+    repository
+        .get_project(&command.project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    if let Some(stage_id) = command.stage_id.as_deref() {
+        repository
+            .get_stage(stage_id)
+            .map_err(|error| error.to_string())?
+            .filter(|stage| stage.project_id == command.project_id)
+            .ok_or_else(|| "Этап не относится к указанному проекту.".to_string())?;
+    }
+    drop(repository);
+    let sheets = mindmap::import_xmind(&command.bytes)?;
+    Ok(serde_json::json!({"sheets": sheets}))
+}
+
 fn raw_note_id(note_id: &str, aggregate: bool) -> &str {
     if aggregate {
         note_id.rsplit(':').next().unwrap_or(note_id)
@@ -884,6 +1757,12 @@ fn update_note(
     let patch = patch
         .as_object()
         .ok_or_else(|| "Некорректные данные заметки.".to_string())?;
+    let map_note = note.get("source_type").and_then(|value| value.as_str()) == Some("mindmap")
+        && patch.contains_key("content");
+    let map_node_id = note
+        .get("source_node_id")
+        .and_then(|value| value.as_str())
+        .map(str::to_string);
     let target = note
         .as_object_mut()
         .ok_or_else(|| "Некорректный payload заметки.".to_string())?;
@@ -988,6 +1867,43 @@ fn update_note(
     let tx = connection
         .transaction()
         .map_err(|error| error.to_string())?;
+    if map_note {
+        let node_id = map_node_id
+            .as_deref()
+            .ok_or_else(|| "У заметки карты отсутствует source_node_id.".to_string())?;
+        let raw_map: String = if let Some(stage_id) = note_stage_id.as_deref() {
+            tx.query_row(
+                "SELECT payload_json FROM stages WHERE id=?1 AND project_id=?2",
+                rusqlite::params![stage_id, project_id],
+                |row| row.get(0),
+            )
+        } else {
+            tx.query_row(
+                "SELECT payload_json FROM projects WHERE id=?1",
+                [&project_id],
+                |row| row.get(0),
+            )
+        }
+        .map_err(|_| "Связанная карта больше не существует.".to_string())?;
+        let owner_payload: serde_json::Value =
+            serde_json::from_str(&raw_map).map_err(|error| error.to_string())?;
+        let map = stored_map(&owner_payload)
+            .ok_or_else(|| "Связанная карта больше не существует.".to_string())?;
+        let content = target
+            .get("content")
+            .and_then(|value| value.as_str())
+            .unwrap_or_default();
+        let updated_map = mindmap::set_note_text(&map, node_id, content)
+            .ok_or_else(|| "Связанная заметка карты больше не существует.".to_string())?;
+        update_stored_map(
+            &tx,
+            &project_id,
+            note_stage_id.as_deref(),
+            &updated_map,
+            &now,
+            false,
+        )?;
+    }
     tx.execute(
         "UPDATE notes SET updated_at = ?1, payload_json = ?2 WHERE id = ?3 AND project_id = ?4",
         rusqlite::params![now, note.to_string(), raw_id, project_id],
@@ -1023,9 +1939,50 @@ fn delete_note(
         .map(str::to_string);
     require_note_relation(&connection, &project_id, note_stage_id.as_deref())?;
     require_note_writable(&connection, &project_id, note_stage_id.as_deref())?;
+    let now = note_time(&connection)?;
     let tx = connection
         .transaction()
         .map_err(|error| error.to_string())?;
+    let parsed_note: serde_json::Value =
+        serde_json::from_str(&note_payload).map_err(|error| error.to_string())?;
+    if parsed_note
+        .get("source_type")
+        .and_then(|value| value.as_str())
+        == Some("mindmap")
+    {
+        let node_id = parsed_note
+            .get("source_node_id")
+            .and_then(|value| value.as_str())
+            .ok_or_else(|| "У заметки карты отсутствует source_node_id.".to_string())?;
+        let raw_map: String = if let Some(stage_id) = note_stage_id.as_deref() {
+            tx.query_row(
+                "SELECT payload_json FROM stages WHERE id=?1 AND project_id=?2",
+                rusqlite::params![stage_id, project_id],
+                |row| row.get(0),
+            )
+        } else {
+            tx.query_row(
+                "SELECT payload_json FROM projects WHERE id=?1",
+                [&project_id],
+                |row| row.get(0),
+            )
+        }
+        .map_err(|_| "Связанная карта больше не существует.".to_string())?;
+        let owner_payload: serde_json::Value =
+            serde_json::from_str(&raw_map).map_err(|error| error.to_string())?;
+        let map = stored_map(&owner_payload)
+            .ok_or_else(|| "Связанная карта больше не существует.".to_string())?;
+        let updated_map = mindmap::remove_note(&map, node_id)
+            .ok_or_else(|| "Связанная заметка карты больше не существует.".to_string())?;
+        update_stored_map(
+            &tx,
+            &project_id,
+            note_stage_id.as_deref(),
+            &updated_map,
+            &now,
+            true,
+        )?;
+    }
     let deleted = tx
         .execute(
             "DELETE FROM notes WHERE id = ?1 AND project_id = ?2",
@@ -1425,6 +2382,24 @@ struct StageIdCommand {
 struct ReorderStagesCommand {
     project_id: String,
     stage_ids: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct MapCommand {
+    project_id: String,
+    #[serde(default)]
+    stage_id: Option<String>,
+    data: serde_json::Value,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct XMindCommand {
+    project_id: String,
+    #[serde(default)]
+    stage_id: Option<String>,
+    bytes: Vec<u8>,
 }
 
 fn default_true() -> bool {
@@ -2888,10 +3863,12 @@ mod tests {
     #[cfg(target_os = "macos")]
     use std::process::{Command, Stdio};
 
+    use rusqlite::Connection;
+
     use super::{
         build_macos_updater_script, configure_rustls_provider, encode_path_segment,
-        macos_update_target, AddProjectProgressCommand, AddStageProgressCommand,
-        DeleteProgressCommand, ProjectMetadataPatch,
+        macos_update_target, reconcile_map_notes, AddProjectProgressCommand,
+        AddStageProgressCommand, DeleteProgressCommand, ProjectMetadataPatch,
     };
 
     #[test]
@@ -2951,6 +3928,54 @@ mod tests {
         assert!(super::validate_progress_command("p", f64::INFINITY, None).is_err());
         assert!(super::validate_progress_command("p", 1.0, Some("")).is_err());
         assert!(super::validate_progress_command("p", 1.0, Some("s")).is_ok());
+    }
+
+    #[test]
+    fn map_note_reconciliation_is_idempotent_and_removes_deleted_nodes() {
+        let connection = Connection::open_in_memory().unwrap();
+        super::sqlite::apply_migrations(&connection).unwrap();
+        connection
+            .execute(
+                "INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json) VALUES('p','Project',0,0,'symbols','active','{}')",
+                [],
+            )
+            .unwrap();
+        let map = serde_json::json!({
+            "nodeData": {"id": "map", "topic": "Project", "children": []},
+            "freeNodes": [{"id": "note", "topic": "First", "children": [], "nfprogressNote": true}]
+        });
+        let first = connection.unchecked_transaction().unwrap();
+        assert!(reconcile_map_notes(&first, "p", None, &map, "now").unwrap());
+        first.commit().unwrap();
+        let second = connection.unchecked_transaction().unwrap();
+        assert!(!reconcile_map_notes(&second, "p", None, &map, "now").unwrap());
+        second.commit().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM notes WHERE project_id='p'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        let empty = serde_json::json!({
+            "nodeData": {"id": "map", "topic": "Project", "children": []}
+        });
+        let third = connection.unchecked_transaction().unwrap();
+        assert!(reconcile_map_notes(&third, "p", None, &empty, "later").unwrap());
+        third.commit().unwrap();
+        assert_eq!(
+            connection
+                .query_row(
+                    "SELECT COUNT(*) FROM notes WHERE project_id='p'",
+                    [],
+                    |row| row.get::<_, i64>(0)
+                )
+                .unwrap(),
+            0
+        );
     }
 
     #[test]
@@ -3564,6 +4589,9 @@ pub fn run() {
             update_note,
             delete_note,
             reorder_notes,
+            load_map,
+            save_map,
+            import_xmind,
             fetch_update_manifest,
             install_macos_update
         ])

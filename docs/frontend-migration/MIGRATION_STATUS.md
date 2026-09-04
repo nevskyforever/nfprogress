@@ -21,7 +21,7 @@ game                     = SQLite authoritative
 | --- | --- | --- |
 | Projects/stages/progress | Typed Vue/Tauri commands → Rust → SQLite, with durable Game outbox events | SQLite-authoritative; Python remains the web/compatibility adapter |
 | Settings | Typed Rust SQLite commands for ordinary settings; coupled project transitions still call Python/API | SQLite-authoritative, coupled behavior remains Python |
-| Notes | Typed Rust SQLite CRUD/order; map normalization, reconciliation and XMind still use Python/API | SQLite-authoritative notes; map document path remains transitional |
+| Notes/maps | Typed Rust SQLite Notes CRUD/order plus typed map load/save/import | SQLite-authoritative; normal desktop map/XMind path is Python-free, Web remains API-backed |
 | Game | Vue typed Tauri commands → Rust Game service → SQLite; Web keeps API adapter | SQLite-authoritative; normal desktop has no Python Game dependency |
 | Documents | Vue/Tiptap plus Python `documents.json` service | Separate JSON store; not in SQLite |
 | Word/Scrivener/sync | Python sidecar parser and minute background task | Python-dependent |
@@ -88,7 +88,7 @@ the remaining relevant legacy-oracle issue and is recorded for parity follow-up.
 | F2 Projects/Stages/Progress SQLite-authoritative cutover | Complete | Very High / Luna High; regression and baseline classification in `F2_PROJECTS_SQLITE_CUTOVER.md` |
 | F3 Game SQLite/event cutover | Complete (development authority) | Very High / Luna High |
 | F4 Game runtime completion | Complete (development desktop path) | Very High / Luna High; production upgrade remains separate |
-| F5 Mind Elixir/XMind | Not started | High / Luna Medium–High |
+| F5 Mind Elixir/XMind | Complete (development desktop path) | High / Luna Medium–High; production legacy-variant qualification remains F8 |
 | F6 Documents/Word/Scrivener/background sync | Not started | High / Luna Medium–High |
 | F7 Python-free Tauri sidecar/packaging removal | Not started | High / Luna Medium–High |
 | F8 migration, backup/restore and release qualification | Not started | Very High / Luna High; Sol for cross-platform release/integrity issues |
@@ -130,3 +130,23 @@ authority readiness does not imply production upgrade readiness: F8 names the
 minimum seamless-upgrade version. Older profiles use the migration-only helper
 or the sandboxed Legacy Migration Service, in the order prepared SQLite,
 bridge-updated Python, temporary helper, then isolated web conversion.
+
+## F5 status
+
+F5 is complete for normal desktop development runtime. The desktop map path
+has zero map HTTP calls and zero Python calls:
+
+```text
+Vue/Mind Elixir → storage-neutral MindMapRepository
+  → load_map/save_map/import_xmind → Rust → SQLite
+```
+
+Project and Stage payloads retain the canonical opaque Mind Elixir JSON, while
+Notes remain separate SQLite entities linked by stable `source_node_id` and
+`source_map_id`. Map save, map-note reconciliation, Note content edits and
+map-note deletion have explicit transaction boundaries. Stable IDs, ordering,
+freeNodes, styles/layout and unknown JSON fields survive ordinary mutations.
+The Rust XMind parser is structural-only, direct-from-ZIP, bounded against
+archive/path/XML/resource abuse, and returns all sheets for explicit UI
+selection. Python map code is retained for Web, migration and parity oracle
+coverage. Full details are in `F5_MINDMAP_XMIND_RUNTIME.md`.

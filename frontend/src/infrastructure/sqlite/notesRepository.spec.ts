@@ -31,4 +31,21 @@ describe('SQLiteNotesRepository', () => {
     expect(invoke).toHaveBeenNthCalledWith(4, 'delete_note', { ...scope, noteId: 'note-id' })
     expect(invoke).toHaveBeenNthCalledWith(5, 'reorder_notes', { ...scope, noteIds: ['note-id'] })
   })
+
+  it('uses typed Tauri commands for maps and XMind without an API fallback', async () => {
+    const map = { nodeData: { id: 'root', topic: 'Root', children: [] } }
+    const file = new File([new Uint8Array([1, 2, 3])], 'map.xmind')
+    invoke
+      .mockResolvedValueOnce({ project_id: 'project-id', stage_id: null, name: 'Root', data: map })
+      .mockResolvedValueOnce({ project_id: 'project-id', stage_id: null, name: 'Root', data: map })
+      .mockResolvedValueOnce({ sheets: [] })
+
+    await repository.mindMap(scope)
+    await repository.saveMindMap(scope, map)
+    await repository.importXMind(scope, file)
+
+    expect(invoke).toHaveBeenNthCalledWith(1, 'load_map', scope)
+    expect(invoke).toHaveBeenNthCalledWith(2, 'save_map', { ...scope, data: map })
+    expect(invoke).toHaveBeenNthCalledWith(3, 'import_xmind', { ...scope, bytes: [1, 2, 3] })
+  })
 })

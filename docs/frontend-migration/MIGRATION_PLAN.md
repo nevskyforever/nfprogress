@@ -419,3 +419,14 @@ data. Worker isolation, allowlisted classes/opcodes, resource/archive/path
 limits, privacy/retention, authentication, CSRF, quotas and rate limits are
 mandatory. No public endpoint is part of F2; details are in
 `F2_PROJECTS_SQLITE_CUTOVER.md`.
+
+## F5 Mind Elixir/XMind
+
+F5 is complete for the development desktop path. Mind Elixir load/save and
+map-linked Note mutations use typed Tauri commands and SQLite. The existing
+opaque `mindmap` section remains nested in Project/Stage payloads, so no
+duplicated `mind_maps` authority or schema migration is introduced. Structural
+XMind import is bounded and performed in Rust from ZIP `content.json` or
+`content.xml`; Vue explicitly selects among multiple sheets. Python remains
+the Web adapter, oracle and legacy migration path. Documents, Word, Scrivener,
+watchers and global sidecar removal remain F6/F7 scope.

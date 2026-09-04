@@ -9,6 +9,7 @@ import type {
   NotesViewContext,
   ProjectNote,
   ProjectNotePatch,
+  XMindImportResponse,
 } from '@/types/notes'
 
 const EMPTY_CONTEXT: NotesViewContext = { hasStages: false, stages: [] }
@@ -56,7 +57,10 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
         stageId.value ? repository.list({ projectId: projectId.value }) : Promise.resolve(null),
       ])
       if (sequence !== loadSequence) return
-      notes.value = notePayload.notes
+      // Native map loading reconciles map-linked Notes in the same SQLite
+      // boundary. Prefer that post-reconciliation projection when available;
+      // the Web adapter may omit it and continues to use the Notes response.
+      notes.value = mapPayload.notes ?? notePayload.notes
       context.value = projectContextPayload?.context ?? notePayload.context
       readOnly.value = notePayload.read_only
       mindMap.value = mapPayload
@@ -154,6 +158,13 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
     }
   }
 
+  async function importXMind(
+    file: File,
+    requestedScope: NotesScope = scope.value,
+  ): Promise<XMindImportResponse> {
+    return repository.importXMind(requestedScope, file)
+  }
+
   function invalidate(): void {
     loadSequence += 1
   }
@@ -174,6 +185,7 @@ export function useProjectNotes(projectId: Ref<string>, stageId: Ref<string | nu
     reorderNotes,
     saveMindMap,
     refreshMindMap,
+    importXMind,
     invalidate,
   }
 }

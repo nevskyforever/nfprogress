@@ -4,7 +4,6 @@ import { IonIcon, IonSpinner } from '@ionic/vue'
 import { locateOutline, saveOutline } from 'ionicons/icons'
 
 import { apiErrorMessage } from '@/api/client'
-import { notesApi } from '@/api/notes'
 import {
   mindMapBridge,
   parseMindMapData,
@@ -12,11 +11,12 @@ import {
   type MindMapInitialization,
 } from '@/components/notes/mindMapBridge'
 import { useLocaleStore } from '@/stores/locale'
-import type { JsonObject, MindMapResponse, NotesScope } from '@/types/notes'
+import type { JsonObject, MindMapResponse, NotesScope, XMindImportResponse } from '@/types/notes'
 
 const props = defineProps<{
   map: MindMapResponse
   persist: (data: JsonObject, scope: NotesScope) => Promise<MindMapResponse>
+  importXMind: (file: File, scope: NotesScope) => Promise<XMindImportResponse>
   focusNodeId?: string | null
 }>()
 
@@ -205,7 +205,7 @@ async function importXMind(event: Event): Promise<void> {
   importing.value = true
   errorMessage.value = null
   try {
-    const response = await notesApi.importXMind(persistenceScope, file)
+    const response = await props.importXMind(file, persistenceScope)
     if (!response.sheets.length) throw new Error(t('Карта XMind пуста.'))
     importSheets.value = response.sheets
     selectedImportSheet.value = 0

@@ -347,6 +347,7 @@ onBeforeUnmount(workspace.invalidate)
             ref="mindMapEditor"
             :map="workspace.mindMap.value"
             :persist="workspace.saveMindMap"
+            :import-x-mind="workspace.importXMind"
             :focus-node-id="pendingFocusNode"
             @escape="leaveWorkspace"
           />

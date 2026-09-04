@@ -264,8 +264,8 @@ because persistence does.
 | --- | --- | --- | --- | --- |
 | Projects/stages/progress/lifecycle | `engine.py`, `ProjectService`, PKL | TS use-cases + Rust repositories/services | Existing TS calculation and repository boundaries | No for ownership; business parity is F2. |
 | Game | `game.py`, `game_data.py`, PKL and data-envelope effects | TS pure rules + Rust/SQLite state and event transactions | No replacement yet; build from catalog/parity fixtures | No for final runtime, after Projects event contract. |
-| Mind Elixir | Python normalization, reconciliation and map persistence | TS normalizer/editor adapter + Rust/SQLite map payload | Editor already JS; normalizer can be ported | Map import may follow Projects cutover. |
-| XMind | `xmind_import.py`, Python ZIP/XML parser | Rust ZIP/XML parser and TS tree mapper | No required library; Rust archive/XML crates are appropriate | Yes, until F5. |
+| Mind Elixir | Python normalization, reconciliation and map persistence | TS normalizer/editor adapter + Rust/SQLite map payload | Editor already JS; F5 native normalizer and repository are implemented | No for normal desktop; Python remains Web/oracle/migration. |
+| XMind | `xmind_import.py`, Python ZIP/XML parser | Rust ZIP/XML parser and TS tree mapper | Rust `zip`, `quick-xml` and bounded parser are implemented | No for normal desktop; historical variants remain F8 qualification. |
 | Word `.docx` | Python counting/local path service | TS `mammoth`/`docx` for conversion; Rust or TS for local file boundary/count | `mammoth` and `docx` already installed | Yes, until F6. |
 | Scrivener | `scrivener_parser.py`, `striprtf`, Python filesystem | Rust archive/XML/RTF parser and worker | No existing TS parser dependency | Yes, until F6. |
 | Documents | `documents.py`, `documents.json` | SQLite document repository; Rust file/hash/write boundary; TS Tiptap model | Tiptap model already exists | The editor can stay TS while storage moves. |
@@ -451,3 +451,14 @@ Static catalog parity is checked against `game_data.ITEM_REGISTRY`; lottery
 uses an injectable 5-of-30 RNG and persists its draw history. Production
 Python bridge maintenance and the isolated Legacy Migration Service remain
 separate from development runtime completion.
+
+## F5 implementation audit
+
+The map audit is now implemented at the desktop boundary.
+`SQLiteNotesRepository` uses typed `load_map`, `save_map` and `import_xmind`
+commands; the Web adapter continues to use the existing API independently.
+Rust updates only the owning Project/Stage `mindmap` payload and reconciles
+separate SQLite Notes in one transaction. Existing Python normalization and
+XMind tests remain the oracle; the normal Tauri path does not invoke them. See
+[`F5_MINDMAP_XMIND_RUNTIME.md`](F5_MINDMAP_XMIND_RUNTIME.md) for the operation
+matrix, contract, limits, deletion semantics and verification results.
