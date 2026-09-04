@@ -12,6 +12,7 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
   const status = ref('')
   let saveTimer: number | undefined
   let watchTimer: number | undefined
+  let localRevision = 0
 
   async function writeLinkedWord() {
     if (!documentState.value?.docx_path) return
@@ -20,12 +21,16 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
   async function save(announce = true) {
     window.clearTimeout(saveTimer)
     saveTimer = undefined
-    documentState.value = await documentsApi.save(scope, content.value)
+    // Keep the payload stable while the request is in flight.  The editor can
+    // continue producing updates while an autosave is being persisted.
+    const snapshot = JSON.parse(JSON.stringify(content.value)) as TiptapDocument
+    documentState.value = await documentsApi.save(scope, snapshot)
     await writeLinkedWord()
     if (announce) announceDataChange('projects')
     status.value = 'Сохранено'
   }
   function scheduleSave(next: TiptapDocument) {
+    localRevision += 1
     content.value = next
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => void save().catch(() => { status.value = 'Не удалось сохранить' }), 700)
@@ -54,7 +59,13 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     anchor.href = url; anchor.download = 'nfprogress-conflict-copy.docx'; anchor.click(); URL.revokeObjectURL(url)
   }
   onMounted(async () => {
-    documentState.value = await documentsApi.get(scope); content.value = documentState.value.content
+    const revisionAtStart = localRevision
+    const loaded = await documentsApi.get(scope)
+    documentState.value = loaded
+    // A slow initial read (including a migration-backed read) must not replace
+    // text entered while it was in flight.  The local edit is already the
+    // current source of truth and its autosave will persist it.
+    if (revisionAtStart === localRevision) content.value = loaded.content
   })
   onBeforeUnmount(() => { window.clearTimeout(saveTimer); window.clearInterval(watchTimer); void save() })
   return { content, documentState, status, save, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal }
