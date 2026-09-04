@@ -109,11 +109,17 @@ class PickleRepository:
 
     def read_projects(self) -> dict[str, Any]:
         """Read the complete legacy project-data envelope."""
+        from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.PROJECTS) == StorageOwner.SQLITE:
+            raise RuntimeError('Projects are SQLite-authoritative; legacy reads are disabled.')
         with self.locked():
             return engine.load_data()
 
     def write_projects(self, data: dict[str, Any]) -> None:
         """Atomically write the complete legacy project-data envelope."""
+        from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.PROJECTS) == StorageOwner.SQLITE:
+            raise RuntimeError('Projects are SQLite-authoritative; legacy writes are disabled.')
         if not isinstance(data, dict):
             raise TypeError('project data must be a dictionary')
         with self.locked():
@@ -127,6 +133,9 @@ class PickleRepository:
         is passed back to the caller; the envelope itself is always the value
         persisted after a successful callback.
         """
+        from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.PROJECTS) == StorageOwner.SQLITE:
+            raise RuntimeError('Projects are SQLite-authoritative; legacy writes are disabled.')
         if not callable(mutator):
             raise TypeError('mutator must be callable')
         with self.locked():

@@ -20,6 +20,11 @@ use tauri_plugin_shell::ShellExt;
 mod project_repository;
 mod sqlite;
 
+use project_repository::{
+    ProgressRecord, ProjectAggregate, ProjectMetadataUpdate, ProjectRecord, ProjectsRepository,
+    StageRecord, StageUpdate,
+};
+
 #[derive(Serialize)]
 struct SqliteEntityRow {
     id: String,
@@ -52,6 +57,187 @@ struct SqliteProjectReadModel {
     projects: Vec<SqliteEntityRow>,
     stages: Vec<SqliteEntityRow>,
     progress_entries: Vec<SqliteProgressRow>,
+}
+
+fn open_projects_database() -> Result<rusqlite::Connection, String> {
+    sqlite::open_database(&sqlite_data_root()?.join("nfprogress.db"))
+        .map_err(|error| error.to_string())
+}
+
+fn require_projects_owner(connection: &rusqlite::Connection) -> Result<(), String> {
+    let owner: String = connection
+        .query_row(
+            "SELECT owner FROM storage_ownership WHERE subsystem='projects'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("Не удалось проверить ownership проектов: {error}"))?;
+    if owner != "sqlite" {
+        return Err("Проекты ещё не переведены в SQLite authoritative storage.".to_string());
+    }
+    Ok(())
+}
+
+fn now_from_database(connection: &rusqlite::Connection) -> Result<String, String> {
+    connection
+        .query_row("SELECT strftime('%Y-%m-%dT%H:%M:%SZ','now')", [], |row| {
+            row.get(0)
+        })
+        .map_err(|error| error.to_string())
+}
+
+fn project_payload(
+    connection: &mut rusqlite::Connection,
+    project_id: &str,
+) -> Result<serde_json::Value, String> {
+    let mut repository = ProjectsRepository::new(connection);
+    let project = repository
+        .get_project(project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    let stages = repository
+        .list_stages(project_id)
+        .map_err(|error| error.to_string())?;
+    let mut payload = project.payload;
+    let stages_payload = stages
+        .into_iter()
+        .map(|stage| {
+            let mut value = stage.payload;
+            let entries = repository
+                .list_progress(project_id, Some(&stage.id))
+                .map_err(|error| error.to_string())?;
+            value["progress_entries"] =
+                serde_json::Value::Array(entries.into_iter().map(|entry| entry.payload).collect());
+            value["parent_project_id"] = serde_json::Value::String(project_id.to_string());
+            Ok(value)
+        })
+        .collect::<Result<Vec<_>, String>>()?;
+    let project_entries = repository
+        .list_progress(project_id, None)
+        .map_err(|error| error.to_string())?;
+    payload["progress_entries"] = serde_json::Value::Array(
+        project_entries
+            .into_iter()
+            .map(|entry| entry.payload)
+            .collect(),
+    );
+    payload["stages"] = serde_json::Value::Array(stages_payload);
+    Ok(payload)
+}
+
+fn refresh_project_totals(
+    connection: &mut rusqlite::Connection,
+    project_id: &str,
+) -> Result<(), String> {
+    let mut repository = ProjectsRepository::new(connection);
+    let project = repository
+        .get_project(project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    let stages = repository
+        .list_stages(project_id)
+        .map_err(|error| error.to_string())?;
+    let total: f64 = stages
+        .iter()
+        .map(|stage| {
+            stage
+                .payload
+                .get("total")
+                .and_then(|value| value.as_f64())
+                .unwrap_or(0.0)
+        })
+        .sum();
+    let mut payload = project.payload;
+    payload["stages"] =
+        serde_json::Value::Array(stages.into_iter().map(|stage| stage.payload).collect());
+    let stages_enabled = payload
+        .get("stages")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|stages| !stages.is_empty());
+    payload["stages_enabled"] = stages_enabled.into();
+    payload["total"] = total.into();
+    payload["progress"] = if project.infinite || project.goal.unwrap_or(0.0) <= 0.0 {
+        0.0.into()
+    } else {
+        (total / project.goal.unwrap_or(1.0) * 100.0).into()
+    };
+    repository
+        .update_project_payload(project_id, &payload)
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn refresh_project_totals_in_transaction(
+    transaction: &rusqlite::Transaction<'_>,
+    project_id: &str,
+) -> Result<(), String> {
+    let (payload_json, goal, infinite): (String, Option<f64>, bool) = transaction
+        .query_row(
+            "SELECT payload_json, goal, infinite FROM projects WHERE id=?1",
+            [project_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .map_err(|error| error.to_string())?;
+    let mut payload: serde_json::Value = serde_json::from_str(&payload_json)
+        .map_err(|error| format!("Некорректный payload проекта: {error}"))?;
+    let mut stages = transaction
+        .prepare("SELECT payload_json FROM stages WHERE project_id=?1 ORDER BY id")
+        .map_err(|error| error.to_string())?
+        .query_map([project_id], |row| row.get::<_, String>(0))
+        .map_err(|error| error.to_string())?
+        .map(|row| {
+            row.map_err(|error| error.to_string())
+                .and_then(|json| serde_json::from_str(&json).map_err(|error| error.to_string()))
+        })
+        .collect::<Result<Vec<serde_json::Value>, String>>()?;
+    let total = stages.iter().fold(0.0, |sum, stage| {
+        sum + stage
+            .get("total")
+            .and_then(serde_json::Value::as_f64)
+            .unwrap_or(0.0)
+    });
+    payload["stages"] = serde_json::Value::Array(std::mem::take(&mut stages));
+    payload["stages_enabled"] = payload
+        .get("stages")
+        .and_then(serde_json::Value::as_array)
+        .is_some_and(|items| !items.is_empty())
+        .into();
+    payload["total"] = total.into();
+    payload["progress"] = if infinite || goal.unwrap_or(0.0) <= 0.0 {
+        0.0.into()
+    } else {
+        (total / goal.unwrap_or(1.0) * 100.0).into()
+    };
+    transaction
+        .execute(
+            "UPDATE projects SET updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now'), payload_json=?1 WHERE id=?2",
+            rusqlite::params![payload.to_string(), project_id],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(())
+}
+
+fn append_event(
+    repository: &mut ProjectsRepository<'_>,
+    event_id: &str,
+    event_type: &str,
+    project_id: &str,
+    stage_id: Option<&str>,
+    progress_id: Option<&str>,
+    delta_symbols: Option<f64>,
+) -> Result<(), String> {
+    repository
+        .append_domain_event(
+            event_id,
+            event_type,
+            project_id,
+            stage_id,
+            progress_id,
+            None,
+            delta_symbols,
+            &serde_json::json!({"source": "desktop", "version": 1}),
+        )
+        .map_err(|error| error.to_string())
 }
 
 fn open_settings_database() -> Result<rusqlite::Connection, String> {
@@ -849,6 +1035,127 @@ struct DeleteProgressCommand {
     stage_id: Option<String>,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateStageCommand {
+    name: String,
+    goal: Option<f64>,
+    #[serde(default)]
+    infinite: bool,
+    #[serde(default)]
+    total: f64,
+    deadline: Option<String>,
+    #[serde(default)]
+    personal_goal: f64,
+    #[serde(default = "default_true")]
+    streak_enabled: bool,
+    #[serde(default = "default_true")]
+    auto_freeze: bool,
+    #[serde(default)]
+    work_method: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct CreateProjectCommand {
+    name: String,
+    goal: Option<f64>,
+    #[serde(default)]
+    infinite: bool,
+    #[serde(default)]
+    total: f64,
+    deadline: Option<String>,
+    #[serde(default)]
+    personal_goal: f64,
+    #[serde(default = "default_true")]
+    streak_enabled: bool,
+    #[serde(default = "default_true")]
+    auto_freeze: bool,
+    #[serde(default)]
+    work_method: String,
+    #[serde(default = "default_unit")]
+    unit: String,
+    #[serde(default)]
+    stages_enabled: bool,
+    #[serde(default)]
+    combine_stage_mindmaps: bool,
+    cover_image: Option<String>,
+    folder_id: Option<String>,
+    #[serde(default)]
+    stages: Vec<CreateStageCommand>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct EntityUpdateCommand {
+    name: Option<String>,
+    goal: Option<f64>,
+    infinite: Option<bool>,
+    total: Option<f64>,
+    deadline: Option<String>,
+    personal_goal: Option<f64>,
+    streak_enabled: Option<bool>,
+    auto_freeze: Option<bool>,
+    work_method: Option<String>,
+    #[serde(default)]
+    recalculate_plan: bool,
+    #[serde(default)]
+    confirm_daily_goal_increase: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProjectUpdateCommand {
+    name: Option<String>,
+    goal: Option<f64>,
+    infinite: Option<bool>,
+    total: Option<f64>,
+    deadline: Option<String>,
+    personal_goal: Option<f64>,
+    streak_enabled: Option<bool>,
+    unit: Option<String>,
+    auto_freeze: Option<bool>,
+    work_method: Option<String>,
+    stages_enabled: Option<bool>,
+    combine_stage_mindmaps: Option<bool>,
+    cover_image: Option<String>,
+    folder_id: Option<Option<String>>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ArchiveProjectCommand {
+    project_id: String,
+    archived: bool,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ProjectIdCommand {
+    project_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct StageIdCommand {
+    project_id: String,
+    stage_id: String,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct ReorderStagesCommand {
+    project_id: String,
+    stage_ids: Vec<String>,
+}
+
+fn default_true() -> bool {
+    true
+}
+fn default_unit() -> String {
+    "symbols".to_string()
+}
+
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct MacosUpdateProgress {
@@ -939,57 +1246,96 @@ fn encode_path_segment(value: &str) -> String {
 }
 
 #[tauri::command]
-async fn update_project_metadata(
-    state: State<'_, BackendState>,
+fn update_project_metadata(
     project_id: String,
     patch: ProjectMetadataPatch,
 ) -> Result<serde_json::Value, String> {
-    let mut body = serde_json::Map::new();
-    if let Some(value) = patch.name {
-        body.insert("name".into(), value.into());
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    if patch
+        .name
+        .as_deref()
+        .is_some_and(|value| value.trim().is_empty())
+    {
+        return Err("Название проекта не может быть пустым.".to_string());
     }
-    if let Some(value) = patch.goal {
-        body.insert("goal".into(), value.into());
+    if patch
+        .unit
+        .as_deref()
+        .is_some_and(|value| !valid_unit(value))
+    {
+        return Err("Неизвестная единица прогресса.".to_string());
     }
-    if let Some(value) = patch.unit {
-        body.insert("unit".into(), value.into());
+    if patch
+        .goal
+        .is_some_and(|value| !value.is_finite() || value <= 0.0)
+    {
+        return Err("Цель должна быть конечной и больше нуля.".to_string());
     }
-    match patch.deadline {
-        MetadataDeadline::Null => {
-            body.insert("deadline".into(), serde_json::Value::Null);
-        }
-        MetadataDeadline::Value(value) => {
-            body.insert("deadline".into(), value.into());
-        }
-        MetadataDeadline::Absent => {}
-    }
-    if let Some(value) = patch.infinite {
-        body.insert("infinite".into(), value.into());
-    }
-    backend_json_request(
-        state,
-        reqwest::Method::PATCH,
-        format!(
-            "/api/projects/{}/metadata",
-            encode_path_segment(&project_id)
-        ),
-        body,
-    )
-    .await
+    let deadline = match patch.deadline {
+        MetadataDeadline::Absent => None,
+        MetadataDeadline::Null => Some(None),
+        MetadataDeadline::Value(value) => Some(Some(value)),
+    };
+    let mut repository = ProjectsRepository::new(&mut connection);
+    let updated = repository
+        .update_project_metadata(
+            &project_id,
+            &ProjectMetadataUpdate {
+                name: patch.name.map(|value| value.trim().to_string()),
+                goal: patch.goal,
+                unit: patch.unit,
+                status: None,
+                infinite: patch.infinite,
+                deadline,
+            },
+        )
+        .map_err(|error| error.to_string())?;
+    drop(repository);
+    let _ = updated;
+    project_payload(&mut connection, &project_id)
 }
 
 #[tauri::command]
-async fn reorder_projects(
-    state: State<'_, BackendState>,
-    project_ids: Vec<String>,
-) -> Result<serde_json::Value, String> {
-    backend_json_request(
-        state,
-        reqwest::Method::PUT,
-        "/api/projects/order".to_string(),
-        serde_json::json!({"project_ids": project_ids}),
-    )
-    .await
+fn reorder_projects(project_ids: Vec<String>) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    if project_ids.is_empty()
+        || project_ids
+            .iter()
+            .collect::<std::collections::HashSet<_>>()
+            .len()
+            != project_ids.len()
+    {
+        return Err("Порядок должен содержать известные проекты без повторений.".to_string());
+    }
+    let existing = repository
+        .get_project_order()
+        .map_err(|error| error.to_string())?;
+    if project_ids.iter().any(|id| !existing.contains(id)) {
+        return Err("Порядок должен содержать только известные проекты.".to_string());
+    }
+    let requested: std::collections::HashSet<&str> =
+        project_ids.iter().map(String::as_str).collect();
+    let mut normalized = existing.clone();
+    let visible_positions = normalized
+        .iter()
+        .enumerate()
+        .filter_map(|(index, id)| requested.contains(id.as_str()).then_some(index))
+        .collect::<Vec<_>>();
+    for (position, project_id) in visible_positions.into_iter().zip(project_ids.iter()) {
+        normalized[position] = project_id.clone();
+    }
+    repository
+        .update_project_order(&normalized)
+        .map_err(|error| error.to_string())?;
+    drop(repository);
+    let ids = project_ids
+        .iter()
+        .map(|id| project_payload(&mut connection, id))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(serde_json::Value::Array(ids))
 }
 
 fn validate_progress_command(
@@ -1006,74 +1352,1057 @@ fn validate_progress_command(
     Ok(())
 }
 
-#[tauri::command]
-async fn add_project_progress(
-    state: State<'_, BackendState>,
-    command: AddProjectProgressCommand,
-) -> Result<serde_json::Value, String> {
-    validate_progress_command(&command.project_id, command.new_total, None)?;
-    backend_json_request(
-        state,
-        reqwest::Method::POST,
-        format!(
-            "/api/projects/{}/progress",
-            encode_path_segment(&command.project_id)
-        ),
-        serde_json::json!({"new_total": command.new_total, "stage_id": null}),
-    )
-    .await
+fn valid_unit(value: &str) -> bool {
+    matches!(value, "symbols" | "A4" | "author_list" | "ficbook_pages")
+}
+
+fn unit_factor(value: &str) -> Option<f64> {
+    match value {
+        "symbols" => Some(1.0),
+        "A4" => Some(1800.0),
+        "author_list" => Some(40000.0),
+        "ficbook_pages" => Some(4500.0),
+        _ => None,
+    }
+}
+
+fn normalized_total(value: f64, unit: &str) -> Result<f64, String> {
+    if !value.is_finite() || value < 0.0 {
+        return Err("Значение должно быть конечным и неотрицательным.".to_string());
+    }
+    Ok(if unit == "author_list" {
+        value
+    } else {
+        value.ceil()
+    })
+}
+
+fn entity_payload(
+    id: String,
+    name: String,
+    goal: Option<f64>,
+    infinite: bool,
+    total: f64,
+    deadline: Option<String>,
+    unit: String,
+    work_method: String,
+    personal_goal: f64,
+    project_id: Option<String>,
+) -> serde_json::Value {
+    let progress = if infinite || goal.unwrap_or(0.0) <= 0.0 {
+        0.0
+    } else {
+        total / goal.unwrap_or(1.0) * 100.0
+    };
+    serde_json::json!({
+        "id": id, "name": name, "goal": if infinite { serde_json::Value::Null } else { goal.map_or(serde_json::Value::Null, serde_json::Value::from) },
+        "infinite": infinite, "total": total, "progress": progress, "deadline": deadline,
+        "status": "активен", "unit": unit, "created_at": null, "updated_at": null,
+        "notes_updated_at": null, "mindmap_updated_at": null, "completed_at": null,
+        "personal_goal": personal_goal, "today_goal": null, "planning_date": null,
+        "plan_daily_goal": null, "added_today": 0, "remaining": if infinite { serde_json::Value::Null } else { serde_json::json!((goal.unwrap_or(total) - total).max(0.0)) },
+        "streak_enabled": true, "streak_status": "No", "streak_length": 0, "max_streak": 0,
+        "auto_freeze": true, "progress_entries": [], "project_notes": [], "mindmap": null,
+        "stages": [], "stages_enabled": false, "combine_stage_mindmaps": false,
+        "cover_image": null, "folder_id": null, "sync_available": work_method == "sync",
+        "work_method": work_method, "parent_project_id": project_id
+    })
 }
 
 #[tauri::command]
-async fn add_stage_progress(
-    state: State<'_, BackendState>,
-    command: AddStageProgressCommand,
+fn create_project(command: CreateProjectCommand) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let name = command.name.trim().to_string();
+    if name.is_empty() {
+        return Err("Название проекта не может быть пустым.".to_string());
+    }
+    if connection
+        .query_row("SELECT 1 FROM projects WHERE name=?1", [&name], |_| Ok(()))
+        .optional()
+        .map_err(|error| error.to_string())?
+        .is_some()
+    {
+        return Err("Проект с таким названием уже существует.".to_string());
+    }
+    if let Some(folder_id) = command.folder_id.as_deref() {
+        if connection
+            .query_row(
+                "SELECT 1 FROM project_folders WHERE id=?1",
+                [folder_id],
+                |_| Ok(()),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .is_none()
+        {
+            return Err("Папка не найдена.".to_string());
+        }
+    }
+    if !valid_unit(&command.unit) {
+        return Err("Неизвестная единица прогресса.".to_string());
+    }
+    if !matches!(command.work_method.as_str(), "" | "manual" | "sync" | "app") {
+        return Err("Неизвестный метод работы с проектом.".to_string());
+    }
+    let work_method = if command.work_method.is_empty() {
+        "manual".to_string()
+    } else {
+        command.work_method.clone()
+    };
+    let total = normalized_total(command.total, &command.unit)?;
+    let goal = if command.infinite {
+        None
+    } else {
+        Some(
+            command
+                .goal
+                .ok_or_else(|| "Цель должна быть больше нуля.".to_string())?,
+        )
+    };
+    let goal = goal
+        .map(|value| normalized_total(value, &command.unit))
+        .transpose()?;
+    if goal.is_some_and(|value| value <= 0.0) {
+        return Err("Цель должна быть больше нуля.".to_string());
+    }
+    let personal_goal = normalized_total(command.personal_goal, &command.unit)?;
+    let id = new_note_id()?;
+    let now = now_from_database(&connection)?;
+    let mut payload = entity_payload(
+        id.clone(),
+        name.clone(),
+        goal,
+        command.infinite,
+        total,
+        command.deadline.clone(),
+        command.unit.clone(),
+        work_method.clone(),
+        personal_goal,
+        None,
+    );
+    payload["created_at"] = serde_json::Value::String(now.clone());
+    payload["updated_at"] = serde_json::Value::String(now.clone());
+    payload["streak_enabled"] = serde_json::Value::Bool(command.streak_enabled);
+    payload["auto_freeze"] = serde_json::Value::Bool(command.auto_freeze);
+    payload["stages_enabled"] =
+        serde_json::Value::Bool(command.stages_enabled || !command.stages.is_empty());
+    payload["combine_stage_mindmaps"] = serde_json::Value::Bool(
+        command.combine_stage_mindmaps && (!command.stages.is_empty() || command.stages_enabled),
+    );
+    payload["cover_image"] = command
+        .cover_image
+        .clone()
+        .map_or(serde_json::Value::Null, serde_json::Value::String);
+    payload["folder_id"] = command
+        .folder_id
+        .clone()
+        .map_or(serde_json::Value::Null, serde_json::Value::String);
+    let mut stages = Vec::new();
+    let mut stage_records = Vec::new();
+    for stage in command.stages {
+        let stage_name = stage.name.trim().to_string();
+        if stage_name.is_empty() {
+            return Err("Название этапа не может быть пустым.".to_string());
+        }
+        let stage_total = normalized_total(stage.total, &command.unit)?;
+        let stage_goal = if stage.infinite {
+            None
+        } else {
+            Some(normalized_total(
+                stage
+                    .goal
+                    .ok_or_else(|| "Цель этапа должна быть больше нуля.".to_string())?,
+                &command.unit,
+            )?)
+        };
+        let stage_id = new_note_id()?;
+        let mut stage_payload = entity_payload(
+            stage_id.clone(),
+            stage_name,
+            stage_goal,
+            stage.infinite,
+            stage_total,
+            stage.deadline,
+            command.unit.clone(),
+            if stage.work_method.is_empty() {
+                "manual".to_string()
+            } else {
+                stage.work_method
+            },
+            stage.personal_goal,
+            Some(id.clone()),
+        );
+        stage_payload["created_at"] = serde_json::Value::String(now.clone());
+        stage_payload["updated_at"] = serde_json::Value::String(now.clone());
+        stage_payload["streak_enabled"] = serde_json::Value::Bool(stage.streak_enabled);
+        stage_payload["auto_freeze"] = serde_json::Value::Bool(stage.auto_freeze);
+        stages.push(stage_payload.clone());
+        stage_records.push(StageRecord {
+            id: stage_id,
+            project_id: id.clone(),
+            name: stage_payload["name"]
+                .as_str()
+                .unwrap_or_default()
+                .to_string(),
+            goal: stage_goal,
+            infinite: stage.infinite,
+            unit: command.unit.clone(),
+            status: "активен".to_string(),
+            created_at: Some(now.clone()),
+            updated_at: Some(now.clone()),
+            payload: stage_payload,
+        });
+    }
+    payload["stages"] = serde_json::Value::Array(stages);
+    let order_position: i64 = connection
+        .query_row(
+            "SELECT COALESCE(MAX(position), -1) + 1 FROM project_order",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    repository
+        .insert_aggregate(&ProjectAggregate {
+            project: ProjectRecord {
+                id: id.clone(),
+                name,
+                goal,
+                infinite: command.infinite,
+                unit: command.unit,
+                status: "активен".to_string(),
+                created_at: Some(now.clone()),
+                updated_at: Some(now),
+                payload,
+            },
+            stages: stage_records,
+            progress: Vec::<ProgressRecord>::new(),
+            order_position,
+        })
+        .map_err(|error| error.to_string())?;
+    if let Some(folder_id) = command.folder_id {
+        repository
+            .set_project_folder(&id, Some(&folder_id))
+            .map_err(|error| error.to_string())?;
+    }
+    drop(repository);
+    project_payload(&mut connection, &id)
+}
+
+#[tauri::command]
+fn update_project(
+    project_id: String,
+    patch: ProjectUpdateCommand,
 ) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    let current = repository
+        .get_project(&project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    let folder_id = patch.folder_id;
+    if let Some(Some(folder_id)) = folder_id.as_ref() {
+        if !repository
+            .project_folder_exists(folder_id)
+            .map_err(|error| error.to_string())?
+        {
+            return Err("Папка не найдена.".to_string());
+        }
+    }
+    let mut payload = current.payload;
+    let object = payload
+        .as_object_mut()
+        .ok_or_else(|| "Некорректный payload проекта.".to_string())?;
+    if let Some(name) = patch.name {
+        if name.trim().is_empty() {
+            return Err("Название проекта не может быть пустым.".to_string());
+        }
+        object.insert("name".into(), name.trim().into());
+    }
+    if let Some(unit) = patch.unit {
+        if !valid_unit(&unit) {
+            return Err("Неизвестная единица прогресса.".to_string());
+        }
+        object.insert("unit".into(), unit.into());
+    }
+    for (key, value) in [
+        ("goal", patch.goal.map(serde_json::Value::from)),
+        ("total", patch.total.map(serde_json::Value::from)),
+        (
+            "personal_goal",
+            patch.personal_goal.map(serde_json::Value::from),
+        ),
+    ] {
+        if let Some(value) = value {
+            if !value
+                .as_f64()
+                .is_some_and(|number| number.is_finite() && number >= 0.0)
+            {
+                return Err("Значение должно быть конечным и неотрицательным.".to_string());
+            }
+            object.insert(key.into(), value);
+        }
+    }
+    if let Some(infinite) = patch.infinite {
+        object.insert("infinite".into(), infinite.into());
+        if infinite {
+            object.insert("goal".into(), serde_json::Value::Null);
+        }
+    }
+    if let Some(deadline) = patch.deadline {
+        object.insert("deadline".into(), deadline.into());
+    }
+    if let Some(value) = patch.personal_goal {
+        object.insert("personal_goal".into(), value.into());
+    }
+    if let Some(value) = patch.streak_enabled {
+        object.insert("streak_enabled".into(), value.into());
+    }
+    if let Some(value) = patch.auto_freeze {
+        object.insert("auto_freeze".into(), value.into());
+    }
+    if let Some(value) = patch.work_method {
+        if !matches!(value.as_str(), "manual" | "sync" | "app") {
+            return Err("Неизвестный метод работы с проектом.".to_string());
+        }
+        object.insert("work_method".into(), value.clone().into());
+        object.insert("sync_available".into(), (value == "sync").into());
+    }
+    if let Some(value) = patch.stages_enabled {
+        object.insert("stages_enabled".into(), value.into());
+    }
+    if let Some(value) = patch.combine_stage_mindmaps {
+        object.insert("combine_stage_mindmaps".into(), value.into());
+    }
+    if let Some(value) = patch.cover_image {
+        object.insert("cover_image".into(), value.into());
+    }
+    if let Some(folder_id) = folder_id.as_ref() {
+        object.insert(
+            "folder_id".into(),
+            folder_id
+                .clone()
+                .map_or(serde_json::Value::Null, serde_json::Value::String),
+        );
+    }
+    repository
+        .update_project_payload(&project_id, &payload)
+        .map_err(|error| error.to_string())?;
+    if let Some(folder_id) = folder_id {
+        repository
+            .set_project_folder(&project_id, folder_id.as_deref())
+            .map_err(|error| error.to_string())?;
+    }
+    drop(repository);
+    project_payload(&mut connection, &project_id)
+}
+
+#[tauri::command]
+fn create_stage(
+    project_id: String,
+    command: CreateStageCommand,
+) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let now = now_from_database(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    let project = repository
+        .get_project(&project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    if project.status == "завершен" {
+        return Err("Завершённый проект доступен только для просмотра.".to_string());
+    }
+    let name = command.name.trim().to_string();
+    if name.is_empty() {
+        return Err("Название этапа не может быть пустым.".to_string());
+    }
+    if repository
+        .list_stages(&project_id)
+        .map_err(|error| error.to_string())?
+        .iter()
+        .any(|stage| stage.name == name)
+    {
+        return Err("Этап с таким названием уже существует.".to_string());
+    }
+    if !valid_unit(&project.unit) {
+        return Err("Неизвестная единица прогресса.".to_string());
+    }
+    let stage_id = new_note_id()?;
+    let total = normalized_total(command.total, &project.unit)?;
+    let goal = if command.infinite {
+        None
+    } else {
+        Some(normalized_total(
+            command
+                .goal
+                .ok_or_else(|| "Цель этапа должна быть больше нуля.".to_string())?,
+            &project.unit,
+        )?)
+    };
+    let method = if command.work_method.is_empty() {
+        "manual".to_string()
+    } else {
+        command.work_method
+    };
+    if !matches!(method.as_str(), "manual" | "sync" | "app") {
+        return Err("Неизвестный метод работы с этапом.".to_string());
+    }
+    let mut payload = entity_payload(
+        stage_id.clone(),
+        name.clone(),
+        goal,
+        command.infinite,
+        total,
+        command.deadline,
+        project.unit.clone(),
+        method.clone(),
+        command.personal_goal,
+        Some(project_id.clone()),
+    );
+    payload["created_at"] = now.clone().into();
+    payload["updated_at"] = now.clone().into();
+    payload["streak_enabled"] = command.streak_enabled.into();
+    payload["auto_freeze"] = command.auto_freeze.into();
+    let stage = StageRecord {
+        id: stage_id,
+        project_id: project_id.clone(),
+        name,
+        goal,
+        infinite: command.infinite,
+        unit: project.unit.clone(),
+        status: "активен".to_string(),
+        created_at: Some(now.clone()),
+        updated_at: Some(now),
+        payload,
+    };
+    repository
+        .insert_stage(&stage)
+        .map_err(|error| error.to_string())?;
+    let mut project_payload_value = project.payload;
+    project_payload_value["stages_enabled"] = true.into();
+    project_payload_value["stages"] = serde_json::Value::Array(
+        repository
+            .list_stages(&project_id)
+            .map_err(|error| error.to_string())?
+            .into_iter()
+            .map(|stage| stage.payload)
+            .collect(),
+    );
+    repository
+        .update_project_payload(&project_id, &project_payload_value)
+        .map_err(|error| error.to_string())?;
+    drop(repository);
+    refresh_project_totals(&mut connection, &project_id)?;
+    project_payload(&mut connection, &project_id)
+}
+
+#[tauri::command]
+fn update_stage(
+    project_id: String,
+    stage_id: String,
+    patch: EntityUpdateCommand,
+) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    let _project = repository
+        .get_project(&project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    let current = repository
+        .get_stage(&stage_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Этап не найден.".to_string())?;
+    if current.project_id != project_id {
+        return Err("Этап не относится к указанному проекту.".to_string());
+    }
+    let mut payload = current.payload;
+    if let Some(name) = patch.name {
+        if name.trim().is_empty() {
+            return Err("Название этапа не может быть пустым.".to_string());
+        }
+        payload["name"] = name.trim().into();
+    }
+    if let Some(goal) = patch.goal {
+        payload["goal"] = normalized_total(goal, &current.unit)?.into();
+    }
+    if let Some(infinite) = patch.infinite {
+        payload["infinite"] = infinite.into();
+        if infinite {
+            payload["goal"] = serde_json::Value::Null;
+        }
+    }
+    if let Some(total) = patch.total {
+        payload["total"] = normalized_total(total, &current.unit)?.into();
+    }
+    if let Some(value) = patch.deadline {
+        payload["deadline"] = value.into();
+    }
+    if let Some(value) = patch.personal_goal {
+        payload["personal_goal"] = normalized_total(value, &current.unit)?.into();
+    }
+    if let Some(value) = patch.streak_enabled {
+        payload["streak_enabled"] = value.into();
+    }
+    if let Some(value) = patch.auto_freeze {
+        payload["auto_freeze"] = value.into();
+    }
+    if let Some(value) = patch.work_method {
+        if !matches!(value.as_str(), "manual" | "sync" | "app") {
+            return Err("Неизвестный метод работы с этапом.".to_string());
+        }
+        payload["work_method"] = value.clone().into();
+        payload["sync_available"] = (value == "sync").into();
+    }
+    let infinite = payload
+        .get("infinite")
+        .and_then(|value| value.as_bool())
+        .unwrap_or(current.infinite);
+    let goal = if infinite {
+        None
+    } else {
+        payload
+            .get("goal")
+            .and_then(|value| value.as_f64())
+            .or(current.goal)
+    };
+    let update = StageUpdate {
+        name: payload
+            .get("name")
+            .and_then(|value| value.as_str())
+            .unwrap_or(&current.name)
+            .to_string(),
+        goal,
+        infinite,
+        unit: current.unit.clone(),
+        status: current.status.clone(),
+        payload,
+    };
+    repository
+        .update_stage(&stage_id, &update)
+        .map_err(|error| error.to_string())?;
+    drop(repository);
+    refresh_project_totals(&mut connection, &project_id)?;
+    project_payload(&mut connection, &project_id)
+}
+
+#[tauri::command]
+fn delete_stage(command: StageIdCommand) -> Result<(), String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    let stage = repository
+        .get_stage(&command.stage_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Этап не найден.".to_string())?;
+    if stage.project_id != command.project_id {
+        return Err("Этап не относится к указанному проекту.".to_string());
+    }
+    repository
+        .delete_stage_with_notes(&command.stage_id, &command.project_id)
+        .map_err(|error| error.to_string())?;
+    drop(repository);
+    refresh_project_totals(&mut connection, &command.project_id)
+}
+
+#[tauri::command]
+fn reorder_stages(command: ReorderStagesCommand) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    repository
+        .update_stage_order(&command.project_id, &command.stage_ids)
+        .map_err(|error| error.to_string())?;
+    drop(repository);
+    project_payload(&mut connection, &command.project_id)
+}
+
+#[tauri::command]
+fn set_project_archived(command: ArchiveProjectCommand) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    let current = repository
+        .get_project(&command.project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    if current.status == "завершен" {
+        return Err("Завершённый проект нельзя архивировать или активировать.".to_string());
+    }
+    let mut payload = current.payload;
+    payload["status"] = if command.archived {
+        "в архиве".into()
+    } else {
+        "активен".into()
+    };
+    if command.archived {
+        payload["deadline"] = serde_json::Value::Null;
+        payload["streaks"] = serde_json::json!([]);
+    }
+    repository
+        .update_project_payload(&command.project_id, &payload)
+        .map_err(|error| error.to_string())?;
+    append_event(
+        &mut repository,
+        &format!(
+            "project-status:{}:{}",
+            command.project_id,
+            if command.archived {
+                "archived"
+            } else {
+                "active"
+            }
+        ),
+        "ProjectStatusChanged",
+        &command.project_id,
+        None,
+        None,
+        None,
+    )?;
+    drop(repository);
+    project_payload(&mut connection, &command.project_id)
+}
+
+#[tauri::command]
+fn complete_project(command: ProjectIdCommand) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let now = now_from_database(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    let current = repository
+        .get_project(&command.project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    if current.infinite {
+        return Err("Бесконечный проект нельзя завершить по числовой цели.".to_string());
+    }
+    if current.goal.is_some_and(|goal| {
+        current
+            .payload
+            .get("total")
+            .and_then(|value| value.as_f64())
+            .unwrap_or(0.0)
+            < goal
+    }) {
+        return Err("Сначала достигните цели проекта.".to_string());
+    }
+    let mut payload = current.payload;
+    payload["status"] = "завершен".into();
+    payload["completed_at"] = now.clone().into();
+    repository
+        .update_project_payload(&command.project_id, &payload)
+        .map_err(|error| error.to_string())?;
+    append_event(
+        &mut repository,
+        &format!("project-completed:{}", command.project_id),
+        "ProjectCompleted",
+        &command.project_id,
+        None,
+        None,
+        None,
+    )?;
+    drop(repository);
+    project_payload(&mut connection, &command.project_id)
+}
+
+#[tauri::command]
+fn complete_stage(command: StageIdCommand) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let now = now_from_database(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    let stage = repository
+        .get_stage(&command.stage_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Этап не найден.".to_string())?;
+    if stage.project_id != command.project_id {
+        return Err("Этап не относится к указанному проекту.".to_string());
+    }
+    if stage.infinite {
+        return Err("Бесконечный этап нельзя завершить по числовой цели.".to_string());
+    }
+    if stage.goal.is_some_and(|goal| {
+        stage
+            .payload
+            .get("total")
+            .and_then(|value| value.as_f64())
+            .unwrap_or(0.0)
+            < goal
+    }) {
+        return Err("Сначала достигните цели этапа.".to_string());
+    }
+    let mut payload = stage.payload;
+    payload["status"] = "завершен".into();
+    payload["completed_at"] = now.into();
+    let update = StageUpdate {
+        name: payload["name"].as_str().unwrap_or_default().to_string(),
+        goal: stage.goal,
+        infinite: stage.infinite,
+        unit: stage.unit,
+        status: "завершен".to_string(),
+        payload,
+    };
+    repository
+        .update_stage(&command.stage_id, &update)
+        .map_err(|error| error.to_string())?;
+    append_event(
+        &mut repository,
+        &format!("stage-completed:{}", command.stage_id),
+        "StageCompleted",
+        &command.project_id,
+        Some(&command.stage_id),
+        None,
+        None,
+    )?;
+    drop(repository);
+    project_payload(&mut connection, &command.project_id)
+}
+
+#[tauri::command]
+fn delete_project(command: ProjectIdCommand) -> Result<(), String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    ProjectsRepository::new(&mut connection)
+        .delete_project_with_notes(&command.project_id)
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn list_project_folders() -> Result<Vec<serde_json::Value>, String> {
+    let connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let mut statement = connection
+        .prepare("SELECT id,name FROM project_folders ORDER BY position,id")
+        .map_err(|error| error.to_string())?;
+    let rows = statement
+        .query_map([], |row| {
+            Ok(serde_json::json!({"id": row.get::<_, String>(0)?, "name": row.get::<_, String>(1)?}))
+        })
+        .map_err(|error| error.to_string())?
+        .map(|row| row.map_err(|error| error.to_string()))
+        .collect();
+    rows
+}
+
+#[tauri::command]
+fn create_project_folder(name: String) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let name = name.trim().to_string();
+    if name.is_empty() || name.chars().count() > 120 {
+        return Err("Название папки некорректно.".to_string());
+    }
+    let id = new_note_id()?;
+    let position: i64 = connection
+        .query_row(
+            "SELECT COALESCE(MAX(position),-1)+1 FROM project_folders",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    connection
+        .execute(
+            "INSERT INTO project_folders(id,name,position,payload_json) VALUES(?1,?2,?3,?4)",
+            rusqlite::params![
+                id,
+                name,
+                position,
+                serde_json::json!({"id":id,"name":name}).to_string()
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+    Ok(serde_json::json!({"id": id, "name": name}))
+}
+
+#[tauri::command]
+fn update_project_folder(folder_id: String, name: String) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let name = name.trim().to_string();
+    if name.is_empty() || name.chars().count() > 120 {
+        return Err("Название папки некорректно.".to_string());
+    }
+    let changed = connection.execute("UPDATE project_folders SET name=?1,payload_json=json_set(payload_json,'$.name',?1) WHERE id=?2", rusqlite::params![name,folder_id]).map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("Папка не найдена.".to_string());
+    }
+    Ok(serde_json::json!({"id":folder_id,"name":name}))
+}
+
+#[tauri::command]
+fn delete_project_folder(folder_id: String) -> Result<(), String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    tx.execute("UPDATE projects SET payload_json=json_set(payload_json,'$.folder_id',NULL) WHERE id IN (SELECT project_id FROM project_folder_members WHERE folder_id=?1)", [&folder_id]).map_err(|error| error.to_string())?;
+    tx.execute(
+        "DELETE FROM project_folder_members WHERE folder_id=?1",
+        [&folder_id],
+    )
+    .map_err(|error| error.to_string())?;
+    let changed = tx
+        .execute("DELETE FROM project_folders WHERE id=?1", [&folder_id])
+        .map_err(|error| error.to_string())?;
+    if changed != 1 {
+        return Err("Папка не найдена.".to_string());
+    }
+    tx.commit().map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn add_project_progress(command: AddProjectProgressCommand) -> Result<serde_json::Value, String> {
+    validate_progress_command(&command.project_id, command.new_total, None)?;
+    add_progress_sqlite(command.project_id, None, command.new_total)
+}
+
+#[tauri::command]
+fn add_stage_progress(command: AddStageProgressCommand) -> Result<serde_json::Value, String> {
     validate_progress_command(
         &command.project_id,
         command.new_total,
         Some(&command.stage_id),
     )?;
-    backend_json_request(
-        state,
-        reqwest::Method::POST,
-        format!(
-            "/api/projects/{}/progress",
-            encode_path_segment(&command.project_id)
-        ),
-        serde_json::json!({"new_total": command.new_total, "stage_id": command.stage_id}),
+    add_progress_sqlite(
+        command.project_id,
+        Some(command.stage_id),
+        command.new_total,
     )
-    .await
 }
 
 #[tauri::command]
-async fn delete_progress(
-    state: State<'_, BackendState>,
-    command: DeleteProgressCommand,
-) -> Result<serde_json::Value, String> {
+fn delete_progress(command: DeleteProgressCommand) -> Result<serde_json::Value, String> {
     if command.project_id.is_empty() || command.entry_id.is_empty() {
         return Err("Идентификаторы проекта и записи не могут быть пустыми.".to_string());
     }
     if command.stage_id.as_deref().is_some_and(str::is_empty) {
         return Err("Идентификатор этапа не может быть пустым.".to_string());
     }
-    let query = command
-        .stage_id
-        .as_deref()
-        .map(|stage_id| format!("?stage_id={}", encode_path_segment(stage_id)))
+    delete_progress_sqlite(command.project_id, command.entry_id, command.stage_id)
+}
+
+fn convert_to_symbols(value: f64, unit: &str) -> Result<f64, String> {
+    unit_factor(unit)
+        .map(|factor| value * factor)
+        .ok_or_else(|| "Неизвестная единица прогресса.".to_string())
+}
+
+fn add_progress_sqlite(
+    project_id: String,
+    stage_id: Option<String>,
+    submitted_total: f64,
+) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let now = now_from_database(&connection)?;
+    let repository = ProjectsRepository::new(&mut connection);
+    let project = repository
+        .get_project(&project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    let entity = if let Some(stage_id) = stage_id.as_deref() {
+        repository
+            .get_stage(stage_id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "Этап не найден.".to_string())?
+    } else {
+        StageRecord {
+            id: project.id.clone(),
+            project_id: project.id.clone(),
+            name: project.name.clone(),
+            goal: project.goal,
+            infinite: project.infinite,
+            unit: project.unit.clone(),
+            status: project.status.clone(),
+            created_at: project.created_at.clone(),
+            updated_at: project.updated_at.clone(),
+            payload: project.payload.clone(),
+        }
+    };
+    if entity.project_id != project_id {
+        return Err("Этап не относится к указанному проекту.".to_string());
+    }
+    if entity.status == "завершен" {
+        return Err("Завершённая сущность доступна только для просмотра.".to_string());
+    }
+    let method = entity
+        .payload
+        .get("work_method")
+        .and_then(|value| value.as_str())
+        .unwrap_or("manual");
+    let binding_exists = repository
+        .has_sync_binding(&project_id, stage_id.as_deref())
+        .map_err(|error| error.to_string())?;
+    if method == "sync" || binding_exists {
+        return Err("Включена синхронизация. Ручная запись прогресса недоступна.".to_string());
+    }
+    if method != "manual" && method != "app" {
+        return Err("Этот способ добавления записей сейчас не выбран.".to_string());
+    }
+    let total = normalized_total(submitted_total, &entity.unit)?;
+    let previous = entity
+        .payload
+        .get("total")
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.0);
+    let next_symbols = convert_to_symbols(total, &entity.unit)?;
+    let previous_symbols = convert_to_symbols(previous, &entity.unit)?;
+    let delta = next_symbols - previous_symbols;
+    if delta.abs() < 0.009 {
+        return Err("Значение не изменилось.".to_string());
+    }
+    let entry_id = new_note_id()?;
+    let goal_symbols = entity
+        .goal
+        .map(|goal| convert_to_symbols(goal, &entity.unit))
+        .transpose()?
+        .unwrap_or(0.0);
+    let added_progress = if goal_symbols <= 0.0 {
+        0.0
+    } else {
+        delta / goal_symbols * 100.0
+    };
+    let entry = serde_json::json!({"id": entry_id, "new_total": total, "new_total_symbols": next_symbols, "added": total - previous, "added_symbols": delta, "added_progress": added_progress, "created_at": now});
+    let mut payload = entity.payload;
+    let entries = payload
+        .get("progress_entries")
+        .and_then(|value| value.as_array())
+        .cloned()
         .unwrap_or_default();
-    backend_json_request(
-        state,
-        reqwest::Method::DELETE,
-        format!(
-            "/api/projects/{}/progress/{}{}",
-            encode_path_segment(&command.project_id),
-            encode_path_segment(&command.entry_id),
-            query,
-        ),
-        serde_json::json!({}),
+    let mut entries = entries;
+    entries.push(entry.clone());
+    payload["progress_entries"] = serde_json::Value::Array(entries);
+    payload["total"] = total.into();
+    payload["progress"] = if entity.infinite || entity.goal.unwrap_or(0.0) <= 0.0 {
+        0.0.into()
+    } else {
+        (total / entity.goal.unwrap_or(1.0) * 100.0).into()
+    };
+    payload["updated_at"] = now.clone().into();
+    drop(repository);
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    tx.execute("INSERT INTO progress_entries(id,project_id,stage_id,created_at,added_symbols,added_progress,payload_json) VALUES(?1,?2,?3,?4,?5,?6,?7)", rusqlite::params![entry_id, project_id, stage_id, now, delta, added_progress, entry.to_string()]).map_err(|error| error.to_string())?;
+    let position: i64 = tx
+        .query_row(
+            "SELECT COALESCE(MAX(position),-1)+1 FROM progress_order",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    tx.execute(
+        "INSERT INTO progress_order(entry_id,position) VALUES(?1,?2)",
+        rusqlite::params![entry_id, position],
     )
-    .await
+    .map_err(|error| error.to_string())?;
+    let table = if stage_id.is_some() {
+        "stages"
+    } else {
+        "projects"
+    };
+    tx.execute(&format!("UPDATE {table} SET goal=?1, infinite=?2, unit=?3, updated_at=?4, payload_json=?5 WHERE id=?6"), rusqlite::params![entity.goal, entity.infinite, entity.unit, now, payload.to_string(), entity.id]).map_err(|error| error.to_string())?;
+    if stage_id.is_some() {
+        refresh_project_totals_in_transaction(&tx, &project_id)?;
+    }
+    tx.execute("INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,stage_id,progress_id,delta_symbols,context_json,created_at) VALUES(?1,'ProgressAdded',?2,?3,?4,?5,?6,?7)", rusqlite::params![format!("progress-added:{entry_id}"), project_id, stage_id, entry_id, delta, serde_json::json!({"source":"desktop","version":1}).to_string(), now]).map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())?;
+    let project_value = project_payload(&mut connection, &project_id)?;
+    Ok(
+        serde_json::json!({"project": project_value, "entry": entry, "added_symbols": delta, "game": null, "warning": null}),
+    )
+}
+
+fn delete_progress_sqlite(
+    project_id: String,
+    entry_id: String,
+    stage_id: Option<String>,
+) -> Result<serde_json::Value, String> {
+    let mut connection = open_projects_database()?;
+    require_projects_owner(&connection)?;
+    let now = now_from_database(&connection)?;
+    let mut repository = ProjectsRepository::new(&mut connection);
+    let project = repository
+        .get_project(&project_id)
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "Проект не найден.".to_string())?;
+    let entity_id = stage_id.clone().unwrap_or_else(|| project_id.clone());
+    let entity = if let Some(stage_id) = stage_id.as_deref() {
+        repository
+            .get_stage(stage_id)
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| "Этап не найден.".to_string())?
+    } else {
+        StageRecord {
+            id: project.id.clone(),
+            project_id: project.id.clone(),
+            name: project.name.clone(),
+            goal: project.goal,
+            infinite: project.infinite,
+            unit: project.unit.clone(),
+            status: project.status.clone(),
+            created_at: project.created_at.clone(),
+            updated_at: project.updated_at.clone(),
+            payload: project.payload.clone(),
+        }
+    };
+    if entity.project_id != project_id {
+        return Err("Этап не относится к указанному проекту.".to_string());
+    }
+    let mut entries = entity
+        .payload
+        .get("progress_entries")
+        .and_then(|value| value.as_array())
+        .cloned()
+        .unwrap_or_default();
+    let before = entries.len();
+    entries.retain(|entry| {
+        entry.get("id").and_then(|value| value.as_str()) != Some(entry_id.as_str())
+    });
+    if entries.len() == before {
+        return Err("Запись прогресса не найдена.".to_string());
+    }
+    let total = entries
+        .last()
+        .and_then(|entry| entry.get("new_total"))
+        .and_then(|value| value.as_f64())
+        .unwrap_or(0.0);
+    let mut payload = entity.payload;
+    payload["progress_entries"] = serde_json::Value::Array(entries);
+    payload["total"] = total.into();
+    payload["progress"] = if entity.infinite || entity.goal.unwrap_or(0.0) <= 0.0 {
+        0.0.into()
+    } else {
+        (total / entity.goal.unwrap_or(1.0) * 100.0).into()
+    };
+    drop(repository);
+    let tx = connection
+        .transaction()
+        .map_err(|error| error.to_string())?;
+    let deleted = tx.execute("DELETE FROM progress_entries WHERE id=?1 AND project_id=?2 AND (?3 IS NULL OR stage_id=?3)", rusqlite::params![entry_id, project_id, stage_id]).map_err(|error| error.to_string())?;
+    if deleted != 1 {
+        return Err("Запись прогресса не найдена.".to_string());
+    }
+    let table = if stage_id.is_some() {
+        "stages"
+    } else {
+        "projects"
+    };
+    tx.execute(
+        &format!("UPDATE {table} SET updated_at=?1,payload_json=?2 WHERE id=?3"),
+        rusqlite::params![now, payload.to_string(), entity_id],
+    )
+    .map_err(|error| error.to_string())?;
+    if stage_id.is_some() {
+        refresh_project_totals_in_transaction(&tx, &project_id)?;
+    }
+    tx.execute("INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,stage_id,progress_id,context_json,created_at) VALUES(?1,'ProgressDeleted',?2,?3,?4,?5,?6)", rusqlite::params![format!("progress-deleted:{entry_id}"), project_id, stage_id, entry_id, serde_json::json!({"source":"desktop","version":1}).to_string(), now]).map_err(|error| error.to_string())?;
+    tx.commit().map_err(|error| error.to_string())?;
+    Ok(project_payload(&mut connection, &project_id)?)
 }
 
 fn sqlite_data_root() -> Result<PathBuf, String> {
@@ -1116,7 +2445,7 @@ fn read_sqlite_entity_rows(
 ) -> Result<Vec<SqliteEntityRow>, String> {
     let sql = match table {
         "projects" => "SELECT p.id, NULL, p.name, p.goal, p.infinite, p.unit, p.status, p.created_at, p.updated_at, p.payload_json FROM projects p JOIN project_order o ON o.project_id = p.id ORDER BY o.position",
-        "stages" => "SELECT id, project_id, name, goal, infinite, unit, status, created_at, updated_at, payload_json FROM stages ORDER BY rowid",
+        "stages" => "SELECT s.id, s.project_id, s.name, s.goal, s.infinite, s.unit, s.status, s.created_at, s.updated_at, s.payload_json FROM stages s JOIN stage_order o ON o.stage_id=s.id ORDER BY o.project_id,o.position",
         _ => return Err("Недопустимая таблица SQLite.".to_string()),
     };
     let mut statement = connection.prepare(sql).map_err(|error| error.to_string())?;
@@ -1144,6 +2473,7 @@ fn read_sqlite_entity_rows(
 fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
     let database = sqlite_data_root()?.join("nfprogress.db");
     let connection = sqlite::open_database(&database).map_err(|error| error.to_string())?;
+    require_projects_owner(&connection)?;
     let status: String = connection
         .query_row(
             "SELECT sync_status FROM mirror_state WHERE id = 1",
@@ -1155,7 +2485,7 @@ fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
         return Err(format!("SQLite mirror status is {status}"));
     }
     let mut progress = connection
-        .prepare("SELECT id, project_id, stage_id, created_at, added_symbols, added_progress, payload_json FROM progress_entries ORDER BY rowid")
+        .prepare("SELECT p.id, p.project_id, p.stage_id, p.created_at, p.added_symbols, p.added_progress, p.payload_json FROM progress_entries p JOIN progress_order o ON o.entry_id=p.id ORDER BY o.position")
         .map_err(|error| error.to_string())?;
     let progress_entries = progress
         .query_map([], |row| {
@@ -1211,6 +2541,18 @@ fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
         stages: read_sqlite_entity_rows(&connection, "stages")?,
         progress_entries,
     })
+}
+
+#[tauri::command]
+fn projects_storage_owner() -> Result<String, String> {
+    let connection = open_projects_database()?;
+    connection
+        .query_row(
+            "SELECT owner FROM storage_ownership WHERE subsystem='projects'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())
 }
 
 fn configure_rustls_provider() {
@@ -1797,6 +3139,7 @@ pub fn run() {
             let spawn_result = command
                 .args(arguments)
                 .env("NFPROGRESS_SESSION_TOKEN", &token)
+                .env("NFPROGRESS_TAURI_RUNTIME", "1")
                 .env(
                     "NFPROGRESS_ALLOWED_ORIGINS",
                     "tauri://localhost,http://tauri.localhost,https://tauri.localhost,http://localhost:5173,http://127.0.0.1:5173",
@@ -1853,6 +3196,21 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             backend_connection,
             read_sqlite_projects,
+            projects_storage_owner,
+            create_project,
+            update_project,
+            delete_project,
+            set_project_archived,
+            complete_project,
+            complete_stage,
+            create_stage,
+            update_stage,
+            delete_stage,
+            reorder_stages,
+            list_project_folders,
+            create_project_folder,
+            update_project_folder,
+            delete_project_folder,
             update_project_metadata,
             reorder_projects,
             add_project_progress,

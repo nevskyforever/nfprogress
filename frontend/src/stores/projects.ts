@@ -6,7 +6,7 @@ import { projectsApi } from '@/api/projects'
 import { getProjectReadRepository } from '@/infrastructure/projects/projectReadRepository'
 import { getProjectMetadataRepository } from '@/infrastructure/projects/projectMetadataRepository'
 import { getProgressRepository } from '@/infrastructure/projects/progressRepository'
-import { adaptStatistics } from '@/services/statisticsAdapter'
+import { adaptStatistics, calculateLocalStatistics } from '@/services/statisticsAdapter'
 import { announceDataChange } from '@/services/dataChanges'
 import type {
   EntityUpdate,
@@ -300,9 +300,12 @@ export const useProjectsStore = defineStore('projects', () => {
     statisticsLoading.value = true
     statisticsError.value = null
     try {
-      const result = await projectsApi.statistics(projectId, stageId)
       const project = currentProject.value
-      const adapted = project?.id === projectId
+      const localDesktop = typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined
+      const result = localDesktop && project?.id === projectId
+        ? calculateLocalStatistics(project, stageId)
+        : await projectsApi.statistics(projectId, stageId)
+      const adapted = project?.id === projectId && !localDesktop
         ? adaptStatistics(project, result, stageId)
         : result
       if (sequence === statisticsSequence) statistics.value = adapted

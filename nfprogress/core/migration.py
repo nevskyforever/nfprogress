@@ -229,8 +229,8 @@ def load_legacy_projects_bundle(data_root: str | Path) -> MigrationBundle:
     repository = PickleRepository(data_root)
     with repository.locked():
         import engine
-
-        envelope = engine.load_data()
+        with engine.data_directory_context(data_root):
+            envelope = engine.load_data()
     bundle = MigrationBundle.from_legacy(envelope)
     source = Path(data_root).expanduser().resolve() / 'data.pkl'
     if source.is_file():
@@ -247,6 +247,43 @@ def load_legacy_projects_bundle(data_root: str | Path) -> MigrationBundle:
 
 class MigrationImportError(RuntimeError):
     """Raised when a canonical bundle cannot be imported without data loss."""
+
+
+def cutover_projects(data_root: str | Path) -> MigrationBundle:
+    """Import legacy Projects and switch ownership only after verification."""
+    from nfprogress.core.sqlite.ownership import StorageOwner, StorageOwnershipRepository, Subsystem
+    from nfprogress.core.storage import PickleRepository
+
+    root = Path(data_root).expanduser().resolve()
+    ownership = StorageOwnershipRepository(root)
+    if ownership.get_owner(Subsystem.PROJECTS) == StorageOwner.SQLITE:
+        return MigrationBundle()
+    bundle = load_legacy_projects_bundle(root)
+    PickleRepository(root).create_backup(('data',))
+    import_projects_bundle(bundle, root)
+    verified, errors = verify_projects_bundle(bundle, root)
+    if not verified:
+        raise MigrationImportError(
+            'Projects SQLite parity verification failed: ' + ', '.join(errors),
+        )
+    with open_database(root) as db:
+        with db:
+            owner = db.execute(
+                'SELECT owner FROM storage_ownership WHERE subsystem = ?',
+                (Subsystem.PROJECTS.value,),
+            ).fetchone()
+            if owner is None or owner['owner'] != StorageOwner.PICKLE.value:
+                raise MigrationImportError('Projects owner changed during cutover')
+            db.execute(
+                "UPDATE storage_ownership SET owner = ?, updated_at = datetime('now') "
+                'WHERE subsystem = ?',
+                (StorageOwner.SQLITE.value, Subsystem.PROJECTS.value),
+            )
+            db.execute(
+                "UPDATE mirror_state SET source_format='migration_bundle', "
+                "sync_status='healthy', last_error=NULL WHERE id=1",
+            )
+    return bundle
 
 
 def import_projects_bundle(bundle: MigrationBundle, data_root: str | Path) -> None:

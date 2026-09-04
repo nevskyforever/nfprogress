@@ -41,4 +41,17 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
             f'INSERT INTO schema_info(schema_version) VALUES ({next_version});\n'
             'COMMIT;\n',
         )
+    connection.execute(
+        'CREATE TABLE IF NOT EXISTS domain_events ('
+        'event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, '
+        'project_id TEXT NOT NULL, '
+        'stage_id TEXT, progress_id TEXT, effective_date TEXT, '
+        'delta_symbols REAL, context_json TEXT NOT NULL, created_at TEXT NOT NULL, '
+        'processed_at TEXT, consumer TEXT NOT NULL DEFAULT \'game\', '
+        'version INTEGER NOT NULL DEFAULT 1)'
+    )
+    connection.execute(
+        'CREATE INDEX IF NOT EXISTS idx_domain_events_pending '
+        'ON domain_events(consumer, processed_at, created_at)'
+    )
     return CURRENT_SCHEMA_VERSION

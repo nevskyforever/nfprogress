@@ -194,3 +194,12 @@ validates in a clean profile before activation and retains the previous
 profile. A corrupt SQLite database is not repaired by copying a stale mirror;
 legacy import is explicit recovery. PKL files remain untouched until recovery
 and rollback tests have passed.
+
+## F2 Projects ownership
+
+F2 changes the local desktop ownership matrix to SQLite for Projects, Stages,
+Progress, ordering, folders, bindings and extensions. The Tauri sidecar runs a
+verified, idempotent `MigrationBundle` import before the ownership transaction;
+healthy SQLite reads have no PKL/API fallback. Rust Tauri services own
+validation, transactions and persistence, while Game/Notes/document effects
+remain explicit boundaries. See `F2_PROJECTS_SQLITE_CUTOVER.md`.

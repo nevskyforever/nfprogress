@@ -84,7 +84,7 @@ of storage loss.
 | Milestone | Status | Risk / Codex recommendation |
 | --- | --- | --- |
 | F1 storage contract, Rust migrations and one-shot legacy importer | Complete (storage foundation) | Very High / Luna High; importer packaging/source matrix remains an F2 blocker |
-| F2 Projects/Stages/Progress SQLite-authoritative cutover | Not started | Very High / Luna High |
+| F2 Projects/Stages/Progress SQLite-authoritative cutover | Complete | Very High / Luna High; regression and baseline classification in `F2_PROJECTS_SQLITE_CUTOVER.md` |
 | F3 Game SQLite/event cutover | Not started | Very High / Luna High |
 | F4 Mind Elixir/XMind | Not started | High / Luna Medium–High |
 | F5 Documents/Word/Scrivener/background sync | Not started | High / Luna Medium–High |
@@ -100,3 +100,12 @@ are combined into F3. P8 is F6. P9 is split between F1 and F7.
 F1 does not switch ownership, stop PKL writes, delete Python/sidecar/PKL, or
 begin Projects/Game/Integration runtime cutover. The next milestone is F2 and
 requires a separate explicit task.
+
+## F2 boundary
+
+F2 switches the local Tauri desktop Projects owner to SQLite only after
+MigrationBundle verification. Normal desktop Projects reads/writes use typed
+TS → Tauri → Rust → SQLite commands; PKL project access is guarded. Web remains
+the independent FastAPI/Python adapter, Game remains PKL-owned, and document,
+filesystem and Game-rule migrations remain future work. The durable outbox is
+an explicit retry boundary, not distributed Game/Projects transactionality.

@@ -127,3 +127,15 @@ lifecycle orchestration are not implemented in F1. The Projects owner remains
 `pickle`; no frontend mutation path or normal Rust Tauri command writes the
 new repository yet. F2 must add the controlled ownership guard/cutover and
 cross-domain Notes lifecycle orchestration.
+
+## F2 finding resolution
+
+The F2 cutover supplies the owner guard and verified switch described above.
+Typed Rust service commands are now the normal desktop mutation path, healthy
+desktop reads do not fall back to the legacy mirror, and Python project save
+paths reject writes once SQLite owns the subsystem. Notes remain independently
+SQLite-owned; project/stage deletion uses explicit cleanup in one SQLite
+transaction. Game remains PKL-owned and receives only compact durable events,
+so Game processing is retryable rather than part of a fabricated distributed
+transaction. Remaining Python paths are web/legacy-oracle, integration and
+future document behavior, not desktop Projects authority.

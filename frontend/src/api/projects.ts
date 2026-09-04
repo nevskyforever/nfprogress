@@ -1,4 +1,6 @@
 import { apiRequest } from './client'
+import { invoke } from '@tauri-apps/api/core'
+import { getProjectReadRepository } from '@/infrastructure/projects/projectReadRepository'
 import type { ProjectMetadataPatch } from '@/core/repositories/projectMetadata'
 import type {
   ProgressCreate,
@@ -32,36 +34,94 @@ function queryString(query: ProjectListQuery): string {
   return encoded ? `?${encoded}` : ''
 }
 
+function desktopRuntime(): boolean {
+  return typeof window !== 'undefined' && window.__TAURI_INTERNALS__ !== undefined
+}
+
+function desktopProjectCreate(payload: ProjectCreate): Record<string, unknown> {
+  return {
+    name: payload.name, goal: payload.goal, infinite: payload.infinite ?? false,
+    total: payload.total ?? 0, deadline: payload.deadline ?? null,
+    personalGoal: payload.personal_goal ?? 0, streakEnabled: payload.streak_enabled ?? true,
+    autoFreeze: payload.auto_freeze ?? true, workMethod: payload.work_method ?? 'manual',
+    unit: payload.unit ?? 'symbols', stagesEnabled: payload.stages_enabled ?? false,
+    combineStageMindmaps: payload.combine_stage_mindmaps ?? false,
+    coverImage: payload.cover_image ?? null, folderId: payload.folder_id ?? null,
+    stages: (payload.stages ?? []).map((stage) => ({
+      name: stage.name, goal: stage.goal, infinite: stage.infinite ?? false,
+      total: stage.total ?? 0, deadline: stage.deadline ?? null,
+      personalGoal: stage.personal_goal ?? 0, streakEnabled: stage.streak_enabled ?? true,
+      autoFreeze: stage.auto_freeze ?? true, workMethod: stage.work_method ?? 'manual',
+    })),
+  }
+}
+
+function desktopStageCreate(payload: StageCreate): Record<string, unknown> {
+  return {
+    name: payload.name, goal: payload.goal, infinite: payload.infinite ?? false,
+    total: payload.total ?? 0, deadline: payload.deadline ?? null,
+    personalGoal: payload.personal_goal ?? 0, streakEnabled: payload.streak_enabled ?? true,
+    autoFreeze: payload.auto_freeze ?? true, workMethod: payload.work_method ?? 'manual',
+  }
+}
+
+function desktopEntityPatch(payload: EntityUpdate): Record<string, unknown> {
+  return {
+    ...(payload.name !== undefined ? { name: payload.name } : {}),
+    ...(payload.goal !== undefined ? { goal: payload.goal } : {}),
+    ...(payload.infinite !== undefined ? { infinite: payload.infinite } : {}),
+    ...(payload.total !== undefined ? { total: payload.total } : {}),
+    ...(payload.deadline !== undefined ? { deadline: payload.deadline } : {}),
+    ...(payload.personal_goal !== undefined ? { personalGoal: payload.personal_goal } : {}),
+    ...(payload.streak_enabled !== undefined ? { streakEnabled: payload.streak_enabled } : {}),
+    ...(payload.auto_freeze !== undefined ? { autoFreeze: payload.auto_freeze } : {}),
+    ...(payload.work_method !== undefined ? { workMethod: payload.work_method } : {}),
+    ...(payload.recalculate_plan !== undefined ? { recalculatePlan: payload.recalculate_plan } : {}),
+    ...(payload.confirm_daily_goal_increase !== undefined ? { confirmDailyGoalIncrease: payload.confirm_daily_goal_increase } : {}),
+  }
+}
+
 export const projectsApi = {
   list(query: ProjectListQuery = {}, signal?: AbortSignal): Promise<Project[]> {
     return apiRequest<Project[]>(`/api/projects${queryString(query)}`, { signal })
   },
 
   folders(signal?: AbortSignal): Promise<ProjectFolder[]> {
+    if (desktopRuntime()) return invoke<ProjectFolder[]>('list_project_folders')
     return apiRequest<ProjectFolder[]>('/api/projects/folders', { signal })
   },
 
   createFolder(name: string): Promise<ProjectFolder> {
+    if (desktopRuntime()) return invoke<ProjectFolder>('create_project_folder', { name })
     return apiRequest<ProjectFolder>('/api/projects/folders', { method: 'POST', body: { name } })
   },
 
   updateFolder(folderId: string, name: string): Promise<ProjectFolder> {
+    if (desktopRuntime()) return invoke<ProjectFolder>('update_project_folder', { folderId, name })
     return apiRequest<ProjectFolder>(`/api/projects/folders/${encodeURIComponent(folderId)}`, {
       method: 'PATCH', body: { name },
     })
   },
 
   removeFolder(folderId: string): Promise<void> {
+    if (desktopRuntime()) return invoke<void>('delete_project_folder', { folderId })
     return apiRequest<void>(`/api/projects/folders/${encodeURIComponent(folderId)}`, { method: 'DELETE' })
   },
 
   reorder(projectIds: string[]): Promise<Project[]> {
+    if (desktopRuntime()) return invoke<Project[]>('reorder_projects', { projectIds })
     return apiRequest<Project[]>('/api/projects/order', {
       method: 'PUT', body: { project_ids: projectIds },
     })
   },
 
   get(projectId: string, signal?: AbortSignal): Promise<Project> {
+    if (desktopRuntime()) {
+      return getProjectReadRepository().getProject(projectId, signal).then((project) => {
+        if (!project) throw new Error('Проект не найден.')
+        return project
+      })
+    }
     return apiRequest<Project>(projectPath(projectId), { signal })
   },
 
@@ -74,10 +134,12 @@ export const projectsApi = {
   },
 
   create(payload: ProjectCreate): Promise<Project> {
+    if (desktopRuntime()) return invoke<Project>('create_project', { command: desktopProjectCreate(payload) })
     return apiRequest<Project>('/api/projects', { method: 'POST', body: payload })
   },
 
   update(projectId: string, payload: ProjectUpdate): Promise<Project> {
+    if (desktopRuntime()) return invoke<Project>('update_project', { projectId, patch: desktopEntityPatch(payload) })
     return apiRequest<Project>(projectPath(projectId), { method: 'PATCH', body: payload })
   },
 
@@ -86,10 +148,12 @@ export const projectsApi = {
   },
 
   remove(projectId: string): Promise<void> {
+    if (desktopRuntime()) return invoke<void>('delete_project', { command: { projectId } })
     return apiRequest<void>(projectPath(projectId), { method: 'DELETE' })
   },
 
   setArchived(projectId: string, archived: boolean): Promise<Project> {
+    if (desktopRuntime()) return invoke<Project>('set_project_archived', { command: { projectId, archived } })
     return apiRequest<Project>(`${projectPath(projectId)}/archive`, {
       method: 'POST',
       body: { archived },
@@ -97,10 +161,12 @@ export const projectsApi = {
   },
 
   complete(projectId: string): Promise<Project> {
+    if (desktopRuntime()) return invoke<Project>('complete_project', { command: { projectId } })
     return apiRequest<Project>(`${projectPath(projectId)}/complete`, { method: 'POST' })
   },
 
   createStage(projectId: string, payload: StageCreate): Promise<Project> {
+    if (desktopRuntime()) return invoke<Project>('create_stage', { projectId, command: desktopStageCreate(payload) })
     return apiRequest<Project>(`${projectPath(projectId)}/stages`, {
       method: 'POST',
       body: payload,
@@ -108,6 +174,7 @@ export const projectsApi = {
   },
 
   updateStage(projectId: string, stageId: string, payload: EntityUpdate): Promise<Project> {
+    if (desktopRuntime()) return invoke<Project>('update_stage', { projectId, stageId, patch: desktopEntityPatch(payload) })
     return apiRequest<Project>(stagePath(projectId, stageId), {
       method: 'PATCH',
       body: payload,
@@ -115,10 +182,12 @@ export const projectsApi = {
   },
 
   removeStage(projectId: string, stageId: string): Promise<void> {
+    if (desktopRuntime()) return invoke<void>('delete_stage', { command: { projectId, stageId } })
     return apiRequest<void>(stagePath(projectId, stageId), { method: 'DELETE' })
   },
 
   reorderStages(projectId: string, stageIds: string[]): Promise<Project> {
+    if (desktopRuntime()) return invoke<Project>('reorder_stages', { command: { projectId, stageIds } })
     return apiRequest<Project>(`${projectPath(projectId)}/stages/order`, {
       method: 'PUT',
       body: { stage_ids: stageIds },
@@ -126,10 +195,16 @@ export const projectsApi = {
   },
 
   completeStage(projectId: string, stageId: string): Promise<Project> {
+    if (desktopRuntime()) return invoke<Project>('complete_stage', { command: { projectId, stageId } })
     return apiRequest<Project>(`${stagePath(projectId, stageId)}/complete`, { method: 'POST' })
   },
 
   recordProgress(projectId: string, payload: ProgressCreate): Promise<ProgressResult> {
+    if (desktopRuntime()) {
+      return invoke<ProgressResult>(payload.stage_id ? 'add_stage_progress' : 'add_project_progress', {
+        projectId, ...(payload.stage_id ? { stageId: payload.stage_id } : {}), newTotal: payload.new_total,
+      })
+    }
     return apiRequest<ProgressResult>(`${projectPath(projectId)}/progress`, {
       method: 'POST',
       body: payload,
@@ -137,6 +212,9 @@ export const projectsApi = {
   },
 
   deleteProgress(projectId: string, entryId: string, stageId?: string): Promise<Project> {
+    if (desktopRuntime()) {
+      return invoke<Project>('delete_progress', { projectId, entryId, stageId: stageId ?? null })
+    }
     const params = new URLSearchParams()
     if (stageId) params.set('stage_id', stageId)
     const encoded = params.toString()

@@ -354,3 +354,24 @@ The Python-free Desktop Release Candidate is ready only when:
   pass;
 - macOS ARM, macOS Intel and Windows supported desktop targets build and
   complete smoke/signing/update qualification.
+
+## F2 completed scope
+
+F2 is the controlled Projects/Stages/Progress SQLite cutover: verified
+MigrationBundle import, owner guard, idempotent startup, typed Tauri CRUD and
+progress commands, explicit Notes cleanup, durable idempotent Game events,
+preservation of extensions/maps/bindings/folders/references, and SQLite-aware
+backup/recovery documentation. F3 is not started. The next milestone is Game
+authority and event consumption, not more Projects mirror work.
+
+## Long-Term Legacy Migration Service
+
+The future web mechanism is a separate service/worker architecture: untrusted
+upload, static validation, isolated restricted decoder, canonical versioned
+MigrationBundle, schema/semantic validation and preview, followed by
+download-only conversion or a normal authenticated import API. It must never
+unpickle uploads in the production process or let a decoder write production
+data. Worker isolation, allowlisted classes/opcodes, resource/archive/path
+limits, privacy/retention, authentication, CSRF, quotas and rate limits are
+mandatory. No public endpoint is part of F2; details are in
+`F2_PROJECTS_SQLITE_CUTOVER.md`.

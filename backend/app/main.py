@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Request
@@ -23,6 +24,7 @@ from nfprogress.core.sqlite import (
     StorageOwner, StorageOwnershipRepository, Subsystem, cutover_notes,
     cutover_settings,
 )
+from nfprogress.core.migration import cutover_projects
 
 from .config import RuntimeConfig
 from .dependencies import Services, require_session
@@ -55,12 +57,18 @@ async def _desktop_sync_loop(services: Services) -> None:
             # Day boundaries must be processed even when no document source is
             # configured. This applies automatic local/global freezes and keeps
             # both streak displays current in a running desktop application.
-            await asyncio.to_thread(services.projects.refresh_streak_statuses)
+            projects_owned_by_sqlite = (
+                StorageOwnershipRepository(services.repository.base_dir).get_owner(
+                    Subsystem.PROJECTS,
+                ) == StorageOwner.SQLITE
+            )
+            if not projects_owned_by_sqlite:
+                await asyncio.to_thread(services.projects.refresh_streak_statuses)
             enabled, current_day = await asyncio.to_thread(
                 _desktop_sync_state, services,
             )
             is_new_writing_day = not was_enabled or current_day != previous_day
-            if enabled and is_new_writing_day:
+            if enabled and is_new_writing_day and not projects_owned_by_sqlite:
                 await asyncio.to_thread(services.integrations.sync_all_configured)
             # The legacy UI also settles deposits, loan payments and their
             # notifications when its clock crosses into a new writing day.
@@ -100,6 +108,18 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
                 cutover_notes(data_dir, engine.load_data())
         except Exception:
             _LOGGER.exception('Notes SQLite cutover failed; keeping pickle ownership.')
+    # Only the Tauri-spawned sidecar performs the local desktop ownership
+    # switch. Direct ``create_app(..., platform='desktop')`` remains a
+    # compatibility harness for non-migrated backend routes.
+    if (
+        runtime_config.platform == 'desktop'
+        and os.environ.get('NFPROGRESS_TAURI_RUNTIME') == '1'
+        and StorageOwnershipRepository(data_dir).get_owner(Subsystem.PROJECTS) == StorageOwner.PICKLE
+    ):
+        try:
+            cutover_projects(data_dir)
+        except Exception:
+            _LOGGER.exception('Projects SQLite cutover failed; keeping pickle ownership.')
     game_service = GameService(
         repository, developer_mode=runtime_config.developer_mode,
     )

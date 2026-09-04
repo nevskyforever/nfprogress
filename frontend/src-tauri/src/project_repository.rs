@@ -2,7 +2,8 @@
 //!
 //! This module is deliberately not registered as a Tauri command in F1.  It
 //! is an internal, owner-guarded storage capability for migration and the F2
-//! cutover; normal desktop mutations continue to use the PKL sidecar.
+//! cutover.  Business validation/orchestration is kept in the Tauri service
+//! layer; these methods only persist validated records.
 
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
@@ -62,6 +63,18 @@ pub struct ProjectMetadataUpdate {
     pub goal: Option<f64>,
     pub unit: Option<String>,
     pub status: Option<String>,
+    pub infinite: Option<bool>,
+    pub deadline: Option<Option<String>>,
+}
+
+#[derive(Debug, Clone)]
+pub struct StageUpdate {
+    pub name: String,
+    pub goal: Option<f64>,
+    pub infinite: bool,
+    pub unit: String,
+    pub status: String,
+    pub payload: Value,
 }
 
 #[derive(Debug)]
@@ -311,7 +324,12 @@ impl<'connection> ProjectsRepository<'connection> {
                 id: project_id.to_string(),
             })?;
         let name = update.name.as_deref().unwrap_or(&current.name);
-        let goal = update.goal.or(current.goal);
+        let infinite = update.infinite.unwrap_or(current.infinite);
+        let goal = if infinite {
+            None
+        } else {
+            update.goal.or(current.goal)
+        };
         let unit = update.unit.as_deref().unwrap_or(&current.unit);
         let status = update.status.as_deref().unwrap_or(&current.status);
         let mut payload = current.payload.clone();
@@ -322,11 +340,21 @@ impl<'connection> ProjectsRepository<'connection> {
         object.insert("goal".to_string(), goal.map_or(Value::Null, Value::from));
         object.insert("unit".to_string(), Value::String(unit.to_string()));
         object.insert("status".to_string(), Value::String(status.to_string()));
+        object.insert("infinite".to_string(), Value::Bool(infinite));
+        object.insert("goal".to_string(), goal.map_or(Value::Null, Value::from));
+        if let Some(deadline) = &update.deadline {
+            object.insert(
+                "deadline".to_string(),
+                deadline
+                    .as_ref()
+                    .map_or(Value::Null, |value| Value::String(value.clone())),
+            );
+        }
         validate_payload(&payload)?;
         let transaction = self.connection.transaction()?;
         let changed = transaction.execute(
-            "UPDATE projects SET name=?1, goal=?2, unit=?3, status=?4, payload_json=?5 WHERE id=?6",
-            params![name, goal, unit, status, payload.to_string(), project_id],
+            "UPDATE projects SET name=?1, goal=?2, infinite=?3, unit=?4, status=?5, updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now'), payload_json=?6 WHERE id=?7",
+            params![name, goal, infinite, unit, status, payload.to_string(), project_id],
         )?;
         if changed != 1 {
             return Err(RepositoryError::NotFound {
@@ -340,6 +368,147 @@ impl<'connection> ProjectsRepository<'connection> {
                 entity: "project",
                 id: project_id.to_string(),
             })
+    }
+
+    pub fn update_project_payload(
+        &mut self,
+        project_id: &str,
+        payload: &Value,
+    ) -> Result<ProjectRecord, RepositoryError> {
+        validate_payload(payload)?;
+        let current = self
+            .get_project(project_id)?
+            .ok_or_else(|| RepositoryError::NotFound {
+                entity: "project",
+                id: project_id.to_string(),
+            })?;
+        let object = payload.as_object().ok_or_else(|| {
+            RepositoryError::CorruptPayload("project payload is not an object".to_string())
+        })?;
+        let name = object
+            .get("name")
+            .and_then(Value::as_str)
+            .unwrap_or(&current.name);
+        let goal = object.get("goal").and_then(Value::as_f64);
+        let infinite = object
+            .get("infinite")
+            .and_then(Value::as_bool)
+            .unwrap_or(current.infinite);
+        let unit = object
+            .get("unit")
+            .and_then(Value::as_str)
+            .unwrap_or(&current.unit);
+        let status = object
+            .get("status")
+            .and_then(Value::as_str)
+            .unwrap_or(&current.status);
+        let changed = self.connection.execute(
+            "UPDATE projects SET name=?1, goal=?2, infinite=?3, unit=?4, status=?5, updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now'), payload_json=?6 WHERE id=?7",
+            params![name, if infinite { None } else { goal }, infinite, unit, status, payload.to_string(), project_id],
+        )?;
+        if changed != 1 {
+            return Err(RepositoryError::NotFound {
+                entity: "project",
+                id: project_id.to_string(),
+            });
+        }
+        self.get_project(project_id)?
+            .ok_or_else(|| RepositoryError::NotFound {
+                entity: "project",
+                id: project_id.to_string(),
+            })
+    }
+
+    pub fn update_stage(
+        &mut self,
+        stage_id: &str,
+        update: &StageUpdate,
+    ) -> Result<StageRecord, RepositoryError> {
+        validate_payload(&update.payload)?;
+        let transaction = self.connection.transaction()?;
+        let changed = transaction.execute(
+            "UPDATE stages SET name=?1, goal=?2, infinite=?3, unit=?4, status=?5, updated_at=strftime('%Y-%m-%dT%H:%M:%SZ','now'), payload_json=?6 WHERE id=?7",
+            params![update.name, update.goal, update.infinite, update.unit, update.status, update.payload.to_string(), stage_id],
+        )?;
+        if changed != 1 {
+            return Err(RepositoryError::NotFound {
+                entity: "stage",
+                id: stage_id.to_string(),
+            });
+        }
+        transaction.commit()?;
+        self.get_stage(stage_id)?
+            .ok_or_else(|| RepositoryError::NotFound {
+                entity: "stage",
+                id: stage_id.to_string(),
+            })
+    }
+
+    pub fn append_domain_event(
+        &mut self,
+        event_id: &str,
+        event_type: &str,
+        project_id: &str,
+        stage_id: Option<&str>,
+        progress_id: Option<&str>,
+        effective_date: Option<&str>,
+        delta_symbols: Option<f64>,
+        context: &Value,
+    ) -> Result<(), RepositoryError> {
+        validate_payload(context)?;
+        self.connection.execute(
+            "INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,stage_id,progress_id,effective_date,delta_symbols,context_json,created_at) VALUES(?1,?2,?3,?4,?5,?6,?7,?8,strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
+            params![event_id, event_type, project_id, stage_id, progress_id, effective_date, delta_symbols, context.to_string()],
+        )?;
+        Ok(())
+    }
+
+    pub fn project_folder_exists(&self, folder_id: &str) -> Result<bool, RepositoryError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT 1 FROM project_folders WHERE id=?1",
+                [folder_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
+    }
+
+    pub fn has_sync_binding(
+        &self,
+        project_id: &str,
+        stage_id: Option<&str>,
+    ) -> Result<bool, RepositoryError> {
+        Ok(self
+            .connection
+            .query_row(
+                "SELECT 1 FROM project_bindings WHERE project_id=?1 AND (?2 IS NULL OR stage_id=?2) LIMIT 1",
+                params![project_id, stage_id],
+                |_| Ok(()),
+            )
+            .optional()?
+            .is_some())
+    }
+
+    pub fn set_project_folder(
+        &mut self,
+        project_id: &str,
+        folder_id: Option<&str>,
+    ) -> Result<(), RepositoryError> {
+        let transaction = self.connection.transaction()?;
+        transaction.execute(
+            "DELETE FROM project_folder_members WHERE project_id=?1",
+            [project_id],
+        )?;
+        if let Some(folder_id) = folder_id {
+            transaction.execute(
+                "INSERT INTO project_folder_members(project_id,folder_id) VALUES(?1,?2)",
+                params![project_id, folder_id],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(())
     }
 
     pub fn delete_progress(&mut self, entry_id: &str) -> Result<(), RepositoryError> {
@@ -366,6 +535,38 @@ impl<'connection> ProjectsRepository<'connection> {
         )?;
         let deleted = transaction
             .execute("DELETE FROM stages WHERE id=?1", [stage_id])
+            .map_err(map_constraint)?;
+        if deleted != 1 {
+            return Err(RepositoryError::NotFound {
+                entity: "stage",
+                id: stage_id.to_string(),
+            });
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub fn delete_stage_with_notes(
+        &mut self,
+        stage_id: &str,
+        project_id: &str,
+    ) -> Result<(), RepositoryError> {
+        let transaction = self.connection.transaction()?;
+        transaction.execute(
+            "DELETE FROM notes WHERE project_id=?1 AND stage_id=?2",
+            params![project_id, stage_id],
+        )?;
+        transaction.execute("DELETE FROM stage_order WHERE stage_id=?1", [stage_id])?;
+        transaction.execute("DELETE FROM project_bindings WHERE stage_id=?1", [stage_id])?;
+        transaction.execute(
+            "DELETE FROM project_extensions WHERE entity_type='stage' AND entity_id=?1",
+            [stage_id],
+        )?;
+        let deleted = transaction
+            .execute(
+                "DELETE FROM stages WHERE id=?1 AND project_id=?2",
+                params![stage_id, project_id],
+            )
             .map_err(map_constraint)?;
         if deleted != 1 {
             return Err(RepositoryError::NotFound {
@@ -422,6 +623,49 @@ impl<'connection> ProjectsRepository<'connection> {
         self.delete_project_storage(project_id)
     }
 
+    pub fn delete_project_with_notes(&mut self, project_id: &str) -> Result<(), RepositoryError> {
+        let transaction = self.connection.transaction()?;
+        let exists = transaction
+            .query_row("SELECT 1 FROM projects WHERE id=?1", [project_id], |_| {
+                Ok(())
+            })
+            .optional()?
+            .is_some();
+        if !exists {
+            return Err(RepositoryError::NotFound {
+                entity: "project",
+                id: project_id.to_string(),
+            });
+        }
+        transaction.execute("DELETE FROM notes WHERE project_id=?1", [project_id])?;
+        transaction.execute(
+            "INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,context_json,created_at) VALUES(?1,'ProjectDeleted',?2,?3,strftime('%Y-%m-%dT%H:%M:%SZ','now'))",
+            params![format!("project-deleted:{project_id}"), project_id, serde_json::json!({"source":"desktop","version":1}).to_string()],
+        )?;
+        transaction.execute(
+            "DELETE FROM project_order WHERE project_id=?1",
+            [project_id],
+        )?;
+        transaction.execute(
+            "DELETE FROM project_bindings WHERE project_id=?1",
+            [project_id],
+        )?;
+        transaction.execute(
+            "DELETE FROM project_extensions WHERE entity_type='project' AND entity_id=?1",
+            [project_id],
+        )?;
+        transaction.execute("DELETE FROM project_extensions WHERE entity_type='stage' AND entity_id IN (SELECT id FROM stages WHERE project_id=?1)", [project_id])?;
+        transaction.execute(
+            "DELETE FROM project_folder_members WHERE project_id=?1",
+            [project_id],
+        )?;
+        transaction
+            .execute("DELETE FROM projects WHERE id=?1", [project_id])
+            .map_err(map_constraint)?;
+        transaction.commit()?;
+        Ok(())
+    }
+
     pub fn update_project_order(&mut self, project_ids: &[String]) -> Result<(), RepositoryError> {
         let existing = self.get_project_order()?;
         let expected: std::collections::HashSet<&str> =
@@ -439,6 +683,36 @@ impl<'connection> ProjectsRepository<'connection> {
             transaction.execute(
                 "INSERT INTO project_order(project_id, position) VALUES(?1, ?2)",
                 params![project_id, position as i64],
+            )?;
+        }
+        transaction.commit()?;
+        Ok(())
+    }
+
+    pub fn update_stage_order(
+        &mut self,
+        project_id: &str,
+        stage_ids: &[String],
+    ) -> Result<(), RepositoryError> {
+        let existing = self
+            .list_stages(project_id)?
+            .into_iter()
+            .map(|stage| stage.id)
+            .collect::<Vec<_>>();
+        let expected: std::collections::HashSet<&str> =
+            existing.iter().map(String::as_str).collect();
+        let supplied: std::collections::HashSet<&str> =
+            stage_ids.iter().map(String::as_str).collect();
+        if expected.len() != stage_ids.len() || expected != supplied {
+            return Err(RepositoryError::InvalidRelation(
+                "stage order must contain every stage exactly once".to_string(),
+            ));
+        }
+        let transaction = self.connection.transaction()?;
+        for (position, stage_id) in stage_ids.iter().enumerate() {
+            transaction.execute(
+                "UPDATE stage_order SET position=?1 WHERE stage_id=?2 AND project_id=?3",
+                params![position as i64, stage_id, project_id],
             )?;
         }
         transaction.commit()?;

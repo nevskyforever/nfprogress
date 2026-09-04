@@ -19,6 +19,7 @@ class FallbackProjectReadRepository implements ProjectReadRepository {
     try {
       return await this.sqlite.listProjects(query)
     } catch (error) {
+      if (await this.sqlite.owner() === 'sqlite') throw error
       console.warn('SQLite project list unavailable; using API.', error)
       return apiRepository.listProjects(query, signal)
     }
@@ -28,9 +29,9 @@ class FallbackProjectReadRepository implements ProjectReadRepository {
     if (!desktopRuntime()) return apiRepository.getProject(id, signal)
     try {
       const project = await this.sqlite.getProject(id)
-      // A stale mirror can be healthy yet miss a newly-created project.
-      return project ?? apiRepository.getProject(id, signal)
+      return project
     } catch (error) {
+      if (await this.sqlite.owner() === 'sqlite') throw error
       console.warn('SQLite project read unavailable; using API.', error)
       return apiRepository.getProject(id, signal)
     }

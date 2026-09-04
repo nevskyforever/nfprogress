@@ -2,7 +2,7 @@
 //!
 //! The SQL files are shared with the transitional Python runtime.  Keeping a
 //! single set of files prevents the two runtimes from silently creating
-//! incompatible databases while Projects ownership is still pickle-backed.
+//! incompatible databases while Projects ownership is being cut over.
 
 use std::path::Path;
 
@@ -64,8 +64,11 @@ pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
     connection.busy_timeout(std::time::Duration::from_secs(5))?;
     connection.execute_batch("PRAGMA foreign_keys = ON;")?;
     apply_migrations(&connection)?;
+    connection.execute_batch(DOMAIN_EVENTS_SCHEMA)?;
     Ok(connection)
 }
+
+const DOMAIN_EVENTS_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS domain_events (event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, project_id TEXT NOT NULL, stage_id TEXT, progress_id TEXT, effective_date TEXT, delta_symbols REAL, context_json TEXT NOT NULL, created_at TEXT NOT NULL, processed_at TEXT, consumer TEXT NOT NULL DEFAULT 'game', version INTEGER NOT NULL DEFAULT 1); CREATE INDEX IF NOT EXISTS idx_domain_events_pending ON domain_events(consumer, processed_at, created_at);";
 
 pub fn apply_migrations(connection: &Connection) -> Result<i64, StorageError> {
     connection.execute_batch("PRAGMA foreign_keys = ON;")?;

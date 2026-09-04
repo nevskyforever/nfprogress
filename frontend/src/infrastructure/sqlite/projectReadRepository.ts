@@ -4,11 +4,15 @@ import { mapProjects, type SqliteProjectReadModel } from './projectMapper'
 
 interface SqliteBridge {
   readProjects(): Promise<SqliteProjectReadModel>
+  projectsOwner(): Promise<'pickle' | 'sqlite'>
 }
 
 async function bridge(): Promise<SqliteBridge> {
   const { invoke } = await import('@tauri-apps/api/core')
-  return { readProjects: () => invoke<SqliteProjectReadModel>('read_sqlite_projects') }
+  return {
+    readProjects: () => invoke<SqliteProjectReadModel>('read_sqlite_projects'),
+    projectsOwner: () => invoke<'pickle' | 'sqlite'>('projects_storage_owner'),
+  }
 }
 
 export class SQLiteProjectReadRepository implements ProjectReadRepository {
@@ -30,5 +34,9 @@ export class SQLiteProjectReadRepository implements ProjectReadRepository {
   async getProject(id: string): Promise<Project | null> {
     const project = mapProjects(await (await bridge()).readProjects()).find((item) => item.id === id)
     return project ?? null
+  }
+
+  async owner(): Promise<'pickle' | 'sqlite'> {
+    return (await bridge()).projectsOwner()
   }
 }

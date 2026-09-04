@@ -376,3 +376,17 @@ Projects business-lifecycle parity, explicit Notes/document relation cleanup,
 and the durable Game progress-event contract. F3 remains responsible for
 notifications, global streak and Gamer state; F5 remains responsible for
 `documents.json` records and external-file manifests.
+
+## F2 implementation update
+
+The controlled ownership guard/cutover, scoped Projects lifecycle parity,
+explicit Notes cleanup and durable Game event boundary are implemented.
+`cutover_projects()` imports and verifies MigrationBundle v1 before switching
+ownership; startup is idempotent and the old PKL is recovery-only. Typed Rust
+commands cover project metadata/general update, creation/deletion, ordering,
+folders, stage lifecycle and progress add/delete. Manual progress rejects
+explicit synchronized work methods and sync bindings. Unknown fields, maps,
+bindings and document references are preserved.
+
+The complete mutation matrix, failure semantics and sandboxed legacy migration
+service are recorded in `F2_PROJECTS_SQLITE_CUTOVER.md`.

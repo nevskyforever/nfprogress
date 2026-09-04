@@ -40,3 +40,19 @@ export function adaptStatistics(
     },
   }
 }
+
+export function calculateLocalStatistics(project: Project, stageId?: string): Statistics {
+  const entity = stageId
+    ? project.stages.find((stage) => stage.id === stageId) ?? project
+    : project
+  const pure = calculatePureStatistics(inputFor(project, stageId))
+  return {
+    ...pure,
+    metrics: {
+      ...pure.metrics,
+      freezes_used: 0,
+      current_streak: entity.streak_length,
+      max_streak: entity.max_streak,
+    },
+  }
+}
