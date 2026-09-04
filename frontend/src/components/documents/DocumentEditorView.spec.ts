@@ -259,15 +259,20 @@ describe('DocumentEditorView status bar', () => {
     wrapper.unmount()
   })
 
-  it('persists the current v-model before the debounced document update', async () => {
+  it('captures the current editor document before the debounced update', async () => {
     const edited: TiptapDocument = {
       type: 'doc',
       content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Новая запись' }] }],
     }
-    editorModelValue.value = edited
-    const wrapper = mountEditor(projectFixture({ total: 804 }))
+    editorJson.value = edited
+    vi.mocked(documentsApi.recordProgress).mockResolvedValue({ changed: false, symbols: 12, progress: null })
+    const wrapper = mountEditor(projectFixture({ total: 804 }), { projectId: 'project-id' }, {
+      ...documentFixture,
+      content: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Черновик' }] }] },
+      exists: true,
+      has_content: true,
+    })
     await flushPromises()
-    await wrapper.get('.tiptap-model-update').trigger('click')
     await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
     await flushPromises()
 
@@ -286,13 +291,14 @@ describe('DocumentEditorView status bar', () => {
     vi.mocked(documentsApi.get).mockReturnValue(new Promise((resolve) => { finishLoad = resolve }))
     vi.mocked(documentsApi.save).mockResolvedValue(documentFixture)
     vi.mocked(documentsApi.recordProgress).mockResolvedValue({ changed: false, symbols: 12, progress: null })
-    editorModelValue.value = edited
+    editorJson.value = edited
+    editorUpdate.value = edited
     const wrapper = mount(DocumentEditorView, {
       props: { scope: { projectId: 'project-id' }, title: 'Текст' },
       global: { plugins: [createPinia()] },
     })
     await flushPromises()
-    await wrapper.get('.tiptap-model-update').trigger('click')
+    await wrapper.get('.tiptap-stub').trigger('click')
     await flushPromises()
     await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
     finishLoad?.(documentFixture)
@@ -346,6 +352,58 @@ describe('DocumentEditorView status bar', () => {
     await flushPromises()
 
     expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(edited)
+    wrapper.unmount()
+  })
+
+  it('keeps the draft when the controlled model emits empty content during recording', async () => {
+    const initial: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'а'.repeat(801) }] }],
+    }
+    const edited: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'а'.repeat(802) }] }],
+    }
+    editorJson.value = edited
+    editorUpdate.value = edited
+    let wrapper: ReturnType<typeof mount>
+    vi.mocked(documentsApi.recordProgress).mockImplementation(async () => {
+      editorModelValue.value = { type: 'doc', content: [{ type: 'paragraph' }] }
+      await wrapper.get('.tiptap-model-update').trigger('click')
+      return {
+        changed: true,
+        symbols: 802,
+        progress: {
+          project: projectFixture({ total: 802 }),
+          entry: {
+            id: 'entry-id',
+            new_total: 802,
+            new_total_symbols: 802,
+            added: 1,
+            added_symbols: 1,
+            added_progress: 0.1,
+            created_at: '2026-09-04T01:00:00+00:00',
+          },
+          added_symbols: 1,
+          game: null,
+          warning: null,
+        },
+      }
+    })
+    wrapper = mountEditor(projectFixture({ total: 801 }), { projectId: 'project-id' }, {
+      ...documentFixture,
+      content: initial,
+      exists: true,
+      has_content: true,
+    })
+    await flushPromises()
+    await wrapper.get('.tiptap-stub').trigger('click')
+    await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
+    await flushPromises()
+
+    expect(documentsApi.recordProgress).toHaveBeenCalledWith({ projectId: 'project-id' }, edited)
+    expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(edited)
+    expect(wrapper.text()).not.toContain('Из проекта удалено')
     wrapper.unmount()
   })
 

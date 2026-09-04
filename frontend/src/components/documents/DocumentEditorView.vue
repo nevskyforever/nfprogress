@@ -175,9 +175,17 @@ function update(next: JSONContent) {
   editorContent.value = json
   scheduleSave(json)
 }
-function updateModel(next: string | object) {
-  if (!next || typeof next !== 'object') return
-  setContent(next as TiptapDocument)
+function captureEditorContent(): TiptapDocument {
+  const latest = editorRef.value?.getJSON()
+  if (!latest || typeof latest !== 'object') return content.value
+  const json = latest as TiptapDocument
+  // The kit can expose an empty JSON document for one render while its
+  // controlled value is being synchronized. Do not turn a known non-empty
+  // draft into that transient value when the user explicitly saves it.
+  if (countTextSymbols(json) === 0 && countTextSymbols(content.value) > 0) return content.value
+  editorContent.value = json
+  setContent(json)
+  return json
 }
 function countTextSymbols(value: unknown): number {
   if (!value || typeof value !== 'object') return 0
@@ -214,11 +222,11 @@ async function loadProjectEntity() {
   }
 }
 function resolveConflict(choice: ConflictChoice) { showConflict.value = false; pendingConflictResolve.value?.(choice); pendingConflictResolve.value = null }
-async function recordTextProgress(force = false): Promise<boolean> {
-  if (recording.value || textSymbols.value <= 0 || (!force && !canRecordText.value)) return false
+async function recordTextProgress(force = false, snapshot = captureEditorContent()): Promise<boolean> {
+  if (recording.value || countTextSymbols(snapshot) <= 0 || (!force && !canRecordText.value)) return false
   recording.value = true
   try {
-    const result = await saveAndRecord()
+    const result = await saveAndRecord(snapshot)
     if (!result.progress) {
       status.value = t('Документ не изменился. Текущий объём уже актуален.')
       return false
@@ -252,8 +260,9 @@ let flushPromise: Promise<void> | null = null
 async function flushAndRecord(recordProgress = false): Promise<void> {
   if (flushPromise) return flushPromise
   const operation = (async () => {
+    const snapshot = captureEditorContent()
     if (recordProgress) {
-      const recorded = await recordTextProgress(true)
+      const recorded = await recordTextProgress(true, snapshot)
       // The document itself may have changed even when rounding/duplicate
       // protection correctly produced no progress entry. Keep project counters
       // and cached detail views in sync with that saved content as well.
@@ -262,7 +271,7 @@ async function flushAndRecord(recordProgress = false): Promise<void> {
     }
     saving.value = true
     try {
-      await save()
+      await save(true, snapshot)
     } catch (error) {
       status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
       return
@@ -423,7 +432,6 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
           document-id="nfprogress-document"
           :features="{ headerNav: true, footerNav: false, table: false, tableToolbar: false, image: false, linkBubbleMenu: false, floatingMenu: false, slashCommand: false, dragHandleMenu: false, aiChat: false, aiSettings: false }"
           @update="update"
-          @update:model-value="updateModel"
         />
         <Teleport v-if="toolbarTarget" :to="toolbarTarget">
           <div class="document-editor-view__font-controls">

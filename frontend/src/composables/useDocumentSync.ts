@@ -27,25 +27,27 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     if (!documentState.value?.docx_path) return
     documentState.value = await documentsApi.writeDocx(scope, await blobToBase64(await exportDocx(next)))
   }
-  function save(announce = true): Promise<void> {
+  function save(announce = true, requestedContent?: TiptapDocument): Promise<void> {
     window.clearTimeout(saveTimer)
     saveTimer = undefined
+    const requestedSnapshot = requestedContent ? copyContent(requestedContent) : undefined
     return enqueuePersistence(async () => {
-      // A queued autosave always snapshots the newest draft when it starts.
-      // This prevents an older request from completing after a newer one.
-      const snapshot = copyContent(content.value)
+      // A queued autosave snapshots the newest draft when it starts. An
+      // explicit save passes its own snapshot, captured from the editor when
+      // the user initiated the action.
+      const snapshot = requestedSnapshot ?? copyContent(content.value)
       documentState.value = await documentsApi.save(scope, snapshot)
       await writeLinkedWord(snapshot)
       if (announce) announceDataChange('projects')
       status.value = 'Сохранено'
     })
   }
-  function saveAndRecord(): Promise<DocumentProgressResult> {
+  function saveAndRecord(requestedContent = content.value): Promise<DocumentProgressResult> {
     window.clearTimeout(saveTimer)
     saveTimer = undefined
     // Unlike a regular autosave, an explicit record must use the exact draft
     // visible when the user pressed the button.
-    const snapshot = copyContent(content.value)
+    const snapshot = copyContent(requestedContent)
     return enqueuePersistence(async () => {
       const result = await documentsApi.recordProgress(scope, snapshot)
       if (result.document) documentState.value = result.document
