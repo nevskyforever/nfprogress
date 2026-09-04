@@ -56,6 +56,7 @@ let projectLoadSequence = 0
 let closeInProgress = false
 let toolbarObserver: MutationObserver | undefined
 let positionSaveTimer: number | undefined
+let positionRestoreTimer: number | undefined
 let hasRestoredEditorPosition = false
 type EditorPosition = { selection: number; scrollTop: number }
 const linked = computed(() => Boolean(documentState.value?.docx_path))
@@ -136,10 +137,11 @@ function saveEditorPosition(): void {
     // Position memory is optional in restricted embedded webviews.
   }
 }
-async function restoreEditorPosition(): Promise<void> {
+async function restoreEditorPosition(): Promise<boolean> {
   const saved = savedEditorPosition()
+  if (!saved) return true
   const editor = editorRef.value?.getEditor()
-  if (!saved || !editor) return
+  if (!editor) return false
 
   await nextTick()
   const position = Math.min(saved.selection, Math.max(1, editor.state.doc.content.size))
@@ -148,6 +150,22 @@ async function restoreEditorPosition(): Promise<void> {
   editor.commands.scrollIntoView()
   const scrollContainer = editorScrollContainer()
   if (scrollContainer) scrollContainer.scrollTop = saved.scrollTop
+  return true
+}
+function scheduleEditorPositionRestore(force = false): void {
+  if (force) hasRestoredEditorPosition = false
+  if (hasRestoredEditorPosition || positionRestoreTimer !== undefined) return
+  let attempts = 0
+  const attempt = async () => {
+    positionRestoreTimer = undefined
+    if (await restoreEditorPosition()) {
+      hasRestoredEditorPosition = true
+      return
+    }
+    attempts += 1
+    if (attempts < 40) positionRestoreTimer = window.setTimeout(() => void attempt(), 50)
+  }
+  void attempt()
 }
 function schedulePositionSave(): void {
   if (positionSaveTimer !== undefined) return
@@ -194,11 +212,13 @@ function repairEditorSnapshot(snapshot: TiptapDocument): void {
   setContent(snapshot)
   if (editor) {
     editor.commands.setContent(snapshot, { emitUpdate: false })
+    scheduleEditorPositionRestore(true)
     return
   }
   // If the kit destroyed its internal editor during the update, recreate the
   // component from the saved snapshot instead of leaving an empty workspace.
   editorInstanceKey.value += 1
+  scheduleEditorPositionRestore(true)
 }
 function countTextSymbols(value: unknown): number {
   if (!value || typeof value !== 'object') return 0
@@ -361,10 +381,9 @@ function findToolbarTarget(): void {
 
 watch(content, (next) => { editorContent.value = next }, { deep: true })
 watch(documentState, async (next) => {
-  if (!next || hasRestoredEditorPosition) return
-  hasRestoredEditorPosition = true
+  if (!next) return
   await nextTick()
-  await restoreEditorPosition()
+  scheduleEditorPositionRestore()
 })
 watch(() => locale.language, configureKitLocale)
 watch(() => theme.resolved, setWordTheme, { immediate: true })
@@ -409,6 +428,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('selectionchange', handleEditorSelectionChange)
   editorShell.value?.removeEventListener('scroll', schedulePositionSave, true)
   if (positionSaveTimer !== undefined) window.clearTimeout(positionSaveTimer)
+  if (positionRestoreTimer !== undefined) window.clearTimeout(positionRestoreTimer)
   saveEditorPosition()
   window.clearInterval(externalTimer)
   projectLoadSequence += 1

@@ -11,10 +11,11 @@ import type { DocumentScope, ProjectDocument, TiptapDocument } from '@/types/doc
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, editorJson, editorModelValue, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setEditorContent, setLineHeight, setTextSelection } = vi.hoisted(() => ({
+const { destroyWindow, editorJson, editorModelValue, editorReady, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setEditorContent, setLineHeight, setTextSelection } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
   editorJson: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
   editorModelValue: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
+  editorReady: { value: true },
   editorSelection: { from: 1 },
   editorUpdate: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
   focusEditor: vi.fn(),
@@ -46,12 +47,12 @@ vi.mock('tiptap-ui-kit', () => ({
     emits: ['update', 'update:modelValue'],
     setup(_: unknown, { expose }: { expose: (value: unknown) => void }) {
       expose({
-        getEditor: () => ({
+        getEditor: () => editorReady.value ? ({
           commands: { focus: focusEditor, insertContent, scrollIntoView, setContent: setEditorContent, setTextSelection },
           getJSON: () => editorJson.value,
           state: { selection: editorSelection, doc: { content: { size: 100 } } },
           chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
-        }),
+        }) : null,
         getJSON: () => editorJson.value,
       })
       return { editorModelValue, editorUpdate }
@@ -121,6 +122,7 @@ describe('DocumentEditorView status bar', () => {
     editorJson.value = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] }
     editorModelValue.value = editorJson.value
     editorUpdate.value = editorJson.value
+    editorReady.value = true
     insertContent.mockReset()
     focusEditor.mockReset()
     setTextSelection.mockReset()
@@ -409,6 +411,30 @@ describe('DocumentEditorView status bar', () => {
     expect(scrollIntoView).toHaveBeenCalled()
     expect(wrapper.get('.word-document-container').element.scrollTop).toBe(360)
     wrapper.unmount()
+  })
+
+  it('waits until the internal editor is ready before restoring its position', async () => {
+    vi.useFakeTimers()
+    try {
+      editorReady.value = false
+      window.localStorage?.setItem(
+        'nfprogress:document-position:project-id:project',
+        JSON.stringify({ selection: 48, scrollTop: 360 }),
+      )
+      const wrapper = mountEditor()
+      await flushPromises()
+
+      expect(setTextSelection).not.toHaveBeenCalled()
+
+      editorReady.value = true
+      await vi.advanceTimersByTimeAsync(50)
+
+      expect(setTextSelection).toHaveBeenCalledWith(48)
+      expect(wrapper.get('.word-document-container').element.scrollTop).toBe(360)
+      wrapper.unmount()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not restore the cursor again while the user edits', async () => {
