@@ -1,0 +1,151 @@
+name: Release engineering qualification
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_revision:
+        description: 'Expected commit SHA for the qualification run'
+        required: true
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  qualify-macos:
+    name: macOS ${{ matrix.architecture }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: arm64
+            runner: macos-14
+            target: aarch64-apple-darwin
+            build_arch: arm
+            build_dir: build-tauri-arm
+          - architecture: x86_64
+            runner: macos-13
+            target: x86_64-apple-darwin
+            build_arch: intel
+            build_dir: build-tauri-intel
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    steps:
+      - name: Checkout requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_revision }}
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.13'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --disable-pip-version-check pytest pyinstaller
+          npm --prefix frontend ci --prefer-offline --no-audit --no-fund
+
+      - name: Verify revision and run helper qualification
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.source_revision }}"
+          python scripts/build-migration-helper.py --output "dist/nfprogress-migration-helper-${{ matrix.architecture }}"
+          python -m pytest -q tests/test_f9_migration_helper.py tests/test_f8_recovery.py
+          file "dist/nfprogress-migration-helper-${{ matrix.architecture }}"
+
+      - name: Build and inspect unsigned app qualification artifact
+        env:
+          NFPROGRESS_TAURI_RELEASE_UPLOAD: '0'
+        run: |
+          ./scripts/build-tauri-local.sh ${{ matrix.build_arch }}
+          python scripts/verify-tauri-artifact.py \
+            "${{ matrix.build_dir }}/nfprogress-tauri-mac-${{ matrix.build_arch }}-$(python scripts/sync-tauri-versions.py --version-only).zip" \
+            "${{ inputs.source_revision }}"
+
+      - name: Upload qualification evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: f10-macos-${{ matrix.architecture }}-${{ inputs.source_revision }}
+          path: |
+            build-tauri-*/nfprogress-tauri-*.zip
+            dist/nfprogress-migration-helper-*
+          if-no-files-found: error
+          retention-days: 14
+
+  qualify-windows:
+    name: Windows x86_64
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout requested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ inputs.source_revision }}
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
+        with:
+          python-version: '3.13'
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4360b52568e2003a75bf9bc1d59f33a8e3fc893c # stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pytest pyinstaller
+          npm --prefix frontend ci --prefer-offline --no-audit --no-fund
+
+      - name: Verify revision and run helper qualification
+        shell: pwsh
+        run: |
+          if ((git rev-parse HEAD).Trim() -ne '${{ inputs.source_revision }}') { throw 'Checkout revision mismatch.' }
+          python scripts\build-migration-helper.py --output dist\nfprogress-migration-helper.exe
+          python -m pytest -q tests\test_f9_migration_helper.py tests\test_f8_recovery.py
+          Get-Item dist\nfprogress-migration-helper.exe
+
+      - name: Build unsigned NSIS qualification artifact
+        working-directory: frontend
+        shell: pwsh
+        run: |
+          npx tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Inspect Windows artifact
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem src-tauri\target\x86_64-pc-windows-msvc\release\bundle\nsis\*-setup.exe | Select-Object -First 1
+          if (-not $installer) { throw 'Tauri did not create an NSIS installer.' }
+          Get-FileHash $installer.FullName -Algorithm SHA256
+          Get-AuthenticodeSignature $installer.FullName | Format-List Status,StatusMessage,SignerCertificate
+
+      - name: Upload qualification evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: f10-windows-x86_64-${{ inputs.source_revision }}
+          path: |
+            frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
+            dist/nfprogress-migration-helper.exe
+          if-no-files-found: error
+          retention-days: 14

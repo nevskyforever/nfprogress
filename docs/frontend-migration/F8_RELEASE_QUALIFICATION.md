@@ -214,7 +214,7 @@ production-signed artifact evidence.
 
 ## Exact readiness and next action
 
-Production readiness after F9: **BLOCKED — migration path qualified, release
+Production readiness after F9 and during F10: **BLOCKED — migration path qualified, release
 engineering blockers remain**.
 
 Before release, complete the P0 list, run the full matrix on copied real-data
@@ -222,5 +222,8 @@ fixtures, obtain fresh artifacts whose embedded revision equals the release
 commit, pass Windows CI/signature and macOS signing/notarization, and add a
 qualification gate before any publish workflow can update manifests. Recommended
 F9 evidence is in [`F9_MIGRATION_HELPER.md`](F9_MIGRATION_HELPER.md) and
-[`F9_BRIDGE_RELEASE_DECISION.md`](F9_BRIDGE_RELEASE_DECISION.md). Do not publish
-the helper, bridge or Web converter from this milestone.
+[`F9_BRIDGE_RELEASE_DECISION.md`](F9_BRIDGE_RELEASE_DECISION.md). F10 evidence is
+in [`F10_RELEASE_ENGINEERING.md`](F10_RELEASE_ENGINEERING.md),
+[`F10_UPDATER_TRANSITION.md`](F10_UPDATER_TRANSITION.md), and
+[`F10_SIGNING_AND_PLATFORM_MATRIX.md`](F10_SIGNING_AND_PLATFORM_MATRIX.md).
+Do not publish the helper, bridge or Web converter from this milestone.

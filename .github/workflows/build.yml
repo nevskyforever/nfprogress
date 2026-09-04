@@ -17,10 +17,16 @@ on:
         required: false
         type: string
 
+      publish_production:
+        description: 'Опубликовать уже квалифицированные production-артефакты'
+        required: true
+        default: false
+        type: boolean
+
 
 permissions:
   actions: read
-  contents: write
+  contents: read
 
 
 concurrency:
@@ -425,6 +431,25 @@ jobs:
 
 
       # ------------------------------------------------------------
+      # Authenticode signing
+      # ------------------------------------------------------------
+
+      - name: Sign Windows executable and installer
+        if: inputs.publish_production == true
+        shell: pwsh
+        env:
+          WINDOWS_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_CERTIFICATE_BASE64 }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ vars.WINDOWS_TIMESTAMP_URL || 'https://timestamp.digicert.com' }}
+        run: |
+          $targetRoot = "frontend\src-tauri\target\x86_64-pc-windows-msvc\release"
+          $installer = Get-ChildItem "$targetRoot\bundle\nsis" -Filter '*-setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Tauri did not create an NSIS installer.' }
+          & "$env:GITHUB_WORKSPACE\scripts\sign-windows-artifacts.ps1" `
+            -Path @("$targetRoot\nfprogress-desktop.exe", $installer.FullName)
+
+
+      # ------------------------------------------------------------
       # Prepare release
       # ------------------------------------------------------------
 
@@ -543,14 +568,15 @@ jobs:
     needs: build_windows
 
     if: >-
-      always() &&
-      (
-        needs.build_windows.result == 'success' ||
-        needs.build_windows.result == 'failure'
-      )
+      needs.build_windows.result == 'success' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.publish_production == true
 
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    environment:
+      name: nfprogress-production
 
     permissions:
       actions: read

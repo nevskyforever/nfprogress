@@ -1,11 +1,11 @@
 # NFProgress — F8 release rollout plan
 
-Это план подготовки, не команда публикации. `update_manifest.json` и
+F10 дополняет план явным переходом helper → installer → Tauri. Это план подготовки, не команда публикации. `update_manifest.json` и
 `update_manifest_legacy.json` намеренно не изменяются в F8/F9.
 
 ## Artifacts and exact later changes
 
-For a future release, publish only after qualification:
+For a future release, publish only after F10 qualification:
 
 - signed macOS ARM artifact and its SHA-256;
 - signed macOS Intel artifact and its SHA-256;
@@ -31,10 +31,10 @@ macOS ARM/Intel targets. No private signing key belongs in the repository.
    source revision equals that commit.
 3. Rehearse the local helper and restore flow on copies of representative real
    profiles.
-4. Release to developer/private testing.
-5. Release to a small tester cohort with manual support coverage.
+4. Release the transitional legacy version to developer/private testing.
+5. Release the signed helper/installer to a small tester cohort with manual support coverage.
 6. Expand to a wider cohort after migration/restart/restore evidence is clean.
-7. Only then enable general availability and update the remote manifests.
+7. Enable the Tauri updater for migrated users, then enable general availability and update remote manifests.
 
 No telemetry is introduced by this plan. Support should collect only versions,
 state codes, counts and IDs unless the user explicitly enables debug logging;
@@ -65,5 +65,6 @@ F8 does not authorize publication. Local ARM/Intel qualification artifacts were
 built and inspected, but they are unsigned qualification outputs; Windows was
 not built locally and signing readiness is configuration-only. Release artifacts
 must still be rebuilt and signed by the release pipeline from the final release
-commit. The workflow currently contains a publish job; the later rollout change
-must add the qualification gate before any production push is used.
+commit. The workflow contains a publish job, but F10 makes it manual-only and
+places it behind the protected `nfprogress-production` environment. The manual
+qualification workflow never publishes.

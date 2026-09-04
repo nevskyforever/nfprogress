@@ -68,4 +68,6 @@ FastAPI request or grant the decoder production database access.
 
 F9 status remains **BLOCKED** for production because updater continuity,
 Windows artifact/signature and macOS production signing/notarization are still
-open release-engineering blockers. Production manifests remain untouched.
+open release-engineering blockers. F10 selects a hybrid explicit helper plus
+signed installer handoff; it does not make the old updater replace itself with
+a Tauri bundle. Production manifests remain untouched.

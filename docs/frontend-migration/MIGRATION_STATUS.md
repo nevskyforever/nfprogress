@@ -1,9 +1,9 @@
 # NFProgress — migration status
 
-Updated for F9 against implementation baseline `e70ba022989d70d6ca4d8aaf4703486dad045999`
-on 2026-09-04. F9 qualification is `BLOCKED — migration path qualified;
-release engineering blockers remain`; the final implementation commit
-is recorded after the qualification checks.
+Updated for F10 against implementation baseline `27d09249f1df88c89d10698b58f2f5fa4515fab0`
+on 2026-09-04. F10 qualification is `BLOCKED — transition and production
+signing evidence remain`; the final implementation commit is recorded after
+the qualification checks.
 
 This status distinguishes implemented features from authoritative storage.
 F1/F2 storage foundations and the F3 Game owner switch are implemented. The
@@ -71,6 +71,9 @@ F6 concerns; the SQLite backup now contains authoritative Game state.
 - The F9 helper is the default explicit migration path. A Bridge Release is not
   required for regular rollout; it remains a fallback for users unable to run
   the separate helper. Neither path is invoked by normal Tauri startup.
+- F10 selects an explicit helper → signed installer → Tauri handoff. The legacy
+  updater is not made to unpack a Tauri bundle. Production manifests remain
+  unchanged and the publish workflow is manual/protected.
 
 ## Known baseline Python failures
 
@@ -99,6 +102,7 @@ the remaining relevant legacy-oracle issue and is recorded for parity follow-up.
 | F6 Documents/Word/Scrivener/background sync | Complete (development desktop path) | High / external-format and release qualification remain F8 |
 | F7 Python-free Tauri sidecar/packaging removal | Complete (development desktop path) | High / release qualification remains F8 |
 | F8 migration, backup/restore and release qualification | F8 blocked; F9 migration path qualified | Very High; cross-generation update and signing/Windows evidence remain |
+| F10 release engineering qualification | Blocked | Very High; selected transition is documented, but signed artifacts and runtime rehearsals remain |
 
 ## F9 migration helper
 

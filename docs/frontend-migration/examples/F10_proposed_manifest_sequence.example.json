@@ -1,0 +1,70 @@
+{
+  "purpose": "documentation fixture only; never copy to update_manifest*.json",
+  "strategy": "C",
+  "legacy_release": {
+    "minimum_version": "5.3.10",
+    "version": "5.3.10",
+    "platforms": {
+      "windows": {
+        "url": "https://nfproject.ru/app/nfprogress-windows-x86_64-5.3.10-setup.exe",
+        "sha256": "REPLACE_WITH_SHA256",
+        "size": "REPLACE_WITH_SIZE",
+        "artifact_type": "legacy-python-installer"
+      },
+      "macos_arm": {
+        "url": "https://nfproject.ru/app/nfprogress-mac-arm-5.3.10.zip",
+        "sha256": "REPLACE_WITH_SHA256",
+        "size": "REPLACE_WITH_SIZE",
+        "artifact_type": "legacy-python-zip"
+      },
+      "macos_intel": {
+        "url": "https://nfproject.ru/app/nfprogress-mac-intel-5.3.10.zip",
+        "sha256": "REPLACE_WITH_SHA256",
+        "size": "REPLACE_WITH_SIZE",
+        "artifact_type": "legacy-python-zip"
+      }
+    }
+  },
+  "transition_release": {
+    "helper": {
+      "windows-x86_64": {
+        "url": "https://nfproject.ru/app/nfprogress-migration-helper-windows-x86_64-1.0.0.exe",
+        "sha256": "REPLACE_WITH_SHA256",
+        "signature": "AUTHENTICODE_EMBEDDED_AND_QUALIFIED"
+      },
+      "darwin-aarch64": {
+        "url": "https://nfproject.ru/app/nfprogress-migration-helper-macos-arm64-1.0.0",
+        "sha256": "REPLACE_WITH_SHA256",
+        "signature": "DEVELOPER_ID_AND_NOTARIZATION_TICKET"
+      },
+      "darwin-x86_64": {
+        "url": "https://nfproject.ru/app/nfprogress-migration-helper-macos-x86_64-1.0.0",
+        "sha256": "REPLACE_WITH_SHA256",
+        "signature": "DEVELOPER_ID_AND_NOTARIZATION_TICKET"
+      }
+    },
+    "installer": {
+      "windows-x86_64": {
+        "url": "https://nfproject.ru/app/nfprogress-tauri-windows-x86_64-6.0.0-setup.exe",
+        "sha256": "REPLACE_WITH_SHA256",
+        "signature": "AUTHENTICODE_EMBEDDED_AND_QUALIFIED"
+      },
+      "darwin-aarch64": {
+        "url": "https://nfproject.ru/app/nfprogress-tauri-mac-arm64-6.0.0.dmg",
+        "sha256": "REPLACE_WITH_SHA256",
+        "signature": "DEVELOPER_ID_AND_NOTARIZATION_TICKET"
+      },
+      "darwin-x86_64": {
+        "url": "https://nfproject.ru/app/nfprogress-tauri-mac-x86_64-6.0.0.dmg",
+        "sha256": "REPLACE_WITH_SHA256",
+        "signature": "DEVELOPER_ID_AND_NOTARIZATION_TICKET"
+      }
+    }
+  },
+  "tauri_after_transition": {
+    "endpoint": "https://github.com/nevskyforever/nfprogress/releases/latest/download/latest.json",
+    "platform_keys": ["windows-x86_64", "darwin-aarch64", "darwin-x86_64"],
+    "signature": "Tauri generated .sig content, not a URL",
+    "public_key": "TAURI_UPDATER_PUBLIC_KEY_FROM_CI_VARIABLE"
+  }
+}
