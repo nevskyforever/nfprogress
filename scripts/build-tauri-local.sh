@@ -65,6 +65,15 @@ prepare_frontend_workspace() {
     "$FRONTEND_SOURCE_DIR/" "$FRONTEND_DIR/"
   rsync --archive --delete \
     "$ROOT_DIR/mindmap_assets/" "$WORKSPACE_DIR/mindmap_assets/"
+  # Rust embeds the shared migration SQL from the repository-relative path in
+  # src-tauri/src/sqlite.rs. Keep that source available in the isolated build
+  # workspace without copying the Python runtime or its user data.
+  if [ -d "$ROOT_DIR/nfprogress/core/sqlite/migrations" ]; then
+    mkdir -p "$WORKSPACE_DIR/nfprogress/core/sqlite"
+    rsync --archive --delete \
+      "$ROOT_DIR/nfprogress/core/sqlite/migrations/" \
+      "$WORKSPACE_DIR/nfprogress/core/sqlite/migrations/"
+  fi
   cp -p \
     "$ROOT_DIR/Icon-256.png" \
     "$ROOT_DIR/appicon.icns" \

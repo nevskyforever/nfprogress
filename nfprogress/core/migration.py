@@ -30,6 +30,11 @@ GAME_MIGRATION_DTO_VERSION = 1
 
 
 MIGRATION_DTO_VERSION = 1
+BUNDLE_FIELDS = frozenset({
+    'dto_version', 'projects', 'project_order', 'folders', 'project_metadata',
+    'root_extensions', 'source_manifest', 'game', 'documents',
+    'document_bindings', 'external_file_manifest',
+})
 _ROOT_PROJECT_FIELDS = frozenset({
     'projects', 'project_order', 'project_folders', 'last',
     'notifications', 'global_streaks', 'global_streak_status',
@@ -209,6 +214,9 @@ class MigrationBundle:
         raw = json.loads(value)
         if not isinstance(raw, Mapping):
             raise ValueError('migration DTO must be an object')
+        unknown = set(raw) - BUNDLE_FIELDS
+        if unknown:
+            raise ValueError(f'unknown migration DTO fields: {sorted(unknown)!r}')
         dto_version = raw.get('dto_version', MIGRATION_DTO_VERSION)
         if dto_version != MIGRATION_DTO_VERSION:
             raise ValueError(f'unsupported migration DTO version: {dto_version!r}')
@@ -515,6 +523,14 @@ def import_projects_bundle(bundle: MigrationBundle, data_root: str | Path) -> No
     if not isinstance(bundle, MigrationBundle):
         raise TypeError('bundle must be a MigrationBundle')
     bundle.to_dict()
+    try:
+        from nfprogress.core.recovery import validate_migration_bundle
+
+        validate_migration_bundle(bundle)
+    except Exception as error:
+        if isinstance(error, MigrationImportError):
+            raise
+        raise MigrationImportError(f'invalid migration bundle: {error}') from error
     project_ids = {item['id'] for item in bundle.projects}
     if len(project_ids) != len(bundle.projects) or set(bundle.project_order) != project_ids or len(bundle.project_order) != len(project_ids):
         raise MigrationImportError('project_order must contain every project exactly once')

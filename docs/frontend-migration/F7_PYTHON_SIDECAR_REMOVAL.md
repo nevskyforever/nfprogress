@@ -1,6 +1,6 @@
 # NFProgress — F7 Python sidecar and legacy desktop backend removal
 
-F7 implementation baseline: `fc8b15af72762dc47a5c4e415997d8eba8175c6a`.
+F7 implementation baseline: `e49069834793fe3151fcedf14e7308a577f37ea1`.
 This is an architecture/runtime milestone, not release qualification. F8
 remains pending.
 
@@ -77,3 +77,9 @@ allowed if testing finds an old-data gap.
 
 F7 does not publish a release, alter updater manifests, redesign SQLite, or
 begin F8 historical upgrade/backup qualification.
+
+F8 qualification is now documented separately. The architecture remains
+complete, but production rollout is blocked until a complete migration helper
+or bridge path, cross-generation updater proof, fresh signed artifacts and
+Windows qualification are available. See
+[`F8_RELEASE_QUALIFICATION.md`](F8_RELEASE_QUALIFICATION.md).

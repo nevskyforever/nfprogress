@@ -4,6 +4,7 @@
 //! single set of files prevents the two runtimes from silently creating
 //! incompatible databases while Projects ownership is being cut over.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags};
@@ -76,6 +77,7 @@ pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
     connection.execute_batch(DOMAIN_EVENTS_SCHEMA)?;
     apply_migrations(&connection)?;
     connection.execute_batch(DOMAIN_EVENTS_SCHEMA)?;
+    validate_database(&connection)?;
     Ok(connection)
 }
 
@@ -116,6 +118,115 @@ pub fn apply_migrations(connection: &Connection) -> Result<i64, StorageError> {
         transaction.commit()?;
     }
     Ok(CURRENT_SCHEMA_VERSION)
+}
+
+fn validate_database(connection: &Connection) -> Result<(), StorageError> {
+    let integrity: String = connection.query_row("PRAGMA integrity_check", [], |row| row.get(0))?;
+    if integrity != "ok" {
+        return Err(StorageError::CorruptSchema(format!(
+            "PRAGMA integrity_check returned {integrity}"
+        )));
+    }
+    let mut foreign_keys = connection.prepare("PRAGMA foreign_key_check")?;
+    if foreign_keys.query([])?.next()?.is_some() {
+        return Err(StorageError::CorruptSchema(
+            "PRAGMA foreign_key_check returned violations".to_string(),
+        ));
+    }
+
+    let table_names: HashSet<String> = connection
+        .prepare("SELECT name FROM sqlite_master WHERE type='table'")?
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    let required = [
+        "projects",
+        "stages",
+        "progress_entries",
+        "notes",
+        "settings",
+        "game_state",
+        "mirror_state",
+        "storage_ownership",
+        "project_order",
+        "stage_order",
+        "progress_order",
+        "documents",
+        "document_bindings",
+    ];
+    if required.iter().any(|table| !table_names.contains(*table)) {
+        return Err(StorageError::CorruptSchema(
+            "required SQLite table is missing".to_string(),
+        ));
+    }
+
+    let schema_rows: Vec<i64> = connection
+        .prepare("SELECT schema_version FROM schema_info")?
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if schema_rows != vec![CURRENT_SCHEMA_VERSION] {
+        return Err(StorageError::CorruptSchema(
+            "schema marker is not the current singular version".to_string(),
+        ));
+    }
+
+    let owners: HashSet<String> = connection
+        .prepare("SELECT subsystem FROM storage_ownership")?
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    let expected_owners: HashSet<String> = ["projects", "settings", "notes", "game"]
+        .into_iter()
+        .map(str::to_string)
+        .collect();
+    if owners != expected_owners {
+        return Err(StorageError::CorruptSchema(
+            "storage ownership rows are incomplete".to_string(),
+        ));
+    }
+
+    validate_json_column(connection, "projects", "payload_json")?;
+    validate_json_column(connection, "stages", "payload_json")?;
+    validate_json_column(connection, "progress_entries", "payload_json")?;
+    validate_json_column(connection, "notes", "payload_json")?;
+    validate_json_column(connection, "settings", "value_json")?;
+    validate_json_column(connection, "game_state", "payload_json")?;
+    validate_json_column(connection, "documents", "content_json")?;
+    validate_json_column(connection, "documents", "extensions_json")?;
+    validate_json_column(connection, "document_bindings", "payload_json")?;
+
+    let positions: Vec<i64> = connection
+        .prepare("SELECT position FROM project_order ORDER BY position")?
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<Vec<_>, _>>()?;
+    if positions != (0..positions.len() as i64).collect::<Vec<_>>() {
+        return Err(StorageError::CorruptSchema(
+            "project ordering positions are not contiguous".to_string(),
+        ));
+    }
+    let project_count: i64 =
+        connection.query_row("SELECT COUNT(*) FROM projects", [], |row| row.get(0))?;
+    if project_count != positions.len() as i64 {
+        return Err(StorageError::CorruptSchema(
+            "project ordering is incomplete".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_json_column(
+    connection: &Connection,
+    table: &str,
+    column: &str,
+) -> Result<(), StorageError> {
+    let query = format!("SELECT {column} FROM {table}");
+    let mut statement = connection.prepare(&query)?;
+    let values = statement.query_map([], |row| row.get::<_, String>(0))?;
+    for value in values {
+        let value = value?;
+        serde_json::from_str::<serde_json::Value>(&value).map_err(|error| {
+            StorageError::CorruptSchema(format!("invalid JSON in {table}.{column}: {error}"))
+        })?;
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -223,5 +334,32 @@ mod tests {
                 .unwrap(),
             "pickle"
         );
+    }
+
+    #[test]
+    fn database_validation_rejects_missing_latest_table() {
+        let connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&connection).unwrap();
+        connection.execute("DROP TABLE documents", []).unwrap();
+        assert!(matches!(
+            validate_database(&connection),
+            Err(StorageError::CorruptSchema(message)) if message.contains("required SQLite table")
+        ));
+    }
+
+    #[test]
+    fn database_validation_rejects_invalid_json_payload() {
+        let connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&connection).unwrap();
+        connection
+            .execute(
+                "INSERT INTO projects(id,name,infinite,unit,status,payload_json) VALUES('p','P',0,'symbols','активен','not-json')",
+                [],
+            )
+            .unwrap();
+        assert!(matches!(
+            validate_database(&connection),
+            Err(StorageError::CorruptSchema(message)) if message.contains("invalid JSON")
+        ));
     }
 }

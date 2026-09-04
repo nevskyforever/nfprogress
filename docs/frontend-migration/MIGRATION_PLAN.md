@@ -355,6 +355,13 @@ only milestone that creates a publishable desktop release.
 **Risk:** Very High. **Codex:** Luna High; Sol for cross-platform packaging,
 upgrade failures or data-integrity review.
 
+F8 qualification is recorded in [`F8_RELEASE_QUALIFICATION.md`](F8_RELEASE_QUALIFICATION.md),
+with the complete source matrix in [`F8_MIGRATION_MATRIX.md`](F8_MIGRATION_MATRIX.md),
+recovery procedures in [`F8_RECOVERY_RUNBOOK.md`](F8_RECOVERY_RUNBOOK.md) and
+the non-publishing rollout plan in [`F8_RELEASE_ROLLOUT_PLAN.md`](F8_RELEASE_ROLLOUT_PLAN.md).
+The current result is `BLOCKED`: F7 architecture is complete, but a packaged
+legacy helper/bridge and cross-generation release evidence are not yet proven.
+
 ## What changed from P4–P9
 
 | Old stage | Fast-track disposition |

@@ -526,3 +526,15 @@ oracle — Python retained and explicitly invoked; release metadata helpers —
 Python retained as development utilities; obsolete sidecar launcher/build
 files — removed. Release qualification, upgrade matrices and production
 readiness remain F8.
+
+## F8 qualification addendum
+
+F7 architecture is complete, but the production upgrade gate is not green.
+The F8 matrix, backup/restore evidence, platform status and release blockers
+are maintained in [`F8_RELEASE_QUALIFICATION.md`](F8_RELEASE_QUALIFICATION.md),
+[`F8_MIGRATION_MATRIX.md`](F8_MIGRATION_MATRIX.md),
+[`F8_RECOVERY_RUNBOOK.md`](F8_RECOVERY_RUNBOOK.md) and
+[`F8_RELEASE_ROLLOUT_PLAN.md`](F8_RELEASE_ROLLOUT_PLAN.md). A separate
+[`BRIDGE_RELEASE_REQUIREMENTS.md`](BRIDGE_RELEASE_REQUIREMENTS.md) defines the
+conditional bridge decision. Existing Python production versions are not
+declared seamlessly upgradeable solely from their version number.

@@ -1,6 +1,9 @@
 # NFProgress — migration architecture
 
-F7 implementation baseline: `fc8b15af72762dc47a5c4e415997d8eba8175c6a`.
+F7 implementation baseline: `e49069834793fe3151fcedf14e7308a577f37ea1`.
+F8 qualification is recorded in
+[`F8_RELEASE_QUALIFICATION.md`](F8_RELEASE_QUALIFICATION.md) and is currently
+`BLOCKED` for production rollout.
 
 The supported user interface is Vue/Ionic in `frontend/`. PySide6 is legacy
 source and is not part of the supported desktop architecture.
@@ -39,6 +42,12 @@ tooling; Documents and external files are not yet part of the authority
 cutover. Documents are migrated from `documents.json` once at native database
 open; the JSON file is retained as a recovery artifact and is not a normal
 runtime source after its migration marker is committed.
+
+F8 adds bounded local backup/restore and MigrationBundle validation primitives
+for a separately packaged migration/recovery helper. They are not imported by
+the Tauri runtime. A PKL-backed profile still requires that helper (or an
+explicit bridge/Web conversion); a native SQLite error never falls back to a
+stale PKL source.
 
 ## Target desktop architecture
 

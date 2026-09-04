@@ -7,12 +7,9 @@ to use :mod:`engine` with its existing platform-specific defaults.
 
 from __future__ import annotations
 
-import shutil
 import os
-import json
 from collections.abc import Callable, Iterable, Iterator
 from contextlib import contextmanager
-from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock, RLock, local
 from typing import Any, TypeVar
@@ -261,53 +258,21 @@ class PickleRepository:
             SQLiteMirrorRepository(self.base_dir).mark_dirty(error)
 
     def create_backup(self, names: Iterable[str] | str | None = None) -> Path:
-        """Copy existing stores into a unique timestamped snapshot directory.
+        """Create a sealed application-state snapshot.
 
-        Source files are never moved or removed.  Missing stores are simply
-        omitted, which allows this method to be called before a partial migration.
+        The legacy PKL files remain recovery artifacts.  The snapshot also
+        includes SQLite, ``documents.json`` and an external-file reference
+        manifest; files are written to a private staging directory and only
+        become visible after the manifest and checksums are complete.
         """
         store_names = self._validate_store_names(names)
         with self.locked():
-            timestamp = datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')
-            backups_root = self.base_dir / 'backups'
-            backup_dir = backups_root / timestamp
-            suffix = 1
-            while backup_dir.exists():
-                backup_dir = backups_root / f'{timestamp}-{suffix}'
-                suffix += 1
-            backup_dir.mkdir(parents=True)
+            from nfprogress.core.recovery import create_application_backup
 
-            for name in store_names:
-                source = self.base_dir / f'{name}.pkl'
-                if source.is_file():
-                    shutil.copy2(source, backup_dir / source.name)
-            documents = self.base_dir / 'documents.json'
-            if documents.is_file():
-                shutil.copy2(documents, backup_dir / documents.name)
-            database = self.base_dir / 'nfprogress.db'
-            # The SQLite database may contain authoritative settings and Notes,
-            # so every backup is a recoverable application snapshot regardless
-            # of which legacy pickle store triggered it.
-            if database.is_file():
-                shutil.copy2(database, backup_dir / database.name)
-                try:
-                    connection = open_database(self.base_dir)
-                    rows = connection.execute(
-                        'SELECT document_id, binding_type, external_path, source_id, '
-                        'last_external_hash, last_synced_revision, last_synced_hash, '
-                        'last_synced_at FROM document_bindings ORDER BY document_id',
-                    ).fetchall()
-                    manifest = [dict(row) for row in rows]
-                    connection.close()
-                    (backup_dir / 'external_file_manifest.json').write_text(
-                        json.dumps(manifest, ensure_ascii=False, indent=2),
-                        encoding='utf-8',
-                    )
-                except Exception:
-                    # A backup must still contain the SQLite snapshot even if
-                    # an older database has no F6 binding table yet.
-                    pass
-            return backup_dir
+            return create_application_backup(
+                self.base_dir,
+                {f'{name}.pkl' for name in store_names},
+            )
 
     def backup(self, names: Iterable[str] | str | None = None) -> Path:
         """Alias for :meth:`create_backup` used by migration code."""

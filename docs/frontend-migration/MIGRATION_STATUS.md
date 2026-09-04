@@ -1,7 +1,8 @@
 # NFProgress — migration status
 
-Updated for F7 against implementation HEAD `fc8b15af72762dc47a5c4e415997d8eba8175c6a`
-on 2026-09-04.
+Updated for F8 against implementation baseline `e49069834793fe3151fcedf14e7308a577f37ea1`
+on 2026-09-04. F8 qualification is `BLOCKED`; the final implementation commit
+is recorded after the qualification checks.
 
 This status distinguishes implemented features from authoritative storage.
 F1/F2 storage foundations and the F3 Game owner switch are implemented. The
@@ -64,9 +65,12 @@ F6 concerns; the SQLite backup now contains authoritative Game state.
 - A migration-only Python helper is selected for legacy PKL parsing. Rust does
   not execute arbitrary pickle object behavior and now runs the shared schema
   migrations at DB open.
-- No additional user-facing bridge release is recommended if the final
-  distribution provides a separately tested one-shot legacy importer. Without
-  that helper, a bridge release is mandatory.
+- F8 adds a sealed application-state backup/restore primitive and strict bundle
+  validation for that helper. It is not imported by the Tauri runtime.
+- No Python production version is currently proven to upgrade seamlessly from
+  PKL-backed state. A bridge release is conditional on whether a separate
+  signed/rehearsed helper is shipped before Tauri; without that helper, it is
+  mandatory.
 
 ## Known baseline Python failures
 
@@ -94,7 +98,7 @@ the remaining relevant legacy-oracle issue and is recorded for parity follow-up.
 | F5 Mind Elixir/XMind | Complete (development desktop path) | High / Luna Medium–High; production legacy-variant qualification remains F8 |
 | F6 Documents/Word/Scrivener/background sync | Complete (development desktop path) | High / external-format and release qualification remain F8 |
 | F7 Python-free Tauri sidecar/packaging removal | Complete (development desktop path) | High / release qualification remains F8 |
-| F8 migration, backup/restore and release qualification | Not started | Very High / Luna High; Sol for cross-platform release/integrity issues |
+| F8 migration, backup/restore and release qualification | Blocked after audit | Very High; packaged legacy helper, cross-generation update and signing/Windows evidence remain |
 
 P1–P3 are complete foundations and are absorbed into F1/F2. P4 is absorbed
 into F2 with a durable Game event contract. P5 is split into F5 and F6. P6/P7
