@@ -2,7 +2,7 @@ import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { documentsApi } from '@/api/documents'
 import { announceDataChange } from '@/services/dataChanges'
 import { blobToBase64, exportDocx, importDocx } from '@/services/documentDocx'
-import type { DocumentScope, ProjectDocument, TiptapDocument } from '@/types/documents'
+import type { DocumentProgressResult, DocumentScope, ProjectDocument, TiptapDocument } from '@/types/documents'
 
 export type ConflictChoice = 'nfprogress' | 'word' | 'both'
 
@@ -12,21 +12,56 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
   const status = ref('')
   let saveTimer: number | undefined
   let watchTimer: number | undefined
+  let localRevision = 0
+  let persistenceQueue: Promise<void> = Promise.resolve()
 
-  async function writeLinkedWord() {
-    if (!documentState.value?.docx_path) return
-    documentState.value = await documentsApi.writeDocx(scope, await blobToBase64(await exportDocx(content.value)))
+  function copyContent(value: TiptapDocument): TiptapDocument {
+    return JSON.parse(JSON.stringify(value)) as TiptapDocument
   }
-  async function save(announce = true) {
+  function enqueuePersistence<T>(operation: () => Promise<T>): Promise<T> {
+    const queued = persistenceQueue.catch(() => undefined).then(operation)
+    persistenceQueue = queued.then(() => undefined, () => undefined)
+    return queued
+  }
+  async function writeLinkedWord(next = content.value) {
+    if (!documentState.value?.docx_path) return
+    documentState.value = await documentsApi.writeDocx(scope, await blobToBase64(await exportDocx(next)))
+  }
+  function save(announce = true, requestedContent?: TiptapDocument): Promise<void> {
     window.clearTimeout(saveTimer)
     saveTimer = undefined
-    documentState.value = await documentsApi.save(scope, content.value)
-    await writeLinkedWord()
-    if (announce) announceDataChange('projects')
-    status.value = 'Сохранено'
+    const requestedSnapshot = requestedContent ? copyContent(requestedContent) : undefined
+    return enqueuePersistence(async () => {
+      // A queued autosave snapshots the newest draft when it starts. An
+      // explicit save passes its own snapshot, captured from the editor when
+      // the user initiated the action.
+      const snapshot = requestedSnapshot ?? copyContent(content.value)
+      documentState.value = await documentsApi.save(scope, snapshot)
+      await writeLinkedWord(snapshot)
+      if (announce) announceDataChange('projects')
+      status.value = 'Сохранено'
+    })
+  }
+  function saveAndRecord(requestedContent = content.value): Promise<DocumentProgressResult> {
+    window.clearTimeout(saveTimer)
+    saveTimer = undefined
+    // Unlike a regular autosave, an explicit record must use the exact draft
+    // visible when the user pressed the button.
+    const snapshot = copyContent(requestedContent)
+    return enqueuePersistence(async () => {
+      const result = await documentsApi.recordProgress(scope, snapshot)
+      if (result.document) documentState.value = result.document
+      await writeLinkedWord(snapshot)
+      status.value = 'Сохранено'
+      return result
+    })
+  }
+  function setContent(next: TiptapDocument) {
+    localRevision += 1
+    content.value = next
   }
   function scheduleSave(next: TiptapDocument) {
-    content.value = next
+    setContent(next)
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => void save().catch(() => { status.value = 'Не удалось сохранить' }), 700)
   }
@@ -43,7 +78,7 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     return { html: await importDocx(bytes.buffer), hash: external.hash }
   }
   async function acknowledgeExternal(next: TiptapDocument, hash: string) {
-    content.value = next
+    setContent(next)
     documentState.value = await documentsApi.acceptWord(scope, next, hash)
     announceDataChange('projects')
     status.value = 'Изменения Word импортированы'
@@ -54,8 +89,14 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     anchor.href = url; anchor.download = 'nfprogress-conflict-copy.docx'; anchor.click(); URL.revokeObjectURL(url)
   }
   onMounted(async () => {
-    documentState.value = await documentsApi.get(scope); content.value = documentState.value.content
+    const revisionAtStart = localRevision
+    const loaded = await documentsApi.get(scope)
+    // A slow initial read (including a migration-backed read) must not replace
+    // text entered while it was in flight.  The local edit is already the
+    // current source of truth and its autosave will persist it.
+    if (revisionAtStart === localRevision) content.value = loaded.content
+    documentState.value = loaded
   })
   onBeforeUnmount(() => { window.clearTimeout(saveTimer); window.clearInterval(watchTimer); void save() })
-  return { content, documentState, status, save, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal }
+  return { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal }
 }

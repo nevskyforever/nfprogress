@@ -11,7 +11,6 @@ import { useDocumentSync, type ConflictChoice } from '@/composables/useDocumentS
 import { exportDocx, WORD_FONT_FAMILIES, WORD_FONT_SIZES } from '@/services/documentDocx'
 import type { DocumentScope, TiptapDocument } from '@/types/documents'
 import { projectsApi } from '@/api/projects'
-import { documentsApi } from '@/api/documents'
 import type { Project } from '@/types/api'
 import { convertProjectUnit } from '@/utils/projectPlanning'
 import { announceDataChange, onDataChange } from '@/services/dataChanges'
@@ -40,12 +39,13 @@ const zoom = ref(100)
 const selectedFontFamily = ref<(typeof WORD_FONT_FAMILIES)[number]>('Arial')
 const selectedFontSize = ref<(typeof WORD_FONT_SIZES)[number]>(12)
 const selectedLineHeight = ref('1.5')
+const editorInstanceKey = ref(0)
 const LINE_HEIGHTS = ['1', '1.15', '1.5', '2'] as const
 const canLinkWord = currentPlatform() === 'tauri'
 const saving = ref(false)
 const recording = ref(false)
 const processing = computed(() => saving.value || recording.value)
-const { content, documentState, status, save, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
+const { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
   props.scope,
   () => new Promise<ConflictChoice>((resolve) => { showConflict.value = true; pendingConflictResolve.value = resolve }),
 )
@@ -56,9 +56,11 @@ let projectLoadSequence = 0
 let closeInProgress = false
 let toolbarObserver: MutationObserver | undefined
 let positionSaveTimer: number | undefined
+let positionRestoreTimer: number | undefined
 let hasRestoredEditorPosition = false
 type EditorPosition = { selection: number; scrollTop: number }
 const linked = computed(() => Boolean(documentState.value?.docx_path))
+const editorDocumentId = computed(() => `nfprogress-document:${props.scope.projectId}:${props.scope.stageId ?? 'project'}`)
 const textSymbols = computed(() => countTextSymbols(editorContent.value))
 const textUnits = computed(() => projectEntity.value
   ? convertProjectUnit(textSymbols.value, 'symbols', projectEntity.value.unit)
@@ -136,10 +138,11 @@ function saveEditorPosition(): void {
     // Position memory is optional in restricted embedded webviews.
   }
 }
-async function restoreEditorPosition(): Promise<void> {
+async function restoreEditorPosition(): Promise<boolean> {
   const saved = savedEditorPosition()
+  if (!saved) return true
   const editor = editorRef.value?.getEditor()
-  if (!saved || !editor) return
+  if (!editor) return false
 
   await nextTick()
   const position = Math.min(saved.selection, Math.max(1, editor.state.doc.content.size))
@@ -148,6 +151,22 @@ async function restoreEditorPosition(): Promise<void> {
   editor.commands.scrollIntoView()
   const scrollContainer = editorScrollContainer()
   if (scrollContainer) scrollContainer.scrollTop = saved.scrollTop
+  return true
+}
+function scheduleEditorPositionRestore(force = false): void {
+  if (force) hasRestoredEditorPosition = false
+  if (hasRestoredEditorPosition || positionRestoreTimer !== undefined) return
+  let attempts = 0
+  const attempt = async () => {
+    positionRestoreTimer = undefined
+    if (await restoreEditorPosition()) {
+      hasRestoredEditorPosition = true
+      return
+    }
+    attempts += 1
+    if (attempts < 40) positionRestoreTimer = window.setTimeout(() => void attempt(), 50)
+  }
+  void attempt()
 }
 function schedulePositionSave(): void {
   if (positionSaveTimer !== undefined) return
@@ -167,7 +186,41 @@ function configureKitLocale() {
   // intentionally accepts host locale keys and message dictionaries.
   createI18n({ locale: 'en-US', messages: tiptapLocale(t) as never })
 }
-function update(next: JSONContent) { const json = next as TiptapDocument; editorContent.value = json; scheduleSave(json) }
+function update(next: JSONContent) {
+  const json = next as TiptapDocument
+  // The editor kit can emit an empty document while it refreshes after an
+  // asynchronous save. That value is not a user edit and must not replace the
+  // draft that was just recorded.
+  if (processing.value && countTextSymbols(json) === 0 && countTextSymbols(editorContent.value) > 0) return
+  editorContent.value = json
+  scheduleSave(json)
+}
+function captureEditorContent(): TiptapDocument {
+  const latest = editorRef.value?.getJSON()
+  if (!latest || typeof latest !== 'object') return content.value
+  const json = latest as TiptapDocument
+  if (countTextSymbols(json) === 0 && countTextSymbols(content.value) > 0) return content.value
+  editorContent.value = json
+  setContent(json)
+  return json
+}
+function repairEditorSnapshot(snapshot: TiptapDocument): void {
+  if (countTextSymbols(snapshot) === 0) return
+  const editor = editorRef.value?.getEditor()
+  if (editor && countTextSymbols(editor.getJSON()) > 0) return
+
+  editorContent.value = snapshot
+  setContent(snapshot)
+  if (editor) {
+    editor.commands.setContent(snapshot, { emitUpdate: false })
+    scheduleEditorPositionRestore(true)
+    return
+  }
+  // If the kit destroyed its internal editor during the update, recreate the
+  // component from the saved snapshot instead of leaving an empty workspace.
+  editorInstanceKey.value += 1
+  scheduleEditorPositionRestore(true)
+}
 function countTextSymbols(value: unknown): number {
   if (!value || typeof value !== 'object') return 0
   const node = value as { text?: unknown; content?: unknown }
@@ -203,11 +256,11 @@ async function loadProjectEntity() {
   }
 }
 function resolveConflict(choice: ConflictChoice) { showConflict.value = false; pendingConflictResolve.value?.(choice); pendingConflictResolve.value = null }
-async function recordTextProgress(force = false): Promise<boolean> {
-  if (recording.value || textSymbols.value <= 0 || (!force && !canRecordText.value)) return false
+async function recordTextProgress(force = false, snapshot = captureEditorContent()): Promise<boolean> {
+  if (recording.value || countTextSymbols(snapshot) <= 0 || (!force && !canRecordText.value)) return false
   recording.value = true
   try {
-    const result = await documentsApi.recordProgress(props.scope)
+    const result = await saveAndRecord(snapshot)
     if (!result.progress) {
       status.value = t('Документ не изменился. Текущий объём уже актуален.')
       return false
@@ -238,30 +291,31 @@ async function recordTextProgress(force = false): Promise<boolean> {
   }
 }
 let flushPromise: Promise<void> | null = null
-async function flushAndRecord(): Promise<void> {
+async function flushAndRecord(recordProgress = false): Promise<void> {
   if (flushPromise) return flushPromise
   const operation = (async () => {
-    const latest = editorRef.value?.getJSON()
-    if (latest) {
-      editorContent.value = latest as TiptapDocument
-      content.value = editorContent.value
-    }
-    saving.value = true
+    const snapshot = captureEditorContent()
     try {
-      // The progress endpoint reads the persisted document, so its request
-      // must follow this immediate save rather than the debounce timer.
-      await save(false)
-    } catch (error) {
-      status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
-      return
+      if (recordProgress) {
+        const recorded = await recordTextProgress(true, snapshot)
+        // The document itself may have changed even when rounding/duplicate
+        // protection correctly produced no progress entry. Keep project counters
+        // and cached detail views in sync with that saved content as well.
+        if (!recorded) announceDataChange('projects')
+        return
+      }
+      saving.value = true
+      try {
+        await save(true, snapshot)
+      } catch (error) {
+        status.value = t(error instanceof Error ? error.message : 'Не удалось сохранить')
+      } finally {
+        saving.value = false
+      }
     } finally {
-      saving.value = false
+      await nextTick()
+      repairEditorSnapshot(snapshot)
     }
-    const recorded = await recordTextProgress(true)
-    // The document itself may have changed even when rounding/duplicate
-    // protection correctly produced no progress entry. Keep project counters
-    // and cached detail views in sync with that saved content as well.
-    if (!recorded) announceDataChange('projects')
   })()
   flushPromise = operation
   try {
@@ -270,7 +324,7 @@ async function flushAndRecord(): Promise<void> {
     if (flushPromise === operation) flushPromise = null
   }
 }
-function onRecordClick(): void { void flushAndRecord() }
+function onRecordClick(): void { void flushAndRecord(true) }
 function closeEditor() {
   if (props.scope.stageId) {
     void router.push({ name: 'stage-detail', params: { projectId: props.scope.projectId, stageId: props.scope.stageId } })
@@ -326,13 +380,12 @@ function findToolbarTarget(): void {
   toolbarObserver = undefined
 }
 
-watch(content, (next) => {
-  editorContent.value = next
-  if (!hasRestoredEditorPosition) {
-    hasRestoredEditorPosition = true
-    void restoreEditorPosition()
-  }
-}, { deep: true })
+watch(content, (next) => { editorContent.value = next }, { deep: true })
+watch(documentState, async (next) => {
+  if (!next) return
+  await nextTick()
+  scheduleEditorPositionRestore()
+})
 watch(() => locale.language, configureKitLocale)
 watch(() => theme.resolved, setWordTheme, { immediate: true })
 configureKitLocale()
@@ -376,6 +429,7 @@ onBeforeUnmount(() => {
   document.removeEventListener('selectionchange', handleEditorSelectionChange)
   editorShell.value?.removeEventListener('scroll', schedulePositionSave, true)
   if (positionSaveTimer !== undefined) window.clearTimeout(positionSaveTimer)
+  if (positionRestoreTimer !== undefined) window.clearTimeout(positionRestoreTimer)
   saveEditorPosition()
   window.clearInterval(externalTimer)
   projectLoadSequence += 1
@@ -407,13 +461,15 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
     <div class="document-editor-view__workspace" @keydown.capture="handleEditorKeydown">
       <div ref="editorShell" class="document-editor-view__editor-shell">
         <TiptapProEditor
+          v-if="documentState"
+          :key="editorInstanceKey"
           ref="editorRef"
-          v-model="editorContent"
+          :initial-content="content"
           class="nfprogress-word-editor"
           :style="{ '--nf-editor-zoom': `${zoom / 100}` }"
           version="advanced"
           locale="en-US"
-          document-id="nfprogress-document"
+          :document-id="editorDocumentId"
           :features="{ headerNav: true, footerNav: false, table: false, tableToolbar: false, image: false, linkBubbleMenu: false, floatingMenu: false, slashCommand: false, dragHandleMenu: false, aiChat: false, aiSettings: false }"
           @update="update"
         />

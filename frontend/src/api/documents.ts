@@ -1,5 +1,5 @@
 import { apiRequest } from './client'
-import type { DocumentScope, ProjectDocument, TiptapDocument } from '@/types/documents'
+import type { DocumentProgressResult, DocumentScope, ProjectDocument, TiptapDocument } from '@/types/documents'
 
 function path(scope: DocumentScope, suffix = ''): string {
   const query = scope.stageId ? `?${new URLSearchParams({ stage_id: scope.stageId })}` : ''
@@ -14,5 +14,8 @@ export const documentsApi = {
   writeDocx: (scope: DocumentScope, contentBase64: string) => apiRequest<ProjectDocument>(path(scope, '/docx'), { method: 'PUT', body: { content_base64: contentBase64 } }),
   external: (scope: DocumentScope) => apiRequest<{ state: string; content_base64?: string; hash?: string }>(path(scope, '/external')),
   acceptWord: (scope: DocumentScope, content: TiptapDocument, sourceHash: string) => apiRequest<ProjectDocument>(path(scope, '/accept-word'), { method: 'PUT', body: { content, source_hash: sourceHash } }),
-  recordProgress: (scope: DocumentScope) => apiRequest<{ changed: boolean; symbols: number; progress: import('@/types/api').ProgressResult | null }>(path(scope, '/progress'), { method: 'POST' }),
+  recordProgress: (scope: DocumentScope, content?: TiptapDocument) => apiRequest<DocumentProgressResult>(path(scope, '/progress'), {
+    method: 'POST',
+    ...(content ? { body: { content } } : {}),
+  }),
 }
