@@ -119,9 +119,11 @@ already migrated data.
 ## Qualification result
 
 The safe strategy is selected, but F10 remains **BLOCKED** until a transitional
-release is built, signed and rehearsed on copied real data for all supported
-platforms. The checked-in manual qualification workflow builds unsigned
-evidence only and never publishes.
+release is built and rehearsed on copied real data for the initial rollout
+platforms, macOS ARM64 and Windows x64. The checked-in manual qualification
+workflow builds unsigned evidence only by default and never publishes;
+Authenticode is an optional future hardening mode. Intel remains
+build-supported but deferred from this initial wave.
 
 ## F11 policy addendum
 

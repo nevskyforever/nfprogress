@@ -41,3 +41,21 @@ def test_macos_signing_container_covers_optional_helper():
     assert 'cp -- "$HELPER_PATH" "$STAGING_DIR/nfprogress-migration-helper"' in script
     assert "xcrun notarytool submit" in script
     assert "xcrun stapler validate" in script
+
+
+def test_f11_initial_scope_and_windows_workflow_are_explicit():
+    qualification = (ROOT / "docs/frontend-migration/F11_PLATFORM_QUALIFICATION.md").read_text(
+        encoding="utf-8"
+    )
+    workflow = (ROOT / ".github/workflows/f11-windows-qualification.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "macOS ARM64 and Windows x64" in qualification
+    assert "DEFERRED / NOT IN INITIAL RELEASE SCOPE" in qualification
+    assert "workflow_dispatch" in workflow
+    assert "ref: ${{ github.ref }}" in workflow
+    assert "runs-on: windows-latest" in workflow
+    assert "x86_64-pc-windows-msvc" in workflow
+    assert "f11-windows-x86_64-${{ steps.provenance.outputs.commit_sha }}" in workflow
+    assert "update_manifest.json" not in workflow
+    assert "update_manifest_legacy.json" not in workflow

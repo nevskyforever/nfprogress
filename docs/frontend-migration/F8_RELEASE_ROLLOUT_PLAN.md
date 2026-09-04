@@ -76,6 +76,7 @@ distribution. Developer ID, notarization, and Authenticode are therefore
 known `P1` trust limitations, with expected Gatekeeper and SmartScreen
 warnings, rather than standalone release blockers. Functional qualification
 still requires the complete helper → installer → Tauri first-launch/restart
-path on every platform included in the initial rollout. See
+path on macOS ARM64 and Windows x64. macOS Intel is deferred and is not part
+of this initial rollout wave. See
 `F11_PLATFORM_QUALIFICATION.md`, `F11_TRANSITION_REHEARSAL.md`, and
 `F11_RELEASE_GATE_CHECKLIST.md` for the evidence and open gates.

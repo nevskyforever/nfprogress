@@ -8,8 +8,8 @@ directly from baseline `3b3980d`. This is a private/non-publishing report.
 | Platform | Build/package | Helper | Functional install/launch/restart | Current status |
 | --- | --- | --- | --- | --- |
 | macOS ARM | real local Tauri build, arm64, DMG verified, provenance verified | real arm64 one-file helper; detect/preview/prepare/verify passed | not completed: qualification bundle launch was prevented by the already-running `/Applications/nfprogress.app` single-instance process | **BLOCKED — P0 runtime evidence** |
-| macOS Intel | no Intel host/runner used | no Intel helper runtime | not tested; cross-build is not evidence | **NOT TESTED — P0** |
-| Windows x64 | no Windows runner used; no NSIS artifact | no packaged Windows helper | not tested | **NOT TESTED — P0** |
+| macOS Intel | Intel build support retained; no Intel host/runner used | no Intel helper runtime | deferred from the initial rollout | **DEFERRED — P1/backlog** |
+| Windows x64 | separate manual `f11-windows-qualification.yml` targets `windows-latest` and NSIS | packaged helper smoke is required on the hosted runner | not run from this host; workflow is ready for dispatch | **NOT TESTED — P0 evidence pending** |
 
 OS signing limitations are not the reason for any status above. Under the
 current policy, macOS ad-hoc and Windows unsigned artifacts are acceptable
@@ -32,11 +32,13 @@ single-instance gate. No PASS is claimed for first launch or restart.
 ## macOS Intel and Windows
 
 No Intel runtime and no Windows x64 runtime were available in this
-environment. The checked-in manual workflow targets `macos-14` ARM,
-`macos-13` Intel, and `windows-latest`, but it was not dispatched here because
-the GitHub CLI/runner credentials are unavailable. Any later run must attach
-the artifact name, SHA-256, commit SHA, helper smoke output, install path,
-first-launch result, restart result, and recovery results.
+environment. Intel build support remains in the project, but macOS Intel is
+explicitly **DEFERRED / NOT IN INITIAL RELEASE SCOPE** and is not a readiness
+gate for the first wave. Windows remains in scope and has a dedicated manual
+workflow, but it could not be dispatched from this host because GitHub CLI and
+runner credentials are unavailable. A Windows run must attach the artifact
+name, SHA-256, exact checkout SHA, helper smoke output, resolved data paths,
+install path, first-launch result, restart result, and recovery results.
 
 ## Trust limitation
 
@@ -48,8 +50,8 @@ optional.
 
 ## Readiness decision
 
-The intended first-release platform set remains macOS ARM, macOS Intel, and
-Windows x64. No intentional Intel/Windows exclusion has been approved, so an
-ARM-only rollout is technically possible but not authorized by this matrix.
-Current platform-independent status is **BLOCKED** until the functional P0
-runtime and transition rehearsals are executed.
+The intended first-release platform set is **macOS ARM64 and Windows x64**.
+macOS Intel is **DEFERRED / NOT IN INITIAL RELEASE SCOPE** and may be added in
+a later qualification wave. Current status is **BLOCKED** only until the
+remaining functional P0 runtime and transition rehearsals are executed on the
+two intended platforms; missing OS signing credentials are not P0 blockers.

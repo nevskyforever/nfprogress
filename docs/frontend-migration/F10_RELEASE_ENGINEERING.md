@@ -60,9 +60,10 @@ Intel helper build and runtime require the Intel runner.
 
 The manual qualification workflow builds ARM, Intel and Windows evidence
 without publishing. The macOS signing/notarization script fails if identities
-or profiles are absent. Windows still requires real CI artifact,
-Authenticode, packaged helper and runtime rehearsal. These gates keep the
-result BLOCKED.
+or profiles are absent; those trust-hardening paths are optional under the
+current distribution policy. The initial functional scope is ARM64 plus
+Windows x64. Intel remains build-supported but is deferred, while Windows
+still requires its real CI artifact, packaged helper and runtime rehearsal.
 
 See [`F10_UPDATER_TRANSITION.md`](F10_UPDATER_TRANSITION.md) for state,
 identity, version, rollback and rollout rules, and
@@ -103,11 +104,12 @@ withdrawing new transition metadata; do not downgrade migrated profiles.
 ## Remaining P0 blockers
 
 - transitional release and end-to-end installer rehearsal;
-- macOS Developer ID, hardened runtime, notarization/stapling and Gatekeeper
-  evidence for ARM and Intel;
-- Intel helper and Intel runtime rehearsal;
-- Windows CI Tauri artifact, Authenticode, helper and Windows runtime
+- macOS ARM first-launch/restart and complete helper → installer → Tauri
+  rehearsal;
+- Windows CI Tauri artifact, packaged helper and Windows runtime
   migration/restart rehearsal;
+- transitional handoff and no-update-loop proof;
+- Tauri updater key/channel qualification and interrupted-transition recovery;
 - final-commit artifacts and release-owner approval of manifest cutover.
 
 No public release is authorized by F10.
@@ -119,7 +121,8 @@ current rollout. Developer ID/notarization and Authenticode remain optional
 future hardening (`P1`) and must not be confused with Tauri updater
 cryptographic signatures. F11 produced a real local ARM Tauri build and
 packaged ARM helper smoke evidence, but could not complete the ARM app launch
-because another installed single-instance process was already active; Intel
-and Windows runners were unavailable. The functional transition gates remain
-open. See `F11_PLATFORM_QUALIFICATION.md` and
+because another installed single-instance process was already active. Intel is
+deferred from the initial wave; Windows evidence remains pending the manual
+runner. The functional transition gates remain open. See
+`F11_PLATFORM_QUALIFICATION.md` and
 `F11_TRANSITION_REHEARSAL.md`.

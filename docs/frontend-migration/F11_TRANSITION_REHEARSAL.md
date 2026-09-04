@@ -32,6 +32,15 @@ and keeps the legacy numeric updater channel separate from Tauri's
 `latest.json` channel. These are qualification values from the F10 fixture,
 not a publication command.
 
+The initial platform set for this rehearsal is macOS ARM64 and Windows x64.
+macOS Intel remains build-supported but is **DEFERRED / NOT IN INITIAL RELEASE
+SCOPE**. The dedicated manual workflow
+`.github/workflows/f11-windows-qualification.yml` checks out the dispatch ref,
+builds the x86_64 NSIS package and standalone helper, records exact SHA-256 and
+checkout provenance, and runs on `windows-latest`. It has no publish step and
+uses unsigned qualification mode unless optional signing inputs are explicitly
+enabled.
+
 ## ARM helper fixture
 
 The copied fixture included Unicode project data, one project, one stage, two
@@ -59,8 +68,10 @@ The Tauri install/first-launch/restart leg was not completed. The local
 qualification app could not become the active single instance because an
 already-running `/Applications/nfprogress.app` process owns the product
 identity; it was not safe to terminate that unverified user process. Intel and
-Windows were not available. Therefore this is helper PASS plus transition
-BLOCKED, not a full transition PASS.
+Windows were not available. Intel is deferred rather than a current P0.
+Windows remains a current P0 and requires the manual runner evidence before
+the initial two-platform transition can be called qualified. Therefore this is
+helper PASS plus transition BLOCKED, not a full transition PASS.
 
 The following failure cases remain required evidence:
 

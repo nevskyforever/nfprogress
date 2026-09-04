@@ -110,6 +110,7 @@ fail-closed when explicitly enabled.
 ## F11 current conclusion
 
 **BLOCKED** for functional qualification: the ARM helper passed, but the
-ARM app launch/restart leg, Intel runtime, Windows runtime, full
-cross-generation handoff, and production Tauri updater-key path remain
-unqualified. This status is not caused by missing OS signing credentials.
+ARM app launch/restart leg, Windows runtime, full cross-generation handoff,
+and production Tauri updater-key path remain unqualified. Intel runtime is
+deferred because macOS Intel is not in the initial rollout scope. This status
+is not caused by missing OS signing credentials.

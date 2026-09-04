@@ -19,7 +19,7 @@ public release is authorized.
 | ARM helper build and smoke | PASS | real arm64 helper; detect/preview/prepare/verify |
 | ARM Tauri first launch/restart | NOT TESTED | active installed single-instance process prevented isolated launch |
 | ARM full transition | BLOCKED | install/launch/restart leg remains |
-| Intel app/helper/runtime | NOT TESTED | Intel host/runner required |
+| Intel app/helper/runtime | DEFERRED | macOS Intel is not in initial rollout scope; support remains retained |
 | Windows app/helper/NSIS/runtime | NOT TESTED | Windows x64 runner required |
 | transition handoff release | BLOCKED | minimal transitional Python release not implemented/qualified |
 | transition metadata | PASS (fixture) | F10 documentation fixture validates target/platform shape; production values remain unassigned |
@@ -63,11 +63,13 @@ green. No test was excluded to manufacture a pass.
 
 ## Revised P0/P1 and final status
 
+Initial rollout scope: **macOS ARM64 and Windows x64**. macOS Intel remains
+supported by the build but is **DEFERRED / NOT IN INITIAL RELEASE SCOPE** and
+is a P1 backlog item, not a current release gate.
+
 Current P0:
 
 - full ARM helper → installer → Tauri launch → restart transition;
-- real Intel helper/runtime and migration evidence, or an explicit approved
-  Intel exclusion;
 - real Windows x64 build, packaged helper, NSIS install, launch, restart, and
   `%APPDATA%\\nfprogress`/historical fallback verification;
 - minimal transitional Python delivery/handoff and no-update-loop proof;
@@ -79,12 +81,13 @@ Current P1:
 
 - Developer ID and notarization for macOS;
 - Authenticode for Windows;
+- Intel helper/runtime/migration qualification and a later macOS Intel rollout;
 - release-note/support UX for Gatekeeper and SmartScreen;
 - resolution of legacy-only Python suite failures before broad legacy support.
 
 Final F11 status: **BLOCKED**. This status is caused by unqualified
 functional/runtime transition gates, not by absent OS signing credentials.
 
-Intended initial platform set: macOS ARM, macOS Intel, and Windows x64. ARM
-only could be considered only after the ARM runtime gate is complete and the
-owner explicitly excludes Intel/Windows; that decision has not been made.
+Intended initial platform set: macOS ARM64 and Windows x64. Intel is explicitly
+excluded from this initial wave, so its missing runtime evidence does not make
+the initial release `BLOCKED`.
