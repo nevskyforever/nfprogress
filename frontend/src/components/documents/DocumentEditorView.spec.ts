@@ -275,6 +275,32 @@ describe('DocumentEditorView status bar', () => {
     wrapper.unmount()
   })
 
+  it('keeps the current document when the initial read finishes after recording', async () => {
+    const edited: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Новая запись' }] }],
+    }
+    let finishLoad: ((value: ProjectDocument) => void) | undefined
+    vi.mocked(projectsApi.get).mockResolvedValue(projectFixture({ total: 804 }))
+    vi.mocked(documentsApi.get).mockReturnValue(new Promise((resolve) => { finishLoad = resolve }))
+    vi.mocked(documentsApi.save).mockResolvedValue(documentFixture)
+    vi.mocked(documentsApi.recordProgress).mockResolvedValue({ changed: false, symbols: 12, progress: null })
+    editorModelValue.value = edited
+    const wrapper = mount(DocumentEditorView, {
+      props: { scope: { projectId: 'project-id' }, title: 'Текст' },
+      global: { plugins: [createPinia()] },
+    })
+    await flushPromises()
+    await wrapper.get('.tiptap-model-update').trigger('click')
+    await flushPromises()
+    await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
+    finishLoad?.(documentFixture)
+    await flushPromises()
+
+    expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(edited)
+    wrapper.unmount()
+  })
+
   it('keeps the latest update when getJSON returns an empty transient document', async () => {
     const edited: TiptapDocument = {
       type: 'doc',

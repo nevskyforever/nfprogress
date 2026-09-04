@@ -29,9 +29,12 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     if (announce) announceDataChange('projects')
     status.value = 'Сохранено'
   }
-  function scheduleSave(next: TiptapDocument) {
+  function setContent(next: TiptapDocument) {
     localRevision += 1
     content.value = next
+  }
+  function scheduleSave(next: TiptapDocument) {
+    setContent(next)
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => void save().catch(() => { status.value = 'Не удалось сохранить' }), 700)
   }
@@ -48,7 +51,7 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     return { html: await importDocx(bytes.buffer), hash: external.hash }
   }
   async function acknowledgeExternal(next: TiptapDocument, hash: string) {
-    content.value = next
+    setContent(next)
     documentState.value = await documentsApi.acceptWord(scope, next, hash)
     announceDataChange('projects')
     status.value = 'Изменения Word импортированы'
@@ -68,5 +71,5 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     if (revisionAtStart === localRevision) content.value = loaded.content
   })
   onBeforeUnmount(() => { window.clearTimeout(saveTimer); window.clearInterval(watchTimer); void save() })
-  return { content, documentState, status, save, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal }
+  return { content, documentState, status, save, setContent, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal }
 }

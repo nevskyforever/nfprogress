@@ -45,7 +45,7 @@ const canLinkWord = currentPlatform() === 'tauri'
 const saving = ref(false)
 const recording = ref(false)
 const processing = computed(() => saving.value || recording.value)
-const { content, documentState, status, save, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
+const { content, documentState, status, save, setContent, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
   props.scope,
   () => new Promise<ConflictChoice>((resolve) => { showConflict.value = true; pendingConflictResolve.value = resolve }),
 )
@@ -175,6 +175,10 @@ function update(next: JSONContent) {
   if (processing.value && countTextSymbols(json) === 0 && countTextSymbols(editorContent.value) > 0) return
   editorContent.value = json
   scheduleSave(json)
+}
+function updateModel(next: string | object) {
+  if (!next || typeof next !== 'object') return
+  setContent(next as TiptapDocument)
 }
 function countTextSymbols(value: unknown): number {
   if (!value || typeof value !== 'object') return 0
@@ -412,7 +416,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
       <div ref="editorShell" class="document-editor-view__editor-shell">
         <TiptapProEditor
           ref="editorRef"
-          v-model="content"
+          :model-value="content"
           class="nfprogress-word-editor"
           :style="{ '--nf-editor-zoom': `${zoom / 100}` }"
           version="advanced"
@@ -420,6 +424,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
           document-id="nfprogress-document"
           :features="{ headerNav: true, footerNav: false, table: false, tableToolbar: false, image: false, linkBubbleMenu: false, floatingMenu: false, slashCommand: false, dragHandleMenu: false, aiChat: false, aiSettings: false }"
           @update="update"
+          @update:model-value="updateModel"
         />
         <Teleport v-if="toolbarTarget" :to="toolbarTarget">
           <div class="document-editor-view__font-controls">
