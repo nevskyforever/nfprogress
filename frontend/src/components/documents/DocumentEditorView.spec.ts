@@ -1,18 +1,21 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia } from 'pinia'
+import type { JSONContent } from '@tiptap/core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { documentsApi } from '@/api/documents'
 import { projectsApi } from '@/api/projects'
 import { announceDataChange } from '@/services/dataChanges'
 import { projectFixture } from '@/test/fixtures'
-import type { DocumentScope, ProjectDocument } from '@/types/documents'
+import type { DocumentScope, ProjectDocument, TiptapDocument } from '@/types/documents'
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, editorSelection, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setLineHeight, setTextSelection } = vi.hoisted(() => ({
+const { destroyWindow, editorJson, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setLineHeight, setTextSelection } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
+  editorJson: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
   editorSelection: { from: 1 },
+  editorUpdate: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
   focusEditor: vi.fn(),
   insertContent: vi.fn(),
   onBeforeRouteLeave: vi.fn(),
@@ -44,11 +47,11 @@ vi.mock('tiptap-ui-kit', () => ({
           state: { selection: editorSelection, doc: { content: { size: 100 } } },
           chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
         }),
-        getJSON: () => ({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] }),
+        getJSON: () => editorJson.value,
       })
-      return {}
+      return { editorUpdate }
     },
-    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="word-document-container"><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] })" /></div></div>`,
+    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="word-document-container"><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', editorUpdate.value)" /></div></div>`,
   },
 }))
 
@@ -84,9 +87,9 @@ const documentFixture: ProjectDocument = {
   has_content: false,
 }
 
-function mountEditor(project = projectFixture(), scope: DocumentScope = { projectId: 'project-id' }) {
+function mountEditor(project = projectFixture(), scope: DocumentScope = { projectId: 'project-id' }, savedDocument = documentFixture) {
   vi.mocked(projectsApi.get).mockResolvedValue(project)
-  vi.mocked(documentsApi.get).mockResolvedValue({ ...documentFixture, stage_id: scope.stageId ?? null })
+  vi.mocked(documentsApi.get).mockResolvedValue({ ...savedDocument, stage_id: scope.stageId ?? null })
   vi.mocked(documentsApi.save).mockResolvedValue({ ...documentFixture, stage_id: scope.stageId ?? null })
   return mount(DocumentEditorView, {
     props: { scope, title: 'Текст' },
@@ -110,6 +113,8 @@ describe('DocumentEditorView status bar', () => {
     vi.mocked(documentsApi.recordProgress).mockReset()
     vi.mocked(documentsApi.save).mockReset()
     onBeforeRouteLeave.mockReset()
+    editorJson.value = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] }
+    editorUpdate.value = editorJson.value
     insertContent.mockReset()
     focusEditor.mockReset()
     setTextSelection.mockReset()
@@ -248,6 +253,25 @@ describe('DocumentEditorView status bar', () => {
 
     expect(documentsApi.recordProgress).toHaveBeenCalledOnce()
     expect(wrapper.text()).not.toContain('Из проекта удалено')
+    wrapper.unmount()
+  })
+
+  it('keeps the latest update when getJSON returns an empty transient document', async () => {
+    const edited: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Текст проекта' }] }],
+    }
+    const existing = { ...documentFixture, content: edited, exists: true, has_content: true }
+    editorUpdate.value = edited
+    editorJson.value = { type: 'doc', content: [{ type: 'paragraph' }] }
+    vi.mocked(documentsApi.recordProgress).mockResolvedValue({ changed: false, symbols: 12, progress: null })
+    const wrapper = mountEditor(projectFixture({ total: 804 }), { projectId: 'project-id' }, existing)
+    await flushPromises()
+    await wrapper.get('.tiptap-stub').trigger('click')
+    await wrapper.get('.document-editor-view__actions .nf-button').trigger('click')
+    await flushPromises()
+
+    expect(documentsApi.save).toHaveBeenCalledWith({ projectId: 'project-id' }, edited)
     wrapper.unmount()
   })
 

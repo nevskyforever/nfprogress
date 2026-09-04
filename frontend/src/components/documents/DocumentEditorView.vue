@@ -241,11 +241,6 @@ let flushPromise: Promise<void> | null = null
 async function flushAndRecord(recordProgress = false): Promise<void> {
   if (flushPromise) return flushPromise
   const operation = (async () => {
-    const latest = editorRef.value?.getJSON()
-    if (latest) {
-      editorContent.value = latest as TiptapDocument
-      content.value = editorContent.value
-    }
     saving.value = true
     try {
       // The progress endpoint reads the persisted document, so its request
