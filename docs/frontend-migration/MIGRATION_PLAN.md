@@ -129,7 +129,7 @@ they affect progress/lifecycle semantics; obsolete UI-only failures do not.
 **Risk:** Very High. **Codex:** Luna High, with Sol only for transactional
 boundary or data-loss review.
 
-### F3 — Game state and progress-event cutover
+### F3 — Game state and progress-event cutover — complete in development
 
 **Goal:** move Game from `gamer.pkl` plus `data.pkl` side effects to SQLite and
 the F2 event contract.
@@ -148,6 +148,14 @@ achievement evidence become SQLite/event authoritative.
   rewards, quests, mastery, cabinet and inventory limits;
 - use Python `game.py`/`game_data.py` only as the oracle until parity closes.
 
+**Implementation:** schema v5 adds Game metadata and retry/poison-event
+columns; `GameMigrationBundle` imports and verifies known Gamer state,
+Game-owned envelope fields and unknown extensions; SQLite repository methods
+block normal Game PKL access after the owner switch; and deterministic
+Python/Rust consumers apply F2 events with the processed marker atomically.
+The existing HTTP façade remains over SQLite until F6 direct Tauri commands
+remove the transitional sidecar.
+
 **Python dependencies:** no desktop Game runtime; Python remains available to
 Web and reference tests.
 
@@ -163,6 +171,12 @@ and retry tests.
 **Pre-existing failures:** game/progress/date failures must be fixed or
 explicitly retired with replacement tests before F4. Unrelated accessibility
 failure may remain outside this gate.
+
+**F3 evidence:** `tests/test_f3_game_sqlite.py` covers migration, failed
+verification, no reimport, stale/inaccessible PKL, unknown fields, duplicate
+effects, restart, retry/poison behavior and SQLite integrity. Development
+authority is complete; production seamless upgrade remains an F7 source
+matrix and Legacy Migration Service gate.
 
 **Risk:** Very High. **Codex:** Luna High; Sol for reward-transaction design
 or difficult parity failures only.
@@ -361,8 +375,9 @@ F2 is the controlled Projects/Stages/Progress SQLite cutover: verified
 MigrationBundle import, owner guard, idempotent startup, typed Tauri CRUD and
 progress commands, explicit Notes cleanup, durable idempotent Game events,
 preservation of extensions/maps/bindings/folders/references, and SQLite-aware
-backup/recovery documentation. F3 is not started. The next milestone is Game
-authority and event consumption, not more Projects mirror work.
+backup/recovery documentation. F3 adds Game SQLite authority and deterministic
+event consumption. The next milestone remains F4/F5 work; no next milestone is
+started by this change.
 
 ## Long-Term Legacy Migration Service
 

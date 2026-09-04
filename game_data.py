@@ -599,7 +599,9 @@ class BankAccount:
         return 'начальная'
 
     def _iter_loaded_projects(self):
-        data = engine.load_data()
+        data = game.get_runtime_data()
+        if data is None:
+            data = engine.load_data()
         projects = data.get('projects', [])
         if isinstance(projects, dict):
             return list(projects.values())
@@ -608,8 +610,12 @@ class BankAccount:
     def _estimate_streak_income(self, gamer):
         coins_cf = max(0.1, gamer.get_cf_value('coins', 1.0))
         inflation = gamer.calculate_inflation()
-        data = engine.load_data()
-        settings = engine.load_settings()
+        data = game.get_runtime_data()
+        if data is None:
+            data = engine.load_data()
+        settings = game.get_runtime_settings()
+        if settings is None:
+            settings = engine.load_settings()
         streak_candidates = []
 
         if settings.get('global_streak', False):
@@ -715,9 +721,13 @@ class BankAccount:
 
     def get_max_credit_days(self):
         max_days = 30
-        settings = engine.load_settings()
+        settings = game.get_runtime_settings()
+        if settings is None:
+            settings = engine.load_settings()
         if settings.get('global_streak', False):
-            data = engine.load_data()
+            data = game.get_runtime_data()
+            if data is None:
+                data = engine.load_data()
             current_streak_len = len(data.get('global_streaks', []))
             if current_streak_len > 0:
                 max_days += current_streak_len
@@ -1502,7 +1512,9 @@ def calculate_coin_potion_price(minimum_price, buff_value, duration_days):
     level_multiplier = 1 + (level - 1) * 0.05
     price_floor = minimum_price * level_multiplier
 
-    data = engine.load_data()
+    data = game.get_runtime_data()
+    if data is None:
+        data = engine.load_data()
     today = engine.today_for_test()
     daily_symbols = _estimate_recent_daily_symbols(data, today)
     streak_length = _get_active_streak_length(data, today)
@@ -1531,7 +1543,9 @@ def calculate_coin_potion_price(minimum_price, buff_value, duration_days):
 def calculate_freeze_price():
     """Считает стоимость заморозки от ценности спасаемого стрика."""
     gamer = game.load_game()
-    data = engine.load_data()
+    data = game.get_runtime_data()
+    if data is None:
+        data = engine.load_data()
     projects = data.get('projects') or {}
     if isinstance(projects, dict):
         projects = projects.values()

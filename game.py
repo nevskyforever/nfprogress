@@ -3,11 +3,51 @@ import pickle
 import sys
 import math
 import random
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 import engine
 import game_data
+
+
+_SUPPRESS_PERSISTENCE = ContextVar('nfprogress_suppress_game_persistence', default=False)
+_RUNTIME_DATA = ContextVar('nfprogress_runtime_game_data', default=None)
+_RUNTIME_SETTINGS = ContextVar('nfprogress_runtime_game_settings', default=None)
+
+
+@contextmanager
+def suppress_persistence():
+    """Prevent compatibility rules from committing intermediate snapshots."""
+    token = _SUPPRESS_PERSISTENCE.set(True)
+    try:
+        yield
+    finally:
+        _SUPPRESS_PERSISTENCE.reset(token)
+
+
+@contextmanager
+def runtime_data_context(data, settings=None):
+    """Provide project data to compatibility rules without a PKL read."""
+    data_token = _RUNTIME_DATA.set(data)
+    settings_token = _RUNTIME_SETTINGS.set(settings)
+    try:
+        with engine.runtime_settings_context(settings):
+            yield
+    finally:
+        _RUNTIME_SETTINGS.reset(settings_token)
+        _RUNTIME_DATA.reset(data_token)
+
+
+def get_runtime_data():
+    """Return the current service-bound project data, if any."""
+    return _RUNTIME_DATA.get()
+
+
+def get_runtime_settings():
+    """Return the current service-bound settings, if any."""
+    return _RUNTIME_SETTINGS.get()
 
 
 CF_META = {
@@ -548,6 +588,18 @@ def resource_path(relative_path):
 
 def get_effective_now():
     """Возвращает текущее время с датой из режима разработчика, если она включена."""
+    runtime_settings = get_runtime_settings()
+    if runtime_settings is not None:
+        if getattr(engine, 'dev_mode', False) and runtime_settings.get('today_for_test_mode', False):
+            selected_datetime = runtime_settings.get('today_for_test_datetime')
+            if isinstance(selected_datetime, datetime):
+                return selected_datetime
+            if isinstance(selected_datetime, str):
+                try:
+                    return as_local_naive_datetime(selected_datetime) or datetime.now()
+                except ValueError:
+                    pass
+        return datetime.now()
     return as_local_naive_datetime(engine.now_for_test()) or datetime.now()
 
 
@@ -979,7 +1031,15 @@ class Gamer:
     def save(self):
         self.normalize_inventory_item_names()
         self.normalize_coins()
+        if _SUPPRESS_PERSISTENCE.get():
+            return
         data_file = get_data_file_path()
+        from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
+        root = Path(data_file).parent
+        if StorageOwnershipRepository(root).get_owner(Subsystem.GAME) == StorageOwner.SQLITE:
+            from nfprogress.core.game_state import SQLiteGameRepository
+            SQLiteGameRepository(root).write_gamer(self)
+            return
         engine.atomic_pickle_save(self, data_file)
 
     # === МОТИВАЦИЯ И ПИСАТЕЛЬСКИЕ СЕССИИ ===
@@ -2078,10 +2138,19 @@ class Gamer:
             return None
 
         if streak_type == 'Global' and isinstance(status, str) and 'Lose' in status.split():
-            data = engine.load_data()
+            runtime_data = _RUNTIME_DATA.get()
+            data = runtime_data if runtime_data is not None else engine.load_data()
             refresh_result = engine.refresh_project_streak_statuses(data)
             if refresh_result.get('freeze_changed'):
-                self.items = load_game().items
+                if runtime_data is not None:
+                    # The current Gamer is already authoritative in this
+                    # transaction; the old reload only repaired a pickle-side
+                    # freeze inventory race.
+                    self.normalize_inventory_item_names()
+                else:
+                    # Preserve the legacy oracle behavior for migration and
+                    # non-SQLite callers that still use the paired PKLs.
+                    self.items = load_game().items
             refreshed_status = engine.global_streak_status(data)
             if isinstance(refreshed_status, str) and 'Lose' not in refreshed_status.split():
                 status = refreshed_status

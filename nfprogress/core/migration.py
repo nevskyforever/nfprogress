@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import hashlib
 import math
+import pickle
 import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
@@ -19,8 +20,13 @@ from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
 
+import engine
+
 from nfprogress.core.serialization import serialize_project, to_json_safe
 from nfprogress.core.sqlite.connection import open_database
+
+
+GAME_MIGRATION_DTO_VERSION = 1
 
 
 MIGRATION_DTO_VERSION = 1
@@ -146,6 +152,8 @@ class MigrationBundle:
     project_metadata: dict[str, Any] = field(default_factory=dict)
     root_extensions: dict[str, Any] = field(default_factory=dict)
     source_manifest: dict[str, Any] = field(default_factory=dict)
+    # Optional so v1 Projects bundles remain valid for Web/legacy tooling.
+    game: dict[str, Any] | None = None
     dto_version: int = MIGRATION_DTO_VERSION
 
     @classmethod
@@ -203,6 +211,7 @@ class MigrationBundle:
         return cls(**{key: raw.get(key, getattr(cls(), key)) for key in (
             'projects', 'project_order', 'folders', 'project_metadata',
             'root_extensions', 'source_manifest', 'dto_version',
+            'game',
         )})
 
     def to_dict(self) -> dict[str, Any]:
@@ -215,6 +224,8 @@ class MigrationBundle:
             'root_extensions': self.root_extensions,
             'source_manifest': self.source_manifest,
         })
+        if self.game is not None:
+            result['game'] = _safe(self.game)
         json.dumps(result, ensure_ascii=False, allow_nan=False)
         return result
 
@@ -247,6 +258,32 @@ def load_legacy_projects_bundle(data_root: str | Path) -> MigrationBundle:
 
 class MigrationImportError(RuntimeError):
     """Raised when a canonical bundle cannot be imported without data loss."""
+
+
+@dataclass(slots=True)
+class GameMigrationBundle:
+    """Canonical Game payload accepted by the SQLite importer.
+
+    ``payload`` is intentionally a JSON document with typed object tags for
+    legacy compatibility objects.  Unknown Gamer fields and unknown envelope
+    fields remain under ``extensions`` in that document.
+    """
+
+    payload: dict[str, Any]
+    source_manifest: dict[str, Any] = field(default_factory=dict)
+    dto_version: int = GAME_MIGRATION_DTO_VERSION
+
+    def to_dict(self) -> dict[str, Any]:
+        value = {
+            'dto_version': self.dto_version,
+            'payload': self.payload,
+            'source_manifest': self.source_manifest,
+        }
+        json.dumps(value, ensure_ascii=False, allow_nan=False)
+        return value
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), ensure_ascii=False, allow_nan=False, sort_keys=True)
 
 
 def cutover_projects(data_root: str | Path) -> MigrationBundle:
@@ -282,6 +319,121 @@ def cutover_projects(data_root: str | Path) -> MigrationBundle:
             db.execute(
                 "UPDATE mirror_state SET source_format='migration_bundle', "
                 "sync_status='healthy', last_error=NULL WHERE id=1",
+            )
+    return bundle
+
+
+def load_legacy_game_bundle(data_root: str | Path) -> GameMigrationBundle:
+    """Decode legacy Game files only in migration tooling, never at runtime."""
+    from nfprogress.core.game_state import _game_payload
+    from nfprogress.core.storage import PickleRepository
+    from nfprogress.core.sqlite.ownership import (
+        StorageOwner, StorageOwnershipRepository, Subsystem,
+    )
+
+    root = Path(data_root).expanduser().resolve()
+    repository = PickleRepository(root)
+    with repository.locked():
+        with engine.data_directory_context(root):
+            envelope = engine.load_data()
+            gamer_path = root / 'gamer.pkl'
+            if gamer_path.is_file():
+                with gamer_path.open('rb') as stream:
+                    gamer = pickle.load(stream)
+            else:
+                import game
+                gamer = game.Gamer()
+    # F2 may already have switched Projects while data.pkl remains a stale
+    # recovery artifact.  Capture project-linked Game fields from the current
+    # SQLite Projects read model, while retaining legacy envelope-only Game
+    # fields (notifications/global markers) from data.pkl.
+    if StorageOwnershipRepository(root).get_owner(Subsystem.PROJECTS) == StorageOwner.SQLITE:
+        from nfprogress.core.game_state import SQLiteGameRepository
+        current_projects = SQLiteGameRepository(root).read_projects()
+        if isinstance(current_projects.get('projects'), Mapping):
+            envelope = dict(envelope)
+            envelope['projects'] = current_projects['projects']
+    payload = _game_payload(gamer, envelope)
+    manifest: dict[str, Any] = {}
+    for name in ('data.pkl', 'gamer.pkl'):
+        source = root / name
+        if source.is_file():
+            digest = hashlib.sha256(source.read_bytes()).hexdigest()
+            manifest[name] = {
+                'source_format': 'pickle', 'source_schema_version': 'legacy',
+                'checksum': f'sha256:{digest}', 'size_bytes': source.stat().st_size,
+            }
+    return GameMigrationBundle(payload=payload, source_manifest=manifest)
+
+
+def import_game_bundle(bundle: GameMigrationBundle, data_root: str | Path) -> None:
+    """Import Game state transactionally without changing ownership."""
+    if not isinstance(bundle, GameMigrationBundle):
+        raise TypeError('bundle must be a GameMigrationBundle')
+    bundle.to_dict()
+    with open_database(data_root) as db:
+        with db:
+            encoded = json.dumps(bundle.payload, ensure_ascii=False, allow_nan=False, sort_keys=True)
+            db.execute(
+                'INSERT INTO game_state(id,schema_version,payload_json,updated_at) VALUES(1,2,?,datetime(\'now\')) '
+                'ON CONFLICT(id) DO UPDATE SET schema_version=excluded.schema_version,payload_json=excluded.payload_json,updated_at=excluded.updated_at',
+                (encoded,),
+            )
+            db.execute('DELETE FROM game_metadata')
+            db.executemany(
+                'INSERT INTO game_metadata(key, value_json) VALUES(?, ?)',
+                [
+                    ('dto_version', json.dumps(bundle.dto_version)),
+                    ('source_manifest', json.dumps(bundle.source_manifest, ensure_ascii=False, sort_keys=True)),
+                ],
+            )
+
+
+def verify_game_bundle(bundle: GameMigrationBundle, data_root: str | Path) -> tuple[bool, list[str]]:
+    with open_database(data_root) as db:
+        row = db.execute('SELECT schema_version, payload_json FROM game_state WHERE id=1').fetchone()
+    if row is None:
+        return False, ['game_state row is missing']
+    try:
+        actual = json.loads(row['payload_json'])
+    except json.JSONDecodeError:
+        return False, ['game_state payload is not valid JSON']
+    errors: list[str] = []
+    if int(row['schema_version']) != 2:
+        errors.append('unexpected game state schema version')
+    if actual != bundle.payload:
+        errors.append('canonical Game payload mismatch')
+    return not errors, errors
+
+
+def cutover_game(data_root: str | Path) -> GameMigrationBundle:
+    """Switch Game ownership only after import and semantic verification."""
+    from nfprogress.core.sqlite.ownership import StorageOwner, StorageOwnershipRepository, Subsystem
+    from nfprogress.core.storage import PickleRepository
+
+    root = Path(data_root).expanduser().resolve()
+    ownership = StorageOwnershipRepository(root)
+    if ownership.get_owner(Subsystem.GAME) == StorageOwner.SQLITE:
+        return GameMigrationBundle(payload={})
+    bundle = load_legacy_game_bundle(root)
+    PickleRepository(root).create_backup(('data', 'gamer'))
+    import_game_bundle(bundle, root)
+    verified, errors = verify_game_bundle(bundle, root)
+    if not verified:
+        raise MigrationImportError('Game SQLite parity verification failed: ' + ', '.join(errors))
+    with open_database(root) as db:
+        with db:
+            owner = db.execute(
+                'SELECT owner FROM storage_ownership WHERE subsystem=?',
+                (Subsystem.GAME.value,),
+            ).fetchone()
+            if owner is None or owner['owner'] != StorageOwner.PICKLE.value:
+                raise MigrationImportError('Game owner changed during cutover')
+            db.execute(
+                "UPDATE storage_ownership SET owner='sqlite', updated_at=datetime('now') WHERE subsystem='game'",
+            )
+            db.execute(
+                "INSERT INTO game_metadata(key,value_json) VALUES('owner_switched_at',datetime('now')) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json",
             )
     return bundle
 

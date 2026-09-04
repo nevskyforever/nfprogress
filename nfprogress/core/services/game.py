@@ -22,6 +22,8 @@ import game as legacy_game
 import game_data
 
 from nfprogress.core.errors import ConflictError, NotFoundError, ValidationError
+from nfprogress.core.game_state import GameEventConsumer
+from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
 
 
 JSONDict = dict[str, Any]
@@ -954,6 +956,29 @@ class GameService:
         self.repository = repository
         self.developer_mode = bool(developer_mode)
         self._lock = RLock()
+        root = getattr(repository, 'base_dir', None)
+        self._event_consumer = (
+            GameEventConsumer(root)
+            if root is not None and self._game_owner_is_sqlite(root)
+            else None
+        )
+
+    @staticmethod
+    def _game_owner_is_sqlite(root: Any) -> bool:
+        try:
+            return StorageOwnershipRepository(root).get_owner(Subsystem.GAME) == StorageOwner.SQLITE
+        except (OSError, RuntimeError, ValueError):
+            return False
+
+    def process_pending_events(self) -> dict[str, int]:
+        """Consume F2 project events before serving a Game read.
+
+        The consumer owns the SQLite transaction.  Calling this method again
+        is safe because the durable event marker is committed with the state.
+        """
+        if self._event_consumer is None:
+            return {'processed': 0, 'failed': 0}
+        return self._event_consumer.process_pending()
 
     def _require_developer_mode(self) -> None:
         if not self.developer_mode:
@@ -1088,55 +1113,61 @@ class GameService:
             locked = getattr(self.repository, 'locked', None)
             if callable(locked):
                 with locked():
-                    with _LEGACY_GAME_LOCK:
-                        yield
+                    with legacy_game.suppress_persistence():
+                        with _LEGACY_GAME_LOCK:
+                            yield
                 return
             storage_context = getattr(self.repository, 'storage_context', None)
             if callable(storage_context):
                 with storage_context():
-                    with _LEGACY_GAME_LOCK:
-                        yield
+                    with legacy_game.suppress_persistence():
+                        with _LEGACY_GAME_LOCK:
+                            yield
                 return
-            with _LEGACY_GAME_LOCK:
-                yield
+            with legacy_game.suppress_persistence():
+                with _LEGACY_GAME_LOCK:
+                    yield
 
     def get_state(self) -> JSONDict:
+        self.process_pending_events()
         with self._repository_context():
             gamer = self._read_gamer()
             projects = self._read_projects()
-            enabled = self._game_mode_enabled()
-            notification_ids_changed = _ensure_notification_ids(projects)
-            projects_changed = False
-            with _bind_legacy_gamer(gamer):
-                changed = self._prepare_gamer(gamer, projects, ensure_daily=enabled)
-                if (
-                        enabled
-                        and gamer.writing_session is not None
-                        and gamer.writing_session_remaining_seconds() <= 0
-                ):
-                    with _bind_bank_notifications(
-                            gamer, projects,
-                    ) as bank_notifications:
-                        _successful, message = gamer.finish_writing_session(
-                            save=False,
-                        )
-                        reward_messages = self._settle_rewards(gamer)
-                    bank_messages = list(bank_notifications['messages'])
-                    projects_changed = bank_notifications['value']
-                    projects_changed = _append_game_notifications(
-                        projects,
-                        self._command_messages(
-                            message, reward_messages, bank_messages,
-                        ),
-                    ) or projects_changed
-                    self._prepare_gamer(gamer, projects, ensure_daily=True)
-                    changed = True
-                prepared_snapshot = self._preparation_snapshot(gamer)
-                state = self._serialize_state(gamer, projects, enabled=enabled)
-                changed = changed or prepared_snapshot != self._preparation_snapshot(gamer)
-            notification_ids_changed = (
-                _ensure_notification_ids(projects) or notification_ids_changed
-            )
+            settings = self.repository.read_settings()
+            enabled = bool(settings.get('game_mode', False))
+            with legacy_game.runtime_data_context(projects, settings):
+                notification_ids_changed = _ensure_notification_ids(projects)
+                projects_changed = False
+                with _bind_legacy_gamer(gamer):
+                    changed = self._prepare_gamer(gamer, projects, ensure_daily=enabled)
+                    if (
+                            enabled
+                            and gamer.writing_session is not None
+                            and gamer.writing_session_remaining_seconds() <= 0
+                    ):
+                        with _bind_bank_notifications(
+                                gamer, projects,
+                        ) as bank_notifications:
+                            _successful, message = gamer.finish_writing_session(
+                                save=False,
+                            )
+                            reward_messages = self._settle_rewards(gamer, projects, settings)
+                        bank_messages = list(bank_notifications['messages'])
+                        projects_changed = bank_notifications['value']
+                        projects_changed = _append_game_notifications(
+                            projects,
+                            self._command_messages(
+                                message, reward_messages, bank_messages,
+                            ),
+                        ) or projects_changed
+                        self._prepare_gamer(gamer, projects, ensure_daily=True)
+                        changed = True
+                    prepared_snapshot = self._preparation_snapshot(gamer)
+                    state = self._serialize_state(gamer, projects, enabled=enabled)
+                    changed = changed or prepared_snapshot != self._preparation_snapshot(gamer)
+                notification_ids_changed = (
+                    _ensure_notification_ids(projects) or notification_ids_changed
+                )
             projects_changed = projects_changed or notification_ids_changed
             if projects_changed and notification_ids_changed:
                 self._backup_notification_migration()
@@ -1150,10 +1181,12 @@ class GameService:
         """Expose persisted streak and bank events independently of game mode."""
         with self._repository_context():
             projects = self._read_projects()
-            if _ensure_notification_ids(projects):
-                self._backup_notification_migration()
-                self.repository.write_projects(projects)
-            return serialize_notifications(projects)
+            settings = self.repository.read_settings()
+            with legacy_game.runtime_data_context(projects, settings):
+                if _ensure_notification_ids(projects):
+                    self._backup_notification_migration()
+                    self.repository.write_projects(projects)
+                return serialize_notifications(projects)
 
     def mark_notification_read(self, notification_id: str) -> JSONDict:
         if not isinstance(notification_id, str) or not notification_id:
@@ -1162,56 +1195,62 @@ class GameService:
             )
         with self._repository_context():
             projects = self._read_projects()
-            migrated = _ensure_notification_ids(projects)
-            buckets = _notification_buckets(projects)
-            for index, notification in enumerate(buckets['new']):
-                if _notification_id(notification, 'new', index) != notification_id:
-                    continue
-                moved = _mark_notification_read(notification, notification_id)
-                buckets['new'].pop(index)
-                buckets['read'].insert(0, moved)
-                projects['notifications'] = buckets
-                if migrated:
-                    self._backup_notification_migration()
-                self.repository.write_projects(projects)
-                return serialize_notifications(projects)
+            settings = self.repository.read_settings()
+            with legacy_game.runtime_data_context(projects, settings):
+                migrated = _ensure_notification_ids(projects)
+                buckets = _notification_buckets(projects)
+                for index, notification in enumerate(buckets['new']):
+                    if _notification_id(notification, 'new', index) != notification_id:
+                        continue
+                    moved = _mark_notification_read(notification, notification_id)
+                    buckets['new'].pop(index)
+                    buckets['read'].insert(0, moved)
+                    projects['notifications'] = buckets
+                    if migrated:
+                        self._backup_notification_migration()
+                    self.repository.write_projects(projects)
+                    return serialize_notifications(projects)
         raise NotFoundError('notification_not_found', 'Уведомление не найдено.')
 
     def mark_all_notifications_read(self) -> JSONDict:
         with self._repository_context():
             projects = self._read_projects()
-            migrated = _ensure_notification_ids(projects)
-            buckets = _notification_buckets(projects)
-            if not buckets['new']:
+            settings = self.repository.read_settings()
+            with legacy_game.runtime_data_context(projects, settings):
+                migrated = _ensure_notification_ids(projects)
+                buckets = _notification_buckets(projects)
+                if not buckets['new']:
+                    if migrated:
+                        self._backup_notification_migration()
+                        self.repository.write_projects(projects)
+                    return serialize_notifications(projects)
+                moved = [
+                    _mark_notification_read(
+                        notification,
+                        _notification_id(notification, 'new', index),
+                    )
+                    for index, notification in enumerate(buckets['new'])
+                ]
+                buckets['new'] = []
+                buckets['read'] = [*reversed(moved), *buckets['read']]
+                projects['notifications'] = buckets
                 if migrated:
                     self._backup_notification_migration()
-                    self.repository.write_projects(projects)
+                self.repository.write_projects(projects)
                 return serialize_notifications(projects)
-            moved = [
-                _mark_notification_read(
-                    notification,
-                    _notification_id(notification, 'new', index),
-                )
-                for index, notification in enumerate(buckets['new'])
-            ]
-            buckets['new'] = []
-            buckets['read'] = [*reversed(moved), *buckets['read']]
-            projects['notifications'] = buckets
-            if migrated:
-                self._backup_notification_migration()
-            self.repository.write_projects(projects)
-            return serialize_notifications(projects)
 
     def get_shop_catalog(self) -> JSONDict:
         with self._repository_context():
             gamer = self._read_gamer()
             projects = self._read_projects()
-            enabled = self._game_mode_enabled()
+            settings = self.repository.read_settings()
+            enabled = bool(settings.get('game_mode', False))
             with _bind_legacy_gamer(gamer):
                 changed = self._prepare_gamer(
                     gamer, projects, ensure_daily=False,
                 )
-                catalog = {'enabled': enabled, **serialize_shop_catalog(gamer)}
+                with legacy_game.runtime_data_context(projects, settings):
+                    catalog = {'enabled': enabled, **serialize_shop_catalog(gamer)}
             if changed:
                 self.repository.write_gamer(gamer)
             return catalog
@@ -2271,45 +2310,48 @@ class GameService:
         with self._repository_context():
             gamer = self._read_gamer()
             projects = self._read_projects()
-            enabled = self._game_mode_enabled()
+            settings = self.repository.read_settings()
+            enabled = bool(settings.get('game_mode', False))
             if not enabled and disabled_payload is None:
                 raise ConflictError(
                     'game_mode_disabled', 'Игровой режим отключён.',
                 )
             command_messages: list[str] = []
             with _bind_legacy_gamer(gamer):
-                self._prepare_gamer(gamer, projects, ensure_daily=enabled)
-                with _bind_bank_notifications(
-                        gamer, projects,
-                ) as bank_notifications:
-                    projects_changed = False
+                with legacy_game.runtime_data_context(projects, settings):
+                    self._prepare_gamer(gamer, projects, ensure_daily=enabled)
+                    with _bind_bank_notifications(
+                            gamer, projects,
+                    ) as bank_notifications:
+                        projects_changed = False
+                        if enabled:
+                            payload = mutation(gamer, projects)
+                            projects_changed = bool(
+                                payload.pop('_projects_changed', False)
+                            )
+                            reward_messages = (
+                                self._settle_rewards(gamer, projects, settings)
+                                if settle_rewards else []
+                            )
+                        else:
+                            payload = dict(disabled_payload or {})
+                            reward_messages = []
+                        projects_changed = (
+                            projects_changed or bank_notifications['value']
+                        )
+                        bank_messages = list(bank_notifications['messages'])
+                        command_messages = self._command_messages(
+                            payload.get('message'), reward_messages, bank_messages,
+                        )
                     if enabled:
-                        payload = mutation(gamer, projects)
-                        projects_changed = bool(
-                            payload.pop('_projects_changed', False)
-                        )
-                        reward_messages = (
-                            self._settle_rewards(gamer) if settle_rewards else []
-                        )
-                    else:
-                        payload = dict(disabled_payload or {})
-                        reward_messages = []
-                    projects_changed = (
-                        projects_changed or bank_notifications['value']
-                    )
-                    bank_messages = list(bank_notifications['messages'])
-                    command_messages = self._command_messages(
-                        payload.get('message'), reward_messages, bank_messages,
-                    )
-                if enabled:
-                    projects_changed = _append_game_notifications(
-                        projects, command_messages,
-                    ) or projects_changed
-                if enabled:
-                    self._prepare_gamer(gamer, projects, ensure_daily=True)
-                notification_ids_changed = _ensure_notification_ids(projects)
-                projects_changed = projects_changed or notification_ids_changed
-                state = self._serialize_state(gamer, projects, enabled=enabled)
+                        projects_changed = _append_game_notifications(
+                            projects, command_messages,
+                        ) or projects_changed
+                    if enabled:
+                        self._prepare_gamer(gamer, projects, ensure_daily=True)
+                    notification_ids_changed = _ensure_notification_ids(projects)
+                    projects_changed = projects_changed or notification_ids_changed
+                    state = self._serialize_state(gamer, projects, enabled=enabled)
             if enabled:
                 self.repository.write_gamer(gamer)
             if projects_changed:
@@ -2638,12 +2680,13 @@ class GameService:
                         projects['last_global_streak_bonus'] = today
                     projects_changed = True
                 continue
-            message = gamer.give_streak_bonus(
-                status,
-                streak_type,
-                length,
-                project_name=event_key if streak_type == 'Local' else None,
-            )
+            with legacy_game.runtime_data_context(projects):
+                message = gamer.give_streak_bonus(
+                    status,
+                    streak_type,
+                    length,
+                    project_name=event_key if streak_type == 'Local' else None,
+                )
             if message:
                 messages.append(message)
                 gamer.api_streak_reward_days[reward_marker_key] = today
@@ -3022,15 +3065,36 @@ class GameService:
         return result
 
     @staticmethod
-    def _settle_rewards(gamer: legacy_game.Gamer) -> list[str]:
+    def _settle_rewards(
+            gamer: legacy_game.Gamer,
+            projects: JSONDict | None = None,
+            settings: JSONDict | None = None,
+    ) -> list[str]:
         messages: list[str] = []
-        level_message = gamer.level_up()
-        if level_message:
-            messages.append(level_message)
-        messages.extend(gamer.update_quests(save=False))
-        level_message = gamer.level_up()
-        if level_message:
-            messages.append(level_message)
+        runtime = (
+            legacy_game.runtime_data_context(
+                projects,
+                settings if settings is not None else legacy_game.get_runtime_settings(),
+            )
+            if projects is not None else None
+        )
+        if runtime is None:
+            level_message = gamer.level_up()
+            if level_message:
+                messages.append(level_message)
+            messages.extend(gamer.update_quests(save=False))
+            level_message = gamer.level_up()
+            if level_message:
+                messages.append(level_message)
+            return messages
+        with runtime:
+            level_message = gamer.level_up()
+            if level_message:
+                messages.append(level_message)
+            messages.extend(gamer.update_quests(save=False))
+            level_message = gamer.level_up()
+            if level_message:
+                messages.append(level_message)
         return messages
 
 

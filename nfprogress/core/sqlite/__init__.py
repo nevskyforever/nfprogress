@@ -12,6 +12,7 @@ from nfprogress.core.sqlite.notes import (
     canonical_notes_from_projects,
     cutover_notes,
 )
+from nfprogress.core.game_state import SQLiteGameRepository, GameEventConsumer
 
 __all__ = [
     'SQLiteMirrorRepository',
@@ -23,4 +24,6 @@ __all__ = [
     'SQLiteNotesRepository',
     'canonical_notes_from_projects',
     'cutover_notes',
+    'SQLiteGameRepository',
+    'GameEventConsumer',
 ]

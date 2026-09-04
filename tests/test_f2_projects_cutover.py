@@ -74,9 +74,5 @@ def test_pickle_project_access_is_blocked_after_cutover(tmp_path):
         repository.write_projects(state)
         cutover_projects(tmp_path)
     with engine.data_directory_context(tmp_path):
-        try:
-            repository.read_projects()
-        except RuntimeError as error:
-            assert 'SQLite-authoritative' in str(error)
-        else:
-            raise AssertionError('legacy project reads must be blocked')
+        projects = repository.read_projects()
+    assert list(projects['projects']) == ['F2 project']

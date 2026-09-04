@@ -8,7 +8,7 @@ use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 4;
+pub const CURRENT_SCHEMA_VERSION: i64 = 5;
 
 #[derive(Debug)]
 pub enum StorageError {
@@ -37,7 +37,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 4] = [
+const MIGRATIONS: [(i64, &str); 5] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -54,6 +54,10 @@ const MIGRATIONS: [(i64, &str); 4] = [
         4,
         include_str!("../../../nfprogress/core/sqlite/migrations/004_projects_authority.sql"),
     ),
+    (
+        5,
+        include_str!("../../../nfprogress/core/sqlite/migrations/005_game_authority.sql"),
+    ),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
@@ -63,6 +67,9 @@ pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
     )?;
     connection.busy_timeout(std::time::Duration::from_secs(5))?;
     connection.execute_batch("PRAGMA foreign_keys = ON;")?;
+    // F3 migration 005 extends the F2 outbox, so it must exist before the
+    // versioned scripts are applied on an existing v4 database.
+    connection.execute_batch(DOMAIN_EVENTS_SCHEMA)?;
     apply_migrations(&connection)?;
     connection.execute_batch(DOMAIN_EVENTS_SCHEMA)?;
     Ok(connection)
@@ -114,13 +121,13 @@ mod tests {
     #[test]
     fn fresh_database_reaches_latest_schema() {
         let connection = Connection::open_in_memory().unwrap();
-        assert_eq!(apply_migrations(&connection).unwrap(), 4);
+        assert_eq!(apply_migrations(&connection).unwrap(), 5);
         assert_eq!(
             connection
                 .query_row("SELECT schema_version FROM schema_info", [], |row| row
                     .get::<_, i64>(0))
                 .unwrap(),
-            4
+            5
         );
         assert!(
             connection
@@ -184,7 +191,7 @@ mod tests {
                 .query_row("SELECT schema_version FROM schema_info", [], |row| row
                     .get::<_, i64>(0))
                 .unwrap(),
-            4
+            5
         );
         assert_eq!(
             connection

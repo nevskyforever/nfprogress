@@ -390,3 +390,32 @@ bindings and document references are preserved.
 
 The complete mutation matrix, failure semantics and sandboxed legacy migration
 service are recorded in `F2_PROJECTS_SQLITE_CUTOVER.md`.
+
+## F3 implementation update
+
+F3 moves Game authority to SQLite schema v5. The actual legacy Gamer inventory
+is the 46-field `Gamer.__dict__`; it includes profile/economy, coefficients,
+skills, health, buffs/debuffs, quests, bank, inventory/custom awards,
+motivation/challenges/sessions, specializations/mastery/cooldowns,
+manuscript journeys/cabinet, and durable reward markers. `data.pkl` separately
+contains notifications, global streak state and project/stage streak evidence.
+
+`GameMigrationBundle` v1 serializes these values as a versioned JSON payload;
+unknown fields are retained as JSON or tagged legacy-object extensions. The
+importer verifies canonical readback before changing `storage_ownership.game`.
+On later startup the owner guard returns without reading `gamer.pkl` or
+`data.pkl`. The old files remain recovery artifacts only.
+
+F2 events are consumed deterministically in `(created_at,event_id)` order.
+Game state and `processed_at/status` are committed in one SQLite transaction;
+duplicate event IDs are harmless, failures retry with bounded diagnostics,
+and the third failure becomes a retained poison event. `ProgressDeleted` is
+non-reversible because the Python oracle does not claw back prior rewards.
+Completion and deletion events preserve one-time reward evidence and stable
+project references. The Rust trusted boundary uses the same event DTO and
+pure transition contract.
+
+This is development architecture readiness, not the final production upgrade
+gate. A production bridge release remains allowed and must be monotonic; F7
+will define the minimum seamless-upgrade version and the fallback to the
+sandboxed Legacy Migration Service for older profiles.

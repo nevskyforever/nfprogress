@@ -124,3 +124,21 @@ privacy notice, CSRF/session authorization, quotas, rate limits and per-user
 concurrency limits. Local development/release helpers are separate from this
 future service. Before PKL support ends, desktop must export the new bundle or
 backup format locally.
+
+## F3 follow-up: Game authority
+
+F3 consumes this outbox and moves Game state to SQLite schema v5. The event
+payload remains versioned and stable-ID based; it is not a Rust struct layout.
+Projects commits remain independent from Game commits, while the Game
+transition and its processed marker are atomic in the same database. See
+[`F3_GAME_SQLITE_CUTOVER.md`](F3_GAME_SQLITE_CUTOVER.md).
+
+## Production Bridge Release Strategy
+
+The production Python branch continues to receive maintenance and bug fixes
+during F3–F7. If legacy profiles need preparation, an additional bridge may
+monotonically normalize Game state, add stable IDs, materialize SQLite data or
+export a canonical MigrationBundle. Development milestones and production
+upgrade readiness are separate: F7 explicitly names the minimum seamless
+version. Older backups fall back to the migration-only helper or the isolated
+Legacy Migration Service; no desktop startup silently depends on a bridge.

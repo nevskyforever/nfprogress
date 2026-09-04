@@ -24,7 +24,7 @@ from nfprogress.core.sqlite import (
     StorageOwner, StorageOwnershipRepository, Subsystem, cutover_notes,
     cutover_settings,
 )
-from nfprogress.core.migration import cutover_projects
+from nfprogress.core.migration import cutover_game, cutover_projects
 
 from .config import RuntimeConfig
 from .dependencies import Services, require_session
@@ -120,9 +120,25 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
             cutover_projects(data_dir)
         except Exception:
             _LOGGER.exception('Projects SQLite cutover failed; keeping pickle ownership.')
+    # F3 performs the Game owner switch only for the Tauri desktop process.
+    # Web and compatibility harnesses keep their independent legacy authority.
+    if (
+        runtime_config.platform == 'desktop'
+        and os.environ.get('NFPROGRESS_TAURI_RUNTIME') == '1'
+        and StorageOwnershipRepository(data_dir).get_owner(Subsystem.GAME) == StorageOwner.PICKLE
+    ):
+        try:
+            cutover_game(data_dir)
+        except Exception:
+            _LOGGER.exception('Game SQLite cutover failed; keeping pickle ownership.')
     game_service = GameService(
         repository, developer_mode=runtime_config.developer_mode,
     )
+    if runtime_config.platform == 'desktop':
+        try:
+            game_service.process_pending_events()
+        except Exception:
+            _LOGGER.exception('Pending Game events could not be processed at startup.')
     project_service = ProjectService(repository, game_service=game_service)
     services = Services(
         repository=repository,

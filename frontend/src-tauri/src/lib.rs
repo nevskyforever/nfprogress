@@ -16,6 +16,7 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
+mod game;
 #[allow(dead_code)]
 mod project_repository;
 mod sqlite;
@@ -62,6 +63,22 @@ struct SqliteProjectReadModel {
 fn open_projects_database() -> Result<rusqlite::Connection, String> {
     sqlite::open_database(&sqlite_data_root()?.join("nfprogress.db"))
         .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+fn process_game_events() -> Result<game::ProcessSummary, String> {
+    let mut connection = open_projects_database()?;
+    let owner: String = connection
+        .query_row(
+            "SELECT owner FROM storage_ownership WHERE subsystem='game'",
+            [],
+            |row| row.get(0),
+        )
+        .map_err(|error| error.to_string())?;
+    if owner != "sqlite" {
+        return Err("Игра ещё не переведена в SQLite authoritative storage.".to_string());
+    }
+    game::process_pending_events(&mut connection, 100)
 }
 
 fn require_projects_owner(connection: &rusqlite::Connection) -> Result<(), String> {
@@ -226,6 +243,28 @@ fn append_event(
     progress_id: Option<&str>,
     delta_symbols: Option<f64>,
 ) -> Result<(), String> {
+    append_event_with_context(
+        repository,
+        event_id,
+        event_type,
+        project_id,
+        stage_id,
+        progress_id,
+        delta_symbols,
+        serde_json::json!({"source": "desktop", "version": 1}),
+    )
+}
+
+fn append_event_with_context(
+    repository: &mut ProjectsRepository<'_>,
+    event_id: &str,
+    event_type: &str,
+    project_id: &str,
+    stage_id: Option<&str>,
+    progress_id: Option<&str>,
+    delta_symbols: Option<f64>,
+    context: serde_json::Value,
+) -> Result<(), String> {
     repository
         .append_domain_event(
             event_id,
@@ -235,7 +274,7 @@ fn append_event(
             progress_id,
             None,
             delta_symbols,
-            &serde_json::json!({"source": "desktop", "version": 1}),
+            &context,
         )
         .map_err(|error| error.to_string())
 }
@@ -1995,7 +2034,7 @@ fn complete_project(command: ProjectIdCommand) -> Result<serde_json::Value, Stri
     repository
         .update_project_payload(&command.project_id, &payload)
         .map_err(|error| error.to_string())?;
-    append_event(
+    append_event_with_context(
         &mut repository,
         &format!("project-completed:{}", command.project_id),
         "ProjectCompleted",
@@ -2003,6 +2042,12 @@ fn complete_project(command: ProjectIdCommand) -> Result<serde_json::Value, Stri
         None,
         None,
         None,
+        serde_json::json!({
+            "source": "desktop",
+            "version": 1,
+            "key": format!("project:{}", command.project_id),
+            "total_symbols": payload.get("total").and_then(serde_json::Value::as_f64).unwrap_or(0.0),
+        }),
     )?;
     drop(repository);
     project_payload(&mut connection, &command.project_id)
@@ -2037,6 +2082,10 @@ fn complete_stage(command: StageIdCommand) -> Result<serde_json::Value, String> 
     let mut payload = stage.payload;
     payload["status"] = "завершен".into();
     payload["completed_at"] = now.into();
+    let total_symbols = payload
+        .get("total")
+        .and_then(serde_json::Value::as_f64)
+        .unwrap_or(0.0);
     let update = StageUpdate {
         name: payload["name"].as_str().unwrap_or_default().to_string(),
         goal: stage.goal,
@@ -2048,7 +2097,7 @@ fn complete_stage(command: StageIdCommand) -> Result<serde_json::Value, String> 
     repository
         .update_stage(&command.stage_id, &update)
         .map_err(|error| error.to_string())?;
-    append_event(
+    append_event_with_context(
         &mut repository,
         &format!("stage-completed:{}", command.stage_id),
         "StageCompleted",
@@ -2056,6 +2105,12 @@ fn complete_stage(command: StageIdCommand) -> Result<serde_json::Value, String> 
         Some(&command.stage_id),
         None,
         None,
+        serde_json::json!({
+            "source": "desktop",
+            "version": 1,
+            "key": format!("stage:{}:{}", command.project_id, command.stage_id),
+            "total_symbols": total_symbols,
+        }),
     )?;
     drop(repository);
     project_payload(&mut connection, &command.project_id)
@@ -2309,7 +2364,11 @@ fn add_progress_sqlite(
     if stage_id.is_some() {
         refresh_project_totals_in_transaction(&tx, &project_id)?;
     }
-    tx.execute("INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,stage_id,progress_id,delta_symbols,context_json,created_at) VALUES(?1,'ProgressAdded',?2,?3,?4,?5,?6,?7)", rusqlite::params![format!("progress-added:{entry_id}"), project_id, stage_id, entry_id, delta, serde_json::json!({"source":"desktop","version":1}).to_string(), now]).map_err(|error| error.to_string())?;
+    let game_key = stage_id
+        .as_deref()
+        .map(|stage| format!("stage:{project_id}:{stage}"))
+        .unwrap_or_else(|| format!("project:{project_id}"));
+    tx.execute("INSERT OR IGNORE INTO domain_events(event_id,event_type,project_id,stage_id,progress_id,delta_symbols,context_json,created_at) VALUES(?1,'ProgressAdded',?2,?3,?4,?5,?6,?7)", rusqlite::params![format!("progress-added:{entry_id}"), project_id, stage_id, entry_id, delta, serde_json::json!({"source":"desktop","version":1,"key":game_key,"project_progress":payload["progress"]}).to_string(), now]).map_err(|error| error.to_string())?;
     tx.commit().map_err(|error| error.to_string())?;
     let project_value = project_payload(&mut connection, &project_id)?;
     Ok(
@@ -3195,6 +3254,7 @@ pub fn run() {
     let app = builder
         .invoke_handler(tauri::generate_handler![
             backend_connection,
+            process_game_events,
             read_sqlite_projects,
             projects_storage_owner,
             create_project,

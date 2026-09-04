@@ -30,6 +30,7 @@ SYSTEM = platform.system()  # 'Windows', 'Darwin' (macOS), 'Linux'
 
 
 _explicit_data_dir = ContextVar('nfprogress_explicit_data_dir', default=None)
+_runtime_settings = ContextVar('nfprogress_runtime_settings', default=None)
 
 
 @contextmanager
@@ -47,6 +48,16 @@ def data_directory_context(base_dir):
         yield data_dir
     finally:
         _explicit_data_dir.reset(token)
+
+
+@contextmanager
+def runtime_settings_context(settings):
+    """Use already-loaded settings for date calculations in a service call."""
+    token = _runtime_settings.set(settings)
+    try:
+        yield settings
+    finally:
+        _runtime_settings.reset(token)
 
 
 def _copy_missing_user_data(source_dir, destination_dir):
@@ -924,7 +935,9 @@ def now_for_test():
     # Тестовая дата должна работать только в настоящем режиме разработчика.
     # Если этот флаг случайно попал в пользовательские данные, обычная сборка
     # не должна навсегда застревать на выбранном вручную дне.
-    settings = load_settings()
+    settings = _runtime_settings.get()
+    if settings is None:
+        settings = load_settings()
     if dev_mode and settings.get('today_for_test_mode', False):
         selected_datetime = settings.get('today_for_test_datetime')
         if isinstance(selected_datetime, datetime):
@@ -940,7 +953,9 @@ def now_for_test():
 
 def today_for_test():
     """Возвращает дату текущих суток с учетом выбранного времени их начала."""
-    return writing_day_for_datetime(now_for_test())
+    return writing_day_for_datetime(
+        now_for_test(), settings=_runtime_settings.get(),
+    )
 
 
 def writing_day_for_datetime(value, settings=None):

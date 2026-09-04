@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 import engine
 import game_data
-from game import Quest
+from game import Quest, get_runtime_data
 
 
 QUEST_BUFF_META = {
@@ -112,7 +112,9 @@ def default_shop_reward(level, quest_id):
 
 
 def get_projects():
-    data = engine.load_data()
+    data = get_runtime_data()
+    if data is None:
+        data = engine.load_data()
     projects = data.get('projects', {})
     if isinstance(projects, dict):
         return list(projects.values())
@@ -398,7 +400,9 @@ def return_deposit_with_profit(gamer, quest):
 
 
 def get_global_streaks():
-    data = engine.load_data()
+    data = get_runtime_data()
+    if data is None:
+        data = engine.load_data()
     return data.get('global_streaks', [])
 
 

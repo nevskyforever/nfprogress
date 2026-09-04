@@ -17,6 +17,7 @@ from threading import Lock, RLock, local
 from typing import Any, TypeVar
 
 import engine
+from nfprogress.core.sqlite.connection import open_database
 
 
 T = TypeVar('T')
@@ -111,7 +112,8 @@ class PickleRepository:
         """Read the complete legacy project-data envelope."""
         from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
         if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.PROJECTS) == StorageOwner.SQLITE:
-            raise RuntimeError('Projects are SQLite-authoritative; legacy reads are disabled.')
+            from nfprogress.core.game_state import SQLiteGameRepository
+            return SQLiteGameRepository(self.base_dir).read_projects()
         with self.locked():
             return engine.load_data()
 
@@ -119,6 +121,10 @@ class PickleRepository:
         """Atomically write the complete legacy project-data envelope."""
         from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
         if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.PROJECTS) == StorageOwner.SQLITE:
+            from nfprogress.core.game_state import SQLiteGameRepository
+            if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.GAME) == StorageOwner.SQLITE:
+                SQLiteGameRepository(self.base_dir).write_game_data(data)
+                return
             raise RuntimeError('Projects are SQLite-authoritative; legacy writes are disabled.')
         if not isinstance(data, dict):
             raise TypeError('project data must be a dictionary')
@@ -190,8 +196,11 @@ class PickleRepository:
 
     def read_gamer(self) -> Any:
         """Read and migrate game state using the legacy game implementation."""
+        from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.GAME) == StorageOwner.SQLITE:
+            from nfprogress.core.game_state import SQLiteGameRepository
+            return SQLiteGameRepository(self.base_dir).read_gamer()
         import game
-
         with self.locked():
             return game.load_game()
 
@@ -207,6 +216,11 @@ class PickleRepository:
 
     def write_gamer(self, gamer: Any) -> None:
         """Atomically write a game-state object without changing its format."""
+        from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
+        if StorageOwnershipRepository(self.base_dir).get_owner(Subsystem.GAME) == StorageOwner.SQLITE:
+            from nfprogress.core.game_state import SQLiteGameRepository
+            SQLiteGameRepository(self.base_dir).write_gamer(gamer)
+            return
         with self.locked():
             engine.atomic_pickle_save(gamer, engine.get_data_file_path('gamer'))
             self._sync_shadow_after_pickle_save()
@@ -214,13 +228,19 @@ class PickleRepository:
     def synchronize_shadow(self) -> None:
         """Rebuild SQLite from PKL; PKL remains untouched and authoritative."""
         from nfprogress.core.sqlite import SQLiteMirrorRepository
-
+        from nfprogress.core.sqlite import StorageOwner, StorageOwnershipRepository, Subsystem
         with self.locked():
             try:
+                owners = StorageOwnershipRepository(self.base_dir).owners()
+                if all(owner == StorageOwner.SQLITE for owner in owners.values()):
+                    # A fully cut-over desktop has no legacy source to mirror.
+                    with open_database(self.base_dir) as db:
+                        db.execute('PRAGMA integrity_check').fetchone()
+                    return
                 SQLiteMirrorRepository(self.base_dir).rebuild(
-                    engine.load_data(),
-                    engine.load_settings(),
-                    __import__('game').load_game(),
+                    engine.load_data() if owners[Subsystem.PROJECTS] == StorageOwner.PICKLE else {},
+                    engine.load_settings() if owners[Subsystem.SETTINGS] == StorageOwner.PICKLE else {},
+                    __import__('game').load_game() if owners[Subsystem.GAME] == StorageOwner.PICKLE else None,
                 )
             except Exception as error:
                 SQLiteMirrorRepository(self.base_dir).mark_dirty(error)

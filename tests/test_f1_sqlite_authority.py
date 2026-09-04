@@ -112,7 +112,7 @@ def test_v3_upgrade_keeps_settings_notes_and_pickle_ownership(tmp_path):
     connection.close()
 
     with open_database(tmp_path) as db:
-        assert db.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 4
+        assert db.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 5
         assert db.execute("SELECT value_json FROM settings WHERE key='keep'").fetchone()[0] == '42'
         assert db.execute('SELECT id FROM notes').fetchone()[0] == 'n'
         assert db.execute("SELECT owner FROM storage_ownership WHERE subsystem='projects'").fetchone()[0] == 'pickle'

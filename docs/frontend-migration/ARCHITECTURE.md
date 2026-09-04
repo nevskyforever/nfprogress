@@ -1,6 +1,6 @@
 # NFProgress — migration architecture
 
-Baseline: `04b62c3970b22c43b9f604f79ee6de17243179f2`.
+Baseline: F3 implementation HEAD `29e064dceeb2fc4dae9f1eba88bdc34cc7ac6969`.
 
 The supported user interface is Vue/Ionic in `frontend/`. PySide6 is legacy
 source and is not part of the supported desktop architecture.
@@ -16,10 +16,10 @@ Vue / TypeScript
    ├─ typed Rust/Tauri ───────────────→ SQLite
    │    ├─ Settings authoritative
    │    ├─ Notes CRUD/order authoritative
-   │    └─ Projects read projection
+   │    └─ Projects and Game read/mutation boundaries
    └─ HTTP client → local FastAPI/Nuitka sidecar
-        ├─ Projects/Stages/Progress mutation → PKL → best-effort SQLite mirror
-        ├─ Game → gamer.pkl → best-effort SQLite mirror
+        ├─ Projects/Stages/Progress mutation → SQLite + durable event outbox
+        ├─ Game compatibility façade → SQLite Game aggregate/event consumer
         ├─ Notes map/XMind compatibility operations
         ├─ Documents → documents.json
         └─ Word/Scrivener/background synchronization
@@ -28,19 +28,19 @@ Vue / TypeScript
 Current ownership is deliberately explicit:
 
 ```text
-projects/stages/progress = pickle authoritative
+projects/stages/progress = SQLite authoritative
 settings                 = SQLite authoritative
 notes                    = SQLite authoritative
-game                     = pickle authoritative
+game                     = SQLite authoritative
 ```
 
-The v4 database is still a shadow/read model for PKL-owned Projects, but it is
-now an authoritative-capable, lossless Projects storage substrate. It adds
-typed folders, project/stage sync bindings, stable progress ordering and
-extension payloads; `ON DELETE RESTRICT` protects SQLite-owned Notes. The
-one-shot canonical importer still reads legacy PKL and `documents.json` in
-migration tooling; Documents and external files are not yet part of the
-Projects authority cutover.
+The v5 database is authoritative for the cut-over Projects and Game domains.
+It adds typed folders, project/stage sync bindings, stable progress ordering,
+extension payloads, Game provenance and retryable domain-event processing.
+Legacy PKL is retained only as a recovery/migration artifact. The one-shot
+canonical importer still reads legacy PKL and `documents.json` in migration
+tooling; Documents and external files are not yet part of the authority
+cutover.
 
 ## Target desktop architecture
 
@@ -112,11 +112,13 @@ Python remains outside the target desktop runtime while it is useful as:
 - one-shot migration or recovery tooling until all supported profiles migrate;
 - compatibility source for legacy PKL class paths.
 
-The existing Python mirror and sidecar are not permanent target layers.
+The existing Python mirror and sidecar are not permanent target layers. Until
+F6, the sidecar's Game HTTP façade is a compatibility transport over SQLite;
+it is not allowed to read or write Game PKL after F3 ownership switch.
 
 ## Storage and migration rules
 
-SQLite migrations are shared SQL files through schema v4. Python's
+SQLite migrations are shared SQL files through schema v5. Python's
 `open_database()` remains compatible for the transitional sidecar, while the
 Rust Tauri opener now executes the same versioned migrations without Python.
 
@@ -203,3 +205,12 @@ verified, idempotent `MigrationBundle` import before the ownership transaction;
 healthy SQLite reads have no PKL/API fallback. Rust Tauri services own
 validation, transactions and persistence, while Game/Notes/document effects
 remain explicit boundaries. See `F2_PROJECTS_SQLITE_CUTOVER.md`.
+
+## F3 Game ownership
+
+F3 imports `gamer.pkl` and Game-owned envelope fields into a versioned
+`game_state` JSON DTO, verifies semantic readback, and switches the Game owner
+only after verification. The F2 outbox is consumed by deterministic rules in
+the trusted Rust boundary (and by the transitional SQLite compatibility
+consumer), with Game state and its processed marker committed together. See
+`F3_GAME_SQLITE_CUTOVER.md`.
