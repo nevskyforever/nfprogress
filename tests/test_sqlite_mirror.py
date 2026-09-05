@@ -54,6 +54,29 @@ def test_empty_database_and_idempotent_migrations(tmp_path):
     second.close()
 
 
+def test_mirror_rebuild_publishes_complete_legacy_project_order(tmp_path):
+    repository = PickleRepository(tmp_path)
+    projects = {}
+    project_ids = []
+    for index in range(5):
+        project = engine.Project(f'Project {index}', 100)
+        project.project_id = f'project-{index}'
+        projects[project.name] = project
+        project_ids.append(project.project_id)
+    explicit_order = [project_ids[2], project_ids[0], project_ids[4], project_ids[3], project_ids[1]]
+
+    SQLiteMirrorRepository(tmp_path).rebuild(
+        {'projects': projects, 'project_order': explicit_order},
+        {},
+        game.Gamer(),
+    )
+
+    with open_database(tmp_path) as db:
+        assert [row[0] for row in db.execute(
+            'SELECT project_id FROM project_order ORDER BY position'
+        )] == explicit_order
+
+
 def test_existing_populated_schema_requires_order_recovery_before_upgrade(tmp_path):
     connection = sqlite3.connect(tmp_path / 'nfprogress.db')
     connection.executescript((__import__('pathlib').Path('nfprogress/core/sqlite/migrations/001_initial.sql')).read_text())

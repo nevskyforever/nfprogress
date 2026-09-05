@@ -15,6 +15,28 @@ nfprogress-migration-helper verify --source <data-root>
 `prepare` uses an invisible staging database and replaces the destination
 SQLite file only after bundle, semantic, integrity and foreign-key checks.
 
+For an existing schema-v6 SQLite profile whose order tables are incomplete,
+use the explicit recovery commands; ordinary startup never repairs this state:
+
+```text
+nfprogress-migration-helper recover-preview --source <data-root> --json
+nfprogress-migration-helper recover --source <data-root> --json
+```
+
+`recover-preview` is read-only. It reports the source database checksum, the
+order source and every proposed position. After the owner reviews that
+preview, `recover` creates a new application backup, verifies that its
+`nfprogress.db` checksum matches the source, writes a staging copy, and checks
+SQLite integrity, foreign keys, project/stage/progress order completeness,
+uniqueness and contiguous positions. Only then does it atomically activate the
+staging database. A failure leaves the source database untouched and retains
+the backup/rollback evidence.
+
+When available, the helper prefers the explicit legacy `data.pkl`
+`project_order`; otherwise it uses the deterministic
+`created_at/updated_at/project ID` fallback and records that limitation. The
+helper does not delete projects or recreate the database.
+
 ## Before any migration
 
 1. Close all NFProgress processes and copy the complete data directory to an

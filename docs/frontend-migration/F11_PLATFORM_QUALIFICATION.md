@@ -7,9 +7,9 @@ directly from baseline `3b3980d`. This is a private/non-publishing report.
 
 | Platform | Build/package | Helper | Functional install/launch/restart | Current status |
 | --- | --- | --- | --- | --- |
-| macOS ARM | real local Tauri build, arm64, DMG verified, provenance verified | real arm64 one-file helper; detect/preview/prepare/verify passed | not completed: qualification bundle launch was prevented by the already-running `/Applications/nfprogress.app` single-instance process | **BLOCKED — P0 runtime evidence** |
+| macOS ARM | real local Tauri build, arm64, DMG verified, provenance verified | real arm64 one-file helper; detect/preview/prepare/verify passed | recovered SQLite copy opened in the installed Tauri app; startup and restart process smoke passed | **PASS WITH TRUST LIMITATION** |
 | macOS Intel | Intel build support retained; no Intel host/runner used | no Intel helper runtime | deferred from the initial rollout | **DEFERRED — P1/backlog** |
-| Windows x64 | manual run `33921490088` on `windows-latest`; checkout `ff4653d296182da723f1601a0c8a0d8d690fd64b`; Tauri build not reached after helper failure | `.exe` build, `detect`, `preview` passed; `prepare` failed with `[Errno 9] Bad file descriptor` | install/launch/restart not reached | **BLOCKED — P0 helper regression; rerun required** |
+| Windows x64 | manual run `33921490088` on `windows-latest`; checkout `ff4653d296182da723f1601a0c8a0d8d690fd64b`; later run `33948433776` reached staging activation | `.exe` build, `detect`, `preview` passed; `prepare` hit a sharing violation before the explicit-close fix | install/launch/restart not yet qualified | **BLOCKED — P0 rerun required** |
 
 OS signing limitations are not the reason for any status above. Under the
 current policy, macOS ad-hoc and Windows unsigned artifacts are acceptable
@@ -71,6 +71,50 @@ guaranteeing `connection.close()`. The fix wraps those database contexts in
 close rule. This preserves SQLite validation, file fsync, and atomic replace
 semantics without retrying a sharing violation. The Windows workflow must be
 rerun from the fix commit before helper or transition qualification can pass.
+
+## Existing populated SQLite order recovery
+
+The owner-provided production database was analyzed read-only. It was schema
+version 6 with five projects, 32 stages and 212 progress entries; SQLite
+integrity and foreign-key checks were clean, but `project_order`,
+`stage_order` and `progress_order` were empty. The source database was not
+modified.
+
+The root cause is a historical producer/migration gap: migration `003` created
+the order tables and requested a mirror rebuild, but did not backfill order
+rows itself. The older publisher path also had no producer-side invariant
+check before marking the mirror healthy. Consequently an already-populated
+v6 shadow database could be considered healthy while its order relations were
+empty. Current migration/import/mirror producers validate all three order
+invariants before activation, and normal Tauri startup remains read-only.
+
+Qualification fixtures covered fresh conversion and synthetic order recovery,
+but did not cover an existing populated v6 database traversing the historical
+create-only migration path. That is why the invalid state reached the real
+ARM startup gate.
+
+Recovery is an explicit helper operation, not startup self-healing:
+
+```text
+recover-preview --source <data-root>
+→ owner reviews source/order proposal
+→ recover --source <data-root>
+→ backup and checksum
+→ staging copy and order validation
+→ integrity/FK/semantic verification
+→ atomic activation
+```
+
+The helper first uses an explicit legacy `data.pkl` `project_order` when it
+matches current project IDs. If no source order exists, it uses the documented
+deterministic SQLite fallback. It preserves the source and backup on failure,
+rejects unknown/duplicate/non-contiguous order positions, and never repairs a
+database during ordinary application startup.
+
+On the production copy, the explicit legacy order was recovered for all five
+projects. The packaged arm64 helper reported `migration_verified`, matching
+source and backup checksums, with staging integrity, foreign-key and semantic
+order verification successful. A second preview reported no recovery needed.
 
 ## Trust limitation
 

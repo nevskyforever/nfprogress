@@ -367,6 +367,7 @@ def test_project_order_recovery_preview_and_atomic_activation(tmp_path):
     assert preview.requires_recovery
     assert preview.existing_order == []
     assert preview.proposed_order == project_ids
+    assert preview.order_source == "SQLite created_at/updated_at/project ID fallback"
     assert _project_rows_for_test(tmp_path / "nfprogress.db") == before_projects
     before_sha = recovery.sha256_file(tmp_path / "nfprogress.db")
 
@@ -374,6 +375,8 @@ def test_project_order_recovery_preview_and_atomic_activation(tmp_path):
 
     assert report.outcome == OUTCOME_MIGRATION_VERIFIED
     assert report.backup
+    assert report.source_sha256 == before_sha
+    assert report.backup_sha256 == before_sha
     manifest = json.loads((Path(report.backup) / "backup_manifest.json").read_text())
     assert next(item for item in manifest["files"] if item["path"] == "nfprogress.db")["sha256"] == before_sha
     assert report.preview.proposed_order == project_ids
@@ -495,3 +498,24 @@ def test_legacy_without_project_order_is_imported_with_complete_deterministic_or
         assert [row[0] for row in db.execute("SELECT project_id FROM project_order ORDER BY position")] == [
             f"legacy-{index}" for index in range(5)
         ]
+
+
+def test_order_recovery_prefers_complete_legacy_project_order(tmp_path):
+    project_ids = _order_fixture(tmp_path)
+    explicit_order = [project_ids[2], project_ids[0], project_ids[4], project_ids[3], project_ids[1]]
+    _write_pickle(tmp_path, "data.pkl", {"projects": {}, "project_order": explicit_order})
+
+    preview = analyze_project_order_recovery(tmp_path)
+
+    assert preview.order_source == "legacy data.pkl project_order"
+    assert preview.proposed_order == explicit_order
+    report = recover_project_order(tmp_path)
+
+    assert report.source_sha256 == report.backup_sha256
+    with sqlite3.connect(tmp_path / "nfprogress.db") as db:
+        assert [row[0] for row in db.execute(
+            "SELECT project_id FROM project_order ORDER BY position"
+        )] == explicit_order
+        assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+    assert analyze_project_order_recovery(tmp_path).requires_recovery is False

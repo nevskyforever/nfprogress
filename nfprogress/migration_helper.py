@@ -164,6 +164,7 @@ class ProjectOrderRecoveryPreview:
     existing_order: list[str]
     existing_positions: list[int]
     proposed_order: list[str]
+    order_source: str
     existing_stage_order: dict[str, list[str]]
     proposed_stage_order: dict[str, list[str]]
     existing_progress_order: list[str]
@@ -190,6 +191,8 @@ class ProjectOrderRecoveryReport:
     preview: ProjectOrderRecoveryPreview
     backup: str | None = None
     rollback: str | None = None
+    source_sha256: str | None = None
+    backup_sha256: str | None = None
     details: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
@@ -198,6 +201,8 @@ class ProjectOrderRecoveryReport:
             "preview": self.preview.to_dict(),
             "backup": self.backup,
             "rollback": self.rollback,
+            "source_sha256": self.source_sha256,
+            "backup_sha256": self.backup_sha256,
             "details": self.details,
         }
 
@@ -265,6 +270,56 @@ def _read_sqlite_metadata(path: Path) -> tuple[dict[str, Any], dict[str, str], d
     return schema, ownership, markers, warnings
 
 
+def _legacy_project_order_hint(
+    root: Path, project_ids: set[str]
+) -> tuple[list[str] | None, str]:
+    """Read an explicit legacy order without mutating the source profile."""
+    legacy_path = root / "data.pkl"
+    if legacy_path.is_file():
+        try:
+            envelope = load_legacy_pickle(legacy_path)
+        except (LegacyDecodeError, OSError, ValueError):
+            envelope = None
+        if isinstance(envelope, Mapping):
+            raw_order = envelope.get("project_order")
+            if isinstance(raw_order, list):
+                explicit = [
+                    project_id for project_id in raw_order
+                    if isinstance(project_id, str) and project_id in project_ids
+                ]
+                if explicit:
+                    return list(dict.fromkeys(explicit)), "legacy data.pkl project_order"
+            project_map = envelope.get("projects")
+            if isinstance(project_map, Mapping):
+                insertion_order = [
+                    getattr(project, "project_id", None)
+                    for project in project_map.values()
+                ]
+                insertion_order = [
+                    project_id for project_id in insertion_order
+                    if isinstance(project_id, str) and project_id in project_ids
+                ]
+                if insertion_order:
+                    return list(dict.fromkeys(insertion_order)), "legacy data.pkl mapping order"
+
+    bundle_path = root / "nfprogress-migration.json"
+    if bundle_path.is_file() and bundle_path.stat().st_size <= 100 * 1024 * 1024:
+        try:
+            bundle = json.loads(bundle_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            bundle = None
+        if isinstance(bundle, Mapping):
+            raw_order = bundle.get("project_order")
+            if isinstance(raw_order, list):
+                explicit = [
+                    project_id for project_id in raw_order
+                    if isinstance(project_id, str) and project_id in project_ids
+                ]
+                if explicit:
+                    return list(dict.fromkeys(explicit)), "MigrationBundle project_order"
+    return None, "SQLite created_at/updated_at/project ID fallback"
+
+
 def analyze_project_order_recovery(source_root: str | Path) -> ProjectOrderRecoveryPreview:
     """Analyze a v6 database without opening it through the mutating runtime."""
     root = Path(source_root).expanduser().resolve()
@@ -284,7 +339,11 @@ def analyze_project_order_recovery(source_root: str | Path) -> ProjectOrderRecov
         version = int(connection.execute("SELECT schema_version FROM schema_info").fetchone()[0])
         if version != 6:
             raise RecoveryError(f"unsupported_sqlite_schema: {version}")
-        proposal = propose_project_order_recovery(connection)
+        project_ids = {
+            row[0] for row in connection.execute("SELECT id FROM projects")
+        }
+        preferred_order, order_source = _legacy_project_order_hint(root, project_ids)
+        proposal = propose_project_order_recovery(connection, preferred_order)
         stage_proposal = propose_stage_order_recovery(connection)
         progress_proposal = propose_progress_order_recovery(connection)
         positions = [
@@ -313,6 +372,7 @@ def analyze_project_order_recovery(source_root: str | Path) -> ProjectOrderRecov
             existing_order=list(proposal.existing_order),
             existing_positions=positions,
             proposed_order=list(proposal.proposed_order),
+            order_source=order_source,
             existing_stage_order={
                 project_id: list(stage_ids)
                 for project_id, stage_ids in stage_proposal.existing_order.items()
@@ -355,12 +415,16 @@ def recover_project_order(data_root: str | Path) -> ProjectOrderRecoveryReport:
         return ProjectOrderRecoveryReport(
             OUTCOME_READY,
             preview,
+            source_sha256=preview.source_sha256,
             details=["project order is already complete; no mutation performed"],
         )
 
     database = root / "nfprogress.db"
     before_projects = _project_rows(database)
     backup = create_application_backup(root, {"nfprogress.db"})
+    backup_sha256 = sha256_file(backup / "nfprogress.db")
+    if backup_sha256 != preview.source_sha256:
+        raise RecoveryError("backup checksum does not match source database")
     staging: Path | None = Path(tempfile.mkdtemp(
         prefix=f".{root.name}-order-recovery-", dir=root.parent
     ))
@@ -410,6 +474,8 @@ def recover_project_order(data_root: str | Path) -> ProjectOrderRecoveryReport:
             preview,
             backup=str(backup),
             rollback=str(rollback) if rollback else None,
+            source_sha256=preview.source_sha256,
+            backup_sha256=backup_sha256,
             details=[
                 "staging integrity_check=ok",
                 "staging foreign_key_check=ok",
@@ -1083,13 +1149,16 @@ def _print(value: Any, *, as_json: bool) -> None:
             f"Project order recovery required: {value.requires_recovery}\n"
             f"Projects: {len(value.project_ids)}\n"
             f"Existing order: {', '.join(value.existing_order) or 'empty'}\n"
-            f"Proposed order: {', '.join(value.proposed_order) or 'empty'}"
+            f"Proposed order: {', '.join(value.proposed_order) or 'empty'}\n"
+            f"Order source: {value.order_source}"
         )
         for issue in value.issues: print(f"Issue: {issue}")
     elif isinstance(value, ProjectOrderRecoveryReport):
         print(f"Order recovery {value.outcome}")
         if value.backup: print(f"Backup: {value.backup}")
         if value.rollback: print(f"Rollback: {value.rollback}")
+        if value.source_sha256: print(f"Source SHA-256: {value.source_sha256}")
+        if value.backup_sha256: print(f"Backup SHA-256: {value.backup_sha256}")
         for detail in value.details: print(detail)
     else:
         print(value)

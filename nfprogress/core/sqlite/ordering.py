@@ -103,13 +103,17 @@ def validate_order_invariants(connection: sqlite3.Connection) -> None:
     validate_progress_order(connection)
 
 
-def propose_project_order_recovery(connection: sqlite3.Connection) -> ProjectOrderProposal:
+def propose_project_order_recovery(
+    connection: sqlite3.Connection,
+    preferred_order: list[str] | tuple[str, ...] | None = None,
+) -> ProjectOrderProposal:
     """Build a deterministic, non-mutating project order proposal.
 
-    Existing rows are retained in their stored relative order. Missing or
-    invalid references are appended by real project fields: creation time,
-    update time, and finally stable ID.  This is the documented fallback when
-    no complete legacy order is available.
+    A complete order recovered from legacy source metadata is preferred. When
+    it is absent, existing valid rows are retained in their stored relative
+    order. Missing or invalid references are appended by real project fields:
+    creation time, update time, and finally stable ID. This is the documented
+    fallback when no source order is available.
     """
     project_rows = connection.execute(
         "SELECT id, created_at, updated_at FROM projects ORDER BY id"
@@ -120,8 +124,9 @@ def propose_project_order_recovery(connection: sqlite3.Connection) -> ProjectOrd
         "SELECT project_id, position FROM project_order ORDER BY position, project_id"
     ).fetchall()
     existing_order = tuple(row[0] for row in existing_rows)
+    candidate_order = preferred_order if preferred_order is not None else existing_order
     retained: list[str] = []
-    for project_id in existing_order:
+    for project_id in candidate_order:
         if project_id in known and project_id not in retained:
             retained.append(project_id)
     project_by_id = {row[0]: row for row in project_rows}
