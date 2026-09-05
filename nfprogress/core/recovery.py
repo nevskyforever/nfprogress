@@ -14,6 +14,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
@@ -223,7 +224,7 @@ def create_application_backup(
         schema_version: int | None = None
         if database.is_file():
             try:
-                with sqlite3.connect(database) as connection:
+                with closing(sqlite3.connect(database)) as connection:
                     schema_version = connection.execute(
                         "SELECT schema_version FROM schema_info LIMIT 1"
                     ).fetchone()[0]
@@ -422,7 +423,7 @@ def restore_application_backup(
             # The upgrade happens only in the invisible staging profile.
             from nfprogress.core.sqlite.connection import open_database
 
-            with open_database(staging):
+            with closing(open_database(staging)):
                 pass
             validate_sqlite_file(database)
         rollback = target.parent / f".{target.name}-restore-rollback-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S.%fZ')}"

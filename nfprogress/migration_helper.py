@@ -23,6 +23,7 @@ import sys
 import tempfile
 import traceback
 import uuid
+from contextlib import closing
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -539,7 +540,7 @@ def _json(value: Any) -> str:
 def _import_complete_bundle(bundle: MigrationBundle, target: Path, inspection: SourceInspection) -> None:
     """Trusted importer for a full bundle; target is always a staging profile."""
     import_projects_bundle(bundle, target)
-    with open_database(target) as db:
+    with closing(open_database(target)) as db:
         with db:
             db.execute("DELETE FROM settings")
             db.executemany("INSERT INTO settings(key,value_json) VALUES(?,?)", [(str(k), _json(v)) for k, v in (bundle.settings or {}).items()])

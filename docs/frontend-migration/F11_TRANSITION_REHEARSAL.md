@@ -83,6 +83,18 @@ optional CI traceback output now identify the exact failure boundary. The
 workflow must be rerun after the new fix commit before any Windows helper or
 transition PASS is recorded.
 
+The following real run, `33948433776` / job `101258604521` at
+`d22a9ad7e52e12b2fe032cb7365a4515ff62b26d`, passed through helper
+`detect`/`preview` and failed at `staging_activation` with
+`PermissionError: [WinError 32]` on `os.replace(staging_db, target_db)`. The
+staging handle was retained by SQLite connections created in
+`import_projects_bundle`, `_import_complete_bundle`, and
+`read_projects_storage`: their transaction context managers did not guarantee
+connection closure before activation. Those exact contexts now use
+`contextlib.closing`, including staging validation in recovery. A regression
+test observes every staging connection at `_activate` and rejects any open
+handle; no retry or weakened atomicity was added.
+
 ## Uncompleted P0 stages
 
 The Tauri install/first-launch/restart leg was not completed. The local

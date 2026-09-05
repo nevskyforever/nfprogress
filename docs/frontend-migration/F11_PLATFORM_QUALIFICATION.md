@@ -59,6 +59,19 @@ the runner. The workflow now copies the helper into runner-temp before the
 smoke and uploads that copy, together with a prepare traceback log, so a
 failure artifact remains independently inspectable.
 
+The next real run `33948433776`, job `101258604521`, checked out
+`d22a9ad7e52e12b2fe032cb7365a4515ff62b26d` and reached
+`phase=staging_activation`. Its traceback identified a Windows sharing
+violation in `migration_helper._activate`: `os.replace()` could not replace the
+staging `nfprogress.db` because SQLite connections opened by
+`import_projects_bundle`, `_import_complete_bundle`, and
+`read_projects_storage` were only leaving their transaction contexts, not
+guaranteeing `connection.close()`. The fix wraps those database contexts in
+`contextlib.closing`; backup/restore staging validation uses the same explicit
+close rule. This preserves SQLite validation, file fsync, and atomic replace
+semantics without retrying a sharing violation. The Windows workflow must be
+rerun from the fix commit before helper or transition qualification can pass.
+
 ## Trust limitation
 
 The owner accepts unsigned/ad-hoc/self-signed distribution for this rollout.

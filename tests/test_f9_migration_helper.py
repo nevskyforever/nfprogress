@@ -10,6 +10,7 @@ from pathlib import Path
 import engine
 import game
 import pytest
+import nfprogress.migration_helper as migration_helper
 
 from nfprogress.core.legacy_decoder import (
     FORBIDDEN_OPCODES,
@@ -209,6 +210,52 @@ def test_fsync_file_uses_writable_descriptor_for_windows(monkeypatch, tmp_path):
     monkeypatch.setattr(Path, "open", tracking_open)
     recovery._fsync_file(path)
     assert modes == ["r+b"]
+
+
+def test_prepare_closes_all_staging_sqlite_connections_before_activation(tmp_path, monkeypatch):
+    """The Windows replace must never race a still-open staging DB handle."""
+    _fixture(tmp_path)
+    real_connect = sqlite3.connect
+    connections = []
+
+    class TrackingConnection(sqlite3.Connection):
+        def __init__(self, *args, **kwargs):
+            self.database_target = str(args[0]) if args else ""
+            self.closed_by_code = False
+            super().__init__(*args, **kwargs)
+            connections.append(self)
+
+        def close(self):
+            self.closed_by_code = True
+            return super().close()
+
+    def tracking_connect(*args, **kwargs):
+        kwargs["factory"] = TrackingConnection
+        return real_connect(*args, **kwargs)
+
+    monkeypatch.setattr(sqlite3, "connect", tracking_connect)
+    original_activate = migration_helper._activate
+    observed = {}
+
+    def activation_with_handle_assertion(staging, destination):
+        staging_db = str((Path(staging) / "nfprogress.db").resolve()).replace("\\", "/")
+        leaked = [
+            connection.database_target
+            for connection in connections
+            if staging_db in connection.database_target.replace("\\", "/")
+            and not connection.closed_by_code
+        ]
+        observed["leaked"] = leaked
+        assert not leaked, f"staging SQLite handles remain open: {leaked!r}"
+        return original_activate(staging, destination)
+
+    monkeypatch.setattr(migration_helper, "_activate", activation_with_handle_assertion)
+    report = prepare(tmp_path)
+
+    assert report.outcome == OUTCOME_MIGRATION_VERIFIED
+    assert observed["leaked"] == []
+    assert not (tmp_path / "nfprogress.db-wal").exists()
+    assert not (tmp_path / "nfprogress.db-shm").exists()
 
 
 def test_deterministic_ids_and_fingerprint_for_same_source(tmp_path):

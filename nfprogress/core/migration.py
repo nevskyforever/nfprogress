@@ -13,6 +13,7 @@ import json
 import hashlib
 import math
 import uuid
+from contextlib import closing
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime, time
@@ -564,7 +565,7 @@ def import_projects_bundle(bundle: MigrationBundle, data_root: str | Path) -> No
     }
     if len(stage_ids) != sum(len(project.get('stages', [])) for project in bundle.projects):
         raise MigrationImportError('stage identifiers must be unique')
-    with open_database(data_root) as db:
+    with closing(open_database(data_root)) as db:
         with db:
             notes = db.execute(
                 'SELECT id, project_id, stage_id, updated_at, payload_json FROM notes',
@@ -661,7 +662,7 @@ def import_projects_bundle(bundle: MigrationBundle, data_root: str | Path) -> No
 
 def read_projects_storage(data_root: str | Path) -> dict[str, Any]:
     """Read the complete F1 Projects representation for verification tooling."""
-    with open_database(data_root) as db:
+    with closing(open_database(data_root)) as db:
         tables = {
             'projects': db.execute('SELECT id, payload_json FROM projects').fetchall(),
             'stages': db.execute('SELECT id, project_id, payload_json FROM stages').fetchall(),
