@@ -20,6 +20,11 @@ from pathlib import Path, PurePosixPath
 from typing import Any, Iterable, Mapping
 
 from nfprogress.core.sqlite.schema import CURRENT_SCHEMA_VERSION
+from nfprogress.core.sqlite.ordering import (
+    OrderInvariantError,
+    validate_order_invariants,
+    validate_project_order,
+)
 
 
 BACKUP_MANIFEST = "backup_manifest.json"
@@ -340,11 +345,12 @@ def _validate_sqlite_semantics(connection: sqlite3.Connection, version: int) -> 
         for row in connection.execute(f"SELECT {column} FROM {table}"):
             _json_loads(row[0], label=f"{table} payload")
     if version >= 3 and "project_order" in available:
-        positions = [row[0] for row in connection.execute(
-            "SELECT position FROM project_order ORDER BY position"
-        )]
-        if positions != list(range(len(positions))):
-            raise RecoveryError("corrupt_sqlite: project order is not contiguous")
+        try:
+            validate_project_order(connection)
+            if version >= 4:
+                validate_order_invariants(connection)
+        except OrderInvariantError as error:
+            raise RecoveryError(f"corrupt_sqlite: {error}") from error
     if version >= 5 and "storage_ownership" in available:
         owners = [row[0] for row in connection.execute(
             "SELECT subsystem FROM storage_ownership"

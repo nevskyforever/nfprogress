@@ -26,8 +26,10 @@ from nfprogress.migration_helper import (
     OUTCOME_MIGRATION_VERIFIED,
     OUTCOME_UNSUPPORTED_SOURCE,
     build_bundle,
+    analyze_project_order_recovery,
     inspect_source,
     prepare,
+    recover_project_order,
     verify_prepared_profile,
 )
 
@@ -333,3 +335,163 @@ def test_non_empty_destination_requires_explicit_replace(tmp_path):
     with pytest.raises(HelperError) as error:
         prepare(source, destination)
     assert error.value.code == OUTCOME_DESTINATION_INVALID
+
+
+def _order_fixture(root: Path, *, order: list[str] | None = None) -> list[str]:
+    with open_database(root) as db:
+        project_ids = []
+        for index in range(5):
+            project_id = f"project-{index}"
+            project_ids.append(project_id)
+            db.execute(
+                "INSERT INTO projects(id,name,goal,infinite,unit,status,created_at,updated_at,payload_json) "
+                "VALUES(?,?,?,?,?,?,?,?,?)",
+                (project_id, project_id, 100, 0, "symbols", "активен",
+                 f"2026-01-0{index + 1}", f"2026-02-0{index + 1}",
+                 json.dumps({"id": project_id, "name": project_id})),
+            )
+        if order is not None:
+            db.executemany(
+                "INSERT INTO project_order(project_id,position) VALUES(?,?)",
+                [(project_id, position) for position, project_id in enumerate(order)],
+            )
+        db.commit()
+    return project_ids
+
+
+def test_project_order_recovery_preview_and_atomic_activation(tmp_path):
+    project_ids = _order_fixture(tmp_path)
+    before_projects = _project_rows_for_test(tmp_path / "nfprogress.db")
+    preview = analyze_project_order_recovery(tmp_path)
+
+    assert preview.requires_recovery
+    assert preview.existing_order == []
+    assert preview.proposed_order == project_ids
+    assert _project_rows_for_test(tmp_path / "nfprogress.db") == before_projects
+    before_sha = recovery.sha256_file(tmp_path / "nfprogress.db")
+
+    report = recover_project_order(tmp_path)
+
+    assert report.outcome == OUTCOME_MIGRATION_VERIFIED
+    assert report.backup
+    manifest = json.loads((Path(report.backup) / "backup_manifest.json").read_text())
+    assert next(item for item in manifest["files"] if item["path"] == "nfprogress.db")["sha256"] == before_sha
+    assert report.preview.proposed_order == project_ids
+    assert _project_rows_for_test(tmp_path / "nfprogress.db") == before_projects
+    with sqlite3.connect(tmp_path / "nfprogress.db") as db:
+        assert db.execute("SELECT COUNT(*) FROM projects").fetchone()[0] == 5
+        assert db.execute("SELECT COUNT(*) FROM project_order").fetchone()[0] == 5
+        assert [row[1] for row in db.execute("SELECT project_id,position FROM project_order ORDER BY position")] == list(range(5))
+        assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+    assert analyze_project_order_recovery(tmp_path).requires_recovery is False
+    assert recover_project_order(tmp_path).details == [
+        "project order is already complete; no mutation performed"
+    ]
+
+
+def _project_rows_for_test(database: Path) -> list[tuple]:
+    with sqlite3.connect(database) as db:
+        return db.execute(
+            "SELECT id,name,goal,infinite,unit,status,created_at,updated_at,payload_json "
+            "FROM projects ORDER BY id"
+        ).fetchall()
+
+
+def test_project_order_recovery_preserves_partial_explicit_order(tmp_path):
+    project_ids = _order_fixture(tmp_path, order=["project-4", "project-1", "project-3"])
+
+    preview = analyze_project_order_recovery(tmp_path)
+
+    assert preview.existing_order == ["project-4", "project-1", "project-3"]
+    assert preview.proposed_order == ["project-4", "project-1", "project-3", "project-0", "project-2"]
+    recover_project_order(tmp_path)
+    with sqlite3.connect(tmp_path / "nfprogress.db") as db:
+        assert [row[0] for row in db.execute("SELECT project_id FROM project_order ORDER BY position")] == preview.proposed_order
+
+
+def test_project_order_recovery_rejects_unknown_order_reference_and_schema_duplicates(tmp_path):
+    _order_fixture(tmp_path)
+    with sqlite3.connect(tmp_path / "nfprogress.db") as db:
+        db.execute("INSERT INTO project_order(project_id,position) VALUES('project-0',0)")
+        db.execute("INSERT INTO project_order(project_id,position) VALUES('unknown',1)")
+        db.execute("INSERT INTO project_order(project_id,position) VALUES('project-1',2)")
+        with pytest.raises(sqlite3.IntegrityError):
+            db.execute("INSERT INTO project_order(project_id,position) VALUES('project-0',3)")
+        db.commit()
+
+    preview = analyze_project_order_recovery(tmp_path)
+    assert preview.issues == ["project ordering is incomplete"]
+    assert preview.proposed_order == ["project-0", "project-1", "project-2", "project-3", "project-4"]
+    recover_project_order(tmp_path)
+    assert analyze_project_order_recovery(tmp_path).requires_recovery is False
+
+
+def test_project_order_recovery_does_not_mutate_healthy_database(tmp_path):
+    project_ids = _order_fixture(tmp_path, order=[f"project-{index}" for index in range(5)])
+    database = tmp_path / "nfprogress.db"
+    before = database.read_bytes()
+
+    preview = analyze_project_order_recovery(tmp_path)
+    report = recover_project_order(tmp_path)
+
+    assert project_ids == preview.proposed_order
+    assert not preview.requires_recovery
+    assert report.outcome == "ready"
+    assert database.read_bytes() == before
+
+
+def test_project_order_recovery_rejects_invalid_stage_or_progress_order(tmp_path):
+    _order_fixture(tmp_path)
+    with sqlite3.connect(tmp_path / "nfprogress.db") as db:
+        db.execute(
+            "INSERT INTO stages(id,project_id,name,infinite,unit,status,payload_json) "
+            "VALUES('stage-1','project-0','Stage',0,'symbols','активен','{}')"
+        )
+        db.execute(
+            "INSERT INTO progress_entries(id,project_id,stage_id,added_symbols,added_progress,payload_json) "
+            "VALUES('progress-1','project-0','stage-1',10,10,'{}')"
+        )
+        db.commit()
+    preview = analyze_project_order_recovery(tmp_path)
+    assert "stage ordering is incomplete" in preview.issues
+    assert "progress ordering is incomplete" in preview.issues
+    recover_project_order(tmp_path)
+    with sqlite3.connect(tmp_path / "nfprogress.db") as db:
+        assert db.execute("SELECT COUNT(*) FROM stage_order").fetchone()[0] == 1
+        assert db.execute("SELECT COUNT(*) FROM progress_order").fetchone()[0] == 1
+
+
+def test_project_order_recovery_keeps_source_when_staging_verification_fails(tmp_path, monkeypatch):
+    _order_fixture(tmp_path)
+    database = tmp_path / "nfprogress.db"
+    before = database.read_bytes()
+    monkeypatch.setattr(
+        migration_helper,
+        "validate_sqlite_file",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(recovery.RecoveryError("forced staging failure")),
+    )
+
+    with pytest.raises(recovery.RecoveryError, match="forced staging failure"):
+        recover_project_order(tmp_path)
+
+    assert database.read_bytes() == before
+    with sqlite3.connect(database) as db:
+        assert db.execute("SELECT COUNT(*) FROM project_order").fetchone()[0] == 0
+
+
+def test_legacy_without_project_order_is_imported_with_complete_deterministic_order(tmp_path):
+    projects = {}
+    for index in range(5):
+        project = engine.Project(f"Legacy {index}", 100)
+        project.project_id = f"legacy-{index}"
+        projects[project.name] = project
+    _write_pickle(tmp_path, "data.pkl", {"projects": projects})
+
+    report = prepare(tmp_path)
+
+    assert report.outcome == OUTCOME_MIGRATION_VERIFIED
+    with sqlite3.connect(tmp_path / "nfprogress.db") as db:
+        assert [row[0] for row in db.execute("SELECT project_id FROM project_order ORDER BY position")] == [
+            f"legacy-{index}" for index in range(5)
+        ]

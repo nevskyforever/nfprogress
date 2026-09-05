@@ -5,6 +5,11 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
+from nfprogress.core.sqlite.ordering import (
+    validate_order_invariants,
+    validate_project_order,
+)
+
 
 MIGRATIONS_DIR = Path(__file__).with_name('migrations')
 CURRENT_SCHEMA_VERSION = 6
@@ -46,13 +51,25 @@ def apply_migrations(connection: sqlite3.Connection) -> int:
         sql = migration.read_text(encoding='utf-8')
         # executescript is wrapped explicitly because its implicit transaction
         # handling otherwise commits before running the script.
-        connection.executescript(
-            'BEGIN;\n'
-            f'{sql}\n'
-            'DELETE FROM schema_info;\n'
-            f'INSERT INTO schema_info(schema_version) VALUES ({next_version});\n'
-            'COMMIT;\n',
-        )
+        # Keep the semantic guard in the same transaction as the migration.
+        # Migration 003 creates the order relation, so an existing project
+        # aggregate must not be allowed to advance the schema marker while
+        # that relation is empty or incomplete.
+        connection.executescript(f'BEGIN;\n{sql}\n')
+        try:
+            if next_version >= 3:
+                validate_project_order(connection)
+            if next_version >= 4:
+                validate_order_invariants(connection)
+            connection.execute('DELETE FROM schema_info')
+            connection.execute(
+                'INSERT INTO schema_info(schema_version) VALUES (?)',
+                (next_version,),
+            )
+            connection.commit()
+        except Exception:
+            connection.rollback()
+            raise
     connection.execute(
         'CREATE INDEX IF NOT EXISTS idx_domain_events_pending '
         'ON domain_events(consumer, status, processed_at, created_at, event_id)'

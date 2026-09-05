@@ -4,7 +4,7 @@
 //! single set of files prevents the two runtimes from silently creating
 //! incompatible databases while Projects ownership is being cut over.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use rusqlite::{Connection, OpenFlags};
@@ -110,6 +110,13 @@ pub fn apply_migrations(connection: &Connection) -> Result<i64, StorageError> {
     {
         let transaction = connection.unchecked_transaction()?;
         transaction.execute_batch(sql)?;
+        if *next_version >= 3 {
+            validate_project_order(&transaction)?;
+        }
+        if *next_version >= 4 {
+            validate_stage_order(&transaction)?;
+            validate_progress_order(&transaction)?;
+        }
         transaction.execute("DELETE FROM schema_info", [])?;
         transaction.execute(
             "INSERT INTO schema_info(schema_version) VALUES (?1)",
@@ -193,20 +200,94 @@ fn validate_database(connection: &Connection) -> Result<(), StorageError> {
     validate_json_column(connection, "documents", "extensions_json")?;
     validate_json_column(connection, "document_bindings", "payload_json")?;
 
-    let positions: Vec<i64> = connection
-        .prepare("SELECT position FROM project_order ORDER BY position")?
+    validate_project_order(connection)?;
+    validate_stage_order(connection)?;
+    validate_progress_order(connection)?;
+    Ok(())
+}
+
+fn validate_project_order(connection: &Connection) -> Result<(), StorageError> {
+    let project_ids: HashSet<String> = connection
+        .prepare("SELECT id FROM projects")?
         .query_map([], |row| row.get(0))?
-        .collect::<Result<Vec<_>, _>>()?;
+        .collect::<Result<HashSet<_>, _>>()?;
+    let order_rows: Vec<(String, i64)> = connection
+        .prepare("SELECT project_id, position FROM project_order ORDER BY position, project_id")?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<Vec<_>, rusqlite::Error>>()?;
+    let positions: Vec<i64> = order_rows.iter().map(|(_, position)| *position).collect();
+    let order_ids: HashSet<&str> = order_rows.iter().map(|(id, _)| id.as_str()).collect();
     if positions != (0..positions.len() as i64).collect::<Vec<_>>() {
         return Err(StorageError::CorruptSchema(
             "project ordering positions are not contiguous".to_string(),
         ));
     }
-    let project_count: i64 =
-        connection.query_row("SELECT COUNT(*) FROM projects", [], |row| row.get(0))?;
-    if project_count != positions.len() as i64 {
+    if order_ids.len() != order_rows.len()
+        || order_ids.len() != project_ids.len()
+        || !order_ids.iter().all(|id| project_ids.contains(*id))
+    {
         return Err(StorageError::CorruptSchema(
             "project ordering is incomplete".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_stage_order(connection: &Connection) -> Result<(), StorageError> {
+    let stages: HashMap<String, String> = connection
+        .prepare("SELECT id, project_id FROM stages")?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<HashMap<_, _>, rusqlite::Error>>()?;
+    let rows: Vec<(String, String, i64)> = connection
+        .prepare("SELECT stage_id, project_id, position FROM stage_order ORDER BY project_id, position, stage_id")?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+        .collect::<Result<Vec<_>, rusqlite::Error>>()?;
+    if rows.len() != stages.len()
+        || rows.iter().map(|(id, _, _)| id).collect::<HashSet<_>>() != stages.keys().collect()
+        || rows
+            .iter()
+            .any(|(id, project_id, _)| stages.get(id) != Some(project_id))
+    {
+        return Err(StorageError::CorruptSchema(
+            "stage ordering is incomplete".to_string(),
+        ));
+    }
+    let mut positions: HashMap<&str, Vec<i64>> = HashMap::new();
+    for (_, project_id, position) in &rows {
+        positions.entry(project_id).or_default().push(*position);
+    }
+    if positions
+        .values()
+        .any(|values| values != &(0..values.len() as i64).collect::<Vec<_>>())
+    {
+        return Err(StorageError::CorruptSchema(
+            "stage ordering positions are not contiguous".to_string(),
+        ));
+    }
+    Ok(())
+}
+
+fn validate_progress_order(connection: &Connection) -> Result<(), StorageError> {
+    let progress_ids: HashSet<String> = connection
+        .prepare("SELECT id FROM progress_entries")?
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<HashSet<_>, _>>()?;
+    let rows: Vec<(String, i64)> = connection
+        .prepare("SELECT entry_id, position FROM progress_order ORDER BY position, entry_id")?
+        .query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+        .collect::<Result<Vec<_>, rusqlite::Error>>()?;
+    let positions: Vec<i64> = rows.iter().map(|(_, position)| *position).collect();
+    let order_ids: HashSet<&str> = rows.iter().map(|(id, _)| id.as_str()).collect();
+    if order_ids != progress_ids.iter().map(String::as_str).collect()
+        || order_ids.len() != rows.len()
+    {
+        return Err(StorageError::CorruptSchema(
+            "progress ordering is incomplete".to_string(),
+        ));
+    }
+    if positions != (0..positions.len() as i64).collect::<Vec<_>>() {
+        return Err(StorageError::CorruptSchema(
+            "progress ordering positions are not contiguous".to_string(),
         ));
     }
     Ok(())
@@ -293,6 +374,9 @@ mod tests {
             )
             .unwrap();
         connection
+            .execute("INSERT INTO project_order VALUES('p', 0)", [])
+            .unwrap();
+        connection
             .execute("INSERT INTO settings VALUES('preserve', 'true')", [])
             .unwrap();
         connection
@@ -361,5 +445,36 @@ mod tests {
             validate_database(&connection),
             Err(StorageError::CorruptSchema(message)) if message.contains("invalid JSON")
         ));
+    }
+
+    #[test]
+    fn populated_pre_order_schema_cannot_advance_through_order_migration() {
+        let connection = Connection::open_in_memory().unwrap();
+        connection.execute_batch(MIGRATIONS[0].1).unwrap();
+        connection.execute_batch(MIGRATIONS[1].1).unwrap();
+        connection
+            .execute_batch("CREATE TABLE schema_info(schema_version INTEGER NOT NULL);")
+            .unwrap();
+        connection
+            .execute("INSERT INTO schema_info VALUES(2)", [])
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO projects VALUES('p', 'P', 1, 0, 'symbols', 'активен', NULL, NULL, '{}')",
+                [],
+            )
+            .unwrap();
+
+        assert!(matches!(
+            apply_migrations(&connection),
+            Err(StorageError::CorruptSchema(message)) if message.contains("project ordering is incomplete")
+        ));
+        assert_eq!(
+            connection
+                .query_row("SELECT schema_version FROM schema_info", [], |row| row
+                    .get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
     }
 }

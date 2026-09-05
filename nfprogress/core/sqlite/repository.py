@@ -13,6 +13,7 @@ from typing import Any
 
 from nfprogress.core.serialization import serialize_project, to_json_safe
 from nfprogress.core.sqlite.connection import database_path, open_database
+from nfprogress.core.sqlite.ordering import validate_order_invariants
 from nfprogress.core.sqlite.ownership import (
     StorageOwner,
     StorageOwnershipRepository,
@@ -101,6 +102,10 @@ class SQLiteMirrorRepository:
             self.sync_game(gamer)
 
         with open_database(self.data_root) as db:
+            # Never publish a healthy mirror after a producer-side partial
+            # order write.  This check is deliberately before mirror_state is
+            # marked healthy and runs for rebuilds of every ownership mix.
+            validate_order_invariants(db)
             with db:
                 db.execute(
                     "INSERT INTO mirror_state(id,source_format,source_schema_version,last_full_sync_at,last_successful_sync_at,sync_status,last_error) "
@@ -121,17 +126,6 @@ class SQLiteMirrorRepository:
         binding_rows: list[tuple[Any, ...]] = []
         extension_rows: list[tuple[str, str, str]] = []
         project_map = projects.get('projects', {}) if isinstance(projects, dict) else {}
-        project_ids = [
-            project.project_id
-            for project in project_map.values()
-            if hasattr(project, 'project_id')
-        ] if isinstance(project_map, Mapping) else []
-        order_rows = [
-            (project_id, position)
-            for position, project_id in enumerate(
-                self._normalized_project_order(projects, project_ids),
-            )
-        ]
         progress_position = 0
         for project in project_map.values() if isinstance(project_map, Mapping) else []:
             payload = serialize_project(project)
@@ -162,6 +156,14 @@ class SQLiteMirrorRepository:
                 progress_position,
             )
             extension_rows.extend(self._progress_extension_rows(project))
+
+        project_ids = [row[0] for row in project_rows]
+        order_rows = [
+            (project_id, position)
+            for position, project_id in enumerate(
+                self._normalized_project_order(projects, project_ids),
+            )
+        ]
 
         folders = self._folder_rows(projects)
         folder_ids = {row[0] for row in folders}
@@ -247,6 +249,7 @@ class SQLiteMirrorRepository:
                     'INSERT INTO project_order(project_id,position) VALUES(?,?)',
                     order_rows,
                 )
+                validate_order_invariants(db)
                 db.executemany(
                     'INSERT INTO project_folders(id,name,position,payload_json) VALUES(?,?,?,?)',
                     folders,

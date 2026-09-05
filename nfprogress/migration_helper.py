@@ -41,6 +41,7 @@ from nfprogress.core.migration import (
 from nfprogress.core.game_state import _game_payload
 from nfprogress.core.recovery import (
     RecoveryError,
+    _atomic_copy,
     create_application_backup,
     sha256_file,
     source_fingerprint,
@@ -48,6 +49,18 @@ from nfprogress.core.recovery import (
     validate_sqlite_file,
 )
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core.sqlite.ordering import (
+    OrderInvariantError,
+    OrderTableProposal,
+    ProjectOrderProposal,
+    apply_order_recovery,
+    propose_project_order_recovery,
+    propose_progress_order_recovery,
+    propose_stage_order_recovery,
+    validate_progress_order,
+    validate_project_order,
+    validate_stage_order,
+)
 from nfprogress.core.sqlite.notes import canonical_notes_from_projects
 
 
@@ -71,6 +84,7 @@ OUTCOME_SOURCE_CORRUPT = "source_corrupt"
 OUTCOME_BUNDLE_INVALID = "bundle_invalid"
 OUTCOME_DESTINATION_INVALID = "destination_invalid"
 OUTCOME_MIGRATION_FAILED = "migration_failed"
+SQLITE_PROJECT_ORDER_RECOVERY_PROFILE = "K_sqlite_project_order_recovery"
 
 EXIT_CODES = {
     OUTCOME_READY: 0,
@@ -141,6 +155,53 @@ class MigrationReport:
         return value
 
 
+@dataclass(slots=True)
+class ProjectOrderRecoveryPreview:
+    source_root: str
+    source_sha256: str
+    schema_version: int
+    project_ids: list[str]
+    existing_order: list[str]
+    existing_positions: list[int]
+    proposed_order: list[str]
+    existing_stage_order: dict[str, list[str]]
+    proposed_stage_order: dict[str, list[str]]
+    existing_progress_order: list[str]
+    proposed_progress_order: list[str]
+    issues: list[str] = field(default_factory=list)
+
+    @property
+    def requires_recovery(self) -> bool:
+        return (
+            bool(self.issues)
+            or self.existing_order != self.proposed_order
+            or self.existing_positions != list(range(len(self.existing_positions)))
+            or self.existing_stage_order != self.proposed_stage_order
+            or self.existing_progress_order != self.proposed_progress_order
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self) | {"requires_recovery": self.requires_recovery}
+
+
+@dataclass(slots=True)
+class ProjectOrderRecoveryReport:
+    outcome: str
+    preview: ProjectOrderRecoveryPreview
+    backup: str | None = None
+    rollback: str | None = None
+    details: list[str] = field(default_factory=list)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "outcome": self.outcome,
+            "preview": self.preview.to_dict(),
+            "backup": self.backup,
+            "rollback": self.rollback,
+            "details": self.details,
+        }
+
+
 def _now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -204,6 +265,163 @@ def _read_sqlite_metadata(path: Path) -> tuple[dict[str, Any], dict[str, str], d
     return schema, ownership, markers, warnings
 
 
+def analyze_project_order_recovery(source_root: str | Path) -> ProjectOrderRecoveryPreview:
+    """Analyze a v6 database without opening it through the mutating runtime."""
+    root = Path(source_root).expanduser().resolve()
+    database = root / "nfprogress.db"
+    if not database.is_file():
+        raise RecoveryError("missing_sqlite")
+    if (root / "nfprogress.db-wal").exists() or (root / "nfprogress.db-shm").exists():
+        raise RecoveryError("SQLite must be closed before order recovery")
+    connection: sqlite3.Connection | None = None
+    try:
+        connection = sqlite3.connect(f"file:{database.as_posix()}?mode=ro", uri=True)
+        connection.row_factory = sqlite3.Row
+        if connection.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
+            raise RecoveryError("corrupt_sqlite: integrity_check failed")
+        if connection.execute("PRAGMA foreign_key_check").fetchall():
+            raise RecoveryError("corrupt_sqlite: foreign_key_check failed")
+        version = int(connection.execute("SELECT schema_version FROM schema_info").fetchone()[0])
+        if version != 6:
+            raise RecoveryError(f"unsupported_sqlite_schema: {version}")
+        proposal = propose_project_order_recovery(connection)
+        stage_proposal = propose_stage_order_recovery(connection)
+        progress_proposal = propose_progress_order_recovery(connection)
+        positions = [
+            row[1] for row in connection.execute(
+                "SELECT project_id, position FROM project_order ORDER BY position, project_id"
+            )
+        ]
+        issues: list[str] = []
+        try:
+            validate_project_order(connection)
+        except OrderInvariantError as error:
+            issues.append(str(error))
+        try:
+            validate_stage_order(connection)
+        except OrderInvariantError as error:
+            issues.append(str(error))
+        try:
+            validate_progress_order(connection)
+        except OrderInvariantError as error:
+            issues.append(str(error))
+        return ProjectOrderRecoveryPreview(
+            source_root=str(root),
+            source_sha256=sha256_file(database),
+            schema_version=version,
+            project_ids=list(proposal.project_ids),
+            existing_order=list(proposal.existing_order),
+            existing_positions=positions,
+            proposed_order=list(proposal.proposed_order),
+            existing_stage_order={
+                project_id: list(stage_ids)
+                for project_id, stage_ids in stage_proposal.existing_order.items()
+            },
+            proposed_stage_order={
+                project_id: list(stage_ids)
+                for project_id, stage_ids in stage_proposal.proposed_order.items()
+            },
+            existing_progress_order=list(progress_proposal.existing_order),
+            proposed_progress_order=list(progress_proposal.proposed_order),
+            issues=issues,
+        )
+    except RecoveryError:
+        raise
+    except (sqlite3.DatabaseError, OSError, ValueError, TypeError, IndexError) as error:
+        raise RecoveryError("corrupt_sqlite") from error
+    finally:
+        if connection is not None:
+            connection.close()
+
+
+def _project_rows(path: Path) -> list[tuple[Any, ...]]:
+    connection = sqlite3.connect(f"file:{path.resolve().as_posix()}?mode=ro", uri=True)
+    try:
+        return [
+            tuple(row) for row in connection.execute(
+                "SELECT id, name, goal, infinite, unit, status, created_at, updated_at, payload_json "
+                "FROM projects ORDER BY id"
+            )
+        ]
+    finally:
+        connection.close()
+
+
+def recover_project_order(data_root: str | Path) -> ProjectOrderRecoveryReport:
+    """Explicitly repair project order through backup, staging, and activation."""
+    root = Path(data_root).expanduser().resolve()
+    preview = analyze_project_order_recovery(root)
+    if not preview.requires_recovery:
+        return ProjectOrderRecoveryReport(
+            OUTCOME_READY,
+            preview,
+            details=["project order is already complete; no mutation performed"],
+        )
+
+    database = root / "nfprogress.db"
+    before_projects = _project_rows(database)
+    backup = create_application_backup(root, {"nfprogress.db"})
+    staging: Path | None = Path(tempfile.mkdtemp(
+        prefix=f".{root.name}-order-recovery-", dir=root.parent
+    ))
+    try:
+        _atomic_copy(database, staging / "nfprogress.db")
+        project_proposal = ProjectOrderProposal(
+            tuple(preview.project_ids),
+            tuple(preview.existing_order),
+            tuple(preview.proposed_order),
+        )
+        stage_proposal = OrderTableProposal(
+            {
+                project_id: tuple(stage_ids)
+                for project_id, stage_ids in preview.existing_stage_order.items()
+            },
+            {
+                project_id: tuple(stage_ids)
+                for project_id, stage_ids in preview.proposed_stage_order.items()
+            },
+        )
+        progress_proposal = OrderTableProposal(
+            tuple(preview.existing_progress_order),
+            tuple(preview.proposed_progress_order),
+        )
+        connection = sqlite3.connect(staging / "nfprogress.db")
+        connection.row_factory = sqlite3.Row
+        try:
+            connection.execute("PRAGMA foreign_keys = ON")
+            with connection:
+                apply_order_recovery(
+                    connection, project_proposal, stage_proposal, progress_proposal
+                )
+                validate_project_order(connection)
+        finally:
+            connection.close()
+
+        if _project_rows(staging / "nfprogress.db") != before_projects:
+            raise RecoveryError("project rows changed during order recovery")
+        validate_sqlite_file(staging / "nfprogress.db", allow_versions={6})
+        if sha256_file(database) != preview.source_sha256:
+            raise RecoveryError("source_changed: database checksum changed during recovery")
+        rollback = _activate(staging, root)
+        shutil.rmtree(staging, ignore_errors=True)
+        staging = None
+        return ProjectOrderRecoveryReport(
+            OUTCOME_MIGRATION_VERIFIED,
+            preview,
+            backup=str(backup),
+            rollback=str(rollback) if rollback else None,
+            details=[
+                "staging integrity_check=ok",
+                "staging foreign_key_check=ok",
+                "staging semantic order verification=ok",
+                "activation=atomic",
+            ],
+        )
+    finally:
+        if staging is not None:
+            shutil.rmtree(staging, ignore_errors=True)
+
+
 def _profile_for(
     files: list[str], schema: dict[str, Any], ownership: dict[str, str], warnings: list[str]
 ) -> tuple[str, bool, str, list[str]]:
@@ -261,6 +479,20 @@ def inspect_source(source_root: str | Path) -> SourceInspection:
             validate_sqlite_file(root / "nfprogress.db")
         except RecoveryError as error:
             warnings.append(str(error))
+            if (
+                schema.get("version") == 6
+                and "project ordering" in str(error)
+            ):
+                profile = SQLITE_PROJECT_ORDER_RECOVERY_PROFILE
+                supported = False
+                warnings.append("explicit project-order recovery is available")
+                return SourceInspection(
+                    source_root=str(root), source_profile=profile,
+                    source_version=version, files_present=files,
+                    sqlite_schema=schema, ownership=ownership,
+                    migration_markers=markers, fingerprint=source_fingerprint(root),
+                    warnings=warnings, supported=supported,
+                )
             # A present-but-partial SQLite profile is ambiguous even when a
             # PKL happens to be readable.  The helper must not guess which
             # source owns a domain.
@@ -846,13 +1078,29 @@ def _print(value: Any, *, as_json: bool) -> None:
         if value.backup: print(f"Backup: {value.backup}")
         if value.preview.warnings: print(f"Warnings: {len(value.preview.warnings)}")
         for detail in value.details: print(detail)
+    elif isinstance(value, ProjectOrderRecoveryPreview):
+        print(
+            f"Project order recovery required: {value.requires_recovery}\n"
+            f"Projects: {len(value.project_ids)}\n"
+            f"Existing order: {', '.join(value.existing_order) or 'empty'}\n"
+            f"Proposed order: {', '.join(value.proposed_order) or 'empty'}"
+        )
+        for issue in value.issues: print(f"Issue: {issue}")
+    elif isinstance(value, ProjectOrderRecoveryReport):
+        print(f"Order recovery {value.outcome}")
+        if value.backup: print(f"Backup: {value.backup}")
+        if value.rollback: print(f"Rollback: {value.rollback}")
+        for detail in value.details: print(detail)
     else:
         print(value)
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("command", choices=("detect", "preview", "prepare", "verify"))
+    parser.add_argument(
+        "command",
+        choices=("detect", "preview", "prepare", "verify", "recover-preview", "recover"),
+    )
     parser.add_argument("--source", "--data-dir", dest="source", required=False)
     parser.add_argument("--destination", dest="destination")
     parser.add_argument("--bundle-out", dest="bundle_out")
@@ -870,7 +1118,19 @@ def main(argv: list[str] | None = None) -> int:
             return 0 if ready else EXIT_CODES[OUTCOME_MIGRATION_REQUIRED]
         if not args.source:
             parser.error(f"{args.command} requires --source")
+        if args.command == "recover-preview":
+            preview = analyze_project_order_recovery(args.source)
+            _print(preview.to_dict() if args.as_json else preview, as_json=args.as_json)
+            return 0
+        if args.command == "recover":
+            report = recover_project_order(args.source)
+            _print(report.to_dict() if args.as_json else report, as_json=args.as_json)
+            return EXIT_CODES[report.outcome]
         inspection = inspect_source(args.source)
+        if args.command == "preview" and inspection.source_profile == SQLITE_PROJECT_ORDER_RECOVERY_PROFILE:
+            preview = analyze_project_order_recovery(args.source)
+            _print(preview.to_dict() if args.as_json else preview, as_json=args.as_json)
+            return 0
         if args.command == "detect":
             _print(inspection.to_dict() if args.as_json else inspection, as_json=args.as_json)
             return 0 if inspection.supported else EXIT_CODES[OUTCOME_UNSUPPORTED_SOURCE]

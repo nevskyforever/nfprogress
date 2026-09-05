@@ -24,6 +24,7 @@ import engine
 
 from nfprogress.core.serialization import serialize_project, to_json_safe
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core.sqlite.ordering import validate_order_invariants
 from nfprogress.core.legacy_decoder import load_legacy_pickle
 
 
@@ -200,6 +201,10 @@ class MigrationBundle:
             for project_id in raw_order:
                 if project_id in project_ids and project_id not in order:
                     order.append(project_id)
+        # Pickle mappings preserve insertion order.  When the legacy envelope
+        # has no explicit project_order, that persisted source order is the
+        # only available ordering hint and is therefore the deterministic
+        # fallback; SQLite-only recovery uses persisted timestamps/IDs.
         order.extend(project_id for project_id in project_ids if project_id not in order)
         raw_folders = envelope.get('project_folders', [])
         folders = _normalized_folders(raw_folders)
@@ -655,6 +660,10 @@ def import_projects_bundle(bundle: MigrationBundle, data_root: str | Path) -> No
                 'INSERT INTO notes(id, project_id, stage_id, updated_at, payload_json) VALUES(?, ?, ?, ?, ?)',
                 [tuple(row) for row in notes],
             )
+            # The importer must fail inside its transaction before publishing
+            # a healthy mirror, even if a future caller bypasses the bundle
+            # validator or changes one of the order-writing loops.
+            validate_order_invariants(db)
             db.execute(
                 "UPDATE mirror_state SET source_format='migration_bundle', sync_status='healthy', last_error=NULL WHERE id=1",
             )

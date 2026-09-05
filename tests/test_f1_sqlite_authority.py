@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 import engine
+import pytest
 
 from nfprogress.core.migration import (
     MigrationBundle,
@@ -13,6 +14,7 @@ from nfprogress.core.migration import (
     verify_projects_bundle,
 )
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core.sqlite.ordering import OrderInvariantError
 from nfprogress.core.sqlite.ownership import StorageOwner, StorageOwnershipRepository, Subsystem
 from nfprogress.core.storage import PickleRepository
 
@@ -100,7 +102,7 @@ def test_f1_import_does_not_delete_sqlite_owned_notes_or_other_domains(tmp_path)
         assert db.execute("SELECT value_json FROM settings WHERE key='f1'").fetchone()[0] == 'true'
 
 
-def test_v3_upgrade_keeps_settings_notes_and_pickle_ownership(tmp_path):
+def test_populated_pre_order_upgrade_stops_before_publishing_schema_v3(tmp_path):
     connection = sqlite3.connect(tmp_path / 'nfprogress.db')
     connection.executescript((Path(__file__).parents[1] / 'nfprogress/core/sqlite/migrations/001_initial.sql').read_text())
     connection.execute('CREATE TABLE schema_info (schema_version INTEGER NOT NULL)')
@@ -111,8 +113,9 @@ def test_v3_upgrade_keeps_settings_notes_and_pickle_ownership(tmp_path):
     connection.commit()
     connection.close()
 
-    with open_database(tmp_path) as db:
-        assert db.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 6
+    with pytest.raises(OrderInvariantError, match='project ordering is incomplete'):
+        open_database(tmp_path)
+    with sqlite3.connect(tmp_path / 'nfprogress.db') as db:
+        assert db.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 2
         assert db.execute("SELECT value_json FROM settings WHERE key='keep'").fetchone()[0] == '42'
         assert db.execute('SELECT id FROM notes').fetchone()[0] == 'n'
-        assert db.execute("SELECT owner FROM storage_ownership WHERE subsystem='projects'").fetchone()[0] == 'pickle'

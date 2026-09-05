@@ -13,6 +13,7 @@ from nfprogress.core.sqlite import (
     Subsystem,
 )
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core.sqlite.ordering import OrderInvariantError
 from nfprogress.core.storage import PickleRepository
 from nfprogress.sqlite_verify import verify
 
@@ -53,7 +54,7 @@ def test_empty_database_and_idempotent_migrations(tmp_path):
     second.close()
 
 
-def test_existing_schema_migrates_ownership_without_touching_data(tmp_path):
+def test_existing_populated_schema_requires_order_recovery_before_upgrade(tmp_path):
     connection = sqlite3.connect(tmp_path / 'nfprogress.db')
     connection.executescript((__import__('pathlib').Path('nfprogress/core/sqlite/migrations/001_initial.sql')).read_text())
     connection.execute('INSERT INTO projects VALUES(?,?,?,?,?,?,?,?,?)', ('p', 'old', 1, 0, 'symbols', 'активен', None, None, '{}'))
@@ -61,11 +62,11 @@ def test_existing_schema_migrates_ownership_without_touching_data(tmp_path):
     connection.execute('INSERT INTO schema_info VALUES(1)')
     connection.commit()
     connection.close()
-    with open_database(tmp_path) as db:
-        assert db.execute('SELECT name FROM projects').fetchone()['name'] == 'old'
-        assert dict(db.execute('SELECT subsystem, owner FROM storage_ownership').fetchall()) == {
-            'projects': 'pickle', 'settings': 'pickle', 'notes': 'pickle', 'game': 'pickle',
-        }
+    with pytest.raises(OrderInvariantError, match='project ordering is incomplete'):
+        open_database(tmp_path)
+    with sqlite3.connect(tmp_path / 'nfprogress.db') as db:
+        assert db.execute('SELECT name FROM projects').fetchone()[0] == 'old'
+        assert db.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 2
 
 
 def test_sqlite_owned_settings_are_written_to_sqlite_not_pickle(tmp_path):
