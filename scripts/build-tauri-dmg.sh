@@ -36,6 +36,8 @@ if [ ! -d "$APP_PATH" ]; then
   exit 1
 fi
 
+"$ROOT_DIR/scripts/verify-tauri-macos-app.sh" "$APP_PATH" "$TARGET"
+
 mkdir -p "$(dirname "$OUTPUT_PATH")"
 STAGING_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nfprogress-tauri-dmg.XXXXXX")"
 trap 'rm -rf -- "$STAGING_DIR"' EXIT

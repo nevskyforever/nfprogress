@@ -234,14 +234,13 @@ bash "Build Tauri Intel.sh"
 bash "Build Tauri All.sh"
 ```
 
-`Build Tauri All.sh` параллельно выполняет ARM- и Intel-сборку в текущем
-терминале. В PyCharm выберите общую составную конфигурацию `Tauri Build All`
-или `Tauri Release All`: обе задачи будут запущены в Terminal tool window IDE.
+`Build Tauri All.sh` параллельно выполняет ARM- и Intel-сборку для разработки.
+Initial release macOS — только Apple Silicon: `Release Tauri ARM.sh` является
+основной точкой релиза, а `Release Tauri All.sh` по умолчанию запускает только
+ARM. Intel остаётся доступен явно через `Release Tauri All.sh intel` или
+`NFPROGRESS_TAURI_INCLUDE_INTEL=1` для отложенной квалификации.
 Для каждой архитектуры создаётся отдельный игнорируемый frontend-workspace в
 `.tauri-build-workspaces/`: в нём свои `node_modules`, Vite-вывод и Tauri target.
-Поэтому две сборки не меняют файлы друг друга. Обновление общего
-манифеста при релизе выполняется по очереди, чтобы не потерять запись одной из
-архитектур.
 
 Перед сборкой нормализованная версия из `engine.py` синхронизируется с
 `tauri.conf.json`, `Cargo.toml` и `Cargo.lock` внутри соответствующего
@@ -253,10 +252,13 @@ workspace, не затрагивая исходный frontend.
 использует native Rust target без отдельного Python-окружения.
 
 Скрипты `Release Tauri ARM.sh`, `Release Tauri Intel.sh` и
-`Release Tauri All.sh` по умолчанию готовят архив и загружают его на release
-hosting. Защищённый CI workflow скачивает оба macOS-архива, добавляет Windows
-артефакты и публикует общий GitHub Release. Для сборки без загрузки используйте
-`NFPROGRESS_TAURI_RELEASE_UPLOAD=0`.
+`Release Tauri All.sh` разделяют build и qualification: проверяют frontend
+typecheck/tests,
+Rust, архитектуру app, отсутствие Python/FastAPI/Nuitka/backend sidecar,
+provenance и SHA-256, но ничего не публикуют по умолчанию. Старый hosting
+handoff можно включить только явно через
+`NFPROGRESS_TAURI_RELEASE_UPLOAD=1`; это переходный legacy-путь, а не Tauri
+updater.
 
 На macOS для обычного DMG без Finder/AppleScript-оформления используйте:
 
@@ -267,9 +269,12 @@ scripts/build-tauri-dmg.sh aarch64-apple-darwin
 ## Официальная Windows-сборка и обновления
 
 `.github/workflows/build.yml` собирает только новую native Tauri-версию на
-Windows/MSVC. Он создаёт NSIS installer, updater artifact с отдельной
-Tauri-подписью и публикует `latest.json` в GitHub Releases. Python в workflow
-нужен только для Web/oracle тестов и метаданных.
+`x86_64-pc-windows-msvc`: executable `nfprogress-desktop.exe`, current-user
+NSIS `*-setup.exe`, Tauri updater artifact с обязательной отдельной подписью,
+`latest.json`, SHA-256 и commit provenance. Build job загружает Actions artifact;
+GitHub Release запускается только явным `workflow_dispatch` с
+`publish_production=true`. Authenticode включается отдельно через
+`sign_windows=true` и fail-closed при отсутствии credentials.
 
 Перед первым запуском workflow настройте GitHub Actions:
 
@@ -288,6 +293,13 @@ npm run tauri signer generate -- -w "$env:USERPROFILE\.tauri\nfprogress-updater.
 `latest.json` в GitHub Releases после запуска и раз в час; найденное обновление
 устанавливается штатным Tauri updater только после проверки подписи. В
 `tauri:dev` updater намеренно выключен.
+
+`update_manifest.json` и `update_manifest_legacy.json` не являются normal Tauri
+updater manifest. Они сохраняются только для отдельного legacy handoff Python
+5.x → Tauri 6.x; обычный Tauri updater использует GitHub `latest.json` и его
+криптографическую подпись. Standalone migration helper распространяется рядом
+с transition installer только когда это отдельно квалифицировано и не входит
+в normal Tauri app/runtime.
 
 ## iOS и Android
 

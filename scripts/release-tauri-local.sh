@@ -1,5 +1,6 @@
 #!/bin/bash
-# Prepare a local Tauri release archive and upload it for the release CI.
+# Build and qualify a local Tauri release. Legacy hosting publication is an
+# explicit transition-only opt-in and is never part of the normal build.
 set -euo pipefail
 
 ARCH="${1:-}"
@@ -25,18 +26,74 @@ esac
 VERSION="$(node "$ROOT_DIR/scripts/sync-tauri-versions.mjs" --version-only)"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"
 SOURCE_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD)"
+TARGET="aarch64-apple-darwin"
+if [ "$ARCH" = "intel" ]; then
+  TARGET="x86_64-apple-darwin"
+fi
 
-if [ -f "$ARTIFACT_PATH" ] \
-  && ! python3 "$ROOT_DIR/scripts/verify-tauri-artifact.py" "$ARTIFACT_PATH" "$SOURCE_REVISION"; then
-  echo "Существующий Tauri-архив устарел после изменений ветки; выполняется новая сборка."
-  "$ROOT_DIR/scripts/build-tauri-local.sh" "$ARCH"
-elif [ ! -f "$ARTIFACT_PATH" ]; then
-  "$ROOT_DIR/scripts/build-tauri-local.sh" "$ARCH"
+if [ "${NFPROGRESS_TAURI_REUSE_ARTIFACT:-0}" = "1" ] && [ -f "$ARTIFACT_PATH" ]; then
+  echo "Переиспользуется явно разрешённый Tauri-архив: $ARTIFACT_PATH"
+else
+  NFPROGRESS_TAURI_RUN_FRONTEND_CHECKS=1 \
+  NFPROGRESS_TAURI_RUN_RUST_CHECKS=1 \
+  NFPROGRESS_TAURI_KEEP_DMG=1 \
+  NFPROGRESS_TAURI_KEEP_BUNDLE=1 \
+    "$ROOT_DIR/scripts/build-tauri-local.sh" "$ARCH"
 fi
 
 python3 "$ROOT_DIR/scripts/verify-tauri-artifact.py" "$ARTIFACT_PATH" "$SOURCE_REVISION"
 
+APP_PATH="$ROOT_DIR/.tauri-build-workspaces/$ARCH/frontend/src-tauri/target/$TARGET/release/bundle/macos/nfprogress.app"
+DMG_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.dmg"
+if [ ! -d "$APP_PATH" ] || [ ! -f "$DMG_PATH" ]; then
+  echo "Release qualification requires the retained app and DMG: $APP_PATH; $DMG_PATH" >&2
+  exit 1
+fi
+"$ROOT_DIR/scripts/verify-tauri-macos-app.sh" "$APP_PATH" "$TARGET"
+
+if command -v shasum >/dev/null 2>&1; then
+  sha256_file() { shasum -a 256 "$1" | awk '{print $1}'; }
+else
+  sha256_file() { sha256sum "$1" | awk '{print $1}'; }
+fi
+
+if python3 - "$ROOT_DIR/frontend/src-tauri/tauri.conf.json" <<'PY'
+import json
+import sys
+
+config = json.load(open(sys.argv[1], encoding="utf-8"))
+updater = config.get("plugins", {}).get("updater", {})
+raise SystemExit(0 if updater.get("pubkey") and updater.get("endpoints") else 1)
+PY
+then
+  UPDATER_STATUS="enabled"
+else
+  UPDATER_STATUS="disabled"
+fi
+
+WORKTREE_STATUS="clean"
+if ! git -C "$ROOT_DIR" diff --quiet; then
+  WORKTREE_STATUS="dirty (not included in commit SHA)"
+fi
+
+printf '\n=== Tauri macOS release qualification ===\n'
+printf 'Версия: %s\n' "$VERSION"
+printf 'Commit SHA: %s\n' "$SOURCE_REVISION"
+printf 'Рабочее дерево: %s\n' "$WORKTREE_STATUS"
+printf 'Архитектура: %s\n' "$TARGET"
+printf 'App: %s (%s)\n' "$APP_PATH" "$(du -sh "$APP_PATH" | awk '{print $1}')"
+printf 'DMG: %s (%s, SHA-256 %s)\n' "$DMG_PATH" "$(du -h "$DMG_PATH" | awk '{print $1}')" "$(sha256_file "$DMG_PATH")"
+printf 'Release ZIP: %s (%s, SHA-256 %s)\n' "$ARTIFACT_PATH" "$(du -h "$ARTIFACT_PATH" | awk '{print $1}')" "$(sha256_file "$ARTIFACT_PATH")"
+printf 'OS signing/notarization: unsigned (optional gate not requested)\n'
+printf 'Tauri updater: %s\n' "$UPDATER_STATUS"
+printf 'Qualification: PASS; publication: %s\n' "${NFPROGRESS_TAURI_RELEASE_UPLOAD:-0} (explicit legacy-transition opt-in only)"
+
 echo "Локальный Tauri-архив готов: $ARTIFACT_PATH"
+
+if [ "${NFPROGRESS_TAURI_RELEASE_UPLOAD:-0}" != "1" ]; then
+  echo "Публикация отключена. Для legacy transition hosting задайте NFPROGRESS_TAURI_RELEASE_UPLOAD=1 явно."
+  exit 0
+fi
 
 MANIFEST_PATH="$ROOT_DIR/update_manifest.json"
 MANIFEST_LOCK_DIR="$ROOT_DIR/.release-tauri-manifest.lock"

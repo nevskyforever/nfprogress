@@ -215,30 +215,36 @@ bash "Build Tauri Intel.sh"
 bash "Build Tauri All.sh"
 ```
 
-`Build Tauri All.sh` and `Release Tauri All.sh` run ARM and Intel work in
-parallel in the current terminal. PyCharm users can run the shared `Tauri Build
-All` or `Tauri Release All` compound configuration: it starts both jobs in the
-IDE's Terminal tool window. Each architecture uses its own ignored frontend
-workspace under `.tauri-build-workspaces/`, including `node_modules`, Vite
-output and Tauri target files. The release workflow serializes
-only the shared update-manifest step to preserve both architecture entries.
+`Build Tauri All.sh` remains a parallel ARM/Intel development build. The initial
+release policy is ARM64 only: `Release Tauri ARM.sh` is the primary macOS
+release entry point, and `Release Tauri All.sh` runs only that target by default.
+Use `Release Tauri All.sh intel` (or set
+`NFPROGRESS_TAURI_INCLUDE_INTEL=1`) for explicit Intel qualification. Each
+architecture uses its own ignored frontend workspace under
+`.tauri-build-workspaces/`, including `node_modules`, Vite output and Tauri
+target files.
 
 The build workspace synchronizes the normalized three-component version from
 `engine.py` into the Tauri and Cargo metadata before building, without racing
 over the source frontend files.
 
 The artifacts are written to `build-tauri-arm/` and `build-tauri-intel/`.
-The matching `Release Tauri
-*.sh` wrappers upload the macOS archives to the release hosting; the protected CI
-workflow downloads them, adds the Windows artifacts, and publishes the combined
-GitHub Release. Set `NFPROGRESS_TAURI_RELEASE_UPLOAD=0` to build without uploading.
+Release scripts perform build and qualification only by default: they run
+frontend typecheck/tests, Rust fmt/check/tests, verify the app architecture and
+reject Python/FastAPI/Nuitka/backend payloads, then print sizes, SHA-256,
+provenance, signing status and updater status. Set
+`NFPROGRESS_TAURI_RELEASE_UPLOAD=1` only for the separately maintained legacy
+hosting handoff; it is not the Tauri updater and is never implicit.
 
 ### Windows release and automatic updates
 
-`.github/workflows/build.yml` is the supported Windows release path. It builds
-the native x86_64 MSVC Tauri installer, runs Python/frontend checks for their
-respective Web/oracle scopes, creates the Tauri updater artifact and
-`latest.json`, then publishes one GitHub Release.
+`.github/workflows/build.yml` is the supported Windows release path. It targets
+`x86_64-pc-windows-msvc`, runs frontend and Rust checks, builds only the native
+Tauri executable plus current-user NSIS `*-setup.exe`, audits the package for
+legacy runtime files, records commit provenance/SHA-256, and creates the Tauri
+updater artifact and signed `latest.json` contract. The GitHub Release job is
+protected behind an explicit `workflow_dispatch` with `publish_production=true`;
+ordinary builds upload Actions artifacts only.
 
 Configure these GitHub Actions secrets before the first release:
 
@@ -246,6 +252,10 @@ Configure these GitHub Actions secrets before the first release:
   `npm run tauri signer generate -- -w
   "$env:USERPROFILE\\.tauri\\nfprogress-updater.key"` from PowerShell;
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`: updater-key password, when set.
+
+`sign_windows=true` is a separate optional dispatch input for fail-closed
+Authenticode. Unsigned initial distribution is allowed by policy; missing Tauri
+updater signing credentials are not allowed when the updater is enabled.
 
 Set `TAURI_UPDATER_PUBLIC_KEY` as a repository variable (a secret with the same
 name is also accepted). This is a free Tauri update key, not an Authenticode
@@ -256,6 +266,12 @@ Official release builds check GitHub Releases after startup and once per hour.
 When a version is available, the app shows its release notes and installs it
 through Tauri after cryptographic verification. Local `tauri:dev` and ordinary
 unsigned local bundles do not enable this channel.
+
+`update_manifest_legacy.json` and the legacy flat `update_manifest.json` remain
+only for the explicit Python 5.x → Tauri 6.x transition boundary. They are not
+normal Tauri updater manifests, and this workflow does not generate or publish
+them. The standalone migration helper is delivered separately when a transition
+release needs it; it is never packed into the normal Tauri app or installer.
 
 `npm run tauri:build` also creates a Finder-styled DMG. In a headless macOS
 environment, use `npx tauri build --bundles app` to verify the production app

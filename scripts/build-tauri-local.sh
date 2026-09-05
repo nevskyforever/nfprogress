@@ -96,6 +96,22 @@ DMG_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.dmg"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"
 PACKAGE_NAME="$ARTIFACT_PREFIX-$VERSION"
 
+if [ "${NFPROGRESS_TAURI_RUN_FRONTEND_CHECKS:-0}" = "1" ]; then
+  echo "Запускаются frontend typecheck и tests для release qualification..."
+  (cd "$FRONTEND_DIR" && npm run typecheck && npm run test)
+fi
+
+if [ "${NFPROGRESS_TAURI_RUN_RUST_CHECKS:-0}" = "1" ]; then
+  echo "Запускаются Rust fmt/check/tests для release qualification..."
+  cargo fmt --manifest-path "$FRONTEND_DIR/src-tauri/Cargo.toml" --check
+  cargo check \
+    --manifest-path "$FRONTEND_DIR/src-tauri/Cargo.toml" \
+    --target "$TARGET"
+  cargo test \
+    --manifest-path "$FRONTEND_DIR/src-tauri/Cargo.toml" \
+    --target "$TARGET"
+fi
+
 mkdir -p "$BUILD_DIR"
 NFPROGRESS_TAURI_FRONTEND_DIR="$FRONTEND_DIR" \
   "$ROOT_DIR/scripts/build-tauri-dmg.sh" "$TARGET" "$DMG_PATH"
@@ -116,16 +132,22 @@ SOURCE_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD)"
 rm -f "$ARTIFACT_PATH"
 ditto -c -k --norsrc --keepParent "$PACKAGE_DIR" "$ARTIFACT_PATH"
 
-# The ZIP is the local release artifact.  The DMG and older versioned archives
-# have already served their purpose and otherwise accumulate with every build.
-rm -f -- "$DMG_PATH"
+# The ZIP is the portable release package. Release qualification may retain the
+# DMG and app bundle for direct inspection; ordinary local builds keep the
+# historical compact output.
+if [ "${NFPROGRESS_TAURI_KEEP_DMG:-0}" != "1" ]; then
+  rm -f -- "$DMG_PATH"
+fi
 find "$BUILD_DIR" -mindepth 1 -maxdepth 1 -type f \
   -name "$ARTIFACT_PREFIX-*" \
   ! -name "$(basename "$ARTIFACT_PATH")" \
+  ! -name "$(basename "$DMG_PATH")" \
   -delete
 
 # Keep dependency caches in the isolated workspace, but not the completed app
 # bundle that is already contained in the release ZIP.
-rm -rf -- "$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle"
+if [ "${NFPROGRESS_TAURI_KEEP_BUNDLE:-0}" != "1" ]; then
+  rm -rf -- "$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle"
+fi
 
 echo "✅ Локальная Tauri-сборка завершена: $ARTIFACT_PATH"
