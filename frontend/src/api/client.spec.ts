@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { apiRequest } from './client'
+import { apiErrorMessage, apiRequest } from './client'
 afterEach(() => {
   vi.unstubAllGlobals()
 })
@@ -46,5 +46,12 @@ describe('apiRequest', () => {
       code: 'conflict',
       message: 'Проект с таким именем уже существует.',
     })
+  })
+})
+
+describe('apiErrorMessage', () => {
+  it('preserves native string errors for the startup gate', () => {
+    expect(apiErrorMessage('Corrupt SQLite schema: project ordering is incomplete'))
+      .toBe('Corrupt SQLite schema: project ordering is incomplete')
   })
 })

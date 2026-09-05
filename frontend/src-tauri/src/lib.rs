@@ -9,7 +9,7 @@ use std::time::Duration;
 use rusqlite::OptionalExtension;
 use serde::de::{self, Visitor};
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent};
+use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 
 mod documents;
 mod game;
@@ -2399,6 +2399,12 @@ struct RuntimeInfo {
     native_updates: bool,
     architecture: String,
     development: bool,
+    startup_error: Option<String>,
+}
+
+#[derive(Clone, Default)]
+struct StartupStatus {
+    error: Option<String>,
 }
 
 #[derive(Default, Deserialize)]
@@ -2633,11 +2639,12 @@ struct MacosUpdateProgress {
 }
 
 #[tauri::command]
-fn runtime_info() -> RuntimeInfo {
+fn runtime_info(startup_status: State<'_, StartupStatus>) -> RuntimeInfo {
     RuntimeInfo {
         native_updates: native_updates_enabled(),
         architecture: std::env::consts::ARCH.to_string(),
         development: cfg!(debug_assertions),
+        startup_error: startup_status.error.clone(),
     }
 }
 
@@ -4097,6 +4104,37 @@ mod tests {
     }
 
     #[test]
+    fn startup_storage_check_reports_incomplete_project_order_without_panicking() {
+        let root = std::env::temp_dir().join(format!(
+            "nfprogress-startup-schema-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+        std::fs::create_dir_all(&root).unwrap();
+
+        let database = root.join("nfprogress.db");
+        let connection = Connection::open(&database).unwrap();
+        super::sqlite::apply_migrations(&connection).unwrap();
+        connection
+            .execute(
+                "INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json) VALUES('project-1','Project',NULL,1,'symbols','active','{}')",
+                [],
+            )
+            .unwrap();
+        drop(connection);
+
+        assert_eq!(
+            super::prepare_startup_storage(&root).unwrap_err(),
+            "Corrupt SQLite schema: project ordering is incomplete"
+        );
+
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn project_metadata_payload_is_narrow_and_encodes_ids() {
         let patch: ProjectMetadataPatch =
             serde_json::from_value(serde_json::json!({"name": "Новый", "deadline": null}))
@@ -4556,6 +4594,17 @@ fn native_updates_enabled() -> bool {
     )
 }
 
+fn prepare_startup_storage(data_root: &Path) -> Result<(), String> {
+    let connection = sqlite::open_database(&data_root.join("nfprogress.db"))
+        .map_err(|error| error.to_string())?;
+    initialize_fresh_desktop_database(&connection, data_root)
+}
+
+fn check_startup_storage() -> Result<(), String> {
+    let data_root = sqlite_data_root()?;
+    prepare_startup_storage(&data_root)
+}
+
 pub fn run() {
     let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(
@@ -4572,14 +4621,17 @@ pub fn run() {
         .plugin(tauri_plugin_process::init())
         .setup(|app| {
             restore_main_window_state(&app.handle());
-            // SQLite opening and migrations are native startup work. A failure
-            // aborts setup with the storage diagnostic; no legacy source or
-            // localhost service is consulted as a fallback.
-            let data_root = sqlite_data_root()?;
-            let connection = sqlite::open_database(&data_root.join("nfprogress.db"))
-                .map_err(|error| std::io::Error::other(error.to_string()))?;
-            initialize_fresh_desktop_database(&connection, &data_root)
-                .map_err(std::io::Error::other)?;
+            // Tauri invokes setup from a non-unwinding macOS callback. Keep
+            // storage diagnostics in managed state so migration and schema
+            // errors reach the frontend startup gate instead of becoming an
+            // abort in tao's Objective-C callback.
+            let startup_error = check_startup_storage().err();
+            if let Some(error) = startup_error.as_deref() {
+                eprintln!("nfprogress startup storage check failed: {error}");
+            }
+            app.manage(StartupStatus {
+                error: startup_error,
+            });
             Ok(())
         });
 

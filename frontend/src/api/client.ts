@@ -124,5 +124,8 @@ export function apiErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     return error.message
   }
+  if (typeof error === 'string' && error.trim()) {
+    return error
+  }
   return 'Произошла непредвиденная ошибка.'
 }

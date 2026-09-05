@@ -4,6 +4,7 @@ interface DesktopRuntimeInfo {
   nativeUpdates: boolean
   architecture: string
   development: boolean
+  startupError?: string
 }
 
 export type RuntimePlatform = 'web' | 'tauri' | 'ios' | 'android'
@@ -49,6 +50,7 @@ async function initializeTauriRuntime(): Promise<void> {
       nativeUpdates: runtime.nativeUpdates,
       architecture: runtime.architecture,
       development: runtime.development,
+      startupError: runtime.startupError,
     }
   } catch (error) {
     window.__NFPROGRESS_RUNTIME__ = {
