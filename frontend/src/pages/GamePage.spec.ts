@@ -38,6 +38,7 @@ const settingsFixture: SettingsResponse = {
 
 describe('GamePage', () => {
   beforeEach(() => {
+    window.sessionStorage.removeItem('nfprogress:game-tab')
     vi.mocked(gameApi.state).mockReset()
     vi.mocked(gameApi.applyStreakFreeze).mockReset()
     vi.mocked(settingsApi.get).mockReset()
@@ -99,6 +100,91 @@ describe('GamePage', () => {
     expect(gameApi.state).toHaveBeenCalledTimes(1)
     expect(useNotificationsStore(pinia).notifications.at(-1)?.message)
       .toBe('Заморозка применена.')
+  })
+
+  it('renders populated game projection sections on the overview workflow', async () => {
+    vi.mocked(gameApi.state).mockResolvedValue(gameStateFixture({
+      inventory: {
+        categories: [{
+          key: 'Предметы',
+          name: 'Предметы',
+          items: [{
+            id: 'Предметы:Медаль качества',
+            key: 'Медаль качества',
+            category: 'Предметы',
+            name: '🏅 Медаль качества',
+            description: 'Повышает результат следующей успешной сессии на одну ступень.',
+            effect: 'Повышает результат следующей успешной сессии на одну ступень',
+            count: 1,
+            sellable: true,
+            usable: true,
+            buy: true,
+            can_buy: false,
+          }],
+        }],
+      },
+      specializations: {
+        selected: 'ritualist',
+        unlocks_at_level: 3,
+        change_cooldown_days: 14,
+        change_days_remaining: 0,
+        mastery_thresholds: [0, 3, 8, 15, 25],
+        items: [{
+          key: 'ritualist',
+          name: 'Ритуалист',
+          description: 'Даёт +25% к награде за успешную писательскую сессию.',
+          selected: true,
+          mastery_experience: 8,
+          mastery_rank: 2,
+          passive_bonus: 0.3,
+          ability: {
+            name: 'Сила ритуала',
+            description: 'Даёт +30% к следующей успешной сессии.',
+            cooldown_hours: 24,
+            remaining_seconds: 0,
+            pending: false,
+          },
+        }],
+      },
+      manuscripts: {
+        journeys: [{ owner_key: 'project:one', owner_name: 'Роман', received_milestones: [10, 25] }],
+        milestones: [],
+        cabinet: {
+          relics: [{
+            key: 'ink_candle',
+            unlocked: true,
+            name: 'Чернильная свеча',
+            description: 'Маленький огонь первой работы над рукописью.',
+            condition: 'Достигните рубежа 10% в одном тексте.',
+            progress: 1,
+            required: 1,
+            effect_type: 'writing',
+            bonus: 0.01,
+            effect_description: 'Даёт +1% к наградам за написанный текст.',
+          }],
+          sets: [],
+        },
+      },
+    }))
+    const wrapper = mount(GamePage, {
+      global: { plugins: [createPinia()], stubs: { IonIcon: true } },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Чернильная свеча')
+    expect(wrapper.text()).toContain('🏅 Медаль качества')
+    expect(wrapper.text()).toContain('Спринт')
+    expect(wrapper.text()).toContain('Составить план')
+    expect(wrapper.text()).toContain('Объём дня')
+
+    const growthTab = wrapper.findAll('[role="tab"]')
+      .find((button) => button.text() === 'Развитие')
+    await growthTab?.trigger('click')
+    const specializationTab = wrapper.findAll('[role="tab"]')
+      .find((button) => button.text() === 'Специализация')
+    await specializationTab?.trigger('click')
+    expect(wrapper.text()).toContain('Ритуалист')
+    wrapper.unmount()
   })
 
   it('shows every message returned by a game command', async () => {

@@ -1430,6 +1430,60 @@ const SESSION_INTENTION_DEFINITIONS: &[(&str, &str)] = &[
     ),
 ];
 
+const DAILY_CHALLENGE_TYPE_DEFINITIONS: &[(&str, &str, &str)] = &[
+    (
+        "symbols",
+        "Объём дня",
+        "Написать выбранный объём текста за день.",
+    ),
+    (
+        "sessions",
+        "Сессионный ритм",
+        "Завершить несколько успешных писательских сессий.",
+    ),
+    (
+        "editing",
+        "День редактора",
+        "Завершить успешные сессии с намерением отредактировать текст.",
+    ),
+];
+const DAILY_CHALLENGE_DIFFICULTY_DEFINITIONS: &[(&str, &str)] =
+    &[("easy", "Легко"), ("normal", "Обычно"), ("hard", "Сложно")];
+const WEEKLY_CHALLENGE_DEFINITIONS: &[(&str, &str, &str, i64, f64, f64)] = &[
+    (
+        "symbols",
+        "Марафон",
+        "Написать 10 000 символов за неделю.",
+        10_000,
+        500.0,
+        1_500.0,
+    ),
+    (
+        "days",
+        "Ритм",
+        "Писать в четыре разных дня за неделю.",
+        4,
+        400.0,
+        1_200.0,
+    ),
+    (
+        "sessions",
+        "Чистый поток",
+        "Завершить пять успешных писательских сессий.",
+        5,
+        450.0,
+        1_350.0,
+    ),
+    (
+        "editing",
+        "Редакторская неделя",
+        "Завершить три успешные сессии с намерением отредактировать текст.",
+        3,
+        425.0,
+        1_300.0,
+    ),
+];
+
 const MANUSCRIPT_MILESTONE_DEFINITIONS: &[(i64, &str, i64, i64, i64)] = &[
     (10, "Искра замысла", 25, 250, 2),
     (25, "Первые главы", 50, 500, 3),
@@ -1509,6 +1563,124 @@ fn manuscripts_projection(gamer: &Map<String, Value>) -> Value {
     json!({"journeys":journeys,"milestones":milestones,"cabinet":{"relics":relics,"sets":sets}})
 }
 
+fn daily_challenge_option_projection(value: &Value) -> Value {
+    let Some(fields) = value.as_object() else {
+        return json!({
+            "option_id": "",
+            "date": "",
+            "type": "symbols",
+            "name": "Объём дня",
+            "description": "Написать выбранный объём текста за день.",
+            "difficulty": "normal",
+            "difficulty_name": "Обычно",
+            "target": 0,
+            "progress": 0,
+            "completed": false,
+            "reward": {"coins": 0.0, "experience": 0.0, "inspiration": 10},
+        });
+    };
+    let challenge_type = text_value(fields.get("type"), "symbols");
+    let difficulty = text_value(fields.get("difficulty"), "normal");
+    let (name, description) = DAILY_CHALLENGE_TYPE_DEFINITIONS
+        .iter()
+        .find(|(key, _, _)| *key == challenge_type)
+        .map_or((challenge_type.as_str(), ""), |(_, name, description)| {
+            (*name, *description)
+        });
+    let difficulty_name = DAILY_CHALLENGE_DIFFICULTY_DEFINITIONS
+        .iter()
+        .find(|(key, _)| *key == difficulty)
+        .map_or(difficulty.as_str(), |(_, name)| *name);
+    let option_id = fields
+        .get("option_id")
+        .map(|value| text_value(Some(value), ""))
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| format!("{challenge_type}:{difficulty}"));
+    json!({
+        "option_id": option_id,
+        "date": text_value(fields.get("date"), ""),
+        "type": challenge_type,
+        "name": name,
+        "description": description,
+        "difficulty": difficulty,
+        "difficulty_name": difficulty_name,
+        "target": integer_field(fields, "target", 0).max(0),
+        "progress": integer_field(fields, "progress", 0).max(0),
+        "completed": fields.get("completed").and_then(Value::as_bool).unwrap_or(false),
+        "reward": {
+            "coins": number_field(fields, "reward_coins", 0.0).max(0.0),
+            "experience": number_field(fields, "reward_exp", 0.0).max(0.0),
+            "inspiration": 10,
+        },
+    })
+}
+
+fn daily_challenge_projection(gamer: &Map<String, Value>) -> Value {
+    let current = gamer
+        .get("daily_challenge")
+        .filter(|value| !value.is_null())
+        .map(daily_challenge_option_projection)
+        .unwrap_or(Value::Null);
+    let options = gamer
+        .get("daily_challenge_options")
+        .and_then(Value::as_array)
+        .map(|values| {
+            values
+                .iter()
+                .map(daily_challenge_option_projection)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    json!({
+        "change_cost": 15,
+        "current": current,
+        "options": options,
+        "history": gamer.get("daily_challenge_history").cloned().unwrap_or(json!([])),
+    })
+}
+
+fn weekly_challenge_payload(value: &Value) -> Option<Value> {
+    let fields = value.as_object()?;
+    let key = text_value(fields.get("key"), "");
+    let (_, name, description, target, reward_coins, reward_exp) = WEEKLY_CHALLENGE_DEFINITIONS
+        .iter()
+        .find(|(definition_key, _, _, _, _, _)| *definition_key == key)?;
+    Some(json!({
+        "key": key,
+        "name": name,
+        "description": description,
+        "week_start": text_value(fields.get("week_start"), ""),
+        "target": target,
+        "progress": integer_field(fields, "progress", 0).max(0),
+        "writing_days": fields.get("writing_days").cloned().unwrap_or(json!([])),
+        "completed": fields.get("completed").and_then(Value::as_bool).unwrap_or(false),
+        "reward": {"coins": reward_coins, "experience": reward_exp, "inspiration": 20},
+    }))
+}
+
+fn weekly_challenge_projection(gamer: &Map<String, Value>) -> Value {
+    let current = gamer
+        .get("weekly_challenge")
+        .filter(|value| !value.is_null())
+        .and_then(weekly_challenge_payload)
+        .unwrap_or(Value::Null);
+    let catalog = WEEKLY_CHALLENGE_DEFINITIONS
+        .iter()
+        .map(
+            |(key, name, description, target, reward_coins, reward_exp)| {
+                json!({
+                    "key": key,
+                    "name": name,
+                    "description": description,
+                    "target": target,
+                    "reward": {"coins": reward_coins, "experience": reward_exp, "inspiration": 20},
+                })
+            },
+        )
+        .collect::<Vec<_>>();
+    json!({"current": current, "catalog": catalog})
+}
+
 fn project_state(root: &Value, now: &str, enabled: bool) -> GameResult<Value> {
     let root_object = root
         .as_object()
@@ -1548,8 +1720,8 @@ fn project_state(root: &Value, now: &str, enabled: bool) -> GameResult<Value> {
         "profile": {"level": level, "experience": number_field(gamer, "exp", 0.0).max(0.0), "next_level_experience": next_level_experience, "coins": number_field(gamer, "coins", 0.0).max(0.0), "inflation": number_field(gamer, "inflation", 1.0).max(1.0), "health": number_field(gamer, "health", max_health as f64).clamp(0.0, max_health as f64), "max_health": max_health, "inspiration": number_field(gamer, "inspiration", 0.0).clamp(0.0, 100.0), "max_inspiration": 100, "writing_session_streak": integer_field(gamer, "writing_session_streak", 0).max(0), "session_streak_shields": integer_field(gamer, "session_streak_shields", 0).clamp(0, 3), "session_grade_boosts": integer_field(gamer, "session_grade_boosts", 0).clamp(0, 1), "pending_bonuses": {"writing": number_field(gamer, "writing_reward_bonus", 0.0), "session": number_field(gamer, "session_reward_bonus", 0.0), "challenge": number_field(gamer, "challenge_reward_bonus", 0.0), "manuscript": number_field(gamer, "manuscript_reward_bonus", 0.0)}},
         "skills": skills_projection(gamer),
         "buffs": buffs_projection(gamer, now), "streak_freezes": {"date": now.get(..10).unwrap_or(now), "inventory_count": item_count(gamer, "Предметы", "Заморозка"), "global_available": false, "projects": []},
-        "notifications": notifications, "inventory": inventory, "quests": quest_projection(gamer), "daily_challenge": {"change_cost": 15, "current": gamer.get("daily_challenge").cloned().unwrap_or(Value::Null), "options": gamer.get("daily_challenge_options").cloned().unwrap_or(json!([])), "history": gamer.get("daily_challenge_history").cloned().unwrap_or(json!([]))},
-        "weekly_challenge": {"current": gamer.get("weekly_challenge").cloned().unwrap_or(Value::Null), "catalog": [{"key":"symbols","name":"Марафон","description":"Написать 10 000 символов за неделю.","target":10000,"reward":{"coins":500,"experience":1500,"inspiration":20}},{"key":"days","name":"Ритм","description":"Писать в четыре разных дня за неделю.","target":4,"reward":{"coins":400,"experience":1200,"inspiration":20}},{"key":"sessions","name":"Чистый поток","description":"Завершить пять успешных писательских сессий.","target":5,"reward":{"coins":450,"experience":1350,"inspiration":20}},{"key":"editing","name":"Редакторская неделя","description":"Завершить три успешные редакторские сессии.","target":3,"reward":{"coins":425,"experience":1300,"inspiration":20}}]},
+        "notifications": notifications, "inventory": inventory, "quests": quest_projection(gamer), "daily_challenge": daily_challenge_projection(gamer),
+        "weekly_challenge": weekly_challenge_projection(gamer),
         "writing_session": {"server_time": now, "active": session_projection(gamer.get("writing_session"), now), "streak": integer_field(gamer, "writing_session_streak", 0), "history": gamer.get("writing_session_history").cloned().unwrap_or(json!([])), "modes": SESSION_MODE_DEFINITIONS.iter().map(|(key,name,description,reward_bonus)| json!({"key":key,"name":name,"description":description,"reward_bonus":reward_bonus})).collect::<Vec<_>>(), "intentions": SESSION_INTENTION_DEFINITIONS.iter().map(|(key,description)| json!({"key":key,"name":key,"description":description})).collect::<Vec<_>>(), "grades": [{"key":"gold","name":"Золото","target_ratio":1.5,"reward_multiplier":1.3},{"key":"silver","name":"Серебро","target_ratio":1.25,"reward_multiplier":1.15},{"key":"bronze","name":"Бронза","target_ratio":1.0,"reward_multiplier":1.0}], "allowed_durations_minutes":[15,25,45,60]},
         "inspiration": {"abilities": [{"key":"creative_surge","name":"Творческий импульс","description":"+25% к следующей записи.","cost":30,"bonus":0.25,"active":number_field(gamer,"writing_reward_bonus",0.0)>0.0},{"key":"session_spark","name":"Искра сессии","description":"+25% к следующей сессии.","cost":25,"bonus":0.25,"active":number_field(gamer,"session_reward_bonus",0.0)>0.0},{"key":"challenge_focus","name":"Фокус испытания","description":"+25% к следующему испытанию.","cost":40,"bonus":0.25,"active":number_field(gamer,"challenge_reward_bonus",0.0)>0.0}], "creative_event": gamer.get("pending_creative_event").cloned().unwrap_or(Value::Null), "creative_event_history": gamer.get("creative_event_history").cloned().unwrap_or(json!([]))},
         "specializations": specializations_projection(gamer, now), "manuscripts": manuscripts_projection(gamer), "bank":bank_projection(gamer, level), "custom_awards":custom_awards_projection(gamer), "shop": catalog_state(gamer, true)
@@ -3331,6 +3503,10 @@ mod tests {
                     "specialization_ability_ready_at": {},
                     "specialization_ability_effects": {},
                     "items": {"Награды": {"⭐️ Знак дисциплины": 1}},
+                    "daily_challenge": {"option_id":"sessions:normal","date":"2026-09-05","type":"sessions","difficulty":"normal","target":2,"progress":0,"completed":false,"reward_coins":240,"reward_exp":1000},
+                    "daily_challenge_options": [{"option_id":"sessions:normal","date":"2026-09-05","type":"sessions","difficulty":"normal","target":2,"progress":0,"completed":false,"reward_coins":240,"reward_exp":1000}],
+                    "daily_challenge_history": [],
+                    "weekly_challenge": {"key":"symbols","week_start":"2026-08-31","progress":0,"writing_days":[],"completed":false},
                     "cabinet_relics": ["ink_candle", "plot_map"],
                     "manuscript_journeys": {"project:one": [10, 25, 50]}
                 }
@@ -3351,6 +3527,22 @@ mod tests {
             Some(5)
         );
         assert_eq!(state["specializations"]["selected"], json!("ritualist"));
+        assert_eq!(
+            state["daily_challenge"]["current"]["name"],
+            json!("Сессионный ритм")
+        );
+        assert_eq!(
+            state["daily_challenge"]["current"]["reward"]["coins"],
+            json!(240.0)
+        );
+        assert_eq!(
+            state["daily_challenge"]["current"]["description"],
+            json!("Завершить несколько успешных писательских сессий.")
+        );
+        assert_eq!(
+            state["weekly_challenge"]["current"]["name"],
+            json!("Марафон")
+        );
         assert_eq!(
             state["inventory"]["categories"][2]["items"][0]["description"],
             json!("Награда за запасной день и заботу о стрике.")

@@ -42,6 +42,25 @@ own the game definitions.
    reachable but hid the old workflow and made the empty projections appear
    as empty sections.
 
+## Regression introduced by `0be4639`
+
+The parity definitions themselves were present in the native projection, but
+the new overview mounted `ChallengesPanel` immediately for every Game page.
+Rust still passed legacy `daily_challenge` and `weekly_challenge` objects
+through unchanged, while the Vue contract expects normalized fields such as
+`name`, `difficulty_name`, and nested `reward.coins`/`reward.experience`.
+With the canonical test data this produced the Vue render exception
+`TypeError: Cannot read properties of undefined (reading 'coins')` at
+`daily.current.reward.coins` in `ChallengesPanel.vue`; the render failure made
+the complete Game page appear empty.
+
+The compatibility fix keeps the P4 relic, item, specialization, and session
+definitions, and normalizes the two challenge projections at the Rust/Vue
+boundary. It does not change migration, storage ownership, or production data.
+The native projection regression test covers the normalized challenge shape;
+the GamePage test mounts the overview and switches to specialization to verify
+that data reaches rendered Vue sections.
+
 ## Canonical native definitions restored by P4
 
 `frontend/src-tauri/src/game.rs` now owns typed, ordered definitions for:
