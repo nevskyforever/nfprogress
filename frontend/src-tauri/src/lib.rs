@@ -4602,6 +4602,7 @@ fn prepare_startup_storage(data_root: &Path) -> Result<(), String> {
 
 fn check_startup_storage() -> Result<(), String> {
     let data_root = sqlite_data_root()?;
+    eprintln!("nfprogress storage root: {}", data_root.display());
     prepare_startup_storage(&data_root)
 }
 

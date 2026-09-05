@@ -190,11 +190,12 @@ npx playwright test
 cd "$(git rev-parse --show-toplevel)"
 cd frontend
 npm ci
-npm run tauri:dev
+NFPROGRESS_DATA_DIR=/absolute/path/to/nfprogress-profile npm run tauri:dev
 ```
 
 `tauri:dev` самостоятельно запускает Tauri-окно и native SQLite/runtime.
-Вручную запускать FastAPI для desktop не нужно.
+Вручную запускать FastAPI для desktop не нужно. Для нового изолированного
+root используйте `bash "Run Tauri.sh"` ниже.
 
 Для обычного локального запуска нового desktop-приложения без production-пакета
 используйте из корня репозитория:
@@ -203,7 +204,18 @@ npm run tauri:dev
 bash "Run Tauri.sh"
 ```
 
-Скрипт выбирает Rust architecture текущего Mac и запускает native runtime.
+Скрипт выбирает Rust architecture текущего Mac и запускает native runtime с
+новым изолированным временным SQLite root. Путь к root печатается перед
+запуском; случайный `~/Documents/nfprogress/test_data` не используется.
+Для явной проверки границы миграции используйте сохранённый legacy-профиль:
+
+```bash
+bash "Run Tauri.sh" --legacy
+```
+
+Произвольный профиль задаётся явно через `--data-dir PATH` или
+`NFPROGRESS_DATA_DIR=/absolute/path`. Production root при этом не меняется.
+
 Production `.app`, DMG и ZIP при этом не создаются.
 Проверить prerequisites без открытия окна можно так:
 

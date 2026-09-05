@@ -7,15 +7,26 @@ SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$SCRIPT_DIR"
 
-MODE=""
-if [ "$#" -gt 0 ]; then
-  MODE="$1"
-fi
+MODE="${1:-}"
+DATA_ROOT=""
 
 case "$MODE" in
-  ""|--check) ;;
+  "") ;;
+  --data-dir)
+    if [ "$#" -ne 2 ] || [ -z "${2:-}" ]; then
+      echo "Использование: $0 [--fresh|--legacy|--data-dir PATH|--check]"
+      exit 2
+    fi
+    DATA_ROOT="$2"
+    ;;
+  --fresh|--legacy|--check)
+    if [ "$#" -ne 1 ]; then
+      echo "Использование: $0 [--fresh|--legacy|--data-dir PATH|--check]"
+      exit 2
+    fi
+    ;;
   *)
-    echo "Использование: $0 [--check]"
+    echo "Использование: $0 [--fresh|--legacy|--data-dir PATH|--check]"
     exit 2
     ;;
 esac
@@ -57,6 +68,24 @@ if [ "$MODE" = "--check" ]; then
   exit 0
 fi
 
+if [ -z "$DATA_ROOT" ]; then
+  case "$MODE" in
+    --fresh)
+      DATA_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nfprogress-tauri-dev.XXXXXX")"
+      ;;
+    --legacy)
+      DATA_ROOT="${HOME}/Documents/nfprogress/test_data"
+      ;;
+    *)
+      DATA_ROOT="${NFPROGRESS_DATA_DIR:-}"
+      if [ -z "$DATA_ROOT" ]; then
+        DATA_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nfprogress-tauri-dev.XXXXXX")"
+      fi
+      ;;
+  esac
+fi
+
+echo "Tauri dev data root: $DATA_ROOT"
 echo "Запускается Tauri dev. Это не production-сборка; при первом запуске Cargo может собрать debug-код."
 cd "$ROOT_DIR/frontend"
-exec npm run tauri:dev
+NFPROGRESS_DATA_DIR="$DATA_ROOT" exec npm run tauri:dev

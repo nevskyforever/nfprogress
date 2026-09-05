@@ -181,18 +181,31 @@ or a localhost sidecar.
 ```bash
 cd frontend
 npm ci
-npm run tauri:dev
-```
-
-For a local desktop test without a production package, run from the repository
-root:
-
-```bash
+cd ..
 bash "Run Tauri.sh"
 ```
 
-It selects the host target and starts the native application. Use
-bash "Run Tauri.sh" --check to validate prerequisites without opening a window.
+The repository script uses a fresh isolated temporary SQLite root by default.
+The root is printed before Tauri starts. To deliberately exercise the legacy
+migration boundary, use the explicit legacy profile:
+
+```bash
+bash "Run Tauri.sh" --legacy
+```
+
+For a specific profile, pass an explicit directory (the Rust runtime also
+accepts `NFPROGRESS_DATA_DIR` directly):
+
+```bash
+bash "Run Tauri.sh" --data-dir /absolute/path/to/nfprogress-profile
+NFPROGRESS_DATA_DIR=/absolute/path/to/nfprogress-profile bash "Run Tauri.sh"
+```
+
+The script selects the host target and starts the native application. Use
+`bash "Run Tauri.sh" --check` to validate prerequisites without opening a
+window. `npm run tauri:dev` remains available for advanced use, but should be
+paired with an explicit `NFPROGRESS_DATA_DIR` when a non-fresh profile is
+needed.
 Stop a separately running npm run dev first, because Tauri dev uses port 5173.
 
 Checks and a production bundle:
