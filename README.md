@@ -224,8 +224,10 @@ npm run tauri:build
 ```
 
 `Build Tauri ARM.sh`, `Build Tauri Intel.sh`, and `Build Tauri All.sh`
-provide matching macOS build entry points. They build the native Tauri app,
-verified plain DMG, and a local ZIP containing the DMG,
+provide local test/qualification build entry points. They compile a release
+native Tauri app with `NFPROGRESS_BUILD_PROFILE=test`, use
+`~/Documents/nfprogress/test_data` when opened from Finder, and produce a
+test-prefixed verified DMG plus a local ZIP containing the DMG,
 license, and source-code notice:
 
 ```bash
@@ -234,7 +236,7 @@ bash "Build Tauri Intel.sh"
 bash "Build Tauri All.sh"
 ```
 
-`Build Tauri All.sh` remains a parallel ARM/Intel development build. The initial
+`Build Tauri All.sh` remains a parallel ARM/Intel test build. The initial
 release policy is ARM64 only: `Release Tauri ARM.sh` is the primary macOS
 release entry point, and `Release Tauri All.sh` runs only that target by default.
 Use `Release Tauri All.sh intel` (or set
@@ -254,6 +256,9 @@ reject Python/FastAPI/Nuitka/backend payloads, then print sizes, SHA-256,
 provenance, signing status and updater status. Set
 `NFPROGRESS_TAURI_RELEASE_UPLOAD=1` only for the separately maintained legacy
 hosting handoff; it is not the Tauri updater and is never implicit.
+Release scripts force `NFPROGRESS_BUILD_PROFILE=production` and retain the
+production artifact names. The lower-level `scripts/build-tauri-local.sh` is
+production-default unless this variable is set explicitly.
 
 ### Windows release and automatic updates
 

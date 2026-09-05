@@ -3,6 +3,7 @@
 set -euo pipefail
 
 ARCH="${1:-}"
+BUILD_PROFILE="${NFPROGRESS_BUILD_PROFILE:-production}"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
@@ -22,6 +23,20 @@ case "$ARCH" in
     exit 2
     ;;
 esac
+
+case "$BUILD_PROFILE" in
+  test)
+    ARTIFACT_PREFIX="nfprogress-test-tauri-mac-$ARCH"
+    ;;
+  production)
+    ;;
+  *)
+    echo "Неподдерживаемый NFPROGRESS_BUILD_PROFILE: $BUILD_PROFILE"
+    echo "Ожидается: test или production"
+    exit 2
+    ;;
+esac
+export NFPROGRESS_BUILD_PROFILE="$BUILD_PROFILE"
 
 WORKSPACE_DIR="$ROOT_DIR/.tauri-build-workspaces/$ARCH"
 FRONTEND_SOURCE_DIR="$ROOT_DIR/frontend"
@@ -91,6 +106,8 @@ if [ ! -f "$NODE_MODULES_LOCK" ] \
 fi
 
 node "$ROOT_DIR/scripts/sync-tauri-versions.mjs" --frontend-dir "$FRONTEND_DIR"
+node "$ROOT_DIR/scripts/apply-tauri-build-profile.mjs" \
+  "$FRONTEND_DIR/src-tauri/tauri.conf.json" "$BUILD_PROFILE"
 VERSION="$(node "$ROOT_DIR/scripts/sync-tauri-versions.mjs" --version-only)"
 DMG_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.dmg"
 ARTIFACT_PATH="$BUILD_DIR/$ARTIFACT_PREFIX-$VERSION.zip"

@@ -209,3 +209,25 @@ def test_parallel_architecture_builds_use_separate_frontend_workspaces(tmp_path)
     assert not (intel_frontend / 'src-tauri' / 'target' / 'x86_64-apple-darwin' / 'release' / 'bundle').exists()
     assert not (arm_frontend / 'src-tauri' / 'binaries').exists()
     assert not (intel_frontend / 'src-tauri' / 'binaries').exists()
+
+
+def test_test_build_profile_uses_distinct_artifact_prefix(tmp_path):
+    root, bin_dir = _create_build_fixture(tmp_path)
+    common_env = os.environ | {
+        'PATH': f'{bin_dir}{os.pathsep}{os.environ["PATH"]}',
+        'NFPROGRESS_BUILD_PROFILE': 'test',
+        'TEST_NPM_LOG': str(tmp_path / 'npm.log'),
+        'TEST_DMG_LOG': str(tmp_path / 'dmg.log'),
+    }
+
+    result = subprocess.run(
+        [str(root / 'scripts' / 'build-tauri-local.sh'), 'arm'],
+        cwd=root,
+        env=common_env,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (root / 'build-tauri-arm' / 'nfprogress-test-tauri-mac-arm-5.3.0.zip').is_file()

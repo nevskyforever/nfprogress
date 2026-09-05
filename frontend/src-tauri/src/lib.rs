@@ -3860,7 +3860,7 @@ fn sqlite_data_root() -> Result<PathBuf, String> {
             home.join(".local").join("share").join("nfprogress")
         }
     };
-    if cfg!(debug_assertions) {
+    if build_profile() == "test" {
         Ok(root.join("test_data"))
     } else {
         Ok(root)
@@ -4594,6 +4594,13 @@ fn native_updates_enabled() -> bool {
     )
 }
 
+fn build_profile() -> &'static str {
+    match option_env!("NFPROGRESS_BUILD_PROFILE") {
+        Some("test") => "test",
+        _ => "production",
+    }
+}
+
 fn prepare_startup_storage(data_root: &Path) -> Result<(), String> {
     let connection = sqlite::open_database(&data_root.join("nfprogress.db"))
         .map_err(|error| error.to_string())?;
@@ -4602,7 +4609,11 @@ fn prepare_startup_storage(data_root: &Path) -> Result<(), String> {
 
 fn check_startup_storage() -> Result<(), String> {
     let data_root = sqlite_data_root()?;
-    eprintln!("nfprogress storage root: {}", data_root.display());
+    eprintln!(
+        "nfprogress build_profile={} data_root={}",
+        build_profile(),
+        data_root.display()
+    );
     prepare_startup_storage(&data_root)
 }
 

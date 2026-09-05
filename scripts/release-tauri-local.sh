@@ -4,6 +4,7 @@
 set -euo pipefail
 
 ARCH="${1:-}"
+export NFPROGRESS_BUILD_PROFILE=production
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"

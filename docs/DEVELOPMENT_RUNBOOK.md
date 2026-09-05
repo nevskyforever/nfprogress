@@ -244,7 +244,10 @@ cd frontend
 npm run tauri:build
 ```
 
-Для локальных macOS-архивов доступны ARM/Intel/All-скрипты:
+Для локального test/qualification macOS-архива доступны ARM/Intel/All-скрипты.
+Они собирают release-компилированный app с
+`NFPROGRESS_BUILD_PROFILE=test`, поэтому Finder launch использует canonical
+`~/Documents/nfprogress/test_data`:
 
 ```bash
 bash "Build Tauri ARM.sh"
@@ -252,7 +255,7 @@ bash "Build Tauri Intel.sh"
 bash "Build Tauri All.sh"
 ```
 
-`Build Tauri All.sh` параллельно выполняет ARM- и Intel-сборку для разработки.
+`Build Tauri All.sh` параллельно выполняет ARM- и Intel test-сборку.
 Initial release macOS — только Apple Silicon: `Release Tauri ARM.sh` является
 основной точкой релиза, а `Release Tauri All.sh` по умолчанию запускает только
 ARM. Intel остаётся доступен явно через `Release Tauri All.sh intel` или

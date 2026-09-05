@@ -3,4 +3,5 @@ set -euo pipefail
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 
-"$SCRIPT_DIR/scripts/build-tauri-local.sh" intel
+NFPROGRESS_BUILD_PROFILE=test \
+  "$SCRIPT_DIR/scripts/build-tauri-local.sh" intel
