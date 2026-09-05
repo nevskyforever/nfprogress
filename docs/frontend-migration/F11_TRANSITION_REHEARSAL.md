@@ -62,6 +62,24 @@ The helper binary was built with PyInstaller on the ARM host and passed
 `file`/Mach-O inspection. It is ad-hoc signed, which is an accepted `P1`
 trust limitation under the current policy.
 
+## Windows qualification failure and fix
+
+The real run `33921490088`, job `101180595526`, checked out
+`ff4653d296182da723f1601a0c8a0d8d690fd64b8` and passed frontend, Rust (31
+tests), Windows path/fallback, helper build, `detect`, and `preview`. It failed
+at helper `prepare` with exit code `15`:
+
+```text
+{"status":"migration_failed","error":"[Errno 9] Bad file descriptor","details":[]}
+```
+
+The failing operation was backup sealing: POSIX directory `fsync` was invoked
+against a Windows directory descriptor. The fix conditionally performs
+directory fsync only on POSIX. Windows still flushes file descriptors and uses
+atomic `os.replace`/MoveFileEx semantics; replacement failures remain
+fail-closed and preserve the source/backup. The workflow must be rerun after
+the fix commit before any Windows helper or transition PASS is recorded.
+
 ## Uncompleted P0 stages
 
 The Tauri install/first-launch/restart leg was not completed. The local

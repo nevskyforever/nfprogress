@@ -20,7 +20,7 @@ public release is authorized.
 | ARM Tauri first launch/restart | NOT TESTED | active installed single-instance process prevented isolated launch |
 | ARM full transition | BLOCKED | install/launch/restart leg remains |
 | Intel app/helper/runtime | DEFERRED | macOS Intel is not in initial rollout scope; support remains retained |
-| Windows app/helper/NSIS/runtime | NOT TESTED | Windows x64 runner required |
+| Windows app/helper/NSIS/runtime | BLOCKED | run `33921490088` reached helper `prepare`; Windows directory fsync caused `[Errno 9] Bad file descriptor`; rerun after fix |
 | transition handoff release | BLOCKED | minimal transitional Python release not implemented/qualified |
 | transition metadata | PASS (fixture) | F10 documentation fixture validates target/platform shape; production values remain unassigned |
 | Tauri updater valid/invalid crypto | PASS (ephemeral test key) | matching `.sig` accepted and tampered payload rejected by `minisign-verify`; production key continuity not proven |

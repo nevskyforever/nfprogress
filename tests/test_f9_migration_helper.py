@@ -18,6 +18,7 @@ from nfprogress.core.legacy_decoder import (
     load_legacy_pickle,
 )
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core import recovery
 from nfprogress.migration_helper import (
     HelperError,
     OUTCOME_DESTINATION_INVALID,
@@ -169,6 +170,30 @@ def test_large_legacy_fixture_migrates_through_helper(tmp_path):
         assert "🚀" in db.execute(
             "SELECT payload_json FROM projects WHERE id='large-project-249'"
         ).fetchone()[0]
+
+
+def test_prepare_windows_path_skips_unsupported_directory_fsync_and_keeps_recovery(tmp_path, monkeypatch):
+    """Windows prepare must not fsync a directory descriptor (Errno 9)."""
+    _fixture(tmp_path)
+    monkeypatch.setattr(recovery, "_directory_fsync_supported", lambda: False)
+    report = prepare(tmp_path)
+
+    assert report.outcome == OUTCOME_MIGRATION_VERIFIED
+    assert verify_prepared_profile(tmp_path) == (True, [])
+    assert (tmp_path / "nfprogress.db").is_file()
+    assert (tmp_path / "backups").is_dir()
+    assert (tmp_path / "data.pkl").is_file()
+
+    def unexpected_directory_open(*_args, **_kwargs):
+        raise AssertionError("Windows prepare must not open a directory for fsync")
+
+    monkeypatch.setattr(recovery.os, "open", unexpected_directory_open)
+    recovery._fsync_directory(tmp_path)
+
+
+def test_directory_fsync_support_is_posix_only(monkeypatch):
+    monkeypatch.setattr(recovery.os, "name", "nt")
+    assert recovery._directory_fsync_supported() is False
 
 
 def test_deterministic_ids_and_fingerprint_for_same_source(tmp_path):

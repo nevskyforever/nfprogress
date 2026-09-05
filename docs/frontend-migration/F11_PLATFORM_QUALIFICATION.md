@@ -9,7 +9,7 @@ directly from baseline `3b3980d`. This is a private/non-publishing report.
 | --- | --- | --- | --- | --- |
 | macOS ARM | real local Tauri build, arm64, DMG verified, provenance verified | real arm64 one-file helper; detect/preview/prepare/verify passed | not completed: qualification bundle launch was prevented by the already-running `/Applications/nfprogress.app` single-instance process | **BLOCKED — P0 runtime evidence** |
 | macOS Intel | Intel build support retained; no Intel host/runner used | no Intel helper runtime | deferred from the initial rollout | **DEFERRED — P1/backlog** |
-| Windows x64 | separate manual `f11-windows-qualification.yml` targets `windows-latest` and NSIS | packaged helper smoke is required on the hosted runner | not run from this host; workflow is ready for dispatch | **NOT TESTED — P0 evidence pending** |
+| Windows x64 | manual run `33921490088` on `windows-latest`; checkout `ff4653d296182da723f1601a0c8a0d8d690fd64b`; Tauri build not reached after helper failure | `.exe` build, `detect`, `preview` passed; `prepare` failed with `[Errno 9] Bad file descriptor` | install/launch/restart not reached | **BLOCKED — P0 helper regression; rerun required** |
 
 OS signing limitations are not the reason for any status above. Under the
 current policy, macOS ad-hoc and Windows unsigned artifacts are acceptable
@@ -39,6 +39,16 @@ workflow, but it could not be dispatched from this host because GitHub CLI and
 runner credentials are unavailable. A Windows run must attach the artifact
 name, SHA-256, exact checkout SHA, helper smoke output, resolved data paths,
 install path, first-launch result, restart result, and recovery results.
+
+The first real Windows attempt reached job `101180595526`: frontend and Rust
+checks passed (Rust reported 31 tests), Windows path/fallback fixture passed,
+the helper `.exe` build/detect/preview passed, and `prepare` failed with exit
+code `15` and `{"status":"migration_failed","error":"[Errno 9] Bad file descriptor"}`.
+The failure was in backup sealing, where `_fsync_directory` called `os.fsync`
+on a Windows directory descriptor. The F11 fix makes directory fsync POSIX-only
+while retaining file fsync and atomic `os.replace` activation. This evidence
+is a genuine P0 regression result, not a Windows PASS; the same workflow must
+be rerun from the fix commit.
 
 ## Trust limitation
 

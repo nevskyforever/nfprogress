@@ -80,9 +80,24 @@ def _fsync_file(path: Path) -> None:
         os.fsync(stream.fileno())
 
 
+def _directory_fsync_supported() -> bool:
+    """Return whether this platform supports fsync on an opened directory."""
+    return os.name == "posix"
+
+
 def _fsync_directory(path: Path) -> None:
+    # POSIX directory descriptors provide the durability barrier for renames.
+    # Windows does not expose a fsync-able directory descriptor: os.open may
+    # succeed, but os.fsync then raises [Errno 9] Bad file descriptor. Windows
+    # keeps the file fsyncs above and relies on os.replace/MoveFileEx for the
+    # atomic rename; a failed replace remains fail-closed and preserves source.
+    if not _directory_fsync_supported():
+        return
     try:
-        descriptor = os.open(path, os.O_RDONLY)
+        flags = os.O_RDONLY
+        if hasattr(os, "O_DIRECTORY"):
+            flags |= os.O_DIRECTORY
+        descriptor = os.open(path, flags)
     except OSError:
         return
     try:
