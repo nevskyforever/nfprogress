@@ -222,6 +222,12 @@ export interface WritingSessionMode {
   reward_bonus: number
 }
 
+export interface WritingSessionIntention {
+  key: string
+  name: string
+  description: string
+}
+
 export interface WritingSessionGrade {
   key: string
   name: string
@@ -251,6 +257,7 @@ export interface WritingSessionState {
   streak: number
   history: WritingSessionHistoryEntry[]
   modes: WritingSessionMode[]
+  intentions: WritingSessionIntention[]
   grades: WritingSessionGrade[]
   allowed_durations_minutes: number[]
 }

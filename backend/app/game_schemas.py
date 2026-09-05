@@ -230,6 +230,12 @@ class WritingSessionModeResponse(GameResponseModel):
     reward_bonus: float
 
 
+class WritingSessionIntentionResponse(GameResponseModel):
+    key: str
+    name: str
+    description: str
+
+
 class WritingSessionGradeResponse(GameResponseModel):
     key: str
     name: str
@@ -245,6 +251,7 @@ class WritingSessionResponse(GameResponseModel):
     # future result metadata, but are still guaranteed to be JSON-safe.
     history: list[JsonValue]
     modes: list[WritingSessionModeResponse]
+    intentions: list[WritingSessionIntentionResponse]
     grades: list[WritingSessionGradeResponse]
     allowed_durations_minutes: list[int]
 

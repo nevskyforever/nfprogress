@@ -1048,10 +1048,12 @@ fn catalog_item(category: &str, key: &str) -> Option<CatalogItem> {
 
 fn catalog_item_json(gamer: &Map<String, Value>, item: CatalogItem, include_count: bool) -> Value {
     let count = item_count(gamer, item.category, item.key);
+    let (name, description, effect) = catalog_metadata(item.key);
     let mut result = json!({
         "id": format!("{}:{}", item.category, item.key), "key": item.key,
-        "category": item.category, "name": item.key,
-        "description": null, "price": item.price, "sell_price": rounded_money(item.price * 0.75),
+        "category": item.category, "name": name,
+        "description": description, "effect": effect,
+        "price": item.price, "sell_price": rounded_money(item.price * 0.75),
         "level": item.level, "sellable": item.sellable, "usable": item.usable,
         "buy": item.buyable, "credit_allowed": item.credit_allowed,
         "maximum_quantity": item.maximum, "available_for_level": integer_field(gamer, "level", 1) >= item.level,
@@ -1063,6 +1065,106 @@ fn catalog_item_json(gamer: &Map<String, Value>, item: CatalogItem, include_coun
         result["count"] = json!(count);
     }
     result
+}
+
+// These are the canonical native display definitions copied from the legacy
+// ITEM_REGISTRY. Save keys remain the emoji-free Russian keys used by Gamer.
+const ITEM_METADATA: &[(&str, &str, &str, Option<&str>)] = &[
+    ("Микро зелье здоровья", "🧪  Микро зелье здоровья", "🧪  Восстанавливает здоровье на 5 единиц", Some("Восстанавливает здоровье")),
+    ("Малое зелье здоровья", "🧪  Малое зелье здоровья", "🧪  Восстанавливает здоровье на 10 единиц", Some("Восстанавливает здоровье")),
+    ("Среднее зелье здоровья", "🧪  Среднее зелье здоровья", "🧪  Восстанавливает здоровье на 25 единиц", Some("Восстанавливает здоровье")),
+    ("Большое зелье здоровья", "🧪  Большое зелье здоровья", "🧪  Восстанавливает здоровье на 50 единиц", Some("Восстанавливает здоровье")),
+    ("Зелье воскрешения", "🧪  Зелье воскрешения", "🧪  Полностью восстанавливает здоровье", Some("Восстанавливает здоровье")),
+    ("Зелье вдохновения", "✨ Зелье вдохновения", "Восстанавливает 25 вдохновения.", Some("Восстанавливает 25 вдохновения")),
+    ("Искра вдохновения", "💫 Искра вдохновения", "Восстанавливает 10 вдохновения.", Some("Восстанавливает 25 вдохновения")),
+    ("Большое зелье вдохновения", "🌟 Большое зелье вдохновения", "Восстанавливает 50 вдохновения.", Some("Восстанавливает 25 вдохновения")),
+    ("Эликсир вдохновения", "🌌 Эликсир вдохновения", "Полностью восстанавливает вдохновение.", Some("Восстанавливает 25 вдохновения")),
+    ("Часовое зелье познания", "🧪⚡️  Часовое зелье познания", "Увеличивает коэффициент опыта на 1 на один час", None),
+    ("Суточное зелье познания", "🧪⚡️  Суточное зелье познания", "Увеличивает коэффициент опыта на 1 на один день", None),
+    ("Недельное зелье познания", "🧪⚡️  Недельное зелье познания", "Увеличивает коэффициент опыта на 1 на одну неделю", None),
+    ("Часовое зелье доходности", "🧪⚡️  Часовое зелье доходности", "Увеличивает коэффициент монет на 0.5 на один час", None),
+    ("Суточное зелье доходности", "🧪⚡️  Суточное зелье доходности", "Увеличивает коэффициент монет на 0.5 на один день", None),
+    ("Недельное зелье доходности", "🧪⚡️  Недельное зелье доходности", "Увеличивает коэффициент монет на 0.5 на одну неделю", None),
+    ("Часовое зелье просвещения", "🧪⚡️  Часовое зелье просвещения", "Увеличивает коэффициент опыта на 10 на один час", None),
+    ("Суточное зелье просвещения", "🧪⚡️  Суточное зелье просвещения", "Увеличивает коэффициент опыта на 10 на один день", None),
+    ("Недельное зелье просвещения", "🧪⚡️  Недельное зелье просвещения", "Увеличивает коэффициент опыта на 10 на одну неделю", None),
+    ("Часовое зелье супердоходности", "🧪⚡️  Часовое зелье супердоходности", "Увеличивает коэффициент монет на 10 на один час", None),
+    ("Суточное зелье супердоходности", "🧪⚡️  Суточное зелье супердоходности", "Увеличивает коэффициент монет на 10 на один день", None),
+    ("Недельное зелье супердоходности", "🧪⚡️  Недельное зелье супердоходности", "Увеличивает коэффициент монет на 10 на одну неделю", None),
+    ("Заморозка", "❄️ Заморозка", "Заморозка позволяет пропустить один день стрика в проекте с дедлайном и активным стриком️\n⚠️ Важно: чем больше заморозок вы используете, тем дороже они становятся.\nМожно иметь не более 2 заморозок в инвентаре и купить до 2 за раз.", None),
+    ("Чернильница потока", "🖋️ Чернильница потока", "Увеличивает награду за следующую успешную писательскую сессию на 25%.", Some("Увеличивает награду за следующую успешную сессию на 25%")),
+    ("Компас рукописи", "🧭 Компас рукописи", "Увеличивает награду за следующие достигнутые рубежи одной рукописи на 25%.", Some("Увеличивает награду за следующие рубежи рукописи на 25%")),
+    ("Учебник мастерства", "📘 Учебник мастерства", "Добавляет 2 опыта мастерства выбранной специализации.", Some("Добавляет 2 опыта мастерства выбранной специализации")),
+    ("Жетон новой цели", "🎲 Жетон новой цели", "Бесплатно меняет текущую цель дня на другой вариант.", Some("Бесплатно меняет текущую цель дня на следующий вариант")),
+    ("Нить ритуала", "🧵 Нить ритуала", "Один раз защищает серию успешных сессий при неудаче.", Some("Один раз сохраняет серию при неудачной сессии (максимум 3)")),
+    ("Медаль качества", "🏅 Медаль качества", "Повышает результат следующей успешной сессии на одну ступень.", Some("Повышает результат следующей успешной сессии на одну ступень")),
+    ("Лотерейный билет", "🎟️ Лотерейный билет", "Лотерейный билет \"5 из 30\". Угадайте числа и сорвите джекпот!", Some("Разыграйте 5 чисел из 30 и получите приз за 2 или больше совпадений")),
+    ("Печатная машинка Хемингуэя", "📠  Печатная машинка Хемингуэя", "Постоянно увеличивает коэффициент опыта на 0,5.", None),
+    ("Ноутбук Роалинг", "💻  Ноутбук Роалинг", "Постоянно увеличивает коэффициент опыта на 1.", None),
+    ("Литературный раб", "📃  Литературный раб", "Постоянно увеличивает коэффициенты опыта и монет на 0,25 за экземпляр.", None),
+    ("Амулет восстановления", "❤️  Амулет восстановления", "Постоянно увеличивает коэффициент восстановления здоровья на 1.", None),
+];
+
+const REWARD_METADATA: &[(&str, &str, &str)] = &[
+    ("👑  Корона Первой Эпохи", "👑  Корона Первой Эпохи", "Корона выдается игрокам, которые прошли первую экономическую реформу в игре"),
+    ("💎  Перо Миллионера", "💎  Перо Миллионера", "Перо выдается игрокам, которые заработали больше миллиона монет до первой экономической реформы в игре"),
+    ("⭐️ Знак заботы о здоровье", "⭐️ Знак заботы о здоровье", "Награда за подготовку аптечки автора."),
+    ("⭐️ Знак дисциплины", "⭐️ Знак дисциплины", "Награда за запасной день и заботу о стрике."),
+    ("⭐️ Банковский жетон", "⭐️ Банковский жетон", "Награда за первый вклад в банке."),
+    ("⭐️ Знак коллекционера", "⭐️ Знак коллекционера", "Награда за собранную коллекцию предметов."),
+    ("⭐️ Знак недельной практики", "⭐️ Знак недельной практики", "Награда за семь дней записей подряд."),
+    ("⭐️ Знак быстрого финала", "⭐️ Знак быстрого финала", "Награда за завершение текста за две недели."),
+    ("⭐️ Знак теплого стрика", "⭐️ Знак теплого стрика", "Награда за неделю без заморозки."),
+    ("⭐️ Знак чистого финиша", "⭐️ Знак чистого финиша", "Награда за завершение текста без заморозок."),
+    ("⭐️ Знак двух недель", "⭐️ Знак двух недель", "Награда за четырнадцать дней записей подряд."),
+    ("⭐️ Знак без льда", "⭐️ Знак без льда", "Награда за длительную серию без заморозок."),
+    ("⭐️ Знак глубоких дней", "⭐️ Знак глубоких дней", "Награда за несколько продуктивных дней."),
+    ("⭐️ Знак трех финалов", "⭐️ Знак трех финалов", "Награда за три завершенных текста."),
+    ("⭐️ Знак большой формы", "⭐️ Знак большой формы", "Награда за завершение крупного текста."),
+    ("⭐️ Знак марафонца", "⭐️ Знак марафонца", "Награда за длинный стрик до финиша."),
+    ("⭐️ Знак двух линий", "⭐️ Знак двух линий", "Награда за параллельную дисциплину в двух текстах."),
+    ("⭐️ Знак зала славы", "⭐️ Знак зала славы", "Награда за большую коллекцию наград."),
+    ("⭐️ Знак трех фронтов", "⭐️ Знак трех фронтов", "Награда за три активных текста одновременно."),
+    ("⭐️ Знак короткой победы", "⭐️ Знак короткой победы", "Награда за завершение короткого текста."),
+    ("⭐️ Знак пяти сильных дней", "⭐️ Знак пяти сильных дней", "Награда за пять продуктивных дней."),
+    ("⭐️ Знак дневника рукописи", "⭐️ Знак дневника рукописи", "Награда за регулярные записи в одном тексте."),
+    ("⭐️ Знак серьезного вклада", "⭐️ Знак серьезного вклада", "Награда за крупный активный вклад."),
+    ("⭐️ Знак умного вклада", "⭐️ Знак умного вклада", "Награда за вклад с полученными процентами."),
+    ("⭐️ Знак пяти завершений", "⭐️ Знак пяти завершений", "Награда за пять завершенных текстов."),
+    ("⭐️ Знак ста тысяч", "⭐️ Знак ста тысяч", "Награда за сто тысяч написанных символов."),
+    ("⭐️ Знак семи рукописей", "⭐️ Знак семи рукописей", "Награда за семь завершенных текстов."),
+    ("⭐️ Знак полутора месяцев", "⭐️ Знак полутора месяцев", "Награда за сорок пять дней глобального стрика."),
+    ("⭐️ Знак месяца без льда", "⭐️ Знак месяца без льда", "Награда за месяц дисциплины без заморозок."),
+    ("⭐️ Знак десяти дней", "⭐️ Знак десяти дней", "Награда за десять продуктивных дней."),
+    ("⭐️ Знак четверти миллиона", "⭐️ Знак четверти миллиона", "Награда за четверть миллиона символов."),
+    ("⭐️ Знак недели мастера", "⭐️ Знак недели мастера", "Награда за особенно продуктивную неделю."),
+    ("⭐️ Знак половины миллиона", "⭐️ Знак половины миллиона", "Награда за половину миллиона символов."),
+    ("⭐️ Знак пятнадцати завершений", "⭐️ Знак пятнадцати завершений", "Награда за пятнадцать завершенных текстов."),
+    ("⭐️ Знак завершённого романа", "⭐️ Знак завершённого романа", "Награда за завершение большого романа."),
+    ("⭐️ Знак легенды мастерства", "⭐️ Знак легенды мастерства", "Награда за достижение 30 уровня."),
+    ("⭐️ Знак глобальной недели", "⭐️ Знак глобальной недели", "Награда за семь дней глобального стрика."),
+    ("⭐️ Знак глобальных двух недель", "⭐️ Знак глобальных двух недель", "Награда за четырнадцать дней глобального стрика."),
+    ("⭐️ Знак глобальной привычки", "⭐️ Знак глобальной привычки", "Награда за двадцать один день глобального стрика."),
+    ("⭐️ Знак глобального месяца", "⭐️ Знак глобального месяца", "Награда за тридцать дней глобального стрика."),
+    ("⭐️ Знак чистого глобального месяца", "⭐️ Знак чистого глобального месяца", "Награда за тридцать дней глобального стрика без заморозок."),
+    ("⭐️ Знак глобального сезона", "⭐️ Знак глобального сезона", "Награда за шестьдесят дней глобального стрика."),
+    ("⭐️ Знак глобального квартала", "⭐️ Знак глобального квартала", "Награда за девяносто дней глобального стрика."),
+    ("⭐️ Знак глобального полугодия", "⭐️ Знак глобального полугодия", "Награда за сто восемьдесят дней глобального стрика."),
+    ("⭐️ Знак глобального года", "⭐️ Знак глобального года", "Награда за год глобального стрика."),
+];
+
+fn catalog_metadata(key: &str) -> (&'static str, &'static str, Option<&'static str>) {
+    if let Some((_, name, description, effect)) = ITEM_METADATA
+        .iter()
+        .find(|(item_key, _, _, _)| *item_key == key)
+    {
+        return (*name, *description, *effect);
+    }
+    REWARD_METADATA
+        .iter()
+        .find(|(item_key, _, _)| *item_key == key)
+        .map(|(_, name, description)| (*name, *description, None))
+        .unwrap_or(("Неизвестный предмет", "Нет описания", None))
 }
 
 fn notification_json(value: &Value, status: &str, index: usize) -> Value {
@@ -1098,6 +1200,313 @@ fn catalog_state(gamer: &Map<String, Value>, include_count: bool) -> Value {
         categories.push(json!({"key": category, "name": category, "items": items}));
     }
     json!({"categories": categories, "custom_awards": {"items": []}})
+}
+
+struct SpecializationDefinition {
+    key: &'static str,
+    name: &'static str,
+    description: &'static str,
+    base_bonus: f64,
+    mastery_step: f64,
+    ability_name: &'static str,
+    ability_description: &'static str,
+}
+
+const SPECIALIZATION_DEFINITIONS: &[SpecializationDefinition] = &[
+    SpecializationDefinition {
+        key: "marathoner",
+        name: "Марафонец",
+        description: "Даёт +15% монет и опыта за записи от 3 000 символов.",
+        base_bonus: 0.15,
+        mastery_step: 0.025,
+        ability_name: "Длинное дыхание",
+        ability_description: "Даёт +30% к следующей записи объёмом не менее 3 000 символов.",
+    },
+    SpecializationDefinition {
+        key: "ritualist",
+        name: "Ритуалист",
+        description: "Даёт +25% к награде за успешную писательскую сессию.",
+        base_bonus: 0.25,
+        mastery_step: 0.025,
+        ability_name: "Сила ритуала",
+        ability_description:
+            "Даёт +30% к следующей успешной сессии или один раз сохраняет серию при неудаче.",
+    },
+    SpecializationDefinition {
+        key: "finisher",
+        name: "Финишер",
+        description: "Даёт +20% к награде за завершение этапа или проекта.",
+        base_bonus: 0.20,
+        mastery_step: 0.025,
+        ability_name: "Рывок к финалу",
+        ability_description: "Даёт +30% к наградам за следующие достигнутые рубежи одной рукописи.",
+    },
+    SpecializationDefinition {
+        key: "explorer",
+        name: "Исследователь",
+        description: "Даёт +20% к наградам за дневные и недельные испытания.",
+        base_bonus: 0.20,
+        mastery_step: 0.025,
+        ability_name: "Новый маршрут",
+        ability_description: "Бесплатно заменяет текущее недельное испытание другим.",
+    },
+    SpecializationDefinition {
+        key: "editor",
+        name: "Редактор",
+        description: "Даёт +25% к награде за успешную редакторскую сессию.",
+        base_bonus: 0.25,
+        mastery_step: 0.025,
+        ability_name: "Точный взгляд",
+        ability_description: "Даёт +30% к награде за следующую успешную редакторскую сессию.",
+    },
+];
+const SPECIALIZATION_MASTERY_THRESHOLDS: &[i64] = &[0, 3, 8, 15, 25];
+
+struct RelicDefinition {
+    key: &'static str,
+    name: &'static str,
+    description: &'static str,
+    condition: &'static str,
+    required_progress: i64,
+    required_projects: i64,
+    effect_type: &'static str,
+    bonus: f64,
+    effect_description: &'static str,
+}
+
+const RELIC_DEFINITIONS: &[RelicDefinition] = &[
+    RelicDefinition {
+        key: "ink_candle",
+        name: "Чернильная свеча",
+        description: "Маленький огонь, зажжённый первой настоящей работой над рукописью.",
+        condition: "Достигните рубежа 10% в одном тексте.",
+        required_progress: 10,
+        required_projects: 1,
+        effect_type: "writing",
+        bonus: 0.01,
+        effect_description: "Даёт +1% к наградам за написанный текст.",
+    },
+    RelicDefinition {
+        key: "plot_map",
+        name: "Карта сюжетных поворотов",
+        description: "Карта пройденного пути через середину большой истории.",
+        condition: "Достигните рубежа 50% в одном тексте.",
+        required_progress: 50,
+        required_projects: 1,
+        effect_type: "challenge",
+        bonus: 0.03,
+        effect_description: "Даёт +3% к наградам за испытания.",
+    },
+    RelicDefinition {
+        key: "first_binding",
+        name: "Переплёт первой рукописи",
+        description: "Память о тексте, который прошёл весь путь от замысла до финала.",
+        condition: "Доведите один текст до 100%.",
+        required_progress: 100,
+        required_projects: 1,
+        effect_type: "completion",
+        bonus: 0.05,
+        effect_description: "Даёт +5% к наградам за завершение этапов и проектов.",
+    },
+    RelicDefinition {
+        key: "chapter_shelf",
+        name: "Полка первых глав",
+        description: "Место для историй, каждая из которых уже обрела собственный голос.",
+        condition: "Доведите три разных текста минимум до 25%.",
+        required_progress: 25,
+        required_projects: 3,
+        effect_type: "session",
+        bonus: 0.03,
+        effect_description: "Даёт +3% к наградам за успешные сессии.",
+    },
+    RelicDefinition {
+        key: "turning_quill",
+        name: "Перо переломного момента",
+        description: "Перо, которым история была проведена через самый трудный поворот.",
+        condition: "Достигните рубежа 75% в одном тексте.",
+        required_progress: 75,
+        required_projects: 1,
+        effect_type: "milestone",
+        bonus: 0.05,
+        effect_description: "Даёт +5% к наградам за рубежи рукописи.",
+    },
+    RelicDefinition {
+        key: "final_lamp",
+        name: "Лампа финишной прямой",
+        description:
+            "Её свет помогает не потерять дорогу, когда до финала остаётся совсем немного.",
+        condition: "Достигните рубежа 90% в одном тексте.",
+        required_progress: 90,
+        required_projects: 1,
+        effect_type: "inspiration",
+        bonus: 0.10,
+        effect_description: "Увеличивает получаемое за работу вдохновение на 10%.",
+    },
+    RelicDefinition {
+        key: "triple_map",
+        name: "Атлас трёх миров",
+        description: "Три истории на одной карте — доказательство широты авторской вселенной.",
+        condition: "Доведите три разных текста минимум до 50%.",
+        required_progress: 50,
+        required_projects: 3,
+        effect_type: "writing",
+        bonus: 0.02,
+        effect_description: "Даёт +2% к наградам за написанный текст.",
+    },
+    RelicDefinition {
+        key: "finished_shelf",
+        name: "Полка завершённых рукописей",
+        description: "Полка для историй, которым автор подарил настоящий финал.",
+        condition: "Доведите три разных текста до 100%.",
+        required_progress: 100,
+        required_projects: 3,
+        effect_type: "completion",
+        bonus: 0.10,
+        effect_description: "Даёт +10% к наградам за завершение этапов и проектов.",
+    },
+];
+
+struct CabinetSetDefinition {
+    key: &'static str,
+    name: &'static str,
+    description: &'static str,
+    relics: &'static [&'static str],
+    effect_type: &'static str,
+    bonus: f64,
+}
+
+const MANUSCRIPT_PATH_RELICS: &[&str] = &[
+    "ink_candle",
+    "plot_map",
+    "turning_quill",
+    "final_lamp",
+    "first_binding",
+];
+const AUTHORS_LIBRARY_RELICS: &[&str] = &["chapter_shelf", "triple_map", "finished_shelf"];
+const CABINET_SET_DEFINITIONS: &[CabinetSetDefinition] = &[
+    CabinetSetDefinition {
+        key: "manuscript_path",
+        name: "Путь большой рукописи",
+        description: "Пять реликвий пути дают +3% ко всем наградам монетами и опытом.",
+        relics: MANUSCRIPT_PATH_RELICS,
+        effect_type: "all_rewards",
+        bonus: 0.03,
+    },
+    CabinetSetDefinition {
+        key: "authors_library",
+        name: "Авторская библиотека",
+        description: "Три реликвии библиотеки увеличивают получаемое вдохновение на 20%.",
+        relics: AUTHORS_LIBRARY_RELICS,
+        effect_type: "inspiration",
+        bonus: 0.20,
+    },
+];
+
+const SESSION_MODE_DEFINITIONS: &[(&str, &str, &str, f64)] = &[
+    ("sprint", "Спринт", "15 минут: +15% к награде за быстрый результат.", 0.15),
+    ("flow", "Поток", "Свободный сбалансированный режим без дополнительных условий.", 0.0),
+    ("deep", "Глубокая работа", "45 или 60 минут: +25% к награде за длительную концентрацию.", 0.25),
+    ("editing", "Редакторский проход", "Учитывает добавленные и удалённые символы по модулю изменения объёма и даёт +20% к награде за успешную сессию.", 0.20),
+];
+
+// Legacy exposed these as a fixed combo-box order. The descriptions retain
+// the semantics already documented by the old session workflow.
+const SESSION_INTENTION_DEFINITIONS: &[(&str, &str)] = &[
+    (
+        "Написать новую сцену",
+        "Создать новую сцену и продвинуть текст вперёд.",
+    ),
+    (
+        "Продолжить черновик",
+        "Продолжить работу над уже начатым фрагментом текста.",
+    ),
+    (
+        "Отредактировать текст",
+        "Обработать текст: учитываются добавленные и удалённые символы по модулю.",
+    ),
+    (
+        "Составить план",
+        "Сформулировать план дальнейшей работы над текстом.",
+    ),
+];
+
+const MANUSCRIPT_MILESTONE_DEFINITIONS: &[(i64, &str, i64, i64, i64)] = &[
+    (10, "Искра замысла", 25, 250, 2),
+    (25, "Первые главы", 50, 500, 3),
+    (50, "Переломная точка", 100, 1000, 5),
+    (75, "Финишная прямая", 150, 1500, 7),
+    (90, "Почти готово", 200, 2000, 8),
+    (100, "Рукопись завершена", 300, 3000, 10),
+];
+
+fn specializations_projection(gamer: &Map<String, Value>, now: &str) -> Value {
+    let selected = gamer.get("specialization").and_then(Value::as_str);
+    let mastery = gamer
+        .get("specialization_mastery")
+        .and_then(Value::as_object);
+    let ready_at = gamer
+        .get("specialization_ability_ready_at")
+        .and_then(Value::as_object);
+    let effects = gamer
+        .get("specialization_ability_effects")
+        .and_then(Value::as_object);
+    let items = SPECIALIZATION_DEFINITIONS.iter().map(|definition| {
+        let experience = mastery.and_then(|values| values.get(definition.key)).map_or(0, |value| integer_value(value).max(0));
+        let rank = SPECIALIZATION_MASTERY_THRESHOLDS.iter().enumerate().rev().find(|(_, threshold)| experience >= **threshold).map_or(0, |(index, _)| index);
+        let remaining_seconds = ready_at.and_then(|values| values.get(definition.key)).and_then(Value::as_str).and_then(iso_epoch_seconds).zip(iso_epoch_seconds(now)).map_or(0, |(started, current)| (started + 24 * 3600 - current).max(0));
+        json!({"key":definition.key,"name":definition.name,"description":definition.description,"selected":selected == Some(definition.key),"mastery_experience":experience,"mastery_rank":rank,"passive_bonus":definition.base_bonus + rank as f64 * definition.mastery_step,"ability":{"name":definition.ability_name,"description":definition.ability_description,"cooldown_hours":24,"remaining_seconds":remaining_seconds,"pending":effects.and_then(|values| values.get(definition.key)).and_then(Value::as_bool).unwrap_or(false)}})
+    }).collect::<Vec<_>>();
+    let changed_at = gamer
+        .get("specialization_changed_at")
+        .and_then(Value::as_str)
+        .and_then(iso_epoch_seconds)
+        .zip(iso_epoch_seconds(now));
+    let change_days_remaining = changed_at.map_or(0, |(changed, current)| {
+        ((changed + 14 * 86_400 - current + 86_399) / 86_400).max(0)
+    });
+    json!({"selected":selected,"unlocks_at_level":3,"change_cooldown_days":14,"change_days_remaining":change_days_remaining,"mastery_thresholds":[0,3,8,15,25],"items":items})
+}
+
+fn integer_value(value: &Value) -> i64 {
+    value
+        .as_i64()
+        .or_else(|| value.as_f64().map(|number| number.round() as i64))
+        .unwrap_or(0)
+}
+
+fn relic_progress(gamer: &Map<String, Value>, definition: &RelicDefinition) -> i64 {
+    let unlocked_projects = gamer
+        .get("manuscript_journeys")
+        .and_then(Value::as_object)
+        .map_or(0, |journeys| {
+            journeys
+                .values()
+                .filter(|milestones| {
+                    milestones.as_array().is_some_and(|values| {
+                        values
+                            .iter()
+                            .any(|value| integer_value(value) >= definition.required_progress)
+                    })
+                })
+                .count() as i64
+        });
+    unlocked_projects.min(definition.required_projects)
+}
+
+fn manuscripts_projection(gamer: &Map<String, Value>) -> Value {
+    let journeys = gamer.get("manuscript_journeys").and_then(Value::as_object).map(|values| values.iter().map(|(key, milestones)| json!({"owner_key":key,"owner_name":Value::Null,"received_milestones":milestones.as_array().map(|items| items.iter().map(integer_value).collect::<Vec<_>>()).unwrap_or_default()})).collect::<Vec<_>>()).unwrap_or_default();
+    let unlocked_relics = gamer.get("cabinet_relics").and_then(Value::as_array);
+    let relics = RELIC_DEFINITIONS.iter().map(|definition| {
+        let unlocked = unlocked_relics.is_some_and(|values| values.iter().any(|value| value.as_str() == Some(definition.key)));
+        let progress = relic_progress(gamer, definition);
+        json!({"key":definition.key,"unlocked":unlocked,"name":if unlocked { json!(definition.name) } else { Value::Null },"description":if unlocked { json!(definition.description) } else { Value::Null },"condition":definition.condition,"progress":progress,"required":definition.required_projects,"effect_type":if unlocked { json!(definition.effect_type) } else { Value::Null },"bonus":if unlocked { json!(definition.bonus) } else { Value::Null },"effect_description":if unlocked { json!(definition.effect_description) } else { Value::Null }})
+    }).collect::<Vec<_>>();
+    let sets = CABINET_SET_DEFINITIONS.iter().map(|definition| {
+        let unlocked = unlocked_relics.is_some_and(|values| definition.relics.iter().all(|relic| values.iter().any(|value| value.as_str() == Some(*relic))));
+        json!({"key":definition.key,"name":definition.name,"description":definition.description,"relics":definition.relics,"unlocked":unlocked,"effect_type":definition.effect_type,"bonus":definition.bonus})
+    }).collect::<Vec<_>>();
+    let milestones = MANUSCRIPT_MILESTONE_DEFINITIONS.iter().map(|(progress, name, coins, exp, inspiration)| json!({"progress":progress,"name":name,"coins":coins,"exp":exp,"inspiration":inspiration})).collect::<Vec<_>>();
+    json!({"journeys":journeys,"milestones":milestones,"cabinet":{"relics":relics,"sets":sets}})
 }
 
 fn project_state(root: &Value, now: &str, enabled: bool) -> GameResult<Value> {
@@ -1141,9 +1550,9 @@ fn project_state(root: &Value, now: &str, enabled: bool) -> GameResult<Value> {
         "buffs": buffs_projection(gamer, now), "streak_freezes": {"date": now.get(..10).unwrap_or(now), "inventory_count": item_count(gamer, "Предметы", "Заморозка"), "global_available": false, "projects": []},
         "notifications": notifications, "inventory": inventory, "quests": quest_projection(gamer), "daily_challenge": {"change_cost": 15, "current": gamer.get("daily_challenge").cloned().unwrap_or(Value::Null), "options": gamer.get("daily_challenge_options").cloned().unwrap_or(json!([])), "history": gamer.get("daily_challenge_history").cloned().unwrap_or(json!([]))},
         "weekly_challenge": {"current": gamer.get("weekly_challenge").cloned().unwrap_or(Value::Null), "catalog": [{"key":"symbols","name":"Марафон","description":"Написать 10 000 символов за неделю.","target":10000,"reward":{"coins":500,"experience":1500,"inspiration":20}},{"key":"days","name":"Ритм","description":"Писать в четыре разных дня за неделю.","target":4,"reward":{"coins":400,"experience":1200,"inspiration":20}},{"key":"sessions","name":"Чистый поток","description":"Завершить пять успешных писательских сессий.","target":5,"reward":{"coins":450,"experience":1350,"inspiration":20}},{"key":"editing","name":"Редакторская неделя","description":"Завершить три успешные редакторские сессии.","target":3,"reward":{"coins":425,"experience":1300,"inspiration":20}}]},
-        "writing_session": {"server_time": now, "active": session_projection(gamer.get("writing_session"), now), "streak": integer_field(gamer, "writing_session_streak", 0), "history": gamer.get("writing_session_history").cloned().unwrap_or(json!([])), "modes": [{"key":"sprint","name":"Спринт","description":"15 минут.","reward_bonus":0.15},{"key":"flow","name":"Поток","description":"Сбалансированный режим.","reward_bonus":0.0},{"key":"deep","name":"Глубокая работа","description":"45 или 60 минут.","reward_bonus":0.25},{"key":"editing","name":"Редакторский проход","description":"Учитывает изменение текста.","reward_bonus":0.20}], "grades": [{"key":"gold","name":"Золото","target_ratio":1.5,"reward_multiplier":1.3},{"key":"silver","name":"Серебро","target_ratio":1.25,"reward_multiplier":1.15},{"key":"bronze","name":"Бронза","target_ratio":1.0,"reward_multiplier":1.0}], "allowed_durations_minutes":[15,25,45,60]},
+        "writing_session": {"server_time": now, "active": session_projection(gamer.get("writing_session"), now), "streak": integer_field(gamer, "writing_session_streak", 0), "history": gamer.get("writing_session_history").cloned().unwrap_or(json!([])), "modes": SESSION_MODE_DEFINITIONS.iter().map(|(key,name,description,reward_bonus)| json!({"key":key,"name":name,"description":description,"reward_bonus":reward_bonus})).collect::<Vec<_>>(), "intentions": SESSION_INTENTION_DEFINITIONS.iter().map(|(key,description)| json!({"key":key,"name":key,"description":description})).collect::<Vec<_>>(), "grades": [{"key":"gold","name":"Золото","target_ratio":1.5,"reward_multiplier":1.3},{"key":"silver","name":"Серебро","target_ratio":1.25,"reward_multiplier":1.15},{"key":"bronze","name":"Бронза","target_ratio":1.0,"reward_multiplier":1.0}], "allowed_durations_minutes":[15,25,45,60]},
         "inspiration": {"abilities": [{"key":"creative_surge","name":"Творческий импульс","description":"+25% к следующей записи.","cost":30,"bonus":0.25,"active":number_field(gamer,"writing_reward_bonus",0.0)>0.0},{"key":"session_spark","name":"Искра сессии","description":"+25% к следующей сессии.","cost":25,"bonus":0.25,"active":number_field(gamer,"session_reward_bonus",0.0)>0.0},{"key":"challenge_focus","name":"Фокус испытания","description":"+25% к следующему испытанию.","cost":40,"bonus":0.25,"active":number_field(gamer,"challenge_reward_bonus",0.0)>0.0}], "creative_event": gamer.get("pending_creative_event").cloned().unwrap_or(Value::Null), "creative_event_history": gamer.get("creative_event_history").cloned().unwrap_or(json!([]))},
-        "specializations": {"selected": gamer.get("specialization").cloned().unwrap_or(Value::Null), "unlocks_at_level":3,"change_cooldown_days":14,"change_days_remaining":0,"mastery_thresholds":[0,3,8,15,25],"items":[]}, "manuscripts":{"journeys":[],"milestones":[],"cabinet":{"relics":[],"sets":[]}}, "bank":bank_projection(gamer, level), "custom_awards":custom_awards_projection(gamer), "shop": catalog_state(gamer, true)
+        "specializations": specializations_projection(gamer, now), "manuscripts": manuscripts_projection(gamer), "bank":bank_projection(gamer, level), "custom_awards":custom_awards_projection(gamer), "shop": catalog_state(gamer, true)
     });
     state["global_streak"] = json!({
         "status": global_status,
@@ -1161,7 +1570,17 @@ fn project_state(root: &Value, now: &str, enabled: bool) -> GameResult<Value> {
             {
                 continue;
             }
-            let rows: Vec<Value> = values.as_object().into_iter().flat_map(|values| values.iter()).filter(|(_, count)| count.as_i64().unwrap_or(0) > 0).map(|(key, count)| json!({"id":format!("{category}:{key}"),"key":key,"category":category,"name":key,"description":null,"count":count,"known":false,"usable":false,"buy":false,"sellable":false})).collect();
+            let rows: Vec<Value> = values
+                .as_object()
+                .into_iter()
+                .flat_map(|values| values.iter())
+                .filter(|(_, count)| count.as_i64().unwrap_or(0) > 0)
+                .map(|(key, count)| {
+                    let (name, description, effect) = catalog_metadata(key);
+                    let known = description != "Нет описания";
+                    json!({"id":format!("{category}:{key}"),"key":key,"category":category,"name":name,"description":if known { Some(description) } else { None::<&str> },"effect":effect,"count":count,"known":known,"usable":false,"buy":false,"sellable":false})
+                })
+                .collect();
             inventory_categories.push(json!({"key":category,"name":category,"items":rows}));
         }
     }
@@ -2884,5 +3303,85 @@ mod tests {
             "inject":"not allowed"
         }));
         assert!(request.is_err());
+    }
+
+    #[test]
+    fn native_projection_preserves_legacy_game_catalog_and_progression_domains() {
+        assert_eq!(RELIC_DEFINITIONS.len(), 8);
+        assert_eq!(SPECIALIZATION_DEFINITIONS.len(), 5);
+        assert_eq!(SESSION_MODE_DEFINITIONS.len(), 4);
+        assert_eq!(SESSION_INTENTION_DEFINITIONS.len(), 4);
+        assert!(ITEM_METADATA
+            .iter()
+            .all(|(_, _, description, _)| !description.is_empty()));
+        assert_eq!(REWARD_METADATA.len(), 45);
+        assert!(REWARD_METADATA
+            .iter()
+            .all(|(_, _, description)| !description.is_empty()));
+        assert!(RELIC_DEFINITIONS
+            .iter()
+            .all(|definition| !definition.description.is_empty()));
+
+        let state = project_state(
+            &json!({
+                "gamer": {
+                    "level": 40,
+                    "specialization": "ritualist",
+                    "specialization_mastery": {"ritualist": 8},
+                    "specialization_ability_ready_at": {},
+                    "specialization_ability_effects": {},
+                    "items": {"Награды": {"⭐️ Знак дисциплины": 1}},
+                    "cabinet_relics": ["ink_candle", "plot_map"],
+                    "manuscript_journeys": {"project:one": [10, 25, 50]}
+                }
+            }),
+            "2026-09-05T12:00:00Z",
+            true,
+        )
+        .expect("projection");
+
+        assert_eq!(
+            state["inventory"]["categories"][0]["items"]
+                .as_array()
+                .map(Vec::len),
+            Some(21)
+        );
+        assert_eq!(
+            state["specializations"]["items"].as_array().map(Vec::len),
+            Some(5)
+        );
+        assert_eq!(state["specializations"]["selected"], json!("ritualist"));
+        assert_eq!(
+            state["inventory"]["categories"][2]["items"][0]["description"],
+            json!("Награда за запасной день и заботу о стрике.")
+        );
+        assert_eq!(
+            state["writing_session"]["modes"][0]["description"],
+            json!("15 минут: +15% к награде за быстрый результат.")
+        );
+        assert_eq!(
+            state["writing_session"]["intentions"]
+                .as_array()
+                .map(Vec::len),
+            Some(4)
+        );
+        assert_eq!(
+            state["manuscripts"]["cabinet"]["relics"]
+                .as_array()
+                .map(Vec::len),
+            Some(8)
+        );
+        assert_eq!(
+            state["manuscripts"]["cabinet"]["relics"][0]["name"],
+            json!("Чернильная свеча")
+        );
+        assert_eq!(
+            state["manuscripts"]["cabinet"]["relics"][2]["name"],
+            Value::Null
+        );
+        assert_eq!(
+            state["manuscripts"]["journeys"].as_array().map(Vec::len),
+            Some(1)
+        );
     }
 }

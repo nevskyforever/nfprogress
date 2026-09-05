@@ -79,4 +79,15 @@ describe('WritingSessionPanel', () => {
       },
     ])
   })
+
+  it('renders legacy mode and intention descriptions from the domain state', () => {
+    const wrapper = mount(WritingSessionPanel, {
+      props: { session: gameStateFixture().writing_session, busy: false },
+      global: { plugins: [createPinia()] },
+    })
+
+    expect(wrapper.text()).toContain('Свободный сбалансированный режим без дополнительных условий.')
+    expect(wrapper.text()).toContain('Продолжить работу над уже начатым фрагментом текста.')
+    expect(wrapper.findAll('select')[2]?.findAll('option')).toHaveLength(4)
+  })
 })

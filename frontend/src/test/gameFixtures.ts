@@ -93,7 +93,7 @@ export function gameStateFixture(overrides: Partial<GameState> = {}): GameState 
         {
           key: 'flow',
           name: 'Поток',
-          description: 'Сбалансированный режим.',
+          description: 'Свободный сбалансированный режим без дополнительных условий.',
           reward_bonus: 0,
         },
         {
@@ -108,6 +108,12 @@ export function gameStateFixture(overrides: Partial<GameState> = {}): GameState 
           description: 'Учитывает отредактированные символы.',
           reward_bonus: 0.2,
         },
+      ],
+      intentions: [
+        { key: 'Написать новую сцену', name: 'Написать новую сцену', description: 'Создать новую сцену и продвинуть текст вперёд.' },
+        { key: 'Продолжить черновик', name: 'Продолжить черновик', description: 'Продолжить работу над уже начатым фрагментом текста.' },
+        { key: 'Отредактировать текст', name: 'Отредактировать текст', description: 'Обработать текст: учитываются добавленные и удалённые символы по модулю.' },
+        { key: 'Составить план', name: 'Составить план', description: 'Сформулировать план дальнейшей работы над текстом.' },
       ],
       grades: [
         { key: 'bronze', name: 'Бронза', target_ratio: 1, reward_multiplier: 1 },

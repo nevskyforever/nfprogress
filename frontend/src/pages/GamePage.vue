@@ -577,16 +577,81 @@ onBeforeUnmount(() => {
             :aria-labelledby="`game-tab-${tab}`"
             tabindex="0"
           >
-            <GameOverview
-              v-if="tab === 'overview'"
-              :profile="state.profile"
-              :bank="state.bank"
-              :buffs="state.buffs"
-              :streak-freezes="state.streak_freezes"
-              :busy="busy"
-              @apply-freeze="applyFreeze"
-              @effects-expired="loadState"
-            />
+            <div v-if="tab === 'overview'" class="legacy-game-dashboard">
+              <div class="legacy-game-dashboard__column">
+                <GameOverview
+                  :profile="state.profile"
+                  :bank="state.bank"
+                  :buffs="state.buffs"
+                  :streak-freezes="state.streak_freezes"
+                  :busy="busy"
+                  @apply-freeze="applyFreeze"
+                  @effects-expired="loadState"
+                />
+                <WritingSessionPanel
+                  :session="state.writing_session"
+                  :busy="busy"
+                  @start="startSession"
+                  @finish="runCommand(() => gameApi.finishWritingSession())"
+                  @cancel="runCommand(() => gameApi.cancelWritingSession())"
+                />
+                <GrowthPanel
+                  :inspiration="state.inspiration"
+                  :inspiration-points="state.profile.inspiration"
+                  :specializations="state.specializations"
+                  :skills="state.skills"
+                  :quests="state.quests"
+                  :level="state.profile.level"
+                  :busy="busy"
+                  @activate-inspiration="(id) => runCommand(() => gameApi.activateInspirationAbility(id))"
+                  @resolve-creative-event="(choice) => runCommand(() => gameApi.resolveCreativeEvent(choice))"
+                  @select-specialization="(id) => runCommand(() => gameApi.selectSpecialization(id))"
+                  @activate-specialization="runCommand(() => gameApi.activateSpecializationAbility())"
+                  @increase-skill="(id) => runCommand(() => gameApi.increaseSkill(id))"
+                  @start-quest="(id) => runCommand(() => gameApi.startQuest(id))"
+                  @abandon-quest="(id) => runCommand(() => gameApi.abandonQuest(id))"
+                />
+                <ChallengesPanel
+                  :daily="state.daily_challenge"
+                  :weekly="state.weekly_challenge"
+                  :inspiration="state.profile.inspiration"
+                  :busy="busy"
+                  @select-daily="(id) => runCommand(() => gameApi.selectDailyChallenge(id))"
+                  @start-weekly="(id) => runCommand(() => gameApi.startWeeklyChallenge(id))"
+                />
+              </div>
+              <div class="legacy-game-dashboard__column">
+                <InventoryShopPanel
+                  :inventory="state.inventory"
+                  :shop="state.shop"
+                  :busy="busy"
+                  view="inventory"
+                  :can-open-credit="state.bank.can_open_credit ?? false"
+                  :initial-inventory-category="inventoryCategory"
+                  @buy="(payload) => inventoryCommand('buy', payload)"
+                  @add-to-cart="addToCart"
+                  @sell="(payload) => inventoryCommand('sell', payload)"
+                  @use="(payload) => inventoryCommand('use', payload)"
+                  @freeze="openFreezeSelector"
+                  @inventory-category="persistInventoryCategory"
+                />
+                <CabinetPanel :manuscripts="state.manuscripts" />
+                <InventoryShopPanel
+                  :inventory="state.inventory"
+                  :shop="state.shop"
+                  :busy="busy"
+                  view="shop"
+                  :can-open-credit="state.bank.can_open_credit ?? false"
+                  :initial-inventory-category="inventoryCategory"
+                  @buy="(payload) => inventoryCommand('buy', payload)"
+                  @add-to-cart="addToCart"
+                  @sell="(payload) => inventoryCommand('sell', payload)"
+                  @use="(payload) => inventoryCommand('use', payload)"
+                  @freeze="openFreezeSelector"
+                  @inventory-category="persistInventoryCategory"
+                />
+              </div>
+            </div>
 
             <WritingSessionPanel
               v-else-if="tab === 'sessions'"
@@ -794,6 +859,19 @@ onBeforeUnmount(() => {
   outline: 3px solid var(--nf-color-focus);
 }
 
+.legacy-game-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--nf-space-5);
+  align-items: start;
+}
+
+.legacy-game-dashboard__column {
+  display: grid;
+  gap: var(--nf-space-5);
+  min-width: 0;
+}
+
 @media (max-width: 44rem) {
   .game-workspace {
     padding-top: calc(var(--nf-space-5) + env(safe-area-inset-top));
@@ -806,6 +884,10 @@ onBeforeUnmount(() => {
 
   .page-header .nf-button {
     width: 100%;
+  }
+
+  .legacy-game-dashboard {
+    grid-template-columns: 1fr;
   }
 
   .game-tabs {

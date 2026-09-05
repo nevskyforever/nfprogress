@@ -643,6 +643,19 @@ def serialize_writing_session(gamer: legacy_game.Gamer) -> JSONDict:
             {'key': key, **_json_value(meta)}
             for key, meta in legacy_game.WRITING_SESSION_MODES.items()
         ],
+        'intentions': [
+            {
+                'key': key,
+                'name': key,
+                'description': description,
+            }
+            for key, description in (
+                ('Написать новую сцену', 'Создать новую сцену и продвинуть текст вперёд.'),
+                ('Продолжить черновик', 'Продолжить работу над уже начатым фрагментом текста.'),
+                ('Отредактировать текст', 'Обработать текст: учитываются добавленные и удалённые символы по модулю.'),
+                ('Составить план', 'Сформулировать план дальнейшей работы над текстом.'),
+            )
+        ],
         'grades': [
             {
                 'key': key,

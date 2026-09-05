@@ -38,6 +38,10 @@ const selectedMode = computed(() =>
   props.session.modes.find((item) => item.key === mode.value),
 )
 
+const selectedIntention = computed(() =>
+  props.session.intentions.find((item) => item.key === intention.value),
+)
+
 const remainingSeconds = computed(() => {
   const active = props.session.active
   if (!active) return 0
@@ -177,16 +181,23 @@ onBeforeUnmount(() => clearInterval(timer))
       <label>
         <span>{{ t('Намерение') }}</span>
         <select v-model="intention" :disabled="busy || mode === 'editing'">
-          <option value="Написать новую сцену">{{ t('Написать новую сцену') }}</option>
-          <option value="Продолжить черновик">{{ t('Продолжить черновик') }}</option>
-          <option value="Отредактировать текст">{{ t('Отредактировать текст') }}</option>
+          <option v-for="item in session.intentions" :key="item.key" :value="item.key">
+            {{ t(item.name) }}
+          </option>
         </select>
       </label>
       <label>
         <span>{{ t('Цель в символах') }}</span>
         <input v-model.number="target" type="number" min="1" step="1" :disabled="busy" />
       </label>
-      <p v-if="selectedMode" class="mode-description">{{ t(selectedMode.description) }}</p>
+      <div class="session-descriptions">
+        <p v-if="selectedMode" class="mode-description">
+          <strong>{{ t('Описание режима') }}:</strong> {{ t(selectedMode.description) }}
+        </p>
+        <p v-if="selectedIntention" class="intention-description">
+          <strong>{{ t('Описание намерения') }}:</strong> {{ t(selectedIntention.description) }}
+        </p>
+      </div>
       <button class="nf-button" type="submit" :disabled="busy || !validConfiguration">
         {{ t('Начать сессию') }}
       </button>
@@ -323,11 +334,26 @@ progress {
   color: var(--nf-color-text);
 }
 
-.mode-description {
+.session-descriptions {
   grid-column: 1 / -1;
+  display: grid;
+  gap: var(--nf-space-2);
+}
+
+.mode-description,
+.intention-description {
   margin: 0;
   color: var(--nf-color-text-muted);
   line-height: 1.5;
+}
+
+.mode-description strong,
+.intention-description strong {
+  color: var(--nf-color-text);
+}
+
+.mode-description {
+  margin: 0;
 }
 
 .session-form > button {
