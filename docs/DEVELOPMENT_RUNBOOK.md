@@ -63,9 +63,10 @@ Tauri ниже.
 
 Для Web нужны два одновременно работающих процесса: FastAPI и Vite. В
 обычном режиме разработки используйте тот же набор данных, что и
-исторический Python UI: backend перед стартом полностью обновляет
-`nfprogress/test_data` рабочими `.pkl`, а все записи нового интерфейса идут в эту тестовую
-копию.
+исторический Python UI: backend перед стартом обновляет canonical
+`nfprogress/test_data` и подготавливает его SQLite-профиль для Tauri. Сам Web
+backend продолжает читать и записывать Python-совместимые `.pkl`; следующий
+запуск `--dev-data` снова синхронизирует их в SQLite.
 
 ### 1. FastAPI
 
@@ -81,10 +82,11 @@ Tauri ниже.
 - **Working directory:** `$PROJECT_DIR$`
 - **Python interpreter:** `.venv`
 
-`--dev-data` включает Python-совместимый режим: вызывается тот же
-`engine.sync_test_data()`, что и при запуске `main_UI.py`, затем backend
-работает с `~/Documents/nfprogress/test_data` (или платформенным каталогом
-данных nfprogress). Исходные рабочие `.pkl` не перезаписываются. Для полностью
+`--dev-data` обновляет canonical `test_data`: копирует актуальные legacy
+источники, затем прогоняет их через `MigrationBundle`, ordering recovery и
+проверки SQLite. После этого backend работает с
+`~/Documents/nfprogress/test_data` (или платформенным каталогом данных
+nfprogress). Исходные рабочие данные не перезаписываются. Для полностью
 пустых изолированных тестов по-прежнему можно указать `--data-dir` вместо
 `--dev-data`. После запуска API доступен по адресам:
 
@@ -204,14 +206,18 @@ root используйте `bash "Run Tauri.sh"` ниже.
 bash "Run Tauri.sh"
 ```
 
-Скрипт выбирает Rust architecture текущего Mac и запускает native runtime с
-новым изолированным временным SQLite root. Путь к root печатается перед
-запуском; случайный `~/Documents/nfprogress/test_data` не используется.
-Для явной проверки границы миграции используйте сохранённый legacy-профиль:
+Скрипт выбирает Rust architecture текущего Mac, обновляет canonical
+`~/Documents/nfprogress/test_data` через Python migration pipeline и запускает
+native runtime с этим root. Путь к root печатается перед запуском. Для нового
+пустого изолированного профиля используйте явный режим:
 
 ```bash
-bash "Run Tauri.sh" --legacy
+bash "Run Tauri.sh" --fresh
 ```
+
+`--legacy` остаётся явным compatibility alias canonical test-data profile;
+legacy-файлы сохраняются там как fixture/source evidence, но подготовленная
+SQLite-база имеет завершённые migration markers и используется Tauri.
 
 Произвольный профиль задаётся явно через `--data-dir PATH` или
 `NFPROGRESS_DATA_DIR=/absolute/path`. Production root при этом не меняется.

@@ -7,7 +7,7 @@ import pytest
 from backend.app import __main__ as backend_cli
 
 
-def test_dev_data_cli_syncs_and_selects_python_test_directory(
+def test_dev_data_cli_refreshes_and_selects_python_test_directory(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
@@ -17,8 +17,8 @@ def test_dev_data_cli_syncs_and_selects_python_test_directory(
 
     monkeypatch.setattr(
         backend_cli.engine,
-        'sync_test_data',
-        lambda: calls.append('sync'),
+        'refresh_test_data',
+        lambda: calls.append('refresh'),
     )
     monkeypatch.setattr(
         backend_cli.engine,
@@ -46,7 +46,7 @@ def test_dev_data_cli_syncs_and_selects_python_test_directory(
     config = captured['config']
     assert config.data_dir == development_dir
     assert config.platform == 'web'
-    assert calls == ['sync']
+    assert calls == ['refresh']
     assert captured['uvicorn']['port'] == 8123
 
 

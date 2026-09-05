@@ -111,7 +111,8 @@ python -m backend.app --host 127.0.0.1 --port 8000 --platform web --dev-data
 ```
 
 `/health` reports readiness and `/docs` exposes OpenAPI. The `--dev-data` flag
-uses the same synchronized test-data behavior as the historical Python UI. To
+refreshes the canonical test-data profile through the migration helper before
+starting and keeps the Web backend on its Python-compatible data directory. To
 isolate a test completely, replace it with `--data-dir
 /absolute/path/to/test-data`.
 
@@ -185,13 +186,18 @@ cd ..
 bash "Run Tauri.sh"
 ```
 
-The repository script uses a fresh isolated temporary SQLite root by default.
-The root is printed before Tauri starts. To deliberately exercise the legacy
-migration boundary, use the explicit legacy profile:
+The repository script refreshes the canonical `~/Documents/nfprogress/test_data`
+profile through the Python migration pipeline before starting Tauri. The root
+is printed before Tauri starts. To use a new empty isolated SQLite root, pass
+`--fresh`:
 
 ```bash
-bash "Run Tauri.sh" --legacy
+bash "Run Tauri.sh" --fresh
 ```
+
+`--legacy` remains an explicit compatibility alias for the canonical profile;
+the refresh keeps its legacy files as migration fixtures while marking the
+SQLite database ready for Tauri.
 
 For a specific profile, pass an explicit directory (the Rust runtime also
 accepts `NFPROGRESS_DATA_DIR` directly):
@@ -204,7 +210,7 @@ NFPROGRESS_DATA_DIR=/absolute/path/to/nfprogress-profile bash "Run Tauri.sh"
 The script selects the host target and starts the native application. Use
 `bash "Run Tauri.sh" --check` to validate prerequisites without opening a
 window. `npm run tauri:dev` remains available for advanced use, but should be
-paired with an explicit `NFPROGRESS_DATA_DIR` when a non-fresh profile is
+paired with an explicit `NFPROGRESS_DATA_DIR` when a non-canonical profile is
 needed.
 Stop a separately running npm run dev first, because Tauri dev uses port 5173.
 

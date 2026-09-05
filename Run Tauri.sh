@@ -77,12 +77,20 @@ if [ -z "$DATA_ROOT" ]; then
       DATA_ROOT="${HOME}/Documents/nfprogress/test_data"
       ;;
     *)
-      DATA_ROOT="${NFPROGRESS_DATA_DIR:-}"
-      if [ -z "$DATA_ROOT" ]; then
-        DATA_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nfprogress-tauri-dev.XXXXXX")"
-      fi
+      DATA_ROOT="${NFPROGRESS_DATA_DIR:-${HOME}/Documents/nfprogress/test_data}"
       ;;
   esac
+fi
+
+if [ "$MODE" = "" ] || [ "$MODE" = "--legacy" ]; then
+  if [ -z "${NFPROGRESS_DATA_DIR:-}" ] || [ "$MODE" = "--legacy" ]; then
+    if ! command -v python3 >/dev/null 2>&1; then
+      echo "Для обновления canonical test_data нужен Python 3."
+      exit 1
+    fi
+    echo "Обновляется canonical Tauri dev data root через Python migration pipeline..."
+    (cd "$ROOT_DIR" && python3 -m backend.app --prepare-dev-data)
+  fi
 fi
 
 echo "Tauri dev data root: $DATA_ROOT"

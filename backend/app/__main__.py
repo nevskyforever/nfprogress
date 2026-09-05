@@ -85,6 +85,11 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        '--prepare-dev-data',
+        action='store_true',
+        help='Refresh the canonical test_data profile through the Tauri migration contract and exit.',
+    )
+    parser.add_argument(
         '--parent-pid',
         type=_positive_pid,
         help='Exit automatically if the owning Tauri process disappears.',
@@ -106,6 +111,15 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.prepare_dev_data:
+        if args.dev_data or args.data_dir is not None:
+            raise SystemExit('--prepare-dev-data cannot be combined with --dev-data or --data-dir.')
+        report = engine.refresh_test_data()
+        print(
+            f'Prepared Tauri dev data: {report.preview.projects} projects, '
+            f'{report.preview.stages} stages, {report.preview.progress_entries} progress entries.'
+        )
+        return 0
     if args.dev_data and args.data_dir is not None:
         raise SystemExit('--dev-data cannot be combined with --data-dir.')
     environment = RuntimeConfig.from_env()
@@ -136,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
         # Keep the new local clients aligned with ``python main_UI.py``:
         # refresh the safe developer copy from the real stores, then let all
         # requests use that copy. The source files are never overwritten.
-        engine.sync_test_data()
+        engine.refresh_test_data()
         development_data_dir = engine.get_test_data_dir()
     config = RuntimeConfig(
         data_dir=development_data_dir or args.data_dir or environment.data_dir,

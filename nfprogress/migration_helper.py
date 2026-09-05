@@ -61,6 +61,7 @@ from nfprogress.core.sqlite.ordering import (
     validate_project_order,
     validate_stage_order,
 )
+from nfprogress.core.serialization.projections import to_json_safe
 from nfprogress.core.sqlite.notes import canonical_notes_from_projects
 
 
@@ -832,7 +833,10 @@ def build_bundle(inspection: SourceInspection, root: Path) -> tuple[MigrationBun
 
 
 def _json(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False, allow_nan=False, sort_keys=True)
+    # ``settings.pkl`` is a legacy Python store and may contain date/datetime
+    # values.  Normalize it through the same strict JSON projection used by
+    # the migration bundle instead of widening the restricted unpickler.
+    return json.dumps(to_json_safe(value), ensure_ascii=False, allow_nan=False, sort_keys=True)
 
 
 def _import_complete_bundle(bundle: MigrationBundle, target: Path, inspection: SourceInspection) -> None:
@@ -917,7 +921,11 @@ def _semantic_verify(bundle: MigrationBundle, target: Path, inspection: SourceIn
             errors.append("mirror is not healthy")
         if bundle.settings is not None:
             actual_settings = {row[0]: json.loads(row[1]) for row in connection.execute("SELECT key,value_json FROM settings")}
-            if actual_settings != {str(k): v for k, v in bundle.settings.items()}:
+            expected_settings = {
+                str(key): to_json_safe(value)
+                for key, value in bundle.settings.items()
+            }
+            if actual_settings != expected_settings:
                 errors.append("settings mismatch")
         actual_docs = {
             row[0]: {
@@ -1014,6 +1022,50 @@ def verify_prepared_profile(data_root: str | Path) -> tuple[bool, list[str]]:
     finally:
         connection.close()
     return not errors, errors
+
+
+def refresh_test_data_profile(
+    source_root: str | Path,
+    destination_root: str | Path,
+) -> MigrationReport:
+    """Refresh a canonical developer profile through the migration contract.
+
+    The source is copied to a private staging directory first.  This allows
+    the existing project-order recovery to repair a legacy SQLite mirror
+    without ever mutating the production root.  ``prepare`` then builds and
+    atomically activates the complete SQLite-authoritative profile.
+    """
+    source = Path(source_root).expanduser().resolve()
+    destination = Path(destination_root).expanduser().resolve()
+    if source == destination:
+        raise HelperError(
+            OUTCOME_DESTINATION_INVALID,
+            "test-data refresh requires distinct source and destination roots",
+        )
+
+    snapshot = _snapshot(source)
+    try:
+        inspection = inspect_source(snapshot)
+        if inspection.source_profile == SQLITE_PROJECT_ORDER_RECOVERY_PROFILE:
+            recover_project_order(snapshot)
+            inspection = inspect_source(snapshot)
+        if not inspection.supported:
+            raise HelperError(
+                OUTCOME_UNSUPPORTED_SOURCE,
+                f"source profile {inspection.source_profile} is not qualified",
+                details=inspection.warnings,
+            )
+        report = prepare(snapshot, destination, replace=True)
+        ready, reasons = verify_prepared_profile(destination)
+        if not ready:
+            raise HelperError(
+                OUTCOME_MIGRATION_FAILED,
+                "refreshed test-data profile is not ready for Tauri",
+                details=reasons,
+            )
+        return report
+    finally:
+        shutil.rmtree(snapshot, ignore_errors=True)
 
 
 def _snapshot(root: Path) -> Path:

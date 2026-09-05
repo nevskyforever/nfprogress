@@ -157,9 +157,23 @@ def sync_test_data():
     import shutil
     source_dir = get_app_data_dir()
     test_dir = get_test_data_dir()
-    for data_file in source_dir.glob('*.pkl'):
-        test_file = test_dir / data_file.name
-        shutil.copy2(data_file, test_file)
+    for pattern in ('*.pkl', 'documents.json'):
+        for data_file in source_dir.glob(pattern):
+            test_file = test_dir / data_file.name
+            shutil.copy2(data_file, test_file)
+
+
+def refresh_test_data():
+    """Update the canonical test profile and prepare it for Tauri.
+
+    Legacy files remain in ``test_data`` as source evidence, while the
+    migration helper creates the SQLite-authoritative database and completion
+    markers consumed by the native startup gate.
+    """
+    sync_test_data()
+    from nfprogress.migration_helper import refresh_test_data_profile
+
+    return refresh_test_data_profile(get_app_data_dir(), get_test_data_dir())
 
 
 def get_data_file_path(name):

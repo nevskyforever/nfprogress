@@ -5,6 +5,7 @@ import os
 import pickle
 import shutil
 import sqlite3
+from datetime import date, datetime
 from pathlib import Path
 
 import engine
@@ -29,6 +30,7 @@ from nfprogress.migration_helper import (
     analyze_project_order_recovery,
     inspect_source,
     prepare,
+    refresh_test_data_profile,
     recover_project_order,
     verify_prepared_profile,
 )
@@ -151,6 +153,51 @@ def test_complete_fixture_migrates_bundle_domains_and_keeps_legacy_sources(tmp_p
     assert (tmp_path / "nfprogress-migration.json").is_file()
     assert {name: (tmp_path / name).read_bytes() for name in before} == before
     assert not (tmp_path / "missing.docx").exists()
+
+
+def test_prepare_serializes_legacy_date_values_as_iso8601(tmp_path):
+    _fixture(tmp_path, documents=False)
+    _write_pickle(tmp_path, "settings.pkl", {
+        "start_date": date(2026, 7, 8),
+        "updated_at": datetime(2026, 7, 8, 9, 10, 11),
+    })
+
+    report = prepare(tmp_path)
+
+    assert report.outcome == OUTCOME_MIGRATION_VERIFIED
+    with sqlite3.connect(tmp_path / "nfprogress.db") as db:
+        settings = {
+            row[0]: json.loads(row[1])
+            for row in db.execute("SELECT key,value_json FROM settings")
+        }
+    assert settings == {
+        "start_date": "2026-07-08",
+        "updated_at": "2026-07-08T09:10:11",
+    }
+
+
+def test_refresh_test_data_profile_recovers_order_and_prepares_destination(tmp_path):
+    source = tmp_path / "source"
+    destination = tmp_path / "test_data"
+    source.mkdir()
+    _fixture(source, documents=True)
+    prepare(source)
+
+    with sqlite3.connect(source / "nfprogress.db") as db:
+        db.execute("DELETE FROM project_order")
+        db.execute("DELETE FROM stage_order")
+        db.execute("DELETE FROM progress_order")
+        db.commit()
+    report = refresh_test_data_profile(source, destination)
+
+    assert report.outcome == OUTCOME_MIGRATION_VERIFIED
+    assert verify_prepared_profile(destination) == (True, [])
+    with sqlite3.connect(destination / "nfprogress.db") as db:
+        assert db.execute("SELECT COUNT(*) FROM project_order").fetchone()[0] == 1
+        assert db.execute("SELECT COUNT(*) FROM stage_order").fetchone()[0] == 1
+        assert db.execute("SELECT COUNT(*) FROM progress_order").fetchone()[0] == 2
+        assert db.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
+        assert db.execute("PRAGMA foreign_key_check").fetchall() == []
 
 
 def test_large_legacy_fixture_migrates_through_helper(tmp_path):
