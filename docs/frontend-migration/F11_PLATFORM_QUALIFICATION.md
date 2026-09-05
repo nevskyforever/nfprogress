@@ -44,11 +44,20 @@ The first real Windows attempt reached job `101180595526`: frontend and Rust
 checks passed (Rust reported 31 tests), Windows path/fallback fixture passed,
 the helper `.exe` build/detect/preview passed, and `prepare` failed with exit
 code `15` and `{"status":"migration_failed","error":"[Errno 9] Bad file descriptor"}`.
-The failure was in backup sealing, where `_fsync_directory` called `os.fsync`
-on a Windows directory descriptor. The F11 fix makes directory fsync POSIX-only
-while retaining file fsync and atomic `os.replace` activation. This evidence
-is a genuine P0 regression result, not a Windows PASS; the same workflow must
-be rerun from the fix commit.
+The first fix made directory fsync POSIX-only, but the rerun showed the same
+generic error at the next Windows-incompatible descriptor operation:
+`_fsync_file()` reopened a generated manifest as `rb` before `os.fsync`; a
+Windows read-only CRT descriptor is rejected with `EBADF`. The new fix reopens
+generated files as `r+b` without truncation, retains file fsync and atomic
+`os.replace` activation, and adds phase/traceback diagnostics to CI. This
+evidence is a genuine P0 regression result, not a Windows PASS; the workflow
+must be rerun from the new fix commit.
+
+The attached artifact from this run contained the JSON/path evidence but did
+not contain the packaged helper itself, although the helper had executed on
+the runner. The workflow now copies the helper into runner-temp before the
+smoke and uploads that copy, together with a prepare traceback log, so a
+failure artifact remains independently inspectable.
 
 ## Trust limitation
 

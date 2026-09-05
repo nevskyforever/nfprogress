@@ -73,12 +73,15 @@ at helper `prepare` with exit code `15`:
 {"status":"migration_failed","error":"[Errno 9] Bad file descriptor","details":[]}
 ```
 
-The failing operation was backup sealing: POSIX directory `fsync` was invoked
-against a Windows directory descriptor. The fix conditionally performs
-directory fsync only on POSIX. Windows still flushes file descriptors and uses
-atomic `os.replace`/MoveFileEx semantics; replacement failures remain
-fail-closed and preserve the source/backup. The workflow must be rerun after
-the fix commit before any Windows helper or transition PASS is recorded.
+The first fix made directory `fsync` POSIX-only, but the rerun showed the same
+generic error at `_fsync_file()`: a generated manifest was reopened as `rb`
+before `os.fsync`, and Windows rejects that read-only CRT descriptor. The new
+fix reopens generated files as `r+b` without truncation. Windows still flushes
+file descriptors and uses atomic `os.replace`/MoveFileEx semantics; replacement
+failures remain fail-closed and preserve the source/backup. Phase markers and
+optional CI traceback output now identify the exact failure boundary. The
+workflow must be rerun after the new fix commit before any Windows helper or
+transition PASS is recorded.
 
 ## Uncompleted P0 stages
 

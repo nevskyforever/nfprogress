@@ -76,7 +76,10 @@ def _safe_relative_path(value: str) -> str:
 
 
 def _fsync_file(path: Path) -> None:
-    with path.open("rb") as stream:
+    # Windows _commit/fsync rejects a read-only CRT descriptor with EBADF.
+    # Reopen generated files read/write without truncating them so the same
+    # durability barrier works on POSIX and Windows.
+    with path.open("r+b") as stream:
         os.fsync(stream.fileno())
 
 

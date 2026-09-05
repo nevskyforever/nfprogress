@@ -142,18 +142,25 @@ jobs:
           $helper = Resolve-Path dist\nf11-nfprogress-migration-helper.exe
           if ([IO.Path]::GetExtension($helper.Path) -ne '.exe') { throw 'Helper is not a Windows executable.' }
           Get-Item -LiteralPath $helper.Path | Format-List FullName,Length
+          Copy-Item -LiteralPath $helper.Path -Destination "$env:RUNNER_TEMP\f11-nfprogress-migration-helper.exe"
 
       - name: Run helper detect preview prepare verify
         shell: pwsh
         run: |
+          $env:NFPROGRESS_HELPER_DEBUG = '1'
           $helper = (Resolve-Path dist\nf11-nfprogress-migration-helper.exe).Path
           $source = $env:F11_FIXTURE_SOURCE
           & $helper detect --source $source --json | Tee-Object "$env:RUNNER_TEMP\helper-detect.json"
           if ($LASTEXITCODE -ne 0) { throw "helper detect failed: $LASTEXITCODE" }
           & $helper preview --source $source --json | Tee-Object "$env:RUNNER_TEMP\helper-preview.json"
           if ($LASTEXITCODE -ne 0) { throw "helper preview failed: $LASTEXITCODE" }
-          & $helper prepare --source $source --json | Tee-Object "$env:RUNNER_TEMP\helper-prepare.json"
-          if ($LASTEXITCODE -ne 0) { throw "helper prepare failed: $LASTEXITCODE" }
+          $traceback = "$env:RUNNER_TEMP\helper-prepare-traceback.log"
+          & $helper prepare --source $source --json 2> $traceback | Tee-Object "$env:RUNNER_TEMP\helper-prepare.json"
+          $prepareExitCode = $LASTEXITCODE
+          if ($prepareExitCode -ne 0) {
+            if (Test-Path $traceback) { Get-Content $traceback }
+            throw "helper prepare failed: $prepareExitCode"
+          }
           & $helper verify --source $source --json | Tee-Object "$env:RUNNER_TEMP\helper-verify.json"
           if ($LASTEXITCODE -ne 0) { throw "helper verify failed: $LASTEXITCODE" }
           $verify = Get-Content "$env:RUNNER_TEMP\helper-verify.json" -Raw | ConvertFrom-Json
@@ -335,9 +342,11 @@ jobs:
             ${{ github.workspace }}/frontend/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*-setup.exe
             ${{ github.workspace }}/frontend/src-tauri/target/x86_64-pc-windows-msvc/release/nfprogress-desktop.exe
             ${{ github.workspace }}/dist/f11-nfprogress-migration-helper.exe
+            ${{ runner.temp }}/f11-nfprogress-migration-helper.exe
             ${{ runner.temp }}/f11-provenance.txt
             ${{ runner.temp }}/path-resolution.txt
             ${{ runner.temp }}/helper-*.json
+            ${{ runner.temp }}/helper-prepare-traceback.log
             ${{ runner.temp }}/windows-artifact-evidence.txt
             ${{ runner.temp }}/installer-evidence.txt
             ${{ runner.temp }}/windows-signing-limitation.txt

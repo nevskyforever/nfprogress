@@ -196,6 +196,21 @@ def test_directory_fsync_support_is_posix_only(monkeypatch):
     assert recovery._directory_fsync_supported() is False
 
 
+def test_fsync_file_uses_writable_descriptor_for_windows(monkeypatch, tmp_path):
+    path = tmp_path / "generated-manifest.json"
+    path.write_text("{}\n", encoding="utf-8")
+    modes = []
+    original_open = Path.open
+
+    def tracking_open(self, mode="r", *args, **kwargs):
+        modes.append(mode)
+        return original_open(self, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", tracking_open)
+    recovery._fsync_file(path)
+    assert modes == ["r+b"]
+
+
 def test_deterministic_ids_and_fingerprint_for_same_source(tmp_path):
     _fixture(tmp_path)
     copy = tmp_path.parent / "same-source-copy"

@@ -19,7 +19,9 @@ import json
 import os
 import shutil
 import sqlite3
+import sys
 import tempfile
+import traceback
 import uuid
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -752,8 +754,10 @@ def prepare(
     replace: bool = False,
     bundle_out: str | Path | None = None,
 ) -> MigrationReport:
+    phase = "path_resolution"
     source = Path(source_root).expanduser().resolve()
     destination = Path(destination_root or source_root).expanduser().resolve()
+    phase = "source_inspection"
     inspection = inspect_source(source)
     already_ready, _reasons = verify_prepared_profile(source)
     if already_ready and destination == source:
@@ -770,10 +774,12 @@ def prepare(
     if destination.exists() and destination != source and (destination / "nfprogress.db").exists() and not replace:
         raise HelperError(OUTCOME_DESTINATION_INVALID, "non-empty destination requires explicit --replace")
     source_before = inspection.fingerprint
+    phase = "source_snapshot"
     snapshot = _snapshot(source)
     staging: Path | None = None
     backup: Path | None = None
     try:
+        phase = "bundle_build"
         snapshot_inspection = inspect_source(snapshot)
         bundle, preview = build_bundle(snapshot_inspection, snapshot)
         # Preserve the original source fingerprint, not the private snapshot
@@ -789,17 +795,23 @@ def prepare(
         if dry_run:
             return MigrationReport(OUTCOME_MIGRATION_VERIFIED, inspection.source_profile, source_before, preview, bundle=str(bundle_out) if bundle_out else None, details=["dry_run: no source or destination mutation"])
         if any(path.is_file() for path in (destination / name for name in _known_files(destination))):
+            phase = "backup_sealing"
             backup = create_application_backup(destination)
+        phase = "staging_create"
         staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}-migration-", dir=destination.parent))
+        phase = "staging_import"
         _import_complete_bundle(bundle, staging, inspection)
+        phase = "staging_semantic_verify"
         errors = _semantic_verify(bundle, staging, inspection)
         if errors:
             raise HelperError(OUTCOME_MIGRATION_FAILED, "staging semantic verification failed", details=errors)
         if source_fingerprint(source) != source_before:
             raise HelperError(OUTCOME_MIGRATION_FAILED, "source_changed: source fingerprint changed during migration")
+        phase = "staging_activation"
         rollback = _activate(staging, destination)
         staging = None
         if bundle_out is None:
+            phase = "migration_manifest_write"
             output = destination / "nfprogress-migration.json"
             output.write_text(bundle.to_json() + "\n", encoding="utf-8")
             bundle_path = str(output)
@@ -809,7 +821,11 @@ def prepare(
     except HelperError:
         raise
     except (OSError, sqlite3.Error, RecoveryError, ValueError) as error:
-        raise HelperError(OUTCOME_MIGRATION_FAILED, str(error), details=inspection.warnings) from error
+        details = [f"phase={phase}", *inspection.warnings]
+        if os.environ.get("NFPROGRESS_HELPER_DEBUG") == "1":
+            print(f"[nfprogress-helper-debug] phase={phase}", file=sys.stderr)
+            traceback.print_exc(file=sys.stderr)
+        raise HelperError(OUTCOME_MIGRATION_FAILED, str(error), details=details) from error
     finally:
         shutil.rmtree(snapshot, ignore_errors=True)
         if staging is not None:
