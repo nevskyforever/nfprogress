@@ -102,7 +102,7 @@ describe('GamePage', () => {
       .toBe('Заморозка применена.')
   })
 
-  it('keeps full game sections isolated to their own tabs', async () => {
+  it('matches main tab composition while retaining migrated game content', async () => {
     vi.mocked(gameApi.state).mockResolvedValue(gameStateFixture({
       inventory: {
         categories: [{
@@ -234,6 +234,16 @@ describe('GamePage', () => {
     expect(wrapper.get('#writing-session-title').text()).toBe('Писательская сессия')
     expect(wrapper.text()).toContain('Свободный сбалансированный режим без дополнительных условий.')
     expect(wrapper.text()).toContain('Продолжить работу над уже начатым фрагментом текста.')
+
+    await selectGameTab('Испытания')
+    expect(wrapper.get('#daily-challenge-title').text()).toBe('Дневное испытание')
+    expect(wrapper.get('#weekly-challenge-title').text()).toBe('Недельное испытание')
+
+    await selectGameTab('Награды')
+    expect(wrapper.get('#rewards-bank-title').text()).toBe('Награды')
+
+    await selectGameTab('Банк')
+    expect(wrapper.get('#rewards-bank-title').text()).toBe('Банк')
     wrapper.unmount()
   })
 

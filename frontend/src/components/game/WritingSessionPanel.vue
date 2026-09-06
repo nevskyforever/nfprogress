@@ -190,14 +190,10 @@ onBeforeUnmount(() => clearInterval(timer))
         <span>{{ t('Цель в символах') }}</span>
         <input v-model.number="target" type="number" min="1" step="1" :disabled="busy" />
       </label>
-      <div class="session-descriptions">
-        <p v-if="selectedMode" class="mode-description">
-          <strong>{{ t('Описание режима') }}:</strong> {{ t(selectedMode.description) }}
-        </p>
-        <p v-if="selectedIntention" class="intention-description">
-          <strong>{{ t('Описание намерения') }}:</strong> {{ t(selectedIntention.description) }}
-        </p>
-      </div>
+      <p v-if="selectedMode" class="mode-description">{{ t(selectedMode.description) }}</p>
+      <p v-if="selectedIntention" class="intention-description">
+        {{ t(selectedIntention.description) }}
+      </p>
       <button class="nf-button" type="submit" :disabled="busy || !validConfiguration">
         {{ t('Начать сессию') }}
       </button>
@@ -334,26 +330,12 @@ progress {
   color: var(--nf-color-text);
 }
 
-.session-descriptions {
-  grid-column: 1 / -1;
-  display: grid;
-  gap: var(--nf-space-2);
-}
-
 .mode-description,
 .intention-description {
+  grid-column: 1 / -1;
   margin: 0;
   color: var(--nf-color-text-muted);
   line-height: 1.5;
-}
-
-.mode-description strong,
-.intention-description strong {
-  color: var(--nf-color-text);
-}
-
-.mode-description {
-  margin: 0;
 }
 
 .session-form > button {
