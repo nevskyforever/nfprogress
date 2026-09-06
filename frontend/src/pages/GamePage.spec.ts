@@ -102,7 +102,7 @@ describe('GamePage', () => {
       .toBe('Заморозка применена.')
   })
 
-  it('renders populated game projection sections on the overview workflow', async () => {
+  it('keeps full game sections isolated to their own tabs', async () => {
     vi.mocked(gameApi.state).mockResolvedValue(gameStateFixture({
       inventory: {
         categories: [{
@@ -122,6 +122,27 @@ describe('GamePage', () => {
             can_buy: false,
           }],
         }],
+      },
+      shop: {
+        categories: [{
+          key: 'Зелья',
+          name: 'Зелья',
+          items: [{
+            id: 'Зелья:Зелье витрины',
+            key: 'Зелье витрины',
+            category: 'Зелья',
+            name: 'Зелье витрины',
+            description: 'Описание товара в магазине.',
+            effect: 'Эффект товара в магазине.',
+            price: 100,
+            count: 0,
+            sellable: false,
+            usable: false,
+            buy: true,
+            can_buy: true,
+          }],
+        }],
+        custom_awards: { items: [] },
       },
       specializations: {
         selected: 'ritualist',
@@ -171,19 +192,48 @@ describe('GamePage', () => {
     })
     await flushPromises()
 
-    expect(wrapper.text()).toContain('Чернильная свеча')
-    expect(wrapper.text()).toContain('🏅 Медаль качества')
-    expect(wrapper.text()).toContain('Спринт')
-    expect(wrapper.text()).toContain('Составить план')
-    expect(wrapper.text()).toContain('Объём дня')
+    const selectGameTab = async (label: string): Promise<void> => {
+      const button = wrapper.findAll('nav.game-tabs [role="tab"]')
+        .find((candidate) => candidate.text() === label)
+      expect(button).toBeDefined()
+      await button!.trigger('click')
+      await flushPromises()
+    }
 
-    const growthTab = wrapper.findAll('[role="tab"]')
-      .find((button) => button.text() === 'Развитие')
-    await growthTab?.trigger('click')
-    const specializationTab = wrapper.findAll('[role="tab"]')
+    expect(wrapper.get('.overview')).toBeDefined()
+    expect(wrapper.find('#writing-session-title').exists()).toBe(false)
+    expect(wrapper.find('#daily-challenge-title').exists()).toBe(false)
+    expect(wrapper.find('#inventory-title').exists()).toBe(false)
+    expect(wrapper.find('#growth-title').exists()).toBe(false)
+    expect(wrapper.find('#cabinet-title').exists()).toBe(false)
+    expect(wrapper.find('.item-grid').exists()).toBe(false)
+    expect(wrapper.find('.relic-card').exists()).toBe(false)
+
+    await selectGameTab('Инвентарь')
+    expect(wrapper.get('#inventory-title').text()).toBe('Инвентарь')
+    expect(wrapper.get('.item-grid').text()).toContain('🏅 Медаль качества')
+    expect(wrapper.text()).toContain('Повышает результат следующей успешной сессии на одну ступень.')
+
+    await selectGameTab('Магазин')
+    expect(wrapper.get('#inventory-title').text()).toBe('Магазин')
+    expect(wrapper.get('.item-grid').text()).toContain('Зелье витрины')
+
+    await selectGameTab('Развитие')
+    expect(wrapper.get('#growth-title').text()).toBe('Способности и задания')
+    const specializationTab = wrapper.findAll('.growth-tabs [role="tab"]')
       .find((button) => button.text() === 'Специализация')
-    await specializationTab?.trigger('click')
-    expect(wrapper.text()).toContain('Ритуалист')
+    expect(specializationTab).toBeDefined()
+    await specializationTab!.trigger('click')
+    expect(wrapper.get('.feature-card').text()).toContain('Ритуалист')
+
+    await selectGameTab('Кабинет')
+    expect(wrapper.get('#cabinet-title').text()).toBe('Кабинет реликвий')
+    expect(wrapper.get('.relic-card').text()).toContain('Чернильная свеча')
+
+    await selectGameTab('Сессии')
+    expect(wrapper.get('#writing-session-title').text()).toBe('Писательская сессия')
+    expect(wrapper.text()).toContain('Свободный сбалансированный режим без дополнительных условий.')
+    expect(wrapper.text()).toContain('Продолжить работу над уже начатым фрагментом текста.')
     wrapper.unmount()
   })
 
