@@ -87,11 +87,12 @@ function targetName(key: string): string {
 }
 
 function remainingLabel(buff: GameBuffs['positive'][number]): string | null {
-  if (buff.remaining_seconds === null && !buff.expires_at) return null
-  const endsAt = buff.expires_at ? Date.parse(buff.expires_at) : Number.NaN
-  const seconds = Number.isNaN(endsAt)
-    ? Math.max(0, buff.remaining_seconds ?? 0)
-    : Math.max(0, Math.ceil((endsAt - (clock.value + serverOffset.value)) / 1_000))
+  // A missing expiration is the legacy representation of a permanent effect.
+  // Never turn its remaining_seconds fallback (including 0) into a fake timer.
+  if (!buff.expires_at) return null
+  const endsAt = Date.parse(buff.expires_at)
+  if (Number.isNaN(endsAt)) return null
+  const seconds = Math.max(0, Math.ceil((endsAt - (clock.value + serverOffset.value)) / 1_000))
   const hours = Math.floor(seconds / 3_600)
   const minutes = Math.floor((seconds % 3_600) / 60)
   const rest = seconds % 60

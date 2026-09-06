@@ -801,6 +801,31 @@ fn text_value(value: Option<&Value>, default: &str) -> String {
         .to_string()
 }
 
+fn optional_field_text(object: &Map<String, Value>, key: &str) -> Option<String> {
+    object
+        .get(key)
+        .filter(|value| !value.is_null())
+        .map(|value| text_value(Some(value), ""))
+}
+
+fn normalized_item_identifier(value: &str) -> String {
+    value
+        .replace('👑', "")
+        .replace('💎', "")
+        .replace("❄️", "")
+        .replace('💸', "")
+        .replace('🧪', "")
+        .replace("⭐️", "")
+        .replace('⭐', "")
+        .to_lowercase()
+        .trim()
+        .to_string()
+}
+
+fn item_identifier_matches(value: &str, canonical: &str) -> bool {
+    value == canonical || normalized_item_identifier(value) == normalized_item_identifier(canonical)
+}
+
 fn iso_epoch_seconds(value: &str) -> Option<i64> {
     let date_time = value.get(..19)?;
     let year = date_time.get(0..4)?.parse::<i64>().ok()?;
@@ -821,6 +846,27 @@ fn iso_epoch_seconds(value: &str) -> Option<i64> {
     let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
     let days = era * 146097 + day_of_era - 719468;
     Some(days * 86_400 + hour * 3_600 + minute * 60 + second)
+}
+
+fn iso_epoch_millis(value: &str) -> Option<i64> {
+    let seconds = iso_epoch_seconds(value)?;
+    let mut fraction_millis = 0;
+    let mut fraction_digits = 0;
+    if let Some(fraction) = value.get(19..).and_then(|tail| tail.strip_prefix('.')) {
+        for digit in fraction.bytes().take(3) {
+            if !digit.is_ascii_digit() {
+                break;
+            }
+            fraction_millis = fraction_millis * 10 + i64::from(digit - b'0');
+            fraction_digits += 1;
+        }
+    }
+    if fraction_digits == 1 {
+        fraction_millis *= 100;
+    } else if fraction_digits == 2 {
+        fraction_millis *= 10;
+    }
+    Some(seconds * 1_000 + fraction_millis)
 }
 
 fn iso_date_from_days(days: i64) -> String {
@@ -1008,35 +1054,429 @@ fn custom_awards_projection(gamer: &Map<String, Value>) -> Value {
     json!({"items":items})
 }
 
+#[derive(Clone)]
+struct ProjectedBuff {
+    name: String,
+    description: String,
+    buff_type: String,
+    target: String,
+    value: f64,
+    stacks: i64,
+    duration_minutes: Option<i64>,
+    started_at: Option<String>,
+    expires_at: Option<String>,
+    remaining_seconds: Option<i64>,
+    source: Option<String>,
+    stackable: bool,
+}
+
+impl ProjectedBuff {
+    fn into_value(self) -> Value {
+        json!({
+            "name": self.name,
+            "description": self.description,
+            "type": self.buff_type,
+            "target": self.target,
+            "value": self.value,
+            "stacks": self.stacks,
+            "duration_minutes": self.duration_minutes,
+            "started_at": self.started_at,
+            "expires_at": self.expires_at,
+            "remaining_seconds": self.remaining_seconds,
+            "source": self.source,
+            "stackable": self.stackable,
+        })
+    }
+}
+
+fn effect_fields(value: &Value) -> Option<&Map<String, Value>> {
+    tagged_fields_immutable(value).or_else(|| value.as_object())
+}
+
+fn project_saved_buff(value: &Value, now: &str) -> Option<ProjectedBuff> {
+    let fields = effect_fields(value)?;
+    let expires_at = optional_field_text(fields, "end_time");
+    let remaining_seconds = match expires_at.as_deref() {
+        Some(expires_at) => {
+            let expiration = iso_epoch_millis(expires_at)?;
+            let current = iso_epoch_millis(now)?;
+            let remaining_millis = (expiration - current).max(0);
+            if remaining_millis == 0 {
+                return None;
+            }
+            Some((remaining_millis + 999) / 1_000)
+        }
+        None => None,
+    };
+
+    Some(ProjectedBuff {
+        name: text_value(fields.get("name"), "Эффект"),
+        description: text_value(fields.get("description"), ""),
+        buff_type: text_value(fields.get("buff_type"), "positive"),
+        target: text_value(fields.get("target_cf"), ""),
+        value: number_field(fields, "value", 0.0),
+        stacks: 1,
+        duration_minutes: fields
+            .get("duration_minutes")
+            .filter(|value| !value.is_null())
+            .map(|_| integer_field(fields, "duration_minutes", 0).max(0)),
+        started_at: optional_field_text(fields, "start_time"),
+        expires_at,
+        remaining_seconds,
+        source: optional_field_text(fields, "source"),
+        stackable: fields
+            .get("stackable")
+            .and_then(Value::as_bool)
+            .unwrap_or(false),
+    })
+}
+
+#[derive(Clone)]
+struct InventoryBuffDefinition {
+    name: String,
+    description: String,
+    buff_type: &'static str,
+    target: &'static str,
+    value: f64,
+    stackable: bool,
+}
+
+fn inventory_buff_definition(
+    name: impl Into<String>,
+    description: impl Into<String>,
+    target: &'static str,
+    value: f64,
+    stackable: bool,
+) -> InventoryBuffDefinition {
+    InventoryBuffDefinition {
+        name: name.into(),
+        description: description.into(),
+        buff_type: "positive",
+        target,
+        value,
+        stackable,
+    }
+}
+
+// These are the permanent quest-award effects created by game_data.make_quest_award_buff.
+// The table keeps the canonical item keys and values separate from their display text.
+const QUEST_REWARD_BUFFS: &[(&str, &str, &str, f64)] = &[
+    (
+        "⭐️ Знак заботы о здоровье",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+    ("⭐️ Знак дисциплины", "health_recovery", "0.025", 0.025),
+    ("⭐️ Банковский жетон", "coins", "0.025", 0.025),
+    ("⭐️ Знак коллекционера", "coins", "0.025", 0.025),
+    ("⭐️ Знак недельной практики", "exp", "0.025", 0.025),
+    ("⭐️ Знак быстрого финала", "exp", "0.025", 0.025),
+    ("⭐️ Знак теплого стрика", "health_recovery", "0.025", 0.025),
+    ("⭐️ Знак чистого финиша", "health_recovery", "0.025", 0.025),
+    ("⭐️ Знак двух недель", "exp", "0.025", 0.025),
+    ("⭐️ Знак без льда", "health_recovery", "0.025", 0.025),
+    ("⭐️ Знак глубоких дней", "exp", "0.025", 0.025),
+    ("⭐️ Знак трех финалов", "exp", "0.025", 0.025),
+    ("⭐️ Знак большой формы", "exp", "0.025", 0.025),
+    ("⭐️ Знак марафонца", "health_recovery", "0.025", 0.025),
+    ("⭐️ Знак двух линий", "health_recovery", "0.025", 0.025),
+    ("⭐️ Знак зала славы", "coins", "0.025", 0.025),
+    ("⭐️ Знак трех фронтов", "exp", "0.025", 0.025),
+    ("⭐️ Знак короткой победы", "exp", "0.025", 0.025),
+    ("⭐️ Знак пяти сильных дней", "exp", "0.025", 0.025),
+    ("⭐️ Знак дневника рукописи", "exp", "0.025", 0.025),
+    ("⭐️ Знак серьезного вклада", "coins", "0.025", 0.025),
+    ("⭐️ Знак умного вклада", "coins", "0.025", 0.025),
+    ("⭐️ Знак пяти завершений", "exp", "0.025", 0.025),
+    ("⭐️ Знак ста тысяч", "exp", "0.025", 0.025),
+    ("⭐️ Знак семи рукописей", "exp", "0.05", 0.05),
+    ("⭐️ Знак полутора месяцев", "health_recovery", "0.05", 0.05),
+    ("⭐️ Знак месяца без льда", "health_recovery", "0.05", 0.05),
+    ("⭐️ Знак десяти дней", "exp", "0.05", 0.05),
+    ("⭐️ Знак четверти миллиона", "exp", "0.075", 0.075),
+    ("⭐️ Знак недели мастера", "coins", "0.05", 0.05),
+    ("⭐️ Знак половины миллиона", "exp", "0.1", 0.1),
+    ("⭐️ Знак пятнадцати завершений", "exp", "0.075", 0.075),
+    ("⭐️ Знак завершённого романа", "exp", "0.1", 0.1),
+    ("⭐️ Знак легенды мастерства", "coins", "0.1", 0.1),
+    (
+        "⭐️ Знак глобальной недели",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+    (
+        "⭐️ Знак глобальных двух недель",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+    (
+        "⭐️ Знак глобальной привычки",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+    (
+        "⭐️ Знак глобального месяца",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+    (
+        "⭐️ Знак чистого глобального месяца",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+    (
+        "⭐️ Знак глобального сезона",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+    (
+        "⭐️ Знак глобального квартала",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+    (
+        "⭐️ Знак глобального полугодия",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+    (
+        "⭐️ Знак глобального года",
+        "health_recovery",
+        "0.025",
+        0.025,
+    ),
+];
+
+fn quest_reward_inventory_buff(item_key: &str) -> Option<InventoryBuffDefinition> {
+    let (_, target, value_text, value) = QUEST_REWARD_BUFFS
+        .iter()
+        .find(|(canonical, _, _, _)| item_identifier_matches(item_key, canonical))?;
+    let (name, prefix) = match *target {
+        "exp" => (
+            "⭐️ Квестовая специализация: опыт",
+            "Постоянный бонус к коэффициенту опыта от квестовых наград.",
+        ),
+        "coins" => (
+            "⭐️ Квестовая специализация: монеты",
+            "Постоянный бонус к коэффициенту монет от квестовых наград.",
+        ),
+        "health_recovery" => (
+            "⭐️ Квестовая специализация: восстановление",
+            "Постоянный бонус к восстановлению здоровья от квестовых наград.",
+        ),
+        _ => return None,
+    };
+    Some(inventory_buff_definition(
+        name,
+        format!("{prefix} +{value_text} к параметру."),
+        target,
+        *value,
+        true,
+    ))
+}
+
+fn inventory_buff_definitions(category: &str, item_key: &str) -> Vec<InventoryBuffDefinition> {
+    if category == "Предметы" {
+        if item_identifier_matches(item_key, "Печатная машинка Хемингуэя") {
+            return vec![inventory_buff_definition(
+                "📠 Почерк Хемингуэя",
+                "Постоянный бонус к коэффициенту опыта.",
+                "exp",
+                0.5,
+                false,
+            )];
+        }
+        if item_identifier_matches(item_key, "Ноутбук Роалинг") {
+            return vec![inventory_buff_definition(
+                "💻 Вдохновение Роалинг",
+                "Постоянный бонус к коэффициенту опыта.",
+                "exp",
+                1.0,
+                false,
+            )];
+        }
+        if item_identifier_matches(item_key, "Литературный раб") {
+            return vec![
+                inventory_buff_definition(
+                    "📃 Литературная поддержка",
+                    "Постоянный бонус к коэффициенту опыта.",
+                    "exp",
+                    0.25,
+                    false,
+                ),
+                inventory_buff_definition(
+                    "📃 Литературная поддержка дохода",
+                    "Постоянный бонус к коэффициенту монет.",
+                    "coins",
+                    0.25,
+                    false,
+                ),
+            ];
+        }
+        if item_identifier_matches(item_key, "Амулет восстановления") {
+            return vec![inventory_buff_definition(
+                "❤️ Исцеление амулетом",
+                "Постоянный бонус к коэффициенту восстановления здоровья.",
+                "health_recovery",
+                1.0,
+                false,
+            )];
+        }
+    }
+
+    if category == "Награды" {
+        if item_identifier_matches(item_key, "👑  Корона Первой Эпохи") {
+            return vec![inventory_buff_definition(
+                "👑 Опыт миллионера",
+                "+1 к коэффициенту опыта",
+                "exp",
+                1.0,
+                false,
+            )];
+        }
+        if item_identifier_matches(item_key, "💎  Перо Миллионера") {
+            return vec![inventory_buff_definition(
+                "💎 Удача миллионера",
+                "+1 к коэффициенту заработка",
+                "coins",
+                1.0,
+                false,
+            )];
+        }
+        if let Some(buff) = quest_reward_inventory_buff(item_key) {
+            return vec![buff];
+        }
+    }
+
+    Vec::new()
+}
+
+fn append_inventory_buff(
+    buffs: &mut Vec<ProjectedBuff>,
+    merged_buffs: &mut Vec<ProjectedBuff>,
+    definition: InventoryBuffDefinition,
+    stacks: i64,
+    source: String,
+) {
+    let stacks = stacks.max(1);
+    if definition.stackable {
+        if let Some(existing) = merged_buffs.iter_mut().find(|buff| {
+            buff.name == definition.name
+                && buff.target == definition.target
+                && buff.buff_type == definition.buff_type
+        }) {
+            let previous_stacks = existing.stacks.max(1);
+            let total_stacks = previous_stacks.saturating_add(stacks);
+            existing.value = (existing.value * previous_stacks as f64
+                + definition.value * stacks as f64)
+                / total_stacks as f64;
+            existing.stacks = total_stacks;
+            return;
+        }
+    }
+
+    let projected = ProjectedBuff {
+        name: definition.name,
+        description: definition.description,
+        buff_type: definition.buff_type.to_string(),
+        target: definition.target.to_string(),
+        value: definition.value,
+        stacks,
+        duration_minutes: None,
+        started_at: None,
+        expires_at: None,
+        remaining_seconds: None,
+        source: Some(source),
+        stackable: definition.stackable,
+    };
+    if definition.stackable {
+        merged_buffs.push(projected);
+    } else {
+        buffs.push(projected);
+    }
+}
+
 fn buffs_projection(gamer: &Map<String, Value>, now: &str) -> Value {
     let mut positive = Vec::new();
     let mut negative = Vec::new();
+    let mut inventory_positive = Vec::new();
+    let mut inventory_negative = Vec::new();
+    let mut merged_positive = Vec::new();
+    let mut merged_negative = Vec::new();
+
     if let Some(buffs) = gamer.get("buffs").and_then(Value::as_array) {
         for buff in buffs {
-            let Some(fields) = tagged_fields_immutable(buff) else {
-                continue;
-            };
-            let started_at = fields
-                .get("start_time")
-                .map(|value| text_value(Some(value), ""));
-            let duration = integer_field(fields, "duration_minutes", 0).max(0);
-            let remaining = started_at
-                .as_deref()
-                .and_then(iso_epoch_seconds)
-                .zip(iso_epoch_seconds(now))
-                .map(|(start, current)| (start + duration * 60 - current).max(0));
-            if duration > 0 && remaining == Some(0) {
-                continue;
-            }
-            let entry = json!({"name":text_value(fields.get("name"),"Эффект"),"description":text_value(fields.get("description"),""),"type":text_value(fields.get("buff_type"),"positive"),"target":text_value(fields.get("target_cf"),""),"value":number_field(fields,"value",0.0),"stacks":1,"duration_minutes":if duration > 0 { Some(duration) } else { None },"started_at":started_at,"expires_at":Value::Null,"remaining_seconds":remaining,"source":fields.get("source").map(|value| text_value(Some(value),"")),"stackable":fields.get("stackable").and_then(Value::as_bool).unwrap_or(false)});
-            if text_value(fields.get("buff_type"), "positive") == "negative" {
-                negative.push(entry);
-            } else {
-                positive.push(entry);
+            if let Some(projected) = project_saved_buff(buff, now) {
+                positive.push(projected);
             }
         }
     }
-    json!({"server_time":now,"positive":positive,"negative":negative})
+    if let Some(debuffs) = gamer.get("debuffs").and_then(Value::as_array) {
+        for debuff in debuffs {
+            if let Some(projected) = project_saved_buff(debuff, now) {
+                negative.push(projected);
+            }
+        }
+    }
+
+    if let Some(items) = gamer.get("items").and_then(Value::as_object) {
+        for (category, values) in items {
+            let Some(values) = values.as_object() else {
+                continue;
+            };
+            for (item_key, count) in values {
+                let count = count
+                    .as_i64()
+                    .or_else(|| count.as_f64().map(|value| value.round() as i64))
+                    .unwrap_or(0);
+                if count <= 0 {
+                    continue;
+                }
+                let source = catalog_metadata(item_key).0.to_string();
+                for definition in inventory_buff_definitions(category, item_key) {
+                    if definition.buff_type == "negative" {
+                        append_inventory_buff(
+                            &mut inventory_negative,
+                            &mut merged_negative,
+                            definition,
+                            count,
+                            source.clone(),
+                        );
+                    } else {
+                        append_inventory_buff(
+                            &mut inventory_positive,
+                            &mut merged_positive,
+                            definition,
+                            count,
+                            source.clone(),
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    // Legacy get_all_buffs keeps saved effects separate from the freshly
+    // materialized inventory effects, even when their names are identical.
+    inventory_positive.extend(merged_positive);
+    inventory_negative.extend(merged_negative);
+    positive.extend(inventory_positive);
+    negative.extend(inventory_negative);
+
+    json!({
+        "server_time": now,
+        "positive": positive.into_iter().map(ProjectedBuff::into_value).collect::<Vec<_>>(),
+        "negative": negative.into_iter().map(ProjectedBuff::into_value).collect::<Vec<_>>(),
+    })
 }
 
 fn catalog_item(category: &str, key: &str) -> Option<CatalogItem> {
@@ -1156,13 +1596,13 @@ const REWARD_METADATA: &[(&str, &str, &str)] = &[
 fn catalog_metadata(key: &str) -> (&'static str, &'static str, Option<&'static str>) {
     if let Some((_, name, description, effect)) = ITEM_METADATA
         .iter()
-        .find(|(item_key, _, _, _)| *item_key == key)
+        .find(|(item_key, _, _, _)| item_identifier_matches(key, item_key))
     {
         return (*name, *description, *effect);
     }
     REWARD_METADATA
         .iter()
-        .find(|(item_key, _, _)| *item_key == key)
+        .find(|(item_key, _, _)| item_identifier_matches(key, item_key))
         .map(|(_, name, description)| (*name, *description, None))
         .unwrap_or(("Неизвестный предмет", "Нет описания", None))
 }
@@ -1681,7 +2121,7 @@ fn weekly_challenge_projection(gamer: &Map<String, Value>) -> Value {
     json!({"current": current, "catalog": catalog})
 }
 
-fn project_state(root: &Value, now: &str, enabled: bool) -> GameResult<Value> {
+fn project_state(root: &Value, now: &str, effects_now: &str, enabled: bool) -> GameResult<Value> {
     let root_object = root
         .as_object()
         .ok_or_else(|| GameError::InvalidState("Game state is not an object".into()))?;
@@ -1719,7 +2159,7 @@ fn project_state(root: &Value, now: &str, enabled: bool) -> GameResult<Value> {
         "enabled": enabled, "server_time": now,
         "profile": {"level": level, "experience": number_field(gamer, "exp", 0.0).max(0.0), "next_level_experience": next_level_experience, "coins": number_field(gamer, "coins", 0.0).max(0.0), "inflation": number_field(gamer, "inflation", 1.0).max(1.0), "health": number_field(gamer, "health", max_health as f64).clamp(0.0, max_health as f64), "max_health": max_health, "inspiration": number_field(gamer, "inspiration", 0.0).clamp(0.0, 100.0), "max_inspiration": 100, "writing_session_streak": integer_field(gamer, "writing_session_streak", 0).max(0), "session_streak_shields": integer_field(gamer, "session_streak_shields", 0).clamp(0, 3), "session_grade_boosts": integer_field(gamer, "session_grade_boosts", 0).clamp(0, 1), "pending_bonuses": {"writing": number_field(gamer, "writing_reward_bonus", 0.0), "session": number_field(gamer, "session_reward_bonus", 0.0), "challenge": number_field(gamer, "challenge_reward_bonus", 0.0), "manuscript": number_field(gamer, "manuscript_reward_bonus", 0.0)}},
         "skills": skills_projection(gamer),
-        "buffs": buffs_projection(gamer, now), "streak_freezes": {"date": now.get(..10).unwrap_or(now), "inventory_count": item_count(gamer, "Предметы", "Заморозка"), "global_available": false, "projects": []},
+        "buffs": buffs_projection(gamer, effects_now), "streak_freezes": {"date": now.get(..10).unwrap_or(now), "inventory_count": item_count(gamer, "Предметы", "Заморозка"), "global_available": false, "projects": []},
         "notifications": notifications, "inventory": inventory, "quests": quest_projection(gamer), "daily_challenge": daily_challenge_projection(gamer),
         "weekly_challenge": weekly_challenge_projection(gamer),
         "writing_session": {"server_time": now, "active": session_projection(gamer.get("writing_session"), now), "streak": integer_field(gamer, "writing_session_streak", 0), "history": gamer.get("writing_session_history").cloned().unwrap_or(json!([])), "modes": SESSION_MODE_DEFINITIONS.iter().map(|(key,name,description,reward_bonus)| json!({"key":key,"name":name,"description":description,"reward_bonus":reward_bonus})).collect::<Vec<_>>(), "intentions": SESSION_INTENTION_DEFINITIONS.iter().map(|(key,description)| json!({"key":key,"name":key,"description":description})).collect::<Vec<_>>(), "grades": [{"key":"gold","name":"Золото","target_ratio":1.5,"reward_multiplier":1.3},{"key":"silver","name":"Серебро","target_ratio":1.25,"reward_multiplier":1.15},{"key":"bronze","name":"Бронза","target_ratio":1.0,"reward_multiplier":1.0}], "allowed_durations_minutes":[15,25,45,60]},
@@ -1792,31 +2232,49 @@ impl GameApplicationService {
         })
     }
 
+    fn configured_now(connection: &Connection) -> Option<String> {
+        let raw_state = connection
+            .query_row(
+                "SELECT payload_json FROM game_state WHERE id=1",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .ok()?;
+        let state = serde_json::from_str::<Value>(&raw_state).ok()?;
+        let datetime = state
+            .get("game")
+            .and_then(|value| value.get("extensions"))
+            .and_then(|value| value.get("developer_clock"))
+            .filter(|value| value.get("enabled").and_then(Value::as_bool) == Some(true))
+            .and_then(|value| value.get("datetime"))
+            .and_then(Value::as_str)
+            .filter(|datetime| iso_epoch_seconds(datetime).is_some())?;
+        Some(datetime.to_string())
+    }
+
     fn now(connection: &Connection) -> GameResult<String> {
-        if let Ok(raw_state) = connection.query_row(
-            "SELECT payload_json FROM game_state WHERE id=1",
-            [],
-            |row| row.get::<_, String>(0),
-        ) {
-            if let Ok(state) = serde_json::from_str::<Value>(&raw_state) {
-                if let Some(datetime) = state
-                    .get("game")
-                    .and_then(|value| value.get("extensions"))
-                    .and_then(|value| value.get("developer_clock"))
-                    .filter(|value| value.get("enabled").and_then(Value::as_bool) == Some(true))
-                    .and_then(|value| value.get("datetime"))
-                    .and_then(Value::as_str)
-                {
-                    if iso_epoch_seconds(datetime).is_some() {
-                        return Ok(datetime.to_string());
-                    }
-                }
-            }
+        if let Some(datetime) = Self::configured_now(connection) {
+            return Ok(datetime);
         }
         connection
             .query_row("SELECT strftime('%Y-%m-%dT%H:%M:%SZ','now')", [], |row| {
                 row.get(0)
             })
+            .map_err(|error| GameError::Database(error.to_string()))
+    }
+
+    fn local_now(connection: &Connection) -> GameResult<String> {
+        if let Some(datetime) = Self::configured_now(connection) {
+            return Ok(datetime);
+        }
+        // Legacy datetime fields are naive local timestamps (datetime.now()).
+        // Use the same representation when comparing them with end_time.
+        connection
+            .query_row(
+                "SELECT strftime('%Y-%m-%dT%H:%M:%f','now','localtime')",
+                [],
+                |row| row.get(0),
+            )
             .map_err(|error| GameError::Database(error.to_string()))
     }
 
@@ -1850,6 +2308,7 @@ impl GameApplicationService {
             .map_err(|error| GameError::Database(error.to_string()))?;
         let mut state = Self::load(&tx)?;
         let now = Self::now(&tx)?;
+        let effects_now = Self::local_now(&tx)?;
         let mut rng = OsGameRng;
         let (message, result) = mutator(&mut state, &mut rng, &now)?;
         tx.execute(
@@ -1860,7 +2319,7 @@ impl GameApplicationService {
         let enabled = Self::enabled(&tx);
         tx.commit()
             .map_err(|error| GameError::Database(error.to_string()))?;
-        let state = project_state(&state, &now, enabled)?;
+        let state = project_state(&state, &now, &effects_now, enabled)?;
         let messages = message.clone().into_iter().collect::<Vec<_>>();
         Ok(GameCommandResponse {
             ok: true,
@@ -1876,8 +2335,9 @@ impl GameApplicationService {
         Self::owner(&connection)?;
         process_pending_events(&mut connection, 100).map_err(GameError::Database)?;
         let now = Self::now(&connection)?;
+        let effects_now = Self::local_now(&connection)?;
         let enabled = Self::enabled(&connection);
-        project_state(&Self::load(&connection)?, &now, enabled)
+        project_state(&Self::load(&connection)?, &now, &effects_now, enabled)
     }
 
     pub fn notifications() -> GameResult<Value> {
@@ -3447,6 +3907,157 @@ mod tests {
     }
 
     #[test]
+    fn buffs_projection_matches_legacy_effect_semantics() {
+        fn target_total(values: &[Value], target: &str) -> f64 {
+            values
+                .iter()
+                .filter(|value| value["target"].as_str() == Some(target))
+                .map(|value| {
+                    value["value"].as_f64().unwrap_or(0.0)
+                        * value["stacks"].as_i64().unwrap_or(1) as f64
+                })
+                .sum()
+        }
+
+        let raw = json!({
+            "buffs": [
+                {
+                    "__type__": "game_data.Buff",
+                    "fields": {
+                        "name": "⭐️ Квестовая специализация: опыт",
+                        "description": "Постоянный бонус к коэффициенту опыта за писательские и учебные квесты. +0.02 к параметру за завершение квеста.",
+                        "buff_type": "positive",
+                        "target_cf": "exp",
+                        "value": 0.465,
+                        "duration_minutes": null,
+                        "start_time": {"__type__": "datetime", "value": "2026-07-14T23:47:49.846175"},
+                        "end_time": null,
+                        "source": "Квест",
+                        "stackable": true
+                    }
+                },
+                {
+                    "__type__": "game_data.Buff",
+                    "fields": {
+                        "name": "🧪⚡️ Супер бустер опыта",
+                        "description": "Применено зелье познания",
+                        "buff_type": "positive",
+                        "target_cf": "exp",
+                        "value": 10.0,
+                        "duration_minutes": 60,
+                        "start_time": {"__type__": "datetime", "value": "2026-09-04T04:06:31.149420"},
+                        "end_time": {"__type__": "datetime", "value": "2026-09-11T05:08:03.149420"},
+                        "source": null,
+                        "stackable": false
+                    }
+                },
+                {
+                    "__type__": "game_data.Buff",
+                    "fields": {
+                        "name": "Истёкший эффект",
+                        "description": "Не должен быть активен",
+                        "buff_type": "positive",
+                        "target_cf": "exp",
+                        "value": 99.0,
+                        "duration_minutes": 60,
+                        "start_time": "2026-09-06T17:00:00",
+                        "end_time": "2026-09-06T18:59:59",
+                        "source": "Тест",
+                        "stackable": false
+                    }
+                }
+            ],
+            "debuffs": [
+                {
+                    "__type__": "game_data.Buff",
+                    "fields": {
+                        "name": "Ограничение",
+                        "description": "Активное ограничение",
+                        "buff_type": "negative",
+                        "target_cf": "coins",
+                        "value": 0.2,
+                        "duration_minutes": null,
+                        "start_time": null,
+                        "end_time": null,
+                        "source": null,
+                        "stackable": false
+                    }
+                }
+            ],
+            "items": {
+                "Предметы": {
+                    "Печатная машинка Хемингуэя": 1,
+                    "Ноутбук Роалинг": 1,
+                    "Литературный раб": 5,
+                    "Амулет восстановления": 1
+                },
+                "Награды": {
+                    "👑  Корона Первой Эпохи": 1,
+                    "💎  Перо Миллионера": 1,
+                    "⭐️ Знак недельной практики": 12,
+                    "⭐️ Банковский жетон": 10,
+                    "⭐️ Знак дисциплины": 12
+                },
+                "Зелья": {"Часовое зелье просвещения": 1}
+            }
+        });
+        let gamer = raw.as_object().expect("gamer fixture");
+        let projection = buffs_projection(gamer, "2026-09-06T19:00:00");
+        let positive = projection["positive"].as_array().expect("positive buffs");
+        let negative = projection["negative"].as_array().expect("negative buffs");
+
+        assert_eq!(positive.len(), 12);
+        assert_eq!(negative.len(), 1);
+        assert!(!positive
+            .iter()
+            .any(|value| value["name"] == json!("Истёкший эффект")));
+        assert_eq!(negative[0]["type"], json!("negative"));
+
+        let permanent = positive
+            .iter()
+            .find(|value| value["name"] == json!("⭐️ Квестовая специализация: опыт"))
+            .expect("permanent specialization buff");
+        assert_eq!(permanent["duration_minutes"], Value::Null);
+        assert_eq!(permanent["expires_at"], Value::Null);
+        assert_eq!(permanent["remaining_seconds"], Value::Null);
+        assert_eq!(permanent["source"], json!("Квест"));
+
+        let timed = positive
+            .iter()
+            .find(|value| value["name"] == json!("🧪⚡️ Супер бустер опыта"))
+            .expect("timed consumable buff");
+        assert_eq!(timed["description"], json!("Применено зелье познания"));
+        assert_eq!(timed["duration_minutes"], json!(60));
+        assert_eq!(timed["started_at"], json!("2026-09-04T04:06:31.149420"));
+        assert_eq!(timed["expires_at"], json!("2026-09-11T05:08:03.149420"));
+        assert_eq!(timed["remaining_seconds"], json!(382084));
+        assert_eq!(timed["source"], Value::Null);
+
+        assert!((target_total(positive, "exp") - 14.515).abs() < 1e-9);
+        assert!((target_total(positive, "health_recovery") - 1.3).abs() < 1e-9);
+        assert!((target_total(positive, "coins") - 2.5).abs() < 1e-9);
+        assert_eq!(
+            positive
+                .iter()
+                .filter(|value| value["name"] == json!("⭐️ Квестовая специализация: опыт"))
+                .count(),
+            2
+        );
+        assert_eq!(
+            positive
+                .iter()
+                .find(
+                    |value| value["name"] == json!("⭐️ Квестовая специализация: опыт")
+                        && value["stacks"] == json!(12)
+                )
+                .map(|value| value["description"].clone()),
+            Some(json!(
+                "Постоянный бонус к коэффициенту опыта от квестовых наград. +0.025 к параметру."
+            ))
+        );
+    }
+
+    #[test]
     fn clock_projection_and_week_boundary_are_deterministic() {
         assert_eq!(iso_date_from_days(0), "1970-01-01");
         assert_eq!(iso_epoch_seconds("1970-01-01T00:00:00Z"), Some(0));
@@ -3511,6 +4122,7 @@ mod tests {
                     "manuscript_journeys": {"project:one": [10, 25, 50]}
                 }
             }),
+            "2026-09-05T12:00:00Z",
             "2026-09-05T12:00:00Z",
             true,
         )
