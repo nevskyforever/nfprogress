@@ -111,10 +111,10 @@ python -m backend.app --host 127.0.0.1 --port 8000 --platform web --dev-data
 ```
 
 `/health` reports readiness and `/docs` exposes OpenAPI. The `--dev-data` flag
-refreshes the canonical test-data profile through the migration helper before
-starting and keeps the Web backend on its Python-compatible data directory. To
-isolate a test completely, replace it with `--data-dir
-/absolute/path/to/test-data`.
+copies the current real projects, documents, settings and game state into a
+temporary Python-compatible Web profile before starting. The canonical
+SQLite-authoritative `test_data` profile remains reserved for Tauri. To isolate
+a test completely, replace it with `--data-dir /absolute/path/to/test-data`.
 
 In a second terminal:
 

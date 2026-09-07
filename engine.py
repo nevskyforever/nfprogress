@@ -1,3 +1,4 @@
+import atexit
 import json
 import math
 import os
@@ -146,21 +147,39 @@ def get_test_data_dir():
     return test_dir
 
 
-def sync_test_data():
-    """Копирует все рабочие файлы данных в папку ``test_data``.
+def sync_test_data(destination_dir: str | Path | None = None) -> None:
+    """Копирует все рабочие файлы данных в папку тестового профиля.
 
     При каждом запуске в режиме разработчика одноимённые тестовые файлы
     перезаписываются. Это гарантирует, что тексты проектов и этапов, как и
     остальные реальные данные, доступны в тестовой копии. Файлы, которых нет
-    в основной директории, не создаются и не удаляются в ``test_data``.
+    в основной директории, не создаются и не удаляются в тестовом профиле.
+
+    ``destination_dir`` используется Web-режимом для отдельного временного
+    профиля. Без аргумента сохраняется прежнее назначение ``test_data``.
     """
-    import shutil
     source_dir = get_app_data_dir()
-    test_dir = get_test_data_dir()
+    test_dir = Path(destination_dir) if destination_dir is not None else get_test_data_dir()
+    test_dir.mkdir(parents=True, exist_ok=True)
     for pattern in ('*.pkl', 'documents.json'):
         for data_file in source_dir.glob(pattern):
             test_file = test_dir / data_file.name
             shutil.copy2(data_file, test_file)
+
+
+def prepare_web_test_data() -> Path:
+    """Create an isolated, legacy-compatible Web profile from real data.
+
+    The canonical ``test_data`` profile is SQLite-authoritative for Tauri and
+    cannot be used by the Web adapter, whose project service still performs
+    legacy pickle transactions. A temporary profile keeps those authorities
+    separate while preserving the current projects, documents, settings and
+    game state for the duration of a Web test run.
+    """
+    web_dir = Path(tempfile.mkdtemp(prefix='nfprogress-web-test-data.'))
+    sync_test_data(web_dir)
+    atexit.register(shutil.rmtree, web_dir, ignore_errors=True)
+    return web_dir
 
 
 def refresh_test_data():

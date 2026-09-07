@@ -102,7 +102,18 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
                 cutover_settings(data_dir, engine.load_settings())
         except Exception:
             _LOGGER.exception('Settings SQLite cutover failed; keeping pickle ownership.')
-    if StorageOwnershipRepository(data_dir).get_owner(Subsystem.NOTES) == StorageOwner.PICKLE:
+    projects_owned_by_sqlite = (
+        StorageOwnershipRepository(data_dir).get_owner(Subsystem.PROJECTS)
+        == StorageOwner.SQLITE
+    )
+    # The Web compatibility profile keeps Projects in pickle. Its Notes must
+    # stay there too: the SQLite Notes table has foreign keys to SQLite project
+    # rows, which are intentionally absent from this profile.
+    if (
+        StorageOwnershipRepository(data_dir).get_owner(Subsystem.NOTES)
+        == StorageOwner.PICKLE
+        and (runtime_config.platform != 'web' or projects_owned_by_sqlite)
+    ):
         try:
             with repository.locked():
                 cutover_notes(data_dir, engine.load_data())

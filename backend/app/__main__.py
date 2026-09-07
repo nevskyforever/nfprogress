@@ -80,8 +80,8 @@ def _parser() -> argparse.ArgumentParser:
         '--dev-data',
         action='store_true',
         help=(
-            'Use the same synchronized test_data directory as the source '
-            'PySide6 developer mode.'
+            'Use a synchronized developer profile populated from the real '
+            'application data.'
         ),
     )
     parser.add_argument(
@@ -147,11 +147,14 @@ def main(argv: list[str] | None = None) -> int:
             )
     development_data_dir = None
     if args.dev_data:
-        # Keep the new local clients aligned with ``python main_UI.py``:
-        # refresh the safe developer copy from the real stores, then let all
-        # requests use that copy. The source files are never overwritten.
-        engine.refresh_test_data()
-        development_data_dir = engine.get_test_data_dir()
+        # Keep the new local clients aligned with the real stores without
+        # making Web use the SQLite-authoritative Tauri profile. The source
+        # files are never overwritten.
+        if platform == 'web':
+            development_data_dir = engine.prepare_web_test_data()
+        else:
+            engine.refresh_test_data()
+            development_data_dir = engine.get_test_data_dir()
     config = RuntimeConfig(
         data_dir=development_data_dir or args.data_dir or environment.data_dir,
         session_token=session_token,

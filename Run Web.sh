@@ -73,7 +73,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-echo "Запускается FastAPI с тем же test_data, что использует main_UI.py..."
+echo "Запускается FastAPI с изолированной копией реальных данных для Web..."
 (
   cd "$ROOT_DIR"
   exec python3 -m backend.app \
