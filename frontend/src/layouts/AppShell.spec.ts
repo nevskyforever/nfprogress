@@ -86,6 +86,7 @@ describe('AppShell preferences', () => {
     try {
       window.localStorage?.removeItem('nfprogress.theme')
       window.localStorage?.removeItem('nfprogress.language')
+      window.localStorage?.removeItem('nfprogress.sidebar-collapsed')
     } catch {
       // jsdom can run without an origin-backed local storage implementation.
     }
@@ -117,6 +118,42 @@ describe('AppShell preferences', () => {
     const navigation = wrapper.get('.primary-navigation').text()
     expect(navigation).toContain('Карты')
     expect(navigation).toContain('Заметки')
+  })
+
+  it('collapses the desktop sidebar and remembers the preference', async () => {
+    const values = new Map<string, string>()
+    const previousLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage')
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem: (key: string) => values.get(key) ?? null,
+        setItem: (key: string, value: string) => { values.set(key, value) },
+        removeItem: (key: string) => { values.delete(key) },
+      } as Storage,
+    })
+
+    try {
+      const { wrapper } = mountShell()
+      const toggle = wrapper.get('.sidebar-toggle')
+
+      expect(wrapper.get('.app-shell').classes()).not.toContain('app-shell--sidebar-collapsed')
+      expect(toggle.attributes('aria-expanded')).toBe('true')
+
+      await toggle.trigger('click')
+
+      expect(wrapper.get('.app-shell').classes()).toContain('app-shell--sidebar-collapsed')
+      expect(toggle.attributes('aria-expanded')).toBe('false')
+      expect(toggle.attributes('aria-label')).toBe('Развернуть меню')
+      expect(values.get('nfprogress.sidebar-collapsed')).toBe('true')
+
+      await toggle.trigger('click')
+      expect(wrapper.get('.app-shell').classes()).not.toContain('app-shell--sidebar-collapsed')
+      expect(values.get('nfprogress.sidebar-collapsed')).toBe('false')
+      wrapper.unmount()
+    } finally {
+      if (previousLocalStorage) Object.defineProperty(window, 'localStorage', previousLocalStorage)
+      else delete (window as unknown as { localStorage?: Storage }).localStorage
+    }
   })
 
   it('returns to the section home when its active navigation item is pressed again', async () => {

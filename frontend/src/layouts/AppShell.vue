@@ -3,6 +3,8 @@ import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'v
 import { useRoute, useRouter } from 'vue-router'
 import { IonIcon, IonRouterOutlet } from '@ionic/vue'
 import {
+  chevronBackOutline,
+  chevronForwardOutline,
   cloudOfflineOutline,
   contrastOutline,
   codeSlashOutline,
@@ -57,11 +59,14 @@ const hasBanner = computed(() => !online.value || Boolean(startupError))
 const lastProjectPath = ref('/projects')
 const lastMapsPath = ref('/maps')
 const lastNotesPath = ref('/notes')
+const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nfprogress.sidebar-collapsed'
+const sidebarCollapsed = ref(false)
 try {
   const saved = sessionStorage.getItem('nfprogress:last-project-path')
   if (saved?.startsWith('/projects')) lastProjectPath.value = saved
   const savedMaps = localStorage.getItem('nfprogress:last-maps-path')
   const savedNotes = localStorage.getItem('nfprogress:last-notes-path')
+  sidebarCollapsed.value = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
   if (savedMaps?.startsWith('/maps')) lastMapsPath.value = savedMaps
   if (savedNotes?.startsWith('/notes')) lastNotesPath.value = savedNotes
 } catch {
@@ -76,6 +81,16 @@ const navigationItems = computed(() => [
   { to: '/help', home: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
   { to: '/settings', home: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },
 ] as const)
+const sidebarToggleLabel = computed(() => (
+  sidebarCollapsed.value ? t('Развернуть меню') : t('Свернуть меню')
+))
+
+function toggleSidebar(): void {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+  try {
+    localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(sidebarCollapsed.value))
+  } catch { /* optional */ }
+}
 
 watch(() => route.fullPath, (path) => {
   try {
@@ -266,15 +281,31 @@ watchEffect(() => {
 <template>
   <a class="skip-link" href="#main-content">{{ t('Перейти к содержимому') }}</a>
 
-  <div class="app-shell">
+  <div class="app-shell" :class="{ 'app-shell--sidebar-collapsed': sidebarCollapsed }">
     <aside class="sidebar" :aria-label="t('Основная навигация')">
-      <RouterLink class="brand" to="/projects" aria-label="nfprogress — проекты">
-        <img class="brand-mark" :src="appIcon" alt="" />
-        <span>
-          <strong>nfprogress</strong>
-          <small>{{ t('Пространство писателя') }}</small>
-        </span>
-      </RouterLink>
+      <div class="sidebar-header">
+        <RouterLink class="brand" to="/projects" aria-label="nfprogress — проекты">
+          <img class="brand-mark" :src="appIcon" alt="" />
+          <span>
+            <strong>nfprogress</strong>
+            <small>{{ t('Пространство писателя') }}</small>
+          </span>
+        </RouterLink>
+        <button
+          class="sidebar-toggle"
+          type="button"
+          :aria-label="sidebarToggleLabel"
+          :title="sidebarToggleLabel"
+          :aria-expanded="!sidebarCollapsed"
+          aria-controls="primary-navigation"
+          @click="toggleSidebar"
+        >
+          <IonIcon
+            :icon="sidebarCollapsed ? chevronForwardOutline : chevronBackOutline"
+            aria-hidden="true"
+          />
+        </button>
+      </div>
 
       <StreakBadge
         v-if="globalStreak?.enabled"
@@ -283,15 +314,18 @@ watchEffect(() => {
         :max-length="globalStreak.max_length"
         :status="globalStreak.status"
         scope="global"
+        :compact="sidebarCollapsed"
         show-max
       />
 
-      <nav class="primary-navigation" :aria-label="t('Разделы приложения')">
+      <nav id="primary-navigation" class="primary-navigation" :aria-label="t('Разделы приложения')">
         <RouterLink
           v-for="item in navigationItems"
           :key="item.to"
           class="navigation-link"
           :to="item.to"
+          :aria-label="t(item.label)"
+          :title="sidebarCollapsed ? t(item.label) : undefined"
           @click="returnToSectionHome($event, item.home)"
         >
           <IonIcon :icon="item.icon" aria-hidden="true" />

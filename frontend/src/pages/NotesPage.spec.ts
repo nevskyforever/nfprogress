@@ -89,4 +89,26 @@ describe('NotesPage', () => {
     expect(pushRoute).toHaveBeenCalledWith({ name: 'project-detail', params: { projectId: 'project-id' } })
     wrapper.unmount()
   })
+
+  it('gives the active map a full-height workspace', async () => {
+    const wrapper = mount(NotesPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonIcon: true,
+          IonSpinner: true,
+          RouterLink: { template: '<a><slot /></a>' },
+          MindMapEditor: true,
+          NoteEditorDialog: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    await wrapper.get('#mindmap-tab').trigger('click')
+
+    expect(wrapper.get('.notes-workspace').classes()).toContain('notes-workspace--map')
+    expect(wrapper.find('.mindmap-panel').exists()).toBe(true)
+    wrapper.unmount()
+  })
 })

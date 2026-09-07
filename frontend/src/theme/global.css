@@ -67,12 +67,18 @@ a {
 }
 
 .app-shell {
+  --nf-sidebar-width: 17.5rem;
   display: grid;
-  grid-template-columns: 17.5rem minmax(0, 1fr);
+  grid-template-columns: var(--nf-sidebar-width) minmax(0, 1fr);
   grid-template-rows: auto 1fr;
   height: 100%;
   min-height: 100dvh;
   background: var(--nf-color-canvas);
+  transition: grid-template-columns 180ms ease;
+}
+
+.app-shell--sidebar-collapsed {
+  --nf-sidebar-width: 4.75rem;
 }
 
 .sidebar {
@@ -87,8 +93,17 @@ a {
   background: var(--nf-color-surface);
 }
 
+.sidebar-header {
+  display: flex;
+  gap: var(--nf-space-3);
+  align-items: center;
+  min-width: 0;
+}
+
 .brand {
   display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
   gap: var(--nf-space-3);
   align-items: center;
   color: var(--nf-color-text);
@@ -116,6 +131,30 @@ a {
   margin-top: 0.1rem;
   color: var(--nf-color-text-muted);
   font-size: 0.75rem;
+}
+
+.sidebar-toggle {
+  display: inline-flex;
+  flex: 0 0 2.75rem;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0;
+  border: 1px solid var(--nf-color-border);
+  border-radius: var(--nf-radius-sm);
+  background: var(--nf-color-surface-raised);
+  color: var(--nf-color-primary);
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.sidebar-toggle:hover {
+  background: var(--nf-color-primary-soft);
+}
+
+.sidebar-toggle ion-icon {
+  font-size: 1.25rem;
 }
 
 .primary-navigation {
@@ -272,6 +311,49 @@ a {
 
 .nf-button--quiet:hover:not(:disabled) {
   background: var(--nf-color-primary-soft);
+}
+
+@media (min-width: 62rem) {
+  .app-shell--sidebar-collapsed .sidebar {
+    padding-inline: var(--nf-space-2);
+  }
+
+  .app-shell--sidebar-collapsed .sidebar-header {
+    display: grid;
+    gap: var(--nf-space-3);
+    justify-items: center;
+  }
+
+  .app-shell--sidebar-collapsed .brand {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .app-shell--sidebar-collapsed .brand > span {
+    display: none;
+  }
+
+  .app-shell--sidebar-collapsed .sidebar-toggle {
+    width: 100%;
+  }
+
+  .app-shell--sidebar-collapsed .primary-navigation {
+    margin-top: var(--nf-space-5);
+  }
+
+  .app-shell--sidebar-collapsed .navigation-link {
+    justify-content: center;
+    gap: 0;
+    padding-inline: var(--nf-space-2);
+  }
+
+  .app-shell--sidebar-collapsed .navigation-link > span {
+    display: none;
+  }
+
+  .app-shell--sidebar-collapsed .sidebar-controls {
+    display: none;
+  }
 }
 
 @media (max-width: 61.99rem) {

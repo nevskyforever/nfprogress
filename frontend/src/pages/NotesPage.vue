@@ -200,7 +200,7 @@ onBeforeUnmount(workspace.invalidate)
 <template>
   <IonPage>
     <IonContent :fullscreen="true" class="notes-content">
-      <main class="notes-workspace">
+      <main class="notes-workspace" :class="{ 'notes-workspace--map': activeView === 'mindmap' }">
         <RouterLink
           class="notes-back-link"
           :to="route.meta?.resourceHub ? { name: String(route.meta.resourceHub) } : { name: 'project-detail', params: { projectId } }"
@@ -340,6 +340,7 @@ onBeforeUnmount(workspace.invalidate)
           id="mindmap-panel"
           role="tabpanel"
           aria-labelledby="mindmap-tab"
+          class="mindmap-panel"
         >
           <MindMapEditor
             v-if="workspace.mindMap.value"
@@ -377,6 +378,16 @@ onBeforeUnmount(workspace.invalidate)
   margin: 0 auto;
   padding: calc(var(--nf-space-6) + env(safe-area-inset-top)) clamp(1rem, 4vw, 4rem)
     calc(var(--nf-space-7) + env(safe-area-inset-bottom));
+}
+
+.notes-workspace--map {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: max(.75rem, env(safe-area-inset-top)) clamp(.75rem, 1.5vw, 1.5rem)
+    max(.75rem, env(safe-area-inset-bottom));
+  flex-direction: column;
 }
 
 .notes-back-link {
@@ -419,6 +430,53 @@ onBeforeUnmount(workspace.invalidate)
   letter-spacing: -0.04em;
   line-height: 1;
   overflow-wrap: anywhere;
+}
+
+.notes-workspace--map .notes-back-link {
+  min-height: 2.25rem;
+  margin-bottom: var(--nf-space-3);
+}
+
+.notes-workspace--map .notes-header h1 {
+  font-size: clamp(1.6rem, 2.8vw, 2.35rem);
+}
+
+.notes-workspace--map .workspace-tabs {
+  margin: var(--nf-space-3) 0;
+}
+
+.mindmap-panel {
+  min-width: 0;
+}
+
+.notes-workspace--map .mindmap-panel {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.notes-workspace--map :deep(.mindmap-editor) {
+  display: flex;
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+}
+
+.notes-workspace--map :deep(.mindmap-editor__toolbar) {
+  padding: var(--nf-space-2) var(--nf-space-3);
+}
+
+.notes-workspace--map :deep(.mindmap-editor__actions .nf-button) {
+  min-height: 2.35rem;
+  padding: .5rem .75rem;
+  font-size: .8rem;
+}
+
+.notes-workspace--map :deep(.mindmap-editor__frame) {
+  min-height: 0;
+  height: 100%;
+  flex: 1 1 auto;
 }
 
 .stage-picker {
@@ -600,6 +658,15 @@ onBeforeUnmount(workspace.invalidate)
 
   .workspace-tabs button {
     justify-content: center;
+  }
+
+  .notes-workspace--map :deep(.mindmap-editor__toolbar) {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .notes-workspace--map :deep(.mindmap-editor__actions) {
+    flex-wrap: wrap;
   }
 }
 </style>
