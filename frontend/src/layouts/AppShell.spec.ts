@@ -118,6 +118,8 @@ describe('AppShell preferences', () => {
     const navigation = wrapper.get('.primary-navigation').text()
     expect(navigation).toContain('Карты')
     expect(navigation).toContain('Заметки')
+    expect(navigation).toContain('Игра')
+    expect(navigation).not.toContain('Игровой режим')
   })
 
   it('starts collapsed and remembers sidebar preference changes', async () => {

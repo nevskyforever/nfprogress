@@ -83,7 +83,7 @@ const navigationItems = computed(() => [
   { to: lastMapsPath.value, home: '/maps', label: 'Карты', mobileLabel: 'Карты', icon: gitBranchOutline },
   { to: lastNotesPath.value, home: '/notes', label: 'Заметки', mobileLabel: 'Заметки', icon: documentTextOutline },
   { to: '/texts', home: '/texts', label: 'Тексты', mobileLabel: 'Тексты', icon: documentTextOutline },
-  { to: '/game', home: '/game', label: 'Игровой режим', mobileLabel: 'Игра', icon: sparklesOutline },
+  { to: '/game', home: '/game', label: 'Игра', mobileLabel: 'Игра', icon: sparklesOutline },
   { to: '/help', home: '/help', label: 'Помощь', mobileLabel: 'Помощь', icon: helpCircleOutline },
   { to: '/settings', home: '/settings', label: 'Настройки', mobileLabel: 'Ещё', icon: settingsOutline },
 ] as const)
