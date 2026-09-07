@@ -62,7 +62,8 @@ const lastNotesPath = ref('/notes')
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nfprogress.sidebar-collapsed'
 const sidebarCollapsed = ref(true)
 const appShell = ref<HTMLElement | null>(null)
-let sidebarAnimation: Animation | null = null
+let sidebarAnimationFrame: number | undefined
+let sidebarAnimationToken = 0
 try {
   const saved = sessionStorage.getItem('nfprogress:last-project-path')
   if (saved?.startsWith('/projects')) lastProjectPath.value = saved
@@ -98,8 +99,12 @@ async function toggleSidebar(): Promise<void> {
   const sidebar = shell?.querySelector<HTMLElement>('.sidebar')
   const startWidth = sidebar?.getBoundingClientRect().width
 
-  sidebarAnimation?.cancel()
-  sidebarAnimation = null
+  sidebarAnimationToken += 1
+  const animationToken = sidebarAnimationToken
+  if (sidebarAnimationFrame !== undefined) {
+    window.cancelAnimationFrame(sidebarAnimationFrame)
+    sidebarAnimationFrame = undefined
+  }
 
   if (shell && sidebar && startWidth) {
     shell.style.gridTemplateColumns = `${startWidth}px minmax(0, 1fr)`
@@ -113,32 +118,30 @@ async function toggleSidebar(): Promise<void> {
   if (!shell || !sidebar || !startWidth) return
 
   await nextTick()
+  if (animationToken !== sidebarAnimationToken) return
   shell.style.removeProperty('grid-template-columns')
   const endWidth = sidebar.getBoundingClientRect().width
   shell.style.gridTemplateColumns = `${startWidth}px minmax(0, 1fr)`
   void shell.offsetWidth
 
-  if (typeof shell.animate !== 'function') {
+  const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220
+  const startedAt = performance.now()
+  const animateSidebar = (now: number): void => {
+    if (animationToken !== sidebarAnimationToken) return
+    const progress = duration === 0 ? 1 : Math.min((now - startedAt) / duration, 1)
+    const easedProgress = progress < 0.5
+      ? 2 * progress ** 2
+      : 1 - ((-2 * progress + 2) ** 2) / 2
+    const width = startWidth + (endWidth - startWidth) * easedProgress
+    shell.style.gridTemplateColumns = `${width}px minmax(0, 1fr)`
+    if (progress < 1) {
+      sidebarAnimationFrame = window.requestAnimationFrame(animateSidebar)
+      return
+    }
     shell.style.removeProperty('grid-template-columns')
-    return
+    sidebarAnimationFrame = undefined
   }
-
-  const animation = shell.animate(
-    [
-      { gridTemplateColumns: `${startWidth}px minmax(0, 1fr)` },
-      { gridTemplateColumns: `${endWidth}px minmax(0, 1fr)` },
-    ],
-    {
-      duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220,
-      easing: 'ease',
-    },
-  )
-  sidebarAnimation = animation
-  animation.onfinish = () => {
-    if (sidebarAnimation !== animation) return
-    shell.style.removeProperty('grid-template-columns')
-    sidebarAnimation = null
-  }
+  sidebarAnimationFrame = window.requestAnimationFrame(animateSidebar)
 }
 
 watch(() => route.fullPath, (path) => {
@@ -263,8 +266,10 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleShortcut)
   if (writingDayTimer !== undefined) window.clearInterval(writingDayTimer)
-  sidebarAnimation?.cancel()
-  sidebarAnimation = null
+  sidebarAnimationToken += 1
+  if (sidebarAnimationFrame !== undefined) window.cancelAnimationFrame(sidebarAnimationFrame)
+  sidebarAnimationFrame = undefined
+  appShell.value?.style.removeProperty('grid-template-columns')
   stopDataChanges?.()
 })
 
