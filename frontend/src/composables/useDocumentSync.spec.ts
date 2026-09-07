@@ -16,6 +16,8 @@ vi.mock('@/api/documents', () => ({
     recordProgress: vi.fn(),
     save: vi.fn(),
     writeDocx: vi.fn(),
+    writeDocxContent: vi.fn(),
+    parseWord: vi.fn(),
   },
 }))
 

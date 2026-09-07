@@ -74,6 +74,8 @@ vi.mock('@/api/documents', () => ({
     recordProgress: vi.fn(),
     save: vi.fn(),
     writeDocx: vi.fn(),
+    writeDocxContent: vi.fn(),
+    parseWord: vi.fn(),
   },
 }))
 
@@ -310,6 +312,15 @@ describe('DocumentEditorView status bar', () => {
     wrapper.unmount()
   })
 
+  it('mounts an empty editor for a document that does not exist yet', async () => {
+    const wrapper = mountEditor(projectFixture({ total: 804 }), { projectId: 'project-id' }, documentFixture)
+    await flushPromises()
+
+    expect(wrapper.find('.document-editor-view__workspace .tiptap-stub').exists()).toBe(true)
+    expect(JSON.parse(wrapper.get('.tiptap-model').text())).toEqual(documentFixture.content)
+    wrapper.unmount()
+  })
+
   it('keeps the editor uncontrolled after loading the initial document', async () => {
     const edited: TiptapDocument = {
       type: 'doc',
@@ -489,6 +500,20 @@ describe('DocumentEditorView status bar', () => {
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 10')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toContain('4')
     expect(wrapper.get('.document-editor-view__today-goal').text()).not.toContain('99')
+    wrapper.unmount()
+  })
+
+  it('mounts a stage editor with the parent project and stage scope', async () => {
+    const scope = { projectId: 'project-id', stageId: 'stage-id' }
+    const wrapper = mountEditor(
+      projectFixture({ stages: [projectFixture({ id: 'stage-id', parent_project_id: 'project-id' })] }),
+      scope,
+      { ...documentFixture, stage_id: 'stage-id' },
+    )
+    await flushPromises()
+
+    expect(documentsApi.get).toHaveBeenCalledWith(scope)
+    expect(wrapper.find('.document-editor-view__workspace .tiptap-stub').exists()).toBe(true)
     wrapper.unmount()
   })
 

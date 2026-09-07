@@ -21,31 +21,31 @@ export const documentsApi: DocumentRepository = {
     ? nativeInvoke<ProjectDocument[]>('list_documents')
     : apiRequest<ProjectDocument[]>('/api/documents/list'),
   get: (scope: DocumentScope) => currentPlatform() === 'tauri'
-    ? nativeInvoke<ProjectDocument>('get_document', nativeScope(scope))
+    ? nativeInvoke<ProjectDocument>('get_document', { scope: nativeScope(scope) })
     : apiRequest<ProjectDocument>(path(scope)),
   save: (scope: DocumentScope, content: TiptapDocument) => currentPlatform() === 'tauri'
-    ? nativeInvoke<ProjectDocument>('save_document', { ...nativeScope(scope), content })
+    ? nativeInvoke<ProjectDocument>('save_document', { command: { ...nativeScope(scope), content } })
     : apiRequest<ProjectDocument>(path(scope), { method: 'PUT', body: { content } }),
   link: (scope: DocumentScope, filePath: string) => currentPlatform() === 'tauri'
-    ? nativeInvoke<ProjectDocument>('bind_document_file', { ...nativeScope(scope), path: filePath })
+    ? nativeInvoke<ProjectDocument>('bind_document_file', { command: { ...nativeScope(scope), path: filePath } })
     : apiRequest<ProjectDocument>(path(scope, '/link'), { method: 'PUT', body: { path: filePath } }),
   writeDocx: (scope: DocumentScope, contentBase64: string) => currentPlatform() === 'tauri'
-    ? nativeInvoke<ProjectDocument>('write_document_word', { ...nativeScope(scope), contentBase64 })
+    ? nativeInvoke<ProjectDocument>('write_document_word', { command: { ...nativeScope(scope), contentBase64 } })
     : apiRequest<ProjectDocument>(path(scope, '/docx'), { method: 'PUT', body: { content_base64: contentBase64 } }),
   writeDocxContent: (scope: DocumentScope, content: TiptapDocument) => currentPlatform() === 'tauri'
     ? nativeInvoke<ProjectDocument>('write_document_word_content', { ...nativeScope(scope), content })
     : Promise.reject(new Error('Нативная запись DOCX доступна только в desktop-приложении.')),
   parseWord: (bytes: Uint8Array, filename: string) => currentPlatform() === 'tauri'
-    ? nativeInvoke<{ content: TiptapDocument; symbols: number; hash: string }>('parse_word_document', { bytes: Array.from(bytes), filename })
+    ? nativeInvoke<{ content: TiptapDocument; symbols: number; hash: string }>('parse_word_document', { command: { bytes: Array.from(bytes), filename } })
     : Promise.reject(new Error('Нативный разбор DOCX доступен только в desktop-приложении.')),
   external: (scope: DocumentScope) => currentPlatform() === 'tauri'
-    ? nativeInvoke<{ state: string; content_base64?: string; hash?: string }>('read_document_external', nativeScope(scope))
+    ? nativeInvoke<{ state: string; content_base64?: string; hash?: string }>('read_document_external', { scope: nativeScope(scope) })
     : apiRequest<{ state: string; content_base64?: string; hash?: string }>(path(scope, '/external')),
   acceptWord: (scope: DocumentScope, content: TiptapDocument, sourceHash: string) => currentPlatform() === 'tauri'
-    ? nativeInvoke<ProjectDocument>('accept_document_external', { ...nativeScope(scope), content, sourceHash })
+    ? nativeInvoke<ProjectDocument>('accept_document_external', { command: { ...nativeScope(scope), content, sourceHash } })
     : apiRequest<ProjectDocument>(path(scope, '/accept-word'), { method: 'PUT', body: { content, source_hash: sourceHash } }),
   recordProgress: (scope: DocumentScope, content?: TiptapDocument) => currentPlatform() === 'tauri'
-    ? nativeInvoke<DocumentProgressResult>('record_document_progress', { ...nativeScope(scope), ...(content ? { content } : {}) })
+    ? nativeInvoke<DocumentProgressResult>('record_document_progress', { command: { ...nativeScope(scope), ...(content ? { content } : {}) } })
     : apiRequest<DocumentProgressResult>(path(scope, '/progress'), {
       method: 'POST',
       ...(content ? { body: { content } } : {}),

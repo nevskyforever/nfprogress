@@ -375,7 +375,7 @@ async function exportWord() {
     const targetPath = await pickDesktopWordSavePath('Экспортировать документ Word', `${props.title}.docx`)
     if (!targetPath) return
     const { invoke } = await import('@tauri-apps/api/core')
-    await invoke('export_word_document', { content: editorContent.value, targetPath })
+    await invoke('export_word_document', { command: { content: editorContent.value, targetPath } })
     return
   }
   const blob = await exportDocx(editorContent.value); const url = URL.createObjectURL(blob); const anchor = document.createElement('a')
