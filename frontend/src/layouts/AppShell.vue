@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch, watchEffect } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { IonIcon, IonRouterOutlet } from '@ionic/vue'
 import {
@@ -61,6 +61,8 @@ const lastMapsPath = ref('/maps')
 const lastNotesPath = ref('/notes')
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nfprogress.sidebar-collapsed'
 const sidebarCollapsed = ref(true)
+const appShell = ref<HTMLElement | null>(null)
+let sidebarAnimation: Animation | null = null
 try {
   const saved = sessionStorage.getItem('nfprogress:last-project-path')
   if (saved?.startsWith('/projects')) lastProjectPath.value = saved
@@ -91,11 +93,52 @@ const showSidebarStreak = computed(() => (
   route.name !== 'projects' && globalStreak.value?.enabled === true
 ))
 
-function toggleSidebar(): void {
+async function toggleSidebar(): Promise<void> {
+  const shell = appShell.value
+  const sidebar = shell?.querySelector<HTMLElement>('.sidebar')
+  const startWidth = sidebar?.getBoundingClientRect().width
+
+  sidebarAnimation?.cancel()
+  sidebarAnimation = null
+
+  if (shell && sidebar && startWidth) {
+    shell.style.gridTemplateColumns = `${startWidth}px minmax(0, 1fr)`
+  }
+
   sidebarCollapsed.value = !sidebarCollapsed.value
   try {
     localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, String(sidebarCollapsed.value))
   } catch { /* optional */ }
+
+  if (!shell || !sidebar || !startWidth) return
+
+  await nextTick()
+  shell.style.removeProperty('grid-template-columns')
+  const endWidth = sidebar.getBoundingClientRect().width
+  shell.style.gridTemplateColumns = `${startWidth}px minmax(0, 1fr)`
+  void shell.offsetWidth
+
+  if (typeof shell.animate !== 'function') {
+    shell.style.removeProperty('grid-template-columns')
+    return
+  }
+
+  const animation = shell.animate(
+    [
+      { gridTemplateColumns: `${startWidth}px minmax(0, 1fr)` },
+      { gridTemplateColumns: `${endWidth}px minmax(0, 1fr)` },
+    ],
+    {
+      duration: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220,
+      easing: 'ease',
+    },
+  )
+  sidebarAnimation = animation
+  animation.onfinish = () => {
+    if (sidebarAnimation !== animation) return
+    shell.style.removeProperty('grid-template-columns')
+    sidebarAnimation = null
+  }
 }
 
 watch(() => route.fullPath, (path) => {
@@ -220,6 +263,8 @@ onMounted(() => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleShortcut)
   if (writingDayTimer !== undefined) window.clearInterval(writingDayTimer)
+  sidebarAnimation?.cancel()
+  sidebarAnimation = null
   stopDataChanges?.()
 })
 
@@ -287,7 +332,7 @@ watchEffect(() => {
 <template>
   <a class="skip-link" href="#main-content">{{ t('Перейти к содержимому') }}</a>
 
-  <div class="app-shell" :class="{ 'app-shell--sidebar-collapsed': sidebarCollapsed }">
+  <div ref="appShell" class="app-shell" :class="{ 'app-shell--sidebar-collapsed': sidebarCollapsed }">
     <aside class="sidebar" :aria-label="t('Основная навигация')">
       <div class="sidebar-header">
         <RouterLink class="brand" to="/projects" aria-label="nfprogress — проекты">
