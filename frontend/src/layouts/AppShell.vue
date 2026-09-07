@@ -124,11 +124,13 @@ async function toggleSidebar(): Promise<void> {
   shell.style.gridTemplateColumns = `${startWidth}px minmax(0, 1fr)`
   void shell.offsetWidth
 
-  const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 220
+  // Keep the transition visible even when the system asks to reduce motion;
+  // use a shorter duration instead of removing the feedback entirely.
+  const duration = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 160 : 220
   const startedAt = performance.now()
   const animateSidebar = (now: number): void => {
     if (animationToken !== sidebarAnimationToken) return
-    const progress = duration === 0 ? 1 : Math.min((now - startedAt) / duration, 1)
+    const progress = Math.min((now - startedAt) / duration, 1)
     const easedProgress = progress < 0.5
       ? 2 * progress ** 2
       : 1 - ((-2 * progress + 2) ** 2) / 2
