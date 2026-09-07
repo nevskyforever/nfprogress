@@ -106,6 +106,16 @@ describe('StageWorkspace', () => {
     expect(wrapper.find('.progress-ring').exists()).toBe(true)
   })
 
+  it('does not show mouse-button instructions inside stage cards', () => {
+    const stage = projectFixture({ id: 'stage-a', name: 'Черновик', goal: 10_000 })
+    const wrapper = mount(StageWorkspace, {
+      props: { project: projectFixture({ stages_enabled: true, stages: [stage] }), busy: false },
+      global: { plugins: [createPinia()], stubs: { IonIcon: true } },
+    })
+
+    expect(wrapper.findAll('.stage-card small')).toHaveLength(0)
+  })
+
   it('protects shared-project sources from edit while allowing deletion', async () => {
     const stage = projectFixture({ id: 'source-a', infinite: true, goal: null })
     const wrapper = mount(StageWorkspace, {

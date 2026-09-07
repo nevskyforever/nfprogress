@@ -50,6 +50,7 @@ function mountApp() {
         plugins: [pinia],
         stubs: {
           IonApp: { template: '<div><slot /></div>' },
+          IonRouterOutlet: { template: '<div data-testid="router-outlet"><slot /></div>' },
           AppShell: { template: '<div data-testid="app-shell">workspace</div>' },
           UserAgreementGate: { template: '<div data-testid="agreement-gate">agreement</div>' },
           NotificationCenter: true,
@@ -125,5 +126,21 @@ describe('App bootstrap', () => {
 
     expect(settingsApi.get).toHaveBeenCalledTimes(2)
     expect(wrapper.find('[data-testid="app-shell"]').exists()).toBe(true)
+  })
+
+  it('renders a resource workspace without the application shell in a workspace window', async () => {
+    window.history.replaceState({}, '', '/maps/project-id?workspace_window=1')
+    vi.mocked(settingsApi.get).mockResolvedValue(
+      settingsResponse({ language: 'ru', frontend_theme: 'system', user_agreement: true }),
+    )
+
+    const { wrapper } = mountApp()
+    await flushPromises()
+
+    expect(wrapper.find('.workspace-window').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="router-outlet"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="app-shell"]').exists()).toBe(false)
+    wrapper.unmount()
+    window.history.replaceState({}, '', '/')
   })
 })

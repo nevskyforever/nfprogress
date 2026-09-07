@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
-import { IonApp } from '@ionic/vue'
+import { IonApp, IonRouterOutlet } from '@ionic/vue'
 
 import { apiErrorMessage } from '@/api/client'
 import { settingsApi } from '@/api/settings'
@@ -9,6 +9,7 @@ import NotificationCenter from '@/components/ui/NotificationCenter.vue'
 import NotificationStack from '@/components/ui/NotificationStack.vue'
 import UpdatePrompt from '@/components/ui/UpdatePrompt.vue'
 import AppShell from '@/layouts/AppShell.vue'
+import { isWorkspaceWindow } from '@/platform/workspaceWindows'
 import { supportsUpdateChecks } from '@/platform/runtime'
 import { isSupportedLanguage, useLocaleStore } from '@/stores/locale'
 import { isMotionPreference, useMotionStore } from '@/stores/motion'
@@ -29,6 +30,7 @@ const appIcon = '/icons/icon-192.webp'
 const bootstrapState = ref<BootstrapState>('loading')
 const bootstrapError = ref<string | null>(null)
 let updateTimer: number | null = null
+const workspaceWindow = isWorkspaceWindow()
 
 function startAutomaticUpdateChecks(): void {
   if (!supportsUpdateChecks() || updateTimer !== null) return
@@ -111,10 +113,15 @@ onBeforeUnmount(() => {
       @accepted="handleAgreementAccepted"
     />
     <template v-else>
-      <AppShell />
-      <NotificationCenter />
-      <NotificationStack />
-      <UpdatePrompt />
+      <div v-if="workspaceWindow" class="workspace-window">
+        <IonRouterOutlet />
+      </div>
+      <template v-else>
+        <AppShell />
+        <NotificationCenter />
+        <NotificationStack />
+        <UpdatePrompt />
+      </template>
     </template>
   </IonApp>
 </template>
@@ -152,5 +159,19 @@ onBeforeUnmount(() => {
   width: 4rem;
   height: 4rem;
   object-fit: contain;
+}
+
+.workspace-window {
+  width: 100%;
+  height: 100dvh;
+  min-height: 100dvh;
+  background: var(--nf-color-canvas);
+  color: var(--nf-color-text);
+}
+
+.workspace-window :deep(ion-router-outlet) {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 </style>

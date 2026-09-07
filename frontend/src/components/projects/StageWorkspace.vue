@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, onUpdated, ref, watch } from 'vue'
 import { IonIcon } from '@ionic/vue'
 import { addOutline } from 'ionicons/icons'
 
@@ -52,6 +52,9 @@ const pointerStageDrag = ref<{
 } | null>(null)
 const contextStage = ref<Project | null>(null)
 const contextPosition = ref({ x: 0, y: 0 })
+const stagesSection = ref<HTMLElement | null>(null)
+let stageSizeObserver: ResizeObserver | undefined
+let stageMeasureFrame: number | undefined
 const fractionDigits = computed(() => props.project.unit === 'symbols' ? 0 : 2)
 const addButtonLabel = computed(() => sharedProject.value ? t('Добавить источник') : t('Добавить этап'))
 const emptyActionLabel = computed(() => sharedProject.value ? t('Создать первый источник') : t('Создать первый этап'))
@@ -179,6 +182,33 @@ function selectContextAction(action: ContextAction): void {
   if (action.id === 'delete') requestRemove(stage)
 }
 
+function measureStageCardHeight(): void {
+  const list = stagesSection.value?.querySelector<HTMLOListElement>('.stage-list')
+  if (!list) return
+  list.style.removeProperty('--stage-card-height')
+  const heights = [...list.querySelectorAll<HTMLElement>('.stage-card')]
+    .map((card) => card.getBoundingClientRect().height)
+  const maxHeight = Math.max(0, ...heights)
+  if (maxHeight > 0) list.style.setProperty('--stage-card-height', `${Math.ceil(maxHeight)}px`)
+}
+
+function scheduleStageCardMeasurement(): void {
+  if (stageMeasureFrame !== undefined) window.cancelAnimationFrame(stageMeasureFrame)
+  stageMeasureFrame = window.requestAnimationFrame(() => {
+    stageMeasureFrame = undefined
+    measureStageCardHeight()
+  })
+}
+
+function observeStageCards(): void {
+  const list = stagesSection.value?.querySelector<HTMLOListElement>('.stage-list')
+  if (!list || !stageSizeObserver) return
+  stageSizeObserver.disconnect()
+  stageSizeObserver.observe(list)
+  list.querySelectorAll<HTMLElement>('.stage-card').forEach((card) => stageSizeObserver?.observe(card))
+  scheduleStageCardMeasurement()
+}
+
 watch(() => props.stageSort, (value) => { if (value !== sort.value) sort.value = value })
 watch(() => props.project.stages.map((stage) => stage.id), (ids) => {
   if (!stageOrderEditing.value) manualStageIds.value = ids
@@ -188,11 +218,24 @@ watch(sort, (value) => {
   manualStageIds.value = props.project.stages.map((stage) => stage.id)
   emit('sort', value)
 })
+onMounted(() => {
+  void nextTick(() => {
+    if (typeof ResizeObserver === 'undefined') return
+    stageSizeObserver = new ResizeObserver(() => scheduleStageCardMeasurement())
+    observeStageCards()
+  })
+})
+onUpdated(observeStageCards)
 onBeforeUnmount(clearStagePointerDrag)
+onBeforeUnmount(() => {
+  if (stageMeasureFrame !== undefined) window.cancelAnimationFrame(stageMeasureFrame)
+  stageSizeObserver?.disconnect()
+  stageSizeObserver = undefined
+})
 </script>
 
 <template>
-  <section class="stages-section" aria-labelledby="stages-heading">
+  <section ref="stagesSection" class="stages-section" aria-labelledby="stages-heading">
     <div class="section-heading stage-section-heading">
       <div><p>{{ t('Структура рукописи') }}</p><h2 id="stages-heading">{{ t('Этапы') }}</h2></div>
       <div class="stage-heading-actions">
@@ -269,7 +312,6 @@ onBeforeUnmount(clearStagePointerDrag)
             <span aria-hidden="true">⠿</span>
           </button>
           <ProgressShareMenu :label="t('Поделиться прогрессом «{name}»', { name: stage.name })" :title="stage.infinite ? t('Для проекта без цели нельзя создать картинку прогресса') : undefined" :disabled="busy || sharing || sharedProject || stage.infinite" @copy="emit('copy', stage)" @save="emit('save', stage)" />
-          <small>{{ t('Действия доступны по правой кнопке мыши') }}</small>
         </div>
       </li>
     </TransitionGroup>
@@ -297,24 +339,23 @@ onBeforeUnmount(clearStagePointerDrag)
 .stage-order-toggle { grid-auto-flow: column; gap: var(--nf-space-1); }
 .stage-drag-handle { min-width: 2.75rem; padding: 0; font-size: 1.2rem; cursor: grab; touch-action: none; user-select: none; }
 .stage-drag-handle:active { cursor: grabbing; }
-.stage-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--nf-space-3); margin: 0; padding: 0; list-style: none; }
-.stage-card { display: grid; gap: var(--nf-space-3); padding: var(--nf-space-4); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); box-shadow: var(--nf-shadow-card); }
+.stage-list { --stage-card-height: 0px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: var(--nf-space-3); margin: 0; padding: 0; list-style: none; }
+.stage-card { display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: var(--stage-card-height); gap: var(--nf-space-3); padding: var(--nf-space-4); border: 1px solid var(--nf-color-border); border-radius: var(--nf-radius-md); background: var(--nf-color-surface); box-shadow: var(--nf-shadow-card); }
 .stage-card--sortable { cursor: grab; user-select: none; }
-.stage-open-button { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--nf-space-3); padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.stage-open-button { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--nf-space-3); align-self: stretch; width: 100%; min-width: 0; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; }
 .stage-open-button:focus-visible { border-radius: var(--nf-radius-sm); outline: 3px solid var(--nf-color-primary-soft); outline-offset: 3px; }
 .stage-open-button:hover h3 { color: var(--nf-color-primary); }
 .stage-index { display: grid; width: 2.5rem; height: 2.5rem; place-items: center; border-radius: 50%; background: var(--nf-color-primary-soft); color: var(--nf-color-primary); font-family: var(--nf-font-serif); font-weight: 800; }
-.stage-title-row { display: flex; gap: var(--nf-space-3); align-items: baseline; justify-content: space-between; }
+.stage-title-row { display: flex; gap: var(--nf-space-3); align-items: flex-start; justify-content: space-between; }
 .stage-title-row > div { min-width: 0; }
 .stage-title-row h3 { overflow-wrap: anywhere; margin: 0; font-size: 1rem; }
 .stage-title-row p { margin: var(--nf-space-2) 0 0; color: var(--nf-color-text-muted); font-size: .78rem; }
 .stage-completed { display: inline-block; margin-top: var(--nf-space-1); color: var(--nf-color-success); font-size: .75rem; font-weight: 700; }
 .stage-streak { margin-top: var(--nf-space-3); }
-.stage-actions { display: flex; gap: var(--nf-space-2); align-items: center; justify-content: space-between; margin-top: var(--nf-space-2); }
-.stage-actions small { color: var(--nf-color-text-muted); font-size: .68rem; text-align: right; }
+.stage-actions { display: flex; gap: var(--nf-space-2); align-items: center; justify-content: space-between; min-height: 2.75rem; margin-top: var(--nf-space-2); }
 .stages-empty { display: grid; justify-items: start; gap: var(--nf-space-3); padding: var(--nf-space-5); border: 1px dashed var(--nf-color-border); border-radius: var(--nf-radius-md); color: var(--nf-color-text-muted); }
 .stages-empty p { margin: 0; }
 .stage-list-move, .stage-list-enter-active, .stage-list-leave-active { transition: transform 360ms ease, opacity 220ms ease; }
 .stage-list-enter-from, .stage-list-leave-to { opacity: 0; transform: translateY(.75rem) scale(.98); }
-@media (max-width: 37.5rem) { .section-heading { align-items: stretch; flex-direction: column; } .stage-actions small { display: none; } }
+@media (max-width: 37.5rem) { .section-heading { align-items: stretch; flex-direction: column; } }
 </style>
