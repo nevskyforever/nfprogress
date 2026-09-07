@@ -372,7 +372,8 @@ watchEffect(() => {
         :max-length="globalStreak.max_length"
         :status="globalStreak.status"
         scope="global"
-        compact
+        :compact="sidebarCollapsed"
+        show-max
       />
 
       <nav id="primary-navigation" class="primary-navigation" :aria-label="t('Разделы приложения')">
@@ -498,37 +499,28 @@ watchEffect(() => {
 }
 
 :deep(.sidebar-global-streak) {
-  display: grid;
   width: 100%;
-  min-width: max-content;
   margin-top: var(--nf-space-4);
   border-radius: var(--nf-radius-md);
+}
+
+:deep(.sidebar-global-streak.streak-badge--compact) {
+  display: grid;
+  min-width: max-content;
   grid-template-columns: minmax(0, 1fr);
   grid-template-rows: auto auto;
   justify-items: center;
   align-items: center;
 }
 
-:deep(.sidebar-global-streak .streak-badge__copy) {
+:deep(.sidebar-global-streak.streak-badge--compact .streak-badge__copy) {
   grid-column: 1;
   min-width: 0;
   justify-content: center;
   flex-wrap: wrap;
 }
 
-:deep(.sidebar-global-streak .streak-badge__status) {
-  grid-column: 2;
-  overflow: visible;
-  text-overflow: clip;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-:deep(.sidebar-global-streak .streak-badge__maximum) {
-  grid-column: 2;
-}
-
-:deep(.sidebar-global-streak > ion-icon) {
+:deep(.sidebar-global-streak.streak-badge--compact > ion-icon) {
   grid-column: 1;
   grid-row: auto;
 }

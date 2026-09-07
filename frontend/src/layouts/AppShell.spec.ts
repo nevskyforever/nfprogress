@@ -171,7 +171,15 @@ describe('AppShell preferences', () => {
     const streak = otherPage.get('.sidebar-global-streak')
     expect(streak.classes()).toContain('streak-badge--compact')
     expect(streak.text()).toContain('4 дн.')
-    expect(streak.find('.streak-badge__maximum').exists()).toBe(false)
+    expect(streak.find('.streak-badge__maximum').isVisible()).toBe(false)
+
+    await otherPage.get('.sidebar-toggle').trigger('click')
+    await flushPromises()
+
+    const expandedStreak = otherPage.get('.sidebar-global-streak')
+    expect(expandedStreak.classes()).not.toContain('streak-badge--compact')
+    expect(expandedStreak.text()).toContain('Глобальный стрик')
+    expect(expandedStreak.find('.streak-badge__maximum').exists()).toBe(true)
     otherPage.unmount()
   })
 
