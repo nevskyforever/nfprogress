@@ -120,7 +120,7 @@ describe('AppShell preferences', () => {
     expect(navigation).toContain('Заметки')
   })
 
-  it('collapses the desktop sidebar and remembers the preference', async () => {
+  it('starts collapsed and remembers sidebar preference changes', async () => {
     const values = new Map<string, string>()
     const previousLocalStorage = Object.getOwnPropertyDescriptor(window, 'localStorage')
     Object.defineProperty(window, 'localStorage', {
@@ -136,24 +136,57 @@ describe('AppShell preferences', () => {
       const { wrapper } = mountShell()
       const toggle = wrapper.get('.sidebar-toggle')
 
-      expect(wrapper.get('.app-shell').classes()).not.toContain('app-shell--sidebar-collapsed')
-      expect(toggle.attributes('aria-expanded')).toBe('true')
-
-      await toggle.trigger('click')
-
       expect(wrapper.get('.app-shell').classes()).toContain('app-shell--sidebar-collapsed')
       expect(toggle.attributes('aria-expanded')).toBe('false')
       expect(toggle.attributes('aria-label')).toBe('Развернуть меню')
-      expect(values.get('nfprogress.sidebar-collapsed')).toBe('true')
 
       await toggle.trigger('click')
+
       expect(wrapper.get('.app-shell').classes()).not.toContain('app-shell--sidebar-collapsed')
+      expect(toggle.attributes('aria-expanded')).toBe('true')
+      expect(toggle.attributes('aria-label')).toBe('Свернуть меню')
       expect(values.get('nfprogress.sidebar-collapsed')).toBe('false')
+
+      await toggle.trigger('click')
+      expect(wrapper.get('.app-shell').classes()).toContain('app-shell--sidebar-collapsed')
+      expect(values.get('nfprogress.sidebar-collapsed')).toBe('true')
       wrapper.unmount()
     } finally {
       if (previousLocalStorage) Object.defineProperty(window, 'localStorage', previousLocalStorage)
       else delete (window as unknown as { localStorage?: Storage }).localStorage
     }
+  })
+
+  it('hides the duplicate home-page streak and keeps the sidebar badge compact elsewhere', async () => {
+    const { wrapper } = mountShell()
+    await flushPromises()
+
+    expect(wrapper.find('.sidebar-global-streak').exists()).toBe(false)
+    wrapper.unmount()
+
+    routerMock.route.name = 'settings'
+    const otherPage = mountShell().wrapper
+    await flushPromises()
+
+    const streak = otherPage.get('.sidebar-global-streak')
+    expect(streak.classes()).toContain('streak-badge--compact')
+    expect(streak.text()).toContain('4 дн.')
+    expect(streak.find('.streak-badge__maximum').exists()).toBe(false)
+    otherPage.unmount()
+  })
+
+  it('does not render the sidebar badge when global streaks are disabled', async () => {
+    routerMock.route.name = 'settings'
+    vi.mocked(settingsApi.get).mockResolvedValue(response({
+      developer_mode: false,
+      global_streak: false,
+    }))
+    const { wrapper } = mountShell()
+    await flushPromises()
+
+    expect(wrapper.find('.sidebar-global-streak').exists()).toBe(false)
+    expect(projectsApi.globalStreak).not.toHaveBeenCalled()
+    wrapper.unmount()
   })
 
   it('returns to the section home when its active navigation item is pressed again', async () => {
@@ -166,6 +199,7 @@ describe('AppShell preferences', () => {
   })
 
   it('refreshes the global streak after a project freeze is applied in game mode', async () => {
+    routerMock.route.name = 'game'
     const { wrapper } = mountShell()
     await flushPromises()
     vi.mocked(projectsApi.globalStreak).mockResolvedValue({

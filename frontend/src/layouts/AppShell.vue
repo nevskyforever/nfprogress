@@ -60,13 +60,16 @@ const lastProjectPath = ref('/projects')
 const lastMapsPath = ref('/maps')
 const lastNotesPath = ref('/notes')
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'nfprogress.sidebar-collapsed'
-const sidebarCollapsed = ref(false)
+const sidebarCollapsed = ref(true)
 try {
   const saved = sessionStorage.getItem('nfprogress:last-project-path')
   if (saved?.startsWith('/projects')) lastProjectPath.value = saved
   const savedMaps = localStorage.getItem('nfprogress:last-maps-path')
   const savedNotes = localStorage.getItem('nfprogress:last-notes-path')
-  sidebarCollapsed.value = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === 'true'
+  const savedSidebarState = localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY)
+  if (savedSidebarState === 'true' || savedSidebarState === 'false') {
+    sidebarCollapsed.value = savedSidebarState === 'true'
+  }
   if (savedMaps?.startsWith('/maps')) lastMapsPath.value = savedMaps
   if (savedNotes?.startsWith('/notes')) lastNotesPath.value = savedNotes
 } catch {
@@ -83,6 +86,9 @@ const navigationItems = computed(() => [
 ] as const)
 const sidebarToggleLabel = computed(() => (
   sidebarCollapsed.value ? t('Развернуть меню') : t('Свернуть меню')
+))
+const showSidebarStreak = computed(() => (
+  route.name !== 'projects' && globalStreak.value?.enabled === true
 ))
 
 function toggleSidebar(): void {
@@ -308,14 +314,13 @@ watchEffect(() => {
       </div>
 
       <StreakBadge
-        v-if="globalStreak?.enabled"
+        v-if="showSidebarStreak && globalStreak"
         class="sidebar-global-streak"
         :length="globalStreak.length"
         :max-length="globalStreak.max_length"
         :status="globalStreak.status"
         scope="global"
-        :compact="sidebarCollapsed"
-        show-max
+        compact
       />
 
       <nav id="primary-navigation" class="primary-navigation" :aria-label="t('Разделы приложения')">
