@@ -446,17 +446,21 @@ watchEffect(() => {
 }
 
 :deep(.sidebar-global-streak) {
+  display: grid;
   width: 100%;
+  min-width: max-content;
   margin-top: var(--nf-space-4);
   border-radius: var(--nf-radius-md);
-  grid-template-columns: auto minmax(0, 1fr);
-  grid-template-rows: auto auto auto;
-  align-items: start;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  justify-items: center;
+  align-items: center;
 }
 
 :deep(.sidebar-global-streak .streak-badge__copy) {
-  grid-column: 2;
+  grid-column: 1;
   min-width: 0;
+  justify-content: center;
   flex-wrap: wrap;
 }
 
@@ -473,6 +477,7 @@ watchEffect(() => {
 }
 
 :deep(.sidebar-global-streak > ion-icon) {
-  grid-row: 1 / 4;
+  grid-column: 1;
+  grid-row: auto;
 }
 </style>

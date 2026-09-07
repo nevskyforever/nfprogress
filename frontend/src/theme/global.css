@@ -79,6 +79,7 @@ a {
 
 .app-shell--sidebar-collapsed {
   --nf-sidebar-width: 4.75rem;
+  grid-template-columns: minmax(var(--nf-sidebar-width), max-content) minmax(0, 1fr);
 }
 
 .sidebar {
