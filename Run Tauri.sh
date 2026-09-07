@@ -84,16 +84,11 @@ fi
 
 if [ "$MODE" = "" ] || [ "$MODE" = "--legacy" ]; then
   if [ -z "${NFPROGRESS_DATA_DIR:-}" ] || [ "$MODE" = "--legacy" ]; then
-    if ! command -v python3 >/dev/null 2>&1; then
-      echo "Для обновления canonical test_data нужен Python 3."
-      exit 1
-    fi
-    echo "Обновляется canonical Tauri dev data root через Python migration pipeline..."
-    (cd "$ROOT_DIR" && python3 -m backend.app --prepare-dev-data)
+    "$ROOT_DIR/scripts/prepare-tauri-test-data.sh"
   fi
 fi
 
 echo "Tauri dev data root: $DATA_ROOT"
 echo "Запускается Tauri dev. Это не production-сборка; при первом запуске Cargo может собрать debug-код."
 cd "$ROOT_DIR/frontend"
-NFPROGRESS_DATA_DIR="$DATA_ROOT" exec npm run tauri:dev
+NFPROGRESS_BUILD_PROFILE=test NFPROGRESS_DATA_DIR="$DATA_ROOT" exec npm run tauri:dev

@@ -236,6 +236,11 @@ bash "Build Tauri Intel.sh"
 bash "Build Tauri All.sh"
 ```
 
+Before a test build, the current real application data is refreshed into the
+canonical `test_data` profile through the migration pipeline. The test `.app`
+therefore starts with the latest projects, texts, settings, and game state;
+`--fresh` remains available for an intentionally empty isolated Tauri run.
+
 `Build Tauri All.sh` remains a parallel ARM/Intel test build. The initial
 release policy is ARM64 only: `Release Tauri ARM.sh` is the primary macOS
 release entry point, and `Release Tauri All.sh` runs only that target by default.

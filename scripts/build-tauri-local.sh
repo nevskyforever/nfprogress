@@ -65,6 +65,10 @@ if ! rustup target list --installed | grep -Fxq "$TARGET"; then
   exit 1
 fi
 
+if [ "$BUILD_PROFILE" = "test" ]; then
+  "$ROOT_DIR/scripts/prepare-tauri-test-data.sh"
+fi
+
 prepare_frontend_workspace() {
   echo "Подготавливается изолированный frontend-workspace для $ARCH-сборки..."
   mkdir -p "$WORKSPACE_DIR"

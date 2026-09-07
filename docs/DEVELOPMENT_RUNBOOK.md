@@ -255,6 +255,11 @@ bash "Build Tauri Intel.sh"
 bash "Build Tauri All.sh"
 ```
 
+Перед test-сборкой текущие реальные данные обновляются в canonical
+`test_data` через migration pipeline. Поэтому собранный `.app` открывается с
+актуальными проектами, текстами, настройками и игровым состоянием. Для
+намеренно пустого изолированного запуска используйте `Run Tauri.sh --fresh`.
+
 `Build Tauri All.sh` параллельно выполняет ARM- и Intel test-сборку.
 Initial release macOS — только Apple Silicon: `Release Tauri ARM.sh` является
 основной точкой релиза, а `Release Tauri All.sh` по умолчанию запускает только

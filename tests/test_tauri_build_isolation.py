@@ -23,6 +23,11 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
         encoding='utf-8',
     )
     (scripts_dir / 'build-tauri-local.sh').chmod(0o755)
+    (scripts_dir / 'prepare-tauri-test-data.sh').write_text(
+        (ROOT / 'scripts' / 'prepare-tauri-test-data.sh').read_text(encoding='utf-8'),
+        encoding='utf-8',
+    )
+    (scripts_dir / 'prepare-tauri-test-data.sh').chmod(0o755)
     (root / 'frontend' / 'package.json').write_text('{}\n', encoding='utf-8')
     (root / 'frontend' / 'package-lock.json').write_text('{}\n', encoding='utf-8')
     (frontend_tauri_dir / 'tauri.conf.json').write_text('{}\n', encoding='utf-8')
@@ -100,6 +105,12 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
         """
         #!/bin/bash
         set -euo pipefail
+        if [ "${1:-}" = "-m" ] \
+          && [ "${2:-}" = "backend.app" ] \
+          && [ "${3:-}" = "--prepare-dev-data" ]; then
+          printf '%s\n' "$PWD" >> "$TEST_PREPARE_LOG"
+          exit 0
+        fi
         case "${1:-}" in
           *sync-tauri-versions.py)
             for argument in "$@"; do
@@ -218,6 +229,7 @@ def test_test_build_profile_uses_distinct_artifact_prefix(tmp_path):
         'NFPROGRESS_BUILD_PROFILE': 'test',
         'TEST_NPM_LOG': str(tmp_path / 'npm.log'),
         'TEST_DMG_LOG': str(tmp_path / 'dmg.log'),
+        'TEST_PREPARE_LOG': str(tmp_path / 'prepare.log'),
     }
 
     result = subprocess.run(
@@ -231,3 +243,4 @@ def test_test_build_profile_uses_distinct_artifact_prefix(tmp_path):
 
     assert result.returncode == 0, result.stdout + result.stderr
     assert (root / 'build-tauri-arm' / 'nfprogress-test-tauri-mac-arm-5.3.0.zip').is_file()
+    assert (tmp_path / 'prepare.log').read_text(encoding='utf-8').splitlines() == [str(root)]

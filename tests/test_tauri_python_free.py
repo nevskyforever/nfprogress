@@ -41,6 +41,7 @@ def test_desktop_build_and_ci_do_not_prepare_a_python_backend():
     paths = [
         ROOT / 'scripts' / 'build-tauri-local.sh',
         ROOT / 'scripts' / 'build-tauri-dmg.sh',
+        ROOT / 'scripts' / 'prepare-tauri-test-data.sh',
         ROOT / 'Run Tauri.sh',
         ROOT / 'Build Tauri Intel.sh',
         ROOT / 'Release Tauri Intel.sh',
