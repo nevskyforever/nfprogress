@@ -64,7 +64,17 @@ let observedTypewriterContainer: HTMLElement | null = null
 let typewriterEditor: Editor | null = null
 let typewriterActivationFrame: number | undefined
 let typewriterActivationGeneration = 0
+let typewriterZoomFrame: number | undefined
+let typewriterZoomGeneration = 0
+let pendingTypewriterZoomAnchor: TypewriterZoomAnchor | null = null
+let typewriterManualBrowsing = false
+let typewriterProgrammaticScrollTop: number | undefined
 type EditorPosition = { selection: number; scrollTop: number }
+type TypewriterZoomAnchor = {
+  caretOffset: number
+  layoutScrollTop: number
+  keepWorkingLine: boolean
+}
 const TYPEWRITER_RATIO = 0.5
 const TYPEWRITER_EPSILON = 2
 const linked = computed(() => Boolean(documentState.value?.docx_path))
@@ -158,6 +168,12 @@ function ensureTypewriterTail(): HTMLElement | null {
   else sheet.append(tail)
   return tail
 }
+function sheetZoomScale(sheet: HTMLElement): number {
+  const computedZoom = Number.parseFloat(window.getComputedStyle(sheet).zoom)
+  if (Number.isFinite(computedZoom) && computedZoom > 0) return computedZoom
+  const sheetRect = sheet.getBoundingClientRect()
+  return sheet.offsetWidth > 0 && sheetRect.width > 0 ? sheetRect.width / sheet.offsetWidth : 1
+}
 function updateTypewriterTail(): void {
   if (!typewriterMode.value) return
   const container = editorScrollContainer()
@@ -166,10 +182,7 @@ function updateTypewriterTail(): void {
   if (!container || !sheet || !tail) return
 
   const desiredVisualHeight = container.clientHeight * TYPEWRITER_RATIO
-  const sheetRect = sheet.getBoundingClientRect()
-  const zoomScale = sheet.offsetWidth > 0 && sheetRect.width > 0
-    ? sheetRect.width / sheet.offsetWidth
-    : 1
+  const zoomScale = sheetZoomScale(sheet)
   let layoutHeight = desiredVisualHeight / zoomScale
   tail.style.height = `${layoutHeight}px`
 
@@ -179,7 +192,12 @@ function updateTypewriterTail(): void {
     tail.style.height = `${layoutHeight}px`
   }
 }
-function trackTypewriterCaret(): void {
+function setTypewriterScrollTop(container: HTMLElement, nextScrollTop: number): void {
+  if (Math.abs(nextScrollTop - container.scrollTop) <= TYPEWRITER_EPSILON) return
+  container.scrollTop = nextScrollTop
+  typewriterProgrammaticScrollTop = container.scrollTop
+}
+function trackTypewriterCaret(restoreWorkingLine = false): void {
   if (!typewriterMode.value) return
   updateTypewriterTail()
   const editor = editorRef.value?.getEditor()
@@ -189,13 +207,18 @@ function trackTypewriterCaret(): void {
     const coords = editor.view.coordsAtPos(editor.state.selection.from)
     const caretCenter = (coords.top + coords.bottom) / 2
     const targetY = container.getBoundingClientRect().top + container.clientHeight * TYPEWRITER_RATIO
-    if (caretCenter >= targetY - TYPEWRITER_EPSILON) container.scrollTop += caretCenter - targetY
+    if (restoreWorkingLine || caretCenter >= targetY - TYPEWRITER_EPSILON) {
+      // CSS zoom scales the sheet, but the scroll container's scrollTop is in
+      // the same visual coordinate system as coordsAtPos() in this layout.
+      setTypewriterScrollTop(container, container.scrollTop + caretCenter - targetY)
+    }
   } catch {
     // The editor can briefly recreate its view while loading a document.
   }
 }
 function scheduleTypewriterTracking(): void {
   if (!typewriterMode.value) return
+  typewriterManualBrowsing = false
   void nextTick(trackTypewriterCaret)
 }
 function cancelTypewriterActivation(): void {
@@ -204,6 +227,67 @@ function cancelTypewriterActivation(): void {
     window.cancelAnimationFrame(typewriterActivationFrame)
     typewriterActivationFrame = undefined
   }
+}
+function cancelTypewriterZoomAdjustment(): void {
+  typewriterZoomGeneration += 1
+  pendingTypewriterZoomAnchor = null
+  if (typewriterZoomFrame !== undefined) {
+    window.cancelAnimationFrame(typewriterZoomFrame)
+    typewriterZoomFrame = undefined
+  }
+}
+function captureTypewriterZoomAnchor(): TypewriterZoomAnchor | null {
+  const editor = editorRef.value?.getEditor()
+  const container = editorScrollContainer()
+  const sheet = continuousSheet()
+  if (!editor || !container || !sheet) return null
+  try {
+    const coords = editor.view.coordsAtPos(editor.state.selection.from)
+    const caretCenter = (coords.top + coords.bottom) / 2
+    const containerRect = container.getBoundingClientRect()
+    const targetY = containerRect.top + container.clientHeight * TYPEWRITER_RATIO
+    return {
+      caretOffset: caretCenter - containerRect.top,
+      layoutScrollTop: container.scrollTop / sheetZoomScale(sheet),
+      keepWorkingLine: !typewriterManualBrowsing && Math.abs(caretCenter - targetY) <= TYPEWRITER_EPSILON,
+    }
+  } catch {
+    return null
+  }
+}
+function scheduleTypewriterZoomAdjustment(anchor: TypewriterZoomAnchor | null): void {
+  const preservedAnchor = pendingTypewriterZoomAnchor ?? anchor
+  if (preservedAnchor) pendingTypewriterZoomAnchor = preservedAnchor
+  const generation = ++typewriterZoomGeneration
+  void nextTick(() => {
+    if (!typewriterMode.value || generation !== typewriterZoomGeneration) return
+    typewriterZoomFrame = window.requestAnimationFrame(() => {
+      typewriterZoomFrame = undefined
+      if (!typewriterMode.value || generation !== typewriterZoomGeneration) return
+      pendingTypewriterZoomAnchor = null
+      const container = editorScrollContainer()
+      const sheet = continuousSheet()
+      const editor = editorRef.value?.getEditor()
+      if (!container || !sheet || !editor) return
+      updateTypewriterTail()
+      if (!preservedAnchor) return
+      if (preservedAnchor.keepWorkingLine) {
+        trackTypewriterCaret(true)
+        return
+      }
+      if (typewriterManualBrowsing) {
+        setTypewriterScrollTop(container, preservedAnchor.layoutScrollTop * sheetZoomScale(sheet))
+        return
+      }
+      try {
+        const coords = editor.view.coordsAtPos(editor.state.selection.from)
+        const caretOffset = (coords.top + coords.bottom) / 2 - container.getBoundingClientRect().top
+        setTypewriterScrollTop(container, container.scrollTop + caretOffset - preservedAnchor.caretOffset)
+      } catch {
+        // The editor may be recreating its view while the zoom is applied.
+      }
+    })
+  })
 }
 function scheduleTypewriterActivation(): void {
   const generation = ++typewriterActivationGeneration
@@ -241,9 +325,14 @@ function toggleTypewriterMode(): void {
   typewriterMode.value = !typewriterMode.value
   if (!typewriterMode.value) {
     cancelTypewriterActivation()
+    cancelTypewriterZoomAdjustment()
+    typewriterManualBrowsing = false
+    typewriterProgrammaticScrollTop = undefined
     removeTypewriterTail()
     return
   }
+  typewriterManualBrowsing = false
+  typewriterProgrammaticScrollTop = undefined
   scheduleTypewriterActivation()
 }
 function saveEditorPosition(): void {
@@ -300,6 +389,21 @@ function handleEditorSelectionChange(): void {
   if (!anchor || !editorShell.value?.contains(anchor)) return
   schedulePositionSave()
 }
+function handleEditorScroll(): void {
+  schedulePositionSave()
+  if (!typewriterMode.value) return
+  const container = editorScrollContainer()
+  if (!container) return
+  if (
+    typewriterProgrammaticScrollTop !== undefined
+    && Math.abs(container.scrollTop - typewriterProgrammaticScrollTop) <= TYPEWRITER_EPSILON
+  ) {
+    typewriterProgrammaticScrollTop = undefined
+    return
+  }
+  typewriterProgrammaticScrollTop = undefined
+  typewriterManualBrowsing = true
+}
 function configureKitLocale() {
   // The package's public type only lists bundled locales, while its runtime
   // intentionally accepts host locale keys and message dictionaries.
@@ -347,7 +451,13 @@ function countTextSymbols(value: unknown): number {
   return (typeof node.text === 'string' ? Array.from(node.text).length : 0)
     + (Array.isArray(node.content) ? node.content.reduce((total, child) => total + countTextSymbols(child), 0) : 0)
 }
-function setZoom(next: number) { zoom.value = Math.min(500, Math.max(70, next)) }
+function setZoom(next: number) {
+  const normalized = Math.min(500, Math.max(70, next))
+  if (normalized === zoom.value) return
+  const anchor = typewriterMode.value ? captureTypewriterZoomAnchor() : null
+  zoom.value = normalized
+  if (typewriterMode.value) scheduleTypewriterZoomAdjustment(anchor)
+}
 function setFontFamily(): void {
   editorRef.value?.getEditor()?.chain().focus().setMark('textStyle', { fontFamily: selectedFontFamily.value }).run()
 }
@@ -521,15 +631,12 @@ watch(documentState, async (next) => {
 })
 watch(() => locale.language, configureKitLocale)
 watch(() => theme.resolved, setWordTheme, { immediate: true })
-watch(zoom, () => {
-  if (typewriterMode.value) void nextTick(updateTypewriterTail)
-})
 configureKitLocale()
 onMounted(() => {
   window.addEventListener('keydown', handleEscape, true)
   window.addEventListener('pagehide', saveEditorPosition)
   document.addEventListener('selectionchange', handleEditorSelectionChange)
-  editorShell.value?.addEventListener('scroll', schedulePositionSave, true)
+  editorShell.value?.addEventListener('scroll', handleEditorScroll, true)
   window.addEventListener('resize', updateTypewriterTail)
   void nextTick(bindTypewriterEditor)
   externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000)
@@ -565,7 +672,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleEscape, true)
   window.removeEventListener('pagehide', saveEditorPosition)
   document.removeEventListener('selectionchange', handleEditorSelectionChange)
-  editorShell.value?.removeEventListener('scroll', schedulePositionSave, true)
+  editorShell.value?.removeEventListener('scroll', handleEditorScroll, true)
   window.removeEventListener('resize', updateTypewriterTail)
   if (positionSaveTimer !== undefined) window.clearTimeout(positionSaveTimer)
   if (positionRestoreTimer !== undefined) window.clearTimeout(positionRestoreTimer)
@@ -578,6 +685,8 @@ onBeforeUnmount(() => {
   typewriterResizeObserver = undefined
   observedTypewriterContainer = null
   cancelTypewriterActivation()
+  cancelTypewriterZoomAdjustment()
+  typewriterProgrammaticScrollTop = undefined
   typewriterEditor?.off('update', scheduleTypewriterTracking)
   typewriterEditor = null
   removeTypewriterTail()
