@@ -62,6 +62,8 @@ let hasRestoredEditorPosition = false
 let typewriterResizeObserver: ResizeObserver | undefined
 let observedTypewriterContainer: HTMLElement | null = null
 let typewriterEditor: Editor | null = null
+let typewriterActivationFrame: number | undefined
+let typewriterActivationGeneration = 0
 type EditorPosition = { selection: number; scrollTop: number }
 const TYPEWRITER_RATIO = 0.5
 const TYPEWRITER_EPSILON = 2
@@ -196,6 +198,28 @@ function scheduleTypewriterTracking(): void {
   if (!typewriterMode.value) return
   void nextTick(trackTypewriterCaret)
 }
+function cancelTypewriterActivation(): void {
+  typewriterActivationGeneration += 1
+  if (typewriterActivationFrame !== undefined) {
+    window.cancelAnimationFrame(typewriterActivationFrame)
+    typewriterActivationFrame = undefined
+  }
+}
+function scheduleTypewriterActivation(): void {
+  const generation = ++typewriterActivationGeneration
+  void nextTick(() => {
+    if (!typewriterMode.value || generation !== typewriterActivationGeneration) return
+    observeTypewriterContainer()
+    bindTypewriterEditor()
+    updateTypewriterTail()
+    typewriterActivationFrame = window.requestAnimationFrame(() => {
+      typewriterActivationFrame = undefined
+      if (!typewriterMode.value || generation !== typewriterActivationGeneration) return
+      updateTypewriterTail()
+      trackTypewriterCaret()
+    })
+  })
+}
 function bindTypewriterEditor(): void {
   const editor = editorRef.value?.getEditor()
   if (!editor || editor === typewriterEditor) return
@@ -216,14 +240,11 @@ function observeTypewriterContainer(): void {
 function toggleTypewriterMode(): void {
   typewriterMode.value = !typewriterMode.value
   if (!typewriterMode.value) {
+    cancelTypewriterActivation()
     removeTypewriterTail()
     return
   }
-  void nextTick(() => {
-    observeTypewriterContainer()
-    bindTypewriterEditor()
-    updateTypewriterTail()
-  })
+  scheduleTypewriterActivation()
 }
 function saveEditorPosition(): void {
   const editor = editorRef.value?.getEditor()
@@ -556,6 +577,7 @@ onBeforeUnmount(() => {
   typewriterResizeObserver?.disconnect()
   typewriterResizeObserver = undefined
   observedTypewriterContainer = null
+  cancelTypewriterActivation()
   typewriterEditor?.off('update', scheduleTypewriterTracking)
   typewriterEditor = null
   removeTypewriterTail()
@@ -679,5 +701,6 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
 .document-editor-view__status-info{display:flex;align-items:center;flex-wrap:wrap;gap:1rem;min-width:0}.document-editor-view__today-goal{display:inline-flex;align-items:center;gap:.45rem}.document-editor-view__today-goal--complete{color:var(--nf-color-success);font-weight:700}.document-editor-view__today-goal strong{color:var(--nf-color-text)}.document-editor-view__today-goal-progress{display:block;width:4.5rem;height:.36rem;overflow:hidden;background:color-mix(in srgb,var(--nf-color-primary) 18%,var(--nf-color-canvas));border-radius:var(--nf-radius-pill)}.document-editor-view__today-goal-progress-fill{display:block;height:100%;background:var(--nf-color-primary);border-radius:inherit;transition:width .4s ease-out}.document-editor-view__today-goal--complete .document-editor-view__today-goal-progress-fill{background:var(--nf-color-success)}
 .nfprogress-word-editor :deep(.word-content-multi .ProseMirror.ProseMirror-focused) { caret-color: var(--nf-color-primary) !important; }
 .nfprogress-word-editor :deep([data-nf-typewriter-tail]){display:block;box-sizing:border-box;width:100%;pointer-events:none}
-.document-editor-view__view-controls{display:inline-flex;align-items:center;gap:.4rem}.document-editor-view__typewriter-toggle{display:inline-grid;place-items:center;width:2rem;height:1.8rem;padding:0;color:var(--nf-color-text);cursor:pointer;background:transparent;border:1px solid var(--nf-color-border);border-radius:var(--nf-radius-sm)}.document-editor-view__typewriter-toggle:hover,.document-editor-view__typewriter-toggle:focus-visible{background:color-mix(in srgb,var(--nf-color-primary) 12%,transparent);outline:none}.document-editor-view__typewriter-toggle--active{color:var(--nf-color-primary);background:color-mix(in srgb,var(--nf-color-primary) 16%,transparent);border-color:var(--nf-color-primary)}.document-editor-view__typewriter-icon{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.6}
+.nfprogress-word-editor :deep(.word-document-container){scrollbar-gutter:stable}
+.document-editor-view__view-controls{display:inline-flex;flex:0 0 auto;align-items:center;gap:.4rem}.document-editor-view__typewriter-toggle{display:inline-grid;place-items:center;box-sizing:border-box;flex:0 0 auto;width:2rem;height:1.8rem;padding:0;color:var(--nf-color-text);cursor:pointer;background:transparent;border:1px solid var(--nf-color-border);border-radius:var(--nf-radius-sm)}.document-editor-view__typewriter-toggle:hover,.document-editor-view__typewriter-toggle:focus-visible{background:color-mix(in srgb,var(--nf-color-primary) 12%,transparent);outline:none}.document-editor-view__typewriter-toggle--active{color:var(--nf-color-primary);background:color-mix(in srgb,var(--nf-color-primary) 16%,transparent);border-color:var(--nf-color-primary)}.document-editor-view__typewriter-icon{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.6}
 </style>
