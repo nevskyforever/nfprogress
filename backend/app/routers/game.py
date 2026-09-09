@@ -229,7 +229,9 @@ def create_custom_award(
         payload: CustomAwardCreate,
         services: Annotated[Services, Depends(get_services)],
 ):
-    return services.game.create_custom_award(payload.name, payload.price)
+    return services.game.create_custom_award(
+        payload.name, payload.price, payload.apply_inflation,
+    )
 
 
 @router.patch('/custom-awards/{award_id}', response_model=GameCommandResponse)

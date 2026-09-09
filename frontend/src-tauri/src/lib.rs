@@ -57,6 +57,54 @@ struct SqliteProjectReadModel {
     progress_entries: Vec<SqliteProgressRow>,
 }
 
+fn overlay_game_streak_state(
+    rows: &mut [SqliteEntityRow],
+    game_state: &serde_json::Value,
+    is_stage: bool,
+) {
+    let Some(states) = game_state
+        .get("project_game_state")
+        .and_then(serde_json::Value::as_object)
+    else {
+        return;
+    };
+    for row in rows {
+        let key = if is_stage {
+            format!(
+                "stage:{}:{}",
+                row.project_id.as_deref().unwrap_or_default(),
+                row.id
+            )
+        } else {
+            format!("project:{}", row.id)
+        };
+        let Some(streak) = states.get(&key).and_then(serde_json::Value::as_object) else {
+            continue;
+        };
+        let Ok(mut payload) = serde_json::from_str::<serde_json::Value>(&row.payload_json) else {
+            continue;
+        };
+        let Some(payload) = payload.as_object_mut() else {
+            continue;
+        };
+        for field in [
+            "streaks",
+            "max_streak",
+            "streak_status",
+            "last_streak_bonus",
+            "last_streak_lost_date",
+            "freezes",
+        ] {
+            if let Some(value) = streak.get(field) {
+                payload.insert(field.to_string(), value.clone());
+            }
+        }
+        if let Ok(serialized) = serde_json::to_string(&payload) {
+            row.payload_json = serialized;
+        }
+    }
+}
+
 pub(crate) fn open_projects_database() -> Result<rusqlite::Connection, String> {
     sqlite::open_database(&sqlite_data_root()?.join("nfprogress.db"))
         .map_err(|error| error.to_string())
@@ -3961,7 +4009,7 @@ fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
     if project_order.len() != project_ids.len() {
         return Err("SQLite project ordering contains duplicates.".to_string());
     }
-    let project_rows = read_sqlite_entity_rows(&connection, "projects")?;
+    let mut project_rows = read_sqlite_entity_rows(&connection, "projects")?;
     if project_order.len() != project_rows.len()
         || project_rows
             .iter()
@@ -3969,11 +4017,27 @@ fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
     {
         return Err("SQLite project ordering is incomplete.".to_string());
     }
+    let mut stage_rows = read_sqlite_entity_rows(&connection, "stages")?;
+    // Streaks are Game-owned data.  The web path overlays this exact
+    // projection before serializing projects; doing so here keeps desktop from
+    // rendering stale project-row copies or independently re-evaluating dates.
+    let game_state = connection
+        .query_row(
+            "SELECT payload_json FROM game_state WHERE id=1",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .ok()
+        .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok());
+    if let Some(game_state) = game_state.as_ref() {
+        overlay_game_streak_state(&mut project_rows, game_state, false);
+        overlay_game_streak_state(&mut stage_rows, game_state, true);
+    }
     Ok(SqliteProjectReadModel {
         mirror_status: status,
         project_order,
         projects: project_rows,
-        stages: read_sqlite_entity_rows(&connection, "stages")?,
+        stages: stage_rows,
         progress_entries,
     })
 }
@@ -4029,8 +4093,9 @@ mod tests {
 
     use super::{
         build_macos_updater_script, configure_rustls_provider, encode_path_segment,
-        macos_update_target, reconcile_map_notes, AddProjectProgressCommand,
-        AddStageProgressCommand, DeleteProgressCommand, ProjectMetadataPatch,
+        macos_update_target, overlay_game_streak_state, reconcile_map_notes,
+        AddProjectProgressCommand, AddStageProgressCommand, DeleteProgressCommand,
+        ProjectMetadataPatch, SqliteEntityRow,
     };
 
     #[test]
@@ -4074,6 +4139,43 @@ mod tests {
                 .unwrap(),
             "{\"gamer\":{},\"game\":{}}"
         );
+    }
+
+    #[test]
+    fn desktop_streak_projection_uses_the_same_game_owned_values_as_web() {
+        let mut rows = vec![SqliteEntityRow {
+            id: "source-1".into(),
+            project_id: Some("project-1".into()),
+            name: Some("Источник".into()),
+            goal: None,
+            infinite: 0,
+            unit: "symbols".into(),
+            status: "активен".into(),
+            created_at: None,
+            updated_at: None,
+            payload_json: serde_json::json!({
+                "streak_status": "No", "streak_length": 0,
+            })
+            .to_string(),
+        }];
+        let game_state = serde_json::json!({
+            "project_game_state": {
+                "stage:project-1:source-1": {
+                    "streak_status": "Active",
+                    "streaks": ["2026-09-08"],
+                    "max_streak": 7,
+                    "freezes": 1,
+                }
+            }
+        });
+
+        overlay_game_streak_state(&mut rows, &game_state, true);
+        let desktop = serde_json::from_str::<serde_json::Value>(&rows[0].payload_json).unwrap();
+        let web = &game_state["project_game_state"]["stage:project-1:source-1"];
+        assert_eq!(desktop["streak_status"], web["streak_status"]);
+        assert_eq!(desktop["streaks"], web["streaks"]);
+        assert_eq!(desktop["max_streak"], web["max_streak"]);
+        assert_eq!(desktop["freezes"], web["freezes"]);
     }
 
     #[test]

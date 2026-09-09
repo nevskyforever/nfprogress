@@ -407,6 +407,8 @@ export interface CustomAward {
   id: string
   name: string
   description: string
+  base_price: number
+  apply_inflation: boolean
   price: number
   sell_price: number
   count: number

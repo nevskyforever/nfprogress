@@ -56,7 +56,7 @@ function initialPayload(): MindMapInitialization {
       ? (JSON.parse(JSON.stringify(props.map.data)) as JsonObject)
       : null,
     editorLabel: t('Редактор карты'),
-    emptyStageMapText: t('Карта не была создана при работе над этапом.'),
+    emptyStageMapText: t('Карта не была создана при работе над источником.'),
     floatingNodeName: t('Свободный узел'),
     floatingNoteName: t('Новая заметка'),
     addFloatingNodeLabel: t('Добавить свободный узел'),
@@ -197,7 +197,7 @@ function chooseImportFile(): void {
   fileInput.value?.click()
 }
 
-async function importXMind(event: Event): Promise<void> {
+async function handleXMindImport(event: Event): Promise<void> {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   input.value = ''
@@ -284,7 +284,7 @@ defineExpose({ focusNode, updateNodeNote, removeNodeNote, saveNow })
           class="mindmap-editor__file-input"
           type="file"
           accept=".xmind,application/zip"
-          @change="importXMind"
+          @change="handleXMindImport"
         />
         <button
           class="nf-button nf-button--secondary"
@@ -329,10 +329,10 @@ defineExpose({ focusNode, updateNodeNote, removeNodeNote, saveNow })
     </div>
 
     <p v-if="map.combined" class="mindmap-editor__notice">
-      {{ t('Показана объединённая карта проекта и этапов.') }}
+      {{ t('Показана объединённая карта проекта и источников.') }}
     </p>
     <p v-if="map.has_empty_completed_stage_map" class="mindmap-editor__notice">
-      {{ t('У завершённого этапа нет сохранённой карты; его ветвь доступна только для просмотра.') }}
+      {{ t('У завершённого источника нет сохранённой карты; его ветвь доступна только для просмотра.') }}
     </p>
     <p v-if="errorMessage" class="mindmap-editor__error" role="alert">{{ errorMessage }}</p>
 

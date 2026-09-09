@@ -48,7 +48,7 @@ export function syncBatchNotification(
   }
 
   const details = [
-    translate('Синхронизировано: {projects} проектов, {stages} этапов.', {
+    translate('Синхронизировано: {projects} проектов, {stages} источников.', {
       projects: projectIds.size,
       stages,
     }),

@@ -100,7 +100,7 @@ describe('StageWorkspace', () => {
       global: { plugins: [createPinia()], stubs: { IonIcon: true } },
     })
 
-    await wrapper.get('button[aria-label="Этапы: Черновик"]').trigger('click')
+    await wrapper.get('button[aria-label="Источники: Черновик"]').trigger('click')
 
     expect(wrapper.emitted('open')?.[0]?.[0]).toEqual(stage)
     expect(wrapper.find('.progress-ring').exists()).toBe(true)
@@ -184,7 +184,7 @@ describe('StageWorkspace', () => {
       global: { plugins: [createPinia()], stubs: { IonIcon: true } },
     })
 
-    expect(wrapper.get('.stage-streak').attributes('aria-label')).toContain('Стрик этапа')
+    expect(wrapper.get('.stage-streak').attributes('aria-label')).toContain('Стрик источника')
     expect(wrapper.get('.stage-streak').attributes('aria-label')).toContain('3 дн.')
   })
 })

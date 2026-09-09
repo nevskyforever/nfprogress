@@ -18,8 +18,8 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  createAward: [name: string, price: number]
-  updateAward: [awardId: string, name: string, price: number]
+  createAward: [name: string, price: number, applyInflation: boolean]
+  updateAward: [awardId: string, name: string, price: number, applyInflation: boolean]
   deleteAward: [awardId: string]
   buyAward: [awardId: string, count: number]
   sellAward: [awardId: string, count: number]
@@ -53,8 +53,8 @@ const t = locale.translate
       v-if="view === 'awards'"
       :awards="awards"
       :busy="busy"
-      @create="(name, price) => emit('createAward', name, price)"
-      @update="(id, name, price) => emit('updateAward', id, name, price)"
+      @create="(name, price, applyInflation) => emit('createAward', name, price, applyInflation)"
+      @update="(id, name, price, applyInflation) => emit('updateAward', id, name, price, applyInflation)"
       @remove="(id) => emit('deleteAward', id)"
       @buy="(id, count) => emit('buyAward', id, count)"
       @sell="(id, count) => emit('sellAward', id, count)"

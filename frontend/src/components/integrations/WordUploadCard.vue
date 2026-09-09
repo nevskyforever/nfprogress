@@ -125,9 +125,9 @@ async function countSelected(event: Event): Promise<void> {
           </select>
         </label>
         <label v-if="needsStage" for="word-import-stage">
-          <span>{{ t('Этап') }}</span>
+          <span>{{ t('Источник') }}</span>
           <select id="word-import-stage" v-model="selectedStageId" :disabled="loading">
-            <option value="">{{ t('Выберите этап') }}</option>
+            <option value="">{{ t('Выберите источник') }}</option>
             <option v-for="stage in selectedProject?.stages ?? []" :key="stage.id" :value="stage.id">
               {{ stage.name }}
             </option>

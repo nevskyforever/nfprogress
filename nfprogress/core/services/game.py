@@ -818,8 +818,10 @@ def serialize_custom_award(
             count = max(0, int(inventory.get(award.name, 0)))
         except (TypeError, ValueError):
             count = 0
-    price = gamer.round_money(award.price)
-    sell_price = gamer.round_money(award.sell_price)
+    base_price = game_data.custom_award_base_price(award)
+    apply_inflation = game_data.custom_award_uses_inflation(award)
+    price = game_data.calculate_custom_award_price(gamer, award)
+    sell_price = gamer.round_money(price * 0.75)
     available = bool(getattr(award, 'available_in_shop', True))
     sellable = bool(getattr(award, 'sellable', True))
     return {
@@ -828,6 +830,8 @@ def serialize_custom_award(
         'description': str(
             getattr(award, 'description', 'Кастомная награда без эффекта')
         ),
+        'base_price': float(base_price),
+        'apply_inflation': apply_inflation,
         'price': float(price),
         'sell_price': float(sell_price),
         'count': count,
@@ -1680,7 +1684,9 @@ class GameService:
 
         return self._command(mutate)
 
-    def create_custom_award(self, name: str, price: Any) -> JSONDict:
+    def create_custom_award(
+            self, name: str, price: Any, apply_inflation: bool = False,
+    ) -> JSONDict:
         name = self._custom_award_name(name)
         price = self._positive_money(
             price,
@@ -1699,6 +1705,7 @@ class GameService:
             award.award_id = uuid.uuid4().hex
             award.count = 0
             award.available_in_shop = True
+            award.apply_inflation = apply_inflation is True
             gamer.custom_awards.append(award)
             gamer.custom_awards_inventory.setdefault(name, 0)
             return {
@@ -1714,8 +1721,9 @@ class GameService:
             *,
             name: str | None = None,
             price: Any | None = None,
+            apply_inflation: bool | None = None,
     ) -> JSONDict:
-        if name is None and price is None:
+        if name is None and price is None and apply_inflation is None:
             raise ValidationError(
                 'custom_award_update_empty',
                 'Укажите новое название или цену награды.',
@@ -1753,6 +1761,8 @@ class GameService:
                 award.name = normalized_name
             if normalized_price is not None:
                 award._price = normalized_price
+            if apply_inflation is not None:
+                award.apply_inflation = apply_inflation is True
             award.item_type = 'Награды'
             if not getattr(award, 'description', None):
                 award.description = 'Кастомная награда без эффекта'
@@ -1790,7 +1800,7 @@ class GameService:
                     'custom_award_not_available',
                     'Награда больше не доступна в магазине.',
                 )
-            unit_price = gamer.round_money(award.price)
+            unit_price = game_data.calculate_custom_award_price(gamer, award)
             total_price = gamer.round_money(unit_price * count)
             if gamer.get_coins() < total_price:
                 raise ConflictError('not_enough_coins', 'Недостаточно монет!')
@@ -1830,7 +1840,9 @@ class GameService:
                 )
             remaining = available - count
             gamer.custom_awards_inventory[award.name] = remaining
-            unit_price = gamer.round_money(award.sell_price)
+            unit_price = gamer.round_money(
+                game_data.calculate_custom_award_price(gamer, award) * 0.75,
+            )
             total_price = gamer.round_money(unit_price * count)
             gamer.set_coins(
                 total_price, process_bank_events=False, save=False,

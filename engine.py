@@ -2630,6 +2630,23 @@ def get_project_streak_sources(project):
     ]
 
 
+def get_active_project_streak_sources(project):
+    """Return only active streak owners eligible for live economic actions.
+
+    ``get_project_streak_sources`` deliberately describes the legacy streak
+    topology and can therefore include completed or archived children while
+    their historical streak is being displayed.  Purchases that protect a
+    live streak must not price those historical entities in.
+    """
+    if not isinstance(project, Project) or project.status != 'активен':
+        return []
+    return [
+        source
+        for source in get_project_streak_sources(project)
+        if getattr(source, 'status', None) == 'активен'
+    ]
+
+
 def get_project_freeze_sources(project, freeze_day=None):
     """Возвращает стрики, которые можно заморозить в выбранном проекте."""
     if freeze_day is None:

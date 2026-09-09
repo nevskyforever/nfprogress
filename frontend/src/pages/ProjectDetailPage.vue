@@ -437,7 +437,7 @@ async function completeProject(): Promise<void> {
     ? await store.completeStage(project.value.id, detailEntity.value.id)
     : await store.completeCurrent(project.value.id)
   if (!updated) return
-  announceSuccess(isStageDetail.value ? t('Этап завершён.') : t('Проект завершён.'))
+  announceSuccess(isStageDetail.value ? t('Источник завершён.') : t('Проект завершён.'))
   await refreshGameHistory()
   refreshStatistics()
 }
@@ -448,7 +448,7 @@ async function deleteProject(): Promise<void> {
   const confirmation = isStageDetail.value
     ? t(isSharedProject.value
       ? 'Удалить источник «{name}» и всю его историю прогресса? Это действие нельзя отменить.'
-      : 'Удалить этап «{name}» и всю его историю прогресса? Это действие нельзя отменить.', { name: entity.name })
+      : 'Удалить источник «{name}» и всю его историю прогресса? Это действие нельзя отменить.', { name: entity.name })
     : t('Удалить проект «{name}» и все связанные данные? Это действие нельзя отменить.', { name: entity.name })
   if (!window.confirm(confirmation)) return
   if (isStageDetail.value) {
@@ -492,7 +492,7 @@ async function exportProgress(
       footerLabel: entity.deadline ? locale.formatDate(entity.deadline) : t('Без срока'),
       footerDetail: parentName || !entity.stages_enabled
         ? undefined
-        : `${t('Этапов')}: ${locale.formatNumber(entity.stages.length, 0)}`,
+        : `${t('Источников')}: ${locale.formatNumber(entity.stages.length, 0)}`,
       theme: shareTheme,
     }
     if (destination === 'clipboard') {
@@ -560,7 +560,7 @@ async function saveStage(payload: StageCreate | EntityUpdate): Promise<void> {
     : await store.createStage(project.value.id, payload as StageCreate)
   if (!updated) return
   stageDialogOpen.value = false
-  announceSuccess(editingStage.value ? t('Этап сохранён.') : t('Этап создан.'))
+  announceSuccess(editingStage.value ? t('Источник сохранён.') : t('Источник создан.'))
   if (creatingSharedSource) {
     const sourceName = (payload as StageCreate).name
     const source = updated.stages.find((stage) => stage.name === sourceName)
@@ -578,7 +578,7 @@ async function removeStage(stage: Project): Promise<void> {
   feedbackArea.value = 'global'
   const updated = await store.removeStage(project.value.id, stage.id)
   if (!updated) return
-  announceSuccess(t(isSharedProject.value ? 'Источник синхронизации удалён.' : 'Этап удалён.'))
+  announceSuccess(t('Источник удалён.'))
   chooseAvailableEntity()
   refreshStatistics()
 }
@@ -587,7 +587,7 @@ async function completeStage(stage: Project): Promise<void> {
   feedbackArea.value = 'global'
   const updated = await store.completeStage(project.value.id, stage.id)
   if (!updated) return
-  announceSuccess(t('Этап завершён.'))
+  announceSuccess(t('Источник завершён.'))
   await refreshGameHistory()
   refreshStatistics()
 }
@@ -595,7 +595,7 @@ async function completeStage(stage: Project): Promise<void> {
 async function reorderStages(stageIds: string[]): Promise<void> {
   feedbackArea.value = 'global'
   const updated = await store.reorderStages(project.value.id, stageIds)
-  if (updated) announceSuccess(t('Порядок этапов сохранён.'))
+  if (updated) announceSuccess(t('Порядок источников сохранён.'))
 }
 
 async function synchronizeStage(stage: Project): Promise<void> {
@@ -699,7 +699,7 @@ onBeforeUnmount(() => {
         <StatePanel
           v-if="store.detailLoading"
           :title="t('Открываем проект')"
-          :message="t('Загружаем актуальные цели и этапы.')"
+          :message="t('Загружаем актуальные цели и источники.')"
           loading
         />
         <StatePanel

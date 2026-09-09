@@ -21,6 +21,8 @@ const EMPTY_DOCUMENT: &str = r#"{"type":"doc","content":[{"type":"paragraph"}]}"
 const MAX_DOCX_BYTES: usize = 100 * 1024 * 1024;
 const MAX_DOCX_ENTRIES: usize = 10_000;
 const MAX_DOCX_EXPANDED_BYTES: u64 = 250 * 1024 * 1024;
+const MIN_LINE_HEIGHT_MULTIPLIER: f64 = 0.5;
+const MAX_LINE_HEIGHT_MULTIPLIER: f64 = 5.0;
 const MAX_XML_BYTES: usize = 16 * 1024 * 1024;
 
 #[derive(Debug, Serialize)]
@@ -1899,6 +1901,7 @@ fn parse_docx(bytes: &[u8]) -> Result<(Value, usize), String> {
     let mut run_text = String::new();
     let mut run_marks: Vec<Value> = Vec::new();
     let mut heading = None;
+    let mut line_height: Option<f64> = None;
     let mut in_text = false;
     loop {
         match reader
@@ -1914,6 +1917,7 @@ fn parse_docx(bytes: &[u8]) -> Result<(Value, usize), String> {
                         run_text.clear();
                         run_marks.clear();
                         heading = None;
+                        line_height = None;
                     }
                     "r" => {
                         run_text.clear();
@@ -1926,6 +1930,9 @@ fn parse_docx(bytes: &[u8]) -> Result<(Value, usize), String> {
                                 .and_then(|v| v.parse::<u64>().ok())
                                 .map(|v| v.clamp(1, 6))
                         }
+                    }
+                    "spacing" => {
+                        line_height = word_line_height(&event);
                     }
                     "t" => in_text = true,
                     _ => {}
@@ -1946,6 +1953,7 @@ fn parse_docx(bytes: &[u8]) -> Result<(Value, usize), String> {
                             .map(|v| v.clamp(1, 6));
                     }
                 }
+                "spacing" => line_height = word_line_height(&event),
                 _ => {}
             },
             Event::Text(event) => {
@@ -1983,9 +1991,18 @@ fn parse_docx(bytes: &[u8]) -> Result<(Value, usize), String> {
                                     Value::String("heading".into())
                                 }),
                             );
-                            if let Some(level) = heading {
-                                paragraph
-                                    .insert("attrs".into(), serde_json::json!({"level":level}));
+                            if heading.is_some() || line_height.is_some() {
+                                let mut attrs = Map::new();
+                                if let Some(level) = heading {
+                                    attrs.insert("level".into(), serde_json::json!(level));
+                                }
+                                if let Some(value) = line_height {
+                                    attrs.insert(
+                                        "lineHeight".into(),
+                                        Value::String(line_height_string(value)),
+                                    );
+                                }
+                                paragraph.insert("attrs".into(), Value::Object(attrs));
                             }
                             if !paragraph_content.is_empty() {
                                 paragraph.insert(
@@ -2019,6 +2036,46 @@ fn attr(event: &quick_xml::events::BytesStart<'_>, wanted: &str) -> Option<Strin
         (local_name(item.key.as_ref()) == wanted)
             .then(|| String::from_utf8_lossy(&item.value).to_string())
     })
+}
+
+/// Tiptap stores line height as a unitless CSS multiplier.  Word uses 240ths
+/// of a line for ``auto`` spacing, so conversion is explicit at this boundary.
+/// Exact/at-least spacing is an absolute twip value and cannot safely be
+/// reused as a multiplier without font metrics; retain the editor default for
+/// those documents rather than turning (for example) 360 twips into `360`.
+fn word_line_height(event: &quick_xml::events::BytesStart<'_>) -> Option<f64> {
+    let rule = attr(event, "lineRule").unwrap_or_else(|| "auto".to_string());
+    if !rule.eq_ignore_ascii_case("auto") {
+        return None;
+    }
+    let line = attr(event, "line")?.parse::<f64>().ok()?;
+    let multiplier = line / 240.0;
+    (multiplier.is_finite()
+        && (MIN_LINE_HEIGHT_MULTIPLIER..=MAX_LINE_HEIGHT_MULTIPLIER).contains(&multiplier))
+    .then_some(multiplier)
+}
+
+fn line_height_string(value: f64) -> String {
+    let rounded = (value * 100.0).round() / 100.0;
+    let mut result = format!("{rounded:.2}");
+    while result.ends_with('0') {
+        result.pop();
+    }
+    if result.ends_with('.') {
+        result.pop();
+    }
+    result
+}
+
+fn line_height_twips(node: &Value) -> Option<i64> {
+    let value = node
+        .get("attrs")
+        .and_then(|attrs| attrs.get("lineHeight"))
+        .and_then(Value::as_str)
+        .and_then(|value| value.parse::<f64>().ok())?;
+    (value.is_finite()
+        && (MIN_LINE_HEIGHT_MULTIPLIER..=MAX_LINE_HEIGHT_MULTIPLIER).contains(&value))
+    .then(|| (value * 240.0).round() as i64)
 }
 
 fn build_docx(content: &Value) -> Result<Vec<u8>, String> {
@@ -2060,16 +2117,22 @@ fn xml_escape(value: &str) -> String {
 }
 fn write_paragraph(xml: &mut String, node: &Value) {
     xml.push_str("<w:p>");
-    if node.get("type").and_then(Value::as_str) == Some("heading") {
+    let line_height = line_height_twips(node);
+    if node.get("type").and_then(Value::as_str) == Some("heading") || line_height.is_some() {
+        xml.push_str("<w:pPr>");
         if let Some(level) = node
             .get("attrs")
             .and_then(|v| v.get("level"))
             .and_then(Value::as_u64)
         {
-            xml.push_str(&format!(
-                "<w:pPr><w:pStyle w:val=\"Heading{level}\"/></w:pPr>"
-            ))
+            xml.push_str(&format!("<w:pStyle w:val=\"Heading{level}\"/>"))
         }
+        if let Some(twips) = line_height {
+            xml.push_str(&format!(
+                "<w:spacing w:line=\"{twips}\" w:lineRule=\"auto\"/>"
+            ));
+        }
+        xml.push_str("</w:pPr>");
     }
     if let Some(children) = node.get("content").and_then(Value::as_array) {
         for child in children {
@@ -2378,6 +2441,26 @@ mod tests {
             parsed["content"][0]["content"][0]["marks"][0]["type"],
             "bold"
         );
+    }
+
+    #[test]
+    fn docx_round_trip_preserves_line_height_multiplier() {
+        let content = serde_json::json!({
+            "type": "doc",
+            "content": [{
+                "type": "paragraph",
+                "attrs": {"lineHeight": "1.5"},
+                "content": [{"type": "text", "text": "Интервал"}]
+            }]
+        });
+
+        let bytes = build_docx(&content).unwrap();
+        let (parsed, _) = parse_docx(&bytes).unwrap();
+        assert_eq!(parsed["content"][0]["attrs"]["lineHeight"], "1.5");
+
+        let bytes = build_docx(&parsed).unwrap();
+        let (reopened, _) = parse_docx(&bytes).unwrap();
+        assert_eq!(reopened["content"][0]["attrs"]["lineHeight"], "1.5");
     }
 
     #[test]

@@ -319,11 +319,13 @@ class CountCommand(StrictModel):
 class CustomAwardCreate(StrictModel):
     name: str = Field(min_length=1, max_length=300)
     price: float = Field(gt=0)
+    apply_inflation: bool = False
 
 
 class CustomAwardUpdate(StrictModel):
     name: str | None = Field(default=None, min_length=1, max_length=300)
     price: float | None = Field(default=None, gt=0)
+    apply_inflation: bool | None = None
 
 
 class BankProductPreview(StrictModel):

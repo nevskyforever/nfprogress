@@ -29,7 +29,7 @@ describe('DocumentEditor', () => {
 
     await wrapper.setProps({
       scope: { projectId: 'project-id', stageId: 'stage-id' },
-      title: 'Текст этапа',
+      title: 'Текст источника',
     })
     await flushPromises()
 

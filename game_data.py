@@ -1,3 +1,4 @@
+import math
 from datetime import datetime, timedelta
 from random import randint
 import unicodedata
@@ -220,6 +221,32 @@ class Item:
 
     def about(self):
         return f'{self.name}: {self.description} (Цена: {self.price})'
+
+
+def custom_award_base_price(award):
+    """Return a saved custom award's base price without evaluating inflation.
+
+    Old saves only have ``_price``.  They are intentionally interpreted as a
+    non-inflating base price so their already displayed price never changes.
+    """
+    try:
+        price = float(getattr(award, '_price', 0))
+    except (TypeError, ValueError):
+        return 0.0
+    return price if math.isfinite(price) and price > 0 else 0.0
+
+
+def custom_award_uses_inflation(award):
+    """Read the opt-in flag, keeping pre-migration awards price-stable."""
+    return getattr(award, 'apply_inflation', False) is True
+
+
+def calculate_custom_award_price(gamer, award):
+    """Calculate the single authoritative purchase/display price."""
+    price = custom_award_base_price(award)
+    if custom_award_uses_inflation(award):
+        price *= gamer.calculate_inflation()
+    return gamer.round_money(price)
 
 
 class FuncItem(Item):
@@ -1558,10 +1585,14 @@ def calculate_freeze_price():
         if getattr(project, 'status', None) == 'активен'
     ]
 
+    active_sources = [
+        streak_source
+        for project in active_projects
+        for streak_source in engine.get_active_project_streak_sources(project)
+    ]
     streak_lengths = [
         engine.streak_length(getattr(streak_source, 'streaks', []))
-        for project in active_projects
-        for streak_source in engine.get_project_streak_sources(project)
+        for streak_source in active_sources
     ]
     global_streak_len = engine.streak_length(data.get('global_streaks', []))
     if global_streak_len > 0:
@@ -1571,7 +1602,9 @@ def calculate_freeze_price():
     daily_streak_bonus = 10 * coins_cf * protected_streak_len * inflation
     level_floor = 250 * (1 + (level - 1) * 0.05)
 
-    used_freezes = max(0, sum(getattr(project, 'freezes', 0) for project in active_projects))
+    used_freezes = max(0, sum(
+        getattr(source, 'freezes', 0) for source in active_sources
+    ))
     usage_multiplier = 1 + used_freezes * 0.1
     total_price = max(level_floor, daily_streak_bonus * 0.35) * usage_multiplier
 

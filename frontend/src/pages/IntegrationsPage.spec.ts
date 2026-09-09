@@ -101,7 +101,7 @@ describe('IntegrationsPage', () => {
 
     expect(integrationsApi.getProjectSyncs).toHaveBeenCalledWith('project-id')
     expect(integrationsApi.getSync).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('Источник подключается отдельно к каждому этапу')
+    expect(wrapper.text()).toContain('Источник подключается отдельно к каждому источнику')
     expect(wrapper.get('fieldset').attributes()).toHaveProperty('disabled')
 
     await wrapper.get('#sync-stage').setValue('stage-id')

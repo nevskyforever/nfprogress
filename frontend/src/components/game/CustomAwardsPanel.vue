@@ -10,8 +10,8 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
-  create: [name: string, price: number]
-  update: [awardId: string, name: string, price: number]
+  create: [name: string, price: number, applyInflation: boolean]
+  update: [awardId: string, name: string, price: number, applyInflation: boolean]
   remove: [awardId: string]
   buy: [awardId: string, count: number]
   sell: [awardId: string, count: number]
@@ -22,10 +22,12 @@ const locale = useLocaleStore()
 const t = locale.translate
 const awardName = ref('')
 const awardPrice = ref(100)
+const awardApplyInflation = ref(false)
 const awardCount = ref(1)
 const editingAwardId = ref<string | null>(null)
 const editingName = ref('')
 const editingPrice = ref(1)
+const editingApplyInflation = ref(false)
 
 const validAward = computed(() => awardName.value.trim().length > 0 && awardPrice.value > 0)
 
@@ -35,19 +37,25 @@ function positiveCount(): number {
 
 function createAward(): void {
   if (!validAward.value) return
-  emit('create', awardName.value.trim(), awardPrice.value)
+  emit('create', awardName.value.trim(), awardPrice.value, awardApplyInflation.value)
   awardName.value = ''
 }
 
-function beginEditing(awardId: string, name: string, price: number): void {
+function beginEditing(
+  awardId: string, name: string, basePrice: number, applyInflation: boolean,
+): void {
   editingAwardId.value = awardId
   editingName.value = name
-  editingPrice.value = price
+  editingPrice.value = basePrice
+  editingApplyInflation.value = applyInflation
 }
 
 function saveAward(): void {
   if (!editingAwardId.value || !editingName.value.trim() || editingPrice.value <= 0) return
-  emit('update', editingAwardId.value, editingName.value.trim(), editingPrice.value)
+  emit(
+    'update', editingAwardId.value, editingName.value.trim(), editingPrice.value,
+    editingApplyInflation.value,
+  )
   editingAwardId.value = null
 }
 
@@ -65,8 +73,12 @@ function removeAward(awardId: string): void {
       <input v-model="awardName" maxlength="300" required :disabled="busy" />
     </label>
     <label>
-      <span>{{ t('Цена') }}</span>
+      <span>{{ t('Базовая цена') }}</span>
       <input v-model.number="awardPrice" type="number" min="0.1" step="0.1" required :disabled="busy" />
+    </label>
+    <label class="inflation-field">
+      <input v-model="awardApplyInflation" type="checkbox" :disabled="busy" />
+      <span>{{ t('Применить инфляцию') }}</span>
     </label>
     <button class="nf-button" type="submit" :disabled="busy || !validAward">
       {{ t('Создать награду') }}
@@ -89,8 +101,12 @@ function removeAward(awardId: string): void {
           <input v-model="editingName" maxlength="300" />
         </label>
         <label>
-          <span>{{ t('Цена') }}</span>
+          <span>{{ t('Базовая цена') }}</span>
           <input v-model.number="editingPrice" type="number" min="0.1" step="0.1" />
+        </label>
+        <label class="inflation-field">
+          <input v-model="editingApplyInflation" type="checkbox" />
+          <span>{{ t('Применить инфляцию') }}</span>
         </label>
         <div class="button-row">
           <button class="nf-button" type="button" :disabled="busy" @click="saveAward">
@@ -146,7 +162,7 @@ function removeAward(awardId: string): void {
             class="nf-button nf-button--quiet"
             type="button"
             :disabled="busy"
-            @click="beginEditing(award.id, award.name, award.price)"
+            @click="beginEditing(award.id, award.name, award.base_price, award.apply_inflation)"
           >
             {{ t('Изменить') }}
           </button>
@@ -193,6 +209,18 @@ input {
   border-radius: var(--nf-radius-sm);
   background: var(--nf-color-surface-raised);
   color: var(--nf-color-text);
+}
+
+.inflation-field {
+  display: flex;
+  gap: var(--nf-space-2);
+  align-items: center;
+  min-height: 2.75rem;
+}
+
+.inflation-field input {
+  width: auto;
+  min-height: 0;
 }
 
 .award-grid {

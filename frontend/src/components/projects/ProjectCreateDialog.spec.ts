@@ -106,7 +106,7 @@ describe('ProjectCreateDialog', () => {
 
     await wrapper.get('#project-name').setValue('Роман')
     await wrapper.get('input[name="stages_enabled"]').setValue(true)
-    expect(wrapper.text()).toContain('Текущая цель, прогресс и текст проекта перейдут в первый этап')
+    expect(wrapper.text()).toContain('Текущая цель, прогресс и текст проекта перейдут в первый источник')
     await wrapper.get('form').trigger('submit')
 
     expect(wrapper.emitted('submit')?.[0]?.[0]).toMatchObject({
