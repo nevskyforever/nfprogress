@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import type { JSONContent } from '@tiptap/core'
+import type { Editor, JSONContent } from '@tiptap/core'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
 import { createI18n, TiptapProEditor, setTheme, type TiptapProEditorExpose } from 'tiptap-ui-kit'
 import 'tiptap-ui-kit/style.css'
@@ -36,6 +36,7 @@ const pendingConflictResolve = ref<((choice: ConflictChoice) => void) | null>(nu
 const editorContent = ref<TiptapDocument>({ type: 'doc', content: [{ type: 'paragraph' }] })
 const projectEntity = ref<Project | null>(null)
 const zoom = ref(100)
+const typewriterMode = ref(false)
 const selectedFontFamily = ref<(typeof WORD_FONT_FAMILIES)[number]>('Arial')
 const selectedFontSize = ref<(typeof WORD_FONT_SIZES)[number]>(12)
 const selectedLineHeight = ref('1.5')
@@ -58,7 +59,12 @@ let toolbarObserver: MutationObserver | undefined
 let positionSaveTimer: number | undefined
 let positionRestoreTimer: number | undefined
 let hasRestoredEditorPosition = false
+let typewriterResizeObserver: ResizeObserver | undefined
+let observedTypewriterContainer: HTMLElement | null = null
+let typewriterEditor: Editor | null = null
 type EditorPosition = { selection: number; scrollTop: number }
+const TYPEWRITER_RATIO = 0.5
+const TYPEWRITER_EPSILON = 2
 const linked = computed(() => Boolean(documentState.value?.docx_path))
 const editorDocumentId = computed(() => `nfprogress-document:${props.scope.projectId}:${props.scope.stageId ?? 'project'}`)
 const textSymbols = computed(() => countTextSymbols(editorContent.value))
@@ -66,6 +72,9 @@ const textUnits = computed(() => projectEntity.value
   ? convertProjectUnit(textSymbols.value, 'symbols', projectEntity.value.unit)
   : null)
 const entityFractionDigits = computed(() => projectEntity.value?.unit === 'symbols' ? 0 : 2)
+const typewriterTitle = computed(() => t(
+  typewriterMode.value ? 'Выключить режим печатной машинки' : 'Включить режим печатной машинки',
+))
 const entityProgressLabel = computed(() => {
   const entity = projectEntity.value
   if (!entity) return ''
@@ -126,6 +135,95 @@ function savedEditorPosition(): EditorPosition | null {
 }
 function editorScrollContainer(): HTMLElement | null {
   return editorShell.value?.querySelector<HTMLElement>('.word-document-container') ?? null
+}
+function continuousSheet(): HTMLElement | null {
+  return editorShell.value?.querySelector<HTMLElement>('.continuous-pages') ?? null
+}
+function removeTypewriterTail(): void {
+  editorShell.value?.querySelectorAll<HTMLElement>('[data-nf-typewriter-tail]').forEach((tail) => tail.remove())
+}
+function ensureTypewriterTail(): HTMLElement | null {
+  const sheet = continuousSheet()
+  if (!sheet) return null
+  const existing = sheet.querySelector<HTMLElement>('[data-nf-typewriter-tail]')
+  if (existing) return existing
+
+  const tail = document.createElement('div')
+  tail.dataset.nfTypewriterTail = ''
+  tail.setAttribute('aria-hidden', 'true')
+  const content = sheet.querySelector<HTMLElement>('.word-content-multi')
+  if (content) content.after(tail)
+  else sheet.append(tail)
+  return tail
+}
+function updateTypewriterTail(): void {
+  if (!typewriterMode.value) return
+  const container = editorScrollContainer()
+  const sheet = continuousSheet()
+  const tail = ensureTypewriterTail()
+  if (!container || !sheet || !tail) return
+
+  const desiredVisualHeight = container.clientHeight * TYPEWRITER_RATIO
+  const sheetRect = sheet.getBoundingClientRect()
+  const zoomScale = sheet.offsetWidth > 0 && sheetRect.width > 0
+    ? sheetRect.width / sheet.offsetWidth
+    : 1
+  let layoutHeight = desiredVisualHeight / zoomScale
+  tail.style.height = `${layoutHeight}px`
+
+  const actualVisualHeight = tail.getBoundingClientRect().height
+  if (actualVisualHeight > 0 && Math.abs(actualVisualHeight - desiredVisualHeight) > TYPEWRITER_EPSILON) {
+    layoutHeight *= desiredVisualHeight / actualVisualHeight
+    tail.style.height = `${layoutHeight}px`
+  }
+}
+function trackTypewriterCaret(): void {
+  if (!typewriterMode.value) return
+  updateTypewriterTail()
+  const editor = editorRef.value?.getEditor()
+  const container = editorScrollContainer()
+  if (!editor || !container) return
+  try {
+    const coords = editor.view.coordsAtPos(editor.state.selection.from)
+    const caretCenter = (coords.top + coords.bottom) / 2
+    const targetY = container.getBoundingClientRect().top + container.clientHeight * TYPEWRITER_RATIO
+    if (caretCenter >= targetY - TYPEWRITER_EPSILON) container.scrollTop += caretCenter - targetY
+  } catch {
+    // The editor can briefly recreate its view while loading a document.
+  }
+}
+function scheduleTypewriterTracking(): void {
+  if (!typewriterMode.value) return
+  void nextTick(trackTypewriterCaret)
+}
+function bindTypewriterEditor(): void {
+  const editor = editorRef.value?.getEditor()
+  if (!editor || editor === typewriterEditor) return
+  typewriterEditor?.off('update', scheduleTypewriterTracking)
+  editor.on('update', scheduleTypewriterTracking)
+  typewriterEditor = editor
+}
+function observeTypewriterContainer(): void {
+  const container = editorScrollContainer()
+  if (container === observedTypewriterContainer) return
+  typewriterResizeObserver?.disconnect()
+  typewriterResizeObserver = undefined
+  observedTypewriterContainer = container
+  if (!container || typeof ResizeObserver === 'undefined') return
+  typewriterResizeObserver = new ResizeObserver(updateTypewriterTail)
+  typewriterResizeObserver.observe(container)
+}
+function toggleTypewriterMode(): void {
+  typewriterMode.value = !typewriterMode.value
+  if (!typewriterMode.value) {
+    removeTypewriterTail()
+    return
+  }
+  void nextTick(() => {
+    observeTypewriterContainer()
+    bindTypewriterEditor()
+    updateTypewriterTail()
+  })
 }
 function saveEditorPosition(): void {
   const editor = editorRef.value?.getEditor()
@@ -194,6 +292,7 @@ function update(next: JSONContent) {
   if (processing.value && countTextSymbols(json) === 0 && countTextSymbols(editorContent.value) > 0) return
   editorContent.value = json
   scheduleSave(json)
+  scheduleTypewriterTracking()
 }
 function captureEditorContent(): TiptapDocument {
   const latest = editorRef.value?.getJSON()
@@ -396,15 +495,22 @@ watch(documentState, async (next) => {
   if (!next) return
   await nextTick()
   scheduleEditorPositionRestore()
+  observeTypewriterContainer()
+  bindTypewriterEditor()
 })
 watch(() => locale.language, configureKitLocale)
 watch(() => theme.resolved, setWordTheme, { immediate: true })
+watch(zoom, () => {
+  if (typewriterMode.value) void nextTick(updateTypewriterTail)
+})
 configureKitLocale()
 onMounted(() => {
   window.addEventListener('keydown', handleEscape, true)
   window.addEventListener('pagehide', saveEditorPosition)
   document.addEventListener('selectionchange', handleEditorSelectionChange)
   editorShell.value?.addEventListener('scroll', schedulePositionSave, true)
+  window.addEventListener('resize', updateTypewriterTail)
+  void nextTick(bindTypewriterEditor)
   externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000)
   void loadProjectEntity().catch(() => undefined)
   stopProjectDataChanges = onDataChange((scope) => {
@@ -439,6 +545,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pagehide', saveEditorPosition)
   document.removeEventListener('selectionchange', handleEditorSelectionChange)
   editorShell.value?.removeEventListener('scroll', schedulePositionSave, true)
+  window.removeEventListener('resize', updateTypewriterTail)
   if (positionSaveTimer !== undefined) window.clearTimeout(positionSaveTimer)
   if (positionRestoreTimer !== undefined) window.clearTimeout(positionRestoreTimer)
   saveEditorPosition()
@@ -446,6 +553,12 @@ onBeforeUnmount(() => {
   projectLoadSequence += 1
   toolbarObserver?.disconnect()
   toolbarObserver = undefined
+  typewriterResizeObserver?.disconnect()
+  typewriterResizeObserver = undefined
+  observedTypewriterContainer = null
+  typewriterEditor?.off('update', scheduleTypewriterTracking)
+  typewriterEditor = null
+  removeTypewriterTail()
   stopProjectDataChanges?.()
   stopCloseListener?.()
 })
@@ -528,10 +641,31 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
           </span>
         </div>
         <span v-else class="document-editor-view__unit-count">{{ t('Единицы проекта загружаются…') }}</span>
-        <div class="document-editor-view__zoom" role="group" :aria-label="t('Масштаб документа')">
-          <button type="button" :title="t('Уменьшить масштаб')" :aria-label="t('Уменьшить масштаб')" :disabled="zoom <= 70" @click="setZoom(zoom - 10)">−</button>
-          <button type="button" :title="t('Сбросить масштаб')" :aria-label="t('Сбросить масштаб')" @click="setZoom(100)">{{ zoom }}%</button>
-          <button type="button" :title="t('Увеличить масштаб')" :aria-label="t('Увеличить масштаб')" :disabled="zoom >= 500" @click="setZoom(zoom + 10)">+</button>
+        <div class="document-editor-view__view-controls">
+          <button
+            type="button"
+            class="document-editor-view__typewriter-toggle"
+            :class="{ 'document-editor-view__typewriter-toggle--active': typewriterMode }"
+            :title="typewriterTitle"
+            :aria-label="typewriterTitle"
+            :aria-pressed="typewriterMode"
+            @click="toggleTypewriterMode"
+          >
+            <svg class="document-editor-view__typewriter-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M7 8.5V4h10v4.5" />
+              <path d="M5.5 8.5h13a3 3 0 0 1 3 3V16h-3v4H5.5v-4h-3v-4.5a3 3 0 0 1 3-3Z" />
+              <path d="M6.5 13h11M7.5 16.5h9" />
+              <circle cx="8" cy="18.5" r=".65" />
+              <circle cx="11" cy="18.5" r=".65" />
+              <circle cx="14" cy="18.5" r=".65" />
+              <circle cx="17" cy="18.5" r=".65" />
+            </svg>
+          </button>
+          <div class="document-editor-view__zoom" role="group" :aria-label="t('Масштаб документа')">
+            <button type="button" :title="t('Уменьшить масштаб')" :aria-label="t('Уменьшить масштаб')" :disabled="zoom <= 70" @click="setZoom(zoom - 10)">−</button>
+            <button type="button" :title="t('Сбросить масштаб')" :aria-label="t('Сбросить масштаб')" @click="setZoom(100)">{{ zoom }}%</button>
+            <button type="button" :title="t('Увеличить масштаб')" :aria-label="t('Увеличить масштаб')" :disabled="zoom >= 500" @click="setZoom(zoom + 10)">+</button>
+          </div>
         </div>
       </footer>
     </div>
@@ -544,4 +678,6 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
 .document-editor-view__workspace{display:flex;height:calc(100dvh - 12rem);min-height:30rem;flex-direction:column}.document-editor-view__editor-shell{display:flex;flex:1;min-height:0}.document-editor-view__font-controls{display:flex;order:-1;flex:0 0 auto;align-items:center;gap:.4rem;margin-right:.5rem;padding:0 .65rem 0 0;background:var(--nf-color-surface);border-right:1px solid var(--nf-color-border)}.document-editor-view__font-controls .document-editor-view__font-control select{height:32px}.nfprogress-word-editor{flex:1;min-height:0!important;height:auto!important;border-radius:var(--nf-radius-lg) var(--nf-radius-lg) 0 0}.document-editor-view__statusbar{position:relative;z-index:11;flex-shrink:0}@media(max-width:44rem){.document-editor-view__workspace{height:calc(100dvh - 16rem);min-height:24rem}}
 .document-editor-view__status-info{display:flex;align-items:center;flex-wrap:wrap;gap:1rem;min-width:0}.document-editor-view__today-goal{display:inline-flex;align-items:center;gap:.45rem}.document-editor-view__today-goal--complete{color:var(--nf-color-success);font-weight:700}.document-editor-view__today-goal strong{color:var(--nf-color-text)}.document-editor-view__today-goal-progress{display:block;width:4.5rem;height:.36rem;overflow:hidden;background:color-mix(in srgb,var(--nf-color-primary) 18%,var(--nf-color-canvas));border-radius:var(--nf-radius-pill)}.document-editor-view__today-goal-progress-fill{display:block;height:100%;background:var(--nf-color-primary);border-radius:inherit;transition:width .4s ease-out}.document-editor-view__today-goal--complete .document-editor-view__today-goal-progress-fill{background:var(--nf-color-success)}
 .nfprogress-word-editor :deep(.word-content-multi .ProseMirror.ProseMirror-focused) { caret-color: var(--nf-color-primary) !important; }
+.nfprogress-word-editor :deep([data-nf-typewriter-tail]){display:block;box-sizing:border-box;width:100%;pointer-events:none}
+.document-editor-view__view-controls{display:inline-flex;align-items:center;gap:.4rem}.document-editor-view__typewriter-toggle{display:inline-grid;place-items:center;width:2rem;height:1.8rem;padding:0;color:var(--nf-color-text);cursor:pointer;background:transparent;border:1px solid var(--nf-color-border);border-radius:var(--nf-radius-sm)}.document-editor-view__typewriter-toggle:hover,.document-editor-view__typewriter-toggle:focus-visible{background:color-mix(in srgb,var(--nf-color-primary) 12%,transparent);outline:none}.document-editor-view__typewriter-toggle--active{color:var(--nf-color-primary);background:color-mix(in srgb,var(--nf-color-primary) 16%,transparent);border-color:var(--nf-color-primary)}.document-editor-view__typewriter-icon{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.6}
 </style>

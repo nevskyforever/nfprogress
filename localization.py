@@ -105,6 +105,8 @@ _HELP_ARTICLE_SOURCES = {
 
 TRANSLATION_OVERRIDES = {
     "en": {
+        "Включить режим печатной машинки": "Enable typewriter mode",
+        "Выключить режим печатной машинки": "Disable typewriter mode",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Synchronized: {projects} projects, {stages} stages.",
         "Добавлено: {amount}.": "Added: {amount}.",
         "Удалено: {amount}.": "Removed: {amount}.",
@@ -425,6 +427,8 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Editing Pass",
     },
     "es": {
+        "Включить режим печатной машинки": "Activar el modo máquina de escribir",
+        "Выключить режим печатной машинки": "Desactivar el modo máquina de escribir",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Sincronizados: {projects} proyectos, {stages} etapas.",
         "Добавлено: {amount}.": "Añadido: {amount}.",
         "Удалено: {amount}.": "Eliminado: {amount}.",
@@ -746,6 +750,8 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Pase de edición",
     },
     "de": {
+        "Включить режим печатной машинки": "Schreibmaschinenmodus aktivieren",
+        "Выключить режим печатной машинки": "Schreibmaschinenmodus deaktivieren",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Synchronisiert: {projects} Projekte, {stages} Stufen.",
         "Добавлено: {amount}.": "Hinzugefügt: {amount}.",
         "Удалено: {amount}.": "Entfernt: {amount}.",
@@ -1068,6 +1074,8 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Überarbeitungsdurchgang",
     },
     "fr": {
+        "Включить режим печатной машинки": "Activer le mode machine à écrire",
+        "Выключить режим печатной машинки": "Désactiver le mode machine à écrire",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Synchronisés : {projects} projets, {stages} étapes.",
         "Добавлено: {amount}.": "Ajouté : {amount}.",
         "Удалено: {amount}.": "Supprimé : {amount}.",
@@ -1391,6 +1399,8 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Passe de révision",
     },
     "pt_BR": {
+        "Включить режим печатной машинки": "Ativar o modo máquina de escrever",
+        "Выключить режим печатной машинки": "Desativar o modo máquina de escrever",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Sincronizados: {projects} projetos, {stages} etapas.",
         "Добавлено: {amount}.": "Adicionado: {amount}.",
         "Удалено: {amount}.": "Removido: {amount}.",

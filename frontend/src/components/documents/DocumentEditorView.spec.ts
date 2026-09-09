@@ -11,10 +11,13 @@ import type { DocumentScope, ProjectDocument, TiptapDocument } from '@/types/doc
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, editorJson, editorModelValue, editorReady, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setEditorContent, setLineHeight, setTextSelection } = vi.hoisted(() => ({
+const { destroyWindow, editorCoordsAtPos, editorJson, editorModelValue, editorOff, editorOn, editorReady, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setEditorContent, setLineHeight, setTextSelection } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
+  editorCoordsAtPos: vi.fn(),
   editorJson: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
   editorModelValue: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
+  editorOff: vi.fn(),
+  editorOn: vi.fn(),
   editorReady: { value: true },
   editorSelection: { from: 1 },
   editorUpdate: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
@@ -28,6 +31,57 @@ const { destroyWindow, editorJson, editorModelValue, editorReady, editorSelectio
   setTextSelection: vi.fn(),
 }))
 const positionStorage = new Map<string, string>()
+
+type TypewriterGeometry = {
+  caretOffset: number
+  clientHeight: number
+  contentHeight: number
+  top: number
+}
+
+let typewriterGeometry: TypewriterGeometry | null = null
+
+function editorZoom(element: Element): number {
+  const root = element.closest('.nfprogress-word-editor') as HTMLElement | null
+  return Number(root?.style.getPropertyValue('--nf-editor-zoom') || 1)
+}
+
+function installTypewriterGeometry(wrapper: ReturnType<typeof mountEditor>, next: TypewriterGeometry): HTMLElement {
+  typewriterGeometry = next
+  const container = wrapper.get('.word-document-container').element as HTMLElement
+  let scrollTop = 0
+  Object.defineProperties(container, {
+    clientHeight: { configurable: true, get: () => typewriterGeometry?.clientHeight ?? 0 },
+    scrollHeight: {
+      configurable: true,
+      get: () => {
+        const tail = container.querySelector<HTMLElement>('[data-nf-typewriter-tail]')
+        const visualTail = tail ? Number.parseFloat(tail.style.height || '0') * editorZoom(tail) : 0
+        return (typewriterGeometry?.contentHeight ?? 0) + visualTail
+      },
+    },
+    scrollTop: {
+      configurable: true,
+      get: () => scrollTop,
+      set: (value: number) => {
+        const maximum = Math.max(0, container.scrollHeight - container.clientHeight)
+        scrollTop = Math.max(0, Math.min(maximum, value))
+      },
+    },
+  })
+  container.getBoundingClientRect = () => new DOMRect(0, next.top, 700, next.clientHeight)
+  const sheet = wrapper.get('.continuous-pages').element as HTMLElement
+  Object.defineProperties(sheet, {
+    offsetWidth: { configurable: true, get: () => 800 },
+  })
+  sheet.getBoundingClientRect = () => new DOMRect(0, next.top, 800 * editorZoom(sheet), next.contentHeight)
+  editorCoordsAtPos.mockImplementation(() => {
+    const geometry = typewriterGeometry
+    const top = (geometry?.top ?? 0) + (geometry?.caretOffset ?? 0) - container.scrollTop
+    return { top, bottom: top + 20, left: 0, right: 1 }
+  })
+  return container
+}
 
 vi.mock('vue-router', () => ({
   onBeforeRouteLeave,
@@ -50,14 +104,17 @@ vi.mock('tiptap-ui-kit', () => ({
         getEditor: () => editorReady.value ? ({
           commands: { focus: focusEditor, insertContent, scrollIntoView, setContent: setEditorContent, setTextSelection },
           getJSON: () => editorJson.value,
+          off: editorOff,
+          on: editorOn,
           state: { selection: editorSelection, doc: { content: { size: 100 } } },
+          view: { coordsAtPos: editorCoordsAtPos },
           chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
         }) : null,
         getJSON: () => editorJson.value,
       })
       return { editorModelValue, editorUpdate }
     },
-    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="word-document-container"><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', editorUpdate.value)" /><button class="tiptap-model-update" type="button" @click="$emit('update:modelValue', editorModelValue.value)" /><output class="tiptap-model">{{ JSON.stringify(initialContent) }}</output></div></div>`,
+    template: `<div><div class="word-toolbar"><div class="editor-toolbar" /></div><div class="word-document-container"><div class="document-pages"><div class="continuous-pages"><div class="word-content-multi"><div class="tiptap-stub ProseMirror" contenteditable="true" @click="$emit('update', editorUpdate.value)" /></div></div></div><button class="tiptap-model-update" type="button" @click="$emit('update:modelValue', editorModelValue.value)" /><output class="tiptap-model">{{ JSON.stringify(initialContent) }}</output></div></div>`,
   },
 }))
 
@@ -135,6 +192,10 @@ describe('DocumentEditorView status bar', () => {
     onCloseRequested.mockReset()
     delete window.__TAURI_INTERNALS__
     editorSelection.from = 1
+    editorCoordsAtPos.mockReset()
+    editorOff.mockReset()
+    editorOn.mockReset()
+    typewriterGeometry = null
     window.localStorage?.removeItem('nfprogress:document-position:project-id:project')
   })
 
@@ -537,6 +598,144 @@ describe('DocumentEditorView status bar', () => {
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('0')
     expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('/ 120')
     expect(wrapper.get('.document-editor-view__today-goal').text()).toBe('Цель на день выполнена!')
+    wrapper.unmount()
+  })
+})
+
+describe('DocumentEditorView typewriter mode', () => {
+  function tailVisualHeight(wrapper: ReturnType<typeof mountEditor>): number {
+    const tail = wrapper.get<HTMLElement>('[data-nf-typewriter-tail]').element
+    tail.getBoundingClientRect = () => new DOMRect(0, 0, 800, Number.parseFloat(tail.style.height) * editorZoom(tail))
+    return tail.getBoundingClientRect().height
+  }
+
+  async function enableTypewriter(wrapper: ReturnType<typeof mountEditor>): Promise<void> {
+    await wrapper.get('.document-editor-view__typewriter-toggle').trigger('click')
+    await flushPromises()
+  }
+
+  it('adds exactly one presentation-only tail when enabled and removes it when disabled', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 1_200, caretOffset: 100 })
+
+    expect(wrapper.find('[data-nf-typewriter-tail]').exists()).toBe(false)
+    await enableTypewriter(wrapper)
+    expect(wrapper.findAll('[data-nf-typewriter-tail]')).toHaveLength(1)
+    expect(wrapper.get('.ProseMirror').find('[data-nf-typewriter-tail]').exists()).toBe(false)
+
+    await wrapper.get('.document-editor-view__typewriter-toggle').trigger('click')
+    expect(wrapper.find('[data-nf-typewriter-tail]').exists()).toBe(false)
+    await enableTypewriter(wrapper)
+    expect(wrapper.findAll('[data-nf-typewriter-tail]')).toHaveLength(1)
+    wrapper.unmount()
+  })
+
+  it.each([100, 140, 200, 500])('keeps the visual tail at half the viewport at %i zoom', async (zoom) => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 1_200, caretOffset: 100 })
+    const editor = wrapper.get('.nfprogress-word-editor').element as HTMLElement
+    editor.style.setProperty('--nf-editor-zoom', String(zoom / 100))
+
+    await enableTypewriter(wrapper)
+
+    expect(tailVisualHeight(wrapper)).toBeCloseTo(300, 5)
+    wrapper.unmount()
+  })
+
+  it('recalculates the visual tail after a viewport resize', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 1_200, caretOffset: 100 })
+    await enableTypewriter(wrapper)
+    expect(tailVisualHeight(wrapper)).toBeCloseTo(300, 5)
+
+    typewriterGeometry = { top: 100, clientHeight: 800, contentHeight: 1_200, caretOffset: 100 }
+    window.dispatchEvent(new Event('resize'))
+    await flushPromises()
+    expect(tailVisualHeight(wrapper)).toBeCloseTo(400, 5)
+    wrapper.unmount()
+  })
+
+  it('does not move early lines, then keeps the caret on the working line through consecutive edits', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 1_600, caretOffset: 120 })
+    await enableTypewriter(wrapper)
+
+    await wrapper.get('.tiptap-stub').trigger('click')
+    expect(container.scrollTop).toBe(0)
+
+    typewriterGeometry = { top: 100, clientHeight: 600, contentHeight: 1_600, caretOffset: 520 }
+    await wrapper.get('.tiptap-stub').trigger('click')
+    expect(container.scrollTop).toBeCloseTo(230, 5)
+
+    typewriterGeometry = { top: 100, clientHeight: 600, contentHeight: 1_600, caretOffset: 560 }
+    await wrapper.get('.tiptap-stub').trigger('click')
+    expect(container.scrollTop).toBeCloseTo(270, 5)
+    wrapper.unmount()
+  })
+
+  it('uses the native ProseMirror update event for immediate caret tracking', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 1_600, caretOffset: 520 })
+    await enableTypewriter(wrapper)
+    const listener = [...editorOn.mock.calls].reverse().find(([event]) => event === 'update')?.[1] as (() => void) | undefined
+
+    listener?.()
+    await flushPromises()
+
+    expect(listener).toBeTypeOf('function')
+    expect(container.scrollTop).toBeCloseTo(230, 5)
+    wrapper.unmount()
+  })
+
+  it('leaves manual scrolling alone until the next edit resumes caret tracking', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 2_000, caretOffset: 800 })
+    await enableTypewriter(wrapper)
+    container.scrollTop = 350
+    container.dispatchEvent(new Event('scroll'))
+    await flushPromises()
+    expect(container.scrollTop).toBe(350)
+
+    await wrapper.get('.tiptap-stub').trigger('click')
+    expect(container.scrollTop).toBeCloseTo(510, 5)
+    wrapper.unmount()
+  })
+
+  it('can bring the final line to the working line while keeping its tail after the real content', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 700, caretOffset: 600 })
+    await enableTypewriter(wrapper)
+
+    await wrapper.get('.tiptap-stub').trigger('click')
+
+    expect(container.scrollTop).toBeCloseTo(310, 5)
+    expect(tailVisualHeight(wrapper)).toBeCloseTo(300, 5)
+    expect(wrapper.get('[data-nf-typewriter-tail]').element.previousElementSibling?.classList.contains('word-content-multi')).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('places an icon-only typewriter button immediately before the zoom controls', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    const button = wrapper.get<HTMLButtonElement>('.document-editor-view__typewriter-toggle')
+
+    expect(button.attributes('aria-pressed')).toBe('false')
+    expect(button.attributes('title')).toBe('Включить режим печатной машинки')
+    expect(button.text()).toBe('')
+    expect(button.find('svg.document-editor-view__typewriter-icon').exists()).toBe(true)
+    expect(button.element.nextElementSibling?.classList.contains('document-editor-view__zoom')).toBe(true)
+
+    await button.trigger('click')
+    expect(button.attributes('aria-pressed')).toBe('true')
+    expect(button.attributes('title')).toBe('Выключить режим печатной машинки')
+    expect(button.classes()).toContain('document-editor-view__typewriter-toggle--active')
     wrapper.unmount()
   })
 })
