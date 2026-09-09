@@ -560,10 +560,10 @@ onMounted(loadPage)
                   </select>
                 </label>
                 <label for="sync-stage">
-                  <span>{{ t('Проект или этап') }}</span>
+                  <span>{{ t('Проект или источник') }}</span>
                   <select id="sync-stage" v-model="selectedStageId" :disabled="busy">
                     <option value="">
-                      {{ selectedProjectHasStages ? t('Выберите этап') : t('Весь проект') }}
+                      {{ selectedProjectHasStages ? t('Выберите источник') : t('Весь проект') }}
                     </option>
                     <option
                       v-for="stage in selectedProject?.stages ?? []"
@@ -598,7 +598,7 @@ onMounted(loadPage)
                 </div>
 
                 <div v-if="selectedProjectHasStages && !selectedStageId" class="sync-warning" role="status">
-                  {{ t('Выберите этап. Источник подключается отдельно к каждому этапу проекта.') }}
+                  {{ t('Выберите источник. Источник подключается отдельно к каждому источнику проекта.') }}
                 </div>
                 <div v-else-if="!entityWritable" class="sync-warning" role="status">
                   {{ t('Архивные и завершённые сущности доступны только для просмотра.') }}

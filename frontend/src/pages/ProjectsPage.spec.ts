@@ -402,7 +402,7 @@ describe('ProjectsPage streak summaries', () => {
     expect(projectsApi.list).toHaveBeenCalledOnce()
     expect(useNotificationsStore().notifications).toContainEqual(expect.objectContaining({
       kind: 'success',
-      message: 'Синхронизировано: 1 проектов, 0 этапов. Добавлено: 100 символов.',
+      message: 'Синхронизировано: 1 проектов, 0 источников. Добавлено: 100 символов.',
     }))
     wrapper.unmount()
   })

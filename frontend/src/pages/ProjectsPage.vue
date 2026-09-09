@@ -775,7 +775,7 @@ onBeforeUnmount(() => {
               id="project-search"
               v-model="search"
               type="search"
-              :placeholder="t('Поиск по проектам и этапам')"
+              :placeholder="t('Поиск по проектам и источникам')"
               autocomplete="off"
             />
             <button

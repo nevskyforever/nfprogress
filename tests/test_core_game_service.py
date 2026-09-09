@@ -743,6 +743,48 @@ def test_custom_award_lifecycle_uses_saved_price_and_id(game_context):
         service.use_custom_award(award_id)
 
 
+def test_custom_award_inflation_uses_base_price_for_display_and_purchase(
+        game_context,
+):
+    repository, service, _project, _stage = game_context
+    gamer = repository.read_gamer()
+    gamer.level = 3
+    gamer.update_cf()
+    repository.write_gamer(gamer)
+
+    plain = service.create_custom_award('Без инфляции', 40, False)
+    inflated = service.create_custom_award('С инфляцией', 40, True)
+    plain_award = plain['result']['award']
+    inflated_award = inflated['result']['award']
+
+    assert plain_award['base_price'] == 40
+    assert plain_award['price'] == 40
+    assert plain_award['apply_inflation'] is False
+    assert inflated_award['base_price'] == 40
+    assert inflated_award['price'] == 52
+    assert inflated_award['apply_inflation'] is True
+
+    gamer = repository.read_gamer()
+    gamer.level = 5
+    gamer.update_cf()
+    repository.write_gamer(gamer)
+    state = service.get_state()
+    inflated_display = next(
+        award for award in state['custom_awards']['items']
+        if award['id'] == inflated_award['id']
+    )
+    assert inflated_display['base_price'] == 40
+    assert inflated_display['price'] == 64
+
+    coins_before = state['profile']['coins']
+    bought = service.buy_custom_award(inflated_award['id'])
+    assert bought['result']['unit_price'] == inflated_display['price']
+    assert bought['state']['profile']['coins'] == coins_before - inflated_display['price']
+    sold = service.sell_custom_award(inflated_award['id'])
+    assert sold['result']['unit_price'] == inflated_display['sell_price']
+    assert repository.read_gamer().custom_awards[1]._price == 40
+
+
 def test_custom_award_validation_and_name_conflicts(game_context):
     _repository, service, _project, _stage = game_context
 

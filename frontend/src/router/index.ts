@@ -22,7 +22,7 @@ const router = createRouter({
       name: 'stage-detail',
       component: () => import('@/pages/ProjectDetailPage.vue'),
       props: true,
-      meta: { title: 'Этапы' },
+      meta: { title: 'Источники' },
     },
     {
       path: '/projects/:projectId/notes',

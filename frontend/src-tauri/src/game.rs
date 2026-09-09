@@ -724,6 +724,25 @@ fn rounded_money(value: f64) -> f64 {
     (value * 10.0).round() / 10.0
 }
 
+// ``_price`` remains the persisted base price. A missing opt-in flag keeps
+// prices of legacy rewards stable at their already saved value.
+fn custom_award_base_price(fields: &Map<String, Value>) -> f64 {
+    number_field(fields, "_price", 0.0).max(0.0)
+}
+
+fn custom_award_uses_inflation(fields: &Map<String, Value>) -> bool {
+    fields.get("apply_inflation").and_then(Value::as_bool) == Some(true)
+}
+
+fn custom_award_price(gamer: &Map<String, Value>, fields: &Map<String, Value>) -> f64 {
+    let multiplier = if custom_award_uses_inflation(fields) {
+        1.0 + (integer_field(gamer, "level", 1).max(1) - 1) as f64 * 0.15
+    } else {
+        1.0
+    };
+    rounded_money(custom_award_base_price(fields) * multiplier)
+}
+
 fn checked_positive(value: f64, label: &str) -> GameResult<f64> {
     if value.is_finite() && value > 0.0 && value <= MAX_MONEY {
         Ok(rounded_money(value))
@@ -1042,13 +1061,15 @@ fn custom_awards_projection(gamer: &Map<String, Value>) -> Value {
             let fields = tagged_fields_immutable(award)?;
             let id = text_value(fields.get("award_id"), &format!("custom-{index}"));
             let name = text_value(fields.get("name"), "Награда");
-            let price = number_field(fields, "_price", 0.0).max(0.0);
+            let base_price = custom_award_base_price(fields);
+            let apply_inflation = custom_award_uses_inflation(fields);
+            let price = custom_award_price(gamer, fields);
             let count = inventory
                 .and_then(|values| values.get(&name))
                 .and_then(Value::as_i64)
                 .unwrap_or(0)
                 .max(0);
-            Some(json!({"id":id,"name":name,"description":text_value(fields.get("description"),"Кастомная награда без эффекта"),"price":price,"sell_price":rounded_money(price*0.75),"count":count,"available_in_shop":fields.get("available_in_shop").and_then(Value::as_bool).unwrap_or(true),"sellable":fields.get("sellable").and_then(Value::as_bool).unwrap_or(true),"usable":true,"can_buy":number_field(gamer,"coins",0.0)>=price}))
+            Some(json!({"id":id,"name":name,"description":text_value(fields.get("description"),"Кастомная награда без эффекта"),"base_price":base_price,"apply_inflation":apply_inflation,"price":price,"sell_price":rounded_money(price*0.75),"count":count,"available_in_shop":fields.get("available_in_shop").and_then(Value::as_bool).unwrap_or(true),"sellable":fields.get("sellable").and_then(Value::as_bool).unwrap_or(true),"usable":true,"can_buy":number_field(gamer,"coins",0.0)>=price}))
         })
         .collect::<Vec<_>>();
     json!({"items":items})
@@ -2754,6 +2775,8 @@ pub struct BankWithdrawRequest {
 pub struct CustomAwardRequest {
     pub name: String,
     pub price: f64,
+    #[serde(default)]
+    pub apply_inflation: bool,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -2762,6 +2785,7 @@ pub struct CustomAwardUpdateRequest {
     pub award_id: String,
     pub name: Option<String>,
     pub price: Option<f64>,
+    pub apply_inflation: Option<bool>,
 }
 
 #[derive(Debug, serde::Deserialize)]
@@ -3423,7 +3447,7 @@ impl GameApplicationService {
             let gamer = gamer_object(state)?;
             let awards = array_mut(gamer, "custom_awards");
             let id = format!("custom-{}", awards.len() + 1);
-            awards.push(json!({"__type__":"game_data.Item","fields":{"award_id":id,"name":request.name,"_price":price,"description":"Кастомная награда без эффекта","available_in_shop":true,"sellable":true,"item_type":"Награды"}}));
+            awards.push(json!({"__type__":"game_data.Item","fields":{"award_id":id,"name":request.name,"_price":price,"apply_inflation":request.apply_inflation,"description":"Кастомная награда без эффекта","available_in_shop":true,"sellable":true,"item_type":"Награды"}}));
             object_map(gamer, "custom_awards_inventory")
                 .entry(request.name.clone())
                 .or_insert(json!(0));
@@ -3468,6 +3492,9 @@ impl GameApplicationService {
             if let Some(price) = price {
                 fields.insert("_price".into(), json!(price));
             }
+            if let Some(apply_inflation) = request.apply_inflation {
+                fields.insert("apply_inflation".into(), json!(apply_inflation));
+            }
             Ok((Some("Награда изменена.".into()), None))
         })
     }
@@ -3504,11 +3531,11 @@ impl GameApplicationService {
                     })
                 })
                 .map(|value| {
+                    let fields = tagged_fields_immutable(value)
+                        .expect("custom award fields were validated when saved");
                     (
-                        text_value(tagged_field(value, "name"), ""),
-                        tagged_field(value, "_price")
-                            .and_then(Value::as_f64)
-                            .unwrap_or(1.0),
+                        text_value(fields.get("name"), ""),
+                        custom_award_price(gamer, fields),
                     )
                 })
                 .ok_or_else(|| GameError::NotFound("Кастомная награда не найдена.".into()))?;
@@ -3813,6 +3840,22 @@ mod tests {
     struct FixedRng {
         values: Vec<u32>,
         index: usize,
+    }
+
+    #[test]
+    fn custom_award_price_keeps_base_price_and_matches_purchase_price() {
+        let gamer = serde_json::json!({"level": 4}).as_object().unwrap().clone();
+        let award = serde_json::json!({
+            "_price": 40.0,
+            "apply_inflation": true,
+        })
+        .as_object()
+        .unwrap()
+        .clone();
+
+        assert_eq!(custom_award_base_price(&award), 40.0);
+        assert_eq!(custom_award_price(&gamer, &award), 58.0);
+        assert_eq!(custom_award_base_price(&award), 40.0);
     }
 
     impl GameRng for FixedRng {

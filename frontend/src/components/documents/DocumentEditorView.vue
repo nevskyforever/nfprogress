@@ -700,7 +700,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
   <section class="document-editor-view">
     <header class="document-editor-view__header">
       <div class="document-editor-view__title">
-        <button class="document-editor-view__back" type="button" :title="scope.stageId ? 'Вернуться к этапу' : 'Вернуться к проекту'" :aria-label="scope.stageId ? 'Вернуться к этапу' : 'Вернуться к проекту'" @click="closeEditor">← {{ scope.stageId ? 'К этапу' : 'К проекту' }}</button>
+        <button class="document-editor-view__back" type="button" :title="scope.stageId ? t('Вернуться к источнику') : t('Вернуться к проекту')" :aria-label="scope.stageId ? t('Вернуться к источнику') : t('Вернуться к проекту')" @click="closeEditor">← {{ scope.stageId ? t('К источнику') : t('К проекту') }}</button>
         <div><p class="document-editor-view__eyebrow">Текст</p><h1>{{ title }}</h1></div>
       </div>
       <div class="document-editor-view__actions">

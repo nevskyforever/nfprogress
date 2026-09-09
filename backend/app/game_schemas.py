@@ -403,6 +403,8 @@ class CustomAwardResponse(GameResponseModel):
     id: str
     name: str
     description: str
+    base_price: float
+    apply_inflation: bool
     price: float
     sell_price: float
     count: int

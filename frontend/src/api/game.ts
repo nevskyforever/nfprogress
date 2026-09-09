@@ -180,16 +180,23 @@ export const gameApi = {
     return command('/inventory/use', payload)
   },
 
-  createCustomAward(name: string, price: number): Promise<GameCommandResponse> {
-    if (isDesktopGame()) return nativeCommand('game_create_custom_award', { name, price })
-    return command('/custom-awards', { name, price })
+  createCustomAward(
+    name: string, price: number, applyInflation: boolean,
+  ): Promise<GameCommandResponse> {
+    if (isDesktopGame()) return nativeCommand('game_create_custom_award', { name, price, applyInflation })
+    return command('/custom-awards', { name, price, apply_inflation: applyInflation })
   },
 
   updateCustomAward(
     awardId: string,
-    payload: { name?: string; price?: number },
+    payload: { name?: string; price?: number; apply_inflation?: boolean },
   ): Promise<GameCommandResponse> {
-    if (isDesktopGame()) return nativeCommand('game_update_custom_award', { awardId, ...payload })
+    if (isDesktopGame()) return nativeCommand('game_update_custom_award', {
+      awardId,
+      ...(payload.name !== undefined ? { name: payload.name } : {}),
+      ...(payload.price !== undefined ? { price: payload.price } : {}),
+      ...(payload.apply_inflation !== undefined ? { applyInflation: payload.apply_inflation } : {}),
+    })
     return command(awardPath(awardId), payload, 'PATCH')
   },
 

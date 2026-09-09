@@ -27,6 +27,14 @@ const MAMMOTH_HIGHLIGHTS: Array<[string, string]> = [
   ['yellow', '#ffff00'], ['green', '#00ff00'], ['cyan', '#00ffff'], ['magenta', '#ff00ff'],
   ['blue', '#0000ff'], ['red', '#ff0000'], ['darkGray', '#808080'],
 ]
+type MammothDocumentNode = {
+  type?: unknown
+  children?: MammothDocumentNode[]
+  font?: unknown
+  fontSize?: unknown
+  styleName?: string
+  [key: string]: unknown
+}
 
 function supportedFont(font: unknown): string | undefined {
   if (typeof font !== 'string') return undefined
@@ -49,16 +57,19 @@ function styleMap(): string[] {
     ...MAMMOTH_HIGHLIGHTS.map(([wordColor, cssColor]) => `highlight[color='${wordColor}'] => mark[style='background-color: ${cssColor}']`),
   ]
 }
-function preserveWordTextFormatting(document: any): any {
-  const visit = (node: any): any => {
+function preserveWordTextFormatting(document: unknown): unknown {
+  const visit = (node: unknown): unknown => {
     if (!node || typeof node !== 'object') return node
-    const children = Array.isArray(node.children) ? node.children.map(visit) : node.children
-    if (node.type !== 'run') return { ...node, children }
-    const font = supportedFont(node.font)
-    const size = typeof node.fontSize === 'number' && WORD_FONT_SIZES.includes(node.fontSize as never) ? node.fontSize : undefined
+    const record = node as MammothDocumentNode
+    const children = Array.isArray(record.children) ? record.children.map(visit) : record.children
+    if (record.type !== 'run') return { ...record, children }
+    const font = supportedFont(record.font)
+    const size = typeof record.fontSize === 'number' && WORD_FONT_SIZES.includes(record.fontSize as never)
+      ? record.fontSize
+      : undefined
     return font || size
-      ? { ...node, children, styleName: `NFProgress ${font ?? 'Arial'} ${size ?? 12}` }
-      : { ...node, children }
+      ? { ...record, children, styleName: `NFProgress ${font ?? 'Arial'} ${size ?? 12}` }
+      : { ...record, children }
   }
   return visit(document)
 }
