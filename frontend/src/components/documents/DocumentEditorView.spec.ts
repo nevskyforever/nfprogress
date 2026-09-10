@@ -11,13 +11,14 @@ import type { DocumentScope, ProjectDocument, TiptapDocument } from '@/types/doc
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, editorCoordsAtPos, editorJson, editorModelValue, editorOff, editorOn, editorReady, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setEditorContent, setLineHeight, setTextSelection } = vi.hoisted(() => ({
+const { destroyWindow, editorCoordsAtPos, editorJson, editorModelValue, editorOff, editorOn, editorPosAtCoords, editorReady, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setEditorContent, setLineHeight, setTextSelection } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
   editorCoordsAtPos: vi.fn(),
   editorJson: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
   editorModelValue: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
   editorOff: vi.fn(),
   editorOn: vi.fn(),
+  editorPosAtCoords: vi.fn(() => ({ pos: 50 })),
   editorReady: { value: true },
   editorSelection: { from: 1 },
   editorUpdate: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
@@ -36,6 +37,8 @@ type TypewriterGeometry = {
   caretOffset: number
   clientHeight: number
   contentHeight: number
+  documentEndOffset?: number
+  readingOffset?: number
   top: number
 }
 
@@ -49,17 +52,18 @@ function editorZoom(element: Element): number {
 function installTypewriterGeometry(wrapper: ReturnType<typeof mountEditor>, next: TypewriterGeometry): HTMLElement {
   typewriterGeometry = next
   const container = wrapper.get('.word-document-container').element as HTMLElement
+  const pages = wrapper.get('.document-pages').element as HTMLElement
   let scrollTop = 0
+  const pageHeight = () => {
+    const explicitHeight = Number.parseFloat(pages.style.height)
+    if (Number.isFinite(explicitHeight)) return explicitHeight
+    const tail = pages.querySelector<HTMLElement>('[data-nf-typewriter-tail]')
+    const tailLayoutHeight = Number.parseFloat(tail?.style.height ?? '') || 0
+    return (typewriterGeometry?.contentHeight ?? 0) * editorZoom(pages) + tailLayoutHeight * editorZoom(pages)
+  }
   Object.defineProperties(container, {
     clientHeight: { configurable: true, get: () => typewriterGeometry?.clientHeight ?? 0 },
-    scrollHeight: {
-      configurable: true,
-      get: () => {
-        const tail = container.querySelector<HTMLElement>('[data-nf-typewriter-tail]')
-        const visualTail = tail ? Number.parseFloat(tail.style.height || '0') * editorZoom(tail) : 0
-        return (typewriterGeometry?.contentHeight ?? 0) * editorZoom(container) + visualTail
-      },
-    },
+    scrollHeight: { configurable: true, get: pageHeight },
     scrollTop: {
       configurable: true,
       get: () => scrollTop,
@@ -71,14 +75,22 @@ function installTypewriterGeometry(wrapper: ReturnType<typeof mountEditor>, next
   })
   container.getBoundingClientRect = () => new DOMRect(0, next.top, 700, next.clientHeight)
   const sheet = wrapper.get('.continuous-pages').element as HTMLElement
+  Object.defineProperties(pages, {
+    offsetHeight: { configurable: true, get: pageHeight },
+  })
   Object.defineProperties(sheet, {
     offsetWidth: { configurable: true, get: () => 800 },
   })
   sheet.getBoundingClientRect = () => new DOMRect(0, next.top, 800 * editorZoom(sheet), next.contentHeight)
   new MutationObserver(() => { container.scrollTop = scrollTop }).observe(sheet, { childList: true })
-  editorCoordsAtPos.mockImplementation(() => {
+  editorCoordsAtPos.mockImplementation((position: number) => {
     const geometry = typewriterGeometry
-    const top = (geometry?.top ?? 0) + (geometry?.caretOffset ?? 0) * editorZoom(container) - container.scrollTop
+    const offset = position === 99
+      ? geometry?.documentEndOffset ?? geometry?.caretOffset ?? 0
+      : position === 50
+        ? geometry?.readingOffset ?? geometry?.caretOffset ?? 0
+        : geometry?.caretOffset ?? 0
+    const top = (geometry?.top ?? 0) + offset * editorZoom(container) - container.scrollTop / editorZoom(container)
     return { top, bottom: top + 20, left: 0, right: 1 }
   })
   return container
@@ -108,7 +120,7 @@ vi.mock('tiptap-ui-kit', () => ({
           off: editorOff,
           on: editorOn,
           state: { selection: editorSelection, doc: { content: { size: 100 } } },
-          view: { coordsAtPos: editorCoordsAtPos },
+          view: { coordsAtPos: editorCoordsAtPos, posAtCoords: editorPosAtCoords },
           chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
         }) : null,
         getJSON: () => editorJson.value,
@@ -194,6 +206,8 @@ describe('DocumentEditorView status bar', () => {
     delete window.__TAURI_INTERNALS__
     editorSelection.from = 1
     editorCoordsAtPos.mockReset()
+    editorPosAtCoords.mockReset()
+    editorPosAtCoords.mockReturnValue({ pos: 50 })
     editorOff.mockReset()
     editorOn.mockReset()
     typewriterGeometry = null
@@ -660,7 +674,7 @@ describe('DocumentEditorView typewriter mode', () => {
     expect(wrapper.findAll('[data-nf-typewriter-tail]')).toHaveLength(1)
     const tail = wrapper.get('[data-nf-typewriter-tail]')
     expect(wrapper.get('.ProseMirror').find('[data-nf-typewriter-tail]').exists()).toBe(false)
-    expect(tail.attributes('contenteditable')).toBeUndefined()
+    expect(tail.attributes('contenteditable')).toBe('false')
     expect(tail.attributes('aria-hidden')).toBe('true')
 
     await wrapper.get('.document-editor-view__typewriter-toggle').trigger('click')
@@ -878,7 +892,54 @@ describe('DocumentEditorView typewriter mode', () => {
     animationFrames.runAll()
     container.scrollTop = Number.POSITIVE_INFINITY
 
-    expect(caretCenter()).toBeCloseTo(410, 5)
+    expect(caretCenter()).toBeCloseTo(400, 5)
+    expect(tailVisualHeight(wrapper)).toBeCloseTo(300, 5)
+    wrapper.unmount()
+  })
+
+  it.each([100, 150, 200, 500])('puts the real document end on the working line at maximum scroll at %i zoom', async (zoom) => {
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 2_000,
+      caretOffset: 1_000,
+      documentEndOffset: 1_900,
+    })
+    const editor = wrapper.get('.nfprogress-word-editor').element as HTMLElement
+    editor.style.setProperty('--nf-editor-zoom', String(zoom / 100))
+
+    await enableTypewriter(wrapper)
+    animationFrames.runAll()
+    container.scrollTop = Number.POSITIVE_INFINITY
+
+    const documentEnd = editorCoordsAtPos(99) as { top: number; bottom: number }
+    expect((documentEnd.top + documentEnd.bottom) / 2).toBeCloseTo(400, 5)
+    expect(wrapper.get('.document-pages').element.getAttribute('style')).toContain('overflow: hidden')
+    expect(tailVisualHeight(wrapper)).toBeCloseTo(300, 5)
+    wrapper.unmount()
+  })
+
+  it('keeps the short-document tail presentation-only without restoring native minimum height', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+    installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 120,
+      caretOffset: 100,
+      documentEndOffset: 100,
+    })
+
+    await enableTypewriter(wrapper)
+
+    const root = wrapper.get('.nfprogress-word-editor')
+    const tail = wrapper.get('[data-nf-typewriter-tail]')
+    expect(root.classes()).toContain('nfprogress-word-editor--typewriter')
+    expect(wrapper.get('.document-pages').element.getAttribute('style')).toContain('overflow: hidden')
+    expect(tail.attributes('contenteditable')).toBe('false')
     expect(tailVisualHeight(wrapper)).toBeCloseTo(300, 5)
     wrapper.unmount()
   })
@@ -914,18 +975,18 @@ describe('DocumentEditorView typewriter mode', () => {
     const container = installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 700, caretOffset: 700 })
     await enableTypewriter(wrapper)
     animationFrames.runAll()
-    expect(caretCenter()).toBeCloseTo(410, 5)
+    expect(caretCenter()).toBeCloseTo(400, 5)
 
     await setDocumentZoom(wrapper, 170)
     animationFrames.runAll()
-    expect(caretCenter()).toBeCloseTo(410, 5)
+    expect(caretCenter()).toBeCloseTo(400, 5)
     expect(tailVisualHeight(wrapper)).toBeCloseTo(300, 5)
     container.scrollTop = Number.POSITIVE_INFINITY
-    expect(caretCenter()).toBeCloseTo(410, 5)
+    expect(caretCenter()).toBeCloseTo(400, 5)
 
     await setDocumentZoom(wrapper, 100)
     animationFrames.runAll()
-    expect(caretCenter()).toBeCloseTo(410, 5)
+    expect(caretCenter()).toBeCloseTo(400, 5)
     expect(tailVisualHeight(wrapper)).toBeCloseTo(300, 5)
     wrapper.unmount()
   })
@@ -934,7 +995,13 @@ describe('DocumentEditorView typewriter mode', () => {
     const animationFrames = deferAnimationFrames()
     const wrapper = mountEditor()
     await flushPromises()
-    const container = installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 3_000, caretOffset: 1_200 })
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 3_000,
+      caretOffset: 1_200,
+      readingOffset: 500,
+    })
     await enableTypewriter(wrapper)
     animationFrames.runAll()
     container.scrollTop = 100
@@ -942,7 +1009,8 @@ describe('DocumentEditorView typewriter mode', () => {
 
     await setDocumentZoom(wrapper, 170)
     animationFrames.runAll()
-    expect(container.scrollTop).toBeCloseTo(170, 5)
+    const readingCoords = editorCoordsAtPos(50) as { top: number; bottom: number }
+    expect((readingCoords.top + readingCoords.bottom) / 2).toBeCloseTo(510, 5)
 
     await wrapper.get('.tiptap-stub').trigger('click')
     expect(caretCenter()).toBeCloseTo(400, 5)

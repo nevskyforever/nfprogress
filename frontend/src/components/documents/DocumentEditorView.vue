@@ -64,6 +64,8 @@ let observedTypewriterContainer: HTMLElement | null = null
 let typewriterEditor: Editor | null = null
 let typewriterActivationFrame: number | undefined
 let typewriterActivationGeneration = 0
+let typewriterTailFrame: number | undefined
+let typewriterTailGeneration = 0
 let typewriterZoomFrame: number | undefined
 let typewriterZoomGeneration = 0
 let pendingTypewriterZoomAnchor: TypewriterZoomAnchor | null = null
@@ -74,6 +76,8 @@ type TypewriterZoomAnchor = {
   caretOffset: number
   layoutScrollTop: number
   keepWorkingLine: boolean
+  readingOffset?: number
+  readingPosition?: number
 }
 const TYPEWRITER_RATIO = 0.5
 const TYPEWRITER_EPSILON = 2
@@ -151,8 +155,18 @@ function editorScrollContainer(): HTMLElement | null {
 function continuousSheet(): HTMLElement | null {
   return editorShell.value?.querySelector<HTMLElement>('.continuous-pages') ?? null
 }
+function documentPages(): HTMLElement | null {
+  const pages = continuousSheet()?.parentElement
+  return pages instanceof HTMLElement ? pages : null
+}
+function clearTypewriterPageExtent(): void {
+  const pages = documentPages()
+  pages?.style.removeProperty('height')
+  pages?.style.removeProperty('overflow')
+}
 function removeTypewriterTail(): void {
   editorShell.value?.querySelectorAll<HTMLElement>('[data-nf-typewriter-tail]').forEach((tail) => tail.remove())
+  clearTypewriterPageExtent()
 }
 function ensureTypewriterTail(): HTMLElement | null {
   const sheet = continuousSheet()
@@ -163,6 +177,8 @@ function ensureTypewriterTail(): HTMLElement | null {
   const tail = document.createElement('div')
   tail.dataset.nfTypewriterTail = ''
   tail.setAttribute('aria-hidden', 'true')
+  tail.setAttribute('contenteditable', 'false')
+  tail.tabIndex = -1
   const content = sheet.querySelector<HTMLElement>('.word-content-multi')
   if (content) content.after(tail)
   else sheet.append(tail)
@@ -174,7 +190,70 @@ function sheetZoomScale(sheet: HTMLElement): number {
   const sheetRect = sheet.getBoundingClientRect()
   return sheet.offsetWidth > 0 && sheetRect.width > 0 ? sheetRect.width / sheet.offsetWidth : 1
 }
-function updateTypewriterTail(): void {
+function visualDeltaToScrollDelta(visualDelta: number, sheet: HTMLElement): number {
+  // DOM rects and ProseMirror coordinates are rendered pixels. With CSS zoom,
+  // WebKit's scrollTop advances in the sheet's unzoomed coordinate space.
+  return visualDelta * sheetZoomScale(sheet)
+}
+function typewriterTailVisualScale(tail: HTMLElement, fallback: number): number {
+  const layoutHeight = Number.parseFloat(tail.style.height)
+  const visualHeight = tail.getBoundingClientRect().height
+  if (layoutHeight > 0 && visualHeight > 0) {
+    const measuredScale = visualHeight / layoutHeight
+    if (Number.isFinite(measuredScale) && measuredScale > 0) return measuredScale
+  }
+  return fallback
+}
+function typewriterDocumentEndCenter(editor: Editor): number | null {
+  try {
+    const documentEnd = Math.max(1, editor.state.doc.content.size - 1)
+    const coords = editor.view.coordsAtPos(documentEnd)
+    return (coords.top + coords.bottom) / 2
+  } catch {
+    return null
+  }
+}
+function updateTypewriterPageExtent(): void {
+  if (!typewriterMode.value) return
+  const editor = editorRef.value?.getEditor()
+  const container = editorScrollContainer()
+  const sheet = continuousSheet()
+  const pages = documentPages()
+  if (!editor || !container || !sheet || !pages) return
+
+  const documentEndCenter = typewriterDocumentEndCenter(editor)
+  if (documentEndCenter === null) return
+  const targetY = container.getBoundingClientRect().top + container.clientHeight * TYPEWRITER_RATIO
+  const currentMaxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
+  const desiredMaxScrollTop = Math.max(
+    0,
+    container.scrollTop + visualDeltaToScrollDelta(documentEndCenter - targetY, sheet),
+  )
+  // document-pages is normally a flex-fill viewport. In typewriter mode its
+  // exact height owns the artificial trailing scroll range instead.
+  const nextHeight = Math.max(0, pages.offsetHeight + desiredMaxScrollTop - currentMaxScrollTop)
+  pages.style.overflow = 'hidden'
+  if (Math.abs((Number.parseFloat(pages.style.height) || 0) - nextHeight) > TYPEWRITER_EPSILON) {
+    pages.style.height = `${nextHeight}px`
+  }
+}
+function cancelTypewriterTailCorrection(): void {
+  typewriterTailGeneration += 1
+  if (typewriterTailFrame !== undefined) {
+    window.cancelAnimationFrame(typewriterTailFrame)
+    typewriterTailFrame = undefined
+  }
+}
+function scheduleTypewriterTailCorrection(): void {
+  if (typewriterTailFrame !== undefined) return
+  const generation = typewriterTailGeneration
+  typewriterTailFrame = window.requestAnimationFrame(() => {
+    typewriterTailFrame = undefined
+    if (!typewriterMode.value || generation !== typewriterTailGeneration) return
+    updateTypewriterTail(false)
+  })
+}
+function updateTypewriterTail(scheduleCorrection = true): void {
   if (!typewriterMode.value) return
   const container = editorScrollContainer()
   const sheet = continuousSheet()
@@ -182,15 +261,18 @@ function updateTypewriterTail(): void {
   if (!container || !sheet || !tail) return
 
   const desiredVisualHeight = container.clientHeight * TYPEWRITER_RATIO
-  const zoomScale = sheetZoomScale(sheet)
-  let layoutHeight = desiredVisualHeight / zoomScale
-  tail.style.height = `${layoutHeight}px`
-
-  const actualVisualHeight = tail.getBoundingClientRect().height
-  if (actualVisualHeight > 0 && Math.abs(actualVisualHeight - desiredVisualHeight) > TYPEWRITER_EPSILON) {
-    layoutHeight *= desiredVisualHeight / actualVisualHeight
+  const layoutHeight = desiredVisualHeight / typewriterTailVisualScale(tail, sheetZoomScale(sheet))
+  const currentLayoutHeight = Number.parseFloat(tail.style.height)
+  const heightChanged = !Number.isFinite(currentLayoutHeight)
+    || Math.abs(currentLayoutHeight - layoutHeight) > TYPEWRITER_EPSILON
+  if (heightChanged) {
     tail.style.height = `${layoutHeight}px`
   }
+  updateTypewriterPageExtent()
+  if (heightChanged && scheduleCorrection) scheduleTypewriterTailCorrection()
+}
+function handleTypewriterViewportResize(): void {
+  updateTypewriterTail()
 }
 function setTypewriterScrollTop(container: HTMLElement, nextScrollTop: number): void {
   if (Math.abs(nextScrollTop - container.scrollTop) <= TYPEWRITER_EPSILON) return
@@ -202,15 +284,14 @@ function trackTypewriterCaret(restoreWorkingLine = false): void {
   updateTypewriterTail()
   const editor = editorRef.value?.getEditor()
   const container = editorScrollContainer()
-  if (!editor || !container) return
+  const sheet = continuousSheet()
+  if (!editor || !container || !sheet) return
   try {
     const coords = editor.view.coordsAtPos(editor.state.selection.from)
     const caretCenter = (coords.top + coords.bottom) / 2
     const targetY = container.getBoundingClientRect().top + container.clientHeight * TYPEWRITER_RATIO
     if (restoreWorkingLine || caretCenter >= targetY - TYPEWRITER_EPSILON) {
-      // CSS zoom scales the sheet, but the scroll container's scrollTop is in
-      // the same visual coordinate system as coordsAtPos() in this layout.
-      setTypewriterScrollTop(container, container.scrollTop + caretCenter - targetY)
+      setTypewriterScrollTop(container, container.scrollTop + visualDeltaToScrollDelta(caretCenter - targetY, sheet))
     }
   } catch {
     // The editor can briefly recreate its view while loading a document.
@@ -246,11 +327,23 @@ function captureTypewriterZoomAnchor(): TypewriterZoomAnchor | null {
     const caretCenter = (coords.top + coords.bottom) / 2
     const containerRect = container.getBoundingClientRect()
     const targetY = containerRect.top + container.clientHeight * TYPEWRITER_RATIO
-    return {
+    const anchor: TypewriterZoomAnchor = {
       caretOffset: caretCenter - containerRect.top,
       layoutScrollTop: container.scrollTop / sheetZoomScale(sheet),
       keepWorkingLine: !typewriterManualBrowsing && Math.abs(caretCenter - targetY) <= TYPEWRITER_EPSILON,
     }
+    if (typewriterManualBrowsing) {
+      const position = editor.view.posAtCoords({
+        left: containerRect.left + containerRect.width / 2,
+        top: containerRect.top + container.clientHeight * TYPEWRITER_RATIO,
+      })?.pos
+      if (position !== undefined) {
+        const readingCoords = editor.view.coordsAtPos(position)
+        anchor.readingPosition = position
+        anchor.readingOffset = (readingCoords.top + readingCoords.bottom) / 2 - containerRect.top
+      }
+    }
+    return anchor
   } catch {
     return null
   }
@@ -276,13 +369,29 @@ function scheduleTypewriterZoomAdjustment(anchor: TypewriterZoomAnchor | null): 
         return
       }
       if (typewriterManualBrowsing) {
+        if (preservedAnchor.readingPosition !== undefined && preservedAnchor.readingOffset !== undefined) {
+          try {
+            const readingCoords = editor.view.coordsAtPos(preservedAnchor.readingPosition)
+            const readingOffset = (readingCoords.top + readingCoords.bottom) / 2 - container.getBoundingClientRect().top
+            setTypewriterScrollTop(
+              container,
+              container.scrollTop + visualDeltaToScrollDelta(readingOffset - preservedAnchor.readingOffset, sheet),
+            )
+            return
+          } catch {
+            // Fall back to the scaled scroll offset while the editor recreates its view.
+          }
+        }
         setTypewriterScrollTop(container, preservedAnchor.layoutScrollTop * sheetZoomScale(sheet))
         return
       }
       try {
         const coords = editor.view.coordsAtPos(editor.state.selection.from)
         const caretOffset = (coords.top + coords.bottom) / 2 - container.getBoundingClientRect().top
-        setTypewriterScrollTop(container, container.scrollTop + caretOffset - preservedAnchor.caretOffset)
+        setTypewriterScrollTop(
+          container,
+          container.scrollTop + visualDeltaToScrollDelta(caretOffset - preservedAnchor.caretOffset, sheet),
+        )
       } catch {
         // The editor may be recreating its view while the zoom is applied.
       }
@@ -318,13 +427,14 @@ function observeTypewriterContainer(): void {
   typewriterResizeObserver = undefined
   observedTypewriterContainer = container
   if (!container || typeof ResizeObserver === 'undefined') return
-  typewriterResizeObserver = new ResizeObserver(updateTypewriterTail)
+  typewriterResizeObserver = new ResizeObserver(handleTypewriterViewportResize)
   typewriterResizeObserver.observe(container)
 }
 function toggleTypewriterMode(): void {
   typewriterMode.value = !typewriterMode.value
   if (!typewriterMode.value) {
     cancelTypewriterActivation()
+    cancelTypewriterTailCorrection()
     cancelTypewriterZoomAdjustment()
     typewriterManualBrowsing = false
     typewriterProgrammaticScrollTop = undefined
@@ -637,7 +747,7 @@ onMounted(() => {
   window.addEventListener('pagehide', saveEditorPosition)
   document.addEventListener('selectionchange', handleEditorSelectionChange)
   editorShell.value?.addEventListener('scroll', handleEditorScroll, true)
-  window.addEventListener('resize', updateTypewriterTail)
+  window.addEventListener('resize', handleTypewriterViewportResize)
   void nextTick(bindTypewriterEditor)
   externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000)
   void loadProjectEntity().catch(() => undefined)
@@ -673,7 +783,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('pagehide', saveEditorPosition)
   document.removeEventListener('selectionchange', handleEditorSelectionChange)
   editorShell.value?.removeEventListener('scroll', handleEditorScroll, true)
-  window.removeEventListener('resize', updateTypewriterTail)
+  window.removeEventListener('resize', handleTypewriterViewportResize)
   if (positionSaveTimer !== undefined) window.clearTimeout(positionSaveTimer)
   if (positionRestoreTimer !== undefined) window.clearTimeout(positionRestoreTimer)
   saveEditorPosition()
@@ -685,6 +795,7 @@ onBeforeUnmount(() => {
   typewriterResizeObserver = undefined
   observedTypewriterContainer = null
   cancelTypewriterActivation()
+  cancelTypewriterTailCorrection()
   cancelTypewriterZoomAdjustment()
   typewriterProgrammaticScrollTop = undefined
   typewriterEditor?.off('update', scheduleTypewriterTracking)
@@ -721,6 +832,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
           ref="editorRef"
           :initial-content="content"
           class="nfprogress-word-editor"
+          :class="{ 'nfprogress-word-editor--typewriter': typewriterMode }"
           :style="{ '--nf-editor-zoom': `${zoom / 100}` }"
           version="advanced"
           locale="en-US"
@@ -809,6 +921,9 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
 .document-editor-view__workspace{display:flex;height:calc(100dvh - 12rem);min-height:30rem;flex-direction:column}.document-editor-view__editor-shell{display:flex;flex:1;min-height:0}.document-editor-view__font-controls{display:flex;order:-1;flex:0 0 auto;align-items:center;gap:.4rem;margin-right:.5rem;padding:0 .65rem 0 0;background:var(--nf-color-surface);border-right:1px solid var(--nf-color-border)}.document-editor-view__font-controls .document-editor-view__font-control select{height:32px}.nfprogress-word-editor{flex:1;min-height:0!important;height:auto!important;border-radius:var(--nf-radius-lg) var(--nf-radius-lg) 0 0}.document-editor-view__statusbar{position:relative;z-index:11;flex-shrink:0}@media(max-width:44rem){.document-editor-view__workspace{height:calc(100dvh - 16rem);min-height:24rem}}
 .document-editor-view__status-info{display:flex;align-items:center;flex-wrap:wrap;gap:1rem;min-width:0}.document-editor-view__today-goal{display:inline-flex;align-items:center;gap:.45rem}.document-editor-view__today-goal--complete{color:var(--nf-color-success);font-weight:700}.document-editor-view__today-goal strong{color:var(--nf-color-text)}.document-editor-view__today-goal-progress{display:block;width:4.5rem;height:.36rem;overflow:hidden;background:color-mix(in srgb,var(--nf-color-primary) 18%,var(--nf-color-canvas));border-radius:var(--nf-radius-pill)}.document-editor-view__today-goal-progress-fill{display:block;height:100%;background:var(--nf-color-primary);border-radius:inherit;transition:width .4s ease-out}.document-editor-view__today-goal--complete .document-editor-view__today-goal-progress-fill{background:var(--nf-color-success)}
 .nfprogress-word-editor :deep(.word-content-multi .ProseMirror.ProseMirror-focused) { caret-color: var(--nf-color-primary) !important; }
+.nfprogress-word-editor--typewriter :deep(.document-pages){flex:0 0 auto!important}
+.nfprogress-word-editor--typewriter :deep(.continuous-pages){min-height:0!important;padding-bottom:0!important}
+.nfprogress-word-editor--typewriter :deep(.word-content-multi .ProseMirror){min-height:0!important}
 .nfprogress-word-editor :deep([data-nf-typewriter-tail]){display:block;box-sizing:border-box;width:100%;pointer-events:none}
 .nfprogress-word-editor :deep(.word-document-container){scrollbar-gutter:stable}
 .document-editor-view__view-controls{display:inline-flex;flex:0 0 auto;align-items:center;gap:.4rem}.document-editor-view__typewriter-toggle{display:inline-grid;place-items:center;box-sizing:border-box;flex:0 0 auto;width:2rem;height:1.8rem;padding:0;color:var(--nf-color-text);cursor:pointer;background:transparent;border:1px solid var(--nf-color-border);border-radius:var(--nf-radius-sm)}.document-editor-view__typewriter-toggle:hover,.document-editor-view__typewriter-toggle:focus-visible{background:color-mix(in srgb,var(--nf-color-primary) 12%,transparent);outline:none}.document-editor-view__typewriter-toggle--active{color:var(--nf-color-primary);background:color-mix(in srgb,var(--nf-color-primary) 16%,transparent);border-color:var(--nf-color-primary)}.document-editor-view__typewriter-icon{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.6}
