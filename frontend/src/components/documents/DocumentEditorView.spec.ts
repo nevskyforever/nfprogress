@@ -11,7 +11,7 @@ import type { DocumentScope, ProjectDocument, TiptapDocument } from '@/types/doc
 
 import DocumentEditorView from './DocumentEditorView.vue'
 
-const { destroyWindow, editorCoordsAtPos, editorJson, editorModelValue, editorOff, editorOn, editorPosAtCoords, editorReady, editorSelection, editorUpdate, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setEditorContent, setLineHeight, setTextSelection } = vi.hoisted(() => ({
+const { destroyWindow, editorCoordsAtPos, editorJson, editorModelValue, editorOff, editorOn, editorPosAtCoords, editorReady, editorSelection, editorUpdate, editorViewFocus, focusEditor, insertContent, onBeforeRouteLeave, onCloseRequested, scrollIntoView, setEditorContent, setLineHeight, setTextSelection } = vi.hoisted(() => ({
   destroyWindow: vi.fn(),
   editorCoordsAtPos: vi.fn(),
   editorJson: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
@@ -22,6 +22,7 @@ const { destroyWindow, editorCoordsAtPos, editorJson, editorModelValue, editorOf
   editorReady: { value: true },
   editorSelection: { from: 1 },
   editorUpdate: { value: { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'x' }] }] } as JSONContent },
+  editorViewFocus: vi.fn(),
   focusEditor: vi.fn(),
   insertContent: vi.fn(),
   onBeforeRouteLeave: vi.fn(),
@@ -82,7 +83,7 @@ function installTypewriterGeometry(wrapper: ReturnType<typeof mountEditor>, next
     offsetWidth: { configurable: true, get: () => 800 },
   })
   sheet.getBoundingClientRect = () => new DOMRect(0, next.top, 800 * editorZoom(sheet), next.contentHeight)
-  new MutationObserver(() => { container.scrollTop = scrollTop }).observe(sheet, { childList: true })
+  new MutationObserver(() => { container.scrollTop = scrollTop }).observe(pages, { attributes: true, childList: true, subtree: true })
   editorCoordsAtPos.mockImplementation((position: number) => {
     const geometry = typewriterGeometry
     const offset = position === 99
@@ -120,7 +121,7 @@ vi.mock('tiptap-ui-kit', () => ({
           off: editorOff,
           on: editorOn,
           state: { selection: editorSelection, doc: { content: { size: 100 } } },
-          view: { coordsAtPos: editorCoordsAtPos, posAtCoords: editorPosAtCoords },
+          view: { coordsAtPos: editorCoordsAtPos, dom: { focus: editorViewFocus }, posAtCoords: editorPosAtCoords },
           chain: () => ({ focus: () => ({ setLineHeight: (value: string) => ({ run: () => setLineHeight(value) }) }) }),
         }) : null,
         getJSON: () => editorJson.value,
@@ -196,6 +197,7 @@ describe('DocumentEditorView status bar', () => {
     editorUpdate.value = editorJson.value
     editorReady.value = true
     insertContent.mockReset()
+    editorViewFocus.mockReset()
     focusEditor.mockReset()
     setTextSelection.mockReset()
     scrollIntoView.mockReset()
@@ -631,12 +633,22 @@ describe('DocumentEditorView typewriter mode', () => {
     vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id))
     return {
       runAll: () => {
-        for (const [id, callback] of callbacks) {
-          callbacks.delete(id)
-          callback(0)
+        let safety = 20
+        while (callbacks.size > 0 && safety > 0) {
+          const scheduled = [...callbacks]
+          callbacks.clear()
+          for (const [, callback] of scheduled) callback(0)
+          safety -= 1
         }
       },
     }
+  }
+
+  async function settleTypewriterLayout(animationFrames: { runAll: () => void }): Promise<void> {
+    await flushPromises()
+    animationFrames.runAll()
+    await flushPromises()
+    animationFrames.runAll()
   }
 
   function tailVisualHeight(wrapper: ReturnType<typeof mountEditor>): number {
@@ -648,6 +660,15 @@ describe('DocumentEditorView typewriter mode', () => {
   function caretCenter(): number {
     const coords = editorCoordsAtPos(editorSelection.from) as { top: number; bottom: number }
     return (coords.top + coords.bottom) / 2
+  }
+
+  function documentEndCenter(): number {
+    const coords = editorCoordsAtPos(99) as { top: number; bottom: number }
+    return (coords.top + coords.bottom) / 2
+  }
+
+  function pageExtent(wrapper: ReturnType<typeof mountEditor>): number {
+    return Number.parseFloat((wrapper.get('.document-pages').element as HTMLElement).style.height)
   }
 
   async function enableTypewriter(wrapper: ReturnType<typeof mountEditor>): Promise<void> {
@@ -684,6 +705,252 @@ describe('DocumentEditorView typewriter mode', () => {
     wrapper.unmount()
   })
 
+  it('owns pointer interaction in the presentation tail without changing the document', async () => {
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 700, caretOffset: 700 })
+    await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
+    const tail = wrapper.get<HTMLElement>('[data-nf-typewriter-tail]')
+    document.body.append(wrapper.element)
+    tail.element.getBoundingClientRect = () => new DOMRect(20, 440, 600, 300)
+    expect(tail.element.getBoundingClientRect().right).toBe(620)
+    const beforeDocument = structuredClone(editorJson.value)
+
+    for (const type of ['pointerdown', 'mousedown', 'click']) {
+      const event = new MouseEvent(type, { bubbles: true, cancelable: true, clientX: 60, clientY: 560 })
+      tail.element.dispatchEvent(event)
+      expect(event.defaultPrevented).toBe(true)
+    }
+
+    await settleTypewriterLayout(animationFrames)
+    expect(wrapper.get('.ProseMirror').find('[data-nf-typewriter-tail]').exists()).toBe(false)
+    expect(setTextSelection).toHaveBeenCalledWith(99)
+    expect(editorViewFocus).toHaveBeenCalled()
+    expect(editorJson.value).toEqual(beforeDocument)
+    wrapper.unmount()
+    wrapper.element.remove()
+  })
+
+  it('returns the max-scroll extent to its original value after rendered content grows and shrinks', async () => {
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+    })
+    await setDocumentZoom(wrapper, 190)
+    await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
+    container.scrollTop = Number.POSITIVE_INFINITY
+    const originalExtent = pageExtent(wrapper)
+    const originalScrollHeight = container.scrollHeight
+    expect(documentEndCenter()).toBeCloseTo(400, 5)
+
+    typewriterGeometry = {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 900,
+      caretOffset: 900,
+      documentEndOffset: 900,
+    }
+    await wrapper.get('.tiptap-stub').trigger('click')
+    await settleTypewriterLayout(animationFrames)
+    container.scrollTop = Number.POSITIVE_INFINITY
+    const grownExtent = pageExtent(wrapper)
+    expect(grownExtent).toBeGreaterThan(originalExtent)
+    expect(container.scrollHeight).toBeGreaterThan(originalScrollHeight)
+    expect(documentEndCenter()).toBeCloseTo(400, 5)
+
+    typewriterGeometry = {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+    }
+    await wrapper.get('.tiptap-stub').trigger('click')
+    await settleTypewriterLayout(animationFrames)
+    container.scrollTop = Number.POSITIVE_INFINITY
+    expect(pageExtent(wrapper)).toBeCloseTo(originalExtent, 5)
+    expect(container.scrollHeight).toBeCloseTo(originalScrollHeight, 5)
+    expect(documentEndCenter()).toBeCloseTo(400, 5)
+    wrapper.unmount()
+  })
+
+  it('does not accumulate page extent across repeated Enter and Backspace layout changes', async () => {
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+    })
+    await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
+    container.scrollTop = Number.POSITIVE_INFINITY
+    const originalExtent = pageExtent(wrapper)
+
+    for (let iteration = 0; iteration < 20; iteration += 1) {
+      typewriterGeometry = {
+        top: 100,
+        clientHeight: 600,
+        contentHeight: 740,
+        caretOffset: 740,
+        documentEndOffset: 740,
+      }
+      await wrapper.get('.tiptap-stub').trigger('click')
+      await settleTypewriterLayout(animationFrames)
+
+      typewriterGeometry = {
+        top: 100,
+        clientHeight: 600,
+        contentHeight: 700,
+        caretOffset: 700,
+        documentEndOffset: 700,
+      }
+      await wrapper.get('.tiptap-stub').trigger('click')
+      await settleTypewriterLayout(animationFrames)
+    }
+
+    container.scrollTop = Number.POSITIVE_INFINITY
+    expect(pageExtent(wrapper)).toBeCloseTo(originalExtent, 5)
+    expect(documentEndCenter()).toBeCloseTo(400, 5)
+    wrapper.unmount()
+  })
+
+  it('shrinks the max-scroll extent back after a large pasted block is deleted', async () => {
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+    })
+    await setDocumentZoom(wrapper, 190)
+    await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
+    container.scrollTop = Number.POSITIVE_INFINITY
+    const originalExtent = pageExtent(wrapper)
+    const originalScrollHeight = container.scrollHeight
+
+    typewriterGeometry = {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 2_100,
+      caretOffset: 2_100,
+      documentEndOffset: 2_100,
+    }
+    await wrapper.get('.tiptap-stub').trigger('click')
+    await settleTypewriterLayout(animationFrames)
+    expect(pageExtent(wrapper)).toBeGreaterThan(originalExtent)
+
+    typewriterGeometry = {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+    }
+    await wrapper.get('.tiptap-stub').trigger('click')
+    await settleTypewriterLayout(animationFrames)
+    container.scrollTop = Number.POSITIVE_INFINITY
+    expect(pageExtent(wrapper)).toBeCloseTo(originalExtent, 5)
+    expect(container.scrollHeight).toBeCloseTo(originalScrollHeight, 5)
+    expect(documentEndCenter()).toBeCloseTo(400, 5)
+    wrapper.unmount()
+  })
+
+  it('recomputes the page extent after font-size and line-height render changes without a document update', async () => {
+    type ResizeRecord = { callback: ResizeObserverCallback; target: Element | null }
+    const records: ResizeRecord[] = []
+    class TestResizeObserver {
+      readonly record: ResizeRecord
+      constructor(callback: ResizeObserverCallback) {
+        this.record = { callback, target: null }
+        records.push(this.record)
+      }
+      disconnect(): void {}
+      observe(target: Element): void { this.record.target = target }
+      unobserve(): void {}
+    }
+    vi.stubGlobal('ResizeObserver', TestResizeObserver)
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+    })
+    await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
+    const originalExtent = pageExtent(wrapper)
+    const proseMirror = wrapper.get('.ProseMirror').element
+    const contentObserver = records.find(({ target }) => target === proseMirror)
+    expect(contentObserver).toBeDefined()
+
+    typewriterGeometry = {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 1_100,
+      caretOffset: 1_100,
+      documentEndOffset: 1_100,
+    }
+    contentObserver?.callback([], {} as ResizeObserver)
+    await settleTypewriterLayout(animationFrames)
+    expect(pageExtent(wrapper)).toBeGreaterThan(originalExtent)
+
+    typewriterGeometry = {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+    }
+    contentObserver?.callback([], {} as ResizeObserver)
+    await settleTypewriterLayout(animationFrames)
+    expect(pageExtent(wrapper)).toBeCloseTo(originalExtent, 5)
+
+    typewriterGeometry = {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 950,
+      caretOffset: 950,
+      documentEndOffset: 950,
+    }
+    contentObserver?.callback([], {} as ResizeObserver)
+    await settleTypewriterLayout(animationFrames)
+    expect(pageExtent(wrapper)).toBeGreaterThan(originalExtent)
+
+    typewriterGeometry = {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+    }
+    contentObserver?.callback([], {} as ResizeObserver)
+    await settleTypewriterLayout(animationFrames)
+    container.scrollTop = Number.POSITIVE_INFINITY
+    expect(pageExtent(wrapper)).toBeCloseTo(originalExtent, 5)
+    expect(documentEndCenter()).toBeCloseTo(400, 5)
+    wrapper.unmount()
+  })
+
   it.each([70, 100, 130, 140, 170, 200, 500])('keeps the visual tail at half the viewport at %i zoom', async (zoom) => {
     const wrapper = mountEditor()
     await flushPromises()
@@ -698,6 +965,7 @@ describe('DocumentEditorView typewriter mode', () => {
   })
 
   it('recalculates the visual tail after a viewport resize', async () => {
+    const animationFrames = deferAnimationFrames()
     const wrapper = mountEditor()
     await flushPromises()
     installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 1_200, caretOffset: 100 })
@@ -706,31 +974,37 @@ describe('DocumentEditorView typewriter mode', () => {
 
     typewriterGeometry = { top: 100, clientHeight: 800, contentHeight: 1_200, caretOffset: 100 }
     window.dispatchEvent(new Event('resize'))
-    await flushPromises()
+    await settleTypewriterLayout(animationFrames)
     expect(tailVisualHeight(wrapper)).toBeCloseTo(400, 5)
     wrapper.unmount()
   })
 
   it('does not move early lines, then keeps the caret on the working line through consecutive edits', async () => {
+    const animationFrames = deferAnimationFrames()
     const wrapper = mountEditor()
     await flushPromises()
     const container = installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 1_600, caretOffset: 120 })
     await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
 
     await wrapper.get('.tiptap-stub').trigger('click')
+    await settleTypewriterLayout(animationFrames)
     expect(container.scrollTop).toBe(0)
 
     typewriterGeometry = { top: 100, clientHeight: 600, contentHeight: 1_600, caretOffset: 520 }
     await wrapper.get('.tiptap-stub').trigger('click')
+    await settleTypewriterLayout(animationFrames)
     expect(container.scrollTop).toBeCloseTo(230, 5)
 
     typewriterGeometry = { top: 100, clientHeight: 600, contentHeight: 1_600, caretOffset: 560 }
     await wrapper.get('.tiptap-stub').trigger('click')
+    await settleTypewriterLayout(animationFrames)
     expect(container.scrollTop).toBeCloseTo(270, 5)
     wrapper.unmount()
   })
 
   it('uses the native ProseMirror update event for immediate caret tracking', async () => {
+    const animationFrames = deferAnimationFrames()
     const wrapper = mountEditor()
     await flushPromises()
     const container = installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 1_600, caretOffset: 520 })
@@ -738,7 +1012,7 @@ describe('DocumentEditorView typewriter mode', () => {
     const listener = [...editorOn.mock.calls].reverse().find(([event]) => event === 'update')?.[1] as (() => void) | undefined
 
     listener?.()
-    await flushPromises()
+    await settleTypewriterLayout(animationFrames)
 
     expect(listener).toBeTypeOf('function')
     expect(container.scrollTop).toBeCloseTo(230, 5)
@@ -746,16 +1020,19 @@ describe('DocumentEditorView typewriter mode', () => {
   })
 
   it('leaves manual scrolling alone until the next edit resumes caret tracking', async () => {
+    const animationFrames = deferAnimationFrames()
     const wrapper = mountEditor()
     await flushPromises()
     const container = installTypewriterGeometry(wrapper, { top: 100, clientHeight: 600, contentHeight: 2_000, caretOffset: 800 })
     await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
     container.scrollTop = 350
     container.dispatchEvent(new Event('scroll'))
     await flushPromises()
     expect(container.scrollTop).toBe(350)
 
     await wrapper.get('.tiptap-stub').trigger('click')
+    await settleTypewriterLayout(animationFrames)
     expect(container.scrollTop).toBeCloseTo(510, 5)
     wrapper.unmount()
   })
@@ -873,7 +1150,7 @@ describe('DocumentEditorView typewriter mode', () => {
 
     typewriterGeometry = { top: 100, clientHeight: 800, contentHeight: 2_000, caretOffset: 800 }
     window.dispatchEvent(new Event('resize'))
-    await flushPromises()
+    await settleTypewriterLayout(animationFrames)
 
     expect(container.scrollTop).toBe(350)
     expect(tailVisualHeight(wrapper)).toBeCloseTo(400, 5)
@@ -1013,6 +1290,7 @@ describe('DocumentEditorView typewriter mode', () => {
     expect((readingCoords.top + readingCoords.bottom) / 2).toBeCloseTo(510, 5)
 
     await wrapper.get('.tiptap-stub').trigger('click')
+    await settleTypewriterLayout(animationFrames)
     expect(caretCenter()).toBeCloseTo(400, 5)
     wrapper.unmount()
   })

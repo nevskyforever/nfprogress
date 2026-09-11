@@ -66,9 +66,15 @@ let typewriterActivationFrame: number | undefined
 let typewriterActivationGeneration = 0
 let typewriterTailFrame: number | undefined
 let typewriterTailGeneration = 0
+let typewriterLayoutFrame: number | undefined
+let typewriterLayoutGeneration = 0
+let typewriterLayoutRestoreCaret = false
+let typewriterLayoutQueued = false
 let typewriterZoomFrame: number | undefined
 let typewriterZoomGeneration = 0
 let pendingTypewriterZoomAnchor: TypewriterZoomAnchor | null = null
+let typewriterContentResizeObserver: ResizeObserver | undefined
+let observedTypewriterContent: HTMLElement | null = null
 let typewriterManualBrowsing = false
 let typewriterProgrammaticScrollTop: number | undefined
 type EditorPosition = { selection: number; scrollTop: number }
@@ -223,19 +229,57 @@ function updateTypewriterPageExtent(): void {
 
   const documentEndCenter = typewriterDocumentEndCenter(editor)
   if (documentEndCenter === null) return
+
   const targetY = container.getBoundingClientRect().top + container.clientHeight * TYPEWRITER_RATIO
-  const currentMaxScrollTop = Math.max(0, container.scrollHeight - container.clientHeight)
   const desiredMaxScrollTop = Math.max(
     0,
     container.scrollTop + visualDeltaToScrollDelta(documentEndCenter - targetY, sheet),
   )
-  // document-pages is normally a flex-fill viewport. In typewriter mode its
-  // exact height owns the artificial trailing scroll range instead.
-  const nextHeight = Math.max(0, pages.offsetHeight + desiredMaxScrollTop - currentMaxScrollTop)
+  // This is the scroll container's stable chrome/padding contribution. The
+  // current explicit page height cancels out, so a deleted line cannot feed
+  // its old extent back into the next calculation.
+  const scrollChromeExtent = container.scrollHeight - pages.offsetHeight
+  // The real document end, rather than the sheet's bottom edge, is the
+  // lower bound. The sheet also contains the presentation tail; using its
+  // offsetHeight here would preserve any native gap below the real content.
+  const nextHeight = Math.max(0, desiredMaxScrollTop + container.clientHeight - scrollChromeExtent)
   pages.style.overflow = 'hidden'
-  if (Math.abs((Number.parseFloat(pages.style.height) || 0) - nextHeight) > TYPEWRITER_EPSILON) {
+  const currentHeight = Number.parseFloat(pages.style.height)
+  if (!Number.isFinite(currentHeight) || Math.abs(currentHeight - nextHeight) > TYPEWRITER_EPSILON) {
     pages.style.height = `${nextHeight}px`
   }
+  typewriterProgrammaticScrollTop = container.scrollTop
+}
+function cancelTypewriterLayoutUpdate(): void {
+  typewriterLayoutGeneration += 1
+  typewriterLayoutRestoreCaret = false
+  typewriterLayoutQueued = false
+  if (typewriterLayoutFrame !== undefined) {
+    window.cancelAnimationFrame(typewriterLayoutFrame)
+    typewriterLayoutFrame = undefined
+  }
+}
+function requestTypewriterLayoutUpdate(restoreCaret = false): void {
+  if (!typewriterMode.value) return
+  typewriterLayoutRestoreCaret ||= restoreCaret
+  if (typewriterLayoutQueued || typewriterLayoutFrame !== undefined) return
+  typewriterLayoutQueued = true
+  const generation = typewriterLayoutGeneration
+  void nextTick(() => {
+    if (!typewriterMode.value || generation !== typewriterLayoutGeneration) {
+      typewriterLayoutQueued = false
+      return
+    }
+    typewriterLayoutFrame = window.requestAnimationFrame(() => {
+      typewriterLayoutFrame = undefined
+      typewriterLayoutQueued = false
+      if (!typewriterMode.value || generation !== typewriterLayoutGeneration) return
+      const shouldRestoreCaret = typewriterLayoutRestoreCaret
+      typewriterLayoutRestoreCaret = false
+      if (shouldRestoreCaret) trackTypewriterCaret()
+      else updateTypewriterTail()
+    })
+  })
 }
 function cancelTypewriterTailCorrection(): void {
   typewriterTailGeneration += 1
@@ -272,7 +316,7 @@ function updateTypewriterTail(scheduleCorrection = true): void {
   if (heightChanged && scheduleCorrection) scheduleTypewriterTailCorrection()
 }
 function handleTypewriterViewportResize(): void {
-  updateTypewriterTail()
+  requestTypewriterLayoutUpdate()
 }
 function setTypewriterScrollTop(container: HTMLElement, nextScrollTop: number): void {
   if (Math.abs(nextScrollTop - container.scrollTop) <= TYPEWRITER_EPSILON) return
@@ -300,7 +344,7 @@ function trackTypewriterCaret(restoreWorkingLine = false): void {
 function scheduleTypewriterTracking(): void {
   if (!typewriterMode.value) return
   typewriterManualBrowsing = false
-  void nextTick(trackTypewriterCaret)
+  requestTypewriterLayoutUpdate(true)
 }
 function cancelTypewriterActivation(): void {
   typewriterActivationGeneration += 1
@@ -415,10 +459,22 @@ function scheduleTypewriterActivation(): void {
 }
 function bindTypewriterEditor(): void {
   const editor = editorRef.value?.getEditor()
-  if (!editor || editor === typewriterEditor) return
+  if (!editor) return
+  observeTypewriterContent()
+  if (editor === typewriterEditor) return
   typewriterEditor?.off('update', scheduleTypewriterTracking)
   editor.on('update', scheduleTypewriterTracking)
   typewriterEditor = editor
+}
+function observeTypewriterContent(): void {
+  const content = continuousSheet()?.querySelector<HTMLElement>('.word-content-multi .ProseMirror') ?? null
+  if (content === observedTypewriterContent) return
+  typewriterContentResizeObserver?.disconnect()
+  typewriterContentResizeObserver = undefined
+  observedTypewriterContent = content
+  if (!content || typeof ResizeObserver === 'undefined') return
+  typewriterContentResizeObserver = new ResizeObserver(() => requestTypewriterLayoutUpdate())
+  typewriterContentResizeObserver.observe(content)
 }
 function observeTypewriterContainer(): void {
   const container = editorScrollContainer()
@@ -435,7 +491,11 @@ function toggleTypewriterMode(): void {
   if (!typewriterMode.value) {
     cancelTypewriterActivation()
     cancelTypewriterTailCorrection()
+    cancelTypewriterLayoutUpdate()
     cancelTypewriterZoomAdjustment()
+    typewriterContentResizeObserver?.disconnect()
+    typewriterContentResizeObserver = undefined
+    observedTypewriterContent = null
     typewriterManualBrowsing = false
     typewriterProgrammaticScrollTop = undefined
     removeTypewriterTail()
@@ -444,6 +504,22 @@ function toggleTypewriterMode(): void {
   typewriterManualBrowsing = false
   typewriterProgrammaticScrollTop = undefined
   scheduleTypewriterActivation()
+}
+function handleTypewriterTailPointerDown(event: PointerEvent | MouseEvent): void {
+  if (!typewriterMode.value) return
+  const tail = editorShell.value?.querySelector<HTMLElement>('[data-nf-typewriter-tail]')
+  const editor = editorRef.value?.getEditor()
+  if (!tail || !editor) return
+  const rect = tail.getBoundingClientRect()
+  if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) return
+
+  // WKWebView can create a native DOM range in a non-editable sibling even
+  // when ProseMirror itself is not under the pointer. Own that interaction.
+  event.preventDefault()
+  event.stopPropagation()
+  editor.commands.setTextSelection(Math.max(1, editor.state.doc.content.size - 1))
+  editor.view.dom.focus({ preventScroll: true })
+  requestTypewriterLayoutUpdate(true)
 }
 function saveEditorPosition(): void {
   const editor = editorRef.value?.getEditor()
@@ -746,6 +822,9 @@ onMounted(() => {
   window.addEventListener('keydown', handleEscape, true)
   window.addEventListener('pagehide', saveEditorPosition)
   document.addEventListener('selectionchange', handleEditorSelectionChange)
+  document.addEventListener('pointerdown', handleTypewriterTailPointerDown, true)
+  document.addEventListener('mousedown', handleTypewriterTailPointerDown, true)
+  document.addEventListener('click', handleTypewriterTailPointerDown, true)
   editorShell.value?.addEventListener('scroll', handleEditorScroll, true)
   window.addEventListener('resize', handleTypewriterViewportResize)
   void nextTick(bindTypewriterEditor)
@@ -782,6 +861,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleEscape, true)
   window.removeEventListener('pagehide', saveEditorPosition)
   document.removeEventListener('selectionchange', handleEditorSelectionChange)
+  document.removeEventListener('pointerdown', handleTypewriterTailPointerDown, true)
+  document.removeEventListener('mousedown', handleTypewriterTailPointerDown, true)
+  document.removeEventListener('click', handleTypewriterTailPointerDown, true)
   editorShell.value?.removeEventListener('scroll', handleEditorScroll, true)
   window.removeEventListener('resize', handleTypewriterViewportResize)
   if (positionSaveTimer !== undefined) window.clearTimeout(positionSaveTimer)
@@ -794,8 +876,12 @@ onBeforeUnmount(() => {
   typewriterResizeObserver?.disconnect()
   typewriterResizeObserver = undefined
   observedTypewriterContainer = null
+  typewriterContentResizeObserver?.disconnect()
+  typewriterContentResizeObserver = undefined
+  observedTypewriterContent = null
   cancelTypewriterActivation()
   cancelTypewriterTailCorrection()
+  cancelTypewriterLayoutUpdate()
   cancelTypewriterZoomAdjustment()
   typewriterProgrammaticScrollTop = undefined
   typewriterEditor?.off('update', scheduleTypewriterTracking)
@@ -924,7 +1010,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
 .nfprogress-word-editor--typewriter :deep(.document-pages){flex:0 0 auto!important}
 .nfprogress-word-editor--typewriter :deep(.continuous-pages){min-height:0!important;padding-bottom:0!important}
 .nfprogress-word-editor--typewriter :deep(.word-content-multi .ProseMirror){min-height:0!important}
-.nfprogress-word-editor :deep([data-nf-typewriter-tail]){display:block;box-sizing:border-box;width:100%;pointer-events:none}
+.nfprogress-word-editor :deep([data-nf-typewriter-tail]){display:block;box-sizing:border-box;width:100%;pointer-events:auto}
 .nfprogress-word-editor :deep(.word-document-container){scrollbar-gutter:stable}
 .document-editor-view__view-controls{display:inline-flex;flex:0 0 auto;align-items:center;gap:.4rem}.document-editor-view__typewriter-toggle{display:inline-grid;place-items:center;box-sizing:border-box;flex:0 0 auto;width:2rem;height:1.8rem;padding:0;color:var(--nf-color-text);cursor:pointer;background:transparent;border:1px solid var(--nf-color-border);border-radius:var(--nf-radius-sm)}.document-editor-view__typewriter-toggle:hover,.document-editor-view__typewriter-toggle:focus-visible{background:color-mix(in srgb,var(--nf-color-primary) 12%,transparent);outline:none}.document-editor-view__typewriter-toggle--active{color:var(--nf-color-primary);background:color-mix(in srgb,var(--nf-color-primary) 16%,transparent);border-color:var(--nf-color-primary)}.document-editor-view__typewriter-icon{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.6}
 </style>
