@@ -6,8 +6,23 @@ SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
 
-if ! command -v python3 >/dev/null 2>&1; then
-  echo "Не найден python3, необходимый для подготовки тестовых данных." >&2
+PYTHON_BIN="${NFPROGRESS_PYTHON:-}"
+if [ -z "$PYTHON_BIN" ] && [ -x "$ROOT_DIR/.venv/bin/python" ]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/bin/python"
+fi
+if [ -z "$PYTHON_BIN" ]; then
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "Не найден Python, необходимый для подготовки тестовых данных." >&2
+    echo "Создайте окружение .venv или задайте NFPROGRESS_PYTHON." >&2
+    exit 1
+  fi
+  PYTHON_BIN="$(command -v python3)"
+fi
+
+if ! "$PYTHON_BIN" -c 'import fastapi' >/dev/null 2>&1; then
+  echo "В Python $PYTHON_BIN не установлен FastAPI." >&2
+  echo "Установите backend-зависимости командой:" >&2
+  echo "  $PYTHON_BIN -m pip install -r $ROOT_DIR/requirements-backend.txt" >&2
   exit 1
 fi
 
@@ -44,4 +59,4 @@ LOCK_OWNER=1
 printf '%s\n' "$$" > "$LOCK_DIR/pid"
 
 echo "Обновляются реальные данные в canonical Tauri test_data..."
-(cd "$ROOT_DIR" && python3 -m backend.app --prepare-dev-data)
+(cd "$ROOT_DIR" && "$PYTHON_BIN" -m backend.app --prepare-dev-data)
