@@ -40,6 +40,7 @@ type TypewriterGeometry = {
   contentHeight: number
   documentEndOffset?: number
   readingOffset?: number
+  scrollChromeHeight?: number
   top: number
 }
 
@@ -64,7 +65,10 @@ function installTypewriterGeometry(wrapper: ReturnType<typeof mountEditor>, next
   }
   Object.defineProperties(container, {
     clientHeight: { configurable: true, get: () => typewriterGeometry?.clientHeight ?? 0 },
-    scrollHeight: { configurable: true, get: pageHeight },
+    scrollHeight: {
+      configurable: true,
+      get: () => pageHeight() + (typewriterGeometry?.scrollChromeHeight ?? 0),
+    },
     scrollTop: {
       configurable: true,
       get: () => scrollTop,
@@ -622,7 +626,7 @@ describe('DocumentEditorView status bar', () => {
 describe('DocumentEditorView typewriter mode', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  function deferAnimationFrames(): { runAll: () => void } {
+  function deferAnimationFrames(): { runAll: () => void; runNext: () => void } {
     const callbacks = new Map<number, FrameRequestCallback>()
     let nextId = 1
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
@@ -632,6 +636,12 @@ describe('DocumentEditorView typewriter mode', () => {
     })
     vi.stubGlobal('cancelAnimationFrame', (id: number) => callbacks.delete(id))
     return {
+      runNext: () => {
+        const next = callbacks.entries().next().value as [number, FrameRequestCallback] | undefined
+        if (!next) return
+        callbacks.delete(next[0])
+        next[1](0)
+      },
       runAll: () => {
         let safety = 20
         while (callbacks.size > 0 && safety > 0) {
@@ -683,6 +693,28 @@ describe('DocumentEditorView typewriter mode', () => {
       : wrapper.get('.document-editor-view__zoom button[title="Уменьшить масштаб"]')
     for (let value = current; value !== zoom; value += zoom > current ? 10 : -10) await button.trigger('click')
     await flushPromises()
+  }
+
+  async function clickZoomButtonAtProductionCadence(
+    wrapper: ReturnType<typeof mountEditor>,
+    animationFrames: { runAll: () => void; runNext: () => void },
+    direction: 'in' | 'out' = 'in',
+    beforeLayout?: () => void,
+  ): Promise<void> {
+    const title = direction === 'in' ? 'Увеличить масштаб' : 'Уменьшить масштаб'
+    const button = wrapper.get<HTMLButtonElement>(`.document-editor-view__zoom button[title="${title}"]`)
+    button.element.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true, cancelable: true }))
+    button.element.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }))
+    button.element.focus()
+    button.element.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }))
+    await button.trigger('click')
+    await flushPromises()
+    beforeLayout?.()
+    animationFrames.runNext()
+    await flushPromises()
+    animationFrames.runNext()
+    await flushPromises()
+    animationFrames.runAll()
   }
 
   it('adds exactly one presentation-only tail when enabled and removes it when disabled', async () => {
@@ -1245,6 +1277,172 @@ describe('DocumentEditorView typewriter mode', () => {
     wrapper.unmount()
   })
 
+  it('keeps the working-line anchor through a layout scroll during real sequential zoom clicks', async () => {
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 3_000,
+      caretOffset: 1_500,
+      readingOffset: 400,
+    })
+    await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
+    expect(caretCenter()).toBeCloseTo(400, 5)
+
+    await clickZoomButtonAtProductionCadence(wrapper, animationFrames, 'in', () => {
+      // WKWebView may emit these while CSS zoom/page extent settles. They are
+      // not wheel, scrollbar drag, or keyboard browsing actions. The first
+      // event can consume activation's own programmatic-scroll notification;
+      // the second is the layout-generated event this regression covers.
+      container.scrollTop += 24
+      container.dispatchEvent(new Event('scroll'))
+      container.scrollTop += 24
+      container.dispatchEvent(new Event('scroll'))
+    })
+
+    editorPosAtCoords.mockClear()
+    await clickZoomButtonAtProductionCadence(wrapper, animationFrames)
+    expect(editorPosAtCoords).not.toHaveBeenCalled()
+    expect(caretCenter()).toBeCloseTo(400, 5)
+    expect(editorSelection.from).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('keeps the real document end on the working line at max scroll after sequential zoom buttons', async () => {
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+      // The real scroll viewport has a stable contribution outside
+      // .document-pages. Keeping it non-zero catches a page-extent formula
+      // that accidentally assumes scrollHeight and pages.offsetHeight share
+      // no structural offset.
+      scrollChromeHeight: 48,
+    })
+    await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
+
+    for (let zoom = 110; zoom <= 190; zoom += 10) {
+      editorPosAtCoords.mockClear()
+      await clickZoomButtonAtProductionCadence(wrapper, animationFrames, 'in', () => {
+        // CSS zoom itself changes scrollTop in WKWebView. It must not turn the
+        // next real zoom button click into a manual-reading-anchor operation.
+        container.scrollTop += 12
+        container.dispatchEvent(new Event('scroll'))
+      })
+      expect(wrapper.get('.document-editor-view__zoom button:nth-child(2)').text()).toBe(`${zoom}%`)
+      expect(editorPosAtCoords).not.toHaveBeenCalled()
+      expect(caretCenter()).toBeCloseTo(400, 5)
+      expect(container.scrollHeight - pageExtent(wrapper)).toBeCloseTo(48, 5)
+    }
+
+    container.scrollTop = Number.POSITIVE_INFINITY
+    expect(documentEndCenter()).toBeCloseTo(400, 5)
+    expect(tailVisualHeight(wrapper)).toBeCloseTo(300, 5)
+    wrapper.unmount()
+  })
+
+  it('settles rapid and frame-by-frame production zoom clicks to the same end geometry', async () => {
+    const animationFrames = deferAnimationFrames()
+    const fastWrapper = mountEditor()
+    await flushPromises()
+    const fastContainer = installTypewriterGeometry(fastWrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+      scrollChromeHeight: 48,
+    })
+    await enableTypewriter(fastWrapper)
+    await settleTypewriterLayout(animationFrames)
+    await setDocumentZoom(fastWrapper, 190)
+    await settleTypewriterLayout(animationFrames)
+    fastContainer.scrollTop = Number.POSITIVE_INFINITY
+    const fastExtent = pageExtent(fastWrapper)
+    const fastEnd = documentEndCenter()
+    const fastTail = tailVisualHeight(fastWrapper)
+    fastWrapper.unmount()
+
+    const settledWrapper = mountEditor()
+    await flushPromises()
+    const settledContainer = installTypewriterGeometry(settledWrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+      scrollChromeHeight: 48,
+    })
+    await enableTypewriter(settledWrapper)
+    await settleTypewriterLayout(animationFrames)
+    for (let zoom = 110; zoom <= 190; zoom += 10) {
+      await clickZoomButtonAtProductionCadence(settledWrapper, animationFrames)
+      expect(settledWrapper.get('.document-editor-view__zoom button:nth-child(2)').text()).toBe(`${zoom}%`)
+    }
+    settledContainer.scrollTop = Number.POSITIVE_INFINITY
+
+    expect(documentEndCenter()).toBeCloseTo(fastEnd, 5)
+    expect(pageExtent(settledWrapper)).toBeCloseTo(fastExtent, 5)
+    expect(tailVisualHeight(settledWrapper)).toBeCloseTo(fastTail, 5)
+    expect(documentEndCenter()).toBeCloseTo(400, 5)
+    settledWrapper.unmount()
+  })
+
+  it('replays an editor update that arrives during the zoom transaction after its settled anchor', async () => {
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+      scrollChromeHeight: 48,
+    })
+    await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
+    const listener = [...editorOn.mock.calls].reverse().find(([event]) => event === 'update')?.[1] as (() => void) | undefined
+    const plus = wrapper.get<HTMLButtonElement>('.document-editor-view__zoom button[title="Увеличить масштаб"]')
+
+    await plus.trigger('click')
+    await flushPromises()
+    listener?.()
+    animationFrames.runNext()
+    await flushPromises()
+    animationFrames.runNext()
+    await flushPromises()
+
+    // The browser can finish applying the editor's new wrapped height only
+    // after the zoom's own second frame. The deferred update must still use
+    // that current geometry, rather than leave the old page extent in place.
+    typewriterGeometry = {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 900,
+      caretOffset: 900,
+      documentEndOffset: 900,
+      scrollChromeHeight: 48,
+    }
+    animationFrames.runNext()
+    await flushPromises()
+    container.scrollTop = Number.POSITIVE_INFINITY
+
+    expect(listener).toBeTypeOf('function')
+    expect(documentEndCenter()).toBeCloseTo(400, 5)
+    expect(caretCenter()).toBeCloseTo(400, 5)
+    wrapper.unmount()
+  })
+
   it('keeps the document end visible while zooming from 100 to 170 and back', async () => {
     const animationFrames = deferAnimationFrames()
     const wrapper = mountEditor()
@@ -1282,6 +1480,7 @@ describe('DocumentEditorView typewriter mode', () => {
     await enableTypewriter(wrapper)
     animationFrames.runAll()
     container.scrollTop = 100
+    container.dispatchEvent(new WheelEvent('wheel', { bubbles: true, deltaY: 100 }))
     container.dispatchEvent(new Event('scroll'))
 
     await setDocumentZoom(wrapper, 170)
