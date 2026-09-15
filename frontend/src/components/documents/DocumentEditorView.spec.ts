@@ -1350,6 +1350,47 @@ describe('DocumentEditorView typewriter mode', () => {
     wrapper.unmount()
   })
 
+  it('keeps the caret and document end on the working line when every zoom click is followed by an editor update', async () => {
+    const animationFrames = deferAnimationFrames()
+    const wrapper = mountEditor()
+    await flushPromises()
+    const container = installTypewriterGeometry(wrapper, {
+      top: 100,
+      clientHeight: 600,
+      contentHeight: 700,
+      caretOffset: 700,
+      documentEndOffset: 700,
+      scrollChromeHeight: 48,
+    })
+    await enableTypewriter(wrapper)
+    await settleTypewriterLayout(animationFrames)
+    const listener = [...editorOn.mock.calls].reverse().find(([event]) => event === 'update')?.[1] as (() => void) | undefined
+
+    for (let zoom = 110; zoom <= 190; zoom += 10) {
+      await clickZoomButtonAtProductionCadence(wrapper, animationFrames, 'in', () => {
+        // Model typing after the CSS zoom mutation but before the zoom layout
+        // settles: the document's true end advances by one rendered line.
+        const nextOffset = 700 + ((zoom - 100) / 10) * 20
+        typewriterGeometry = {
+          top: 100,
+          clientHeight: 600,
+          contentHeight: nextOffset,
+          caretOffset: nextOffset,
+          documentEndOffset: nextOffset,
+          scrollChromeHeight: 48,
+        }
+        listener?.()
+      })
+      expect(wrapper.get('.document-editor-view__zoom button:nth-child(2)').text()).toBe(`${zoom}%`)
+      expect(caretCenter()).toBeCloseTo(400, 5)
+      container.scrollTop = Number.POSITIVE_INFINITY
+      expect(documentEndCenter()).toBeCloseTo(400, 5)
+    }
+
+    expect(listener).toBeTypeOf('function')
+    wrapper.unmount()
+  })
+
   it('settles rapid and frame-by-frame production zoom clicks to the same end geometry', async () => {
     const animationFrames = deferAnimationFrames()
     const fastWrapper = mountEditor()
