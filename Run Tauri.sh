@@ -6,6 +6,8 @@ set -euo pipefail
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$SCRIPT_DIR"
+TAURI_DIR="$ROOT_DIR/frontend/src-tauri"
+TAURI_CONFIG="$TAURI_DIR/tauri.conf.json"
 
 MODE="${1:-}"
 DATA_ROOT=""
@@ -37,6 +39,11 @@ if [ "$(uname -s)" != "Darwin" ]; then
 fi
 if ! command -v rustc >/dev/null 2>&1 || ! command -v npm >/dev/null 2>&1; then
   echo "Для запуска Tauri нужны Rust/Cargo и Node.js."
+  exit 1
+fi
+if [ ! -f "$TAURI_CONFIG" ] || [ ! -f "$TAURI_DIR/Cargo.toml" ]; then
+  echo "Не найден Tauri-проект: ожидаются $TAURI_CONFIG и $TAURI_DIR/Cargo.toml." >&2
+  echo "Восстановите каталог frontend/src-tauri и повторите запуск." >&2
   exit 1
 fi
 
@@ -91,4 +98,5 @@ fi
 echo "Tauri dev data root: $DATA_ROOT"
 echo "Запускается Tauri dev. Это не production-сборка; при первом запуске Cargo может собрать debug-код."
 cd "$ROOT_DIR/frontend"
-NFPROGRESS_BUILD_PROFILE=test NFPROGRESS_DATA_DIR="$DATA_ROOT" exec npm run tauri:dev
+NFPROGRESS_BUILD_PROFILE=test NFPROGRESS_DATA_DIR="$DATA_ROOT" \
+  exec npm run tauri:dev -- --config "$TAURI_CONFIG"

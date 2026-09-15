@@ -57,6 +57,22 @@ struct SqliteProjectReadModel {
     progress_entries: Vec<SqliteProgressRow>,
 }
 
+#[derive(Serialize)]
+struct SqliteTodayProject {
+    id: String,
+    name: String,
+    symbols: f64,
+    unit: String,
+    value: f64,
+}
+
+#[derive(Serialize)]
+struct SqliteTodaySummary {
+    date: String,
+    symbols: f64,
+    projects: Vec<SqliteTodayProject>,
+}
+
 fn overlay_game_streak_state(
     rows: &mut [SqliteEntityRow],
     game_state: &serde_json::Value,
@@ -624,10 +640,12 @@ fn project_payload(
         .list_stages(project_id)
         .map_err(|error| error.to_string())?;
     let mut payload = project.payload;
+    strip_progress_history(&mut payload, true);
     let stages_payload = stages
         .into_iter()
         .map(|stage| {
             let mut value = stage.payload;
+            strip_progress_history(&mut value, false);
             let entries = repository
                 .list_progress(project_id, Some(&stage.id))
                 .map_err(|error| error.to_string())?;
@@ -673,8 +691,17 @@ fn refresh_project_totals(
         })
         .sum();
     let mut payload = project.payload;
-    payload["stages"] =
-        serde_json::Value::Array(stages.into_iter().map(|stage| stage.payload).collect());
+    strip_progress_history(&mut payload, true);
+    payload["stages"] = serde_json::Value::Array(
+        stages
+            .into_iter()
+            .map(|stage| {
+                let mut value = stage.payload;
+                strip_progress_history(&mut value, false);
+                value
+            })
+            .collect(),
+    );
     let stages_enabled = payload
         .get("stages")
         .and_then(serde_json::Value::as_array)
@@ -705,14 +732,19 @@ fn refresh_project_totals_in_transaction(
         .map_err(|error| error.to_string())?;
     let mut payload: serde_json::Value = serde_json::from_str(&payload_json)
         .map_err(|error| format!("Некорректный payload проекта: {error}"))?;
+    strip_progress_history(&mut payload, true);
     let mut stages = transaction
         .prepare("SELECT payload_json FROM stages WHERE project_id=?1 ORDER BY id")
         .map_err(|error| error.to_string())?
         .query_map([project_id], |row| row.get::<_, String>(0))
         .map_err(|error| error.to_string())?
         .map(|row| {
-            row.map_err(|error| error.to_string())
-                .and_then(|json| serde_json::from_str(&json).map_err(|error| error.to_string()))
+            row.map_err(|error| error.to_string()).and_then(|json| {
+                let mut value: serde_json::Value =
+                    serde_json::from_str(&json).map_err(|error| error.to_string())?;
+                strip_progress_history(&mut value, false);
+                Ok(value)
+            })
         })
         .collect::<Result<Vec<serde_json::Value>, String>>()?;
     let total = stages.iter().fold(0.0, |sum, stage| {
@@ -2828,6 +2860,16 @@ fn unit_factor(value: &str) -> Option<f64> {
     }
 }
 
+fn symbols_to_unit(symbols: f64, unit: &str) -> Result<f64, String> {
+    let factor = unit_factor(unit).ok_or_else(|| "Неизвестная единица прогресса.".to_string())?;
+    let value = symbols / factor;
+    Ok(match unit {
+        "symbols" => value,
+        "author_list" => (value * 10.0).round() / 10.0,
+        _ => value.ceil(),
+    })
+}
+
 fn normalized_total(value: f64, unit: &str) -> Result<f64, String> {
     if !value.is_finite() || value < 0.0 {
         return Err("Значение должно быть конечным и неотрицательным.".to_string());
@@ -3699,7 +3741,7 @@ fn add_progress_sqlite(
             status: project.status.clone(),
             created_at: project.created_at.clone(),
             updated_at: project.updated_at.clone(),
-            payload: project.payload.clone(),
+            payload: project.payload,
         }
     };
     if entity.project_id != project_id {
@@ -3747,14 +3789,10 @@ fn add_progress_sqlite(
     };
     let entry = serde_json::json!({"id": entry_id, "new_total": total, "new_total_symbols": next_symbols, "added": total - previous, "added_symbols": delta, "added_progress": added_progress, "created_at": now});
     let mut payload = entity.payload;
-    let entries = payload
-        .get("progress_entries")
-        .and_then(|value| value.as_array())
-        .cloned()
-        .unwrap_or_default();
-    let mut entries = entries;
-    entries.push(entry.clone());
-    payload["progress_entries"] = serde_json::Value::Array(entries);
+    strip_progress_history(&mut payload, stage_id.is_none());
+    // Progress rows are authoritative in SQLite. Do not rebuild and persist
+    // the legacy history array on every new entry.
+    payload["progress_entries"] = serde_json::Value::Array(Vec::new());
     payload["total"] = total.into();
     payload["progress"] = if entity.infinite || entity.goal.unwrap_or(0.0) <= 0.0 {
         0.0.into()
@@ -3830,32 +3868,31 @@ fn delete_progress_sqlite(
             status: project.status.clone(),
             created_at: project.created_at.clone(),
             updated_at: project.updated_at.clone(),
-            payload: project.payload.clone(),
+            payload: project.payload,
         }
     };
     if entity.project_id != project_id {
         return Err("Этап не относится к указанному проекту.".to_string());
     }
-    let mut entries = entity
-        .payload
-        .get("progress_entries")
-        .and_then(|value| value.as_array())
-        .cloned()
-        .unwrap_or_default();
-    let before = entries.len();
-    entries.retain(|entry| {
-        entry.get("id").and_then(|value| value.as_str()) != Some(entry_id.as_str())
-    });
-    if entries.len() == before {
+    let mut entries = repository
+        .list_progress(&project_id, stage_id.as_deref())
+        .map_err(|error| error.to_string())?;
+    if stage_id.is_none() {
+        entries.retain(|entry| entry.stage_id.is_none());
+    }
+    if !entries.iter().any(|entry| entry.id == entry_id) {
         return Err("Запись прогресса не найдена.".to_string());
     }
     let total = entries
-        .last()
-        .and_then(|entry| entry.get("new_total"))
-        .and_then(|value| value.as_f64())
+        .iter()
+        .filter(|entry| entry.id != entry_id)
+        .next_back()
+        .and_then(|entry| entry.payload.get("new_total"))
+        .and_then(serde_json::Value::as_f64)
         .unwrap_or(0.0);
     let mut payload = entity.payload;
-    payload["progress_entries"] = serde_json::Value::Array(entries);
+    strip_progress_history(&mut payload, stage_id.is_none());
+    payload["progress_entries"] = serde_json::Value::Array(Vec::new());
     payload["total"] = total.into();
     payload["progress"] = if entity.infinite || entity.goal.unwrap_or(0.0) <= 0.0 {
         0.0.into()
@@ -3922,17 +3959,45 @@ fn dirs_fallback_home() -> Result<PathBuf, String> {
         .ok_or_else(|| "Не удалось определить домашнюю директорию пользователя.".to_string())
 }
 
+fn strip_progress_history(payload: &mut serde_json::Value, strip_nested_stages: bool) {
+    if let Some(object) = payload.as_object_mut() {
+        object.remove("progress_entries");
+        if strip_nested_stages {
+            if let Some(stages) = object
+                .get_mut("stages")
+                .and_then(|value| value.as_array_mut())
+            {
+                for stage in stages {
+                    if let Some(stage_object) = stage.as_object_mut() {
+                        stage_object.remove("progress_entries");
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn compact_read_payload(raw: &str, strip_nested_stages: bool) -> Result<String, String> {
+    let mut payload: serde_json::Value = serde_json::from_str(raw)
+        .map_err(|error| format!("Некорректный payload проекта: {error}"))?;
+    // Progress entries have their own ordered SQLite projection. Keeping the
+    // legacy copy in every project row makes a large history cross the Rust ->
+    // WebView boundary twice.
+    strip_progress_history(&mut payload, strip_nested_stages);
+    serde_json::to_string(&payload).map_err(|error| error.to_string())
+}
+
 fn read_sqlite_entity_rows(
     connection: &rusqlite::Connection,
     table: &str,
 ) -> Result<Vec<SqliteEntityRow>, String> {
     let sql = match table {
-        "projects" => "SELECT p.id, NULL, p.name, p.goal, p.infinite, p.unit, p.status, p.created_at, p.updated_at, p.payload_json FROM projects p JOIN project_order o ON o.project_id = p.id ORDER BY o.position",
-        "stages" => "SELECT s.id, s.project_id, s.name, s.goal, s.infinite, s.unit, s.status, s.created_at, s.updated_at, s.payload_json FROM stages s JOIN stage_order o ON o.stage_id=s.id ORDER BY o.project_id,o.position",
+        "projects" => "SELECT p.id, NULL, p.name, p.goal, p.infinite, p.unit, p.status, p.created_at, p.updated_at, json_remove(p.payload_json, '$.progress_entries') FROM projects p JOIN project_order o ON o.project_id = p.id ORDER BY o.position",
+        "stages" => "SELECT s.id, s.project_id, s.name, s.goal, s.infinite, s.unit, s.status, s.created_at, s.updated_at, json_remove(s.payload_json, '$.progress_entries') FROM stages s JOIN stage_order o ON o.stage_id=s.id ORDER BY o.project_id,o.position",
         _ => return Err("Недопустимая таблица SQLite.".to_string()),
     };
     let mut statement = connection.prepare(sql).map_err(|error| error.to_string())?;
-    let rows = statement
+    let mut rows = statement
         .query_map([], |row| {
             Ok(SqliteEntityRow {
                 id: row.get(0)?,
@@ -3948,12 +4013,18 @@ fn read_sqlite_entity_rows(
             })
         })
         .map_err(|error| error.to_string())?;
-    rows.map(|row| row.map_err(|error| error.to_string()))
-        .collect()
+    let mut entities = rows
+        .by_ref()
+        .map(|row| row.map_err(|error| error.to_string()))
+        .collect::<Result<Vec<_>, _>>()?;
+    let strip_nested_stages = table == "projects";
+    for entity in &mut entities {
+        entity.payload_json = compact_read_payload(&entity.payload_json, strip_nested_stages)?;
+    }
+    Ok(entities)
 }
 
-#[tauri::command]
-fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
+fn read_sqlite_projects_model(project_id: Option<&str>) -> Result<SqliteProjectReadModel, String> {
     let database = sqlite_data_root()?.join("nfprogress.db");
     let connection = sqlite::open_database(&database).map_err(|error| error.to_string())?;
     require_projects_owner(&connection)?;
@@ -3967,24 +4038,30 @@ fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
     if status != "healthy" {
         return Err(format!("SQLite mirror status is {status}"));
     }
-    let mut progress = connection
-        .prepare("SELECT p.id, p.project_id, p.stage_id, p.created_at, p.added_symbols, p.added_progress, p.payload_json FROM progress_entries p JOIN progress_order o ON o.entry_id=p.id ORDER BY o.position")
-        .map_err(|error| error.to_string())?;
-    let progress_entries = progress
-        .query_map([], |row| {
-            Ok(SqliteProgressRow {
-                id: row.get(0)?,
-                project_id: row.get(1)?,
-                stage_id: row.get(2)?,
-                created_at: row.get(3)?,
-                added_symbols: row.get(4)?,
-                added_progress: row.get(5)?,
-                payload_json: row.get(6)?,
+    let progress_entries = if let Some(project_id) = project_id {
+        let mut progress = connection
+            .prepare("SELECT p.id, p.project_id, p.stage_id, p.created_at, p.added_symbols, p.added_progress, p.payload_json FROM progress_entries p JOIN progress_order o ON o.entry_id=p.id WHERE p.project_id=?1 ORDER BY o.position")
+            .map_err(|error| error.to_string())?;
+        let rows = progress
+            .query_map([project_id], |row| {
+                Ok(SqliteProgressRow {
+                    id: row.get(0)?,
+                    project_id: row.get(1)?,
+                    stage_id: row.get(2)?,
+                    created_at: row.get(3)?,
+                    added_symbols: row.get(4)?,
+                    added_progress: row.get(5)?,
+                    payload_json: row.get(6)?,
+                })
             })
-        })
-        .map_err(|error| error.to_string())?
-        .map(|row| row.map_err(|error| error.to_string()))
-        .collect::<Result<Vec<_>, _>>()?;
+            .map_err(|error| error.to_string())?;
+        rows.map(|row| row.map_err(|error| error.to_string()))
+            .collect::<Result<Vec<_>, _>>()?
+    } else {
+        // The project list only needs metadata. Loading every history row here
+        // made opening the list scale with the lifetime of the database.
+        Vec::new()
+    };
     let project_order_rows = connection
         .prepare("SELECT project_id, position FROM project_order ORDER BY position, project_id")
         .map_err(|error| error.to_string())?
@@ -4039,6 +4116,68 @@ fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
         projects: project_rows,
         stages: stage_rows,
         progress_entries,
+    })
+}
+
+#[tauri::command]
+fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
+    read_sqlite_projects_model(None)
+}
+
+#[tauri::command]
+fn read_sqlite_project(project_id: String) -> Result<SqliteProjectReadModel, String> {
+    if project_id.is_empty() {
+        return Err("Идентификатор проекта не может быть пустым.".to_string());
+    }
+    read_sqlite_projects_model(Some(&project_id))
+}
+
+#[tauri::command]
+fn read_sqlite_today_summary() -> Result<SqliteTodaySummary, String> {
+    let database = sqlite_data_root()?.join("nfprogress.db");
+    let connection = sqlite::open_database(&database).map_err(|error| error.to_string())?;
+    require_projects_owner(&connection)?;
+    let date: String = connection
+        .query_row("SELECT strftime('%Y-%m-%d','now')", [], |row| row.get(0))
+        .map_err(|error| error.to_string())?;
+    let mut statement = connection
+        .prepare(
+            "SELECT p.id, p.name, p.unit, COALESCE(SUM(progress.added_symbols), 0)\
+             FROM projects p\
+             LEFT JOIN progress_entries progress\
+               ON progress.project_id = p.id\
+              AND substr(COALESCE(progress.created_at, ''), 1, 10) = ?1\
+             GROUP BY p.id, p.name, p.unit\
+             HAVING COALESCE(SUM(progress.added_symbols), 0) > 0\
+             ORDER BY (SELECT position FROM project_order WHERE project_id = p.id), p.id",
+        )
+        .map_err(|error| error.to_string())?;
+    let mut projects = Vec::new();
+    for row in statement
+        .query_map([date.as_str()], |row| {
+            Ok((
+                row.get::<_, String>(0)?,
+                row.get::<_, String>(1)?,
+                row.get::<_, String>(2)?,
+                row.get::<_, f64>(3)?,
+            ))
+        })
+        .map_err(|error| error.to_string())?
+    {
+        let (id, name, unit, symbols) = row.map_err(|error| error.to_string())?;
+        projects.push(SqliteTodayProject {
+            id,
+            name,
+            value: symbols_to_unit(symbols, &unit)?,
+            symbols,
+            unit,
+        });
+    }
+    let symbols = projects.iter().map(|project| project.symbols).sum();
+    Ok(SqliteTodaySummary {
+        date,
+        symbols,
+        projects,
     })
 }
 
@@ -4822,6 +4961,8 @@ pub fn run() {
             game_withdraw_bank_deposit,
             game_withdraw_bank_interest,
             read_sqlite_projects,
+            read_sqlite_project,
+            read_sqlite_today_summary,
             projects_storage_owner,
             create_project,
             update_project,

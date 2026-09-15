@@ -3,6 +3,7 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
 import { projectFixture } from '@/test/fixtures'
+import type { ProgressEntry } from '@/types/api'
 
 import ProgressWorkspace from './ProgressWorkspace.vue'
 
@@ -83,5 +84,28 @@ describe('ProgressWorkspace', () => {
 
     expect(wrapper.find('button:not([type="submit"])').exists()).toBe(false)
     expect(wrapper.get('.progress-entry-form').text()).toContain('уже записан')
+  })
+
+  it('renders only a bounded recent history page', async () => {
+    const entries: ProgressEntry[] = Array.from({ length: 250 }, (_, index) => ({
+      id: `entry-${index}`,
+      new_total: index + 1,
+      new_total_symbols: index + 1,
+      added: 1,
+      added_symbols: 1,
+      added_progress: 0.01,
+      created_at: `2026-08-${String((index % 28) + 1).padStart(2, '0')}`,
+    }))
+    const wrapper = mount(ProgressWorkspace, {
+      props: { project: projectFixture({ progress_entries: entries }), busy: false },
+      global: { plugins: [createPinia()], stubs: ionicStubs },
+    })
+
+    expect(wrapper.findAll('.history-table tbody tr')).toHaveLength(100)
+    expect(wrapper.get('.history-pagination').text()).toContain('100')
+
+    await wrapper.get('.history-pagination button').trigger('click')
+
+    expect(wrapper.findAll('.history-table tbody tr')).toHaveLength(200)
   })
 })

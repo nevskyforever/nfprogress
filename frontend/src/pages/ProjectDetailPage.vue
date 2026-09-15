@@ -225,13 +225,32 @@ async function loadDocuments(): Promise<void> {
   documents.value = results.filter((document): document is ProjectDocument => document !== null)
 }
 
+function projectRefreshSignature(value: Project | null | undefined): string {
+  if (!value) return ''
+  const entitySignature = (entity: Project): string => {
+    const lastEntry = entity.progress_entries[entity.progress_entries.length - 1]
+    return [
+      entity.id,
+      entity.updated_at ?? '',
+      entity.total,
+      entity.progress,
+      entity.status,
+      entity.progress_entries.length,
+      lastEntry?.id ?? '',
+      lastEntry?.created_at ?? '',
+      lastEntry?.new_total ?? '',
+    ].join('~')
+  }
+  return [entitySignature(value), ...value.stages.map(entitySignature)].join('|')
+}
+
 async function refreshChangedProject(): Promise<void> {
   const before = store.currentProject?.id === projectId.value
-    ? JSON.stringify(store.currentProject)
+    ? projectRefreshSignature(store.currentProject)
     : ''
   await loadProject()
   const after = store.currentProject?.id === projectId.value
-    ? JSON.stringify(store.currentProject)
+    ? projectRefreshSignature(store.currentProject)
     : ''
   if (before && before !== after) detailAnimationVersion.value += 1
 }

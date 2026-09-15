@@ -48,7 +48,14 @@ const lifecycleReadOnly = computed(
     || props.project.status === 'завершен'
     || selectedEntity.value.status === 'завершен',
 )
-const entries = computed(() => [...selectedEntity.value.progress_entries].reverse())
+const HISTORY_PAGE_SIZE = 100
+const historyLimit = ref(HISTORY_PAGE_SIZE)
+const entries = computed(() => selectedEntity.value.progress_entries)
+const visibleEntries = computed(() => {
+  const start = Math.max(0, entries.value.length - historyLimit.value)
+  return entries.value.slice(start).reverse()
+})
+const hasHiddenEntries = computed(() => visibleEntries.value.length < entries.value.length)
 const fractionDigits = computed(() => (props.project.unit === 'symbols' ? 0 : 2))
 const selectedStageId = computed(() =>
   selectedEntity.value.id === props.project.id ? undefined : selectedEntity.value.id,
@@ -60,6 +67,10 @@ const textTotal = computed(() => convertProjectUnit(textSymbols.value, 'symbols'
 const hasTextSource = computed(() => applicationMethod.value
   && textSymbols.value > 0
   && Math.abs(textTotal.value - selectedEntity.value.total) >= 0.009)
+
+function showMoreHistory(): void {
+  historyLimit.value += HISTORY_PAGE_SIZE
+}
 
 function numberFrom(value: string | number): number {
   return Number(String(value).replace(',', '.'))
@@ -94,6 +105,7 @@ watch(
   ([, total]) => {
     newTotal.value = String(total)
     validationError.value = null
+    historyLimit.value = HISTORY_PAGE_SIZE
   },
   { immediate: true },
 )
@@ -190,7 +202,7 @@ watch(
           </tr>
         </thead>
         <tbody>
-          <tr v-for="entry in entries" :key="entry.id">
+          <tr v-for="entry in visibleEntries" :key="entry.id">
             <td>{{ locale.formatDate(entry.created_at) }}</td>
             <td :class="entry.added < 0 ? 'negative-value' : 'positive-value'">
               {{ entry.added > 0 ? '+' : '' }}{{ locale.formatNumber(entry.added, fractionDigits) }}
@@ -211,7 +223,13 @@ watch(
         </tbody>
       </table>
     </div>
-    <p v-else class="empty-history">{{ t('Записей прогресса пока нет.') }}</p>
+    <div v-if="hasHiddenEntries" class="history-pagination">
+      <p>{{ locale.formatNumber(visibleEntries.length, 0) }} / {{ locale.formatNumber(entries.length, 0) }} {{ t('Записей') }}</p>
+      <button class="nf-button nf-button--secondary" type="button" @click="showMoreHistory">
+        {{ t('Ещё') }}
+      </button>
+    </div>
+    <p v-if="!entries.length" class="empty-history">{{ t('Записей прогресса пока нет.') }}</p>
   </section>
 </template>
 
@@ -253,6 +271,8 @@ watch(
 .history-table td { padding: 0.8rem var(--nf-space-4); border-bottom: 1px solid var(--nf-color-border); text-align: left; }
 .history-table th { position: sticky; top: 0; z-index: 1; background: var(--nf-color-surface); color: var(--nf-color-text-muted); font-size: 0.72rem; text-transform: uppercase; }
 .history-table tbody tr:last-child td { border-bottom: 0; }
+.history-pagination { display: flex; align-items: center; justify-content: space-between; gap: var(--nf-space-3); margin-top: var(--nf-space-3); }
+.history-pagination p { margin: 0; color: var(--nf-color-text-muted); font-size: 0.78rem; }
 .positive-value { color: var(--nf-color-success); font-weight: 700; }
 .negative-value { color: var(--nf-color-danger); font-weight: 700; }
 .history-action-cell { width: 3.5rem; text-align: right !important; }
@@ -265,5 +285,6 @@ watch(
   .workspace-section-heading { align-items: stretch; flex-direction: column; }
   .progress-entry-fields { grid-template-columns: 1fr; }
   .progress-stage-select { width: auto; }
+  .history-pagination { align-items: stretch; flex-direction: column; }
 }
 </style>

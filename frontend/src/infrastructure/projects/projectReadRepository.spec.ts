@@ -39,4 +39,14 @@ describe('project read repository resolver', () => {
     expect(invoke).toHaveBeenCalledWith('read_sqlite_projects')
     expect(apiList).not.toHaveBeenCalled()
   })
+
+  it('loads a selected project through the bounded native detail query', async () => {
+    Object.assign(window, { __TAURI_INTERNALS__: {} })
+    invoke.mockResolvedValue({ mirror_status: 'healthy', projects: [], stages: [], progress_entries: [], project_order: [] })
+
+    await expect(getProjectReadRepository().getProject('project-42')).resolves.toBeNull()
+
+    expect(invoke).toHaveBeenCalledWith('read_sqlite_project', { projectId: 'project-42' })
+    expect(apiGet).not.toHaveBeenCalled()
+  })
 })

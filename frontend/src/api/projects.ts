@@ -82,36 +82,6 @@ function desktopEntityPatch(payload: EntityUpdate): Record<string, unknown> {
   }
 }
 
-function symbolsToUnit(symbols: number, unit: Project['unit']): number {
-  const factors: Record<Project['unit'], number> = {
-    symbols: 1, A4: 1800, author_list: 40000, ficbook_pages: 4500,
-  }
-  const value = symbols / factors[unit]
-  return unit === 'symbols' ? value : unit === 'author_list' ? Math.round(value * 10) / 10 : Math.ceil(value)
-}
-
-function nativeTodaySummary(projects: Project[]): TodaySummary {
-  const date = new Date().toISOString().slice(0, 10)
-  const summaries = projects.flatMap((project) => {
-    const entries = [
-      ...project.progress_entries,
-      ...project.stages.flatMap((stage) => stage.progress_entries),
-    ]
-    const symbols = entries
-      .filter((entry) => entry.created_at.startsWith(date))
-      .reduce((total, entry) => total + entry.added_symbols, 0)
-    return symbols > 0 ? [{
-      id: project.id, name: project.name, symbols,
-      unit: project.unit, value: symbolsToUnit(symbols, project.unit),
-    }] : []
-  })
-  return {
-    date,
-    symbols: summaries.reduce((total, project) => total + project.symbols, 0),
-    projects: summaries,
-  }
-}
-
 export const projectsApi = {
   list(query: ProjectListQuery = {}, signal?: AbortSignal): Promise<Project[]> {
     if (desktopRuntime()) return getProjectReadRepository().listProjects(query, signal)
@@ -158,9 +128,7 @@ export const projectsApi = {
   },
 
   today(signal?: AbortSignal): Promise<TodaySummary> {
-    if (desktopRuntime()) {
-      return getProjectReadRepository().listProjects({}, signal).then(nativeTodaySummary)
-    }
+    if (desktopRuntime()) return invoke<TodaySummary>('read_sqlite_today_summary')
     return apiRequest<TodaySummary>('/api/projects/today', { signal })
   },
 
