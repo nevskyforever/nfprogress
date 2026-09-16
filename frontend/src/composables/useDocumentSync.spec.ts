@@ -3,6 +3,8 @@ import { defineComponent } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { documentsApi } from '@/api/documents'
+import { currentPlatform } from '@/platform/runtime'
+import { blobToBase64, exportDocx, importDocx } from '@/services/documentDocx'
 import type { ProjectDocument, TiptapDocument } from '@/types/documents'
 
 import { useDocumentSync } from './useDocumentSync'
@@ -22,6 +24,7 @@ vi.mock('@/api/documents', () => ({
 }))
 
 vi.mock('@/services/dataChanges', () => ({ announceDataChange: vi.fn() }))
+vi.mock('@/platform/runtime', () => ({ currentPlatform: vi.fn(() => 'web') }))
 vi.mock('@/services/documentDocx', () => ({
   blobToBase64: vi.fn(),
   exportDocx: vi.fn(),
@@ -53,7 +56,10 @@ function documentResponse(content = emptyDocument): ProjectDocument {
 }
 
 describe('useDocumentSync', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.mocked(currentPlatform).mockReturnValue('web')
+  })
 
   it('does not let a slow initial read erase text entered in the editor', async () => {
     let finishLoad: ((value: ProjectDocument) => void) | undefined
@@ -131,6 +137,49 @@ describe('useDocumentSync', () => {
 
     expect(documentsApi.recordProgress).toHaveBeenCalledWith({ projectId: 'project-id' }, editedDocument)
     expect(wrapper.vm.sync.content.value).toEqual(editedDocument)
+    wrapper.unmount()
+  })
+
+  it('writes the current JSON to a linked Word document in web and desktop runtimes', async () => {
+    const linkedDocument = { ...documentResponse(editedDocument), docx_path: '/tmp/document.docx' }
+    vi.mocked(documentsApi.get).mockResolvedValue(linkedDocument)
+    vi.mocked(documentsApi.save).mockResolvedValue(linkedDocument)
+    vi.mocked(documentsApi.writeDocx).mockResolvedValue(linkedDocument)
+    vi.mocked(documentsApi.writeDocxContent).mockResolvedValue(linkedDocument)
+    vi.mocked(exportDocx).mockResolvedValue(new Blob(['docx']))
+    vi.mocked(blobToBase64).mockResolvedValue('encoded-docx')
+    const wrapper = mount(defineComponent({
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'nfprogress') } },
+      template: '<div />',
+    }))
+    await flushPromises()
+
+    await wrapper.vm.sync.save(false, editedDocument)
+    expect(exportDocx).toHaveBeenCalledWith(editedDocument)
+    expect(documentsApi.writeDocx).toHaveBeenCalledWith({ projectId: 'project-id' }, 'encoded-docx')
+
+    vi.mocked(currentPlatform).mockReturnValue('tauri')
+    await wrapper.vm.sync.save(false, editedDocument)
+    expect(documentsApi.writeDocxContent).toHaveBeenCalledWith({ projectId: 'project-id' }, editedDocument)
+    wrapper.unmount()
+  })
+
+  it('keeps native JSON and web HTML external Word import paths', async () => {
+    const linkedDocument = { ...documentResponse(editedDocument), docx_path: '/tmp/document.docx' }
+    vi.mocked(documentsApi.get).mockResolvedValue(linkedDocument)
+    vi.mocked(documentsApi.external).mockResolvedValue({ state: 'external_changed', content_base64: 'AQI=', hash: 'word-hash' })
+    vi.mocked(documentsApi.parseWord).mockResolvedValue({ content: editedDocument, symbols: 11, hash: 'parsed-hash' })
+    vi.mocked(importDocx).mockResolvedValue('<p>Новая глава</p>')
+    const wrapper = mount(defineComponent({
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'word') } },
+      template: '<div />',
+    }))
+    await flushPromises()
+
+    expect(await wrapper.vm.sync.checkExternal()).toEqual({ html: '<p>Новая глава</p>', hash: 'word-hash' })
+    vi.mocked(currentPlatform).mockReturnValue('tauri')
+    expect(await wrapper.vm.sync.checkExternal()).toEqual({ content: editedDocument, hash: 'word-hash' })
+    expect(documentsApi.parseWord).toHaveBeenCalledWith(new Uint8Array([1, 2]), 'document.docx')
     wrapper.unmount()
   })
 })

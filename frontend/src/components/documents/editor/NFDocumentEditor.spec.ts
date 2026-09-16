@@ -24,7 +24,7 @@ type EditorExpose = {
   getEditor: () => Editor | null
   getJSON: () => TiptapDocument
   getScrollContainer: () => HTMLElement | null
-  setContent: (content: TiptapDocument, emitUpdate?: boolean) => void
+  setContent: (content: TiptapDocument | string, emitUpdate?: boolean) => void
 }
 
 describe('NFDocumentEditor core', () => {
@@ -73,5 +73,39 @@ describe('NFDocumentEditor core', () => {
     const paragraph = json.content?.[0] as { attrs?: Record<string, unknown>; content?: Array<{ marks?: Array<{ type?: string }> }> }
     expect(paragraph.attrs).toMatchObject({ textAlign: 'right', lineHeight: '2' })
     expect(paragraph.content?.[0]?.marks).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'italic' })]))
+  })
+
+  it('converts imported Word HTML into DOCX-compatible JSON attributes', () => {
+    const wrapper = mount(NFDocumentEditor, { props: { content: { type: 'doc', content: [{ type: 'paragraph' }] } } })
+    const api = wrapper.vm as unknown as EditorExpose
+
+    api.setContent(
+      '<h2 style="text-align: center; line-height: 2"><span style="font-family: Georgia; font-size: 18pt; color: #336699"><strong><u>Заголовок</u></strong></span></h2><p><mark style="background-color: #ffff00"><sup>Текст</sup></mark></p>',
+      false,
+    )
+
+    const json = api.getJSON()
+    expect(json.content?.[0]).toMatchObject({
+      type: 'heading',
+      attrs: { level: 2, textAlign: 'center', lineHeight: '2' },
+      content: [{
+        text: 'Заголовок',
+        marks: expect.arrayContaining([
+          expect.objectContaining({ type: 'bold' }),
+          expect.objectContaining({ type: 'underline' }),
+          expect.objectContaining({ type: 'textStyle', attrs: expect.objectContaining({ fontFamily: 'Georgia', fontSize: '18pt', color: '#336699' }) }),
+        ]),
+      }],
+    })
+    expect(json.content?.[1]).toMatchObject({
+      type: 'paragraph',
+      content: [{
+        text: 'Текст',
+        marks: expect.arrayContaining([
+          expect.objectContaining({ type: 'highlight', attrs: expect.objectContaining({ color: '#ffff00' }) }),
+          expect.objectContaining({ type: 'superscript' }),
+        ]),
+      }],
+    })
   })
 })
