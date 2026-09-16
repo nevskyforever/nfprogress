@@ -4,8 +4,12 @@ import { EditorContent, useEditor } from '@tiptap/vue-3'
 import type { Editor, JSONContent } from '@tiptap/core'
 import type { TiptapDocument } from '@/types/documents'
 import { createDocumentEditorExtensions } from './editorExtensions'
+import NFEditorToolbar from './NFEditorToolbar.vue'
 
-const props = defineProps<{ content: TiptapDocument }>()
+const props = defineProps<{
+  content: TiptapDocument
+  translate?: (source: string) => string
+}>()
 const emit = defineEmits<{
   update: [content: TiptapDocument]
   ready: [editor: Editor]
@@ -69,6 +73,7 @@ defineExpose({ focus, getEditor, getJSON, getScrollContainer, getSelection, setC
 
 <template>
   <section class="nf-document-editor">
+    <NFEditorToolbar v-if="editor" :editor="editor" :translate="translate" />
     <div ref="viewport" class="nf-document-editor__viewport">
       <div class="nf-document-editor__page">
         <EditorContent v-if="editor" :editor="editor" class="nf-document-editor__content" />
@@ -80,6 +85,7 @@ defineExpose({ focus, getEditor, getJSON, getScrollContainer, getSelection, setC
 <style scoped>
 .nf-document-editor {
   display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
   flex: 1;

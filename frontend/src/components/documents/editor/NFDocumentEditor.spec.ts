@@ -1,5 +1,6 @@
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
+import type { Editor } from '@tiptap/core'
 import type { TiptapDocument } from '@/types/documents'
 import NFDocumentEditor from './NFDocumentEditor.vue'
 
@@ -20,6 +21,7 @@ const formattedDocument: TiptapDocument = {
 }
 
 type EditorExpose = {
+  getEditor: () => Editor | null
   getJSON: () => TiptapDocument
   getScrollContainer: () => HTMLElement | null
   setContent: (content: TiptapDocument, emitUpdate?: boolean) => void
@@ -48,5 +50,28 @@ describe('NFDocumentEditor core', () => {
     api.setContent(next, true)
 
     expect(wrapper.emitted('update')?.at(-1)?.[0]).toMatchObject(next)
+  })
+
+  it('reflects the selection in the toolbar and applies formatting commands', async () => {
+    const wrapper = mount(NFDocumentEditor, { props: { content: formattedDocument } })
+    const api = wrapper.vm as unknown as EditorExpose
+    const editor = api.getEditor()
+    expect(editor).not.toBeNull()
+
+    editor!.commands.setTextSelection({ from: 1, to: 5 })
+    await wrapper.vm.$nextTick()
+
+    expect((wrapper.find('select[aria-label="Шрифт"]').element as HTMLSelectElement).value).toBe('Georgia')
+    expect((wrapper.find('select[aria-label="Размер текста"]').element as HTMLSelectElement).value).toBe('18pt')
+    expect(wrapper.find('button[aria-label="Полужирный"]').attributes('aria-pressed')).toBe('true')
+
+    await wrapper.find('button[aria-label="Курсив"]').trigger('click')
+    await wrapper.find('select[aria-label="Межстрочный интервал"]').setValue('2')
+    await wrapper.find('button[aria-label="По правому краю"]').trigger('click')
+
+    const json = api.getJSON()
+    const paragraph = json.content?.[0] as { attrs?: Record<string, unknown>; content?: Array<{ marks?: Array<{ type?: string }> }> }
+    expect(paragraph.attrs).toMatchObject({ textAlign: 'right', lineHeight: '2' })
+    expect(paragraph.content?.[0]?.marks).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'italic' })]))
   })
 })
