@@ -211,7 +211,20 @@ The script selects the host target and starts the native application. Use
 `bash "Run Tauri.sh" --check` to validate prerequisites without opening a
 window. `npm run tauri:dev` remains available for advanced use, but should be
 paired with an explicit `NFPROGRESS_DATA_DIR` when a non-canonical profile is
-needed.
+needed. The script disables Cargo incremental compilation and debug symbols for
+the normal dev run. Its Cargo target is kept in the macOS cache at
+`~/Library/Caches/nfprogress/` and is automatically cleaned before launch when
+it exceeds 2 GiB; an old `frontend/src-tauri/target` is handled the same way.
+`--clean` also removes Cargo targets inside existing
+`.tauri-build-workspaces/` directories. To clean those generated artifacts
+manually, use:
+
+```bash
+bash "Run Tauri.sh" --clean
+```
+
+The limit can be changed with `NFPROGRESS_TAURI_TARGET_MAX_MB`; only generated
+Cargo artifacts are affected, never source code or project data.
 Stop a separately running npm run dev first, because Tauri dev uses port 5173.
 
 Checks and a production bundle:
@@ -248,7 +261,10 @@ Use `Release Tauri All.sh intel` (or set
 `NFPROGRESS_TAURI_INCLUDE_INTEL=1`) for explicit Intel qualification. Each
 architecture uses its own ignored frontend workspace under
 `.tauri-build-workspaces/`, including `node_modules`, Vite output and Tauri
-target files.
+target files. Ordinary `Build Tauri` test builds remove the workspace Cargo
+target after packaging; release qualification retains it explicitly for app
+inspection. Set `NFPROGRESS_TAURI_KEEP_BUILD_CACHE=1` only when retaining that
+cache is intentional.
 
 The build workspace synchronizes the normalized three-component version from
 `engine.py` into the Tauri and Cargo metadata before building, without racing
