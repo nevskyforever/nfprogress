@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { Editor } from '@tiptap/core'
 import type { TiptapDocument } from '@/types/documents'
 import NFDocumentEditor from './NFDocumentEditor.vue'
@@ -107,5 +107,46 @@ describe('NFDocumentEditor core', () => {
         ]),
       }],
     })
+  })
+
+  it('does not center an early caret but positions a lower caret immediately on Typewriter activation', async () => {
+    const wrapper = mount(NFDocumentEditor, {
+      props: { content: formattedDocument, zoom: 100, typewriterMode: false },
+    })
+    const api = wrapper.vm as unknown as EditorExpose
+    const container = api.getScrollContainer()!
+    let scrollTop = 0
+    Object.defineProperties(container, {
+      clientWidth: { configurable: true, value: 900 },
+      clientHeight: { configurable: true, value: 600 },
+      scrollTop: {
+        configurable: true,
+        get: () => scrollTop,
+        set: (value: number) => { scrollTop = value },
+      },
+    })
+    container.getBoundingClientRect = () => new DOMRect(0, 100, 900, 600)
+    const coords = vi.spyOn(api.getEditor()!.view, 'coordsAtPos')
+    coords.mockReturnValue({ top: 180, bottom: 200, left: 0, right: 1 })
+    const animationFrames: FrameRequestCallback[] = []
+    const requestFrame = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback)
+      return animationFrames.length
+    })
+
+    await wrapper.setProps({ typewriterMode: true })
+    await wrapper.vm.$nextTick()
+    animationFrames.shift()?.(0)
+    expect(scrollTop).toBe(0)
+
+    await wrapper.setProps({ typewriterMode: false })
+    coords.mockReturnValue({ top: 500, bottom: 520, left: 0, right: 1 })
+    await wrapper.setProps({ typewriterMode: true })
+    await wrapper.vm.$nextTick()
+    animationFrames.shift()?.(0)
+    expect(scrollTop).toBe(110)
+
+    requestFrame.mockRestore()
+    coords.mockRestore()
   })
 })

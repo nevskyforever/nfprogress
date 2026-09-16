@@ -18,6 +18,7 @@ import { progressChangeNotification } from '@/utils/progressNotifications'
 import { gameResponseMessages } from '@/utils/gameNotifications'
 import DocumentConflictResolver from './DocumentConflictResolver.vue'
 import NFDocumentEditor from './editor/NFDocumentEditor.vue'
+import NFEditorStatusControls from './editor/NFEditorStatusControls.vue'
 import { USE_CUSTOM_DOCUMENT_EDITOR } from './editor/editorFeatureFlags'
 import { tiptapLocale } from './tiptapLocale'
 import { useLocaleStore } from '@/stores/locale'
@@ -81,9 +82,6 @@ const textUnits = computed(() => projectEntity.value
   ? convertProjectUnit(textSymbols.value, 'symbols', projectEntity.value.unit)
   : null)
 const entityFractionDigits = computed(() => projectEntity.value?.unit === 'symbols' ? 0 : 2)
-const typewriterTitle = computed(() => t(
-  typewriterMode.value ? 'Выключить режим печатной машинки' : 'Включить режим печатной машинки',
-))
 const entityProgressLabel = computed(() => {
   const entity = projectEntity.value
   if (!entity) return ''
@@ -623,6 +621,8 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
           ref="editorRef"
           :content="content"
           :translate="t"
+          :zoom="zoom"
+          :typewriter-mode="typewriterMode"
           @update="update"
         />
         <TiptapProEditor
@@ -682,32 +682,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
           </span>
         </div>
         <span v-else class="document-editor-view__unit-count">{{ t('Единицы проекта загружаются…') }}</span>
-        <div class="document-editor-view__view-controls">
-          <button
-            type="button"
-            class="document-editor-view__typewriter-toggle"
-            :class="{ 'document-editor-view__typewriter-toggle--active': typewriterMode }"
-            :title="typewriterTitle"
-            :aria-label="typewriterTitle"
-            :aria-pressed="typewriterMode"
-            @click="toggleTypewriterMode"
-          >
-            <svg class="document-editor-view__typewriter-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M7 8.5V4h10v4.5" />
-              <path d="M5.5 8.5h13a3 3 0 0 1 3 3V16h-3v4H5.5v-4h-3v-4.5a3 3 0 0 1 3-3Z" />
-              <path d="M6.5 13h11M7.5 16.5h9" />
-              <circle cx="8" cy="18.5" r=".65" />
-              <circle cx="11" cy="18.5" r=".65" />
-              <circle cx="14" cy="18.5" r=".65" />
-              <circle cx="17" cy="18.5" r=".65" />
-            </svg>
-          </button>
-          <div class="document-editor-view__zoom" role="group" :aria-label="t('Масштаб документа')">
-            <button type="button" :title="t('Уменьшить масштаб')" :aria-label="t('Уменьшить масштаб')" :disabled="zoom <= 70" @click="setZoom(zoom - 10)">−</button>
-            <button type="button" :title="t('Сбросить масштаб')" :aria-label="t('Сбросить масштаб')" @click="setZoom(100)">{{ zoom }}%</button>
-            <button type="button" :title="t('Увеличить масштаб')" :aria-label="t('Увеличить масштаб')" :disabled="zoom >= 500" @click="setZoom(zoom + 10)">+</button>
-          </div>
-        </div>
+        <NFEditorStatusControls :zoom="zoom" :typewriter-mode="typewriterMode" :translate="t" @toggle-typewriter="toggleTypewriterMode" @zoom="setZoom" />
       </footer>
     </div>
     <DocumentConflictResolver v-if="showConflict" @resolve="resolveConflict" />
