@@ -17,6 +17,8 @@ import { announceDataChange, onDataChange } from '@/services/dataChanges'
 import { progressChangeNotification } from '@/utils/progressNotifications'
 import { gameResponseMessages } from '@/utils/gameNotifications'
 import DocumentConflictResolver from './DocumentConflictResolver.vue'
+import NFDocumentEditor from './editor/NFDocumentEditor.vue'
+import { USE_CUSTOM_DOCUMENT_EDITOR } from './editor/editorFeatureFlags'
 import { tiptapLocale } from './tiptapLocale'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -28,7 +30,12 @@ const locale = useLocaleStore()
 const notifications = useNotificationsStore()
 const theme = useThemeStore()
 const t = locale.translate
-const editorRef = shallowRef<TiptapProEditorExpose | null>(null)
+type DocumentEditorExpose = Pick<TiptapProEditorExpose, 'getEditor' | 'getJSON'> & {
+  getScrollContainer?: () => HTMLElement | null
+  setContent?: (content: TiptapDocument | string, emitUpdate?: boolean) => void
+  setSelection?: (position: number) => Promise<void>
+}
+const editorRef = shallowRef<DocumentEditorExpose | null>(null)
 const editorShell = ref<HTMLElement | null>(null)
 const toolbarTarget = ref<HTMLElement | null>(null)
 const showConflict = ref(false)
@@ -136,7 +143,9 @@ function savedEditorPosition(): EditorPosition | null {
   }
 }
 function editorScrollContainer(): HTMLElement | null {
-  return editorShell.value?.querySelector<HTMLElement>('.word-document-container') ?? null
+  return editorRef.value?.getScrollContainer?.()
+    ?? editorShell.value?.querySelector<HTMLElement>('.word-document-container')
+    ?? null
 }
 function continuousSheet(): HTMLElement | null {
   return editorShell.value?.querySelector<HTMLElement>('.continuous-pages') ?? null
@@ -301,6 +310,7 @@ function handleEditorSelectionChange(): void {
   schedulePositionSave()
 }
 function configureKitLocale() {
+  if (USE_CUSTOM_DOCUMENT_EDITOR) return
   // The package's public type only lists bundled locales, while its runtime
   // intentionally accepts host locale keys and message dictionaries.
   createI18n({ locale: 'en-US', messages: tiptapLocale(t) as never })
@@ -336,8 +346,8 @@ function repairEditorSnapshot(snapshot: TiptapDocument): void {
     scheduleEditorPositionRestore(true)
     return
   }
-  // If the kit destroyed its internal editor during the update, recreate the
-  // component from the saved snapshot instead of leaving an empty workspace.
+  // Keep the fallback kit recovery until the custom editor becomes the only
+  // implementation. The custom instance normally remains stable here.
   editorInstanceKey.value += 1
   scheduleEditorPositionRestore(true)
 }
@@ -520,7 +530,9 @@ watch(documentState, async (next) => {
   bindTypewriterEditor()
 })
 watch(() => locale.language, configureKitLocale)
-watch(() => theme.resolved, setWordTheme, { immediate: true })
+watch(() => theme.resolved, (value) => {
+  if (!USE_CUSTOM_DOCUMENT_EDITOR) setWordTheme(value)
+}, { immediate: true })
 watch(zoom, () => {
   if (typewriterMode.value) void nextTick(updateTypewriterTail)
 })
@@ -537,8 +549,8 @@ onMounted(() => {
   stopProjectDataChanges = onDataChange((scope) => {
     if (scope === 'projects') void loadProjectEntity().catch(() => undefined)
   })
-  findToolbarTarget()
-  if (!toolbarTarget.value && editorShell.value) {
+  if (!USE_CUSTOM_DOCUMENT_EDITOR) findToolbarTarget()
+  if (!USE_CUSTOM_DOCUMENT_EDITOR && !toolbarTarget.value && editorShell.value) {
     toolbarObserver = new MutationObserver(findToolbarTarget)
     toolbarObserver.observe(editorShell.value, { childList: true, subtree: true })
   }
@@ -606,8 +618,15 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
     </header>
     <div class="document-editor-view__workspace" @keydown.capture="handleEditorKeydown">
       <div ref="editorShell" class="document-editor-view__editor-shell">
+        <NFDocumentEditor
+          v-if="documentState && USE_CUSTOM_DOCUMENT_EDITOR"
+          ref="editorRef"
+          :content="content"
+          :translate="t"
+          @update="update"
+        />
         <TiptapProEditor
-          v-if="documentState"
+          v-else-if="documentState"
           :key="editorInstanceKey"
           ref="editorRef"
           :initial-content="content"
@@ -619,7 +638,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
           :features="{ headerNav: true, footerNav: false, table: false, tableToolbar: false, image: false, linkBubbleMenu: false, floatingMenu: false, slashCommand: false, dragHandleMenu: false, aiChat: false, aiSettings: false }"
           @update="update"
         />
-        <Teleport v-if="toolbarTarget" :to="toolbarTarget">
+        <Teleport v-if="!USE_CUSTOM_DOCUMENT_EDITOR && toolbarTarget" :to="toolbarTarget">
           <div class="document-editor-view__font-controls">
             <label class="document-editor-view__font-control">
               <select v-model="selectedFontFamily" :aria-label="t('Шрифт')" @change="setFontFamily">

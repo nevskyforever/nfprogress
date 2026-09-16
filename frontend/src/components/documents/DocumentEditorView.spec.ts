@@ -89,6 +89,8 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 
+vi.mock('./editor/editorFeatureFlags', () => ({ USE_CUSTOM_DOCUMENT_EDITOR: false }))
+
 vi.mock('@tauri-apps/api/window', () => ({
   getCurrentWindow: () => ({ destroy: destroyWindow, onCloseRequested }),
 }))
