@@ -4,9 +4,18 @@ set -euo pipefail
 
 ARCH="${1:-}"
 BUILD_PROFILE="${NFPROGRESS_BUILD_PROFILE:-production}"
+TAURI_TARGET_LIMIT_MB="${NFPROGRESS_TAURI_TARGET_MAX_MB:-2048}"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+
+case "$TAURI_TARGET_LIMIT_MB" in
+  ''|*[!0-9]*|0)
+    echo "NFPROGRESS_TAURI_TARGET_MAX_MB должно быть положительным целым числом." >&2
+    exit 2
+    ;;
+esac
+TAURI_TARGET_LIMIT_KB=$((TAURI_TARGET_LIMIT_MB * 1024))
 case "$ARCH" in
   arm)
     TARGET="aarch64-apple-darwin"
@@ -41,6 +50,7 @@ export NFPROGRESS_BUILD_PROFILE="$BUILD_PROFILE"
 WORKSPACE_DIR="$ROOT_DIR/.tauri-build-workspaces/$ARCH"
 FRONTEND_SOURCE_DIR="$ROOT_DIR/frontend"
 FRONTEND_DIR="$WORKSPACE_DIR/frontend"
+WORKSPACE_TARGET_DIR="$FRONTEND_DIR/src-tauri/target"
 
 if [ "$(uname -s)" != "Darwin" ]; then
   echo "Локальная Tauri-сборка macOS должна выполняться на macOS."
@@ -101,6 +111,18 @@ prepare_frontend_workspace() {
 }
 
 prepare_frontend_workspace
+
+if [ -d "$WORKSPACE_TARGET_DIR" ]; then
+  WORKSPACE_TARGET_SIZE_KB="$(du -sk "$WORKSPACE_TARGET_DIR" 2>/dev/null | awk '{print $1}')"
+  if [ -n "$WORKSPACE_TARGET_SIZE_KB" ] \
+    && [ "$WORKSPACE_TARGET_SIZE_KB" -ge "$TAURI_TARGET_LIMIT_KB" ]; then
+    echo "Размер Tauri build target: ${WORKSPACE_TARGET_SIZE_KB} KB; лимит: ${TAURI_TARGET_LIMIT_MB} MB."
+    echo "Старый target изолированной сборки очищается перед запуском."
+    CARGO_TARGET_DIR="$WORKSPACE_TARGET_DIR" \
+      cargo clean --manifest-path "$FRONTEND_DIR/src-tauri/Cargo.toml"
+  fi
+fi
+
 NODE_MODULES_LOCK="$FRONTEND_DIR/node_modules/.package-lock.json"
 if [ ! -f "$NODE_MODULES_LOCK" ] \
   || [ "$FRONTEND_DIR/package.json" -nt "$NODE_MODULES_LOCK" ] \
@@ -169,6 +191,16 @@ find "$BUILD_DIR" -mindepth 1 -maxdepth 1 -type f \
 # bundle that is already contained in the release ZIP.
 if [ "${NFPROGRESS_TAURI_KEEP_BUNDLE:-0}" != "1" ]; then
   rm -rf -- "$FRONTEND_DIR/src-tauri/target/$TARGET/release/bundle"
+fi
+
+# A regular local test build only needs the ZIP in build-tauri-*/. Keep the
+# large Rust target only for explicit release qualification, which inspects the
+# retained app bundle after this script returns.
+if [ "${NFPROGRESS_TAURI_KEEP_BUILD_CACHE:-0}" != "1" ] \
+  && [ "${NFPROGRESS_TAURI_KEEP_BUNDLE:-0}" != "1" ]; then
+  echo "Очищается временный Tauri build target: $WORKSPACE_TARGET_DIR"
+  CARGO_TARGET_DIR="$WORKSPACE_TARGET_DIR" \
+    cargo clean --manifest-path "$FRONTEND_DIR/src-tauri/Cargo.toml"
 fi
 
 echo "✅ Локальная Tauri-сборка завершена: $ARTIFACT_PATH"

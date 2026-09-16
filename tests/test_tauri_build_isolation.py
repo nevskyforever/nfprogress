@@ -53,7 +53,16 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
         fi
         """,
     )
-    _write_executable(bin_dir / 'cargo', '#!/bin/bash\nexit 0\n')
+    _write_executable(
+        bin_dir / 'cargo',
+        """
+        # The local build keeps no Cargo target unless retention is explicit.
+        if [ "${1:-}" = "clean" ] && [ -n "${CARGO_TARGET_DIR:-}" ]; then
+          rm -rf -- "$CARGO_TARGET_DIR"
+        fi
+        exit 0
+        """,
+    )
     _write_executable(
         bin_dir / 'rustup',
         """
@@ -223,6 +232,8 @@ def test_parallel_architecture_builds_use_separate_frontend_workspaces(tmp_path)
     assert not (intel_frontend / 'src-tauri' / 'target' / 'x86_64-apple-darwin' / 'release' / 'bundle').exists()
     assert not (arm_frontend / 'src-tauri' / 'binaries').exists()
     assert not (intel_frontend / 'src-tauri' / 'binaries').exists()
+    assert not (arm_frontend / 'src-tauri' / 'target').exists()
+    assert not (intel_frontend / 'src-tauri' / 'target').exists()
 
 
 def test_test_build_profile_uses_distinct_artifact_prefix(tmp_path):

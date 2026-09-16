@@ -228,7 +228,21 @@ bash "Run Tauri.sh" --check
 
 Перед запуском остановите отдельный npm run dev, если он уже занимает порт
 5173. Первый Tauri dev-start может скомпилировать debug Rust-код, но не создаёт
-production .app, DMG или ZIP.
+production .app, DMG или ZIP. Чтобы debug-артефакты Cargo не накапливались в
+репозитории, скрипт отключает incremental compilation и debug symbols для
+обычного запуска, а Cargo target хранит в macOS-кэше
+`~/Library/Caches/nfprogress/`. Перед стартом кэш и старый
+`frontend/src-tauri/target` очищаются при размере больше 2 GiB. Принудительно
+очистить эти артефакты, включая target в старых
+`.tauri-build-workspaces/`, можно так:
+
+```bash
+bash "Run Tauri.sh" --clean
+```
+
+Порог изменяется через `NFPROGRESS_TAURI_TARGET_MAX_MB`. Удаляются только
+сгенерированные Cargo-артефакты; исходники, данные проектов и пакеты сборки не
+затрагиваются.
 
 Если Web в браузере сообщает об ошибке API, это относится к отдельному Web
 режиму и его FastAPI-процессу. Native Tauri не использует локальный FastAPI,
@@ -264,6 +278,10 @@ ARM. Intel остаётся доступен явно через `Release Tauri 
 `NFPROGRESS_TAURI_INCLUDE_INTEL=1` для отложенной квалификации.
 Для каждой архитектуры создаётся отдельный игнорируемый frontend-workspace в
 `.tauri-build-workspaces/`: в нём свои `node_modules`, Vite-вывод и Tauri target.
+Обычные `Build Tauri` test-сборки удаляют workspace Cargo target после упаковки;
+release qualification сохраняет его явно для проверки `.app`. Переменную
+`NFPROGRESS_TAURI_KEEP_BUILD_CACHE=1` задавайте только если этот кэш нужно
+оставить.
 
 Перед сборкой нормализованная версия из `engine.py` синхронизируется с
 `tauri.conf.json`, `Cargo.toml` и `Cargo.lock` внутри соответствующего
