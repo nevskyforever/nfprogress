@@ -2599,14 +2599,11 @@ fn record_sync_progress(
         delta / goal_symbols * 100.0
     };
     let entry = serde_json::json!({"id":entry_id,"new_total":total,"new_total_symbols":total*factor,"added":total-previous,"added_symbols":delta,"added_progress":added_progress,"created_at":created_at});
-    let mut next = payload.clone();
-    let mut entries = next
-        .get("progress_entries")
-        .and_then(Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    entries.push(entry.clone());
-    next["progress_entries"] = Value::Array(entries);
+    let mut next = payload;
+    crate::strip_progress_history(&mut next, stage_id.is_none());
+    // Progress rows are authoritative in SQLite. Keep the legacy payload
+    // compact so document saves do not copy the complete history.
+    next["progress_entries"] = Value::Array(Vec::new());
     next["total"] = total.into();
     next["updated_at"] = created_at.into();
     let tx = connection.transaction().map_err(|e| e.to_string())?;

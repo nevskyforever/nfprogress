@@ -3959,7 +3959,7 @@ fn dirs_fallback_home() -> Result<PathBuf, String> {
         .ok_or_else(|| "Не удалось определить домашнюю директорию пользователя.".to_string())
 }
 
-fn strip_progress_history(payload: &mut serde_json::Value, strip_nested_stages: bool) {
+pub(crate) fn strip_progress_history(payload: &mut serde_json::Value, strip_nested_stages: bool) {
     if let Some(object) = payload.as_object_mut() {
         object.remove("progress_entries");
         if strip_nested_stages {
@@ -4432,6 +4432,19 @@ mod tests {
         assert!(super::validate_progress_command("p", f64::INFINITY, None).is_err());
         assert!(super::validate_progress_command("p", 1.0, Some("")).is_err());
         assert!(super::validate_progress_command("p", 1.0, Some("s")).is_ok());
+    }
+
+    #[test]
+    fn progress_history_stripping_removes_duplicated_project_and_stage_arrays() {
+        let mut payload = serde_json::json!({
+            "progress_entries": [{"id": "project-entry"}],
+            "stages": [{"progress_entries": [{"id": "stage-entry"}]}],
+        });
+
+        super::strip_progress_history(&mut payload, true);
+
+        assert!(payload.get("progress_entries").is_none());
+        assert!(payload["stages"][0].get("progress_entries").is_none());
     }
 
     #[test]
