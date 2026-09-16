@@ -105,6 +105,9 @@ def _create_build_fixture(tmp_path: Path) -> tuple[Path, Path]:
         """
         #!/bin/bash
         set -euo pipefail
+        if [ "${1:-}" = "-c" ]; then
+          exit 0
+        fi
         if [ "${1:-}" = "-m" ] \
           && [ "${2:-}" = "backend.app" ] \
           && [ "${3:-}" = "--prepare-dev-data" ]; then
