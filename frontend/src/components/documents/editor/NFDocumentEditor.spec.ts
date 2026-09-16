@@ -52,6 +52,43 @@ describe('NFDocumentEditor core', () => {
     expect(wrapper.emitted('update')?.at(-1)?.[0]).toMatchObject(next)
   })
 
+  it('inserts a tab character for plain Tab and leaves modified Tab untouched', async () => {
+    const wrapper = mount(NFDocumentEditor, {
+      props: { content: { type: 'doc', content: [{ type: 'paragraph' }] } },
+    })
+    const api = wrapper.vm as unknown as EditorExpose
+    await wrapper.vm.$nextTick()
+    const editable = api.getEditor()!.view.dom
+
+    const plainTab = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      bubbles: true,
+      cancelable: true,
+    })
+    editable.dispatchEvent(plainTab)
+    expect(plainTab.defaultPrevented).toBe(true)
+    const paragraph = api.getJSON().content?.[0] as {
+      content?: Array<Record<string, unknown>>
+    }
+    expect(paragraph.content?.[0]).toMatchObject({
+      type: 'text',
+      text: '\t',
+    })
+
+    const modifiedTab = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      ctrlKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    editable.dispatchEvent(modifiedTab)
+    expect(modifiedTab.defaultPrevented).toBe(false)
+    const unchangedParagraph = api.getJSON().content?.[0] as {
+      content?: Array<Record<string, unknown>>
+    }
+    expect(unchangedParagraph.content?.[0]).toMatchObject({ text: '\t' })
+  })
+
   it('reflects the selection in the toolbar and applies formatting commands', async () => {
     const wrapper = mount(NFDocumentEditor, { props: { content: formattedDocument } })
     const api = wrapper.vm as unknown as EditorExpose

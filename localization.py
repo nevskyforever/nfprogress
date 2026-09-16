@@ -100,11 +100,24 @@ def _help_article_source(section_key: str) -> str:
 
 _HELP_ARTICLE_SOURCES = {
     key: _help_article_source(key)
-    for key in ("quick_start", "project_list", "settings", "shortcuts")
+    for key in (
+        "quick_start",
+        "project_list",
+        "settings",
+        "shortcuts",
+        "synchronization",
+    )
 }
 
 TRANSLATION_OVERRIDES = {
     "en": {
+        "Абзац": "Paragraph",
+        "Горизонтальная линия": "Horizontal rule",
+        "Панель форматирования": "Formatting toolbar",
+        "Подчёркнутый": "Underline",
+        "Стиль абзаца": "Paragraph style",
+        "Цвет выделения": "Highlight color",
+        "Цитата": "Blockquote",
         "Включить режим печатной машинки": "Enable typewriter mode",
         "Выключить режим печатной машинки": "Disable typewriter mode",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Synchronized: {projects} projects, {stages} stages.",
@@ -427,6 +440,13 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Editing Pass",
     },
     "es": {
+        "Абзац": "Párrafo",
+        "Горизонтальная линия": "Línea horizontal",
+        "Панель форматирования": "Barra de formato",
+        "Подчёркнутый": "Subrayado",
+        "Стиль абзаца": "Estilo de párrafo",
+        "Цвет выделения": "Color de resaltado",
+        "Цитата": "Cita en bloque",
         "Включить режим печатной машинки": "Activar el modo máquina de escribir",
         "Выключить режим печатной машинки": "Desactivar el modo máquina de escribir",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Sincronizados: {projects} proyectos, {stages} etapas.",
@@ -750,6 +770,13 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Pase de edición",
     },
     "de": {
+        "Абзац": "Absatz",
+        "Горизонтальная линия": "Horizontale Linie",
+        "Панель форматирования": "Formatierungsleiste",
+        "Подчёркнутый": "Unterstrichen",
+        "Стиль абзаца": "Absatzformat",
+        "Цвет выделения": "Hervorhebungsfarbe",
+        "Цитата": "Blockzitat",
         "Включить режим печатной машинки": "Schreibmaschinenmodus aktivieren",
         "Выключить режим печатной машинки": "Schreibmaschinenmodus deaktivieren",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Synchronisiert: {projects} Projekte, {stages} Stufen.",
@@ -1074,6 +1101,13 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Überarbeitungsdurchgang",
     },
     "fr": {
+        "Абзац": "Paragraphe",
+        "Горизонтальная линия": "Ligne horizontale",
+        "Панель форматирования": "Barre de mise en forme",
+        "Подчёркнутый": "Souligné",
+        "Стиль абзаца": "Style de paragraphe",
+        "Цвет выделения": "Couleur de surbrillance",
+        "Цитата": "Bloc de citation",
         "Включить режим печатной машинки": "Activer le mode machine à écrire",
         "Выключить режим печатной машинки": "Désactiver le mode machine à écrire",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Synchronisés : {projects} projets, {stages} étapes.",
@@ -1399,6 +1433,13 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Passe de révision",
     },
     "pt_BR": {
+        "Абзац": "Parágrafo",
+        "Горизонтальная линия": "Linha horizontal",
+        "Панель форматирования": "Barra de formatação",
+        "Подчёркнутый": "Sublinhado",
+        "Стиль абзаца": "Estilo de parágrafo",
+        "Цвет выделения": "Cor de destaque",
+        "Цитата": "Citação em bloco",
         "Включить режим печатной машинки": "Ativar o modo máquina de escrever",
         "Выключить режим печатной машинки": "Desativar o modo máquina de escrever",
         "Синхронизировано: {projects} проектов, {stages} этапов.": "Sincronizados: {projects} projetos, {stages} etapas.",
@@ -1724,6 +1765,51 @@ TRANSLATION_OVERRIDES = {
         "Редакторский проход": "Passe de revisão",
     },
 }
+
+# Reuse the established translation of the synchronization article while
+# replacing only the editor-capabilities paragraph.  Keeping the complete
+# current article in the override prevents the translation generator from
+# sending a long HTML document to the external service for this small change.
+_OLD_SYNCHRONIZATION_HELP_SOURCE = next(
+    (
+        source
+        for source in TRANSLATIONS.get("ru", {})
+        if source.startswith(
+            _HELP_ARTICLE_SOURCES["synchronization"].split("</h2>", 1)[0]
+            + "</h2>"
+        )
+        and source != _HELP_ARTICLE_SOURCES["synchronization"]
+        and source.count("<li>") == 7
+    ),
+    "",
+)
+_SYNCHRONIZATION_EDITOR_HELP_ITEMS = {
+    "en": "<li>The built-in editor and linked .docx files use Arial, Georgia, Times New Roman and Courier New; sizes are specified in Word points. It preserves the main paragraph and character formats: headings, lists, blockquotes, alignment, line spacing, font styles, underline, strikethrough, superscript and subscript, tabs, text color and highlighting. Tables, images and links are unavailable in the editor so that exchange with Word remains predictable.</li>\n<li>The built-in editor remembers the cursor position and scrolling separately for each project and source. It returns to that position the next time the document is opened.</li>\n<li>The typewriter button to the left of the zoom controls enables typewriter mode: while typing, a line below the middle of the editor stays approximately centered. Only visual empty space is added after the document end; it is not saved in the text or exported to Word.</li>",
+    "es": "<li>El editor integrado y los archivos .docx vinculados utilizan Arial, Georgia, Times New Roman y Courier New; los tamaños se indican en puntos de Word. Conserva los principales formatos de párrafo y carácter: títulos, listas, citas en bloque, alineación, interlineado, estilos de fuente, subrayado, tachado, superíndice y subíndice, tabulaciones, color de texto y resaltado. Las tablas, imágenes y enlaces no están disponibles en el editor para que el intercambio con Word siga siendo predecible.</li>\n<li>El editor integrado recuerda por separado la posición del cursor y el desplazamiento de cada proyecto y fuente. Vuelve a esa posición la próxima vez que se abre el documento.</li>\n<li>El botón de máquina de escribir situado a la izquierda de los controles de escala activa el modo máquina de escribir: al escribir, una línea situada bajo la mitad del editor permanece aproximadamente centrada. Después del final del documento solo se añade espacio vacío visual; no se guarda en el texto ni se exporta a Word.</li>",
+    "de": "<li>Der integrierte Editor und verknüpfte .docx-Dateien verwenden Arial, Georgia, Times New Roman und Courier New; Größen werden in Word-Punkten angegeben. Die wichtigsten Absatz- und Zeichenformate bleiben erhalten: Überschriften, Listen, Blockzitate, Ausrichtung, Zeilenabstand, Schriftschnitte, Unterstreichung, Durchstreichung, Hoch- und Tiefstellung, Tabulatoren, Textfarbe und Hervorhebung. Tabellen, Bilder und Links sind im Editor nicht verfügbar, damit der Austausch mit Word vorhersehbar bleibt.</li>\n<li>Der integrierte Editor merkt sich Cursorposition und Bildlauf separat für jedes Projekt und jede Quelle. Beim nächsten Öffnen des Dokuments kehrt er an diese Stelle zurück.</li>\n<li>Die Schreibmaschinen-Schaltfläche links von der Zoomsteuerung aktiviert den Schreibmaschinenmodus: Beim Tippen bleibt eine Zeile unterhalb der Editormitte ungefähr zentriert. Nach dem Dokumentende wird nur visueller Leerraum hinzugefügt; er wird weder im Text gespeichert noch nach Word exportiert.</li>",
+    "fr": "<li>L’éditeur intégré et les fichiers .docx liés utilisent Arial, Georgia, Times New Roman et Courier New ; les tailles sont indiquées en points Word. Il conserve les principaux formats de paragraphe et de caractère : titres, listes, blocs de citation, alignement, interligne, styles de police, soulignement, barré, exposant et indice, tabulations, couleur du texte et surlignage. Les tableaux, images et liens ne sont pas disponibles dans l’éditeur afin que l’échange avec Word reste prévisible.</li>\n<li>L’éditeur intégré mémorise séparément la position du curseur et le défilement de chaque projet et source. Il revient à cet emplacement lors de la prochaine ouverture du document.</li>\n<li>Le bouton machine à écrire situé à gauche des commandes de zoom active le mode machine à écrire : pendant la saisie, une ligne située sous le milieu de l’éditeur reste approximativement centrée. Seul un espace vide visuel est ajouté après la fin du document ; il n’est ni enregistré dans le texte ni exporté vers Word.</li>",
+    "pt_BR": "<li>O editor integrado e os arquivos .docx vinculados usam Arial, Georgia, Times New Roman e Courier New; os tamanhos são indicados em pontos do Word. Ele preserva os principais formatos de parágrafo e caractere: títulos, listas, citações em bloco, alinhamento, espaçamento entre linhas, estilos de fonte, sublinhado, tachado, sobrescrito e subscrito, tabulações, cor do texto e destaque. Tabelas, imagens e links não estão disponíveis no editor para que a troca com o Word continue previsível.</li>\n<li>O editor integrado memoriza separadamente a posição do cursor e a rolagem de cada projeto e fonte. Ele retorna a essa posição na próxima vez que o documento é aberto.</li>\n<li>O botão de máquina de escrever à esquerda dos controles de zoom ativa o modo máquina de escrever: durante a digitação, uma linha abaixo do meio do editor permanece aproximadamente centralizada. Depois do fim do documento, apenas um espaço vazio visual é adicionado; ele não é salvo no texto nem exportado para o Word.</li>",
+}
+if _OLD_SYNCHRONIZATION_HELP_SOURCE:
+    _synchronization_item_pattern = re.compile(
+        r"(<ul>\s*<li>.*?</li>\s*)<li>.*?</li>",
+        re.DOTALL,
+    )
+    for _language, _editor_help_item in (
+        _SYNCHRONIZATION_EDITOR_HELP_ITEMS.items()
+    ):
+        _old_help_translation = TRANSLATIONS.get(_language, {}).get(
+            _OLD_SYNCHRONIZATION_HELP_SOURCE,
+            "",
+        )
+        if _old_help_translation:
+            TRANSLATION_OVERRIDES[_language][
+                _HELP_ARTICLE_SOURCES["synchronization"]
+            ] = _synchronization_item_pattern.sub(
+                lambda match: match.group(1) + _editor_help_item,
+                _old_help_translation,
+                count=1,
+            )
 
 # Keep terminology that is shared with the Vue interface in the canonical
 # Python catalog as well, so every client receives the same six dictionaries.

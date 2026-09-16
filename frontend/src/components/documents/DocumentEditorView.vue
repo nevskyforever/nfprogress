@@ -1,14 +1,11 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
-import type { Editor, JSONContent } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
 import { onBeforeRouteLeave, useRouter } from 'vue-router'
-import { createI18n, TiptapProEditor, setTheme, type TiptapProEditorExpose } from 'tiptap-ui-kit'
-import 'tiptap-ui-kit/style.css'
-import 'ant-design-vue/dist/reset.css'
 import { pickDesktopWordFile, pickDesktopWordSavePath } from '@/platform/files'
 import { currentPlatform } from '@/platform/runtime'
 import { useDocumentSync, type ConflictChoice } from '@/composables/useDocumentSync'
-import { exportDocx, WORD_FONT_FAMILIES, WORD_FONT_SIZES } from '@/services/documentDocx'
+import { exportDocx } from '@/services/documentDocx'
 import type { DocumentScope, TiptapDocument } from '@/types/documents'
 import { projectsApi } from '@/api/projects'
 import type { Project } from '@/types/api'
@@ -19,37 +16,29 @@ import { gameResponseMessages } from '@/utils/gameNotifications'
 import DocumentConflictResolver from './DocumentConflictResolver.vue'
 import NFDocumentEditor from './editor/NFDocumentEditor.vue'
 import NFEditorStatusControls from './editor/NFEditorStatusControls.vue'
-import { USE_CUSTOM_DOCUMENT_EDITOR } from './editor/editorFeatureFlags'
-import { tiptapLocale } from './tiptapLocale'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
-import { useThemeStore } from '@/stores/theme'
 
 const props = defineProps<{ scope: DocumentScope; title: string }>()
 const router = useRouter()
 const locale = useLocaleStore()
 const notifications = useNotificationsStore()
-const theme = useThemeStore()
 const t = locale.translate
-type DocumentEditorExpose = Pick<TiptapProEditorExpose, 'getEditor' | 'getJSON'> & {
-  getScrollContainer?: () => HTMLElement | null
-  setContent?: (content: TiptapDocument | string, emitUpdate?: boolean) => void
-  setSelection?: (position: number) => Promise<void>
+type DocumentEditorExpose = {
+  getEditor: () => Editor | null
+  getJSON: () => TiptapDocument
+  getScrollContainer: () => HTMLElement | null
+  setContent: (content: TiptapDocument | string, emitUpdate?: boolean) => void
+  setSelection: (position: number) => Promise<void>
 }
 const editorRef = shallowRef<DocumentEditorExpose | null>(null)
 const editorShell = ref<HTMLElement | null>(null)
-const toolbarTarget = ref<HTMLElement | null>(null)
 const showConflict = ref(false)
 const pendingConflictResolve = ref<((choice: ConflictChoice) => void) | null>(null)
 const editorContent = ref<TiptapDocument>({ type: 'doc', content: [{ type: 'paragraph' }] })
 const projectEntity = ref<Project | null>(null)
 const zoom = ref(100)
 const typewriterMode = ref(false)
-const selectedFontFamily = ref<(typeof WORD_FONT_FAMILIES)[number]>('Arial')
-const selectedFontSize = ref<(typeof WORD_FONT_SIZES)[number]>(12)
-const selectedLineHeight = ref('1.5')
-const editorInstanceKey = ref(0)
-const LINE_HEIGHTS = ['1', '1.15', '1.5', '2'] as const
 const canLinkWord = currentPlatform() === 'tauri'
 const saving = ref(false)
 const recording = ref(false)
@@ -63,20 +52,11 @@ let stopCloseListener: (() => void) | undefined
 let stopProjectDataChanges: (() => void) | undefined
 let projectLoadSequence = 0
 let closeInProgress = false
-let toolbarObserver: MutationObserver | undefined
 let positionSaveTimer: number | undefined
 let positionRestoreTimer: number | undefined
 let hasRestoredEditorPosition = false
-let typewriterResizeObserver: ResizeObserver | undefined
-let observedTypewriterContainer: HTMLElement | null = null
-let typewriterEditor: Editor | null = null
-let typewriterActivationFrame: number | undefined
-let typewriterActivationGeneration = 0
 type EditorPosition = { selection: number; scrollTop: number }
-const TYPEWRITER_RATIO = 0.5
-const TYPEWRITER_EPSILON = 2
 const linked = computed(() => Boolean(documentState.value?.docx_path))
-const editorDocumentId = computed(() => `nfprogress-document:${props.scope.projectId}:${props.scope.stageId ?? 'project'}`)
 const textSymbols = computed(() => countTextSymbols(editorContent.value))
 const textUnits = computed(() => projectEntity.value
   ? convertProjectUnit(textSymbols.value, 'symbols', projectEntity.value.unit)
@@ -122,7 +102,6 @@ const canRecordText = computed(() => Boolean(
   && Math.abs(textUnits.value - projectEntity.value.total) >= 0.009,
 ))
 
-function setWordTheme(value: 'light' | 'dark') { setTheme('word', value) }
 function positionStorageKey(): string {
   return `nfprogress:document-position:${props.scope.projectId}:${props.scope.stageId ?? 'project'}`
 }
@@ -141,118 +120,9 @@ function savedEditorPosition(): EditorPosition | null {
   }
 }
 function editorScrollContainer(): HTMLElement | null {
-  return editorRef.value?.getScrollContainer?.()
-    ?? editorShell.value?.querySelector<HTMLElement>('.word-document-container')
-    ?? null
+  return editorRef.value?.getScrollContainer() ?? null
 }
-function continuousSheet(): HTMLElement | null {
-  return editorShell.value?.querySelector<HTMLElement>('.continuous-pages') ?? null
-}
-function removeTypewriterTail(): void {
-  editorShell.value?.querySelectorAll<HTMLElement>('[data-nf-typewriter-tail]').forEach((tail) => tail.remove())
-}
-function ensureTypewriterTail(): HTMLElement | null {
-  const sheet = continuousSheet()
-  if (!sheet) return null
-  const existing = sheet.querySelector<HTMLElement>('[data-nf-typewriter-tail]')
-  if (existing) return existing
-
-  const tail = document.createElement('div')
-  tail.dataset.nfTypewriterTail = ''
-  tail.setAttribute('aria-hidden', 'true')
-  const content = sheet.querySelector<HTMLElement>('.word-content-multi')
-  if (content) content.after(tail)
-  else sheet.append(tail)
-  return tail
-}
-function updateTypewriterTail(): void {
-  if (!typewriterMode.value) return
-  const container = editorScrollContainer()
-  const sheet = continuousSheet()
-  const tail = ensureTypewriterTail()
-  if (!container || !sheet || !tail) return
-
-  const desiredVisualHeight = container.clientHeight * TYPEWRITER_RATIO
-  const sheetRect = sheet.getBoundingClientRect()
-  const zoomScale = sheet.offsetWidth > 0 && sheetRect.width > 0
-    ? sheetRect.width / sheet.offsetWidth
-    : 1
-  let layoutHeight = desiredVisualHeight / zoomScale
-  tail.style.height = `${layoutHeight}px`
-
-  const actualVisualHeight = tail.getBoundingClientRect().height
-  if (actualVisualHeight > 0 && Math.abs(actualVisualHeight - desiredVisualHeight) > TYPEWRITER_EPSILON) {
-    layoutHeight *= desiredVisualHeight / actualVisualHeight
-    tail.style.height = `${layoutHeight}px`
-  }
-}
-function trackTypewriterCaret(): void {
-  if (!typewriterMode.value) return
-  updateTypewriterTail()
-  const editor = editorRef.value?.getEditor()
-  const container = editorScrollContainer()
-  if (!editor || !container) return
-  try {
-    const coords = editor.view.coordsAtPos(editor.state.selection.from)
-    const caretCenter = (coords.top + coords.bottom) / 2
-    const targetY = container.getBoundingClientRect().top + container.clientHeight * TYPEWRITER_RATIO
-    if (caretCenter >= targetY - TYPEWRITER_EPSILON) container.scrollTop += caretCenter - targetY
-  } catch {
-    // The editor can briefly recreate its view while loading a document.
-  }
-}
-function scheduleTypewriterTracking(): void {
-  if (!typewriterMode.value) return
-  void nextTick(trackTypewriterCaret)
-}
-function cancelTypewriterActivation(): void {
-  typewriterActivationGeneration += 1
-  if (typewriterActivationFrame !== undefined) {
-    window.cancelAnimationFrame(typewriterActivationFrame)
-    typewriterActivationFrame = undefined
-  }
-}
-function scheduleTypewriterActivation(): void {
-  const generation = ++typewriterActivationGeneration
-  void nextTick(() => {
-    if (!typewriterMode.value || generation !== typewriterActivationGeneration) return
-    observeTypewriterContainer()
-    bindTypewriterEditor()
-    updateTypewriterTail()
-    typewriterActivationFrame = window.requestAnimationFrame(() => {
-      typewriterActivationFrame = undefined
-      if (!typewriterMode.value || generation !== typewriterActivationGeneration) return
-      updateTypewriterTail()
-      trackTypewriterCaret()
-    })
-  })
-}
-function bindTypewriterEditor(): void {
-  const editor = editorRef.value?.getEditor()
-  if (!editor || editor === typewriterEditor) return
-  typewriterEditor?.off('update', scheduleTypewriterTracking)
-  editor.on('update', scheduleTypewriterTracking)
-  typewriterEditor = editor
-}
-function observeTypewriterContainer(): void {
-  const container = editorScrollContainer()
-  if (container === observedTypewriterContainer) return
-  typewriterResizeObserver?.disconnect()
-  typewriterResizeObserver = undefined
-  observedTypewriterContainer = container
-  if (!container || typeof ResizeObserver === 'undefined') return
-  typewriterResizeObserver = new ResizeObserver(updateTypewriterTail)
-  typewriterResizeObserver.observe(container)
-}
-function toggleTypewriterMode(): void {
-  typewriterMode.value = !typewriterMode.value
-  if (!typewriterMode.value) {
-    cancelTypewriterActivation()
-    removeTypewriterTail()
-    return
-  }
-  scheduleTypewriterActivation()
-}
+function toggleTypewriterMode(): void { typewriterMode.value = !typewriterMode.value }
 function saveEditorPosition(): void {
   const editor = editorRef.value?.getEditor()
   if (!editor) return
@@ -307,21 +177,12 @@ function handleEditorSelectionChange(): void {
   if (!anchor || !editorShell.value?.contains(anchor)) return
   schedulePositionSave()
 }
-function configureKitLocale() {
-  if (USE_CUSTOM_DOCUMENT_EDITOR) return
-  // The package's public type only lists bundled locales, while its runtime
-  // intentionally accepts host locale keys and message dictionaries.
-  createI18n({ locale: 'en-US', messages: tiptapLocale(t) as never })
-}
-function update(next: JSONContent) {
-  const json = next as TiptapDocument
-  // The editor kit can emit an empty document while it refreshes after an
-  // asynchronous save. That value is not a user edit and must not replace the
-  // draft that was just recorded.
+function update(json: TiptapDocument) {
+  // Never allow an asynchronous save/record cycle to replace a non-empty
+  // draft with a transient empty snapshot.
   if (processing.value && countTextSymbols(json) === 0 && countTextSymbols(editorContent.value) > 0) return
   editorContent.value = json
   scheduleSave(json)
-  scheduleTypewriterTracking()
 }
 function captureEditorContent(): TiptapDocument {
   const latest = editorRef.value?.getJSON()
@@ -342,12 +203,7 @@ function repairEditorSnapshot(snapshot: TiptapDocument): void {
   if (editor) {
     editor.commands.setContent(snapshot, { emitUpdate: false })
     scheduleEditorPositionRestore(true)
-    return
   }
-  // Keep the fallback kit recovery until the custom editor becomes the only
-  // implementation. The custom instance normally remains stable here.
-  editorInstanceKey.value += 1
-  scheduleEditorPositionRestore(true)
 }
 function countTextSymbols(value: unknown): number {
   if (!value || typeof value !== 'object') return 0
@@ -356,20 +212,6 @@ function countTextSymbols(value: unknown): number {
     + (Array.isArray(node.content) ? node.content.reduce((total, child) => total + countTextSymbols(child), 0) : 0)
 }
 function setZoom(next: number) { zoom.value = Math.min(500, Math.max(70, next)) }
-function setFontFamily(): void {
-  editorRef.value?.getEditor()?.chain().focus().setMark('textStyle', { fontFamily: selectedFontFamily.value }).run()
-}
-function setFontSize(): void {
-  editorRef.value?.getEditor()?.chain().focus().setMark('textStyle', { fontSize: `${selectedFontSize.value}pt` }).run()
-}
-function setLineHeight(): void {
-  const editor = editorRef.value?.getEditor()
-  if (!editor) return
-  // The kit registers this command at runtime but does not expose it in its
-  // public chained-command type.
-  const commands = editor.chain() as unknown as { focus: () => { setLineHeight: (value: string) => { run: () => void } } }
-  commands.focus().setLineHeight(selectedLineHeight.value).run()
-}
 async function loadProjectEntity() {
   const sequence = ++projectLoadSequence
   try {
@@ -465,15 +307,6 @@ function handleEscape(event: KeyboardEvent): void {
   event.preventDefault()
   closeEditor()
 }
-function handleEditorKeydown(event: KeyboardEvent): void {
-  if (event.key !== 'Tab' || event.altKey || event.ctrlKey || event.metaKey) return
-  const target = event.target
-  if (!(target instanceof Element) || !target.closest('.ProseMirror[contenteditable="true"]')) return
-
-  event.preventDefault()
-  event.stopPropagation()
-  editorRef.value?.getEditor()?.commands.insertContent({ type: 'text', text: '\t' })
-}
 async function importExternal() {
   const external = await checkExternal()
   if (!external || !editorRef.value) return
@@ -511,47 +344,22 @@ async function exportWord() {
 }
 function importWord() { const input = document.createElement('input'); input.type = 'file'; input.accept = '.docx'; input.onchange = async () => { const file = input.files?.[0]; if (!file || !editorRef.value) return; if (currentPlatform() === 'tauri') { const parsed = await (await import('@/api/documents')).documentsApi.parseWord(new Uint8Array(await file.arrayBuffer()), file.name); setContent(parsed.content); editorRef.value.getEditor()?.commands.setContent(parsed.content); return } const { importDocx } = await import('@/services/documentDocx'); const html = await importDocx(await file.arrayBuffer()); editorRef.value.getEditor()?.commands.setContent(html) }; input.click() }
 
-function findToolbarTarget(): void {
-  const toolbar = editorShell.value?.querySelector<HTMLElement>('.word-toolbar')
-  if (!toolbar) return
-  toolbarTarget.value = toolbar
-  toolbarObserver?.disconnect()
-  toolbarObserver = undefined
-}
-
 watch(content, (next) => { editorContent.value = next }, { deep: true })
 watch(documentState, async (next) => {
   if (!next) return
   await nextTick()
   scheduleEditorPositionRestore()
-  observeTypewriterContainer()
-  bindTypewriterEditor()
 })
-watch(() => locale.language, configureKitLocale)
-watch(() => theme.resolved, (value) => {
-  if (!USE_CUSTOM_DOCUMENT_EDITOR) setWordTheme(value)
-}, { immediate: true })
-watch(zoom, () => {
-  if (typewriterMode.value) void nextTick(updateTypewriterTail)
-})
-configureKitLocale()
 onMounted(() => {
   window.addEventListener('keydown', handleEscape, true)
   window.addEventListener('pagehide', saveEditorPosition)
   document.addEventListener('selectionchange', handleEditorSelectionChange)
   editorShell.value?.addEventListener('scroll', schedulePositionSave, true)
-  window.addEventListener('resize', updateTypewriterTail)
-  void nextTick(bindTypewriterEditor)
   externalTimer = window.setInterval(() => void importExternal().catch(() => undefined), 5000)
   void loadProjectEntity().catch(() => undefined)
   stopProjectDataChanges = onDataChange((scope) => {
     if (scope === 'projects') void loadProjectEntity().catch(() => undefined)
   })
-  if (!USE_CUSTOM_DOCUMENT_EDITOR) findToolbarTarget()
-  if (!USE_CUSTOM_DOCUMENT_EDITOR && !toolbarTarget.value && editorShell.value) {
-    toolbarObserver = new MutationObserver(findToolbarTarget)
-    toolbarObserver.observe(editorShell.value, { childList: true, subtree: true })
-  }
   if (window.__TAURI_INTERNALS__) {
     void import('@tauri-apps/api/window').then(async ({ getCurrentWindow }) => {
       stopCloseListener = await getCurrentWindow().onCloseRequested(async (event) => {
@@ -576,21 +384,11 @@ onBeforeUnmount(() => {
   window.removeEventListener('pagehide', saveEditorPosition)
   document.removeEventListener('selectionchange', handleEditorSelectionChange)
   editorShell.value?.removeEventListener('scroll', schedulePositionSave, true)
-  window.removeEventListener('resize', updateTypewriterTail)
   if (positionSaveTimer !== undefined) window.clearTimeout(positionSaveTimer)
   if (positionRestoreTimer !== undefined) window.clearTimeout(positionRestoreTimer)
   saveEditorPosition()
   window.clearInterval(externalTimer)
   projectLoadSequence += 1
-  toolbarObserver?.disconnect()
-  toolbarObserver = undefined
-  typewriterResizeObserver?.disconnect()
-  typewriterResizeObserver = undefined
-  observedTypewriterContainer = null
-  cancelTypewriterActivation()
-  typewriterEditor?.off('update', scheduleTypewriterTracking)
-  typewriterEditor = null
-  removeTypewriterTail()
   stopProjectDataChanges?.()
   stopCloseListener?.()
 })
@@ -614,49 +412,18 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
         <button v-if="canLinkWord" class="nf-button nf-button--secondary" type="button" title="Связать документ с локальным файлом Word" aria-label="Связать документ с локальным файлом Word" @click="linkWord">{{ linked ? 'Файл Word связан' : 'Связать с Word' }}</button>
       </div>
     </header>
-    <div class="document-editor-view__workspace" @keydown.capture="handleEditorKeydown">
+    <div class="document-editor-view__workspace">
       <div ref="editorShell" class="document-editor-view__editor-shell">
         <NFDocumentEditor
-          v-if="documentState && USE_CUSTOM_DOCUMENT_EDITOR"
+          v-if="documentState"
           ref="editorRef"
+          class="document-editor-view__custom-editor"
           :content="content"
           :translate="t"
           :zoom="zoom"
           :typewriter-mode="typewriterMode"
           @update="update"
         />
-        <TiptapProEditor
-          v-else-if="documentState"
-          :key="editorInstanceKey"
-          ref="editorRef"
-          :initial-content="content"
-          class="nfprogress-word-editor"
-          :style="{ '--nf-editor-zoom': `${zoom / 100}` }"
-          version="advanced"
-          locale="en-US"
-          :document-id="editorDocumentId"
-          :features="{ headerNav: true, footerNav: false, table: false, tableToolbar: false, image: false, linkBubbleMenu: false, floatingMenu: false, slashCommand: false, dragHandleMenu: false, aiChat: false, aiSettings: false }"
-          @update="update"
-        />
-        <Teleport v-if="!USE_CUSTOM_DOCUMENT_EDITOR && toolbarTarget" :to="toolbarTarget">
-          <div class="document-editor-view__font-controls">
-            <label class="document-editor-view__font-control">
-              <select v-model="selectedFontFamily" :aria-label="t('Шрифт')" @change="setFontFamily">
-                <option v-for="font in WORD_FONT_FAMILIES" :key="font" :value="font">{{ font }}</option>
-              </select>
-            </label>
-            <label class="document-editor-view__font-control">
-              <select v-model="selectedFontSize" :aria-label="t('Размер текста')" @change="setFontSize">
-                <option v-for="size in WORD_FONT_SIZES" :key="size" :value="size">{{ size }} pt</option>
-              </select>
-            </label>
-            <label class="document-editor-view__font-control">
-              <select v-model="selectedLineHeight" :aria-label="t('Межстрочный интервал')" @change="setLineHeight">
-                <option v-for="lineHeight in LINE_HEIGHTS" :key="lineHeight" :value="lineHeight">{{ lineHeight }}</option>
-              </select>
-            </label>
-          </div>
-        </Teleport>
       </div>
       <footer class="document-editor-view__statusbar" aria-label="Статус документа">
         <div v-if="projectEntity" class="document-editor-view__status-info">
@@ -690,11 +457,126 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
 </template>
 
 <style scoped>
-.document-editor-view{width:min(100%,88rem);margin:0 auto;padding:var(--nf-space-5);color:var(--nf-color-text)}.document-editor-view__header{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.75rem}.document-editor-view__title{display:grid;gap:.35rem}.document-editor-view__back{display:inline-flex;align-items:center;width:max-content;min-height:2rem;padding:0 .45rem;color:var(--nf-color-text-muted);font:inherit;font-size:.85rem;font-weight:700;cursor:pointer;background:transparent;border:0;border-radius:var(--nf-radius-sm)}.document-editor-view__back:hover,.document-editor-view__back:focus-visible{color:var(--nf-color-text);background:color-mix(in srgb,var(--nf-color-primary) 10%,transparent);outline:none}.document-editor-view__header h1,.document-editor-view__eyebrow{margin:0}.document-editor-view__eyebrow{color:var(--nf-color-text-muted);font-size:.78rem;font-weight:800;text-transform:uppercase}.document-editor-view__actions{display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-end;gap:.5rem}.document-editor-view__actions span{font-size:.82rem;color:var(--nf-color-text-muted)}.document-editor-view__font-control select{height:2rem;padding:0 .45rem;color:var(--nf-color-text);font:inherit;font-size:.85rem;background:var(--nf-color-canvas);border:1px solid var(--nf-color-border);border-radius:var(--nf-radius-sm)}.nfprogress-word-editor{--tiptap-bg:var(--nf-color-surface);--tiptap-bg-secondary:var(--nf-color-canvas);--tiptap-bg-hover:color-mix(in srgb,var(--nf-color-primary) 10%,var(--nf-color-surface));--tiptap-toolbar-bg:var(--nf-color-surface);--tiptap-text:var(--nf-color-text);--tiptap-text-secondary:var(--nf-color-text-muted);--tiptap-border:var(--nf-color-border);--tiptap-border-hover:var(--nf-color-primary);--tiptap-border-focus:var(--nf-color-primary);--tiptap-primary:var(--nf-color-primary);--tiptap-primary-hover:var(--nf-color-primary);--tiptap-link:var(--nf-color-primary);min-height:calc(100dvh - 11rem);border:1px solid var(--nf-color-border);border-radius:var(--nf-radius-lg);overflow:hidden;background:var(--nf-color-canvas);box-shadow:var(--nf-shadow-card)}.nfprogress-word-editor :deep(.word-toolbar){display:flex;flex-wrap:nowrap;align-items:center;min-height:46px;max-height:50px;padding:4px 8px!important;overflow-x:auto;overflow-y:hidden;background:var(--nf-color-surface)!important;border-bottom-color:var(--nf-color-border)!important;scrollbar-width:thin}.nfprogress-word-editor :deep(.editor-toolbar),.nfprogress-word-editor :deep(.toolbar-left){display:flex;flex:0 0 auto;flex-wrap:nowrap;align-items:center}.nfprogress-word-editor :deep(.toolbar-left>.tool-group:nth-child(4)),.nfprogress-word-editor :deep(.toolbar-left>.tool-group:nth-child(6)),.nfprogress-word-editor :deep(.toolbar-left>.tool-group:nth-child(9)),.nfprogress-word-editor :deep(.toolbar-left>.tool-group:nth-child(11)),.nfprogress-word-editor :deep(.toolbar-left>.tool-group:nth-child(12)),.nfprogress-word-editor :deep(.toolbar-left>.tool-group:nth-child(13)),.nfprogress-word-editor :deep(.toolbar-left>.tool-group:nth-child(5) .tt-toolbar-button:last-child),.nfprogress-word-editor :deep(.toolbar-left>.tool-group:nth-child(7) .tt-toolbar-button:last-child){display:none!important}.nfprogress-word-editor :deep(.tt-toolbar-button),.nfprogress-word-editor :deep(.tt-dropdown-btn){min-width:32px!important;height:32px!important;color:var(--nf-color-text)!important;border-radius:var(--nf-radius-sm)!important}.nfprogress-word-editor :deep(.tt-toolbar-button:hover),.nfprogress-word-editor :deep(.tt-dropdown-btn:hover){background:var(--tiptap-bg-hover)!important}.nfprogress-word-editor :deep(.word-document-container){min-height:calc(100dvh - 16rem);padding:1.5rem;background:var(--nf-color-canvas)!important;overflow:auto}.nfprogress-word-editor :deep(.document-pages){display:block!important;width:100%!important;margin:0 auto!important;transform:none!important;transform-origin:top center}.nfprogress-word-editor :deep(.continuous-pages){box-sizing:border-box;width:min(850px,100%)!important;max-width:850px!important;min-height:1120px;margin:0 auto!important;padding:5rem 5.5rem!important;zoom:var(--nf-editor-zoom,1);background:color-mix(in srgb,var(--nf-color-surface) 82%,white)!important;color:var(--nf-color-text)!important;box-shadow:0 3px 18px rgb(0 0 0 / 18%)!important}.nfprogress-word-editor :deep(.word-content-multi .ProseMirror){box-sizing:border-box;width:100%;min-height:1000px;padding:0!important;color:var(--nf-color-text)!important;background:transparent!important;font-family:Arial,sans-serif!important;font-size:12pt!important;line-height:1.5}.nfprogress-word-editor :deep(.template-list),.nfprogress-word-editor :deep(.gallery-grid){display:none!important}.nfprogress-word-editor :deep(.ant-upload-wrapper){max-width:26rem}.nfprogress-word-editor :deep(.ant-dropdown-menu),.nfprogress-word-editor :deep(.ant-select-dropdown){font-family:var(--nf-font-sans)}.document-editor-view__statusbar{display:flex;align-items:center;justify-content:space-between;gap:1rem;min-height:2.8rem;padding:.35rem .65rem;color:var(--nf-color-text-muted);font-size:.82rem;background:var(--nf-color-surface);border:1px solid var(--nf-color-border);border-top:0;border-radius:0 0 var(--nf-radius-lg) var(--nf-radius-lg)}.document-editor-view__unit-count strong{color:var(--nf-color-text)}.document-editor-view__zoom{display:inline-flex;align-items:center;overflow:hidden;border:1px solid var(--nf-color-border);border-radius:var(--nf-radius-sm)}.document-editor-view__zoom button{min-width:2rem;min-height:1.8rem;padding:0 .45rem;color:var(--nf-color-text);font:inherit;font-size:.8rem;font-weight:700;cursor:pointer;background:transparent;border:0}.document-editor-view__zoom button+button{border-left:1px solid var(--nf-color-border)}.document-editor-view__zoom button:hover:not(:disabled),.document-editor-view__zoom button:focus-visible{background:color-mix(in srgb,var(--nf-color-primary) 12%,transparent);outline:none}.document-editor-view__zoom button:disabled{color:var(--nf-color-text-muted);cursor:not-allowed;opacity:.55}@media(max-width:44rem){.document-editor-view{padding:var(--nf-space-3)}.document-editor-view__header{align-items:flex-start;flex-direction:column}.document-editor-view__actions{justify-content:flex-start}.nfprogress-word-editor{min-height:calc(100dvh - 15rem)}.nfprogress-word-editor :deep(.word-document-container){padding:.5rem}.nfprogress-word-editor :deep(.continuous-pages){min-height:calc(100dvh - 16rem);padding:2rem 1.25rem!important;box-shadow:none!important}.nfprogress-word-editor :deep(.word-content-multi .ProseMirror){min-height:calc(100dvh - 20rem)}.document-editor-view__statusbar{align-items:flex-start;flex-direction:column}.document-editor-view__zoom{align-self:flex-end}}
-.document-editor-view__workspace{display:flex;height:calc(100dvh - 12rem);min-height:30rem;flex-direction:column}.document-editor-view__editor-shell{display:flex;flex:1;min-height:0}.document-editor-view__font-controls{display:flex;order:-1;flex:0 0 auto;align-items:center;gap:.4rem;margin-right:.5rem;padding:0 .65rem 0 0;background:var(--nf-color-surface);border-right:1px solid var(--nf-color-border)}.document-editor-view__font-controls .document-editor-view__font-control select{height:32px}.nfprogress-word-editor{flex:1;min-height:0!important;height:auto!important;border-radius:var(--nf-radius-lg) var(--nf-radius-lg) 0 0}.document-editor-view__statusbar{position:relative;z-index:11;flex-shrink:0}@media(max-width:44rem){.document-editor-view__workspace{height:calc(100dvh - 16rem);min-height:24rem}}
-.document-editor-view__status-info{display:flex;align-items:center;flex-wrap:wrap;gap:1rem;min-width:0}.document-editor-view__today-goal{display:inline-flex;align-items:center;gap:.45rem}.document-editor-view__today-goal--complete{color:var(--nf-color-success);font-weight:700}.document-editor-view__today-goal strong{color:var(--nf-color-text)}.document-editor-view__today-goal-progress{display:block;width:4.5rem;height:.36rem;overflow:hidden;background:color-mix(in srgb,var(--nf-color-primary) 18%,var(--nf-color-canvas));border-radius:var(--nf-radius-pill)}.document-editor-view__today-goal-progress-fill{display:block;height:100%;background:var(--nf-color-primary);border-radius:inherit;transition:width .4s ease-out}.document-editor-view__today-goal--complete .document-editor-view__today-goal-progress-fill{background:var(--nf-color-success)}
-.nfprogress-word-editor :deep(.word-content-multi .ProseMirror.ProseMirror-focused) { caret-color: var(--nf-color-primary) !important; }
-.nfprogress-word-editor :deep([data-nf-typewriter-tail]){display:block;box-sizing:border-box;width:100%;pointer-events:none}
-.nfprogress-word-editor :deep(.word-document-container){scrollbar-gutter:stable}
-.document-editor-view__view-controls{display:inline-flex;flex:0 0 auto;align-items:center;gap:.4rem}.document-editor-view__typewriter-toggle{display:inline-grid;place-items:center;box-sizing:border-box;flex:0 0 auto;width:2rem;height:1.8rem;padding:0;color:var(--nf-color-text);cursor:pointer;background:transparent;border:1px solid var(--nf-color-border);border-radius:var(--nf-radius-sm)}.document-editor-view__typewriter-toggle:hover,.document-editor-view__typewriter-toggle:focus-visible{background:color-mix(in srgb,var(--nf-color-primary) 12%,transparent);outline:none}.document-editor-view__typewriter-toggle--active{color:var(--nf-color-primary);background:color-mix(in srgb,var(--nf-color-primary) 16%,transparent);border-color:var(--nf-color-primary)}.document-editor-view__typewriter-icon{width:1.1rem;height:1.1rem;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.6}
+.document-editor-view {
+  width: min(100%, 88rem);
+  margin: 0 auto;
+  padding: var(--nf-space-5);
+  color: var(--nf-color-text);
+}
+.document-editor-view__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: .75rem;
+}
+.document-editor-view__title { display: grid; gap: .35rem; }
+.document-editor-view__back {
+  display: inline-flex;
+  align-items: center;
+  width: max-content;
+  min-height: 2rem;
+  padding: 0 .45rem;
+  color: var(--nf-color-text-muted);
+  font: inherit;
+  font-size: .85rem;
+  font-weight: 700;
+  cursor: pointer;
+  background: transparent;
+  border: 0;
+  border-radius: var(--nf-radius-sm);
+}
+.document-editor-view__back:hover,
+.document-editor-view__back:focus-visible {
+  color: var(--nf-color-text);
+  background: color-mix(in srgb, var(--nf-color-primary) 10%, transparent);
+  outline: none;
+}
+.document-editor-view__header h1,
+.document-editor-view__eyebrow { margin: 0; }
+.document-editor-view__eyebrow {
+  color: var(--nf-color-text-muted);
+  font-size: .78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.document-editor-view__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .5rem;
+}
+.document-editor-view__actions span { color: var(--nf-color-text-muted); font-size: .82rem; }
+.document-editor-view__workspace {
+  display: flex;
+  height: calc(100dvh - 12rem);
+  min-height: 30rem;
+  flex-direction: column;
+}
+.document-editor-view__editor-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--nf-color-canvas);
+  border: 1px solid var(--nf-color-border);
+  border-radius: var(--nf-radius-lg) var(--nf-radius-lg) 0 0;
+  box-shadow: var(--nf-shadow-card);
+}
+.document-editor-view__custom-editor { flex: 1; min-height: 0; }
+.document-editor-view__statusbar {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 2.8rem;
+  padding: .35rem .65rem;
+  color: var(--nf-color-text-muted);
+  font-size: .82rem;
+  background: var(--nf-color-surface);
+  border: 1px solid var(--nf-color-border);
+  border-top: 0;
+  border-radius: 0 0 var(--nf-radius-lg) var(--nf-radius-lg);
+}
+.document-editor-view__unit-count strong,
+.document-editor-view__today-goal strong { color: var(--nf-color-text); }
+.document-editor-view__status-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-width: 0;
+  gap: 1rem;
+}
+.document-editor-view__today-goal { display: inline-flex; align-items: center; gap: .45rem; }
+.document-editor-view__today-goal--complete { color: var(--nf-color-success); font-weight: 700; }
+.document-editor-view__today-goal-progress {
+  display: block;
+  width: 4.5rem;
+  height: .36rem;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--nf-color-primary) 18%, var(--nf-color-canvas));
+  border-radius: var(--nf-radius-pill);
+}
+.document-editor-view__today-goal-progress-fill {
+  display: block;
+  height: 100%;
+  background: var(--nf-color-primary);
+  border-radius: inherit;
+  transition: width .4s ease-out;
+}
+.document-editor-view__today-goal--complete .document-editor-view__today-goal-progress-fill {
+  background: var(--nf-color-success);
+}
+@media (max-width: 44rem) {
+  .document-editor-view { padding: var(--nf-space-3); }
+  .document-editor-view__header { align-items: flex-start; flex-direction: column; }
+  .document-editor-view__actions { justify-content: flex-start; }
+  .document-editor-view__workspace { height: calc(100dvh - 16rem); min-height: 24rem; }
+  .document-editor-view__statusbar { align-items: flex-start; flex-direction: column; }
+  .document-editor-view__custom-editor { min-width: 0; }
+}
 </style>

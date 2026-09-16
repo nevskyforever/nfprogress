@@ -12,15 +12,9 @@ import DocumentEditorView from './DocumentEditorView.vue'
 const { onBeforeRouteLeave } = vi.hoisted(() => ({ onBeforeRouteLeave: vi.fn() }))
 const positionStorage = new Map<string, string>()
 
-vi.mock('./editor/editorFeatureFlags', () => ({ USE_CUSTOM_DOCUMENT_EDITOR: true }))
 vi.mock('vue-router', () => ({
   onBeforeRouteLeave,
   useRouter: () => ({ push: vi.fn() }),
-}))
-vi.mock('tiptap-ui-kit', () => ({
-  createI18n: vi.fn(),
-  setTheme: vi.fn(),
-  TiptapProEditor: { template: '<div />' },
 }))
 vi.mock('@/api/projects', () => ({ projectsApi: { get: vi.fn() } }))
 vi.mock('@/api/documents', () => ({
@@ -64,8 +58,8 @@ type CustomEditorExpose = {
   setContent: (content: TiptapDocument, emitUpdate?: boolean) => void
 }
 
-function mountEditor() {
-  vi.mocked(projectsApi.get).mockResolvedValue(projectFixture())
+function mountEditor(project = projectFixture()) {
+  vi.mocked(projectsApi.get).mockResolvedValue(project)
   vi.mocked(documentsApi.get).mockResolvedValue(documentFixture)
   vi.mocked(documentsApi.save).mockResolvedValue(documentFixture)
   return mount(DocumentEditorView, {
@@ -88,6 +82,7 @@ describe('DocumentEditorView custom editor integration', () => {
     })
     vi.mocked(documentsApi.get).mockReset()
     vi.mocked(documentsApi.save).mockReset()
+    vi.mocked(documentsApi.recordProgress).mockReset()
     vi.mocked(documentsApi.external).mockReset()
     vi.mocked(projectsApi.get).mockReset()
   })
@@ -129,6 +124,49 @@ describe('DocumentEditorView custom editor integration', () => {
     const api = wrapper.getComponent(NFDocumentEditor).vm as unknown as CustomEditorExpose
     expect(api.getSelection()).toBe(4)
     expect(api.getScrollContainer()?.scrollTop).toBe(37)
+    wrapper.unmount()
+  })
+
+  it('keeps document and daily-goal progress in the shared status bar', async () => {
+    const wrapper = mountEditor(projectFixture({
+      total: 0,
+      goal: 100,
+      today_goal: 100,
+      plan_daily_goal: 100,
+      added_today: 40,
+    }))
+    await flushPromises()
+
+    expect(wrapper.get('.document-editor-view__unit-count').text()).toContain('14 / 100')
+    expect(wrapper.get('[role="progressbar"]').attributes('aria-valuenow')).toBe('54')
+    wrapper.unmount()
+  })
+
+  it('records the exact current editor snapshot through the existing progress flow', async () => {
+    vi.mocked(documentsApi.recordProgress).mockResolvedValue({
+      changed: true,
+      symbols: 8,
+      progress: null,
+      document: documentFixture,
+    })
+    const wrapper = mountEditor(projectFixture({ total: 0 }))
+    await flushPromises()
+    const api = wrapper.getComponent(NFDocumentEditor).vm as unknown as CustomEditorExpose
+    const next: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Черновик' }] }],
+    }
+    api.setContent(next, true)
+    await wrapper.vm.$nextTick()
+
+    const recordButton = wrapper.findAll('button').find((button) => button.text().includes('Добавить запись'))
+    expect(recordButton).toBeDefined()
+    await recordButton!.trigger('click')
+    await flushPromises()
+
+    expect(documentsApi.recordProgress).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(documentsApi.recordProgress).mock.calls[0]?.[0]).toEqual({ projectId: 'project-id' })
+    expect(vi.mocked(documentsApi.recordProgress).mock.calls[0]?.[1]).toMatchObject(next)
     wrapper.unmount()
   })
 })

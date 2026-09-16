@@ -66,7 +66,6 @@
     "ionicons": "8.0.13",
     "mammoth": "1.12.2",
     "pinia": "4.0.3",
-    "tiptap-ui-kit": "0.2.0",
     "vue": "3.5.41",
     "vue-router": "4.6.4"
   },
