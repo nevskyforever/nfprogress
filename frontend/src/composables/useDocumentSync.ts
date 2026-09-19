@@ -72,6 +72,11 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     if (!documentState.value?.docx_path) return
     const external = await documentsApi.external(scope)
     if (!external.content_base64 || !external.hash) return
+    // Native writes persist their resulting file hash. Even if a delayed or
+    // stale polling response still includes the bytes, never parse and apply
+    // the exact version NFProgress has just written or already accepted.
+    if (external.hash === documentState.value.last_synced_hash) return
+    if (!['external_changed', 'word_changed', 'conflict'].includes(external.state)) return
     if (external.state === 'conflict') {
       const choice = await onConflict()
       if (choice === 'nfprogress') { await writeLinkedWord(); return undefined }

@@ -37,8 +37,45 @@ const showConflict = ref(false)
 const pendingConflictResolve = ref<((choice: ConflictChoice) => void) | null>(null)
 const editorContent = ref<TiptapDocument>({ type: 'doc', content: [{ type: 'paragraph' }] })
 const projectEntity = ref<Project | null>(null)
-const zoom = ref(100)
-const typewriterMode = ref(false)
+type EditorViewState = {
+  version: 1
+  selection: number
+  scrollTop: number
+  zoom: number
+  typewriterMode: boolean
+}
+function positionStorageKey(): string {
+  return `nfprogress:document-position:${props.scope.projectId}:${props.scope.stageId ?? 'project'}`
+}
+function savedEditorViewState(): EditorViewState | null {
+  try {
+    const stored = JSON.parse(localStorage.getItem(positionStorageKey()) ?? '') as Partial<EditorViewState>
+    if (
+      typeof stored.selection !== 'number'
+      || typeof stored.scrollTop !== 'number'
+      || !Number.isFinite(stored.selection)
+      || !Number.isFinite(stored.scrollTop)
+    ) return null
+    const zoom = typeof stored.zoom === 'number'
+      && Number.isFinite(stored.zoom)
+      && stored.zoom >= 70
+      && stored.zoom <= 500
+      ? stored.zoom
+      : 100
+    return {
+      version: 1,
+      selection: Math.max(1, Math.floor(stored.selection)),
+      scrollTop: Math.max(0, stored.scrollTop),
+      zoom,
+      typewriterMode: typeof stored.typewriterMode === 'boolean' ? stored.typewriterMode : false,
+    }
+  } catch {
+    return null
+  }
+}
+const initialEditorViewState = savedEditorViewState()
+const zoom = ref(initialEditorViewState?.zoom ?? 100)
+const typewriterMode = ref(initialEditorViewState?.typewriterMode ?? false)
 const canLinkWord = currentPlatform() === 'tauri'
 const saving = ref(false)
 const recording = ref(false)
@@ -55,7 +92,6 @@ let closeInProgress = false
 let positionSaveTimer: number | undefined
 let positionRestoreTimer: number | undefined
 let hasRestoredEditorPosition = false
-type EditorPosition = { selection: number; scrollTop: number }
 const linked = computed(() => Boolean(documentState.value?.docx_path))
 const textSymbols = computed(() => countTextSymbols(editorContent.value))
 const textUnits = computed(() => projectEntity.value
@@ -102,40 +138,32 @@ const canRecordText = computed(() => Boolean(
   && Math.abs(textUnits.value - projectEntity.value.total) >= 0.009,
 ))
 
-function positionStorageKey(): string {
-  return `nfprogress:document-position:${props.scope.projectId}:${props.scope.stageId ?? 'project'}`
-}
-function savedEditorPosition(): EditorPosition | null {
-  try {
-    const stored = JSON.parse(localStorage.getItem(positionStorageKey()) ?? '') as Partial<EditorPosition>
-    if (
-      typeof stored.selection !== 'number'
-      || typeof stored.scrollTop !== 'number'
-      || !Number.isFinite(stored.selection)
-      || !Number.isFinite(stored.scrollTop)
-    ) return null
-    return { selection: Math.max(1, Math.floor(stored.selection)), scrollTop: Math.max(0, stored.scrollTop) }
-  } catch {
-    return null
-  }
-}
 function editorScrollContainer(): HTMLElement | null {
   return editorRef.value?.getScrollContainer() ?? null
 }
-function toggleTypewriterMode(): void { typewriterMode.value = !typewriterMode.value }
+function toggleTypewriterMode(): void {
+  typewriterMode.value = !typewriterMode.value
+  schedulePositionSave()
+}
 function saveEditorPosition(): void {
   const editor = editorRef.value?.getEditor()
   if (!editor) return
   try {
     const selection = editor.state.selection.from
     const scrollTop = editorScrollContainer()?.scrollTop ?? 0
-    localStorage.setItem(positionStorageKey(), JSON.stringify({ selection, scrollTop } satisfies EditorPosition))
+    localStorage.setItem(positionStorageKey(), JSON.stringify({
+      version: 1,
+      selection,
+      scrollTop,
+      zoom: zoom.value,
+      typewriterMode: typewriterMode.value,
+    } satisfies EditorViewState))
   } catch {
     // Position memory is optional in restricted embedded webviews.
   }
 }
 async function restoreEditorPosition(): Promise<boolean> {
-  const saved = savedEditorPosition()
+  const saved = initialEditorViewState
   if (!saved) return true
   const editor = editorRef.value?.getEditor()
   if (!editor) return false
@@ -145,6 +173,10 @@ async function restoreEditorPosition(): Promise<boolean> {
   editor.commands.setTextSelection(position)
   editor.commands.focus()
   editor.commands.scrollIntoView()
+  await nextTick()
+  await new Promise<void>((resolve) => window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => resolve())
+  }))
   const scrollContainer = editorScrollContainer()
   if (scrollContainer) scrollContainer.scrollTop = saved.scrollTop
   return true
@@ -195,13 +227,14 @@ function captureEditorContent(): TiptapDocument {
 }
 function repairEditorSnapshot(snapshot: TiptapDocument): void {
   if (countTextSymbols(snapshot) === 0) return
-  const editor = editorRef.value?.getEditor()
+  const editorApi = editorRef.value
+  const editor = editorApi?.getEditor()
   if (editor && countTextSymbols(editor.getJSON()) > 0) return
 
   editorContent.value = snapshot
   setContent(snapshot)
-  if (editor) {
-    editor.commands.setContent(snapshot, { emitUpdate: false })
+  if (editorApi) {
+    editorApi.setContent(snapshot, false)
     scheduleEditorPositionRestore(true)
   }
 }
@@ -211,7 +244,10 @@ function countTextSymbols(value: unknown): number {
   return (typeof node.text === 'string' ? Array.from(node.text).length : 0)
     + (Array.isArray(node.content) ? node.content.reduce((total, child) => total + countTextSymbols(child), 0) : 0)
 }
-function setZoom(next: number) { zoom.value = Math.min(500, Math.max(70, next)) }
+function setZoom(next: number) {
+  zoom.value = Math.min(500, Math.max(70, next))
+  schedulePositionSave()
+}
 async function loadProjectEntity() {
   const sequence = ++projectLoadSequence
   try {
@@ -309,13 +345,14 @@ function handleEscape(event: KeyboardEvent): void {
 }
 async function importExternal() {
   const external = await checkExternal()
-  if (!external || !editorRef.value) return
-  const editor = editorRef.value.getEditor()
+  const editorApi = editorRef.value
+  if (!external || !editorApi) return
+  const editor = editorApi.getEditor()
   if (!editor) return
   if (external.content) {
-    editor.commands.setContent(external.content)
+    editorApi.setContent(external.content, true)
   } else if (external.html) {
-    editor.commands.setContent(external.html)
+    editorApi.setContent(external.html, true)
   }
   const json = external.content ?? editor.getJSON() as TiptapDocument
   editorContent.value = json
@@ -342,7 +379,7 @@ async function exportWord() {
   const blob = await exportDocx(editorContent.value); const url = URL.createObjectURL(blob); const anchor = document.createElement('a')
   anchor.href = url; anchor.download = `${props.title}.docx`; anchor.click(); URL.revokeObjectURL(url)
 }
-function importWord() { const input = document.createElement('input'); input.type = 'file'; input.accept = '.docx'; input.onchange = async () => { const file = input.files?.[0]; if (!file || !editorRef.value) return; if (currentPlatform() === 'tauri') { const parsed = await (await import('@/api/documents')).documentsApi.parseWord(new Uint8Array(await file.arrayBuffer()), file.name); setContent(parsed.content); editorRef.value.getEditor()?.commands.setContent(parsed.content); return } const { importDocx } = await import('@/services/documentDocx'); const html = await importDocx(await file.arrayBuffer()); editorRef.value.getEditor()?.commands.setContent(html) }; input.click() }
+function importWord() { const input = document.createElement('input'); input.type = 'file'; input.accept = '.docx'; input.onchange = async () => { const file = input.files?.[0]; if (!file || !editorRef.value) return; if (currentPlatform() === 'tauri') { const parsed = await (await import('@/api/documents')).documentsApi.parseWord(new Uint8Array(await file.arrayBuffer()), file.name); setContent(parsed.content); editorRef.value.setContent(parsed.content, true); return } const { importDocx } = await import('@/services/documentDocx'); const html = await importDocx(await file.arrayBuffer()); editorRef.value.setContent(html, true) }; input.click() }
 
 watch(content, (next) => { editorContent.value = next }, { deep: true })
 watch(documentState, async (next) => {
@@ -418,7 +455,7 @@ onBeforeRouteLeave(async () => { saveEditorPosition(); await flushAndRecord() })
           v-if="documentState"
           ref="editorRef"
           class="document-editor-view__custom-editor"
-          :content="content"
+          :initial-content="content"
           :translate="t"
           :zoom="zoom"
           :typewriter-mode="typewriterMode"

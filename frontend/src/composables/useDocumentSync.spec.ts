@@ -164,6 +164,80 @@ describe('useDocumentSync', () => {
     wrapper.unmount()
   })
 
+  it('does not reimport the hash produced by its own linked Word write', async () => {
+    const linkedDocument = {
+      ...documentResponse(editedDocument),
+      docx_path: '/tmp/document.docx',
+      last_synced_hash: 'self-write-hash',
+    }
+    vi.mocked(documentsApi.get).mockResolvedValue(linkedDocument)
+    vi.mocked(documentsApi.external).mockResolvedValue({
+      state: 'external_changed',
+      content_base64: 'AQI=',
+      hash: 'self-write-hash',
+    })
+    const wrapper = mount(defineComponent({
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'word') } },
+      template: '<div />',
+    }))
+    await flushPromises()
+
+    expect(await wrapper.vm.sync.checkExternal()).toBeUndefined()
+    expect(importDocx).not.toHaveBeenCalled()
+    expect(documentsApi.parseWord).not.toHaveBeenCalled()
+    expect(wrapper.vm.sync.content.value).toEqual(editedDocument)
+    wrapper.unmount()
+  })
+
+  it('ignores a synced polling response even if it contains stale bytes', async () => {
+    const linkedDocument = {
+      ...documentResponse(editedDocument),
+      docx_path: '/tmp/document.docx',
+      last_synced_hash: 'accepted-hash',
+    }
+    vi.mocked(documentsApi.get).mockResolvedValue(linkedDocument)
+    vi.mocked(documentsApi.external).mockResolvedValue({
+      state: 'synced',
+      content_base64: 'AQI=',
+      hash: 'stale-response-hash',
+    })
+    const wrapper = mount(defineComponent({
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'word') } },
+      template: '<div />',
+    }))
+    await flushPromises()
+
+    expect(await wrapper.vm.sync.checkExternal()).toBeUndefined()
+    expect(importDocx).not.toHaveBeenCalled()
+    expect(documentsApi.parseWord).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('continues importing a real external Word hash change', async () => {
+    const linkedDocument = {
+      ...documentResponse(emptyDocument),
+      docx_path: '/tmp/document.docx',
+      last_synced_hash: 'self-write-hash',
+    }
+    vi.mocked(documentsApi.get).mockResolvedValue(linkedDocument)
+    vi.mocked(documentsApi.external).mockResolvedValue({
+      state: 'external_changed',
+      content_base64: 'AQI=',
+      hash: 'user-edit-hash',
+    })
+    vi.mocked(currentPlatform).mockReturnValue('tauri')
+    vi.mocked(documentsApi.parseWord).mockResolvedValue({ content: editedDocument, symbols: 11, hash: 'user-edit-hash' })
+    const wrapper = mount(defineComponent({
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'word') } },
+      template: '<div />',
+    }))
+    await flushPromises()
+
+    expect(await wrapper.vm.sync.checkExternal()).toEqual({ content: editedDocument, hash: 'user-edit-hash' })
+    expect(documentsApi.parseWord).toHaveBeenCalledOnce()
+    wrapper.unmount()
+  })
+
   it('keeps native JSON and web HTML external Word import paths', async () => {
     const linkedDocument = { ...documentResponse(editedDocument), docx_path: '/tmp/document.docx' }
     vi.mocked(documentsApi.get).mockResolvedValue(linkedDocument)

@@ -17,7 +17,8 @@ export interface EditorPageGeometryInput {
 
 export interface EditorPageGeometry {
   basePageWidth: number
-  baseContentWidth: number
+  visualContentWidth: number
+  contentLayoutWidth: number
   scale: number
   pageWidth: number
   pageHeight: number
@@ -35,23 +36,25 @@ export function calculateEditorPageGeometry(input: EditorPageGeometryInput): Edi
   const compact = basePageWidth < 704
   const horizontalMargin = compact ? MOBILE_HORIZONTAL_MARGIN : DESKTOP_HORIZONTAL_MARGIN
   const verticalMargin = compact ? MOBILE_VERTICAL_MARGIN : DESKTOP_VERTICAL_MARGIN
-  const baseContentWidth = Math.max(1, basePageWidth - horizontalMargin * 2)
-  const normalBottomSpace = verticalMargin * scale
+  const visualContentWidth = Math.max(1, basePageWidth - horizontalMargin * 2)
+  const contentLayoutWidth = visualContentWidth / scale
+  const normalBottomSpace = verticalMargin
   const bottomSpace = input.typewriterMode
     ? Math.max(normalBottomSpace, input.viewportHeight * TYPEWRITER_RATIO)
     : normalBottomSpace
-  const contentTop = verticalMargin * scale
+  const contentTop = verticalMargin
   const contentHeight = Math.max(1, input.contentHeight) * scale
   const naturalHeight = contentTop + contentHeight + bottomSpace
   const minimumHeight = Math.max(1, input.viewportHeight - input.viewportPaddingY * 2)
 
   return {
     basePageWidth,
-    baseContentWidth,
+    visualContentWidth,
+    contentLayoutWidth,
     scale,
-    pageWidth: basePageWidth * scale,
+    pageWidth: basePageWidth,
     pageHeight: Math.max(naturalHeight, minimumHeight),
-    contentLeft: horizontalMargin * scale,
+    contentLeft: horizontalMargin,
     contentTop,
     bottomSpace,
   }

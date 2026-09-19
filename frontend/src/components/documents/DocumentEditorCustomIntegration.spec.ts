@@ -118,12 +118,71 @@ describe('DocumentEditorView custom editor integration', () => {
     )
     const wrapper = mountEditor()
     await flushPromises()
-    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(50)
     await flushPromises()
 
     const api = wrapper.getComponent(NFDocumentEditor).vm as unknown as CustomEditorExpose
     expect(api.getSelection()).toBe(4)
     expect(api.getScrollContainer()?.scrollTop).toBe(37)
+    expect(wrapper.getComponent(NFDocumentEditor).props('zoom')).toBe(100)
+    expect(wrapper.getComponent(NFDocumentEditor).props('typewriterMode')).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('restores zoom and Typewriter before the saved selection and scroll position', async () => {
+    window.localStorage.setItem(
+      'nfprogress:document-position:project-id:project',
+      JSON.stringify({ selection: 6, scrollTop: 83, zoom: 170, typewriterMode: true }),
+    )
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    const customEditor = wrapper.getComponent(NFDocumentEditor)
+    expect(customEditor.props('zoom')).toBe(170)
+    expect(customEditor.props('typewriterMode')).toBe(true)
+    expect(wrapper.get('.document-editor-view__typewriter-toggle').attributes('aria-pressed')).toBe('true')
+    expect(wrapper.get('.document-editor-view__zoom').text()).toContain('170%')
+
+    await vi.advanceTimersByTimeAsync(50)
+    await flushPromises()
+    const api = customEditor.vm as unknown as CustomEditorExpose
+    expect(api.getSelection()).toBe(6)
+    expect(api.getScrollContainer()?.scrollTop).toBe(83)
+    wrapper.unmount()
+  })
+
+  it('repairs invalid optional view state fields with backward-compatible defaults', async () => {
+    window.localStorage.setItem(
+      'nfprogress:document-position:project-id:project',
+      JSON.stringify({ selection: 3, scrollTop: 21, zoom: 900, typewriterMode: 'yes' }),
+    )
+    const wrapper = mountEditor()
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(50)
+    await flushPromises()
+
+    const customEditor = wrapper.getComponent(NFDocumentEditor)
+    const api = customEditor.vm as unknown as CustomEditorExpose
+    expect(customEditor.props('zoom')).toBe(100)
+    expect(customEditor.props('typewriterMode')).toBe(false)
+    expect(api.getSelection()).toBe(3)
+    expect(api.getScrollContainer()?.scrollTop).toBe(21)
+    wrapper.unmount()
+  })
+
+  it('saves zoom and Typewriter through the existing per-document view state', async () => {
+    const wrapper = mountEditor()
+    await flushPromises()
+
+    await wrapper.get('.document-editor-view__zoom button:last-child').trigger('click')
+    await wrapper.get('.document-editor-view__typewriter-toggle').trigger('click')
+    await vi.advanceTimersByTimeAsync(250)
+
+    expect(JSON.parse(positionStorage.get('nfprogress:document-position:project-id:project') ?? '{}')).toMatchObject({
+      version: 1,
+      zoom: 110,
+      typewriterMode: true,
+    })
     wrapper.unmount()
   })
 

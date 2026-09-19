@@ -1790,6 +1790,37 @@ _SYNCHRONIZATION_EDITOR_HELP_ITEMS = {
     "fr": "<li>L’éditeur intégré et les fichiers .docx liés utilisent Arial, Georgia, Times New Roman et Courier New ; les tailles sont indiquées en points Word. Il conserve les principaux formats de paragraphe et de caractère : titres, listes, blocs de citation, alignement, interligne, styles de police, soulignement, barré, exposant et indice, tabulations, couleur du texte et surlignage. Les tableaux, images et liens ne sont pas disponibles dans l’éditeur afin que l’échange avec Word reste prévisible.</li>\n<li>L’éditeur intégré mémorise séparément la position du curseur et le défilement de chaque projet et source. Il revient à cet emplacement lors de la prochaine ouverture du document.</li>\n<li>Le bouton machine à écrire situé à gauche des commandes de zoom active le mode machine à écrire : pendant la saisie, une ligne située sous le milieu de l’éditeur reste approximativement centrée. Seul un espace vide visuel est ajouté après la fin du document ; il n’est ni enregistré dans le texte ni exporté vers Word.</li>",
     "pt_BR": "<li>O editor integrado e os arquivos .docx vinculados usam Arial, Georgia, Times New Roman e Courier New; os tamanhos são indicados em pontos do Word. Ele preserva os principais formatos de parágrafo e caractere: títulos, listas, citações em bloco, alinhamento, espaçamento entre linhas, estilos de fonte, sublinhado, tachado, sobrescrito e subscrito, tabulações, cor do texto e destaque. Tabelas, imagens e links não estão disponíveis no editor para que a troca com o Word continue previsível.</li>\n<li>O editor integrado memoriza separadamente a posição do cursor e a rolagem de cada projeto e fonte. Ele retorna a essa posição na próxima vez que o documento é aberto.</li>\n<li>O botão de máquina de escrever à esquerda dos controles de zoom ativa o modo máquina de escrever: durante a digitação, uma linha abaixo do meio do editor permanece aproximadamente centralizada. Depois do fim do documento, apenas um espaço vazio visual é adicionado; ele não é salvo no texto nem exportado para o Word.</li>",
 }
+_SYNCHRONIZATION_VIEW_STATE_HELP_REPLACEMENTS = {
+    "en": (
+        "The built-in editor remembers the cursor position and scrolling separately for each project and source. It returns to that position the next time the document is opened.",
+        "For each project and source, the built-in editor separately remembers the cursor position, scrolling, zoom, and typewriter mode state. The next time it opens, it returns to the same place with the same view settings.",
+    ),
+    "es": (
+        "El editor integrado recuerda por separado la posición del cursor y el desplazamiento de cada proyecto y fuente. Vuelve a esa posición la próxima vez que se abre el documento.",
+        "Para cada proyecto y fuente, el editor integrado recuerda por separado la posición del cursor, el desplazamiento, el zoom y el estado del modo máquina de escribir. La próxima vez que se abre, vuelve al mismo lugar con los mismos ajustes de vista.",
+    ),
+    "de": (
+        "Der integrierte Editor merkt sich Cursorposition und Bildlauf separat für jedes Projekt und jede Quelle. Beim nächsten Öffnen des Dokuments kehrt er an diese Stelle zurück.",
+        "Der integrierte Editor speichert Cursorposition, Bildlauf, Zoom und den Status des Schreibmaschinenmodus separat für jedes Projekt und jede Quelle. Beim nächsten Öffnen kehrt er mit denselben Ansichtseinstellungen an dieselbe Stelle zurück.",
+    ),
+    "fr": (
+        "L’éditeur intégré mémorise séparément la position du curseur et le défilement de chaque projet et source. Il revient à cet emplacement lors de la prochaine ouverture du document.",
+        "Pour chaque projet et chaque source, l’éditeur intégré mémorise séparément la position du curseur, le défilement, le zoom et l’état du mode machine à écrire. À la prochaine ouverture, il revient au même endroit avec les mêmes paramètres d’affichage.",
+    ),
+    "pt_BR": (
+        "O editor integrado memoriza separadamente a posição do cursor e a rolagem de cada projeto e fonte. Ele retorna a essa posição na próxima vez que o documento é aberto.",
+        "Para cada projeto e fonte, o editor integrado memoriza separadamente a posição do cursor, a rolagem, o zoom e o estado do modo máquina de escrever. Na próxima abertura, ele retorna ao mesmo local com as mesmas configurações de visualização.",
+    ),
+}
+for _language, (_old_view_state_help, _new_view_state_help) in (
+    _SYNCHRONIZATION_VIEW_STATE_HELP_REPLACEMENTS.items()
+):
+    _SYNCHRONIZATION_EDITOR_HELP_ITEMS[_language] = (
+        _SYNCHRONIZATION_EDITOR_HELP_ITEMS[_language].replace(
+            _old_view_state_help,
+            _new_view_state_help,
+        )
+    )
 if _OLD_SYNCHRONIZATION_HELP_SOURCE:
     _synchronization_item_pattern = re.compile(
         r"(<ul>\s*<li>.*?</li>\s*)<li>.*?</li>",

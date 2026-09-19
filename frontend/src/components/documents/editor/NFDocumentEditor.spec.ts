@@ -28,8 +28,36 @@ type EditorExpose = {
 }
 
 describe('NFDocumentEditor core', () => {
+  it('preserves persisted tabs and paragraph line heights without Word sync', () => {
+    const persistedDocument: TiptapDocument = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          attrs: { lineHeight: '1.5' },
+          content: [{ type: 'text', text: '\tПервый абзац' }],
+        },
+        {
+          type: 'paragraph',
+          attrs: { lineHeight: '2' },
+          content: [{ type: 'text', text: '\tВторой абзац' }],
+        },
+      ],
+    }
+    const wrapper = mount(NFDocumentEditor, { props: { initialContent: persistedDocument } })
+    const api = wrapper.vm as unknown as EditorExpose
+
+    const json = api.getJSON()
+    expect(json.content).toHaveLength(2)
+    expect(json.content?.map((node) => (node.attrs as { lineHeight?: string })?.lineHeight)).toEqual(['1.5', '2'])
+    expect(json.content?.map((node) => (node.content as Array<{ text?: string }>)?.[0]?.text)).toEqual([
+      '\tПервый абзац',
+      '\tВторой абзац',
+    ])
+  })
+
   it('loads existing Tiptap JSON without changing its supported schema', () => {
-    const wrapper = mount(NFDocumentEditor, { props: { content: formattedDocument } })
+    const wrapper = mount(NFDocumentEditor, { props: { initialContent: formattedDocument } })
     const api = wrapper.vm as unknown as EditorExpose
 
     const json = api.getJSON()
@@ -42,8 +70,27 @@ describe('NFDocumentEditor core', () => {
     expect(api.getScrollContainer()).toBe(wrapper.get('.nf-document-editor__viewport').element)
   })
 
+  it('keeps initial content when parent persistence state changes and only replaces it explicitly', async () => {
+    const wrapper = mount(NFDocumentEditor, { props: { initialContent: formattedDocument } })
+    const api = wrapper.vm as unknown as EditorExpose
+    const emptyDocument: TiptapDocument = { type: 'doc', content: [{ type: 'paragraph' }] }
+    const replacement: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Явная замена' }] }],
+    }
+
+    expect(api.getEditor()?.getText()).toContain('Существующий текст')
+    await wrapper.setProps({ initialContent: emptyDocument })
+    expect(api.getEditor()?.getText()).toContain('Существующий текст')
+    expect(JSON.stringify(api.getJSON())).toContain('Существующий текст')
+
+    api.setContent(replacement)
+    expect(api.getEditor()?.getText()).toBe('Явная замена')
+    expect(api.getJSON()).toMatchObject(replacement)
+  })
+
   it('emits the current JSON when the document changes', () => {
-    const wrapper = mount(NFDocumentEditor, { props: { content: { type: 'doc', content: [{ type: 'paragraph' }] } } })
+    const wrapper = mount(NFDocumentEditor, { props: { initialContent: { type: 'doc', content: [{ type: 'paragraph' }] } } })
     const api = wrapper.vm as unknown as EditorExpose
     const next: TiptapDocument = { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Новый текст' }] }] }
 
@@ -54,7 +101,7 @@ describe('NFDocumentEditor core', () => {
 
   it('inserts a tab character for plain Tab and leaves modified Tab untouched', async () => {
     const wrapper = mount(NFDocumentEditor, {
-      props: { content: { type: 'doc', content: [{ type: 'paragraph' }] } },
+      props: { initialContent: { type: 'doc', content: [{ type: 'paragraph' }] } },
     })
     const api = wrapper.vm as unknown as EditorExpose
     await wrapper.vm.$nextTick()
@@ -90,7 +137,7 @@ describe('NFDocumentEditor core', () => {
   })
 
   it('reflects the selection in the toolbar and applies formatting commands', async () => {
-    const wrapper = mount(NFDocumentEditor, { props: { content: formattedDocument } })
+    const wrapper = mount(NFDocumentEditor, { props: { initialContent: formattedDocument } })
     const api = wrapper.vm as unknown as EditorExpose
     const editor = api.getEditor()
     expect(editor).not.toBeNull()
@@ -112,8 +159,63 @@ describe('NFDocumentEditor core', () => {
     expect(paragraph.content?.[0]?.marks).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'italic' })]))
   })
 
+  it('shows effective defaults, explicit caret styles, and blank values only for mixed selections', async () => {
+    const styleDocument: TiptapDocument = {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'Обычный' }] },
+        {
+          type: 'paragraph',
+          content: [{
+            type: 'text',
+            text: 'Стиль',
+            marks: [{ type: 'textStyle', attrs: { fontFamily: 'Georgia', fontSize: '18pt' } }],
+          }],
+        },
+      ],
+    }
+    const wrapper = mount(NFDocumentEditor, { props: { initialContent: styleDocument } })
+    const editor = (wrapper.vm as unknown as EditorExpose).getEditor()!
+    const textPositions = new Map<string, number>()
+    editor.state.doc.descendants((node, position) => {
+      if (node.isText && node.text) textPositions.set(node.text, position)
+    })
+    await wrapper.vm.$nextTick()
+    const font = wrapper.find('select[aria-label="Шрифт"]')
+    const size = wrapper.find('select[aria-label="Размер текста"]')
+    const lineHeight = wrapper.find('select[aria-label="Межстрочный интервал"]')
+
+    editor.commands.setTextSelection((textPositions.get('Обычный') ?? 0) + 1)
+    await wrapper.vm.$nextTick()
+    expect((font.element as HTMLSelectElement).value).toBe('Arial')
+    expect((size.element as HTMLSelectElement).value).toBe('12pt')
+    expect((lineHeight.element as HTMLSelectElement).value).toBe('1.5')
+
+    editor.commands.setTextSelection((textPositions.get('Стиль') ?? 0) + 1)
+    await wrapper.vm.$nextTick()
+    expect((font.element as HTMLSelectElement).value).toBe('Georgia')
+    expect((size.element as HTMLSelectElement).value).toBe('18pt')
+
+    editor.commands.setTextSelection({
+      from: textPositions.get('Обычный') ?? 1,
+      to: (textPositions.get('Стиль') ?? 1) + 'Стиль'.length,
+    })
+    await wrapper.vm.$nextTick()
+    expect((font.element as HTMLSelectElement).value).toBe('')
+    expect((size.element as HTMLSelectElement).value).toBe('')
+  })
+
+  it('renders toolbar action buttons with consistently scalable icons', async () => {
+    const wrapper = mount(NFDocumentEditor, { props: { initialContent: formattedDocument } })
+    await wrapper.vm.$nextTick()
+
+    const actionButtons = wrapper.findAll('.nf-editor-toolbar button')
+    expect(actionButtons.length).toBeGreaterThan(0)
+    expect(actionButtons.every((button) => button.find('svg').exists())).toBe(true)
+  })
+
   it('converts imported Word HTML into DOCX-compatible JSON attributes', () => {
-    const wrapper = mount(NFDocumentEditor, { props: { content: { type: 'doc', content: [{ type: 'paragraph' }] } } })
+    const wrapper = mount(NFDocumentEditor, { props: { initialContent: { type: 'doc', content: [{ type: 'paragraph' }] } } })
     const api = wrapper.vm as unknown as EditorExpose
 
     api.setContent(
@@ -148,7 +250,7 @@ describe('NFDocumentEditor core', () => {
 
   it('does not center an early caret but positions a lower caret immediately on Typewriter activation', async () => {
     const wrapper = mount(NFDocumentEditor, {
-      props: { content: formattedDocument, zoom: 100, typewriterMode: false },
+      props: { initialContent: formattedDocument, zoom: 100, typewriterMode: false },
     })
     const api = wrapper.vm as unknown as EditorExpose
     const container = api.getScrollContainer()!

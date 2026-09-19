@@ -1934,6 +1934,7 @@ fn parse_docx(bytes: &[u8]) -> Result<(Value, usize), String> {
                     "spacing" => {
                         line_height = word_line_height(&event);
                     }
+                    "tab" => run_text.push('\t'),
                     "t" => in_text = true,
                     _ => {}
                 }
@@ -2172,11 +2173,18 @@ fn write_run(xml: &mut String, node: &Value) {
         xml.push_str(&props);
         xml.push_str("</w:rPr>")
     }
-    xml.push_str("<w:t xml:space=\"preserve\">");
-    xml.push_str(&xml_escape(
-        node.get("text").and_then(Value::as_str).unwrap_or(""),
-    ));
-    xml.push_str("</w:t></w:r>")
+    let text = node.get("text").and_then(Value::as_str).unwrap_or("");
+    for (index, part) in text.split('\t').enumerate() {
+        if index > 0 {
+            xml.push_str("<w:tab/>");
+        }
+        if !part.is_empty() {
+            xml.push_str("<w:t xml:space=\"preserve\">");
+            xml.push_str(&xml_escape(part));
+            xml.push_str("</w:t>");
+        }
+    }
+    xml.push_str("</w:r>")
 }
 
 fn find_scrivener_xml(root: &Path) -> Result<PathBuf, String> {
@@ -2444,23 +2452,121 @@ mod tests {
     }
 
     #[test]
-    fn docx_round_trip_preserves_line_height_multiplier() {
+    fn docx_round_trip_preserves_tabs_and_supported_line_height_multipliers() {
         let content = serde_json::json!({
             "type": "doc",
-            "content": [{
-                "type": "paragraph",
-                "attrs": {"lineHeight": "1.5"},
-                "content": [{"type": "text", "text": "Интервал"}]
-            }]
+            "content": [
+                {
+                    "type": "paragraph",
+                    "attrs": {"lineHeight": "1"},
+                    "content": [{"type": "text", "text": "before\tmiddle\tafter"}]
+                },
+                {"type": "paragraph", "attrs": {"lineHeight": "1.15"}, "content": [{"type": "text", "text": "1.15"}]},
+                {"type": "paragraph", "attrs": {"lineHeight": "1.5"}, "content": [{"type": "text", "text": "1.5"}]},
+                {"type": "paragraph", "attrs": {"lineHeight": "2"}, "content": [{"type": "text", "text": "2"}]}
+            ]
         });
 
         let bytes = build_docx(&content).unwrap();
+        let mut archive = ZipArchive::new(Cursor::new(bytes.as_slice())).unwrap();
+        let mut document_xml = String::new();
+        archive
+            .by_name("word/document.xml")
+            .unwrap()
+            .read_to_string(&mut document_xml)
+            .unwrap();
+        assert!(document_xml.contains("before</w:t><w:tab/><w:t xml:space=\"preserve\">middle</w:t><w:tab/><w:t xml:space=\"preserve\">after"));
+        assert!(!document_xml.contains("before\tmiddle\tafter"));
+        for twips in [240, 276, 360, 480] {
+            assert!(document_xml.contains(&format!("w:line=\"{twips}\" w:lineRule=\"auto\"")));
+        }
+        drop(archive);
         let (parsed, _) = parse_docx(&bytes).unwrap();
-        assert_eq!(parsed["content"][0]["attrs"]["lineHeight"], "1.5");
+        assert_eq!(
+            parsed["content"][0]["content"][0]["text"],
+            "before\tmiddle\tafter"
+        );
+        for (index, expected) in ["1", "1.15", "1.5", "2"].iter().enumerate() {
+            assert_eq!(parsed["content"][index]["attrs"]["lineHeight"], *expected);
+        }
 
         let bytes = build_docx(&parsed).unwrap();
         let (reopened, _) = parse_docx(&bytes).unwrap();
-        assert_eq!(reopened["content"][0]["attrs"]["lineHeight"], "1.5");
+        assert_eq!(reopened, parsed);
+    }
+
+    #[test]
+    fn linked_word_self_write_is_immediately_reported_as_synced() {
+        let root = std::env::temp_dir().join(format!(
+            "nfprogress-linked-word-self-write-{}",
+            std::process::id()
+        ));
+        let previous_root = std::env::var_os("NFPROGRESS_DATA_DIR");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        std::env::set_var("NFPROGRESS_DATA_DIR", &root);
+
+        let result = (|| -> Result<(), String> {
+            let (connection, _) = open()?;
+            connection
+                .execute(
+                    "INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json) VALUES('p1','Book',100,0,'symbols','активен',?)",
+                    [serde_json::json!({"name":"Book","status":"активен","work_method":"app","stages":[]}).to_string()],
+                )
+                .map_err(|error| error.to_string())?;
+            connection
+                .execute(
+                    "INSERT INTO project_order(project_id,position) VALUES('p1',0)",
+                    [],
+                )
+                .map_err(|error| error.to_string())?;
+            drop(connection);
+
+            let path = root.join("linked.docx");
+            fs::write(
+                &path,
+                build_docx(&serde_json::json!({"type":"doc","content":[{"type":"paragraph"}]}))?,
+            )
+            .map_err(|error| error.to_string())?;
+            let content = serde_json::json!({
+                "type": "doc",
+                "content": [{
+                    "type": "paragraph",
+                    "attrs": {"lineHeight": "1.5"},
+                    "content": [{"type": "text", "text": "before\tafter"}]
+                }]
+            });
+            save_document(DocumentSaveCommand {
+                project_id: "p1".into(),
+                stage_id: None,
+                content: content.clone(),
+            })?;
+            bind_document_file(DocumentFileCommand {
+                project_id: "p1".into(),
+                stage_id: None,
+                path: path.to_string_lossy().into_owned(),
+            })?;
+            let written = write_document_word_content("p1".into(), None, content)?;
+            let external = read_external(DocumentScope {
+                project_id: "p1".into(),
+                stage_id: None,
+            })?;
+
+            assert_eq!(written["sync_state"], "synced");
+            assert!(written["last_synced_hash"].as_str().is_some());
+            assert_eq!(external.state, "synced");
+            assert!(external.content_base64.is_none());
+            assert!(external.hash.is_none());
+            Ok(())
+        })();
+
+        if let Some(previous_root) = previous_root {
+            std::env::set_var("NFPROGRESS_DATA_DIR", previous_root);
+        } else {
+            std::env::remove_var("NFPROGRESS_DATA_DIR");
+        }
+        let _ = fs::remove_dir_all(&root);
+        result.unwrap();
     }
 
     #[test]

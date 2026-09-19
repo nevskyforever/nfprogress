@@ -1,14 +1,14 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { EditorContent, useEditor } from '@tiptap/vue-3'
-import type { Editor, JSONContent } from '@tiptap/core'
+import type { Editor } from '@tiptap/core'
 import type { TiptapDocument } from '@/types/documents'
 import { createDocumentEditorExtensions } from './editorExtensions'
 import NFEditorToolbar from './NFEditorToolbar.vue'
 import { calculateEditorPageGeometry, TYPEWRITER_RATIO } from './editorGeometry'
 
 const props = defineProps<{
-  content: TiptapDocument
+  initialContent: TiptapDocument
   translate?: (source: string) => string
   zoom?: number
   typewriterMode?: boolean
@@ -44,12 +44,12 @@ const pageStyle = computed(() => ({
 const contentLayerStyle = computed(() => ({
   left: `${geometry.value.contentLeft}px`,
   top: `${geometry.value.contentTop}px`,
-  width: `${geometry.value.baseContentWidth}px`,
+  width: `${geometry.value.contentLayoutWidth}px`,
   transform: `scale(${geometry.value.scale})`,
 }))
 
 const editor = useEditor({
-  content: props.content,
+  content: props.initialContent,
   extensions: createDocumentEditorExtensions(),
   editorProps: {
     attributes: {
@@ -144,15 +144,6 @@ onBeforeUnmount(() => {
   if (trackingFrame !== undefined) window.cancelAnimationFrame(trackingFrame)
 })
 
-function sameContent(left: JSONContent, right: JSONContent): boolean {
-  return JSON.stringify(left) === JSON.stringify(right)
-}
-
-watch(() => props.content, (next) => {
-  if (!editor.value || sameContent(editor.value.getJSON(), next)) return
-  editor.value.commands.setContent(next, { emitUpdate: false })
-}, { deep: true })
-
 function getEditor(): Editor | null {
   return editor.value ?? null
 }
@@ -166,7 +157,7 @@ function focus(): void {
 }
 
 function getJSON(): TiptapDocument {
-  return (editor.value?.getJSON() ?? props.content) as TiptapDocument
+  return (editor.value?.getJSON() ?? props.initialContent) as TiptapDocument
 }
 
 function setContent(content: TiptapDocument | string, emitUpdate = false): void {
