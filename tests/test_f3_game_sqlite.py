@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import pickle
+from datetime import date
 from pathlib import Path
 
 import engine
@@ -74,6 +75,36 @@ def test_game_cutover_rehydrates_legacy_notifications(tmp_path):
     assert restored['new'][0].text == 'saved notification'
     assert restored['new'][0].tag == 'game'
     assert restored['new'][0].status == 'Read'
+
+
+def test_game_cutover_preserves_tagged_streak_dates_in_game_state(tmp_path):
+    repository, project = _prepared_root(tmp_path)
+    data = repository.read_projects()
+    stored_project = data['projects'][project.name]
+    stored_project.streaks = [date(2026, 9, 17), engine.STREAK_FREEZE_MARKER]
+    stored_project.streak_status = 'Freeze'
+    data.update({
+        'global_streaks': [date(2026, 9, 17), engine.STREAK_FREEZE_MARKER],
+        'global_streak_status': 'Freeze',
+        'last_global_streak_lost_date': date(2026, 9, 16),
+    })
+    repository.write_projects(data)
+
+    cutover_game(tmp_path)
+
+    with open_database(tmp_path) as db:
+        payload = json.loads(db.execute(
+            'SELECT payload_json FROM game_state WHERE id=1',
+        ).fetchone()[0])
+    expected_streaks = [
+        {'__type__': 'date', 'value': '2026-09-17'},
+        engine.STREAK_FREEZE_MARKER,
+    ]
+    assert payload['project_game_state'][f'project:{project.project_id}']['streaks'] == expected_streaks
+    assert payload['global_streak']['global_streaks'] == expected_streaks
+    assert payload['global_streak']['last_global_streak_lost_date'] == {
+        '__type__': 'date', 'value': '2026-09-16',
+    }
 
 
 def test_failed_game_verifier_keeps_pickle_owner(tmp_path, monkeypatch):

@@ -26,6 +26,29 @@ fn date_days(value: &str) -> Option<i64> {
     Some(era * 146_097 + day_of_era - 719_468)
 }
 
+/// Decode the persisted legacy representation of a streak day.
+///
+/// Python's game-state serializer stores `date` and `datetime` values as
+/// tagged objects. Plain ISO dates remain supported for older data and test
+/// fixtures.
+fn streak_date_days(value: &Value) -> Option<i64> {
+    match value {
+        Value::String(value) => date_days(value),
+        Value::Object(value)
+            if matches!(
+                value.get("__type__").and_then(Value::as_str),
+                Some("date" | "datetime")
+            ) =>
+        {
+            value
+                .get("value")
+                .and_then(Value::as_str)
+                .and_then(date_days)
+        }
+        _ => None,
+    }
+}
+
 fn date_from_days(days: i64) -> String {
     let z = days + 719_468;
     let era = (if z >= 0 { z } else { z - 146_096 }) / 146_097;
@@ -115,20 +138,14 @@ fn streak_summary(streaks: Option<&Value>) -> (Option<i64>, usize, bool) {
     let mut length = 0;
     let mut last_is_freeze = false;
     for entry in streaks.and_then(Value::as_array).into_iter().flatten() {
-        match entry.as_str() {
-            Some("freeze") if current_day.is_some() => {
-                current_day = current_day.map(|day| day + 1);
-                length += 1;
-                last_is_freeze = true;
-            }
-            Some(value) => {
-                if let Some(day) = date_days(value) {
-                    current_day = Some(day);
-                    length += 1;
-                    last_is_freeze = false;
-                }
-            }
-            None => {}
+        if entry.as_str() == Some("freeze") && current_day.is_some() {
+            current_day = current_day.map(|day| day + 1);
+            length += 1;
+            last_is_freeze = true;
+        } else if let Some(day) = streak_date_days(entry) {
+            current_day = Some(day);
+            length += 1;
+            last_is_freeze = false;
         }
     }
     (current_day, length, last_is_freeze)
@@ -167,8 +184,7 @@ fn canonical_status_with_history(
     }
     let lost_today = fields
         .get("last_streak_lost_date")
-        .and_then(Value::as_str)
-        .and_then(date_days)
+        .and_then(streak_date_days)
         == Some(today);
     if saved.starts_with("Lose ") && saved.split_whitespace().count() == 2 && lost_today {
         return saved.to_string();
@@ -240,6 +256,10 @@ mod tests {
         )
     }
 
+    fn tagged_date(value: &str) -> Value {
+        json!({"__type__": "date", "value": value})
+    }
+
     #[test]
     fn daily_statuses_are_valid_only_on_their_logical_day() {
         assert_eq!(status("Go", json!(["2026-09-18"]), "2026-09-19"), "Active");
@@ -300,14 +320,92 @@ mod tests {
 
     #[test]
     fn frozen_streak_is_active_after_its_freeze_day() {
-        let streaks = json!(["2026-09-17", "freeze"]);
+        let streaks = json!([tagged_date("2026-09-17"), "freeze"]);
         assert_eq!(status("Freeze", streaks.clone(), "2026-09-18"), "Freeze");
         assert_eq!(status("Freeze", streaks, "2026-09-19"), "Active");
     }
 
     #[test]
-    fn empty_streak_history_remains_no() {
+    fn tagged_streak_dates_restore_legacy_status_semantics() {
+        assert_eq!(
+            status("Active", json!([tagged_date("2026-09-18")]), "2026-09-19"),
+            "Active"
+        );
+        assert_eq!(
+            status(
+                "Go",
+                json!([
+                    tagged_date("2026-09-17"),
+                    tagged_date("2026-09-18"),
+                    tagged_date("2026-09-19"),
+                ]),
+                "2026-09-19",
+            ),
+            "Go"
+        );
         assert_eq!(status("No", json!([]), "2026-09-19"), "No");
+    }
+
+    #[test]
+    fn local_tagged_streak_history_is_not_no_after_yesterdays_freeze() {
+        let fields = json!({
+            "streak_status": "Freeze",
+            "streaks": [tagged_date("2026-09-17"), "freeze"],
+        });
+        let entity = json!({"status": "активен", "streak_enabled": true});
+        assert_eq!(
+            canonical_local_status(
+                fields.as_object().unwrap(),
+                "2026-09-19",
+                entity.as_object().unwrap(),
+            ),
+            "Active"
+        );
+    }
+
+    #[test]
+    fn tagged_datetime_and_loss_dates_are_decoded_as_streak_days() {
+        assert_eq!(
+            streak_date_days(&json!({
+                "__type__": "datetime",
+                "value": "2026-09-18T12:34:56+03:00",
+            })),
+            date_days("2026-09-18")
+        );
+        let loss = json!({
+            "streak_status": "Lose 4",
+            "streaks": [],
+            "last_streak_lost_date": tagged_date("2026-09-19"),
+        });
+        assert_eq!(
+            canonical_status(loss.as_object().unwrap(), "2026-09-19"),
+            "Lose 4"
+        );
+        let global_loss = json!({
+            "global_streak_status": "Lose 149",
+            "global_streaks": [],
+            "last_global_streak_lost_date": tagged_date("2026-09-19"),
+        });
+        assert_eq!(
+            canonical_global_status(global_loss.as_object().unwrap(), "2026-09-19"),
+            "Lose 149"
+        );
+    }
+
+    #[test]
+    fn global_tagged_streak_history_uses_freeze_semantics() {
+        let global = json!({
+            "global_streak_status": "Freeze",
+            "global_streaks": [tagged_date("2026-09-17"), "freeze"],
+        });
+        assert_eq!(
+            canonical_global_status(global.as_object().unwrap(), "2026-09-18"),
+            "Freeze"
+        );
+        assert_eq!(
+            canonical_global_status(global.as_object().unwrap(), "2026-09-19"),
+            "Active"
+        );
     }
 
     #[test]
