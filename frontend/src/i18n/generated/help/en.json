@@ -85,6 +85,12 @@
     "title": "Application Settings"
   },
   {
+    "children": [],
+    "content": "<html><body>\n<h2>Developer Mode</h2>\n<p>Available only in the local development runtime, test build, or explicitly allowed developer profile. A separate window allows you to change the test date and character parameters and issue items without the usual store limits.</p>\n<p>Replacing real/test profile is performed only upon explicit request after a restart. Before atomic activation, a backup copy is created and verified. Persistent test profile is not automatically updated.</p>\n</body></html>",
+    "key": "developer_mode",
+    "title": "Developer Mode"
+  },
+  {
     "children": [
       {
         "children": [],

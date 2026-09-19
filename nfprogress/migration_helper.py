@@ -1,4 +1,4 @@
-"""One-shot NFProgress legacy migration helper and Bridge Release entrypoint.
+"""One-shot nfprogress legacy migration helper and Bridge Release entrypoint.
 
 The helper is deliberately separate from the normal Tauri runtime.  It reads
 legacy stores through :mod:`nfprogress.core.legacy_decoder`, emits the same
@@ -7,7 +7,7 @@ builds a staging SQLite profile, and activates only after integrity and
 semantic checks pass.
 
 The supported production bridge invokes this module from the already-packaged
-Python NFProgress runtime.  A standalone native helper is a later artifact;
+Python nfprogress runtime.  A standalone native helper is a later artifact;
 this module never becomes a Tauri sidecar or a startup dependency.
 """
 

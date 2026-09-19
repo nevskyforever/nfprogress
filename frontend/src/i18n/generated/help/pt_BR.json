@@ -85,6 +85,12 @@
     "title": "Configurações do aplicativo"
   },
   {
+    "children": [],
+    "content": "<html><body>\n<h2>Modo de desenvolvedor</h2>\n<p>Disponível apenas no tempo de execução de desenvolvimento local, na compilação de teste ou no perfil de desenvolvedor explicitamente permitido. Uma janela separada permite alterar a data do teste e os parâmetros do personagem e emitir itens sem os limites usuais da loja.</p>\n<p>A substituição do perfil real/de teste é executada somente mediante solicitação explícita após uma reinicialização. Antes da ativação atômica, uma cópia de backup é criada e verificada. O perfil de teste persistente não é atualizado automaticamente.</p>\n</body></html>",
+    "key": "developer_mode",
+    "title": "Modo de desenvolvedor"
+  },
+  {
     "children": [
       {
         "children": [],

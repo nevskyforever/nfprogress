@@ -432,7 +432,7 @@ onBeforeUnmount(() => controller.abort())
             </footer>
 
             <div class="settings-app-meta">
-              <span>{{ t('Версия приложения') }} {{ response?.version ?? '5.0' }}</span>
+              <span>{{ t('Версия nfprogress') }} {{ response?.version || '—' }}</span>
               <span>{{ t('Автор') }}: nevskyforever / nfproject</span>
               <a
                 class="nf-button nf-button--secondary settings-repository-link"

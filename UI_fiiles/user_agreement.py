@@ -69,7 +69,7 @@ class Ui_user_agreement(object):
 "li.unchecked::marker { content: \"\\2610\"; }\n"
 "li.checked::marker { content: \"\\2612\"; }\n"
 "</style></head><body style=\" font-family:'Arial'; font-size:13pt; font-weight:400; font-style:normal;\">\n"
-"<h1 style=\" margin-top:18px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:xx-large; font-weight:700; color:#ffffff;\">\u0414\u041e\u041f\u041e\u041b\u041d\u0418\u0422\u0415\u041b\u042c\u041d\u042b\u0415 \u0423\u0421\u041b\u041e\u0412\u0418\u042f \u0418\u0421\u041f\u041e\u041b\u042c\u0417\u041e\u0412\u0410\u041d\u0418\u042f \u041f\u0420\u041e\u0413\u0420\u0410\u041c\u041c\u042b NFPROGRESS</span></h1>\n"
+"<h1 style=\" margin-top:18px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:xx-large; font-weight:700; color:#ffffff;\">\u0414\u041e\u041f\u041e\u041b\u041d\u0418\u0422\u0415\u041b\u042c\u041d\u042b\u0415 \u0423\u0421\u041b\u041e\u0412\u0418\u042f \u0418\u0421\u041f\u041e\u041b\u042c\u0417\u041e\u0412\u0410\u041d\u0418\u042f \u041f\u0420\u041e\u0413\u0420\u0410\u041c\u041c\u042b nfprogress</span></h1>\n"
 "<p style=\" margin-top:12px; margin-bottom:12"
                         "px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" color:#ffffff;\">\u0433. \u0421\u0430\u043c\u0430\u0440\u0430<br />23.07.2026 \u0433.</span></p>\n"
 "<h2 style=\" margin-top:16px; margin-bottom:12px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><span style=\" font-size:x-large; font-weight:700; color:#ffffff;\">1. \u041e\u0431\u0449\u0438\u0435 \u043f\u043e\u043b\u043e\u0436\u0435\u043d\u0438\u044f</span></h2>\n"

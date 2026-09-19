@@ -1,4 +1,4 @@
-# NFProgress — F7 Python sidecar and legacy desktop backend removal
+# nfprogress — F7 Python sidecar and legacy desktop backend removal
 
 F7 implementation baseline: `e49069834793fe3151fcedf14e7308a577f37ea1`.
 This is an architecture/runtime milestone, not release qualification. F8

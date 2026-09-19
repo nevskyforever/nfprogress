@@ -1,4 +1,4 @@
-# NFProgress — F10 updater transition
+# nfprogress — F10 updater transition
 
 Дата аудита: 2026-09-04. Baseline: `27d0924` (`27d09249f1df88c89d10698b58f2f5fa4515fab0`).
 Production manifests intentionally remain outside this change.

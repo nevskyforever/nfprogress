@@ -1,4 +1,4 @@
-# NFProgress — F1 SQLite authority audit
+# nfprogress — F1 SQLite authority audit
 
 Audit and implementation baseline: `84298c5154a30f86b61ae4f614a1d3fc445b091d`.
 F1 implementation commit is recorded in the final migration status after the

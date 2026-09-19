@@ -85,6 +85,12 @@
     "title": "Anwendungseinstellungen"
   },
   {
+    "children": [],
+    "content": "<html><body>\n<h2>Entwicklermodus</h2>\n<p>Nur in der lokalen Entwicklungslaufzeit, im Testbuild oder im explizit zugelassenen Entwicklerprofil verfügbar. In einem separaten Fenster können Sie das Testdatum und die Charakterparameter ändern und Artikel ohne die üblichen Store-Beschränkungen ausgeben.</p>\n<p>Das Ersetzen des Real-/Testprofils erfolgt nur auf ausdrückliche Anfrage nach einem Neustart. Vor der atomaren Aktivierung wird eine Sicherungskopie erstellt und überprüft. Das persistente Testprofil wird nicht automatisch aktualisiert.</p>\n</body></html>",
+    "key": "developer_mode",
+    "title": "Entwicklermodus"
+  },
+  {
     "children": [
       {
         "children": [],

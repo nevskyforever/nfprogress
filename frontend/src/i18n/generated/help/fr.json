@@ -85,6 +85,12 @@
     "title": "Paramètres des applications"
   },
   {
+    "children": [],
+    "content": "<html><body>\n<h2>Mode développeur</h2>\n<p>Disponible uniquement dans le runtime de développement local, la version de test ou le profil de développeur explicitement autorisé. Une fenêtre séparée vous permet de modifier la date du test et les paramètres du personnage et d'émettre des objets sans les limites habituelles du magasin.</p>\n<p>Le remplacement du profil réel/test est effectué uniquement sur demande explicite après un redémarrage. Avant l'activation atomique, une copie de sauvegarde est créée et vérifiée. Le profil de test persistant n’est pas automatiquement mis à jour.</p>\n</body></html>",
+    "key": "developer_mode",
+    "title": "Mode développeur"
+  },
+  {
     "children": [
       {
         "children": [],

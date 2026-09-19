@@ -44,6 +44,7 @@ def test_openapi_exposes_structured_content_settings_and_notes_contracts(tmp_pat
         'background_file_sync',
         'native_updates',
         'remote_api',
+        'developer_mode_available',
     }
 
     expected_response_models = {

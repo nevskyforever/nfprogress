@@ -1,4 +1,4 @@
-# NFProgress — Bridge Release Requirements
+# nfprogress — Bridge Release Requirements
 
 Решение F9: отдельный helper `QUALIFIED`; Bridge Release: `NO` как обязательный
 путь для регулярного перехода.

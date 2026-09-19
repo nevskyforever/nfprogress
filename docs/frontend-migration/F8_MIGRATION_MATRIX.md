@@ -1,4 +1,4 @@
-# NFProgress — F8 production migration matrix
+# nfprogress — F8 production migration matrix
 
 Статус аудита: 2026-09-04, baseline `e49069834793fe3151fcedf14e7308a577f37ea1`.
 Матрица описывает фактический результат текущего кода, а не желаемое

@@ -1,4 +1,4 @@
-# NFProgress — F9 Bridge Release decision
+# nfprogress — F9 Bridge Release decision
 
 ## Decision
 

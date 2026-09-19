@@ -23,6 +23,7 @@ vi.mock('@/platform/runtime', () => ({
 }))
 
 const webSettings: SettingsResponse = {
+  version: '5.3.9',
   values: {
     language: 'ru',
     frontend_theme: 'system',
@@ -158,6 +159,43 @@ describe('SettingsPage', () => {
     await flushPromises()
 
     expect(wrapper.get('#settings-check-updates').text()).toContain('Установлена последняя версия')
+  })
+
+  it('shows the actual runtime version without a hardcoded fallback', async () => {
+    vi.mocked(settingsApi.get).mockResolvedValue(webSettings)
+    const wrapper = mount(SettingsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' },
+          IonPage: { template: '<div><slot /></div>' },
+          IonIcon: true,
+          IonSpinner: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Версия nfprogress 5.3.9')
+    expect(wrapper.text()).not.toContain('Версия nfprogress 5.0')
+  })
+
+  it('shows an unknown marker when runtime version is unavailable', async () => {
+    vi.mocked(settingsApi.get).mockResolvedValue({ ...webSettings, version: undefined })
+    const wrapper = mount(SettingsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' },
+          IonPage: { template: '<div><slot /></div>' },
+          IonIcon: true,
+          IonSpinner: true,
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Версия nfprogress —')
   })
 
   it('opens the existing developer dialog only when runtime capability allows it', async () => {

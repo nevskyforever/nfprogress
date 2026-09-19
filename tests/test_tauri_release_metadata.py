@@ -4,6 +4,8 @@ import tomllib
 import zipfile
 from pathlib import Path
 
+import engine
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -34,6 +36,19 @@ def test_engine_versions_are_normalized_to_three_components():
     assert sync_versions.canonical_version('5.0') == '5.0.0'
     assert sync_versions.canonical_version('4.14.2') == '4.14.2'
     assert sync_versions.canonical_version('5.0-rc1') == '5.0.0-rc1'
+
+
+def test_runtime_package_version_matches_canonical_engine_version():
+    tauri_dir = ROOT / 'frontend' / 'src-tauri'
+    config = json.loads((tauri_dir / 'tauri.conf.json').read_text(encoding='utf-8'))
+    cargo = tomllib.loads((tauri_dir / 'Cargo.toml').read_text(encoding='utf-8'))
+
+    assert sync_versions.read_engine_version() == engine.version
+    assert config['version'] == engine.version
+    assert cargo['package']['version'] == engine.version
+    assert 'version: env!("CARGO_PKG_VERSION").to_string()' in (
+        tauri_dir / 'src' / 'lib.rs'
+    ).read_text(encoding='utf-8')
 
 
 def test_version_sync_can_target_an_isolated_frontend_workspace(tmp_path):

@@ -85,6 +85,12 @@
     "title": "Configuración de la aplicación"
   },
   {
+    "children": [],
+    "content": "<html><body>\n<h2>Modo desarrollador</h2>\n<p>Disponible solo en el tiempo de ejecución de desarrollo local, la compilación de prueba o el perfil de desarrollador permitido explícitamente. Una ventana separada le permite cambiar la fecha de la prueba y los parámetros de carácter y emitir artículos sin los límites habituales de la tienda.</p>\n<p>La sustitución del perfil real/de prueba se realiza únicamente tras una solicitud explícita después de un reinicio. Antes de la activación atómica, se crea y verifica una copia de seguridad. El perfil de prueba persistente no se actualiza automáticamente.</p>\n</body></html>",
+    "key": "developer_mode",
+    "title": "Modo desarrollador"
+  },
+  {
     "children": [
       {
         "children": [],

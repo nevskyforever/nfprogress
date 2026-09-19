@@ -1,4 +1,4 @@
-# NFProgress — F11 platform qualification
+# nfprogress — F11 platform qualification
 
 Дата: 2026-09-05. Qualification source is the F11 working HEAD descended
 directly from baseline `3b3980d`. This is a private/non-publishing report.
@@ -24,7 +24,7 @@ The local build used `scripts/build-tauri-local.sh arm` and produced
 binary is Mach-O arm64 and the DMG checksum verification passed.
 
 The existing running `/Applications/nfprogress.app` was verified as an arm64
-NFProgress Tauri product, but it was not terminated because its ownership/use
+nfprogress Tauri product, but it was not terminated because its ownership/use
 could not be established as a development process. The qualification app
 therefore exited immediately when started directly, consistent with the
 single-instance gate. No PASS is claimed for first launch or restart.

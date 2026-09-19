@@ -1,4 +1,4 @@
-# NFProgress — F8 release rollout plan
+# nfprogress — F8 release rollout plan
 
 F10 дополняет план явным переходом helper → installer → Tauri. Это план подготовки, не команда публикации. `update_manifest.json` и
 `update_manifest_legacy.json` намеренно не изменяются в F8/F9.

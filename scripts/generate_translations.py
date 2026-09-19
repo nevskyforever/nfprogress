@@ -53,6 +53,9 @@ FRONTEND_IGNORED_DIRECTORIES = frozenset(
 TARGET_LANGUAGES = ("en", "es", "de", "fr", "pt")
 CATALOG_LANGUAGE = {"pt": "pt_BR"}
 CYRILLIC = re.compile(r"[А-Яа-яЁё]")
+PRODUCT_BRANDING = re.compile(
+    r"(?<![A-Za-z0-9_])(?:NFProgress|NFPROGRESS|NfProgress)(?![A-Za-z0-9_-])"
+)
 PLACEHOLDER = re.compile(
     r"(?<!\{)\{(?:\d+|[A-Za-z_][A-Za-z0-9_.-]*)\}(?!\})"
 )
@@ -583,6 +586,11 @@ def main() -> int:
     strings = sorted(set(strings) | override_sources)
     print(f"Extracted {len(strings)} Russian strings", file=sys.stderr)
     catalog = {} if args.full else load_catalog()
+    source_set = set(strings)
+    for language_catalog in catalog.values():
+        for stale_source in list(language_catalog):
+            if stale_source not in source_set and PRODUCT_BRANDING.search(stale_source):
+                del language_catalog[stale_source]
     russian_catalog = catalog.setdefault("ru", {})
     russian_catalog.update({source: source for source in strings})
 
@@ -614,6 +622,11 @@ def main() -> int:
     english_agreement = catalog["en"].get(agreement, agreement)
     for language in ("es", "de", "fr", "pt_BR"):
         catalog[language][agreement] = english_agreement
+    for language_catalog in catalog.values():
+        for source, translation in language_catalog.items():
+            language_catalog[source] = PRODUCT_BRANDING.sub(
+                "nfprogress", translation,
+            )
     write_catalog(catalog, agreement)
     return 0
 

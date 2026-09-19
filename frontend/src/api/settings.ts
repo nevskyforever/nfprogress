@@ -13,6 +13,7 @@ const DESKTOP_EDITABLE_KEYS = [
 
 function desktopResponse(values: SettingsValues): SettingsResponse {
   return {
+    version: window.__NFPROGRESS_RUNTIME__?.version,
     values: { frontend_motion: 'full', background_synch: true, ...values },
     platform: 'desktop',
     capabilities: {

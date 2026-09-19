@@ -1,4 +1,4 @@
-# NFProgress — F8 release qualification
+# nfprogress — F8 release qualification
 
 Дата: 2026-09-04. F8 audit baseline: `e490698`; F9 qualification baseline:
 `e70ba022989d70d6ca4d8aaf4703486dad045999`.

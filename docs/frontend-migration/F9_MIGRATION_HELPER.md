@@ -1,4 +1,4 @@
-# NFProgress — F9 migration helper qualification
+# nfprogress — F9 migration helper qualification
 
 Дата: 2026-09-04. Baseline: `e70ba022989d70d6ca4d8aaf4703486dad045999`.
 F9 closes the first F8 production blocker only. Cross-generation updating,

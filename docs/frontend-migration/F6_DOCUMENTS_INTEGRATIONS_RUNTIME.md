@@ -1,4 +1,4 @@
-# NFProgress — F6 Documents / Word / Scrivener / filesystem runtime
+# nfprogress — F6 Documents / Word / Scrivener / filesystem runtime
 
 F6 baseline: `89898945ff0ed71b27148e36ab00f9b90e1cd3ed`.
 
@@ -100,7 +100,7 @@ Word writes use an fsynced temporary file followed by replacement. The native
 polling timer runs every 60 seconds and the editor retains its explicit change
 check. A source hash is compared before progress mutation, so repeated scans
 do not duplicate progress or Game events. The expected final hash records an
-NFProgress write and suppresses treating that write as an independent edit.
+nfprogress write and suppresses treating that write as an independent edit.
 
 Document-derived progress is written through a private trusted Rust path that
 creates the normal durable `ProgressAdded` event. The frontend cannot obtain

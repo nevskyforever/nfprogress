@@ -1,4 +1,4 @@
-# NFProgress — F8 recovery runbook
+# nfprogress — F8 recovery runbook
 
 Это manual/local runbook для release owner и поддержки. Он не удаляет legacy
 файлы и не запускает публичный converter.
@@ -39,7 +39,7 @@ helper does not delete projects or recreate the database.
 
 ## Before any migration
 
-1. Close all NFProgress processes and copy the complete data directory to an
+1. Close all nfprogress processes and copy the complete data directory to an
    offline archive. Never rehearse against the only live copy.
 2. Record the exact source path, app version, file list and
    `source_fingerprint`.

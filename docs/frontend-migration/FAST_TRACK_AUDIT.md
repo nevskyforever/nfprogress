@@ -1,4 +1,4 @@
-# NFProgress — fast-track migration audit
+# nfprogress — fast-track migration audit
 
 Audit baseline: `04b62c3970b22c43b9f604f79ee6de17243179f2` (2026-09-04).
 

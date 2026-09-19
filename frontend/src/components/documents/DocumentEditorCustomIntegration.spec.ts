@@ -200,7 +200,7 @@ describe('DocumentEditorView custom editor integration', () => {
     wrapper.unmount()
   })
 
-  it('keeps non-empty NFProgress content pending when background polling detects changed Word content', async () => {
+  it('keeps non-empty nfprogress content pending when background polling detects changed Word content', async () => {
     const linkedDocument = { ...documentFixture, docx_path: '/tmp/document.docx', last_synced_hash: 'accepted-hash' }
     const wordDocument: TiptapDocument = {
       type: 'doc',
@@ -223,7 +223,7 @@ describe('DocumentEditorView custom editor integration', () => {
     wrapper.unmount()
   })
 
-  it('never clears non-empty NFProgress content when changed Word content is empty', async () => {
+  it('never clears non-empty nfprogress content when changed Word content is empty', async () => {
     const linkedDocument = { ...documentFixture, docx_path: '/tmp/document.docx', last_synced_hash: 'accepted-hash' }
     const emptyWord: TiptapDocument = { type: 'doc', content: [{ type: 'paragraph' }] }
     vi.mocked(documentsApi.external).mockResolvedValue({ state: 'external_changed', content_base64: 'AQI=', hash: 'empty-word-hash' })
@@ -267,7 +267,7 @@ describe('DocumentEditorView custom editor integration', () => {
     wrapper.unmount()
   })
 
-  it('keeps NFProgress content and writes it to Word after explicit NFProgress choice', async () => {
+  it('keeps nfprogress content and writes it to Word after explicit nfprogress choice', async () => {
     const linkedDocument = { ...documentFixture, docx_path: '/tmp/document.docx', last_synced_hash: 'accepted-hash' }
     const syncedDocument = { ...linkedDocument, sync_state: 'synced', last_synced_hash: 'nfprogress-hash' }
     const wordDocument: TiptapDocument = {
@@ -289,7 +289,7 @@ describe('DocumentEditorView custom editor integration', () => {
     await vi.advanceTimersByTimeAsync(5000)
     await flushPromises()
 
-    const keepButton = wrapper.findAll('[role="alertdialog"] button').find((button) => button.text() === 'Оставить NFProgress')
+    const keepButton = wrapper.findAll('[role="alertdialog"] button').find((button) => button.text() === 'Оставить nfprogress')
     expect(keepButton).toBeDefined()
     await keepButton!.trigger('click')
     await flushPromises()
@@ -312,7 +312,7 @@ describe('DocumentEditorView custom editor integration', () => {
     wrapper.unmount()
   })
 
-  it('saves an NFProgress copy before applying Word after the explicit both choice', async () => {
+  it('saves an nfprogress copy before applying Word after the explicit both choice', async () => {
     const linkedDocument = { ...documentFixture, docx_path: '/tmp/document.docx', last_synced_hash: 'accepted-hash' }
     const wordDocument: TiptapDocument = {
       type: 'doc',

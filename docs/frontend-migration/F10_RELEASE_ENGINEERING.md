@@ -1,4 +1,4 @@
-# NFProgress — F10 release engineering qualification
+# nfprogress — F10 release engineering qualification
 
 Дата: 2026-09-04. Baseline HEAD: `27d09249f1df88c89d10698b58f2f5fa4515fab0`.
 F10 audits delivery without publishing or changing either production manifest.

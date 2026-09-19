@@ -1,4 +1,4 @@
-# NFProgress — F11 release gate checklist
+# nfprogress — F11 release gate checklist
 
 Private qualification only. Production manifests remain untouched and no
 public release is authorized.

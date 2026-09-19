@@ -1,4 +1,4 @@
-# NFProgress — migration architecture
+# nfprogress — migration architecture
 
 F7 implementation baseline: `e49069834793fe3151fcedf14e7308a577f37ea1`.
 F8 qualification is recorded in

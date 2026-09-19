@@ -1,6 +1,7 @@
 import { Capacitor } from '@capacitor/core'
 
 interface DesktopRuntimeInfo {
+  version: string
   nativeUpdates: boolean
   architecture: string
   development: boolean
@@ -48,6 +49,7 @@ async function initializeTauriRuntime(): Promise<void> {
   try {
     const runtime = await invoke<DesktopRuntimeInfo>('runtime_info')
     window.__NFPROGRESS_RUNTIME__ = {
+      version: runtime.version,
       nativeUpdates: runtime.nativeUpdates,
       architecture: runtime.architecture,
       development: runtime.development,

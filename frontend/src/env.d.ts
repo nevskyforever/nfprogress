@@ -9,6 +9,7 @@ interface ImportMeta {
 }
 
 interface NFProgressRuntimeBridge {
+  version?: string
   nativeUpdates?: boolean
   architecture?: string
   development?: boolean

@@ -1,4 +1,4 @@
-# NFProgress — fast-track migration plan
+# nfprogress — fast-track migration plan
 
 Baseline for F4: `aad08cdd34cd5bc9a10c28e862c2f8aa6860da7c`.
 

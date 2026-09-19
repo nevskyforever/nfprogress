@@ -1,4 +1,4 @@
-"""Static-inspected, restricted decoder for legacy NFProgress pickle files.
+"""Static-inspected, restricted decoder for legacy nfprogress pickle files.
 
 This module is a migration boundary only.  It deliberately does not attempt to
 be a security sandbox: the allowlisted Python classes still execute their
@@ -28,7 +28,7 @@ class LegacyDecodeError(RuntimeError):
 
 
 class UnsupportedLegacyObject(LegacyDecodeError):
-    """The pickle requests a class or callable outside the NFProgress allowlist."""
+    """The pickle requests a class or callable outside the nfprogress allowlist."""
 
     code = "unsupported_legacy_object"
 
@@ -66,7 +66,7 @@ ALLOWED_BUILTINS = frozenset({
 
 # Persistent IDs and the old instance opcodes can invoke external loaders or
 # construct classes without the modern NEWOBJ path.  They are not used by the
-# NFProgress stores and are rejected before unpickling.
+# nfprogress stores and are rejected before unpickling.
 FORBIDDEN_OPCODES = frozenset({
     "EXT1", "EXT2", "EXT4", "INST", "OBJ", "PERSID", "BINPERSID",
     "NEWOBJ_EX",
@@ -139,7 +139,7 @@ def _static_globals(payload: bytes) -> list[tuple[str, str]]:
 
 
 class RestrictedLegacyUnpickler(pickle.Unpickler):
-    """Unpickler with an explicit NFProgress class/callable allowlist."""
+    """Unpickler with an explicit nfprogress class/callable allowlist."""
 
     def find_class(self, module: str, name: str) -> Any:  # noqa: D102
         if (module, name) in ALLOWED_GLOBALS:

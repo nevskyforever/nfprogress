@@ -1,4 +1,4 @@
-# NFProgress — F11 production signing and distribution trust
+# nfprogress — F11 production signing and distribution trust
 
 Дата qualification: 2026-09-05. Baseline: `3b3980d`. F11 does not publish
 anything and does not modify `update_manifest.json` or

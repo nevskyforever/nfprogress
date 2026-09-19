@@ -2454,6 +2454,7 @@ fn save_main_window_state(app: &tauri::AppHandle) {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RuntimeInfo {
+    version: String,
     native_updates: bool,
     architecture: String,
     development: bool,
@@ -2700,6 +2701,7 @@ struct MacosUpdateProgress {
 #[tauri::command]
 fn runtime_info(startup_status: State<'_, StartupStatus>) -> RuntimeInfo {
     RuntimeInfo {
+        version: env!("CARGO_PKG_VERSION").to_string(),
         native_updates: native_updates_enabled(),
         architecture: std::env::consts::ARCH.to_string(),
         development: cfg!(debug_assertions),

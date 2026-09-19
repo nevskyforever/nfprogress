@@ -1,4 +1,4 @@
-# NFProgress — migration status
+# nfprogress — migration status
 
 Updated for F10 against implementation baseline `27d09249f1df88c89d10698b58f2f5fa4515fab0`
 on 2026-09-04. F10 qualification is `BLOCKED — transition and production

@@ -11,7 +11,7 @@ from nfprogress.core.storage import PickleRepository
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--data-dir', required=True, help='explicit NFProgress data root')
+    parser.add_argument('--data-dir', required=True, help='explicit nfprogress data root')
     args = parser.parse_args(argv)
     repository = PickleRepository(args.data_dir)
     repository.create_backup()

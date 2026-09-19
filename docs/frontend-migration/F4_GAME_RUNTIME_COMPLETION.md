@@ -1,4 +1,4 @@
-# NFProgress — F4 Game runtime completion
+# nfprogress — F4 Game runtime completion
 
 Status: complete for the normal development desktop path, 2026-09-04.
 Starting HEAD: `aad08cdd34cd5bc9a10c28e862c2f8aa6860da7c`.

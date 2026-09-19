@@ -101,7 +101,7 @@ upload → static validation → queued isolated worker
 The decoder must never run `pickle.load(user_upload)` in the production web
 process. Static inspection checks protocol, size, opcode count, globals,
 classes and forbidden opcodes before decoding. The decoder allowlist contains
-only known historical NFProgress classes and safe builtin values; unknown
+only known historical nfprogress classes and safe builtin values; unknown
 modules/classes and arbitrary callable resolution are rejected. The worker has
 no production credentials, DB/cloud metadata, home directory, host filesystem,
 Docker socket, SSH keys or network egress; it uses a read-only root, isolated

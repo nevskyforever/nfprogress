@@ -1,4 +1,4 @@
-# NFProgress — F11 transition rehearsal
+# nfprogress — F11 transition rehearsal
 
 Дата: 2026-09-05. Source baseline: `3b3980d`. The rehearsal uses copied test
 data only; no live personal profile was opened or modified.

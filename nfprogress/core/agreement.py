@@ -14,7 +14,7 @@ body { color: #ffffff; font-family: Arial; font-size: 13pt; }
 h1 { font-size: xx-large; } h2 { font-size: x-large; }
 p, li { white-space: pre-wrap; }
 </style></head><body>
-<h1>ADDITIONAL TERMS OF USE FOR NFPROGRESS</h1>
+<h1>ADDITIONAL TERMS OF USE FOR nfprogress</h1>
 <p>Samara<br>23 July 2026</p>
 <h2>1. General Provisions</h2>
 <p>1.1. The nfprogress computer program is distributed under the GNU General

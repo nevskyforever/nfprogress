@@ -1,4 +1,4 @@
-# NFProgress — F10 signing and platform matrix
+# nfprogress — F10 signing and platform matrix
 
 Дата аудита: 2026-09-04. Status reflects actual repository configuration and
 evidence available on the ARM macOS qualification host.

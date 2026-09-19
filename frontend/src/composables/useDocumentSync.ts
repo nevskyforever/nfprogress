@@ -91,7 +91,7 @@ export function useDocumentSync(scope: DocumentScope) {
     if (!external.content_base64 || !external.hash) return
     // Native writes persist their resulting file hash. Even if a delayed or
     // stale polling response still includes the bytes, never parse and apply
-    // the exact version NFProgress has just written or already accepted.
+    // the exact version nfprogress has just written or already accepted.
     if (external.hash === documentState.value.last_synced_hash) return
     if (!['external_changed', 'word_changed', 'conflict'].includes(external.state)) return
     const bytes = Uint8Array.from(atob(external.content_base64), (letter) => letter.charCodeAt(0))
