@@ -3,6 +3,7 @@ import { computed, ref, watch } from 'vue'
 
 import { useLocaleStore } from '@/stores/locale'
 import type { GameInventory, GameItem, InventoryCommand, ShopCatalog } from '@/types/game'
+import { cartCapacity } from '@/utils/gameCart'
 
 const props = defineProps<{
   inventory: GameInventory
@@ -99,13 +100,10 @@ function isUsable(item: GameItem): boolean {
 }
 
 function canPurchase(item: GameItem): boolean {
+  if (cartCapacity(item, props.inventory) === 0) return false
   if (item.can_buy) return true
   if (!props.canOpenCredit || item.credit_allowed === false || !item.available_for_level) return false
-  if (item.maximum_quantity === null || item.maximum_quantity === undefined) return true
-  const count = props.inventory.categories
-    .find((category) => category.key === item.category)?.items
-    .find((inventoryItem) => inventoryItem.key === item.key)?.count ?? 0
-  return count < item.maximum_quantity
+  return true
 }
 </script>
 

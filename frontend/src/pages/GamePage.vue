@@ -22,6 +22,7 @@ import StatePanel from '@/components/ui/StatePanel.vue'
 import { useLocaleStore } from '@/stores/locale'
 import { useNotificationsStore } from '@/stores/notifications'
 import { announceDataChange, onDataChange } from '@/services/dataChanges'
+import { cartCapacity, clampCartCount, reconcileCart } from '@/utils/gameCart'
 import { gameResponseMessages } from '@/utils/gameNotifications'
 import type {
   BankProductRequest,
@@ -85,6 +86,10 @@ const cartTotal = computed(() => cartLines.value.reduce(
   (sum, line) => sum + (line.item.price ?? 0) * line.count,
   0,
 ))
+const displayedCartLines = computed<CartLine[]>(() => cartLines.value.map((line) => ({
+  ...line,
+  maximumCount: state.value ? cartCapacity(line.item, state.value.inventory) : null,
+})))
 const cartCreditAllowed = computed(() => cartLines.value.every(
   (line) => line.item.credit_allowed !== false,
 ))
@@ -123,6 +128,7 @@ const tabs: ReadonlyArray<{ key: GameTab; label: string }> = [
 
 function applyState(nextState: GameState): void {
   state.value = nextState
+  cartLines.value = reconcileCart(cartLines.value, nextState.inventory)
   notifications.setGameHistory(nextState.notifications)
   scheduleSessionCompletion(nextState)
   scheduleEffectsRefresh(nextState)
@@ -291,14 +297,27 @@ function inventoryCommand(
 }
 
 function addToCart(item: GameItem, count: number): void {
+  if (!state.value) return
   const existing = cartLines.value.find((line) => line.item.id === item.id)
-  if (existing) existing.count += count
-  else cartLines.value.push({ item, count })
+  const nextCount = clampCartCount(
+    item,
+    state.value.inventory,
+    (existing?.count ?? 0) + count,
+  )
+  if (existing) {
+    if (nextCount > 0) existing.count = nextCount
+    else removeCartLine(item.id)
+  } else if (nextCount > 0) {
+    cartLines.value.push({ item, count: nextCount })
+  }
 }
 
 function changeCartLine(itemId: string, count: number): void {
   const line = cartLines.value.find((candidate) => candidate.item.id === itemId)
-  if (line) line.count = count
+  if (!line || !state.value) return
+  const nextCount = clampCartCount(line.item, state.value.inventory, count)
+  if (nextCount > 0) line.count = nextCount
+  else removeCartLine(itemId)
 }
 
 function removeCartLine(itemId: string): void {
@@ -341,6 +360,8 @@ function addPendingPurchaseToCart(): void {
 
 async function checkoutCart(useCredit: boolean, days: number, approvedCredit = false): Promise<void> {
   if (busy.value || !cartLines.value.length || !state.value) return
+  cartLines.value = reconcileCart(cartLines.value, state.value.inventory)
+  if (!cartLines.value.length) return
   busy.value = true
   error.value = ''
   try {
@@ -506,7 +527,7 @@ onBeforeUnmount(() => {
           @cancel="cancelCreditPreview"
         />
         <ShoppingCart
-          :lines="cartLines"
+          :lines="displayedCartLines"
           :coins="state?.profile.coins ?? 0"
           :can-open-credit="state?.bank.can_open_credit ?? false"
           :credit-allowed="cartCreditAllowed"

@@ -141,4 +141,25 @@ describe('InventoryShopPanel', () => {
       item_id: 'Лотерейный билет',
     })
   })
+
+  it('disables buying when inventory has reached the item maximum', () => {
+    const fullInventory: GameInventory = structuredClone(inventory)
+    const item = fullInventory.categories[0]!.items[0]!
+    item.count = 1
+    item.maximum_quantity = 1
+    item.can_buy = true
+    const wrapper = mount(InventoryShopPanel, {
+      props: {
+        inventory: fullInventory,
+        shop,
+        busy: false,
+        view: 'inventory',
+        canOpenCredit: true,
+      },
+      global: { plugins: [createPinia()] },
+    })
+
+    const buyButton = wrapper.findAll('.item-card')[0]?.find('.nf-button')
+    expect(buyButton?.attributes('disabled')).toBeDefined()
+  })
 })

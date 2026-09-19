@@ -4,7 +4,7 @@ import { computed, ref } from 'vue'
 import { useLocaleStore } from '@/stores/locale'
 import type { GameItem } from '@/types/game'
 
-export interface CartLine { item: GameItem; count: number }
+export interface CartLine { item: GameItem; count: number; maximumCount?: number | null }
 const props = defineProps<{ lines: CartLine[]; coins: number; canOpenCredit: boolean; creditAllowed: boolean; busy: boolean }>()
 const emit = defineEmits<{ change: [itemId: string, count: number]; remove: [itemId: string]; clear: []; checkout: [useCredit: boolean, days: number] }>()
 const locale = useLocaleStore(); const t = locale.translate
@@ -12,6 +12,11 @@ const expanded = ref(true); const creditDays = ref(30)
 const total = computed(() => props.lines.reduce((sum, line) => sum + (line.item.price ?? 0) * line.count, 0))
 const shortfall = computed(() => Math.max(0, total.value - props.coins))
 function change(line: CartLine, delta: number): void { emit('change', line.item.id, Math.max(1, line.count + delta)) }
+function maximumReached(line: CartLine): boolean {
+  return line.maximumCount !== null
+    && line.maximumCount !== undefined
+    && line.count >= line.maximumCount
+}
 </script>
 
 <template>
@@ -20,7 +25,7 @@ function change(line: CartLine, delta: number): void { emit('change', line.item.
       <span>🛒 {{ t('Корзина') }} · {{ lines.length }}</span><strong>{{ locale.formatNumber(total) }} {{ t('монет') }}</strong><span>{{ expanded ? '⌄' : '⌃' }}</span>
     </button>
     <div v-if="expanded" class="shopping-cart__content">
-      <ul><li v-for="line in lines" :key="line.item.id"><span>{{ t(line.item.name) }}</span><div><button type="button" @click="change(line, -1)">−</button><b>×{{ line.count }}</b><button type="button" @click="change(line, 1)">+</button><button type="button" :aria-label="t('Удалить')" @click="emit('remove', line.item.id)">×</button></div></li></ul>
+      <ul><li v-for="line in lines" :key="line.item.id"><span>{{ t(line.item.name) }}</span><div><button type="button" @click="change(line, -1)">−</button><b>×{{ line.count }}</b><button type="button" :disabled="maximumReached(line)" @click="change(line, 1)">+</button><button type="button" :aria-label="t('Удалить')" @click="emit('remove', line.item.id)">×</button></div></li></ul>
       <p v-if="shortfall" class="shopping-cart__shortfall">{{ t('Не хватает') }}: {{ locale.formatNumber(shortfall) }} {{ t('монет') }}</p>
       <p v-if="shortfall && !creditAllowed" class="shopping-cart__shortfall">{{ t('В корзине есть товары, недоступные для кредита.') }}</p>
       <label v-if="shortfall && canOpenCredit && creditAllowed">{{ t('Срок кредита, дней') }}<input v-model.number="creditDays" type="number" min="1" max="3650" /></label>
