@@ -2435,6 +2435,198 @@ fn count_rtf_symbols(bytes: &[u8]) -> usize {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::Mutex;
+
+    static DATA_DIR_ENV_LOCK: Mutex<()> = Mutex::new(());
+
+    fn rich_tiptap_document() -> Value {
+        serde_json::json!({
+            "type": "doc",
+            "content": [
+                {
+                    "type": "heading",
+                    "attrs": {"level": 2, "textAlign": "center", "lineHeight": "1.5"},
+                    "content": [{"type": "text", "text": "Rich heading", "marks": [{"type": "bold"}]}]
+                },
+                {
+                    "type": "paragraph",
+                    "attrs": {"textAlign": "justify", "lineHeight": "1.15"},
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "Styled",
+                            "marks": [
+                                {"type": "bold"},
+                                {"type": "italic"},
+                                {"type": "underline"},
+                                {"type": "strike"},
+                                {"type": "textStyle", "attrs": {"fontFamily": "Georgia", "fontSize": "18px", "color": "#123456"}},
+                                {"type": "highlight", "attrs": {"color": "#ffee66"}}
+                            ]
+                        },
+                        {"type": "text", "text": " sub", "marks": [{"type": "subscript"}]},
+                        {"type": "text", "text": " super", "marks": [{"type": "superscript"}]},
+                        {"type": "hardBreak"},
+                        {"type": "text", "text": "\tliteral tab"}
+                    ]
+                },
+                {
+                    "type": "bulletList",
+                    "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Bullet"}]}]}]
+                },
+                {
+                    "type": "orderedList",
+                    "attrs": {"start": 3},
+                    "content": [{"type": "listItem", "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Ordered"}]}]}]
+                },
+                {
+                    "type": "blockquote",
+                    "content": [{"type": "paragraph", "content": [{"type": "text", "text": "Quote"}]}]
+                }
+            ]
+        })
+    }
+
+    fn insert_app_project(connection: &rusqlite::Connection, project_id: &str) {
+        connection
+            .execute(
+                "INSERT INTO projects(id,name,goal,infinite,unit,status,payload_json) VALUES(?1,'Book',100,0,'symbols','активен',?2)",
+                params![project_id, serde_json::json!({"name":"Book","status":"активен","work_method":"app","stages":[]}).to_string()],
+            )
+            .unwrap();
+        connection
+            .execute(
+                "INSERT INTO project_order(project_id,position) VALUES(?1,0)",
+                [project_id],
+            )
+            .unwrap();
+    }
+
+    #[test]
+    fn sqlite_round_trip_preserves_complete_tiptap_json_and_metadata() {
+        let _env_guard = DATA_DIR_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let root = std::env::temp_dir().join(format!(
+            "nfprogress-rich-document-round-trip-{}",
+            std::process::id()
+        ));
+        let previous_root = std::env::var_os("NFPROGRESS_DATA_DIR");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        std::env::set_var("NFPROGRESS_DATA_DIR", &root);
+
+        let result = (|| -> Result<(), String> {
+            let connection = crate::sqlite::open_database(&root.join("nfprogress.db"))
+                .map_err(|error| error.to_string())?;
+            insert_app_project(&connection, "rich-project");
+            drop(connection);
+            let content = rich_tiptap_document();
+
+            let saved = save_document(DocumentSaveCommand {
+                project_id: "rich-project".into(),
+                stage_id: None,
+                content: content.clone(),
+            })?;
+            let document_id = saved["document_id"].as_str().unwrap().to_string();
+            assert_eq!(saved["content"], content);
+            assert_eq!(saved["content_format"], "tiptap-json/v1");
+            assert!(saved["updated_at"].as_str().is_some());
+
+            let connection = rusqlite::Connection::open(root.join("nfprogress.db"))
+                .map_err(|error| error.to_string())?;
+            let row: (String, String, String, i64, Option<String>) = connection
+                .query_row(
+                    "SELECT id,scope_key,content_json,revision,updated_at FROM documents WHERE scope_key='rich-project:project'",
+                    [],
+                    |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?, row.get(4)?)),
+                )
+                .map_err(|error| error.to_string())?;
+            assert_eq!(row.0, document_id);
+            assert_eq!(row.1, "rich-project:project");
+            assert_eq!(serde_json::from_str::<Value>(&row.2).unwrap(), content);
+            assert_eq!(row.3, 0);
+            assert!(row.4.is_some());
+            drop(connection);
+
+            let loaded = get_document(DocumentScope {
+                project_id: "rich-project".into(),
+                stage_id: None,
+            })?;
+            assert_eq!(loaded["content"], content);
+            assert_eq!(loaded["document_id"], document_id);
+            assert_eq!(loaded["content_format"], "tiptap-json/v1");
+            Ok(())
+        })();
+
+        if let Some(previous_root) = previous_root {
+            std::env::set_var("NFPROGRESS_DATA_DIR", previous_root);
+        } else {
+            std::env::remove_var("NFPROGRESS_DATA_DIR");
+        }
+        let _ = fs::remove_dir_all(&root);
+        result.unwrap();
+    }
+
+    #[test]
+    fn legacy_documents_json_rich_content_reaches_native_get_unchanged() {
+        let _env_guard = DATA_DIR_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let root = std::env::temp_dir().join(format!(
+            "nfprogress-rich-document-migration-{}",
+            std::process::id()
+        ));
+        let previous_root = std::env::var_os("NFPROGRESS_DATA_DIR");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        let content = rich_tiptap_document();
+        fs::write(
+            root.join("documents.json"),
+            serde_json::json!({
+                "legacy:project": {
+                    "document_id": "legacy-rich-document",
+                    "project_id": "legacy",
+                    "content_format": "tiptap-json/v1",
+                    "content": content
+                }
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let connection = crate::sqlite::open_database(&root.join("nfprogress.db")).unwrap();
+        insert_app_project(&connection, "legacy");
+        drop(connection);
+        std::env::set_var("NFPROGRESS_DATA_DIR", &root);
+
+        let result = get_document(DocumentScope {
+            project_id: "legacy".into(),
+            stage_id: None,
+        });
+
+        if let Some(previous_root) = previous_root {
+            std::env::set_var("NFPROGRESS_DATA_DIR", previous_root);
+        } else {
+            std::env::remove_var("NFPROGRESS_DATA_DIR");
+        }
+        let loaded = result.unwrap();
+        assert_eq!(loaded["document_id"], "legacy-rich-document");
+        assert_eq!(loaded["content_format"], "tiptap-json/v1");
+        assert_eq!(loaded["content"], rich_tiptap_document());
+        let raw = rusqlite::Connection::open(root.join("nfprogress.db"))
+            .unwrap()
+            .query_row(
+                "SELECT content_json FROM documents WHERE id='legacy-rich-document'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&raw).unwrap(),
+            rich_tiptap_document()
+        );
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn migration_ids_are_stable_for_a_scope() {
@@ -2505,6 +2697,9 @@ mod tests {
 
     #[test]
     fn linked_word_self_write_is_immediately_reported_as_synced() {
+        let _env_guard = DATA_DIR_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
         let root = std::env::temp_dir().join(format!(
             "nfprogress-linked-word-self-write-{}",
             std::process::id()
@@ -2613,6 +2808,124 @@ mod tests {
             std::env::remove_var("NFPROGRESS_DATA_DIR");
         }
         let _ = fs::remove_dir_all(&root);
+        result.unwrap();
+    }
+
+    #[test]
+    fn accepted_word_conflict_does_not_reappear_after_test_profile_restart() {
+        let _env_guard = DATA_DIR_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let real_root = std::env::temp_dir().join(format!(
+            "nfprogress-word-conflict-restart-{}",
+            std::process::id()
+        ));
+        let test_root = real_root.join("test_data");
+        let previous_root = std::env::var_os("NFPROGRESS_DATA_DIR");
+        let _ = fs::remove_dir_all(&real_root);
+        fs::create_dir_all(&test_root).unwrap();
+
+        let real_connection =
+            crate::sqlite::open_database(&real_root.join("nfprogress.db")).unwrap();
+        insert_app_project(&real_connection, "p1");
+        real_connection.execute(
+            "INSERT INTO documents(id,scope_key,project_id,title,content_json,content_format,revision,extensions_json) VALUES('real-document','p1:project','p1','Book',?1,'tiptap-json/v1',0,'{}')",
+            [serde_json::json!({"type":"doc","content":[{"type":"paragraph","content":[{"type":"text","text":"real profile"}]}]}).to_string()],
+        ).unwrap();
+        drop(real_connection);
+
+        let test_connection =
+            crate::sqlite::open_database(&test_root.join("nfprogress.db")).unwrap();
+        insert_app_project(&test_connection, "p1");
+        drop(test_connection);
+        std::env::set_var("NFPROGRESS_DATA_DIR", &test_root);
+
+        let result = (|| -> Result<(), String> {
+            let initial = serde_json::json!({
+                "type":"doc",
+                "content":[{"type":"paragraph","content":[{"type":"text","text":"initial test"}]}]
+            });
+            let accepted = serde_json::json!({
+                "type":"doc",
+                "content":[{"type":"paragraph","content":[{"type":"text","text":"accepted test version"}]}]
+            });
+            let word_path = test_root.join("linked.docx");
+            fs::write(&word_path, build_docx(&initial)?).map_err(|error| error.to_string())?;
+            save_document(DocumentSaveCommand {
+                project_id: "p1".into(),
+                stage_id: None,
+                content: initial.clone(),
+            })?;
+            bind_document_file(DocumentFileCommand {
+                project_id: "p1".into(),
+                stage_id: None,
+                path: word_path.to_string_lossy().into_owned(),
+            })?;
+            write_document_word_content("p1".into(), None, initial)?;
+
+            save_document(DocumentSaveCommand {
+                project_id: "p1".into(),
+                stage_id: None,
+                content: serde_json::json!({
+                    "type":"doc",
+                    "content":[{"type":"paragraph","content":[{"type":"text","text":"local edit"}]}]
+                }),
+            })?;
+            fs::write(&word_path, build_docx(&accepted)?).map_err(|error| error.to_string())?;
+            let conflict = read_external(DocumentScope {
+                project_id: "p1".into(),
+                stage_id: None,
+            })?;
+            assert_eq!(conflict.state, "conflict");
+            let accepted_hash = conflict
+                .hash
+                .ok_or_else(|| "Missing conflict hash".to_string())?;
+            let resolved = accept_external(DocumentExternalAcceptCommand {
+                project_id: "p1".into(),
+                stage_id: None,
+                content: accepted.clone(),
+                source_hash: accepted_hash.clone(),
+            })?;
+            assert_eq!(resolved["content"], accepted);
+            assert_eq!(resolved["last_synced_hash"], accepted_hash);
+
+            // A normal next startup has no transfer request and must open the
+            // existing test SQLite profile without rebuilding it from real.
+            crate::profile_transfer::process_pending(&test_root)?;
+            crate::prepare_startup_storage(&test_root)?;
+
+            let reopened = get_document(DocumentScope {
+                project_id: "p1".into(),
+                stage_id: None,
+            })?;
+            assert_eq!(reopened["content"], accepted);
+            assert_eq!(reopened["last_synced_hash"], accepted_hash);
+            assert_eq!(reopened["sync_state"], "synced");
+            let unchanged_word = read_external(DocumentScope {
+                project_id: "p1".into(),
+                stage_id: None,
+            })?;
+            assert_eq!(unchanged_word.state, "synced");
+            assert!(unchanged_word.hash.is_none());
+
+            let real_content: String = rusqlite::Connection::open(real_root.join("nfprogress.db"))
+                .map_err(|error| error.to_string())?
+                .query_row(
+                    "SELECT content_json FROM documents WHERE id='real-document'",
+                    [],
+                    |row| row.get(0),
+                )
+                .map_err(|error| error.to_string())?;
+            assert!(real_content.contains("real profile"));
+            Ok(())
+        })();
+
+        if let Some(previous_root) = previous_root {
+            std::env::set_var("NFPROGRESS_DATA_DIR", previous_root);
+        } else {
+            std::env::remove_var("NFPROGRESS_DATA_DIR");
+        }
+        let _ = fs::remove_dir_all(&real_root);
         result.unwrap();
     }
 

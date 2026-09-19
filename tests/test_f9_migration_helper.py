@@ -40,6 +40,54 @@ def _write_pickle(root: Path, name: str, value: object) -> None:
     (root / name).write_bytes(pickle.dumps(value, protocol=4))
 
 
+def _rich_tiptap_document() -> dict:
+    return {
+        "type": "doc",
+        "content": [
+            {
+                "type": "heading",
+                "attrs": {"level": 2, "textAlign": "center", "lineHeight": "1.5"},
+                "content": [{"type": "text", "text": "Rich heading", "marks": [{"type": "bold"}]}],
+            },
+            {
+                "type": "paragraph",
+                "attrs": {"textAlign": "justify", "lineHeight": "1.15"},
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Styled",
+                        "marks": [
+                            {"type": "bold"}, {"type": "italic"}, {"type": "underline"},
+                            {"type": "strike"},
+                            {"type": "textStyle", "attrs": {
+                                "fontFamily": "Georgia", "fontSize": "18px", "color": "#123456",
+                            }},
+                            {"type": "highlight", "attrs": {"color": "#ffee66"}},
+                        ],
+                    },
+                    {"type": "text", "text": " sub", "marks": [{"type": "subscript"}]},
+                    {"type": "text", "text": " super", "marks": [{"type": "superscript"}]},
+                    {"type": "hardBreak"},
+                    {"type": "text", "text": "\tliteral tab"},
+                ],
+            },
+            {"type": "bulletList", "content": [{
+                "type": "listItem", "content": [{"type": "paragraph", "content": [
+                    {"type": "text", "text": "Bullet"},
+                ]}],
+            }]},
+            {"type": "orderedList", "attrs": {"start": 3}, "content": [{
+                "type": "listItem", "content": [{"type": "paragraph", "content": [
+                    {"type": "text", "text": "Ordered"},
+                ]}],
+            }]},
+            {"type": "blockquote", "content": [{"type": "paragraph", "content": [
+                {"type": "text", "text": "Quote"},
+            ]}]},
+        ],
+    }
+
+
 def _fixture(root: Path, *, documents: bool = True, game_file: bool = True) -> tuple[engine.Project, dict]:
     project = engine.Project("Проект Юникод 🚀", 10_000)
     project.folder_id = "folder-1"
@@ -153,6 +201,38 @@ def test_complete_fixture_migrates_bundle_domains_and_keeps_legacy_sources(tmp_p
     assert (tmp_path / "nfprogress-migration.json").is_file()
     assert {name: (tmp_path / name).read_bytes() for name in before} == before
     assert not (tmp_path / "missing.docx").exists()
+
+
+def test_legacy_documents_json_preserves_rich_tiptap_json_deeply(tmp_path):
+    project, _state = _fixture(tmp_path)
+    rich_content = _rich_tiptap_document()
+    (tmp_path / "documents.json").write_text(json.dumps({
+        "project:project": {
+            "document_id": "legacy-rich-document",
+            "project_id": project.project_id,
+            "title": "Rich document",
+            "content_format": "tiptap-json/v1",
+            "created_at": "2026-09-18T10:00:00Z",
+            "updated_at": "2026-09-19T10:00:00Z",
+            "content": rich_content,
+        },
+    }, ensure_ascii=False), encoding="utf-8")
+
+    report = prepare(tmp_path)
+
+    assert report.outcome == OUTCOME_MIGRATION_VERIFIED
+    with sqlite3.connect(tmp_path / "nfprogress.db") as db:
+        row = db.execute(
+            "SELECT id,scope_key,content_format,content_json,revision,updated_at "
+            "FROM documents WHERE id='legacy-rich-document'"
+        ).fetchone()
+    assert row is not None
+    assert row[0] == "legacy-rich-document"
+    assert row[1] == f"{project.project_id}:project"
+    assert row[2] == "tiptap-json/v1"
+    assert json.loads(row[3]) == rich_content
+    assert row[4] == 0
+    assert row[5] == "2026-09-19T10:00:00Z"
 
 
 def test_prepare_serializes_legacy_date_values_as_iso8601(tmp_path):
