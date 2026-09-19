@@ -16,6 +16,7 @@ export interface ProjectDocument {
   extensions?: Record<string, unknown>
   docx_path: string | null
   sync_state: 'unlinked' | 'synced' | 'local_changed' | 'external_changed' | 'word_changed' | 'conflict' | string
+  last_external_hash?: string | null
   last_synced_hash: string | null
   last_synced_at: string | null
   local_dirty: boolean

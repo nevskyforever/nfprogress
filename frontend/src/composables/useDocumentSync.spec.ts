@@ -66,7 +66,7 @@ describe('useDocumentSync', () => {
     vi.mocked(documentsApi.get).mockReturnValue(new Promise((resolve) => { finishLoad = resolve }))
     const wrapper = mount(defineComponent({
       setup() {
-        const sync = useDocumentSync({ projectId: 'project-id' }, async () => 'nfprogress')
+        const sync = useDocumentSync({ projectId: 'project-id' })
         return { sync }
       },
       template: '<button @click="sync.scheduleSave(edited)">edit</button>',
@@ -81,12 +81,41 @@ describe('useDocumentSync', () => {
     wrapper.unmount()
   })
 
+  it('does not save transient empty content when unmounted before the initial load completes', () => {
+    vi.mocked(documentsApi.get).mockReturnValue(new Promise(() => undefined))
+    const wrapper = mount(defineComponent({
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }) } },
+      template: '<div />',
+    }))
+
+    wrapper.unmount()
+
+    expect(documentsApi.save).not.toHaveBeenCalled()
+  })
+
+  it('keeps loaded non-empty content authoritative through unmount saving', async () => {
+    const loadedDocument = documentResponse(editedDocument)
+    vi.mocked(documentsApi.get).mockResolvedValue(loadedDocument)
+    vi.mocked(documentsApi.save).mockResolvedValue(loadedDocument)
+    const wrapper = mount(defineComponent({
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }) } },
+      template: '<div />',
+    }))
+    await flushPromises()
+
+    expect(wrapper.vm.sync.content.value).toEqual(editedDocument)
+    wrapper.unmount()
+    await flushPromises()
+
+    expect(documentsApi.save).toHaveBeenCalledWith({ projectId: 'project-id' }, editedDocument)
+  })
+
   it('keeps local content when the save response contains only stale metadata', async () => {
     vi.mocked(documentsApi.get).mockResolvedValue(documentResponse())
     vi.mocked(documentsApi.save).mockResolvedValue(documentResponse())
     const wrapper = mount(defineComponent({
       setup() {
-        const sync = useDocumentSync({ projectId: 'project-id' }, async () => 'nfprogress')
+        const sync = useDocumentSync({ projectId: 'project-id' })
         return { sync }
       },
       template: '<button @click="sync.scheduleSave(edited)">edit</button>',
@@ -118,7 +147,7 @@ describe('useDocumentSync', () => {
     })
     const wrapper = mount(defineComponent({
       setup() {
-        const sync = useDocumentSync({ projectId: 'project-id' }, async () => 'nfprogress')
+        const sync = useDocumentSync({ projectId: 'project-id' })
         return { sync }
       },
       template: '<div />',
@@ -149,7 +178,7 @@ describe('useDocumentSync', () => {
     vi.mocked(exportDocx).mockResolvedValue(new Blob(['docx']))
     vi.mocked(blobToBase64).mockResolvedValue('encoded-docx')
     const wrapper = mount(defineComponent({
-      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'nfprogress') } },
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }) } },
       template: '<div />',
     }))
     await flushPromises()
@@ -177,7 +206,7 @@ describe('useDocumentSync', () => {
       hash: 'self-write-hash',
     })
     const wrapper = mount(defineComponent({
-      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'word') } },
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }) } },
       template: '<div />',
     }))
     await flushPromises()
@@ -202,7 +231,7 @@ describe('useDocumentSync', () => {
       hash: 'stale-response-hash',
     })
     const wrapper = mount(defineComponent({
-      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'word') } },
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }) } },
       template: '<div />',
     }))
     await flushPromises()
@@ -228,12 +257,12 @@ describe('useDocumentSync', () => {
     vi.mocked(currentPlatform).mockReturnValue('tauri')
     vi.mocked(documentsApi.parseWord).mockResolvedValue({ content: editedDocument, symbols: 11, hash: 'user-edit-hash' })
     const wrapper = mount(defineComponent({
-      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'word') } },
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }) } },
       template: '<div />',
     }))
     await flushPromises()
 
-    expect(await wrapper.vm.sync.checkExternal()).toEqual({ content: editedDocument, hash: 'user-edit-hash' })
+    expect(await wrapper.vm.sync.checkExternal()).toEqual({ state: 'external_changed', content: editedDocument, hash: 'user-edit-hash' })
     expect(documentsApi.parseWord).toHaveBeenCalledOnce()
     wrapper.unmount()
   })
@@ -245,14 +274,14 @@ describe('useDocumentSync', () => {
     vi.mocked(documentsApi.parseWord).mockResolvedValue({ content: editedDocument, symbols: 11, hash: 'parsed-hash' })
     vi.mocked(importDocx).mockResolvedValue('<p>Новая глава</p>')
     const wrapper = mount(defineComponent({
-      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }, async () => 'word') } },
+      setup() { return { sync: useDocumentSync({ projectId: 'project-id' }) } },
       template: '<div />',
     }))
     await flushPromises()
 
-    expect(await wrapper.vm.sync.checkExternal()).toEqual({ html: '<p>Новая глава</p>', hash: 'word-hash' })
+    expect(await wrapper.vm.sync.checkExternal()).toEqual({ state: 'external_changed', html: '<p>Новая глава</p>', hash: 'word-hash' })
     vi.mocked(currentPlatform).mockReturnValue('tauri')
-    expect(await wrapper.vm.sync.checkExternal()).toEqual({ content: editedDocument, hash: 'word-hash' })
+    expect(await wrapper.vm.sync.checkExternal()).toEqual({ state: 'external_changed', content: editedDocument, hash: 'word-hash' })
     expect(documentsApi.parseWord).toHaveBeenCalledWith(new Uint8Array([1, 2]), 'document.docx')
     wrapper.unmount()
   })

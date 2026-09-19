@@ -376,9 +376,14 @@ fn document_row(
         .and_then(|value| value.get("sync_state"))
         .and_then(Value::as_str)
         .unwrap_or("unlinked");
-    let last_hash = binding
+    let last_external_hash = binding
         .as_ref()
         .and_then(|value| value.get("last_external_hash"))
+        .cloned()
+        .unwrap_or(Value::Null);
+    let last_synced_hash = binding
+        .as_ref()
+        .and_then(|value| value.get("last_synced_hash"))
         .cloned()
         .unwrap_or(Value::Null);
     Ok(Some(serde_json::json!({
@@ -395,7 +400,8 @@ fn document_row(
         "exists": true,
         "docx_path": binding.as_ref().and_then(|value| value.get("path")).cloned().unwrap_or(Value::Null),
         "sync_state": state,
-        "last_synced_hash": last_hash,
+        "last_external_hash": last_external_hash,
+        "last_synced_hash": last_synced_hash,
         "last_synced_at": binding.as_ref().and_then(|value| value.get("last_synced_at")).cloned().unwrap_or(Value::Null),
         "local_dirty": state == "local_changed" || state == "conflict",
         "word_dirty": state == "external_changed" || state == "conflict",
@@ -419,6 +425,7 @@ fn new_document_value(project_id: &str, stage_id: Option<&str>, title: &str) -> 
         "exists": false,
         "docx_path": Value::Null,
         "sync_state": "unlinked",
+        "last_external_hash": Value::Null,
         "last_synced_hash": Value::Null,
         "last_synced_at": Value::Null,
         "local_dirty": false,
@@ -759,11 +766,12 @@ pub fn read_external(scope: DocumentScope) -> Result<ExternalDocumentResult, Str
     let document_id =
         document_id_for_scope(&connection, &scope.project_id, scope.stage_id.as_deref())?;
     let row = connection.query_row(
-        "SELECT binding_type,external_path,last_external_hash,last_synced_revision FROM document_bindings WHERE document_id=?",
+        "SELECT binding_type,external_path,last_external_hash,last_synced_hash,last_synced_revision FROM document_bindings WHERE document_id=?",
         [document_id.as_str()],
-        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, i64>(3)?)),
+        |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?, row.get::<_, Option<String>>(2)?, row.get::<_, Option<String>>(3)?, row.get::<_, i64>(4)?)),
     ).optional().map_err(|error| error.to_string())?;
-    let Some((binding_type, path, last_hash, last_revision)) = row else {
+    let Some((binding_type, path, _last_external_hash, last_synced_hash, last_revision)) = row
+    else {
         return Ok(ExternalDocumentResult {
             state: "unlinked".to_string(),
             content_base64: None,
@@ -801,7 +809,7 @@ pub fn read_external(scope: DocumentScope) -> Result<ExternalDocumentResult, Str
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())?;
-    let external_changed = last_hash.as_deref() != Some(source.hash.as_str());
+    let external_changed = last_synced_hash.as_deref() != Some(source.hash.as_str());
     let internal_changed = current_revision != last_revision;
     let state = if !external_changed {
         if internal_changed {
@@ -1751,7 +1759,7 @@ fn ensure_external_write_safe(
 ) -> Result<(), String> {
     let expected: Option<String> = connection
         .query_row(
-            "SELECT last_external_hash FROM document_bindings WHERE document_id=?",
+            "SELECT last_synced_hash FROM document_bindings WHERE document_id=?",
             [document_id],
             |row| row.get(0),
         )
@@ -2546,17 +2554,56 @@ mod tests {
                 stage_id: None,
                 path: path.to_string_lossy().into_owned(),
             })?;
-            let written = write_document_word_content("p1".into(), None, content)?;
+            let written = write_document_word_content("p1".into(), None, content.clone())?;
             let external = read_external(DocumentScope {
                 project_id: "p1".into(),
                 stage_id: None,
             })?;
 
             assert_eq!(written["sync_state"], "synced");
-            assert!(written["last_synced_hash"].as_str().is_some());
+            let written_hash = written["last_synced_hash"]
+                .as_str()
+                .ok_or_else(|| "Missing written hash".to_string())?
+                .to_string();
             assert_eq!(external.state, "synced");
             assert!(external.content_base64.is_none());
             assert!(external.hash.is_none());
+
+            fs::write(
+                &path,
+                build_docx(&serde_json::json!({
+                    "type":"doc",
+                    "content":[{"type":"paragraph","content":[{"type":"text","text":"External edit"}]}]
+                }))?,
+            )
+            .map_err(|error| error.to_string())?;
+            let changed = read_external(DocumentScope {
+                project_id: "p1".into(),
+                stage_id: None,
+            })?;
+            let observed_hash = changed
+                .hash
+                .clone()
+                .ok_or_else(|| "Missing observed hash".to_string())?;
+            assert_eq!(changed.state, "external_changed");
+            assert!(changed.content_base64.is_some());
+
+            let pending = get_document(DocumentScope {
+                project_id: "p1".into(),
+                stage_id: None,
+            })?;
+            assert_eq!(pending["last_external_hash"], observed_hash);
+            assert_eq!(pending["last_synced_hash"], written_hash);
+
+            let unsafe_overwrite = write_document_word_content("p1".into(), None, content.clone());
+            assert!(unsafe_overwrite.is_err());
+
+            let repeated = read_external(DocumentScope {
+                project_id: "p1".into(),
+                stage_id: None,
+            })?;
+            assert_eq!(repeated.state, "external_changed");
+            assert!(repeated.content_base64.is_some());
             Ok(())
         })();
 

@@ -80,15 +80,13 @@ const canLinkWord = currentPlatform() === 'tauri'
 const saving = ref(false)
 const recording = ref(false)
 const processing = computed(() => saving.value || recording.value)
-const { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, checkExternal, acknowledgeExternal } = useDocumentSync(
-  props.scope,
-  () => new Promise<ConflictChoice>((resolve) => { showConflict.value = true; pendingConflictResolve.value = resolve }),
-)
+const { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal, downloadWordCopy } = useDocumentSync(props.scope)
 let externalTimer: number | undefined
 let stopCloseListener: (() => void) | undefined
 let stopProjectDataChanges: (() => void) | undefined
 let projectLoadSequence = 0
 let closeInProgress = false
+let externalImportInProgress = false
 let positionSaveTimer: number | undefined
 let positionRestoreTimer: number | undefined
 let hasRestoredEditorPosition = false
@@ -262,6 +260,10 @@ async function loadProjectEntity() {
   }
 }
 function resolveConflict(choice: ConflictChoice) { showConflict.value = false; pendingConflictResolve.value?.(choice); pendingConflictResolve.value = null }
+function chooseExternalVersion(): Promise<ConflictChoice> {
+  showConflict.value = true
+  return new Promise<ConflictChoice>((resolve) => { pendingConflictResolve.value = resolve })
+}
 async function recordTextProgress(force = false, snapshot = captureEditorContent()): Promise<boolean> {
   if (recording.value || countTextSymbols(snapshot) <= 0 || (!force && !canRecordText.value)) return false
   recording.value = true
@@ -344,19 +346,39 @@ function handleEscape(event: KeyboardEvent): void {
   closeEditor()
 }
 async function importExternal() {
-  const external = await checkExternal()
-  const editorApi = editorRef.value
-  if (!external || !editorApi) return
-  const editor = editorApi.getEditor()
-  if (!editor) return
-  if (external.content) {
-    editorApi.setContent(external.content, true)
-  } else if (external.html) {
-    editorApi.setContent(external.html, true)
+  if (externalImportInProgress) return
+  externalImportInProgress = true
+  try {
+    const external = await checkExternal()
+    const editorApi = editorRef.value
+    if (!external || !editorApi) return
+    const editor = editorApi.getEditor()
+    if (!editor) return
+
+    const current = editor.getJSON() as TiptapDocument
+    if (external.state === 'conflict' || countTextSymbols(current) > 0) {
+      const choice = await chooseExternalVersion()
+      if (choice === 'nfprogress') {
+        const snapshot = captureEditorContent()
+        await acknowledgeExternal(snapshot, external.hash)
+        await writeLinkedWord(snapshot)
+        status.value = t('Сохранено')
+        return
+      }
+      if (choice === 'both') await downloadWordCopy()
+    }
+
+    if (external.content) {
+      editorApi.setContent(external.content, true)
+    } else if (external.html) {
+      editorApi.setContent(external.html, true)
+    }
+    const json = external.content ?? editor.getJSON() as TiptapDocument
+    editorContent.value = json
+    await acknowledgeExternal(json, external.hash)
+  } finally {
+    externalImportInProgress = false
   }
-  const json = external.content ?? editor.getJSON() as TiptapDocument
-  editorContent.value = json
-  await acknowledgeExternal(json, external.hash)
 }
 async function linkWord() {
   try {

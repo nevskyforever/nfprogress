@@ -17,6 +17,12 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: vi.fn() }),
 }))
 vi.mock('@/api/projects', () => ({ projectsApi: { get: vi.fn() } }))
+vi.mock('@/platform/runtime', () => ({ currentPlatform: vi.fn(() => 'tauri') }))
+vi.mock('@/services/documentDocx', () => ({
+  blobToBase64: vi.fn(),
+  exportDocx: vi.fn(async () => new Blob(['copy'])),
+  importDocx: vi.fn(),
+}))
 vi.mock('@/api/documents', () => ({
   documentsApi: {
     acceptWord: vi.fn(),
@@ -58,10 +64,11 @@ type CustomEditorExpose = {
   setContent: (content: TiptapDocument, emitUpdate?: boolean) => void
 }
 
-function mountEditor(project = projectFixture()) {
+function mountEditor(project = projectFixture(), document = documentFixture) {
   vi.mocked(projectsApi.get).mockResolvedValue(project)
-  vi.mocked(documentsApi.get).mockResolvedValue(documentFixture)
-  vi.mocked(documentsApi.save).mockResolvedValue(documentFixture)
+  vi.mocked(documentsApi.get).mockResolvedValue(document)
+  vi.mocked(documentsApi.save).mockResolvedValue(document)
+  vi.mocked(documentsApi.writeDocxContent).mockResolvedValue(document)
   return mount(DocumentEditorView, {
     props: { scope: { projectId: 'project-id' }, title: 'Текст' },
     global: { plugins: [createPinia()] },
@@ -71,6 +78,9 @@ function mountEditor(project = projectFixture()) {
 describe('DocumentEditorView custom editor integration', () => {
   beforeEach(() => {
     vi.useFakeTimers()
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:copy') })
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() })
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
     positionStorage.clear()
     Object.defineProperty(window, 'localStorage', {
       configurable: true,
@@ -84,11 +94,15 @@ describe('DocumentEditorView custom editor integration', () => {
     vi.mocked(documentsApi.save).mockReset()
     vi.mocked(documentsApi.recordProgress).mockReset()
     vi.mocked(documentsApi.external).mockReset()
+    vi.mocked(documentsApi.acceptWord).mockReset()
+    vi.mocked(documentsApi.parseWord).mockReset()
+    vi.mocked(documentsApi.writeDocxContent).mockReset()
     vi.mocked(projectsApi.get).mockReset()
   })
 
   afterEach(() => {
     vi.useRealTimers()
+    vi.restoreAllMocks()
   })
 
   it('loads the document and autosaves emitted JSON through useDocumentSync', async () => {
@@ -183,6 +197,149 @@ describe('DocumentEditorView custom editor integration', () => {
       zoom: 110,
       typewriterMode: true,
     })
+    wrapper.unmount()
+  })
+
+  it('keeps non-empty NFProgress content pending when background polling detects changed Word content', async () => {
+    const linkedDocument = { ...documentFixture, docx_path: '/tmp/document.docx', last_synced_hash: 'accepted-hash' }
+    const wordDocument: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Текст Word' }] }],
+    }
+    vi.mocked(documentsApi.external)
+      .mockResolvedValueOnce({ state: 'external_changed', content_base64: 'AQI=', hash: 'word-hash' })
+      .mockResolvedValue({ state: 'synced' })
+    vi.mocked(documentsApi.parseWord).mockResolvedValue({ content: wordDocument, symbols: 10, hash: 'word-hash' })
+    const wrapper = mountEditor(projectFixture(), linkedDocument)
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    const api = wrapper.getComponent(NFDocumentEditor).vm as unknown as CustomEditorExpose
+    expect(api.getJSON()).toMatchObject(initialContent)
+    expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true)
+    expect(documentsApi.acceptWord).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('never clears non-empty NFProgress content when changed Word content is empty', async () => {
+    const linkedDocument = { ...documentFixture, docx_path: '/tmp/document.docx', last_synced_hash: 'accepted-hash' }
+    const emptyWord: TiptapDocument = { type: 'doc', content: [{ type: 'paragraph' }] }
+    vi.mocked(documentsApi.external).mockResolvedValue({ state: 'external_changed', content_base64: 'AQI=', hash: 'empty-word-hash' })
+    vi.mocked(documentsApi.parseWord).mockResolvedValue({ content: emptyWord, symbols: 0, hash: 'empty-word-hash' })
+    const wrapper = mountEditor(projectFixture(), linkedDocument)
+    await flushPromises()
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    const api = wrapper.getComponent(NFDocumentEditor).vm as unknown as CustomEditorExpose
+    expect(api.getJSON()).toMatchObject(initialContent)
+    expect(wrapper.find('[role="alertdialog"]').exists()).toBe(true)
+    expect(documentsApi.acceptWord).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('applies changed Word content only after explicit acceptance', async () => {
+    const linkedDocument = { ...documentFixture, docx_path: '/tmp/document.docx', last_synced_hash: 'accepted-hash' }
+    const wordDocument: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Принятый Word' }] }],
+    }
+    const acceptedDocument = { ...linkedDocument, content: wordDocument, sync_state: 'synced', last_synced_hash: 'word-hash' }
+    vi.mocked(documentsApi.external).mockResolvedValue({ state: 'external_changed', content_base64: 'AQI=', hash: 'word-hash' })
+    vi.mocked(documentsApi.parseWord).mockResolvedValue({ content: wordDocument, symbols: 13, hash: 'word-hash' })
+    vi.mocked(documentsApi.acceptWord).mockResolvedValue(acceptedDocument)
+    const wrapper = mountEditor(projectFixture(), linkedDocument)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    const acceptButton = wrapper.findAll('[role="alertdialog"] button').find((button) => button.text() === 'Принять Word')
+    expect(acceptButton).toBeDefined()
+    await acceptButton!.trigger('click')
+    await flushPromises()
+
+    const api = wrapper.getComponent(NFDocumentEditor).vm as unknown as CustomEditorExpose
+    expect(api.getJSON()).toMatchObject(wordDocument)
+    expect(documentsApi.acceptWord).toHaveBeenCalledWith({ projectId: 'project-id' }, expect.objectContaining(wordDocument), 'word-hash')
+    wrapper.unmount()
+  })
+
+  it('keeps NFProgress content and writes it to Word after explicit NFProgress choice', async () => {
+    const linkedDocument = { ...documentFixture, docx_path: '/tmp/document.docx', last_synced_hash: 'accepted-hash' }
+    const syncedDocument = { ...linkedDocument, sync_state: 'synced', last_synced_hash: 'nfprogress-hash' }
+    const wordDocument: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Не принимать' }] }],
+    }
+    vi.mocked(documentsApi.external)
+      .mockResolvedValueOnce({ state: 'external_changed', content_base64: 'AQI=', hash: 'word-hash' })
+      .mockResolvedValue({ state: 'synced' })
+    vi.mocked(documentsApi.parseWord).mockResolvedValue({ content: wordDocument, symbols: 11, hash: 'word-hash' })
+    vi.mocked(documentsApi.acceptWord).mockResolvedValue({
+      ...linkedDocument,
+      sync_state: 'synced',
+      last_synced_hash: 'word-hash',
+    })
+    vi.mocked(documentsApi.writeDocxContent).mockResolvedValue(syncedDocument)
+    const wrapper = mountEditor(projectFixture(), linkedDocument)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    const keepButton = wrapper.findAll('[role="alertdialog"] button').find((button) => button.text() === 'Оставить NFProgress')
+    expect(keepButton).toBeDefined()
+    await keepButton!.trigger('click')
+    await flushPromises()
+
+    const api = wrapper.getComponent(NFDocumentEditor).vm as unknown as CustomEditorExpose
+    expect(api.getJSON()).toMatchObject(initialContent)
+    expect(documentsApi.writeDocxContent).toHaveBeenCalledOnce()
+    expect(vi.mocked(documentsApi.writeDocxContent).mock.calls[0]?.[0]).toEqual({ projectId: 'project-id' })
+    expect(vi.mocked(documentsApi.writeDocxContent).mock.calls[0]?.[1]).toMatchObject(initialContent)
+    expect(documentsApi.acceptWord).toHaveBeenCalledWith(
+      { projectId: 'project-id' },
+      expect.any(Object),
+      'word-hash',
+    )
+
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+    expect(documentsApi.parseWord).toHaveBeenCalledOnce()
+    expect(wrapper.find('[role="alertdialog"]').exists()).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('saves an NFProgress copy before applying Word after the explicit both choice', async () => {
+    const linkedDocument = { ...documentFixture, docx_path: '/tmp/document.docx', last_synced_hash: 'accepted-hash' }
+    const wordDocument: TiptapDocument = {
+      type: 'doc',
+      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Word canonical' }] }],
+    }
+    vi.mocked(documentsApi.external).mockResolvedValue({ state: 'conflict', content_base64: 'AQI=', hash: 'word-hash' })
+    vi.mocked(documentsApi.parseWord).mockResolvedValue({ content: wordDocument, symbols: 14, hash: 'word-hash' })
+    vi.mocked(documentsApi.acceptWord).mockResolvedValue({
+      ...linkedDocument,
+      content: wordDocument,
+      sync_state: 'synced',
+      last_synced_hash: 'word-hash',
+    })
+    const wrapper = mountEditor(projectFixture(), linkedDocument)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(5000)
+    await flushPromises()
+
+    const bothButton = wrapper.findAll('[role="alertdialog"] button').find((button) => button.text() === 'Сохранить обе')
+    expect(bothButton).toBeDefined()
+    await bothButton!.trigger('click')
+    await flushPromises()
+
+    const api = wrapper.getComponent(NFDocumentEditor).vm as unknown as CustomEditorExpose
+    expect(URL.createObjectURL).toHaveBeenCalledOnce()
+    expect(api.getJSON()).toMatchObject(wordDocument)
+    expect(documentsApi.acceptWord).toHaveBeenCalledWith({ projectId: 'project-id' }, expect.objectContaining(wordDocument), 'word-hash')
     wrapper.unmount()
   })
 

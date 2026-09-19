@@ -6,18 +6,31 @@ import { blobToBase64, exportDocx, importDocx } from '@/services/documentDocx'
 import type { DocumentProgressResult, DocumentScope, ProjectDocument, TiptapDocument } from '@/types/documents'
 
 export type ConflictChoice = 'nfprogress' | 'word' | 'both'
+export type ExternalDocumentChange = {
+  state: string
+  html?: string
+  content?: TiptapDocument
+  hash: string
+}
 
-export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<ConflictChoice>) {
+export function useDocumentSync(scope: DocumentScope) {
   const documentState = ref<ProjectDocument | null>(null)
   const content = ref<TiptapDocument>({ type: 'doc', content: [{ type: 'paragraph' }] })
   const status = ref('')
   let saveTimer: number | undefined
   let watchTimer: number | undefined
   let localRevision = 0
+  let initialLoadComplete = false
   let persistenceQueue: Promise<void> = Promise.resolve()
 
   function copyContent(value: TiptapDocument): TiptapDocument {
     return JSON.parse(JSON.stringify(value)) as TiptapDocument
+  }
+  function hasText(value: unknown): boolean {
+    if (!value || typeof value !== 'object') return false
+    const node = value as { text?: unknown; content?: unknown }
+    return (typeof node.text === 'string' && node.text.length > 0)
+      || (Array.isArray(node.content) && node.content.some(hasText))
   }
   function enqueuePersistence<T>(operation: () => Promise<T>): Promise<T> {
     const queued = persistenceQueue.catch(() => undefined).then(operation)
@@ -34,6 +47,10 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     window.clearTimeout(saveTimer)
     saveTimer = undefined
     const requestedSnapshot = requestedContent ? copyContent(requestedContent) : undefined
+    const pendingSnapshot = requestedSnapshot ?? content.value
+    if (!initialLoadComplete && localRevision === 0 && !hasText(pendingSnapshot)) {
+      return Promise.resolve()
+    }
     return enqueuePersistence(async () => {
       // A queued autosave snapshots the newest draft when it starts. An
       // explicit save passes its own snapshot, captured from the editor when
@@ -68,7 +85,7 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     window.clearTimeout(saveTimer)
     saveTimer = window.setTimeout(() => void save().catch(() => { status.value = 'Не удалось сохранить' }), 700)
   }
-  async function checkExternal(): Promise<{ html?: string; content?: TiptapDocument; hash: string } | undefined> {
+  async function checkExternal(): Promise<ExternalDocumentChange | undefined> {
     if (!documentState.value?.docx_path) return
     const external = await documentsApi.external(scope)
     if (!external.content_base64 || !external.hash) return
@@ -77,17 +94,12 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     // the exact version NFProgress has just written or already accepted.
     if (external.hash === documentState.value.last_synced_hash) return
     if (!['external_changed', 'word_changed', 'conflict'].includes(external.state)) return
-    if (external.state === 'conflict') {
-      const choice = await onConflict()
-      if (choice === 'nfprogress') { await writeLinkedWord(); return undefined }
-      if (choice === 'both') await downloadWordCopy()
-    }
     const bytes = Uint8Array.from(atob(external.content_base64), (letter) => letter.charCodeAt(0))
     if (currentPlatform() === 'tauri') {
       const parsed = await documentsApi.parseWord(bytes, 'document.docx')
-      return { content: parsed.content, hash: external.hash }
+      return { state: external.state, content: parsed.content, hash: external.hash }
     }
-    return { html: await importDocx(bytes.buffer), hash: external.hash }
+    return { state: external.state, html: await importDocx(bytes.buffer), hash: external.hash }
   }
   async function acknowledgeExternal(next: TiptapDocument, hash: string) {
     setContent(next)
@@ -108,7 +120,12 @@ export function useDocumentSync(scope: DocumentScope, onConflict: () => Promise<
     // current source of truth and its autosave will persist it.
     if (revisionAtStart === localRevision) content.value = loaded.content
     documentState.value = loaded
+    initialLoadComplete = true
   })
-  onBeforeUnmount(() => { window.clearTimeout(saveTimer); window.clearInterval(watchTimer); void save() })
-  return { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal }
+  onBeforeUnmount(() => {
+    window.clearTimeout(saveTimer)
+    window.clearInterval(watchTimer)
+    void save().catch(() => { status.value = 'Не удалось сохранить' })
+  })
+  return { content, documentState, status, save, saveAndRecord, setContent, scheduleSave, link, writeLinkedWord, checkExternal, acknowledgeExternal, downloadWordCopy }
 }
