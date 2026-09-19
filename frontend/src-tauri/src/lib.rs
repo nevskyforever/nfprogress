@@ -17,6 +17,7 @@ mod mindmap;
 #[allow(dead_code)]
 mod project_repository;
 mod sqlite;
+mod streaks;
 
 use project_repository::{
     ProgressRecord, ProjectAggregate, ProjectMetadataUpdate, ProjectRecord, ProjectsRepository,
@@ -61,6 +62,7 @@ fn overlay_game_streak_state(
     rows: &mut [SqliteEntityRow],
     game_state: &serde_json::Value,
     is_stage: bool,
+    logical_day: &str,
 ) {
     let Some(states) = game_state
         .get("project_game_state")
@@ -87,6 +89,7 @@ fn overlay_game_streak_state(
         let Some(payload) = payload.as_object_mut() else {
             continue;
         };
+        let canonical_status = streaks::canonical_local_status(streak, logical_day, payload);
         for field in [
             "streaks",
             "max_streak",
@@ -95,7 +98,9 @@ fn overlay_game_streak_state(
             "last_streak_lost_date",
             "freezes",
         ] {
-            if let Some(value) = streak.get(field) {
+            if field == "streak_status" {
+                payload.insert(field.to_string(), canonical_status.clone().into());
+            } else if let Some(value) = streak.get(field) {
                 payload.insert(field.to_string(), value.clone());
             }
         }
@@ -4030,8 +4035,9 @@ fn read_sqlite_projects() -> Result<SqliteProjectReadModel, String> {
         .ok()
         .and_then(|raw| serde_json::from_str::<serde_json::Value>(&raw).ok());
     if let Some(game_state) = game_state.as_ref() {
-        overlay_game_streak_state(&mut project_rows, game_state, false);
-        overlay_game_streak_state(&mut stage_rows, game_state, true);
+        let logical_day = streaks::logical_writing_day(&connection)?;
+        overlay_game_streak_state(&mut project_rows, game_state, false, &logical_day);
+        overlay_game_streak_state(&mut stage_rows, game_state, true, &logical_day);
     }
     Ok(SqliteProjectReadModel {
         mirror_status: status,
@@ -4169,7 +4175,7 @@ mod tests {
             }
         });
 
-        overlay_game_streak_state(&mut rows, &game_state, true);
+        overlay_game_streak_state(&mut rows, &game_state, true, "2026-09-09");
         let desktop = serde_json::from_str::<serde_json::Value>(&rows[0].payload_json).unwrap();
         let web = &game_state["project_game_state"]["stage:project-1:source-1"];
         assert_eq!(desktop["streak_status"], web["streak_status"]);

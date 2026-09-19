@@ -2142,7 +2142,13 @@ fn weekly_challenge_projection(gamer: &Map<String, Value>) -> Value {
     json!({"current": current, "catalog": catalog})
 }
 
-fn project_state(root: &Value, now: &str, effects_now: &str, enabled: bool) -> GameResult<Value> {
+fn project_state(
+    root: &Value,
+    now: &str,
+    effects_now: &str,
+    logical_day: &str,
+    enabled: bool,
+) -> GameResult<Value> {
     let root_object = root
         .as_object()
         .ok_or_else(|| GameError::InvalidState("Game state is not an object".into()))?;
@@ -2164,9 +2170,8 @@ fn project_state(root: &Value, now: &str, effects_now: &str, enabled: bool) -> G
         .and_then(Value::as_object)
         .or_else(|| root_object.get("game").and_then(Value::as_object));
     let global_status = global
-        .and_then(|value| value.get("global_streak_status"))
-        .and_then(Value::as_str)
-        .unwrap_or("No");
+        .map(|value| crate::streaks::canonical_global_status(value, logical_day))
+        .unwrap_or_else(|| "No".to_string());
     let global_length = global
         .and_then(|value| value.get("global_streaks"))
         .and_then(Value::as_array)
@@ -2265,6 +2270,7 @@ impl GameApplicationService {
         let datetime = state
             .get("game")
             .and_then(|value| value.get("extensions"))
+            .or_else(|| state.get("extensions"))
             .and_then(|value| value.get("developer_clock"))
             .filter(|value| value.get("enabled").and_then(Value::as_bool) == Some(true))
             .and_then(|value| value.get("datetime"))
@@ -2340,7 +2346,9 @@ impl GameApplicationService {
         let enabled = Self::enabled(&tx);
         tx.commit()
             .map_err(|error| GameError::Database(error.to_string()))?;
-        let state = project_state(&state, &now, &effects_now, enabled)?;
+        let logical_day =
+            crate::streaks::logical_writing_day(&connection).map_err(GameError::Database)?;
+        let state = project_state(&state, &now, &effects_now, &logical_day, enabled)?;
         let messages = message.clone().into_iter().collect::<Vec<_>>();
         Ok(GameCommandResponse {
             ok: true,
@@ -2357,8 +2365,16 @@ impl GameApplicationService {
         process_pending_events(&mut connection, 100).map_err(GameError::Database)?;
         let now = Self::now(&connection)?;
         let effects_now = Self::local_now(&connection)?;
+        let logical_day =
+            crate::streaks::logical_writing_day(&connection).map_err(GameError::Database)?;
         let enabled = Self::enabled(&connection);
-        project_state(&Self::load(&connection)?, &now, &effects_now, enabled)
+        project_state(
+            &Self::load(&connection)?,
+            &now,
+            &effects_now,
+            &logical_day,
+            enabled,
+        )
     }
 
     pub fn notifications() -> GameResult<Value> {
@@ -4167,6 +4183,7 @@ mod tests {
             }),
             "2026-09-05T12:00:00Z",
             "2026-09-05T12:00:00Z",
+            "2026-09-05",
             true,
         )
         .expect("projection");
