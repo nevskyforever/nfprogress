@@ -4194,6 +4194,39 @@ mod tests {
     }
 
     #[test]
+    fn desktop_streak_projection_uses_payload_history_when_game_state_omits_it() {
+        let mut rows = vec![SqliteEntityRow {
+            id: "project-1".into(),
+            project_id: None,
+            name: Some("Проект".into()),
+            goal: None,
+            infinite: 0,
+            unit: "symbols".into(),
+            status: "активен".into(),
+            created_at: None,
+            updated_at: None,
+            payload_json: serde_json::json!({
+                "streaks": ["2026-09-17", "freeze"],
+                "streak_status": "Freeze",
+            })
+            .to_string(),
+        }];
+        let game_state = serde_json::json!({
+            "project_game_state": {
+                "project:project-1": { "streak_status": "Freeze", "max_streak": 2 }
+            }
+        });
+
+        overlay_game_streak_state(&mut rows, &game_state, false, "2026-09-19");
+        let desktop = serde_json::from_str::<serde_json::Value>(&rows[0].payload_json).unwrap();
+        assert_eq!(desktop["streak_status"], "Active");
+        assert_eq!(
+            desktop["streaks"],
+            serde_json::json!(["2026-09-17", "freeze"])
+        );
+    }
+
+    #[test]
     fn legacy_files_require_explicit_migration_on_startup() {
         let root = std::env::temp_dir().join(format!(
             "nfprogress-f7-legacy-boundary-{}",

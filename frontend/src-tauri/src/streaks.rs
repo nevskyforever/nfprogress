@@ -134,7 +134,11 @@ fn streak_summary(streaks: Option<&Value>) -> (Option<i64>, usize, bool) {
     (current_day, length, last_is_freeze)
 }
 
-fn canonical_status(fields: &Map<String, Value>, logical_day: &str) -> String {
+fn canonical_status_with_history(
+    fields: &Map<String, Value>,
+    streaks: Option<&Value>,
+    logical_day: &str,
+) -> String {
     let saved = fields
         .get("streak_status")
         .and_then(Value::as_str)
@@ -145,7 +149,7 @@ fn canonical_status(fields: &Map<String, Value>, logical_day: &str) -> String {
     let Some(today) = date_days(logical_day) else {
         return saved.to_string();
     };
-    let (last_day, length, last_is_freeze) = streak_summary(fields.get("streaks"));
+    let (last_day, length, last_is_freeze) = streak_summary(streaks);
     if last_day == Some(today) {
         if last_is_freeze {
             return "Freeze".to_string();
@@ -172,6 +176,10 @@ fn canonical_status(fields: &Map<String, Value>, logical_day: &str) -> String {
     "No".to_string()
 }
 
+fn canonical_status(fields: &Map<String, Value>, logical_day: &str) -> String {
+    canonical_status_with_history(fields, fields.get("streaks"), logical_day)
+}
+
 pub(crate) fn canonical_local_status(
     fields: &Map<String, Value>,
     logical_day: &str,
@@ -183,7 +191,11 @@ pub(crate) fn canonical_local_status(
     if entity.get("streak_enabled").and_then(Value::as_bool) == Some(false) {
         return "Off".to_string();
     }
-    canonical_status(fields, logical_day)
+    let streaks = fields
+        .get("streaks")
+        .filter(|value| value.is_array())
+        .or_else(|| entity.get("streaks").filter(|value| value.is_array()));
+    canonical_status_with_history(fields, streaks, logical_day)
 }
 
 pub(crate) fn canonical_global_status(fields: &Map<String, Value>, logical_day: &str) -> String {
@@ -284,6 +296,18 @@ mod tests {
             "Complete"
         );
         assert_eq!(status("Off", json!(["2026-09-18"]), "2026-09-19"), "Off");
+    }
+
+    #[test]
+    fn frozen_streak_is_active_after_its_freeze_day() {
+        let streaks = json!(["2026-09-17", "freeze"]);
+        assert_eq!(status("Freeze", streaks.clone(), "2026-09-18"), "Freeze");
+        assert_eq!(status("Freeze", streaks, "2026-09-19"), "Active");
+    }
+
+    #[test]
+    fn empty_streak_history_remains_no() {
+        assert_eq!(status("No", json!([]), "2026-09-19"), "No");
     }
 
     #[test]
