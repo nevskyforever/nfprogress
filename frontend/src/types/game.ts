@@ -472,6 +472,20 @@ export interface DeveloperProfileUpdate {
   test_datetime: string | null
 }
 
+export type ProfileTransferDirection = 'real_to_test' | 'test_to_real'
+
+export interface ProfileTransferRequestResult {
+  message: string
+  restart_required: boolean
+}
+
+export interface ProfileTransferResult {
+  status: 'complete' | 'error'
+  direction?: ProfileTransferDirection
+  backup?: string
+  error?: string
+}
+
 export interface WritingSessionStart {
   duration_minutes: 15 | 25 | 45 | 60
   target_symbols: number

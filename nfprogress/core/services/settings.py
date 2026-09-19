@@ -74,6 +74,7 @@ class SettingsService:
                 # unsigned local/dev bundles never contact the update channel.
                 'native_updates': self.platform == 'desktop',
                 'remote_api': self.platform in {'web', 'ios', 'android'},
+                'developer_mode_available': self.developer_mode,
             },
             'editable_keys': sorted(
                 GENERAL_KEYS

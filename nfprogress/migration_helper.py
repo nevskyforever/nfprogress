@@ -1013,12 +1013,14 @@ def verify_prepared_profile(data_root: str | Path) -> tuple[bool, list[str]]:
         if owners != {name: "sqlite" for name in ("projects", "settings", "notes", "game")}:
             errors.append("ownership is not fully SQLite")
         row = connection.execute("SELECT value_json FROM game_metadata WHERE key='migration_status'").fetchone()
-        marker = json.loads(row[0]) if row else {}
-        if marker.get("status") != "ready_for_tauri":
+        marker = json.loads(row[0]) if row else None
+        if marker is not None and marker.get("status") != "ready_for_tauri":
             errors.append("migration_required")
         doc_marker = connection.execute("SELECT value_json FROM document_metadata WHERE key='documents_json_migration'").fetchone()
-        if not doc_marker or json.loads(doc_marker[0]).get("status") != "complete":
+        if doc_marker and json.loads(doc_marker[0]).get("status") != "complete":
             errors.append("documents migration is incomplete")
+        if (marker is None) != (doc_marker is None):
+            errors.append("migration markers are incomplete")
     finally:
         connection.close()
     return not errors, errors

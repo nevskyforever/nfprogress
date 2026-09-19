@@ -14,19 +14,19 @@ case "$MODE" in
   "") ;;
   --data-dir)
     if [ "$#" -ne 2 ] || [ -z "${2:-}" ]; then
-      echo "Использование: $0 [--fresh|--legacy|--data-dir PATH|--check]"
+      echo "Использование: $0 [--fresh|--legacy|--refresh-test-data|--data-dir PATH|--check]"
       exit 2
     fi
     DATA_ROOT="$2"
     ;;
-  --fresh|--legacy|--check)
+  --fresh|--legacy|--refresh-test-data|--check)
     if [ "$#" -ne 1 ]; then
-      echo "Использование: $0 [--fresh|--legacy|--data-dir PATH|--check]"
+      echo "Использование: $0 [--fresh|--legacy|--refresh-test-data|--data-dir PATH|--check]"
       exit 2
     fi
     ;;
   *)
-    echo "Использование: $0 [--fresh|--legacy|--data-dir PATH|--check]"
+    echo "Использование: $0 [--fresh|--legacy|--refresh-test-data|--data-dir PATH|--check]"
     exit 2
     ;;
 esac
@@ -73,7 +73,7 @@ if [ -z "$DATA_ROOT" ]; then
     --fresh)
       DATA_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/nfprogress-tauri-dev.XXXXXX")"
       ;;
-    --legacy)
+    --legacy|--refresh-test-data)
       DATA_ROOT="${HOME}/Documents/nfprogress/test_data"
       ;;
     *)
@@ -82,8 +82,10 @@ if [ -z "$DATA_ROOT" ]; then
   esac
 fi
 
-if [ "$MODE" = "" ] || [ "$MODE" = "--legacy" ]; then
-  if [ -z "${NFPROGRESS_DATA_DIR:-}" ] || [ "$MODE" = "--legacy" ]; then
+if [ -z "${NFPROGRESS_DATA_DIR:-}" ] || [ "$MODE" = "--legacy" ] || [ "$MODE" = "--refresh-test-data" ]; then
+  if [ "$MODE" = "--refresh-test-data" ]; then
+    "$ROOT_DIR/scripts/prepare-tauri-test-data.sh" --refresh
+  elif [ "$MODE" != "--fresh" ] && [ "$MODE" != "--data-dir" ]; then
     "$ROOT_DIR/scripts/prepare-tauri-test-data.sh"
   fi
 fi

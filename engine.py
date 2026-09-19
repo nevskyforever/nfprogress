@@ -142,21 +142,20 @@ def get_app_data_dir():
 
 def get_test_data_dir():
     """Возвращает путь к директории тестовых данных и создаёт её при необходимости."""
-    test_dir = get_app_data_dir() / 'test_data'
+    configured = os.environ.get('NFPROGRESS_TEST_DATA_DIR')
+    test_dir = Path(configured).expanduser() if configured else get_app_data_dir() / 'test_data'
     test_dir.mkdir(parents=True, exist_ok=True)
     return test_dir
 
 
-def sync_test_data(destination_dir: str | Path | None = None) -> None:
-    """Копирует все рабочие файлы данных в папку тестового профиля.
+def sync_test_data(
+        destination_dir: str | Path | None = None, *, replace: bool = False,
+) -> None:
+    """Копирует legacy-источники в тестовый профиль по явному запросу.
 
-    При каждом запуске в режиме разработчика одноимённые тестовые файлы
-    перезаписываются. Это гарантирует, что тексты проектов и этапов, как и
-    остальные реальные данные, доступны в тестовой копии. Файлы, которых нет
-    в основной директории, не создаются и не удаляются в тестовом профиле.
-
-    ``destination_dir`` используется Web-режимом для отдельного временного
-    профиля. Без аргумента сохраняется прежнее назначение ``test_data``.
+    Существующие файлы persistent Tauri-профиля по умолчанию не заменяются.
+    ``replace=True`` используется только явным refresh и временным Web-
+    профилем, для которого каждая копия изолирована от canonical test_data.
     """
     source_dir = get_app_data_dir()
     test_dir = Path(destination_dir) if destination_dir is not None else get_test_data_dir()
@@ -164,6 +163,8 @@ def sync_test_data(destination_dir: str | Path | None = None) -> None:
     for pattern in ('*.pkl', 'documents.json'):
         for data_file in source_dir.glob(pattern):
             test_file = test_dir / data_file.name
+            if test_file.exists() and not replace:
+                continue
             shutil.copy2(data_file, test_file)
 
 
@@ -177,7 +178,7 @@ def prepare_web_test_data() -> Path:
     game state for the duration of a Web test run.
     """
     web_dir = Path(tempfile.mkdtemp(prefix='nfprogress-web-test-data.'))
-    sync_test_data(web_dir)
+    sync_test_data(web_dir, replace=True)
     atexit.register(shutil.rmtree, web_dir, ignore_errors=True)
     return web_dir
 
@@ -189,7 +190,7 @@ def refresh_test_data():
     migration helper creates the SQLite-authoritative database and completion
     markers consumed by the native startup gate.
     """
-    sync_test_data()
+    sync_test_data(replace=True)
     from nfprogress.migration_helper import refresh_test_data_profile
 
     return refresh_test_data_profile(get_app_data_dir(), get_test_data_dir())
@@ -3189,8 +3190,7 @@ def count_symbols_in_docx(filepath):
                     total += len(paragraph.text)
     return total
 
-# При импорте модуля: в режиме разработчика синхронизируем test_data с текущими данными
-if dev_mode:
-    sync_test_data()
-else:
+# Импорт модуля не изменяет persistent test_data. Инициализация и refresh
+# выполняются только явными startup/developer workflows.
+if not dev_mode:
     get_app_data_dir()

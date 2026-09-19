@@ -17,6 +17,7 @@ vi.mock('@/api/settings', () => ({
 }))
 
 vi.mock('@/platform/runtime', () => ({
+  currentPlatform: vi.fn(() => 'web'),
   supportsNativeUpdates: vi.fn(() => false),
   supportsUpdateChecks: vi.fn(() => false),
 }))
@@ -157,5 +158,37 @@ describe('SettingsPage', () => {
     await flushPromises()
 
     expect(wrapper.get('#settings-check-updates').text()).toContain('Установлена последняя версия')
+  })
+
+  it('opens the existing developer dialog only when runtime capability allows it', async () => {
+    vi.mocked(settingsApi.get).mockResolvedValue({
+      ...desktopSettings,
+      capabilities: {
+        ...desktopSettings.capabilities,
+        developer_mode_available: true,
+      },
+    })
+    const wrapper = mount(SettingsPage, {
+      global: {
+        plugins: [createPinia()],
+        stubs: {
+          IonContent: { template: '<div><slot /></div>' },
+          IonPage: { template: '<div><slot /></div>' },
+          IonIcon: true,
+          IonSpinner: true,
+          DeveloperModeDialog: {
+            name: 'DeveloperModeDialog',
+            props: ['open'],
+            template: '<div class="developer-dialog-stub" :data-open="open" />',
+          },
+        },
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.get('#settings-open-developer-mode').text()).toContain('Открыть режим разработчика')
+    expect(wrapper.get('.developer-dialog-stub').attributes('data-open')).toBe('false')
+    await wrapper.get('#settings-open-developer-mode').trigger('click')
+    expect(wrapper.get('.developer-dialog-stub').attributes('data-open')).toBe('true')
   })
 })

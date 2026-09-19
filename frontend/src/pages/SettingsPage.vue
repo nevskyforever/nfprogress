@@ -13,6 +13,7 @@ import {
 
 import { apiErrorMessage } from '@/api/client'
 import { settingsApi } from '@/api/settings'
+import DeveloperModeDialog from '@/components/developer/DeveloperModeDialog.vue'
 import SettingToggle from '@/components/settings/SettingToggle.vue'
 import StatePanel from '@/components/ui/StatePanel.vue'
 import { SUPPORTED_LANGUAGES, useLocaleStore } from '@/stores/locale'
@@ -67,6 +68,7 @@ const loading = ref(true)
 const saving = ref(false)
 const error = ref<string | null>(null)
 const savedMessage = ref('')
+const developerDialogOpen = ref(false)
 const originalValues = ref<Record<string, unknown>>({})
 const controller = new AbortController()
 
@@ -86,6 +88,9 @@ const form = reactive<SettingsForm>({
 const editable = computed(() => new Set<SettingKey>(response.value?.editable_keys ?? []))
 const isDesktop = computed(() => response.value?.platform === 'desktop')
 const updaterAvailable = computed(() => isDesktop.value && supportsUpdateChecks())
+const developerAvailable = computed(
+  () => response.value?.capabilities.developer_mode_available === true,
+)
 const visibleKeys = computed<ReadonlyArray<keyof SettingsForm>>(() => [
   ...GENERAL_KEYS.filter((key) => editable.value.has(key)),
   ...(isDesktop.value ? DESKTOP_KEYS.filter((key) => editable.value.has(key)) : []),
@@ -390,6 +395,25 @@ onBeforeUnmount(() => controller.abort())
               </div>
             </section>
 
+            <section
+              v-if="developerAvailable"
+              class="settings-card"
+              aria-labelledby="developer-settings-title"
+            >
+              <div class="settings-card__heading">
+                <h2 id="developer-settings-title">{{ t('Режим разработчика') }}</h2>
+                <p>{{ t('Тестовая дата, параметры персонажа, выдача предметов и управление тестовым профилем.') }}</p>
+              </div>
+              <button
+                id="settings-open-developer-mode"
+                class="nf-button"
+                type="button"
+                @click="developerDialogOpen = true"
+              >
+                {{ t('Открыть режим разработчика') }}
+              </button>
+            </section>
+
             <div v-if="error" class="settings-message settings-message--error" role="alert">
               <IonIcon :icon="alertCircleOutline" aria-hidden="true" />
               {{ error }}
@@ -424,6 +448,10 @@ onBeforeUnmount(() => controller.abort())
         </form>
       </main>
     </IonContent>
+    <DeveloperModeDialog
+      :open="developerDialogOpen"
+      @close="developerDialogOpen = false"
+    />
   </IonPage>
 </template>
 

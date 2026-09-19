@@ -20,6 +20,7 @@ function desktopResponse(values: SettingsValues): SettingsResponse {
       background_file_sync: true,
       native_updates: true,
       remote_api: false,
+      developer_mode_available: window.__NFPROGRESS_RUNTIME__?.developerModeAvailable === true,
     },
     editable_keys: DESKTOP_EDITABLE_KEYS,
   }

@@ -9,6 +9,9 @@ import type {
   GameNotifications,
   GameState,
   InventoryCommand,
+  ProfileTransferDirection,
+  ProfileTransferRequestResult,
+  ProfileTransferResult,
   ShopCatalog,
   WritingSessionStart,
 } from '@/types/game'
@@ -87,6 +90,18 @@ export const gameApi = {
       item_id: itemId,
       count,
     })
+  },
+
+  requestProfileTransfer(direction: ProfileTransferDirection): Promise<ProfileTransferRequestResult> {
+    if (!isDesktopGame()) {
+      return Promise.reject(new Error('Управление persistent test_data доступно только в Tauri.'))
+    }
+    return nativeGame<ProfileTransferRequestResult>('request_profile_transfer', { direction })
+  },
+
+  takeProfileTransferResult(): Promise<ProfileTransferResult | null> {
+    if (!isDesktopGame()) return Promise.resolve(null)
+    return nativeGame<ProfileTransferResult | null>('take_profile_transfer_result')
   },
 
   startWritingSession(payload: WritingSessionStart): Promise<GameCommandResponse> {

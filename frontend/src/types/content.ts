@@ -51,6 +51,7 @@ export interface PlatformCapabilities {
   background_file_sync: boolean
   native_updates: boolean
   remote_api: boolean
+  developer_mode_available?: boolean
 }
 
 export interface SettingsResponse {

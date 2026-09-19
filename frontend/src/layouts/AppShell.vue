@@ -256,7 +256,7 @@ async function refreshWritingDay(): Promise<void> {
 onMounted(() => {
   window.addEventListener('keydown', handleShortcut)
   void settingsApi.get().then((settings) => {
-    developerAvailable.value = settings.values.developer_mode === true
+    developerAvailable.value = settings.capabilities.developer_mode_available === true
   })
   void refreshGlobalStreak()
   void refreshWritingDay()

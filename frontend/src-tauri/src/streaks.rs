@@ -63,6 +63,9 @@ pub(crate) fn logical_writing_day_from(now: &str, start_day_time: &str) -> Optio
 }
 
 fn configured_now(connection: &Connection) -> Option<String> {
+    if !crate::developer_mode_available() {
+        return None;
+    }
     let raw = connection
         .query_row(
             "SELECT payload_json FROM game_state WHERE id=1",

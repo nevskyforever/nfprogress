@@ -2259,6 +2259,9 @@ impl GameApplicationService {
     }
 
     fn configured_now(connection: &Connection) -> Option<String> {
+        if !crate::developer_mode_available() {
+            return None;
+        }
         let raw_state = connection
             .query_row(
                 "SELECT payload_json FROM game_state WHERE id=1",
@@ -2851,16 +2854,32 @@ fn add_experience(gamer: &mut Map<String, Value>, amount: f64) {
 
 impl GameApplicationService {
     pub fn developer_state() -> GameResult<Value> {
-        if !cfg!(debug_assertions) {
+        if !crate::developer_mode_available() {
             return Err(GameError::PrerequisiteMissing(
                 "Режим разработчика недоступен в release-сборке.".into(),
             ));
         }
-        Ok(json!({"state":Self::state()?,"test_date_enabled":false,"test_datetime":null}))
+        let connection = crate::open_projects_database().map_err(GameError::Database)?;
+        Self::owner(&connection)?;
+        let payload = Self::load(&connection)?;
+        let clock = payload
+            .get("game")
+            .and_then(|value| value.get("extensions"))
+            .or_else(|| payload.get("extensions"))
+            .and_then(|value| value.get("developer_clock"));
+        let enabled = clock
+            .and_then(|value| value.get("enabled"))
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        let datetime = clock
+            .and_then(|value| value.get("datetime"))
+            .cloned()
+            .unwrap_or(Value::Null);
+        Ok(json!({"state":Self::state()?,"test_date_enabled":enabled,"test_datetime":datetime}))
     }
 
     pub fn update_developer(request: DeveloperProfileRequest) -> GameResult<GameCommandResponse> {
-        if !cfg!(debug_assertions) {
+        if !crate::developer_mode_available() {
             return Err(GameError::PrerequisiteMissing(
                 "Режим разработчика недоступен в release-сборке.".into(),
             ));
@@ -2903,6 +2922,11 @@ impl GameApplicationService {
     }
 
     pub fn grant_inventory(request: InventoryRequest) -> GameResult<GameCommandResponse> {
+        if !crate::developer_mode_available() {
+            return Err(GameError::PrerequisiteMissing(
+                "Режим разработчика недоступен в этой сборке.".into(),
+            ));
+        }
         let count = checked_count(request.count)?;
         Self::mutate(move |state, _rng, _now| {
             let gamer = gamer_object(state)?;

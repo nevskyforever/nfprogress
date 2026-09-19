@@ -14,6 +14,7 @@ use tauri::{Emitter, Manager, PhysicalPosition, PhysicalSize, RunEvent, State};
 mod documents;
 mod game;
 mod mindmap;
+mod profile_transfer;
 #[allow(dead_code)]
 mod project_repository;
 mod sqlite;
@@ -147,8 +148,10 @@ fn initialize_fresh_desktop_database(
             )
             .optional()
             .map_err(|error| format!("migration_required: {error}"))?;
+        let markers_absent = marker.is_none() && documents_complete.is_none();
         let marker_ready = marker
-            .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+            .as_deref()
+            .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok())
             .and_then(|value| {
                 value
                     .get("status")
@@ -157,7 +160,8 @@ fn initialize_fresh_desktop_database(
             })
             == Some("ready_for_tauri".to_string());
         let documents_ready = documents_complete
-            .and_then(|value| serde_json::from_str::<serde_json::Value>(&value).ok())
+            .as_deref()
+            .and_then(|value| serde_json::from_str::<serde_json::Value>(value).ok())
             .and_then(|value| {
                 value
                     .get("status")
@@ -165,7 +169,7 @@ fn initialize_fresh_desktop_database(
                     .map(str::to_owned)
             })
             == Some("complete".to_string());
-        if prepared != 4 || !marker_ready || !documents_ready {
+        if prepared != 4 || !(markers_absent || (marker_ready && documents_ready)) {
             return Err("migration_required: legacy_data_detected".to_string());
         }
         return Ok(());
@@ -2452,6 +2456,7 @@ struct RuntimeInfo {
     native_updates: bool,
     architecture: String,
     development: bool,
+    developer_mode_available: bool,
     startup_error: Option<String>,
 }
 
@@ -2697,6 +2702,7 @@ fn runtime_info(startup_status: State<'_, StartupStatus>) -> RuntimeInfo {
         native_updates: native_updates_enabled(),
         architecture: std::env::consts::ARCH.to_string(),
         development: cfg!(debug_assertions),
+        developer_mode_available: developer_mode_available(),
         startup_error: startup_status.error.clone(),
     }
 }
@@ -4709,6 +4715,24 @@ fn build_profile() -> &'static str {
     }
 }
 
+fn developer_mode_available() -> bool {
+    cfg!(debug_assertions)
+        || build_profile() == "test"
+        || std::env::var("NFPROGRESS_DEVELOPER_MODE").as_deref() == Ok("1")
+}
+
+#[tauri::command]
+fn request_profile_transfer(
+    direction: profile_transfer::TransferDirection,
+) -> Result<profile_transfer::TransferRequestResponse, String> {
+    profile_transfer::request(&sqlite_data_root()?, direction)
+}
+
+#[tauri::command]
+fn take_profile_transfer_result() -> Result<Option<serde_json::Value>, String> {
+    profile_transfer::take_result(&sqlite_data_root()?)
+}
+
 fn prepare_startup_storage(data_root: &Path) -> Result<(), String> {
     let connection = sqlite::open_database(&data_root.join("nfprogress.db"))
         .map_err(|error| error.to_string())?;
@@ -4722,6 +4746,7 @@ fn check_startup_storage() -> Result<(), String> {
         build_profile(),
         data_root.display()
     );
+    profile_transfer::process_pending(&data_root)?;
     prepare_startup_storage(&data_root)
 }
 
@@ -4762,6 +4787,8 @@ pub fn run() {
     let app = builder
         .invoke_handler(tauri::generate_handler![
             runtime_info,
+            request_profile_transfer,
+            take_profile_transfer_result,
             process_game_events,
             list_documents,
             get_document,

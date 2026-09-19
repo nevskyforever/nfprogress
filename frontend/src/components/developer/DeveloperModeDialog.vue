@@ -5,6 +5,7 @@ import { closeOutline } from 'ionicons/icons'
 
 import { apiErrorMessage } from '@/api/client'
 import { gameApi } from '@/api/game'
+import { currentPlatform } from '@/platform/runtime'
 import { useLocaleStore } from '@/stores/locale'
 import type { DeveloperModeState, GameState } from '@/types/game'
 
@@ -16,6 +17,7 @@ const t = locale.translate
 const loading = ref(false)
 const saving = ref(false)
 const granting = ref(false)
+const transferring = ref(false)
 const error = ref<string | null>(null)
 const success = ref<string | null>(null)
 const developerState = ref<DeveloperModeState | null>(null)
@@ -34,6 +36,7 @@ const categories = computed(() => developerState.value?.state.shop.categories ??
 const selectedItems = computed(
   () => categories.value.find((category) => category.key === grant.category)?.items ?? [],
 )
+const testDataControlsAvailable = currentPlatform() === 'tauri'
 
 function datetimeLocal(value: string | null): string {
   const date = value ? new Date(value) : new Date()
@@ -74,9 +77,17 @@ async function load(): Promise<void> {
   error.value = null
   success.value = null
   try {
-    const state = await gameApi.developerState()
+    const [state, transferResult] = await Promise.all([
+      gameApi.developerState(),
+      testDataControlsAvailable ? gameApi.takeProfileTransferResult() : Promise.resolve(null),
+    ])
     developerState.value = state
     fill(state)
+    if (transferResult?.status === 'complete') {
+      success.value = t('Замена данных успешно завершена. Проверенный снимок активирован; резервная копия сохранена.')
+    } else if (transferResult?.status === 'error') {
+      error.value = `${t('Не удалось заменить данные')}: ${transferResult.error ?? t('неизвестная ошибка')}`
+    }
   } catch (reason) {
     error.value = t(apiErrorMessage(reason))
   } finally {
@@ -134,9 +145,28 @@ async function grantItem(): Promise<void> {
   }
 }
 
+async function requestTransfer(direction: 'real_to_test' | 'test_to_real'): Promise<void> {
+  if (transferring.value) return
+  const confirmation = direction === 'real_to_test'
+    ? t('Текущие тестовые данные будут заменены снимком реальных данных. Перед заменой будет создана резервная копия. Продолжить?')
+    : t('Реальные данные будут заменены тестовыми. Перед заменой будет создана проверенная резервная копия реальных данных. Продолжить?')
+  if (!window.confirm(confirmation)) return
+  transferring.value = true
+  error.value = null
+  success.value = null
+  try {
+    const result = await gameApi.requestProfileTransfer(direction)
+    success.value = t(result.message)
+  } catch (reason) {
+    error.value = t(apiErrorMessage(reason))
+  } finally {
+    transferring.value = false
+  }
+}
+
 watch(() => props.open, (open) => {
   if (open) void load()
-})
+}, { immediate: true })
 </script>
 
 <template>
@@ -171,6 +201,16 @@ watch(() => props.open, (open) => {
           <label>{{ t('Предмет') }}<select v-model="grant.itemId"><option v-for="item in selectedItems" :key="item.key" :value="item.key">{{ item.name }}</option></select></label>
           <label>{{ t('Количество') }}<input v-model.number="grant.count" min="1" max="9999" type="number" /></label>
           <button class="nf-button" :disabled="granting" type="button" @click="grantItem">{{ granting ? t('Добавляем…') : t('Добавить в инвентарь') }}</button>
+        </section>
+        <section v-if="testDataControlsAvailable" class="developer-inventory" :aria-label="t('Данные тестового режима')">
+          <h3>{{ t('Данные тестового режима') }}</h3>
+          <p>{{ t('Операция выполняется только после перезапуска, до открытия SQLite. Для текущего профиля создаётся резервная копия, затем проверенный снимок активируется атомарно.') }}</p>
+          <button class="nf-button" :disabled="transferring" type="button" @click="requestTransfer('real_to_test')">
+            {{ t('Обновить тестовые данные из реальных') }}
+          </button>
+          <button class="nf-button nf-button--danger" :disabled="transferring" type="button" @click="requestTransfer('test_to_real')">
+            {{ t('Заменить реальные данные тестовыми') }}
+          </button>
         </section>
         <p v-if="success" class="developer-success" role="status">{{ success }}</p>
         <p v-if="error" class="developer-error" role="alert">{{ error }}</p>

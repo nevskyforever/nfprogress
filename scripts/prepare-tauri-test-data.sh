@@ -1,10 +1,15 @@
 #!/bin/bash
-# Refresh the canonical Tauri test profile from the current application data.
+# Initialize or explicitly refresh the persistent canonical Tauri test profile.
 set -euo pipefail
 
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+MODE="${1:-}"
+if [ "$MODE" != "" ] && [ "$MODE" != "--refresh" ]; then
+  echo "Использование: $0 [--refresh]" >&2
+  exit 2
+fi
 
 PYTHON_BIN="${NFPROGRESS_PYTHON:-}"
 if [ -z "$PYTHON_BIN" ] && [ -x "$ROOT_DIR/.venv/bin/python" ]; then
@@ -17,6 +22,17 @@ if [ -z "$PYTHON_BIN" ]; then
     exit 1
   fi
   PYTHON_BIN="$(command -v python3)"
+fi
+
+TEST_ROOT="${HOME}/Documents/nfprogress/test_data"
+if [ -n "${NFPROGRESS_TEST_DATA_DIR:-}" ]; then
+  TEST_ROOT="$NFPROGRESS_TEST_DATA_DIR"
+fi
+
+if [ "$MODE" != "--refresh" ] \
+  && "$PYTHON_BIN" -m nfprogress.migration_helper verify --source "$TEST_ROOT" >/dev/null 2>&1; then
+  echo "Используется существующий persistent Tauri test_data: $TEST_ROOT"
+  exit 0
 fi
 
 if ! "$PYTHON_BIN" -c 'import fastapi' >/dev/null 2>&1; then
@@ -58,5 +74,9 @@ done
 LOCK_OWNER=1
 printf '%s\n' "$$" > "$LOCK_DIR/pid"
 
-echo "Обновляются реальные данные в canonical Tauri test_data..."
-(cd "$ROOT_DIR" && "$PYTHON_BIN" -m backend.app --prepare-dev-data)
+if [ "$MODE" = "--refresh" ]; then
+  echo "Явно обновляются реальные данные в persistent Tauri test_data..."
+else
+  echo "Persistent Tauri test_data отсутствует или не готов; выполняется первичная инициализация..."
+fi
+(cd "$ROOT_DIR" && NFPROGRESS_TEST_DATA_DIR="$TEST_ROOT" "$PYTHON_BIN" -m backend.app --prepare-dev-data)

@@ -51,6 +51,7 @@ class PlatformCapabilitiesResponse(ResponseModel):
     background_file_sync: bool
     native_updates: bool
     remote_api: bool
+    developer_mode_available: bool = False
 
 
 class SettingsResponse(ResponseModel):

@@ -127,7 +127,7 @@ pub fn apply_migrations(connection: &Connection) -> Result<i64, StorageError> {
     Ok(CURRENT_SCHEMA_VERSION)
 }
 
-fn validate_database(connection: &Connection) -> Result<(), StorageError> {
+pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageError> {
     let integrity: String = connection.query_row("PRAGMA integrity_check", [], |row| row.get(0))?;
     if integrity != "ok" {
         return Err(StorageError::CorruptSchema(format!(

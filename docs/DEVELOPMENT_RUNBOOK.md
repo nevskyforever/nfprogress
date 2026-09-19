@@ -203,18 +203,31 @@ root используйте `bash "Run Tauri.sh"` ниже.
 bash "Run Tauri.sh"
 ```
 
-Скрипт выбирает Rust architecture текущего Mac, обновляет canonical
-`~/Documents/nfprogress/test_data` через Python migration pipeline и запускает
-native runtime с этим root. Путь к root печатается перед запуском. Для нового
+Скрипт выбирает Rust architecture текущего Mac и запускает native runtime с
+persistent-профилем `~/Documents/nfprogress/test_data`. Если профиль ещё не
+создан или не прошёл проверку SQLite v6, он один раз инициализируется из real
+profile через Python migration pipeline. Существующий готовый test profile не
+перезаписывается: его проекты, тексты, принятые Word hashes и игровые изменения
+переживают повторный запуск. Путь к root печатается перед запуском. Для нового
 пустого изолированного профиля используйте явный режим:
 
 ```bash
 bash "Run Tauri.sh" --fresh
 ```
 
-`--legacy` остаётся явным compatibility alias canonical test-data profile;
-legacy-файлы сохраняются там как fixture/source evidence, но подготовленная
-SQLite-база имеет завершённые migration markers и используется Tauri.
+`--legacy` остаётся compatibility alias persistent test-data profile и не
+обновляет его скрыто. Для намеренной замены test profile актуальным снимком
+real profile используйте явный режим:
+
+```bash
+bash "Run Tauri.sh" --refresh-test-data
+```
+
+Перед заменой migration pipeline создаёт backup, проверяет staging-базу и
+активирует её атомарно. Те же операции доступны в модальном окне «Режим
+разработчика»: запрос real → test или test → real выполняется только после
+подтверждения и на следующем старте, до открытия active SQLite. При test → real
+developer clock и test-only settings не переносятся.
 
 Произвольный профиль задаётся явно через `--data-dir PATH` или
 `NFPROGRESS_DATA_DIR=/absolute/path`. Production root при этом не меняется.
@@ -252,10 +265,10 @@ bash "Build Tauri Intel.sh"
 bash "Build Tauri All.sh"
 ```
 
-Перед test-сборкой текущие реальные данные обновляются в canonical
-`test_data` через migration pipeline. Поэтому собранный `.app` открывается с
-актуальными проектами, текстами, настройками и игровым состоянием. Для
-намеренно пустого изолированного запуска используйте `Run Tauri.sh --fresh`.
+Перед test-сборкой canonical `test_data` только инициализируется, если ещё не
+готов. Сборка не уничтожает накопленные изменения persistent test profile.
+Для явного обновления сначала выполните `Run Tauri.sh --refresh-test-data`, а
+для намеренно пустого изолированного запуска используйте `Run Tauri.sh --fresh`.
 
 `Build Tauri All.sh` параллельно выполняет ARM- и Intel test-сборку.
 Initial release macOS — только Apple Silicon: `Release Tauri ARM.sh` является

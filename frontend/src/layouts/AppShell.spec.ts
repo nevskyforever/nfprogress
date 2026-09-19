@@ -47,7 +47,10 @@ vi.mock('@/api/projects', () => ({
   },
 }))
 
-function response(values: SettingsResponse['values']): SettingsResponse {
+function response(
+  values: SettingsResponse['values'],
+  developerModeAvailable = false,
+): SettingsResponse {
   return {
     values,
     platform: 'web',
@@ -56,6 +59,7 @@ function response(values: SettingsResponse['values']): SettingsResponse {
       background_file_sync: false,
       native_updates: false,
       remote_api: true,
+      developer_mode_available: developerModeAvailable,
     },
     editable_keys: ['language', 'frontend_theme'],
   }
@@ -111,6 +115,20 @@ describe('AppShell preferences', () => {
     })
     vi.mocked(contentApi.locale).mockReset()
     vi.mocked(contentApi.locale).mockResolvedValue({})
+  })
+
+  it('uses runtime capability instead of a persisted developer_mode value', async () => {
+    vi.mocked(settingsApi.get).mockResolvedValue(response({ developer_mode: true }, false))
+    const persistedOnly = mountShell().wrapper
+    await flushPromises()
+    expect(persistedOnly.text()).not.toContain('Режим разработчика')
+    persistedOnly.unmount()
+
+    vi.mocked(settingsApi.get).mockResolvedValue(response({}, true))
+    const capable = mountShell().wrapper
+    await flushPromises()
+    expect(capable.text()).toContain('Режим разработчика')
+    capable.unmount()
   })
 
   it('shows global project map and note workspaces in navigation', () => {

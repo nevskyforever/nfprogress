@@ -4,6 +4,7 @@ interface DesktopRuntimeInfo {
   nativeUpdates: boolean
   architecture: string
   development: boolean
+  developerModeAvailable: boolean
   startupError?: string
 }
 
@@ -50,6 +51,7 @@ async function initializeTauriRuntime(): Promise<void> {
       nativeUpdates: runtime.nativeUpdates,
       architecture: runtime.architecture,
       development: runtime.development,
+      developerModeAvailable: runtime.developerModeAvailable,
       startupError: runtime.startupError,
     }
   } catch (error) {
