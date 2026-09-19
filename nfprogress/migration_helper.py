@@ -49,6 +49,7 @@ from nfprogress.core.recovery import (
     validate_sqlite_file,
 )
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core.sqlite.schema import CURRENT_SCHEMA_VERSION
 from nfprogress.core.sqlite.ordering import (
     OrderInvariantError,
     OrderTableProposal,
@@ -338,7 +339,7 @@ def analyze_project_order_recovery(source_root: str | Path) -> ProjectOrderRecov
         if connection.execute("PRAGMA foreign_key_check").fetchall():
             raise RecoveryError("corrupt_sqlite: foreign_key_check failed")
         version = int(connection.execute("SELECT schema_version FROM schema_info").fetchone()[0])
-        if version != 6:
+        if version not in (6, CURRENT_SCHEMA_VERSION):
             raise RecoveryError(f"unsupported_sqlite_schema: {version}")
         project_ids = {
             row[0] for row in connection.execute("SELECT id FROM projects")
@@ -464,7 +465,9 @@ def recover_project_order(data_root: str | Path) -> ProjectOrderRecoveryReport:
 
         if _project_rows(staging / "nfprogress.db") != before_projects:
             raise RecoveryError("project rows changed during order recovery")
-        validate_sqlite_file(staging / "nfprogress.db", allow_versions={6})
+        validate_sqlite_file(
+            staging / "nfprogress.db", allow_versions={6, CURRENT_SCHEMA_VERSION},
+        )
         if sha256_file(database) != preview.source_sha256:
             raise RecoveryError("source_changed: database checksum changed during recovery")
         rollback = _activate(staging, root)
@@ -522,14 +525,14 @@ def _profile_for(
         supported = has_data
         warnings.append("v5 Game/Documents migration is incomplete until the full bundle is imported")
         return "G_sqlite_v5_game_incomplete", supported, "5", warnings
-    if version == 6:
+    if version in (6, CURRENT_SCHEMA_VERSION):
         # A v6 profile is prepared only when all authority and completion
         # markers are verified by verify_prepared_profile().
         if ownership == {name: "sqlite" for name in ("projects", "settings", "notes", "game")} and not has_data:
-            return "I_prepared_v6", True, "6", warnings
+            return "I_prepared_v6", True, str(version), warnings
         if has_data:
-            return "H_sqlite_v6_ownership_incomplete", True, "6", warnings
-        return "J_corrupt_or_ambiguous", False, "6", warnings
+            return "H_sqlite_v6_ownership_incomplete", True, str(version), warnings
+        return "J_corrupt_or_ambiguous", False, str(version), warnings
     return "J_corrupt_or_ambiguous", False, str(version or "unknown"), warnings
 
 
@@ -541,13 +544,13 @@ def inspect_source(source_root: str | Path) -> SourceInspection:
     files = _known_files(root)
     schema, ownership, markers, warnings = _read_sqlite_metadata(root / "nfprogress.db")
     profile, supported, version, warnings = _profile_for(files, schema, ownership, warnings)
-    if schema.get("version") in range(1, 7):
+    if schema.get("version") in range(1, CURRENT_SCHEMA_VERSION + 1):
         try:
             validate_sqlite_file(root / "nfprogress.db")
         except RecoveryError as error:
             warnings.append(str(error))
             if (
-                schema.get("version") == 6
+                schema.get("version") in (6, CURRENT_SCHEMA_VERSION)
                 and "project ordering" in str(error)
             ):
                 profile = SQLITE_PROJECT_ORDER_RECOVERY_PROFILE
@@ -573,7 +576,7 @@ def inspect_source(source_root: str | Path) -> SourceInspection:
         and documents_marker.get("status") == "complete"
     )
     sqlite_owners = ownership == {name: "sqlite" for name in ("projects", "settings", "notes", "game")}
-    if schema.get("version") == 6 and sqlite_owners and markers_complete:
+    if schema.get("version") in (6, CURRENT_SCHEMA_VERSION) and sqlite_owners and markers_complete:
         # Recovery copies may remain beside a prepared database.  The marker,
         # not the mere presence of stale PKL/JSON, proves SQLite authority.
         profile, supported = "I_prepared_v6", True
@@ -884,14 +887,19 @@ def _import_complete_bundle(bundle: MigrationBundle, target: Path, inspection: S
             db.execute("INSERT OR REPLACE INTO game_metadata(key,value_json) VALUES('migration_status',?)", (_json(marker),))
             for key, value in (("source_fingerprint", inspection.fingerprint), ("helper_version", HELPER_VERSION), ("bundle_checksum", bundle.bundle_manifest.get("bundle_checksum"))):
                 db.execute("INSERT OR REPLACE INTO game_metadata(key,value_json) VALUES(?,?)", (key, _json(value)))
-            db.execute("UPDATE storage_ownership SET owner='sqlite', schema_version=6, updated_at=datetime('now')")
-            db.execute("INSERT INTO mirror_state(id,source_format,source_schema_version,sync_status,last_full_sync_at,last_successful_sync_at,last_error) VALUES(1,'migration_bundle','6','healthy',datetime('now'),datetime('now'),NULL) ON CONFLICT(id) DO UPDATE SET source_format='migration_bundle', source_schema_version='6', sync_status='healthy', last_full_sync_at=datetime('now'), last_successful_sync_at=datetime('now'), last_error=NULL")
+            db.execute(
+                "UPDATE storage_ownership SET owner='sqlite', schema_version=?, updated_at=datetime('now')",
+                (CURRENT_SCHEMA_VERSION,),
+            )
+            db.execute("INSERT INTO mirror_state(id,source_format,source_schema_version,sync_status,last_full_sync_at,last_successful_sync_at,last_error) VALUES(1,'migration_bundle',?,'healthy',datetime('now'),datetime('now'),NULL) ON CONFLICT(id) DO UPDATE SET source_format='migration_bundle', source_schema_version=excluded.source_schema_version, sync_status='healthy', last_full_sync_at=datetime('now'), last_successful_sync_at=datetime('now'), last_error=NULL", (str(CURRENT_SCHEMA_VERSION),))
 
 
 def _semantic_verify(bundle: MigrationBundle, target: Path, inspection: SourceInspection) -> list[str]:
     errors: list[str] = []
     try:
-        validate_sqlite_file(target / "nfprogress.db", allow_versions={6})
+        validate_sqlite_file(
+            target / "nfprogress.db", allow_versions={CURRENT_SCHEMA_VERSION},
+        )
     except RecoveryError as error:
         return [str(error)]
     try:
@@ -1001,9 +1009,11 @@ def verify_prepared_profile(data_root: str | Path) -> tuple[bool, list[str]]:
         return (not legacy_present), ["fresh_install" if not legacy_present else "migration_required"]
     errors: list[str] = []
     try:
-        version = validate_sqlite_file(database, allow_versions={6})
-        if version != 6:
-            errors.append("schema is not v6")
+        version = validate_sqlite_file(
+            database, allow_versions={6, CURRENT_SCHEMA_VERSION},
+        )
+        if version not in (6, CURRENT_SCHEMA_VERSION):
+            errors.append("schema is not supported")
     except RecoveryError as error:
         errors.append(str(error))
         return False, errors

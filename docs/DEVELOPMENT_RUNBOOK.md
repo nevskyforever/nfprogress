@@ -205,7 +205,7 @@ bash "Run Tauri.sh"
 
 Скрипт выбирает Rust architecture текущего Mac и запускает native runtime с
 persistent-профилем `~/Documents/nfprogress/test_data`. Если профиль ещё не
-создан или не прошёл проверку SQLite v6, он один раз инициализируется из real
+создан или не прошёл проверку текущей SQLite schema, он один раз инициализируется из real
 profile через Python migration pipeline. Существующий готовый test profile не
 перезаписывается: его проекты, тексты, принятые Word hashes и игровые изменения
 переживают повторный запуск. Путь к root печатается перед запуском. Для нового
@@ -281,6 +281,13 @@ ARM. Intel остаётся доступен явно через `Release Tauri 
 Перед сборкой нормализованная версия из `engine.py` синхронизируется с
 `tauri.conf.json`, `Cargo.toml` и `Cargo.lock` внутри соответствующего
 workspace, не затрагивая исходный frontend.
+
+SQLite хранит версию nfprogress отдельно от `schema_version` в таблице
+`application_metadata`. `data_created_by_version` устанавливается для новой
+БД и больше не меняется; у обновлённой старой БД без исторической версии оно
+остаётся `NULL`. `data_last_written_by_version` меняется на текущую версию
+после успешной записи пользовательских данных. Другая сохранённая версия пока
+носит только информационный характер и не включает compatibility policy.
 
 Они собирают native Tauri `.app`, проверенный DMG и ZIP с DMG, лицензией и
 сведениями об исходном коде. Результаты лежат в

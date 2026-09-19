@@ -179,6 +179,10 @@ fn snapshot_database(source: &Path, destination: &Path) -> Result<(), String> {
     if destination.exists() {
         fs::remove_file(destination).map_err(|error| error.to_string())?;
     }
+    // Both processes are stopped when the startup marker is handled, so the
+    // inactive source can safely traverse the shared qualified migrations
+    // before its snapshot is verified.
+    drop(crate::sqlite::open_database(source).map_err(|error| error.to_string())?);
     let connection = open_read_only(source)?;
     qualified(&connection)?;
     connection

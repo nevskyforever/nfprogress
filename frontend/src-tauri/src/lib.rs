@@ -186,17 +186,18 @@ fn initialize_fresh_desktop_database(
     }
 
     connection
-        .execute_batch(
+        .execute_batch(&format!(
             "BEGIN IMMEDIATE;
-             UPDATE storage_ownership SET owner='sqlite', schema_version=6, updated_at=datetime('now');
+             UPDATE storage_ownership SET owner='sqlite', schema_version={schema_version}, updated_at=datetime('now');
              INSERT INTO mirror_state(id,source_format,source_schema_version,last_full_sync_at,last_successful_sync_at,sync_status,last_error)
-             VALUES(1,'sqlite','6',datetime('now'),datetime('now'),'healthy',NULL)
-             ON CONFLICT(id) DO UPDATE SET source_format='sqlite',source_schema_version='6',last_full_sync_at=datetime('now'),last_successful_sync_at=datetime('now'),sync_status='healthy',last_error=NULL;
+             VALUES(1,'sqlite','{schema_version}',datetime('now'),datetime('now'),'healthy',NULL)
+             ON CONFLICT(id) DO UPDATE SET source_format='sqlite',source_schema_version='{schema_version}',last_full_sync_at=datetime('now'),last_successful_sync_at=datetime('now'),sync_status='healthy',last_error=NULL;
              INSERT INTO game_state(id,schema_version,payload_json,updated_at)
-             VALUES(1,2,'{\"gamer\":{},\"game\":{}}',datetime('now'))
+             VALUES(1,2,'{{\"gamer\":{{}},\"game\":{{}}}}',datetime('now'))
              ON CONFLICT(id) DO NOTHING;
              COMMIT;",
-        )
+            schema_version = sqlite::CURRENT_SCHEMA_VERSION,
+        ))
         .map_err(|error| format!("Не удалось инициализировать новую SQLite базу: {error}"))
 }
 

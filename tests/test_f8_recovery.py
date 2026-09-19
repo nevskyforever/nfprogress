@@ -131,9 +131,10 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
         2: "002_storage_ownership.sql",
         3: "003_project_order.sql",
         4: "004_projects_authority.sql",
-        5: "005_game_authority.sql",
-        6: "006_documents_authority.sql",
-    }
+            5: "005_game_authority.sql",
+            6: "006_documents_authority.sql",
+            7: "007_application_metadata.sql",
+        }
     for migration_version in range(1, version + 1):
         connection.executescript(
             (MIGRATIONS_DIR / migration_files[migration_version]).read_text()

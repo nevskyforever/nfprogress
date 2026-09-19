@@ -340,6 +340,8 @@ def _validate_sqlite_semantics(connection: sqlite3.Connection, version: int) -> 
         required_v6 = {"documents", "document_bindings", "document_metadata", "document_migration_orphans"}
         if not required_v6.issubset(available):
             raise RecoveryError("corrupt_sqlite: required v6 table is missing")
+    if version >= 7 and "application_metadata" not in available:
+        raise RecoveryError("corrupt_sqlite: required application metadata table is missing")
     for table in ("projects", "stages", "progress_entries", "notes", "settings", "game_state"):
         column = "value_json" if table == "settings" else "payload_json"
         for row in connection.execute(f"SELECT {column} FROM {table}"):

@@ -7,9 +7,30 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use rusqlite::{Connection, OpenFlags};
+use rusqlite::{Connection, OpenFlags, OptionalExtension};
 
-pub const CURRENT_SCHEMA_VERSION: i64 = 6;
+pub const CURRENT_SCHEMA_VERSION: i64 = 7;
+
+const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
+const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
+const USER_DATA_TABLES: [&str; 16] = [
+    "projects",
+    "stages",
+    "progress_entries",
+    "notes",
+    "settings",
+    "game_state",
+    "project_order",
+    "stage_order",
+    "progress_order",
+    "project_metadata",
+    "project_folders",
+    "project_folder_members",
+    "project_bindings",
+    "project_extensions",
+    "documents",
+    "document_bindings",
+];
 
 #[derive(Debug)]
 pub enum StorageError {
@@ -38,7 +59,7 @@ impl From<rusqlite::Error> for StorageError {
     }
 }
 
-const MIGRATIONS: [(i64, &str); 6] = [
+const MIGRATIONS: [(i64, &str); 7] = [
     (
         1,
         include_str!("../../../nfprogress/core/sqlite/migrations/001_initial.sql"),
@@ -63,9 +84,14 @@ const MIGRATIONS: [(i64, &str); 6] = [
         6,
         include_str!("../../../nfprogress/core/sqlite/migrations/006_documents_authority.sql"),
     ),
+    (
+        7,
+        include_str!("../../../nfprogress/core/sqlite/migrations/007_application_metadata.sql"),
+    ),
 ];
 
 pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
+    let new_database = !path.exists();
     let connection = Connection::open_with_flags(
         path,
         OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
@@ -76,9 +102,86 @@ pub fn open_database(path: &Path) -> Result<Connection, StorageError> {
     // versioned scripts are applied on an existing v4 database.
     connection.execute_batch(DOMAIN_EVENTS_SCHEMA)?;
     apply_migrations(&connection)?;
+    configure_application_metadata(&connection, APPLICATION_VERSION, new_database)?;
     connection.execute_batch(DOMAIN_EVENTS_SCHEMA)?;
     validate_database(&connection)?;
     Ok(connection)
+}
+
+fn valid_application_version(value: &str) -> bool {
+    if value.is_empty() || value.len() > 64 || !value.is_ascii() {
+        return false;
+    }
+    let core_end = value.find(['-', '+']).unwrap_or(value.len());
+    let core = &value[..core_end];
+    if core.split('.').count() != 3
+        || core
+            .split('.')
+            .any(|part| part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()))
+    {
+        return false;
+    }
+    if core_end == value.len() {
+        return true;
+    }
+    let suffix = &value[core_end + 1..];
+    !suffix.is_empty()
+        && suffix
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+}
+
+fn configure_application_metadata(
+    connection: &Connection,
+    application_version: &str,
+    new_database: bool,
+) -> Result<(), StorageError> {
+    if !valid_application_version(application_version) {
+        return Err(StorageError::CorruptSchema(format!(
+            "invalid nfprogress application version: {application_version}"
+        )));
+    }
+    let transaction = connection.unchecked_transaction()?;
+    for key in VERSION_KEYS {
+        let saved = transaction
+            .query_row(
+                "SELECT value FROM application_metadata WHERE key=?1",
+                [key],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()?;
+        if let Some(Some(value)) = saved.as_ref() {
+            if !valid_application_version(value) {
+                return Err(StorageError::CorruptSchema(format!(
+                    "invalid application metadata {key}: {value}"
+                )));
+            }
+        }
+        if saved.is_none() {
+            let initial = new_database.then_some(application_version);
+            transaction.execute(
+                "INSERT INTO application_metadata(key,value,updated_at) VALUES(?1,?2,datetime('now'))",
+                rusqlite::params![key, initial],
+            )?;
+        }
+    }
+    let quoted_version = application_version.replace('\'', "''");
+    for table in USER_DATA_TABLES {
+        for operation in ["INSERT", "UPDATE", "DELETE"] {
+            let trigger = format!(
+                "nfprogress_app_version_{table}_{}",
+                operation.to_ascii_lowercase()
+            );
+            transaction.execute_batch(&format!(
+                "DROP TRIGGER IF EXISTS {trigger};\
+                 CREATE TRIGGER {trigger} AFTER {operation} ON {table} BEGIN \
+                 UPDATE application_metadata SET value='{quoted_version}',updated_at=datetime('now') \
+                 WHERE key='data_last_written_by_version'; END;"
+            ))?;
+        }
+    }
+    transaction.commit()?;
+    Ok(())
 }
 
 const DOMAIN_EVENTS_SCHEMA: &str = "CREATE TABLE IF NOT EXISTS domain_events (event_id TEXT PRIMARY KEY, event_type TEXT NOT NULL, project_id TEXT NOT NULL, stage_id TEXT, progress_id TEXT, effective_date TEXT, delta_symbols REAL, context_json TEXT NOT NULL, created_at TEXT NOT NULL, processed_at TEXT, consumer TEXT NOT NULL DEFAULT 'game', version INTEGER NOT NULL DEFAULT 1); CREATE INDEX IF NOT EXISTS idx_domain_events_pending ON domain_events(consumer, processed_at, created_at);";
@@ -159,6 +262,7 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
         "progress_order",
         "documents",
         "document_bindings",
+        "application_metadata",
     ];
     if required.iter().any(|table| !table_names.contains(*table)) {
         return Err(StorageError::CorruptSchema(
@@ -199,6 +303,22 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
     validate_json_column(connection, "documents", "content_json")?;
     validate_json_column(connection, "documents", "extensions_json")?;
     validate_json_column(connection, "document_bindings", "payload_json")?;
+    for key in VERSION_KEYS {
+        let value = connection
+            .query_row(
+                "SELECT value FROM application_metadata WHERE key=?1",
+                [key],
+                |row| row.get::<_, Option<String>>(0),
+            )
+            .optional()?;
+        if let Some(Some(value)) = value {
+            if !valid_application_version(&value) {
+                return Err(StorageError::CorruptSchema(format!(
+                    "invalid application metadata {key}: {value}"
+                )));
+            }
+        }
+    }
 
     validate_project_order(connection)?;
     validate_stage_order(connection)?;
@@ -317,13 +437,16 @@ mod tests {
     #[test]
     fn fresh_database_reaches_latest_schema() {
         let connection = Connection::open_in_memory().unwrap();
-        assert_eq!(apply_migrations(&connection).unwrap(), 6);
+        assert_eq!(
+            apply_migrations(&connection).unwrap(),
+            CURRENT_SCHEMA_VERSION
+        );
         assert_eq!(
             connection
                 .query_row("SELECT schema_version FROM schema_info", [], |row| row
                     .get::<_, i64>(0))
                 .unwrap(),
-            6
+            CURRENT_SCHEMA_VERSION
         );
         assert!(
             connection
@@ -335,6 +458,86 @@ mod tests {
                 .unwrap()
                 == "pickle"
         );
+    }
+
+    #[test]
+    fn application_versions_track_creation_and_successful_user_writes() {
+        let connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&connection).unwrap();
+        configure_application_metadata(&connection, "1.2.3", true).unwrap();
+        let read = |key: &str| {
+            connection
+                .query_row(
+                    "SELECT value FROM application_metadata WHERE key=?1",
+                    [key],
+                    |row| row.get::<_, Option<String>>(0),
+                )
+                .unwrap()
+        };
+        assert_eq!(read("data_created_by_version").as_deref(), Some("1.2.3"));
+        assert_eq!(
+            read("data_last_written_by_version").as_deref(),
+            Some("1.2.3")
+        );
+
+        // Merely opening with a different valid version changes no persisted
+        // compatibility state and never blocks the database.
+        configure_application_metadata(&connection, "9.8.7-beta.1", false).unwrap();
+        assert_eq!(read("data_created_by_version").as_deref(), Some("1.2.3"));
+        assert_eq!(
+            read("data_last_written_by_version").as_deref(),
+            Some("1.2.3")
+        );
+        connection
+            .execute(
+                "INSERT INTO settings(key,value_json) VALUES('theme','\"dark\"')",
+                [],
+            )
+            .unwrap();
+        assert_eq!(
+            read("data_last_written_by_version").as_deref(),
+            Some("9.8.7-beta.1")
+        );
+        assert_eq!(read("data_created_by_version").as_deref(), Some("1.2.3"));
+    }
+
+    #[test]
+    fn existing_database_without_version_rows_opens_as_unknown_until_write() {
+        let connection = Connection::open_in_memory().unwrap();
+        apply_migrations(&connection).unwrap();
+
+        configure_application_metadata(&connection, "5.3.9", false).unwrap();
+        let created: Option<String> = connection
+            .query_row(
+                "SELECT value FROM application_metadata WHERE key='data_created_by_version'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        let last_written: Option<String> = connection
+            .query_row(
+                "SELECT value FROM application_metadata WHERE key='data_last_written_by_version'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert!(created.is_none());
+        assert!(last_written.is_none());
+
+        connection
+            .execute(
+                "INSERT INTO settings(key,value_json) VALUES('language','\"ru\"')",
+                [],
+            )
+            .unwrap();
+        let last_written: String = connection
+            .query_row(
+                "SELECT value FROM application_metadata WHERE key='data_last_written_by_version'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(last_written, "5.3.9");
     }
 
     #[test]
@@ -390,7 +593,7 @@ mod tests {
                 .query_row("SELECT schema_version FROM schema_info", [], |row| row
                     .get::<_, i64>(0))
                 .unwrap(),
-            6
+            CURRENT_SCHEMA_VERSION
         );
         assert_eq!(
             connection
