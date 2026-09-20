@@ -62,7 +62,7 @@ def test_c6_seed_normalization_exact_matching_and_primary_key(migrated_database)
 def test_open_registration_rejects_reserved_username_without_side_effects(cloud_client, username):
     client, engine = cloud_client
     _set_policy(engine, mode='open')
-    response = _register(client, username=username, email='new@example.test')
+    response = _register(client, username=username, email='new@example.com')
     assert response.status_code == 409
     assert response.json() == {'detail': {'code': 'username_reserved', 'message': 'This username is reserved.'}}
     assert client.app.state.email_sender.messages == []
@@ -77,7 +77,7 @@ def test_reserved_username_does_not_bypass_password_validation(cloud_client):
     client, engine = cloud_client
     _set_policy(engine, mode='open')
     response = client.post('/api/v1/auth/register', json={
-        'username': 'admin', 'email': 'new@example.test', 'password': 'too short',
+        'username': 'admin', 'email': 'new@example.com', 'password': 'too short',
     })
     assert response.status_code == 422
     assert response.json()['detail']['code'] == 'invalid_password'
@@ -85,19 +85,19 @@ def test_reserved_username_does_not_bypass_password_validation(cloud_client):
 
 def test_reserved_registration_preserves_closed_approval_open_and_capacity_contracts(cloud_client):
     client, engine = cloud_client
-    assert _register(client, username='admin', email='closed@example.test').status_code == 403
+    assert _register(client, username='admin', email='closed@example.com').status_code == 403
 
     _set_policy(engine, mode='approval')
-    assert _register(client, username='admin', email='reserved-approval@example.test').status_code == 409
-    assert _register(client, username='WriterAlice', email='writer@example.test').status_code == 202
+    assert _register(client, username='admin', email='reserved-approval@example.com').status_code == 409
+    assert _register(client, username='WriterAlice', email='writer@example.com').status_code == 202
     with Session(engine) as session:
         writer = session.scalar(select(User).where(User.username_normalized == 'writeralice'))
         assert writer is not None and writer.status == 'pending' and writer.registration_mode_at_signup == 'approval'
         assert session.scalar(select(func.count()).select_from(EmailVerificationToken)) == 1
 
     _set_policy(engine, mode='open', max_users=1)
-    assert _register(client, username='worta', email='reserved-open@example.test').status_code == 409
-    assert _register(client, username='OpenWriter', email='open@example.test').status_code == 202
+    assert _register(client, username='worta', email='reserved-open@example.com').status_code == 409
+    assert _register(client, username='OpenWriter', email='open@example.com').status_code == 202
     raw = client.app.state.email_sender.messages[-1].body.split('token=', 1)[1].split()[0]
     verified = client.post('/api/v1/auth/email/verify', json={'token': raw})
     assert verified.json()['activation'] == 'active'
@@ -155,7 +155,7 @@ def test_c6_upgrade_downgrade_and_existing_reserved_name_user_are_non_retroactiv
     app.state.email_sender = RecordingEmailSender()
     with TestClient(app) as client:
         assert login(client, 'ADMIN').status_code == 200
-        response = _register(client, username='ADMIN', email='new-admin@example.test')
+        response = _register(client, username='ADMIN', email='new-admin@example.com')
         assert response.status_code == 409 and response.json()['detail']['code'] == 'username_reserved'
         assert app.state.email_sender.messages == []
 
