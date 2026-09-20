@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import re
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from datetime import timedelta
 from pathlib import Path
 
@@ -15,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.cloud.models import AuthRefreshToken, AuthSession, User
 from backend.app.cloud.repositories import normalize_username
-from backend.app.cloud.services import AccountService
+from backend.app.cloud.services import AccountService, AuthenticationError, AuthenticationService
 from backend.app.cloud.tokens import JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER, TokenService, utc_now
 from backend.app.config import RuntimeConfig
 from backend.app.main import create_app
@@ -147,13 +150,87 @@ def test_refresh_rotation_replay_revokes_session(cloud_client):
     second = rotated.json()
     assert second['refresh_token'] != first['refresh_token']
     with Session(engine) as session:
-        assert first['refresh_token'] not in str(session.query(AuthRefreshToken).all())
-        row = session.query(AuthRefreshToken).first()
-        assert row.token_hash not in first['refresh_token']
+        parsed = TokenService.parse_refresh_token(first['refresh_token'])
+        assert parsed is not None
+        token_id, secret = parsed
+        row = session.get(AuthRefreshToken, token_id)
+        assert row is not None
+        stored_hashes = session.execute(text('SELECT token_hash FROM auth_refresh_tokens')).scalars().all()
+        assert first['refresh_token'] not in stored_hashes
+        assert secret not in stored_hashes
+        assert re.fullmatch(r'[0-9a-f]{64}', row.token_hash)
+        token_service = TokenService(AUTH_SECRET)
+        assert token_service.verify_refresh_secret(secret, row.token_hash)
+        assert token_service.hash_refresh_secret(secret) == row.token_hash
     replay = client.post('/api/v1/auth/refresh', json={'refresh_token': first['refresh_token']})
     assert replay.status_code == 401
     assert client.get('/api/v1/account/me', headers={'Authorization': f"Bearer {second['access_token']}"}).status_code == 401
     assert client.post('/api/v1/auth/refresh', json={'refresh_token': second['refresh_token']}).status_code == 401
+
+
+def test_expired_refresh_does_not_rotate_or_extend_session(cloud_client):
+    client, engine = cloud_client
+    create_user(engine)
+    issued = login(client).json()
+    parsed = TokenService.parse_refresh_token(issued['refresh_token'])
+    assert parsed is not None
+    token_id, _secret = parsed
+    with Session(engine) as session:
+        refresh = session.get(AuthRefreshToken, token_id)
+        assert refresh is not None
+        auth_session = session.get(AuthSession, refresh.session_id)
+        assert auth_session is not None
+        original_session_expiry = auth_session.expires_at
+        refresh.expires_at = utc_now() - timedelta(seconds=1)
+        session.commit()
+
+    response = client.post('/api/v1/auth/refresh', json={'refresh_token': issued['refresh_token']})
+    assert response.status_code == 401
+    assert 'access_token' not in response.json()
+    assert 'refresh_token' not in response.json()
+    with Session(engine) as session:
+        refresh = session.get(AuthRefreshToken, token_id)
+        auth_session = session.get(AuthSession, refresh.session_id)
+        assert auth_session.expires_at == original_session_expiry
+        assert session.query(AuthRefreshToken).count() == 1
+
+
+def test_concurrent_refresh_allows_one_rotation_then_revokes_replay_session(migrated_database, tmp_path):
+    app = create_app(RuntimeConfig(
+        data_dir=tmp_path,
+        environment='test',
+        database_url=_database_url(),
+        auth_secret=AUTH_SECRET,
+    ))
+    with TestClient(app) as client:
+        create_user(migrated_database)
+        issued = login(client).json()
+    barrier = threading.Barrier(2)
+
+    def refresh_in_isolated_session() -> tuple[str, str | None]:
+        with Session(migrated_database) as session:
+            service = AuthenticationService(TokenService(AUTH_SECRET))
+            barrier.wait(timeout=10)
+            try:
+                result = service.refresh(session, issued['refresh_token'])
+            except AuthenticationError:
+                return 'replay', None
+            return 'rotated', result.refresh_token
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        outcomes = list(executor.map(lambda _index: refresh_in_isolated_session(), range(2)))
+
+    assert [status for status, _token in outcomes].count('rotated') == 1
+    assert [status for status, _token in outcomes].count('replay') == 1
+    replacement = next(token for status, token in outcomes if status == 'rotated')
+    assert replacement is not None
+    with Session(migrated_database) as session:
+        auth_session = session.query(AuthSession).one()
+        refresh_tokens = session.query(AuthRefreshToken).all()
+        assert auth_session.revoked_at is not None
+        assert len(refresh_tokens) == 2
+        assert sum(token.replaced_by_id is not None for token in refresh_tokens) == 1
+        assert all(token.revoked_at is not None for token in refresh_tokens)
 
 
 def test_access_token_validation_and_blocked_user(cloud_client):
