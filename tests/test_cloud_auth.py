@@ -43,6 +43,7 @@ def migrated_database(monkeypatch):
     monkeypatch.setenv('NFPROGRESS_ENV', 'test')
     engine = create_engine(url)
     with engine.begin() as connection:
+        connection.execute(text('DROP TABLE IF EXISTS cloud_projects CASCADE'))
         connection.execute(text('DROP TABLE IF EXISTS reserved_usernames CASCADE'))
         connection.execute(text('DROP TABLE IF EXISTS user_limit_overrides CASCADE'))
         connection.execute(text('DROP TABLE IF EXISTS global_limits CASCADE'))
@@ -59,6 +60,7 @@ def migrated_database(monkeypatch):
         yield engine
     finally:
         with engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS cloud_projects CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS reserved_usernames CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS user_limit_overrides CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS global_limits CASCADE'))
@@ -97,13 +99,13 @@ def test_c2_schema_and_repeated_head_upgrade(migrated_database, monkeypatch):
     assert set(inspect(migrated_database).get_table_names()) == {
         'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
         'email_verification_tokens', 'password_reset_tokens', 'registration_settings',
-        'global_limits', 'user_limit_overrides', 'reserved_usernames',
+        'global_limits', 'user_limit_overrides', 'reserved_usernames', 'cloud_projects',
     }
     assert inspect(migrated_database).get_columns('users')[0]['name'] == 'id'
     monkeypatch.setenv('NFPROGRESS_DATABASE_URL', _database_url())
     command.upgrade(AlembicConfig(str(ROOT / 'alembic.ini')), 'head')
     with migrated_database.connect() as connection:
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c6_reserved_usernames'
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c8_cloud_projects'
     command.downgrade(AlembicConfig(str(ROOT / 'alembic.ini')), 'c2_account_auth_core')
     assert 'email_verification_tokens' not in inspect(migrated_database).get_table_names()
     assert 'password_reset_tokens' not in inspect(migrated_database).get_table_names()

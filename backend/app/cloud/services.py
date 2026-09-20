@@ -11,7 +11,7 @@ from .models import (AuthRefreshToken, AuthSession, EmailVerificationToken,
                      GlobalLimits, PasswordResetToken, RegistrationSettings,
                      ReservedUsername, User, UserLimitOverrides)
 from .passwords import PasswordService
-from .repositories import (AuthRepository, GlobalLimitsRepository,
+from .repositories import (AuthRepository, CloudProjectRepository, GlobalLimitsRepository,
                            RegistrationSettingsRepository,
                            ReservedUsernameRepository,
                            UserLimitOverridesRepository, UserRepository,
@@ -87,6 +87,68 @@ class LimitsService:
         if override is not None and override.max_cloud_projects_override is not None:
             return EffectiveLimits(max_cloud_projects=override.max_cloud_projects_override)
         return EffectiveLimits(max_cloud_projects=global_limits.max_cloud_projects)
+
+
+class CloudProjectLimitError(Exception):
+    """A new cloud slot cannot be allocated under the effective C5 limit."""
+
+
+@dataclass(frozen=True, slots=True)
+class CloudProjectState:
+    project_ids: list[str]
+    count: int
+    max_cloud_projects: int
+
+
+class CloudProjectService:
+    """C8's metadata-only cloud project registry.
+
+    The owner row lock serializes slot allocation for one user across API
+    workers.  It deliberately protects only creation; administrators may lower
+    a limit below existing use without rewriting existing registry rows.
+    """
+
+    def __init__(self) -> None:
+        self._projects = CloudProjectRepository()
+        self._limits = LimitsService()
+
+    def list(self, session: Session, user_id: object) -> CloudProjectState:
+        limits = self._limits.effective_for_user(session, user_id)
+        ids = self._projects.list_ids(session, user_id)
+        return CloudProjectState(ids, len(ids), limits.max_cloud_projects)
+
+    def enable(self, session: Session, user_id: object, project_id: str) -> CloudProjectState:
+        try:
+            # Authentication has already read through this request session.
+            # Finish that read transaction before opening the allocation one.
+            session.commit()
+            with session.begin():
+                # Locking the owner, rather than the project rows, also works
+                # when the user has no rows yet and gives each user an
+                # independent PostgreSQL transaction-scoped allocation lane.
+                owner = session.scalar(select(User).where(User.id == user_id).with_for_update())
+                if owner is None:
+                    raise RuntimeError('Authenticated user disappeared.')
+                existing = self._projects.get(session, user_id, project_id)
+                if existing is None:
+                    limits = self._limits.effective_for_user(session, user_id)
+                    if self._projects.count(session, user_id) >= limits.max_cloud_projects:
+                        raise CloudProjectLimitError()
+                    self._projects.add(session, user_id, project_id)
+                    session.flush()
+            return self.list(session, user_id)
+        except (CloudProjectLimitError, LimitsUnavailableError):
+            session.rollback()
+            raise
+
+    def disable(self, session: Session, user_id: object, project_id: str) -> None:
+        try:
+            session.commit()
+            with session.begin():
+                self._projects.remove(session, user_id, project_id)
+        except Exception:
+            session.rollback()
+            raise
 
 
 class AccountService:

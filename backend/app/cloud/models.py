@@ -102,6 +102,25 @@ class UserLimitOverrides(Base):
                                                    onupdate=UTC_NOW)
 
 
+class CloudProject(Base):
+    """An owner's cloud-slot reservation; project content never belongs here."""
+
+    __tablename__ = 'cloud_projects'
+    __table_args__ = (
+        CheckConstraint("char_length(project_id) >= 1", name='ck_cloud_projects_project_id_not_empty'),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey('users.id', ondelete='CASCADE'), primary_key=True,
+    )
+    # Legacy, SQLite and Tauri project IDs are string contracts.  Keep their
+    # established 32-hex IDs and any compatible historical values losslessly.
+    project_id: Mapped[str] = mapped_column(String(512), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=UTC_NOW,
+    )
+
+
 class AuthSession(Base):
     __tablename__ = 'auth_sessions'
 

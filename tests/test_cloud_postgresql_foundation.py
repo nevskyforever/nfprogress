@@ -142,6 +142,7 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
     migration_engine = create_engine(test_database_url)
     try:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS cloud_projects CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS reserved_usernames CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS user_limit_overrides CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS global_limits CASCADE'))
@@ -163,13 +164,14 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
             assert set(inspect(connection).get_table_names()) == {
                 'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
                 'email_verification_tokens', 'password_reset_tokens', 'registration_settings',
-                'global_limits', 'user_limit_overrides', 'reserved_usernames',
+                'global_limits', 'user_limit_overrides', 'reserved_usernames', 'cloud_projects',
             }
             assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == (
-                'c6_reserved_usernames'
+                'c8_cloud_projects'
             )
     finally:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS cloud_projects CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS reserved_usernames CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS user_limit_overrides CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS global_limits CASCADE'))

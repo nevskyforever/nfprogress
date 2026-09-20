@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.orm import Session
 
-from .models import (AuthRefreshToken, AuthSession, GlobalLimits,
+from .models import (AuthRefreshToken, AuthSession, CloudProject, GlobalLimits,
                      RegistrationSettings, ReservedUsername, User,
                      UserLimitOverrides)
 
@@ -107,6 +107,33 @@ class UserLimitOverridesRepository:
 
     def clear(self, session: Session, user_id: object) -> None:
         session.execute(delete(UserLimitOverrides).where(UserLimitOverrides.user_id == user_id))
+
+
+class CloudProjectRepository:
+    def list_ids(self, session: Session, user_id: object) -> list[str]:
+        return session.scalars(select(CloudProject.project_id).where(
+            CloudProject.user_id == user_id,
+        ).order_by(CloudProject.created_at, CloudProject.project_id)).all()
+
+    def count(self, session: Session, user_id: object) -> int:
+        return int(session.scalar(select(func.count()).select_from(CloudProject).where(
+            CloudProject.user_id == user_id,
+        )) or 0)
+
+    def get(self, session: Session, user_id: object, project_id: str) -> CloudProject | None:
+        return session.get(CloudProject, (user_id, project_id))
+
+    def add(self, session: Session, user_id: object, project_id: str) -> CloudProject:
+        row = CloudProject(user_id=user_id, project_id=project_id)
+        session.add(row)
+        return row
+
+    def remove(self, session: Session, user_id: object, project_id: str) -> bool:
+        result = session.execute(delete(CloudProject).where(
+            CloudProject.user_id == user_id,
+            CloudProject.project_id == project_id,
+        ))
+        return bool(result.rowcount)
 
 
 class AuthRepository:

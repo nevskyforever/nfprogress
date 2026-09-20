@@ -100,6 +100,7 @@ jobs:
             tests/test_cloud_limits.py \
             tests/test_cloud_reserved_usernames.py \
             tests/test_cloud_admin.py \
+            tests/test_cloud_projects.py \
             tests/test_api.py
 
   frontend-admin:
@@ -117,5 +118,5 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck
         working-directory: frontend
-      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts
+      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/cloud/projectState.spec.ts
         working-directory: frontend

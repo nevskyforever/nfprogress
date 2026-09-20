@@ -86,6 +86,12 @@ class AccountLimitsResponse(BaseModel):
     max_cloud_projects: int
 
 
+class CloudProjectsResponse(BaseModel):
+    cloud_project_ids: list[str]
+    cloud_project_count: int
+    max_cloud_projects: int
+
+
 class AdminUserResponse(BaseModel):
     id: UUID
     username: str
