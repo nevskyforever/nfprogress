@@ -92,4 +92,5 @@ jobs:
             tests/test_cloud_postgresql_foundation.py \
             tests/test_cloud_auth.py \
             tests/test_cloud_email_recovery.py \
+            tests/test_cloud_registration.py \
             tests/test_api.py

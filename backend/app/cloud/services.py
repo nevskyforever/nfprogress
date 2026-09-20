@@ -3,13 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import (AuthRefreshToken, AuthSession, EmailVerificationToken,
-                     PasswordResetToken, User)
+                     PasswordResetToken, RegistrationSettings, User)
 from .passwords import PasswordService
-from .repositories import AuthRepository, UserRepository
+from .repositories import (AuthRepository, RegistrationSettingsRepository,
+                           UserRepository, normalize_email)
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
                      PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
                      TokenService, utc_now)
@@ -24,6 +26,23 @@ class AuthenticationError(Exception):
 
 class RecoveryTokenError(Exception):
     """A deliberately generic token failure."""
+
+
+class RegistrationUnavailableError(Exception):
+    """Public registration cannot safely create a verifiable account."""
+
+
+@dataclass(frozen=True, slots=True)
+class RegistrationResult:
+    code: str
+    email: str | None = None
+    verification_token: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class EmailVerificationResult:
+    account_status: str
+    activation: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +64,62 @@ class AccountService:
         return self._users.create(session, username=username, email=email,
                                   password_hash=self._passwords.hash(password),
                                   role=role, status=status)
+
+
+class RegistrationService:
+    """C4 public sign-up policy; delivery happens after its committed transaction."""
+
+    def __init__(self, tokens: TokenService, passwords: PasswordService | None = None,
+                 now_provider=utc_now) -> None:
+        self._tokens = tokens
+        self._passwords = passwords or _DEFAULT_PASSWORDS
+        self._now = now_provider
+        self._users = UserRepository()
+        self._settings = RegistrationSettingsRepository()
+
+    def public_policy(self, session: Session) -> RegistrationSettings:
+        settings = self._settings.get(session)
+        if settings is None:
+            raise RuntimeError('Registration settings are unavailable.')
+        return settings
+
+    def register(self, session: Session, *, username: str, email: str, password: str,
+                 email_delivery_available: bool) -> RegistrationResult:
+        # Preserve C2 password cost for accepted and duplicate requests without
+        # holding the shared policy lock through Argon2 work.
+        password_hash = self._passwords.hash(password)
+        token_id, raw_token, token_hash = self._tokens.issue_email_verification_token()
+        now = self._now()
+        try:
+            with session.begin():
+                settings = self._settings.get(session, lock=True)
+                if settings is None:
+                    raise RegistrationUnavailableError()
+                if settings.mode == 'closed':
+                    return RegistrationResult('registration_closed')
+                if not email_delivery_available:
+                    raise RegistrationUnavailableError()
+                user = self._users.create(
+                    session, username=username, email=email, password_hash=password_hash,
+                    role='user', status='pending', registration_mode_at_signup=settings.mode,
+                )
+                session.flush()
+                session.add(EmailVerificationToken(
+                    id=token_id, user_id=user.id, token_hash=token_hash,
+                    email_normalized=user.email_normalized, created_at=now,
+                    expires_at=now + EMAIL_VERIFICATION_TOKEN_LIFETIME,
+                ))
+                recipient = user.email
+            return RegistrationResult('registration_request_accepted', recipient, raw_token)
+        except IntegrityError:
+            session.rollback()
+            return RegistrationResult('registration_request_accepted')
+
+    def issue_public_verification(self, session: Session, email: str) -> tuple[str, str] | None:
+        """Issue only for an eligible C4 registrant under the existing C3 lock/throttle."""
+        return AccountEmailService(self._tokens, self._passwords, self._now).issue_verification_for_public_email(
+            session, email,
+        )
 
 
 class AuthenticationService:
@@ -178,6 +253,35 @@ class AccountEmailService:
                 created_at=now, expires_at=now + EMAIL_VERIFICATION_TOKEN_LIFETIME))
         return raw
 
+    def issue_verification_for_public_email(self, session: Session, email: str) -> tuple[str, str] | None:
+        normalized = normalize_email(email)
+        now = self._now()
+        session.commit()
+        token_id, raw, token_hash = self._tokens.issue_email_verification_token()
+        try:
+            with session.begin():
+                user = session.scalar(select(User).where(User.email_normalized == normalized).with_for_update())
+                if (user is None or user.registration_mode_at_signup not in {'open', 'approval'}
+                        or user.status != 'pending' or user.email_verified):
+                    return None
+                if self._is_throttled(session, EmailVerificationToken, user.id, now):
+                    return None
+                session.execute(update(EmailVerificationToken).where(
+                    EmailVerificationToken.user_id == user.id,
+                    EmailVerificationToken.email_normalized == user.email_normalized,
+                    EmailVerificationToken.used_at.is_(None), EmailVerificationToken.revoked_at.is_(None),
+                ).values(revoked_at=now))
+                session.add(EmailVerificationToken(
+                    id=token_id, user_id=user.id, token_hash=token_hash,
+                    email_normalized=user.email_normalized, created_at=now,
+                    expires_at=now + EMAIL_VERIFICATION_TOKEN_LIFETIME,
+                ))
+                recipient = user.email
+            return recipient, raw
+        except Exception:
+            session.rollback()
+            raise
+
     def issue_password_reset(self, session: Session, email: str) -> tuple[str, str] | None:
         from .repositories import normalize_email
         normalized = normalize_email(email)
@@ -204,7 +308,7 @@ class AccountEmailService:
             session.rollback()
             raise
 
-    def verify_email(self, session: Session, raw_token: str) -> None:
+    def verify_email(self, session: Session, raw_token: str) -> EmailVerificationResult:
         parsed = self._tokens.parse_opaque_token(raw_token, 'ev1')
         if parsed is None:
             raise RecoveryTokenError()
@@ -222,6 +326,25 @@ class AccountEmailService:
                     raise RecoveryTokenError()
                 user.email_verified = True
                 token.used_at = now
+                if user.registration_mode_at_signup == 'open':
+                    settings = session.scalar(select(RegistrationSettings).where(
+                        RegistrationSettings.id == RegistrationSettingsRepository.SINGLETON_ID,
+                    ).with_for_update())
+                    if settings is None:
+                        raise RecoveryTokenError()
+                    active_count = session.scalar(select(func.count()).select_from(User).where(
+                        User.status == 'active',
+                    ))
+                    if settings.max_users is None or active_count < settings.max_users:
+                        user.status = 'active'
+                        result = EmailVerificationResult('active', 'active')
+                    else:
+                        result = EmailVerificationResult('pending', 'capacity_reached')
+                elif user.registration_mode_at_signup == 'approval':
+                    result = EmailVerificationResult('pending', 'approval_required')
+                else:
+                    result = EmailVerificationResult(user.status, 'unchanged')
+            return result
         except RecoveryTokenError:
             session.rollback()
             raise

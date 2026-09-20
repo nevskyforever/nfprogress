@@ -87,6 +87,11 @@ class RuntimeConfig:
             raise RuntimeError('NFPROGRESS_AUTH_SECRET is not configured.')
         return self.auth_secret
 
+    @property
+    def email_delivery_configured(self) -> bool:
+        """Whether production can send an actionable verification message."""
+        return self.smtp_host is not None
+
     @classmethod
     def from_env(cls) -> 'RuntimeConfig':
         raw_data_dir = os.environ.get('NFPROGRESS_DATA_DIR')

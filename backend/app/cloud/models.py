@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, String, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -22,6 +22,10 @@ class User(Base):
             "status IN ('pending', 'active', 'rejected', 'blocked')",
             name='ck_users_status',
         ),
+        CheckConstraint(
+            "registration_mode_at_signup IS NULL OR registration_mode_at_signup IN ('open', 'approval')",
+            name='ck_users_registration_mode_at_signup',
+        ),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
@@ -33,8 +37,26 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(512), nullable=False)
     role: Mapped[str] = mapped_column(String(16), nullable=False, default='user', server_default=text("'user'"))
     status: Mapped[str] = mapped_column(String(16), nullable=False, default='pending', server_default=text("'pending'"))
+    registration_mode_at_signup: Mapped[str | None] = mapped_column(String(16))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW, onupdate=UTC_NOW)
+
+
+class RegistrationSettings(Base):
+    """The one PostgreSQL-backed authority for public registration policy."""
+
+    __tablename__ = 'registration_settings'
+    __table_args__ = (
+        CheckConstraint('id = 1', name='ck_registration_settings_singleton'),
+        CheckConstraint("mode IN ('open', 'approval', 'closed')", name='ck_registration_settings_mode'),
+        CheckConstraint('max_users IS NULL OR max_users >= 0', name='ck_registration_settings_max_users'),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False)
+    max_users: Mapped[int | None] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW,
+                                                   onupdate=UTC_NOW)
 
 
 class AuthSession(Base):

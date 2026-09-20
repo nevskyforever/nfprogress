@@ -3,7 +3,7 @@ from __future__ import annotations
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from .models import AuthRefreshToken, AuthSession, User
+from .models import AuthRefreshToken, AuthSession, RegistrationSettings, User
 
 
 def normalize_username(value: str) -> str:
@@ -22,12 +22,22 @@ class UserRepository:
         return session.get(User, user_id)
 
     def create(self, session: Session, *, username: str, email: str, password_hash: str,
-               role: str = 'user', status: str = 'pending') -> User:
+               role: str = 'user', status: str = 'pending', registration_mode_at_signup: str | None = None) -> User:
         user = User(username=username.strip(), username_normalized=normalize_username(username),
                     email=email.strip(), email_normalized=normalize_email(email), password_hash=password_hash,
-                    role=role, status=status)
+                    role=role, status=status, registration_mode_at_signup=registration_mode_at_signup)
         session.add(user)
         return user
+
+
+class RegistrationSettingsRepository:
+    SINGLETON_ID = 1
+
+    def get(self, session: Session, *, lock: bool = False) -> RegistrationSettings | None:
+        statement = select(RegistrationSettings).where(RegistrationSettings.id == self.SINGLETON_ID)
+        if lock:
+            statement = statement.with_for_update()
+        return session.scalar(statement)
 
 
 class AuthRepository:
