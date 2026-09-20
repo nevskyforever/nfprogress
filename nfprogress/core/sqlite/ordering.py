@@ -230,4 +230,3 @@ def apply_order_recovery(
         "INSERT INTO progress_order(entry_id, position) VALUES(?, ?)",
         [(entry_id, position) for position, entry_id in enumerate(progress_proposal.proposed_order)],
     )
-

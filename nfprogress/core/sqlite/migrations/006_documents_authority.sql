@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS documents (
     revision INTEGER NOT NULL DEFAULT 0 CHECK (revision >= 0),
     extensions_json TEXT NOT NULL
 );
-
 CREATE INDEX IF NOT EXISTS idx_documents_project ON documents(project_id);
 CREATE INDEX IF NOT EXISTS idx_documents_stage ON documents(stage_id);
 
@@ -47,4 +46,3 @@ CREATE TABLE IF NOT EXISTS document_migration_orphans (
     payload_json TEXT NOT NULL,
     reason TEXT NOT NULL
 );
-

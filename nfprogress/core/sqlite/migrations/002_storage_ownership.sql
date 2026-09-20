@@ -11,4 +11,3 @@ VALUES
     ('settings', 'pickle', 1, datetime('now')),
     ('notes', 'pickle', 1, datetime('now')),
     ('game', 'pickle', 1, datetime('now'));
-

@@ -624,4 +624,3 @@ __all__ = [
     'SQLiteGameRepository', 'DeterministicGameRules', 'encode_gamer',
     'decode_gamer',
 ]
-

@@ -35,4 +35,3 @@ CREATE INDEX IF NOT EXISTS idx_domain_events_processing
 
 INSERT OR IGNORE INTO game_metadata(key, value_json)
 VALUES ('state_schema_version', '2');
-

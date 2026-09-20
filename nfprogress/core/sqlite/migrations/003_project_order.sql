@@ -12,4 +12,3 @@ UPDATE mirror_state
 SET sync_status = 'rebuild_required',
     last_error = 'Project ordering representation requires a mirror rebuild'
 WHERE id = 1;
-

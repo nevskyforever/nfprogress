@@ -109,4 +109,3 @@ SET sync_status = CASE
         ELSE last_error
     END
 WHERE id = 1;
-

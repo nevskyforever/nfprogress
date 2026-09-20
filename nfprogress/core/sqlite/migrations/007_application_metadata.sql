@@ -6,4 +6,3 @@ CREATE TABLE IF NOT EXISTS application_metadata (
     value TEXT,
     updated_at TEXT NOT NULL
 );
-

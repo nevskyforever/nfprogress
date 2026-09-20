@@ -71,4 +71,3 @@ class StorageOwnershipRepository:
             return Subsystem(subsystem)
         except ValueError as error:
             raise ValueError(f'unknown storage subsystem: {subsystem!r}') from error
-
