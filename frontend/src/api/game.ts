@@ -6,6 +6,8 @@ import type {
   GameCommandResponse,
   DeveloperModeState,
   DeveloperProfileUpdate,
+  DeveloperStreakRequest,
+  DeveloperStreakState,
   GameNotifications,
   GameState,
   InventoryCommand,
@@ -90,6 +92,21 @@ export const gameApi = {
       item_id: itemId,
       count,
     })
+  },
+
+  developerStreakState(): Promise<DeveloperStreakState> {
+    if (isDesktopGame()) return nativeGame<DeveloperStreakState>('game_developer_streak_state')
+    return apiRequest<DeveloperStreakState>(`${GAME_PATH}/developer/streaks`)
+  },
+
+  developerRestoreStreak(payload: DeveloperStreakRequest): Promise<GameCommandResponse> {
+    if (isDesktopGame()) return nativeCommand('game_developer_restore_streak', { ...payload })
+    return command('/developer/streaks/restore', payload)
+  },
+
+  developerCreateStreakSeries(payload: DeveloperStreakRequest): Promise<GameCommandResponse> {
+    if (isDesktopGame()) return nativeCommand('game_developer_create_streak_series', { ...payload })
+    return command('/developer/streaks/series', payload)
   },
 
   requestProfileTransfer(direction: ProfileTransferDirection): Promise<ProfileTransferRequestResult> {

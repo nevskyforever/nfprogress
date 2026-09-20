@@ -472,6 +472,32 @@ export interface DeveloperProfileUpdate {
   test_datetime: string | null
 }
 
+export type DeveloperStreakType = 'global' | 'project' | 'stage'
+
+export interface DeveloperStreakTarget {
+  id: string
+  type: DeveloperStreakType
+  name: string
+  project_id?: string
+  stage_id?: string
+  status: string
+  length: number
+  max_length: number
+  last_effective_day: string | null
+}
+
+export interface DeveloperStreakState {
+  logical_day: string
+  targets: DeveloperStreakTarget[]
+}
+
+export interface DeveloperStreakRequest {
+  type: DeveloperStreakType
+  project_id?: string
+  stage_id?: string
+  length?: number
+}
+
 export type ProfileTransferDirection = 'real_to_test' | 'test_to_real'
 
 export interface ProfileTransferRequestResult {

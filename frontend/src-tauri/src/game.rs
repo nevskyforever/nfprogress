@@ -720,6 +720,49 @@ fn integer_field(object: &Map<String, Value>, key: &str, default: i64) -> i64 {
     number_field(object, key, default as f64).round() as i64
 }
 
+const MAX_DEVELOPER_STREAK_LENGTH: i64 = 10_000;
+
+fn developer_streak_key(kind: &str, project_id: Option<&str>, stage_id: Option<&str>) -> GameResult<Option<String>> {
+    match kind {
+        "global" if project_id.is_none() && stage_id.is_none() => Ok(None),
+        "project" if project_id.is_some() && stage_id.is_none() => {
+            Ok(Some(format!("project:{}", project_id.unwrap())))
+        }
+        "stage" if project_id.is_some() && stage_id.is_some() => {
+            Ok(Some(format!("stage:{}:{}", project_id.unwrap(), stage_id.unwrap())))
+        }
+        _ => Err(GameError::Validation("Некорректная цель стрика.".into())),
+    }
+}
+
+fn tagged_streak_day(day: i64) -> Value {
+    json!({"__type__": "date", "value": crate::streaks::date_from_days(day)})
+}
+
+fn streak_series_ending_at(last_day: i64, length: i64) -> Vec<Value> {
+    ((last_day - length + 1)..=last_day)
+        .map(tagged_streak_day)
+        .collect()
+}
+
+fn current_streak_length(fields: &Map<String, Value>, history_key: &str) -> i64 {
+    crate::streaks::streak_summary(fields.get(history_key)).1 as i64
+}
+
+fn restore_streak_length(fields: &Map<String, Value>, history_key: &str, loss_key: &str) -> GameResult<i64> {
+    let current = current_streak_length(fields, history_key);
+    if current > 0 {
+        return Ok(current);
+    }
+    let lost = integer_field(fields, loss_key, 0);
+    if lost > 0 {
+        return Ok(lost);
+    }
+    Err(GameError::Validation(
+        "Невозможно восстановить стрик: нет сохранённой длины.".into(),
+    ))
+}
+
 fn rounded_money(value: f64) -> f64 {
     (value * 10.0).round() / 10.0
 }
@@ -2818,6 +2861,16 @@ pub struct DeveloperProfileRequest {
     pub test_datetime: Option<String>,
 }
 
+#[derive(Debug, serde::Deserialize)]
+#[serde(deny_unknown_fields, rename_all = "camelCase")]
+pub struct DeveloperStreakRequest {
+    #[serde(rename = "type")]
+    pub kind: String,
+    pub project_id: Option<String>,
+    pub stage_id: Option<String>,
+    pub length: Option<i64>,
+}
+
 fn array_mut<'a>(object: &'a mut Map<String, Value>, key: &str) -> &'a mut Vec<Value> {
     object
         .entry(key.to_string())
@@ -2852,7 +2905,182 @@ fn add_experience(gamer: &mut Map<String, Value>, amount: f64) {
     }
 }
 
+fn validate_developer_streak_target(
+    connection: &Connection,
+    request: &DeveloperStreakRequest,
+) -> GameResult<Option<String>> {
+    let key = developer_streak_key(
+        &request.kind,
+        request.project_id.as_deref(),
+        request.stage_id.as_deref(),
+    )?;
+    match request.kind.as_str() {
+        "global" => Ok(key),
+        "project" => {
+            let exists = connection
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM projects WHERE id=?1)",
+                    [request.project_id.as_deref().unwrap()],
+                    |row| row.get::<_, bool>(0),
+                )
+                .map_err(|error| GameError::Database(error.to_string()))?;
+            exists.then_some(key).ok_or_else(|| GameError::NotFound("Проект не найден.".into()))
+        }
+        "stage" => {
+            let exists = connection
+                .query_row(
+                    "SELECT EXISTS(SELECT 1 FROM stages WHERE id=?1 AND project_id=?2)",
+                    [request.stage_id.as_deref().unwrap(), request.project_id.as_deref().unwrap()],
+                    |row| row.get::<_, bool>(0),
+                )
+                .map_err(|error| GameError::Database(error.to_string()))?;
+            exists.then_some(key).ok_or_else(|| GameError::NotFound("Источник не найден в выбранном проекте.".into()))
+        }
+        _ => unreachable!("developer_streak_key validates the target type"),
+    }
+}
+
+fn developer_streak_fields_mut<'a>(
+    root: &'a mut Value,
+    key: Option<&str>,
+) -> GameResult<(&'a mut Map<String, Value>, &'static str, &'static str, &'static str)> {
+    let root = game_object(root)?;
+    if let Some(key) = key {
+        let states = root
+            .entry("project_game_state")
+            .or_insert_with(|| Value::Object(Map::new()))
+            .as_object_mut()
+            .ok_or_else(|| GameError::InvalidState("Состояние локальных стриков некорректно.".into()))?;
+        let fields = states
+            .get_mut(key)
+            .and_then(Value::as_object_mut)
+            .ok_or_else(|| GameError::NotFound("Состояние выбранного стрика не найдено.".into()))?;
+        Ok((fields, "streaks", "streak_status", "last_streak_lose_len"))
+    } else {
+        let fields = root
+            .entry("global_streak")
+            .or_insert_with(|| Value::Object(Map::new()))
+            .as_object_mut()
+            .ok_or_else(|| GameError::InvalidState("Состояние глобального стрика некорректно.".into()))?;
+        Ok((fields, "global_streaks", "global_streak_status", "last_global_streak_lose_len"))
+    }
+}
+
 impl GameApplicationService {
+    pub fn developer_streak_state() -> GameResult<Value> {
+        if !crate::developer_mode_available() {
+            return Err(GameError::PrerequisiteMissing(
+                "Режим разработчика недоступен в release-сборке.".into(),
+            ));
+        }
+        let connection = crate::open_projects_database().map_err(GameError::Database)?;
+        Self::owner(&connection)?;
+        let root = Self::load(&connection)?;
+        let logical_day = crate::streaks::logical_writing_day(&connection).map_err(GameError::Database)?;
+        let root_map = root.as_object().ok_or_else(|| GameError::InvalidState("Game state is not an object".into()))?;
+        let states = root_map.get("project_game_state").and_then(Value::as_object);
+        let global = root_map.get("global_streak").and_then(Value::as_object);
+        let mut targets = Vec::new();
+        if let Some(fields) = global {
+            let (last, length, _) = crate::streaks::streak_summary(fields.get("global_streaks"));
+            targets.push(json!({
+                "id":"global", "type":"global", "name":"Глобальный",
+                "status":crate::streaks::canonical_global_status(fields, &logical_day),
+                "length":length, "max_length":integer_field(fields, "max_global_streak", length as i64).max(length as i64),
+                "last_effective_day":last.map(crate::streaks::date_from_days),
+            }));
+        }
+        let mut statement = connection.prepare(
+            "SELECT id, NULL, name FROM projects UNION ALL SELECT id, project_id, name FROM stages ORDER BY project_id, name",
+        ).map_err(|error| GameError::Database(error.to_string()))?;
+        let rows = statement.query_map([], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, Option<String>>(1)?, row.get::<_, String>(2)?))
+        }).map_err(|error| GameError::Database(error.to_string()))?;
+        for row in rows {
+            let (id, parent_id, name) = row.map_err(|error| GameError::Database(error.to_string()))?;
+            let (kind, key, project_id, stage_id) = match parent_id {
+                Some(project_id) => ("stage", format!("stage:{project_id}:{id}"), project_id, Some(id)),
+                None => ("project", format!("project:{id}"), id, None),
+            };
+            let fields = states.and_then(|states| states.get(&key)).and_then(Value::as_object);
+            let empty = Map::new();
+            let fields = fields.unwrap_or(&empty);
+            let (last, length, _) = crate::streaks::streak_summary(fields.get("streaks"));
+            targets.push(json!({
+                "id":key, "type":kind, "name":name, "project_id":project_id, "stage_id":stage_id,
+                "status":crate::streaks::canonical_local_status(fields, &logical_day, &Map::new()),
+                "length":length, "max_length":integer_field(fields, "max_streak", length as i64).max(length as i64),
+                "last_effective_day":last.map(crate::streaks::date_from_days),
+            }));
+        }
+        Ok(json!({"logical_day":logical_day,"targets":targets}))
+    }
+
+    pub fn developer_create_streak_series(request: DeveloperStreakRequest) -> GameResult<GameCommandResponse> {
+        if !crate::developer_mode_available() {
+            return Err(GameError::PrerequisiteMissing("Режим разработчика недоступен в release-сборке.".into()));
+        }
+        let length = request.length.unwrap_or(0);
+        if !(1..=MAX_DEVELOPER_STREAK_LENGTH).contains(&length) {
+            return Err(GameError::Validation("Количество дней должно быть от 1 до 10000.".into()));
+        }
+        let connection = crate::open_projects_database().map_err(GameError::Database)?;
+        Self::owner(&connection)?;
+        let key = validate_developer_streak_target(&connection, &request)?;
+        let logical_day = crate::streaks::logical_writing_day(&connection).map_err(GameError::Database)?;
+        let yesterday = crate::streaks::date_days(&logical_day)
+            .ok_or_else(|| GameError::Validation("Некорректный писательский день.".into()))? - 1;
+        Self::mutate(move |state, _rng, _now| {
+            let (fields, history_key, status_key, _) = developer_streak_fields_mut(state, key.as_deref())?;
+            fields.insert(history_key.into(), Value::Array(streak_series_ending_at(yesterday, length)));
+            fields.insert(status_key.into(), Value::String("Active".into()));
+            let max_key = if key.is_some() { "max_streak" } else { "max_global_streak" };
+            fields.insert(max_key.into(), json!(integer_field(fields, max_key, 0).max(length)));
+            if key.is_some() {
+                fields.insert("last_streak_lost_date".into(), Value::Null);
+                fields.insert("last_streak_lose_len".into(), json!(0));
+            } else {
+                fields.insert("last_global_streak_lost_date".into(), Value::Null);
+                fields.insert("last_global_streak_lose_len".into(), json!(0));
+            }
+            Ok((Some(format!("Создана серия стрика на {length} дн.")), None))
+        })
+    }
+
+    pub fn developer_restore_streak(request: DeveloperStreakRequest) -> GameResult<GameCommandResponse> {
+        if !crate::developer_mode_available() {
+            return Err(GameError::PrerequisiteMissing("Режим разработчика недоступен в release-сборке.".into()));
+        }
+        let connection = crate::open_projects_database().map_err(GameError::Database)?;
+        Self::owner(&connection)?;
+        let key = validate_developer_streak_target(&connection, &request)?;
+        let root = Self::load(&connection)?;
+        let fields = if let Some(key) = key.as_deref() {
+            root.get("project_game_state").and_then(Value::as_object).and_then(|states| states.get(key)).and_then(Value::as_object)
+        } else { root.get("global_streak").and_then(Value::as_object) }
+        .ok_or_else(|| GameError::NotFound("Состояние выбранного стрика не найдено.".into()))?;
+        let (history_key, loss_key) = if key.is_some() { ("streaks", "last_streak_lose_len") } else { ("global_streaks", "last_global_streak_lose_len") };
+        let length = restore_streak_length(fields, history_key, loss_key)?;
+        let logical_day = crate::streaks::logical_writing_day(&connection).map_err(GameError::Database)?;
+        let yesterday = crate::streaks::date_days(&logical_day)
+            .ok_or_else(|| GameError::Validation("Некорректный писательский день.".into()))? - 1;
+        Self::mutate(move |state, _rng, _now| {
+            let (fields, history_key, status_key, _) = developer_streak_fields_mut(state, key.as_deref())?;
+            fields.insert(history_key.into(), Value::Array(streak_series_ending_at(yesterday, length)));
+            fields.insert(status_key.into(), Value::String("Active".into()));
+            let max_key = if key.is_some() { "max_streak" } else { "max_global_streak" };
+            fields.insert(max_key.into(), json!(integer_field(fields, max_key, 0).max(length)));
+            if key.is_some() {
+                fields.insert("last_streak_lost_date".into(), Value::Null);
+                fields.insert("last_streak_lose_len".into(), json!(0));
+            } else {
+                fields.insert("last_global_streak_lost_date".into(), Value::Null);
+                fields.insert("last_global_streak_lose_len".into(), json!(0));
+            }
+            Ok((Some(format!("Стрик восстановлен: {length} дн.")), None))
+        })
+    }
+
     pub fn developer_state() -> GameResult<Value> {
         if !crate::developer_mode_available() {
             return Err(GameError::PrerequisiteMissing(
@@ -3880,6 +4108,52 @@ mod tests {
     struct FixedRng {
         values: Vec<u32>,
         index: usize,
+    }
+
+    #[test]
+    fn developer_restore_uses_lost_length_and_ends_on_logical_yesterday() {
+        let global = json!({
+            "global_streaks": [], "last_global_streak_lose_len": 149,
+            "last_global_streak_lost_date": tagged_streak_day(20_000),
+            "max_global_streak": 120,
+        }).as_object().unwrap().clone();
+        let length = restore_streak_length(
+            &global, "global_streaks", "last_global_streak_lose_len",
+        ).unwrap();
+        let history = Value::Array(streak_series_ending_at(20_100, length));
+        let (last, actual_length, freeze) = crate::streaks::streak_summary(Some(&history));
+
+        assert_eq!(length, 149);
+        assert_eq!(last, Some(20_100));
+        assert_eq!(actual_length, 149);
+        assert!(!freeze);
+    }
+
+    #[test]
+    fn developer_series_is_continuous_and_never_creates_today_or_freezes() {
+        let yesterday = crate::streaks::date_days("2026-09-18").unwrap();
+        let history = Value::Array(streak_series_ending_at(yesterday, 10));
+        let entries = history.as_array().unwrap();
+        let (last, length, freeze) = crate::streaks::streak_summary(Some(&history));
+
+        assert_eq!(entries.len(), 10);
+        assert!(entries.iter().all(|entry| entry.get("__type__") == Some(&json!("date"))));
+        assert_eq!(last, Some(yesterday));
+        assert_eq!(length, 10);
+        assert!(!freeze);
+    }
+
+    #[test]
+    fn developer_local_targets_use_stable_project_and_stage_keys() {
+        assert_eq!(
+            developer_streak_key("project", Some("project-1"), None).unwrap(),
+            Some("project:project-1".into()),
+        );
+        assert_eq!(
+            developer_streak_key("stage", Some("project-1"), Some("stage-2")).unwrap(),
+            Some("stage:project-1:stage-2".into()),
+        );
+        assert!(developer_streak_key("stage", Some("project-1"), None).is_err());
     }
 
     #[test]

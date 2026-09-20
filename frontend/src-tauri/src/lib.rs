@@ -410,6 +410,25 @@ fn game_grant_developer_inventory_item(
 }
 
 #[tauri::command]
+fn game_developer_streak_state() -> Result<serde_json::Value, game::GameError> {
+    game::GameApplicationService::developer_streak_state()
+}
+
+#[tauri::command]
+fn game_developer_restore_streak(
+    payload: game::DeveloperStreakRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::developer_restore_streak(payload)
+}
+
+#[tauri::command]
+fn game_developer_create_streak_series(
+    payload: game::DeveloperStreakRequest,
+) -> Result<game::GameCommandResponse, game::GameError> {
+    game::GameApplicationService::developer_create_streak_series(payload)
+}
+
+#[tauri::command]
 fn game_start_writing_session(
     payload: game::WritingSessionRequest,
 ) -> Result<game::GameCommandResponse, game::GameError> {
@@ -4857,6 +4876,9 @@ pub fn run() {
             game_developer_state,
             game_update_developer_profile,
             game_grant_developer_inventory_item,
+            game_developer_streak_state,
+            game_developer_restore_streak,
+            game_developer_create_streak_series,
             game_start_writing_session,
             game_finish_writing_session,
             game_cancel_writing_session,

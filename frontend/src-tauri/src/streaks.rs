@@ -1,7 +1,7 @@
 use rusqlite::Connection;
 use serde_json::{Map, Value};
 
-fn date_days(value: &str) -> Option<i64> {
+pub(crate) fn date_days(value: &str) -> Option<i64> {
     let date = value.get(..10)?;
     let year = date.get(0..4)?.parse::<i64>().ok()?;
     let month = date.get(5..7)?.parse::<i64>().ok()?;
@@ -49,7 +49,7 @@ fn streak_date_days(value: &Value) -> Option<i64> {
     }
 }
 
-fn date_from_days(days: i64) -> String {
+pub(crate) fn date_from_days(days: i64) -> String {
     let z = days + 719_468;
     let era = (if z >= 0 { z } else { z - 146_096 }) / 146_097;
     let day_of_era = z - era * 146_097;
@@ -133,7 +133,7 @@ pub(crate) fn logical_writing_day(connection: &Connection) -> Result<String, Str
         .ok_or_else(|| "Не удалось определить текущий писательский день.".to_string())
 }
 
-fn streak_summary(streaks: Option<&Value>) -> (Option<i64>, usize, bool) {
+pub(crate) fn streak_summary(streaks: Option<&Value>) -> (Option<i64>, usize, bool) {
     let mut current_day = None;
     let mut length = 0;
     let mut last_is_freeze = false;
@@ -405,6 +405,30 @@ mod tests {
         assert_eq!(
             canonical_global_status(global.as_object().unwrap(), "2026-09-19"),
             "Active"
+        );
+    }
+
+    #[test]
+    fn real_profile_yesterday_tagged_freeze_stays_active_without_today_progress() {
+        // This is the persisted representation written by the legacy main
+        // build: a tagged date followed by a freeze marker for yesterday.
+        let local = json!({
+            "streak_status": "Freeze",
+            "streaks": [tagged_date("2026-09-18"), "freeze"],
+        });
+        let entity = json!({"status": "активен", "streak_enabled": true});
+        let global = json!({
+            "global_streak_status": "Freeze",
+            "global_streaks": [tagged_date("2026-09-18"), "freeze"],
+        });
+
+        assert_eq!(
+            canonical_local_status(local.as_object().unwrap(), "2026-09-20", entity.as_object().unwrap()),
+            "Active",
+        );
+        assert_eq!(
+            canonical_global_status(global.as_object().unwrap(), "2026-09-20"),
+            "Active",
         );
     }
 

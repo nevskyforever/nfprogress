@@ -9,6 +9,7 @@ import DeveloperModeDialog from './DeveloperModeDialog.vue'
 vi.mock('@/api/game', () => ({
   gameApi: {
     developerState: vi.fn(),
+    developerStreakState: vi.fn(),
     requestProfileTransfer: vi.fn(),
     takeProfileTransferResult: vi.fn(),
   },
@@ -24,6 +25,13 @@ describe('DeveloperModeDialog test data controls', () => {
       state: gameStateFixture(),
       test_date_enabled: false,
       test_datetime: null,
+    })
+    vi.mocked(gameApi.developerStreakState).mockResolvedValue({
+      logical_day: '2026-09-19',
+      targets: [{
+        id: 'global', type: 'global', name: 'Глобальный', status: 'Active',
+        length: 149, max_length: 149, last_effective_day: '2026-09-18',
+      }],
     })
     vi.mocked(gameApi.requestProfileTransfer).mockReset()
     vi.mocked(gameApi.takeProfileTransferResult).mockReset()

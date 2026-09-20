@@ -7,7 +7,7 @@ import { apiErrorMessage } from '@/api/client'
 import { gameApi } from '@/api/game'
 import { currentPlatform } from '@/platform/runtime'
 import { useLocaleStore } from '@/stores/locale'
-import type { DeveloperModeState, GameState } from '@/types/game'
+import type { DeveloperModeState, DeveloperStreakState, GameState } from '@/types/game'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: []; updated: [state: GameState] }>()
@@ -21,6 +21,8 @@ const transferring = ref(false)
 const error = ref<string | null>(null)
 const success = ref<string | null>(null)
 const developerState = ref<DeveloperModeState | null>(null)
+const streakState = ref<DeveloperStreakState | null>(null)
+const streakBusy = ref(false)
 const form = reactive({
   level: 1,
   health: 0,
@@ -31,11 +33,17 @@ const form = reactive({
 })
 const maxHealth = ref(100)
 const grant = reactive({ category: '', itemId: '', count: 1 })
+const streak = reactive({ type: 'global' as 'global' | 'project' | 'stage', targetId: 'global', length: 1 })
 
 const categories = computed(() => developerState.value?.state.shop.categories ?? [])
 const selectedItems = computed(
   () => categories.value.find((category) => category.key === grant.category)?.items ?? [],
 )
+const streakTargets = computed(() => streakState.value?.targets ?? [])
+const selectedStreakTarget = computed(
+  () => streakTargets.value.find((target) => target.id === streak.targetId) ?? null,
+)
+const visibleStreakTargets = computed(() => streakTargets.value.filter((target) => target.type === streak.type))
 const testDataControlsAvailable = currentPlatform() === 'tauri'
 
 function datetimeLocal(value: string | null): string {
@@ -77,14 +85,19 @@ async function load(): Promise<void> {
   error.value = null
   success.value = null
   try {
-    const [state, transferResult] = await Promise.all([
+    const [state, transferResult, loadedStreakState] = await Promise.all([
       gameApi.developerState(),
       testDataControlsAvailable ? gameApi.takeProfileTransferResult() : Promise.resolve(null),
+      gameApi.developerStreakState(),
     ])
     developerState.value = state
+    streakState.value = loadedStreakState
     fill(state)
+    if (!visibleStreakTargets.value.some((target) => target.id === streak.targetId)) {
+      streak.targetId = visibleStreakTargets.value[0]?.id ?? 'global'
+    }
     if (transferResult?.status === 'complete') {
-      success.value = t('Замена данных успешно завершена. Проверенный снимок активирован; резервная копия сохранена.')
+      success.value = t('Замена данных успешно завершена.')
     } else if (transferResult?.status === 'error') {
       error.value = `${t('Не удалось заменить данные')}: ${transferResult.error ?? t('неизвестная ошибка')}`
     }
@@ -92,6 +105,47 @@ async function load(): Promise<void> {
     error.value = t(apiErrorMessage(reason))
   } finally {
     loading.value = false
+  }
+}
+
+function selectStreakType(): void {
+  streak.targetId = visibleStreakTargets.value[0]?.id ?? 'global'
+}
+
+function targetRequest() {
+  const target = selectedStreakTarget.value
+  if (!target) return null
+  return {
+    type: target.type,
+    ...(target.project_id ? { project_id: target.project_id } : {}),
+    ...(target.stage_id ? { stage_id: target.stage_id } : {}),
+  }
+}
+
+async function changeStreak(operation: 'restore' | 'create'): Promise<void> {
+  if (streakBusy.value) return
+  const target = selectedStreakTarget.value
+  const request = targetRequest()
+  if (!target || !request || !streakState.value) return
+  const length = Math.max(1, Math.min(10_000, Math.trunc(normalizeNumber(streak.length, 1))))
+  streak.length = length
+  const newLength = operation === 'restore' ? target.length : length
+  const action = operation === 'restore' ? t('восстановить') : t('создать')
+  if (!window.confirm(t(`Подтвердите: ${action} стрик «${target.name}». Текущая длина: ${target.length}; новая длина: ${newLength}; писательский день: ${streakState.value.logical_day}.`))) return
+  streakBusy.value = true
+  error.value = null
+  success.value = null
+  try {
+    const result = operation === 'restore'
+      ? await gameApi.developerRestoreStreak(request)
+      : await gameApi.developerCreateStreakSeries({ ...request, length })
+    success.value = t(result.message ?? 'Стрик изменён.')
+    emit('updated', result.state)
+    await load()
+  } catch (reason) {
+    error.value = t(apiErrorMessage(reason))
+  } finally {
+    streakBusy.value = false
   }
 }
 
@@ -202,6 +256,36 @@ watch(() => props.open, (open) => {
           <label>{{ t('Количество') }}<input v-model.number="grant.count" min="1" max="9999" type="number" /></label>
           <button class="nf-button" :disabled="granting" type="button" @click="grantItem">{{ granting ? t('Добавляем…') : t('Добавить в инвентарь') }}</button>
         </section>
+        <section class="developer-inventory" :aria-label="t('Управление стриками')">
+          <h3>{{ t('Управление стриками') }}</h3>
+          <p>{{ t('Операции используют текущий писательский день и изменяют только canonical игровое состояние.') }}</p>
+          <label>{{ t('Тип стрика') }}
+            <select v-model="streak.type" @change="selectStreakType">
+              <option value="global">{{ t('Глобальный') }}</option>
+              <option value="project">{{ t('Проект') }}</option>
+              <option value="stage">{{ t('Источник') }}</option>
+            </select>
+          </label>
+          <label v-if="streak.type !== 'global'">{{ streak.type === 'project' ? t('Проект') : t('Источник') }}
+            <select v-model="streak.targetId">
+              <option v-for="target in visibleStreakTargets" :key="target.id" :value="target.id">{{ target.name }}</option>
+            </select>
+          </label>
+          <div v-if="selectedStreakTarget" class="developer-streak-info">
+            <span>{{ t('Статус') }}: {{ selectedStreakTarget.status }}</span>
+            <span>{{ t('Длина') }}: {{ selectedStreakTarget.length }}</span>
+            <span>{{ t('Максимум') }}: {{ selectedStreakTarget.max_length }}</span>
+            <span>{{ t('Последний effective day') }}: {{ selectedStreakTarget.last_effective_day ?? '—' }}</span>
+            <span>{{ t('Писательский день') }}: {{ streakState?.logical_day }}</span>
+          </div>
+          <button class="nf-button" :disabled="streakBusy || !selectedStreakTarget" type="button" @click="changeStreak('restore')">
+            {{ streakBusy ? t('Изменяем…') : t('Восстановить стрик до текущего дня') }}
+          </button>
+          <label>{{ t('Количество дней') }}<input v-model.number="streak.length" min="1" max="10000" step="1" type="number" /></label>
+          <button class="nf-button" :disabled="streakBusy || !selectedStreakTarget" type="button" @click="changeStreak('create')">
+            {{ streakBusy ? t('Изменяем…') : t('Создать серию') }}
+          </button>
+        </section>
         <section v-if="testDataControlsAvailable" class="developer-inventory" :aria-label="t('Данные тестового режима')">
           <h3>{{ t('Данные тестового режима') }}</h3>
           <p>{{ t('Операция выполняется только после перезапуска, до открытия SQLite. Для текущего профиля создаётся резервная копия, затем проверенный снимок активируется атомарно.') }}</p>
@@ -230,6 +314,7 @@ watch(() => props.open, (open) => {
 .developer-inventory { display: grid; gap: var(--nf-space-2); padding-top: var(--nf-space-3); border-top: 1px solid var(--nf-color-border); }
 .developer-inventory h3, .developer-inventory p { margin: 0; }
 .developer-inventory p { color: var(--nf-color-text-muted); }
+.developer-streak-info { display: grid; gap: var(--nf-space-1); color: var(--nf-color-text-muted); }
 .developer-success { color: var(--nf-color-success); margin: 0; }
 .developer-error { color: var(--nf-color-danger); margin: 0; }
 @media (max-width: 32rem) { .developer-grid { grid-template-columns: 1fr; } }
