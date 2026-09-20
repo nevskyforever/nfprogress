@@ -4,7 +4,8 @@ from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
 from .models import (AuthRefreshToken, AuthSession, GlobalLimits,
-                     RegistrationSettings, User, UserLimitOverrides)
+                     RegistrationSettings, ReservedUsername, User,
+                     UserLimitOverrides)
 
 
 def normalize_username(value: str) -> str:
@@ -39,6 +40,11 @@ class RegistrationSettingsRepository:
         if lock:
             statement = statement.with_for_update()
         return session.scalar(statement)
+
+
+class ReservedUsernameRepository:
+    def is_reserved(self, session: Session, username: str) -> bool:
+        return session.get(ReservedUsername, normalize_username(username)) is not None
 
 
 class GlobalLimitsRepository:

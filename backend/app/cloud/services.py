@@ -12,6 +12,7 @@ from .models import (AuthRefreshToken, AuthSession, EmailVerificationToken,
 from .passwords import PasswordService
 from .repositories import (AuthRepository, GlobalLimitsRepository,
                            RegistrationSettingsRepository,
+                           ReservedUsernameRepository,
                            UserLimitOverridesRepository, UserRepository,
                            normalize_email)
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
@@ -104,6 +105,7 @@ class RegistrationService:
         self._now = now_provider
         self._users = UserRepository()
         self._settings = RegistrationSettingsRepository()
+        self._reserved_usernames = ReservedUsernameRepository()
 
     def public_policy(self, session: Session) -> RegistrationSettings:
         settings = self._settings.get(session)
@@ -123,13 +125,17 @@ class RegistrationService:
             return RegistrationResult('registration_closed')
         if not email_delivery_available:
             raise RegistrationUnavailableError()
+
+        # Preserve C2's public password-validation contract while avoiding
+        # Argon2 work for a known policy-rejected username.
+        self._passwords.validate_new_password(password)
+        if self._reserved_usernames.is_reserved(session, username):
+            return RegistrationResult('username_reserved')
         session.commit()
 
         # Preserve C2 password cost for accepted and duplicate requests without
         # holding the shared policy lock through Argon2 work.
         password_hash = self._passwords.hash(password)
-        token_id, raw_token, token_hash = self._tokens.issue_email_verification_token()
-        now = self._now()
         try:
             with session.begin():
                 settings = self._settings.get(session, lock=True)
@@ -139,6 +145,10 @@ class RegistrationService:
                     return RegistrationResult('registration_closed')
                 if not email_delivery_available:
                     raise RegistrationUnavailableError()
+                if self._reserved_usernames.is_reserved(session, username):
+                    return RegistrationResult('username_reserved')
+                token_id, raw_token, token_hash = self._tokens.issue_email_verification_token()
+                now = self._now()
                 user = self._users.create(
                     session, username=username, email=email, password_hash=password_hash,
                     role='user', status='pending', registration_mode_at_signup=settings.mode,

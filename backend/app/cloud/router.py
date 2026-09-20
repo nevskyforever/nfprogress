@@ -81,6 +81,10 @@ def register(payload: RegistrationRequest, background: BackgroundTasks, request:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={
             'code': 'registration_closed', 'message': 'Registration is closed.',
         })
+    if result.code == 'username_reserved':
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={
+            'code': 'username_reserved', 'message': 'This username is reserved.',
+        })
     if result.verification_token and result.email:
         link = _trusted_link(request, '/verify-email', result.verification_token)
         if link:

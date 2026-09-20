@@ -94,4 +94,5 @@ jobs:
             tests/test_cloud_email_recovery.py \
             tests/test_cloud_registration.py \
             tests/test_cloud_limits.py \
+            tests/test_cloud_reserved_usernames.py \
             tests/test_api.py

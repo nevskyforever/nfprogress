@@ -59,6 +59,17 @@ class RegistrationSettings(Base):
                                                    onupdate=UTC_NOW)
 
 
+class ReservedUsername(Base):
+    """A public-registration policy record, deliberately separate from User."""
+
+    __tablename__ = 'reserved_usernames'
+
+    username_normalized: Mapped[str] = mapped_column(String(128), primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=UTC_NOW,
+    )
+
+
 class GlobalLimits(Base):
     """The singleton PostgreSQL authority for per-user cloud resource defaults."""
 
