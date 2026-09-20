@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import secrets
+from collections.abc import Generator
 from dataclasses import dataclass
 
 from fastapi import Header, HTTPException, Request, status
+from sqlalchemy.orm import Session
+
+from .db import CloudDatabase
 
 
 @dataclass(slots=True)
@@ -20,6 +24,12 @@ class Services:
 
 def get_services(request: Request) -> Services:
     return request.app.state.services
+
+
+def get_cloud_session(request: Request) -> Generator[Session, None, None]:
+    """Future cloud-route dependency; legacy routes deliberately do not use it."""
+    database: CloudDatabase = request.app.state.cloud_database
+    yield from database.session_scope()
 
 
 def require_session(

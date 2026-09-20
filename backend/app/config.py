@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from urllib.parse import urlsplit
 
 
 DEFAULT_ORIGINS = (
@@ -16,6 +17,9 @@ DEFAULT_ORIGINS = (
     'https://localhost',
 )
 
+RUNTIME_ENVIRONMENTS = frozenset({'development', 'test', 'production'})
+POSTGRESQL_URL_SCHEME = 'postgresql+psycopg'
+
 
 @dataclass(frozen=True, slots=True)
 class RuntimeConfig:
@@ -25,12 +29,41 @@ class RuntimeConfig:
     platform: str = 'web'
     allow_local_files: bool = False
     developer_mode: bool = False
+    environment: str = 'development'
+    database_url: str | None = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.environment not in RUNTIME_ENVIRONMENTS:
+            allowed = ', '.join(sorted(RUNTIME_ENVIRONMENTS))
+            raise ValueError(f'NFPROGRESS_ENV must be one of: {allowed}.')
+        if self.database_url is not None:
+            self._validate_database_url(self.database_url)
+        if self.environment == 'production' and self.database_url is None:
+            raise ValueError(
+                'NFPROGRESS_DATABASE_URL is required in production.',
+            )
+
+    @staticmethod
+    def _validate_database_url(database_url: str) -> None:
+        if not database_url.strip():
+            raise ValueError('NFPROGRESS_DATABASE_URL must not be empty.')
+        if urlsplit(database_url).scheme != POSTGRESQL_URL_SCHEME:
+            raise ValueError(
+                'NFPROGRESS_DATABASE_URL must use a PostgreSQL psycopg URL.',
+            )
+
+    def require_database_url(self) -> str:
+        """Return the configured cloud PostgreSQL URL without exposing it in errors."""
+        if self.database_url is None:
+            raise RuntimeError('NFPROGRESS_DATABASE_URL is not configured.')
+        return self.database_url
 
     @classmethod
     def from_env(cls) -> 'RuntimeConfig':
         raw_data_dir = os.environ.get('NFPROGRESS_DATA_DIR')
         raw_origins = os.environ.get('NFPROGRESS_ALLOWED_ORIGINS')
         platform = os.environ.get('NFPROGRESS_PLATFORM', 'web').lower()
+        environment = os.environ.get('NFPROGRESS_ENV', 'development').lower()
         return cls(
             data_dir=Path(raw_data_dir).expanduser() if raw_data_dir else None,
             session_token=os.environ.get('NFPROGRESS_SESSION_TOKEN') or None,
@@ -44,4 +77,6 @@ class RuntimeConfig:
                 or os.environ.get('NFPROGRESS_ALLOW_LOCAL_FILES') == '1'
             ),
             developer_mode=os.environ.get('NFPROGRESS_DEVELOPER_MODE') == '1',
+            environment=environment,
+            database_url=os.environ.get('NFPROGRESS_DATABASE_URL') or None,
         )

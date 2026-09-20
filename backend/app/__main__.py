@@ -162,6 +162,8 @@ def main(argv: list[str] | None = None) -> int:
         platform=platform,
         allow_local_files=(platform == 'desktop'),
         developer_mode=developer_mode,
+        environment=environment.environment,
+        database_url=environment.database_url,
     )
     if args.parent_pid is not None:
         _start_parent_watchdog(args.parent_pid)

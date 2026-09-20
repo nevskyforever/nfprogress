@@ -27,6 +27,7 @@ from nfprogress.core.sqlite import (
 from nfprogress.core.migration import cutover_game, cutover_projects
 
 from .config import RuntimeConfig
+from .db import CloudDatabase, DatabaseReadiness
 from .dependencies import Services, require_session
 from .routers import content, documents, game, integrations, notes, projects
 
@@ -89,6 +90,7 @@ async def _desktop_sync_loop(services: Services) -> None:
 
 def create_app(config: RuntimeConfig | None = None) -> FastAPI:
     runtime_config = config or RuntimeConfig.from_env()
+    cloud_database = CloudDatabase(runtime_config.database_url)
     data_dir = runtime_config.data_dir
     if data_dir is None:
         data_dir = (
@@ -187,6 +189,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
                     await sync_task
                 except asyncio.CancelledError:
                     pass
+            cloud_database.dispose()
 
     app = FastAPI(
         title='nfprogress API',
@@ -196,6 +199,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
     )
     app.state.runtime_config = runtime_config
     app.state.services = services
+    app.state.cloud_database = cloud_database
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(runtime_config.allowed_origins),
@@ -237,6 +241,21 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
     @app.get('/health', tags=['system'])
     def health():
         return {'status': 'ok', 'version': engine.version}
+
+    @app.get('/ready', tags=['system'])
+    def ready():
+        readiness = cloud_database.readiness()
+        if readiness == DatabaseReadiness.READY:
+            return {'status': 'ok', 'database': readiness.value}
+        if readiness == DatabaseReadiness.NOT_CONFIGURED:
+            return JSONResponse(
+                status_code=503,
+                content={'status': 'not_ready', 'database': readiness.value},
+            )
+        return JSONResponse(
+            status_code=503,
+            content={'status': 'not_ready', 'database': readiness.value},
+        )
 
     api_dependencies = [Depends(require_session)]
     app.include_router(projects.router, prefix='/api', dependencies=api_dependencies)
