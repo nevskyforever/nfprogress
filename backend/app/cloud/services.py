@@ -397,6 +397,7 @@ class AdminService:
             session.commit()
             with session.begin():
                 user = self._locked_user(session, user_id)
+                self._protected(user)
                 return self._auth.revoke_user_sessions(session, user.id, self._now())
         except AdminOperationError:
             session.rollback()

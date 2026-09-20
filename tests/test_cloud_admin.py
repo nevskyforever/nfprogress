@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import threading
+
+import pytest
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from backend.app.cloud.models import AuthRefreshToken, AuthSession, RegistrationSettings, User
-from test_cloud_auth import cloud_client, create_user, login, migrated_database
+from backend.app import admin_cli
+from backend.app.cloud.models import AuthRefreshToken, AuthSession, RegistrationSettings, ReservedUsername, User
+from backend.app.cloud.services import AdminService, RegistrationService
+from backend.app.cloud.tokens import TokenService
+from test_cloud_auth import AUTH_SECRET, cloud_client, create_user, login, migrated_database
 
 
 def _admin(engine, username='Admin', email='admin@example.test'):
@@ -57,6 +63,7 @@ def test_admin_lifecycle_capacity_revocation_and_protection(cloud_client):
             select(AuthSession.id).where(AuthSession.user_id == pending_id),
         ))).one().revoked_at is not None
     assert client.post(f'/api/v1/admin/users/{admin_id}/block', headers=headers).json()['detail']['code'] == 'admin_account_protected'
+    assert client.post(f'/api/v1/admin/users/{admin_id}/sessions/revoke', headers=headers).json()['detail']['code'] == 'admin_account_protected'
 
 
 def test_admin_policy_limits_and_reservations(cloud_client):
@@ -72,3 +79,65 @@ def test_admin_policy_limits_and_reservations(cloud_client):
     assert added.status_code == 200 and added.json()['username_normalized'] == 'example'
     assert client.delete('/api/v1/admin/reserved-usernames?username=example', headers=headers).status_code == 200
     assert client.post('/api/v1/admin/reserved-usernames', json={'username': 'Writer'}, headers=headers).json()['detail']['code'] == 'username_in_use'
+
+
+def test_registration_and_reservation_race_has_one_namespace_claim(migrated_database):
+    """Real independent PostgreSQL sessions exercise C6/C7 advisory locking."""
+    barrier = threading.Barrier(2)
+    outcomes: dict[str, object] = {}
+
+    def register() -> None:
+        with Session(migrated_database) as session:
+            barrier.wait()
+            outcomes['registration'] = RegistrationService(TokenService(AUTH_SECRET)).register(
+                session, username='RaceName', email='race@example.test', password='x' * 15,
+                email_delivery_available=True,
+            ).code
+
+    def reserve() -> None:
+        with Session(migrated_database) as session:
+            barrier.wait()
+            try:
+                outcomes['reservation'] = AdminService().add_reserved_username(session, ' RaceName ')
+            except Exception as error:  # expected username_in_use is inspected below
+                outcomes['reservation'] = getattr(error, 'code', type(error).__name__)
+
+    left = threading.Thread(target=register)
+    right = threading.Thread(target=reserve)
+    left.start(); right.start(); left.join(); right.join()
+    with Session(migrated_database) as session:
+        user = session.scalar(select(User).where(User.username_normalized == 'racename'))
+        reservation = session.get(ReservedUsername, 'racename')
+    assert (user is None) != (reservation is None)
+    if user is not None:
+        assert outcomes['registration'] == 'registration_request_accepted'
+        assert outcomes['reservation'] == 'username_in_use'
+    else:
+        assert outcomes['registration'] == 'username_reserved'
+
+
+def test_admin_cli_create_promote_restore_and_no_password_argv(migrated_database, monkeypatch, capsys):
+    monkeypatch.setenv('NFPROGRESS_DATABASE_URL', str(migrated_database.url))
+    values = iter(['admin', 'admin-cli@example.test'])
+    passwords = iter(['x' * 15, 'x' * 15])
+    monkeypatch.setattr('builtins.input', lambda _prompt: next(values))
+    monkeypatch.setattr('getpass.getpass', lambda _prompt: next(passwords))
+    assert admin_cli.main(['create']) == 0
+    with Session(migrated_database) as session:
+        created = session.scalar(select(User).where(User.username_normalized == 'admin'))
+        assert created is not None and created.role == 'admin' and created.status == 'active' and created.email_verified
+        original_hash = created.password_hash
+    assert 'x' * 15 not in capsys.readouterr().out
+    normal_id = create_user(migrated_database, username='Promote', email='promote@example.test', status='blocked')
+    with Session(migrated_database) as session:
+        normal = session.get(User, normal_id); password_hash = normal.password_hash; verified = normal.email_verified
+    assert admin_cli.main(['promote', 'Promote']) == 0
+    assert admin_cli.main(['promote', 'Promote']) == 0
+    assert admin_cli.main(['restore', 'Promote']) == 0
+    with Session(migrated_database) as session:
+        promoted = session.get(User, normal_id)
+        assert promoted.role == 'admin' and promoted.status == 'active'
+        assert promoted.password_hash == password_hash and promoted.email_verified == verified
+        assert session.scalar(select(User).where(User.username_normalized == 'admin')).password_hash == original_hash
+    with pytest.raises(SystemExit):
+        admin_cli._parser().parse_args(['create', '--password', 'secret'])

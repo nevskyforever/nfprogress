@@ -5,7 +5,7 @@ from typing import Literal
 from uuid import UUID
 
 from email_validator import EmailNotValidError, validate_email
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from .passwords import MAX_PASSWORD_LENGTH
 
@@ -110,6 +110,12 @@ class AdminRegistrationPatch(BaseModel):
     model_config = ConfigDict(extra='forbid')
     mode: Literal['open', 'approval', 'closed'] | None = None
     max_users: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode='after')
+    def explicit_mode_must_be_valid(self) -> 'AdminRegistrationPatch':
+        if 'mode' in self.model_fields_set and self.mode is None:
+            raise ValueError('Registration mode must be open, approval, or closed.')
+        return self
 
 
 class AdminRegistrationResponse(BaseModel):

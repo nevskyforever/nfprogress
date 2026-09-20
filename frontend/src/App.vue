@@ -17,6 +17,7 @@ import { useNotificationsStore } from '@/stores/notifications'
 import { isThemePreference, useThemeStore } from '@/stores/theme'
 import { useUpdaterStore } from '@/stores/updater'
 import router from '@/router'
+import { onAdminSessionInvalidated } from '@/api/admin'
 import type { SettingsResponse } from '@/types/content'
 
 type BootstrapState = 'loading' | 'agreement' | 'ready' | 'error'
@@ -86,8 +87,12 @@ watch(isAdminRoute, (admin) => {
     void bootstrapApplication()
   }
 }, { immediate: true })
+onAdminSessionInvalidated(() => {
+  if (isAdminRoute.value) void router.replace('/admin/login')
+})
 onBeforeUnmount(() => {
   if (updateTimer !== null) window.clearInterval(updateTimer)
+  onAdminSessionInvalidated(null)
 })
 </script>
 
