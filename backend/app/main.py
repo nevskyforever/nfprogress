@@ -29,6 +29,7 @@ from nfprogress.core.migration import cutover_game, cutover_projects
 from .config import RuntimeConfig
 from .db import CloudDatabase, DatabaseReadiness
 from .dependencies import Services, require_session
+from .cloud.router import router as cloud_router
 from .routers import content, documents, game, integrations, notes, projects
 
 
@@ -205,7 +206,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
         allow_origins=list(runtime_config.allowed_origins),
         allow_credentials=False,
         allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-        allow_headers=['Content-Type', 'X-NFProgress-Token'],
+        allow_headers=['Content-Type', 'X-NFProgress-Token', 'Authorization'],
     )
 
     @app.exception_handler(DomainError)
@@ -264,6 +265,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
     app.include_router(content.router, prefix='/api', dependencies=api_dependencies)
     app.include_router(integrations.router, prefix='/api', dependencies=api_dependencies)
     app.include_router(documents.router, prefix='/api', dependencies=api_dependencies)
+    app.include_router(cloud_router)
     return app
 
 

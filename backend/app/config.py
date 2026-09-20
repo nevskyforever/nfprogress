@@ -31,6 +31,7 @@ class RuntimeConfig:
     developer_mode: bool = False
     environment: str = 'development'
     database_url: str | None = field(default=None, repr=False)
+    auth_secret: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.environment not in RUNTIME_ENVIRONMENTS:
@@ -42,6 +43,10 @@ class RuntimeConfig:
             raise ValueError(
                 'NFPROGRESS_DATABASE_URL is required in production.',
             )
+        if self.environment == 'production' and self.auth_secret is None:
+            raise ValueError('NFPROGRESS_AUTH_SECRET is required in production.')
+        if self.auth_secret is not None and len(self.auth_secret) < 32:
+            raise ValueError('NFPROGRESS_AUTH_SECRET must contain at least 32 characters.')
 
     @staticmethod
     def _validate_database_url(database_url: str) -> None:
@@ -57,6 +62,11 @@ class RuntimeConfig:
         if self.database_url is None:
             raise RuntimeError('NFPROGRESS_DATABASE_URL is not configured.')
         return self.database_url
+
+    def require_auth_secret(self) -> str:
+        if self.auth_secret is None:
+            raise RuntimeError('NFPROGRESS_AUTH_SECRET is not configured.')
+        return self.auth_secret
 
     @classmethod
     def from_env(cls) -> 'RuntimeConfig':
@@ -79,4 +89,5 @@ class RuntimeConfig:
             developer_mode=os.environ.get('NFPROGRESS_DEVELOPER_MODE') == '1',
             environment=environment,
             database_url=os.environ.get('NFPROGRESS_DATABASE_URL') or None,
+            auth_secret=os.environ.get('NFPROGRESS_AUTH_SECRET') or None,
         )

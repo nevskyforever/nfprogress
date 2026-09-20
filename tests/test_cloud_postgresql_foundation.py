@@ -36,7 +36,10 @@ def test_production_configuration_requires_postgresql_url():
     with pytest.raises(ValueError, match='NFPROGRESS_DATABASE_URL is required'):
         RuntimeConfig(environment='production')
 
-    config = RuntimeConfig(environment='production', database_url=DATABASE_URL)
+    config = RuntimeConfig(
+        environment='production', database_url=DATABASE_URL,
+        auth_secret='test-only-auth-secret-with-at-least-32-characters',
+    )
     assert config.require_database_url() == DATABASE_URL
 
 
@@ -144,8 +147,8 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
         monkeypatch.setenv('NFPROGRESS_ENV', 'test')
         monkeypatch.setenv('NFPROGRESS_DATABASE_URL', test_database_url)
         alembic_config = AlembicConfig(str(ROOT / 'alembic.ini'))
-        command.upgrade(alembic_config, 'head')
-        command.upgrade(alembic_config, 'head')
+        command.upgrade(alembic_config, 'c1_postgresql_foundation')
+        command.upgrade(alembic_config, 'c1_postgresql_foundation')
 
         with migration_engine.connect() as connection:
             assert inspect(connection).get_table_names() == ['alembic_version']
