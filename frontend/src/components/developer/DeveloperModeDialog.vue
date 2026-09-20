@@ -7,12 +7,14 @@ import { apiErrorMessage } from '@/api/client'
 import { gameApi } from '@/api/game'
 import { currentPlatform } from '@/platform/runtime'
 import { useLocaleStore } from '@/stores/locale'
+import { useNotificationsStore } from '@/stores/notifications'
 import type { DeveloperModeState, DeveloperStreakState, GameState } from '@/types/game'
 
 const props = defineProps<{ open: boolean }>()
 const emit = defineEmits<{ close: []; updated: [state: GameState] }>()
 
 const locale = useLocaleStore()
+const notifications = useNotificationsStore()
 const t = locale.translate
 const loading = ref(false)
 const saving = ref(false)
@@ -98,8 +100,10 @@ async function load(): Promise<void> {
     }
     if (transferResult?.status === 'complete') {
       success.value = t('Замена данных успешно завершена.')
+      notifications.show(success.value, 'success')
     } else if (transferResult?.status === 'error') {
       error.value = `${t('Не удалось заменить данные')}: ${transferResult.error ?? t('неизвестная ошибка')}`
+      notifications.show(error.value, 'error')
     }
   } catch (reason) {
     error.value = t(apiErrorMessage(reason))
@@ -211,6 +215,7 @@ async function requestTransfer(direction: 'real_to_test' | 'test_to_real'): Prom
   try {
     const result = await gameApi.requestProfileTransfer(direction)
     success.value = t(result.message)
+    notifications.show(t('Замена данных запланирована и будет выполнена после перезапуска.'), 'info')
   } catch (reason) {
     error.value = t(apiErrorMessage(reason))
   } finally {

@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { gameApi } from '@/api/game'
 import { gameStateFixture } from '@/test/gameFixtures'
+import { useNotificationsStore } from '@/stores/notifications'
 import DeveloperModeDialog from './DeveloperModeDialog.vue'
 
 vi.mock('@/api/game', () => ({
@@ -74,6 +75,7 @@ describe('DeveloperModeDialog test data controls', () => {
     await flushPromises()
     expect(gameApi.requestProfileTransfer).toHaveBeenCalledWith('real_to_test')
     expect(wrapper.text()).toContain('Перезапустите приложение')
+    expect(useNotificationsStore().notifications.at(-1)?.message).toContain('Замена данных запланирована')
   })
 
   it('uses a separate danger confirmation for test to real replacement', async () => {
@@ -101,5 +103,18 @@ describe('DeveloperModeDialog test data controls', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Замена данных успешно завершена')
+    expect(useNotificationsStore().notifications.at(-1)?.kind).toBe('success')
+  })
+
+  it('notifies about an errored transfer result after restart', async () => {
+    vi.mocked(gameApi.takeProfileTransferResult).mockResolvedValue({
+      status: 'error', error: 'проверка снимка не пройдена',
+    })
+
+    mountDialog()
+    await flushPromises()
+
+    expect(useNotificationsStore().notifications.at(-1)?.kind).toBe('error')
+    expect(useNotificationsStore().notifications.at(-1)?.message).toContain('проверка снимка не пройдена')
   })
 })
