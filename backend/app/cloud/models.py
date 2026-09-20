@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, text
+from sqlalchemy import BIGINT, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String, UniqueConstraint, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 
@@ -119,6 +119,54 @@ class CloudProject(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=UTC_NOW,
     )
+
+
+class SyncDevice(Base):
+    """A non-secret, account-scoped C9 transport identity."""
+
+    __tablename__ = 'sync_devices'
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey('users.id', ondelete='CASCADE'), primary_key=True,
+    )
+    device_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
+    last_ack_sequence: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0, server_default=text('0'))
+
+
+class SyncUserState(Base):
+    __tablename__ = 'sync_user_state'
+    __table_args__ = (CheckConstraint('current_sequence >= 0', name='ck_sync_user_state_sequence_nonnegative'),)
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    current_sequence: Mapped[int] = mapped_column(BIGINT, nullable=False, default=0, server_default=text('0'))
+
+
+class SyncEvent(Base):
+    """Metadata-only transport log. It intentionally has no payload column."""
+
+    __tablename__ = 'sync_events'
+    __table_args__ = (
+        CheckConstraint("operation IN ('upsert', 'delete', 'event')", name='ck_sync_events_operation'),
+        CheckConstraint('revision >= 1', name='ck_sync_events_revision_positive'),
+        CheckConstraint('server_sequence > 0', name='ck_sync_events_sequence_positive'),
+        CheckConstraint("(operation = 'delete' AND deleted_at IS NOT NULL) OR (operation != 'delete' AND deleted_at IS NULL)", name='ck_sync_events_tombstone'),
+        UniqueConstraint('user_id', 'server_sequence', name='uq_sync_events_user_sequence'),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    event_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    device_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    project_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    entity_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    entity_type: Mapped[str] = mapped_column(String(128), nullable=False)
+    operation: Mapped[str] = mapped_column(String(16), nullable=False)
+    revision: Mapped[int] = mapped_column(BIGINT, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    server_sequence: Mapped[int] = mapped_column(BIGINT, nullable=False)
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
 
 
 class AuthSession(Base):

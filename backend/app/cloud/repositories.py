@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from .models import (AuthRefreshToken, AuthSession, CloudProject, GlobalLimits,
                      RegistrationSettings, ReservedUsername, User,
-                     UserLimitOverrides)
+                     UserLimitOverrides, SyncDevice, SyncEvent, SyncUserState)
 
 
 def normalize_username(value: str) -> str:
@@ -134,6 +134,51 @@ class CloudProjectRepository:
             CloudProject.project_id == project_id,
         ))
         return bool(result.rowcount)
+
+
+class SyncRepository:
+    def get_device(self, session: Session, user_id: object, device_id: object, *, lock: bool = False) -> SyncDevice | None:
+        statement = select(SyncDevice).where(SyncDevice.user_id == user_id, SyncDevice.device_id == device_id)
+        if lock:
+            statement = statement.with_for_update()
+        return session.scalar(statement)
+
+    def register_device(self, session: Session, user_id: object, device_id: object) -> SyncDevice:
+        row = self.get_device(session, user_id, device_id, lock=True)
+        if row is None:
+            row = SyncDevice(user_id=user_id, device_id=device_id)
+            session.add(row)
+        return row
+
+    def user_state(self, session: Session, user_id: object, *, lock: bool = False) -> SyncUserState | None:
+        statement = select(SyncUserState).where(SyncUserState.user_id == user_id)
+        if lock:
+            statement = statement.with_for_update()
+        return session.scalar(statement)
+
+    def ensure_user_state(self, session: Session, user_id: object, *, lock: bool = False) -> SyncUserState:
+        state = self.user_state(session, user_id, lock=lock)
+        if state is None:
+            state = SyncUserState(user_id=user_id)
+            session.add(state)
+            session.flush()
+            if lock:
+                state = self.user_state(session, user_id, lock=True)
+                assert state is not None
+        return state
+
+    def event(self, session: Session, user_id: object, event_id: object) -> SyncEvent | None:
+        return session.get(SyncEvent, (user_id, event_id))
+
+    def add_event(self, session: Session, **values: object) -> SyncEvent:
+        row = SyncEvent(**values)
+        session.add(row)
+        return row
+
+    def pull(self, session: Session, user_id: object, since: int, limit: int) -> list[SyncEvent]:
+        return session.scalars(select(SyncEvent).where(
+            SyncEvent.user_id == user_id, SyncEvent.server_sequence > since,
+        ).order_by(SyncEvent.server_sequence).limit(limit + 1)).all()
 
 
 class AuthRepository:

@@ -14,9 +14,10 @@ from .passwords import PasswordService
 from .repositories import (AuthRepository, CloudProjectRepository, GlobalLimitsRepository,
                            RegistrationSettingsRepository,
                            ReservedUsernameRepository,
-                           UserLimitOverridesRepository, UserRepository,
+                           SyncRepository, UserLimitOverridesRepository, UserRepository,
                            lock_username_namespace, normalize_email,
                            normalize_username)
+from .schemas import SYNC_PROTOCOL_VERSION, SyncEventEnvelope
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
                      PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
                      TokenService, utc_now)
@@ -93,6 +94,12 @@ class CloudProjectLimitError(Exception):
     """A new cloud slot cannot be allocated under the effective C5 limit."""
 
 
+class SyncProtocolError(Exception):
+    def __init__(self, code: str, message: str, status_code: int = 409) -> None:
+        super().__init__(message)
+        self.code, self.message, self.status_code = code, message, status_code
+
+
 @dataclass(frozen=True, slots=True)
 class CloudProjectState:
     project_ids: list[str]
@@ -146,6 +153,119 @@ class CloudProjectService:
             session.commit()
             with session.begin():
                 self._projects.remove(session, user_id, project_id)
+        except Exception:
+            session.rollback()
+            raise
+
+
+@dataclass(frozen=True, slots=True)
+class SyncPushResult:
+    event_id: object
+    server_sequence: int
+    duplicate: bool
+
+
+class SyncService:
+    """C9 metadata-only transport; server order is not conflict resolution."""
+
+    def __init__(self) -> None:
+        self._sync = SyncRepository()
+        self._projects = CloudProjectRepository()
+
+    @staticmethod
+    def require_protocol(version: int) -> None:
+        if version != SYNC_PROTOCOL_VERSION:
+            raise SyncProtocolError('sync_protocol_version_unsupported', 'Unsupported sync protocol version.', 422)
+
+    def register_device(self, session: Session, user_id: object, device_id: object):
+        try:
+            session.commit()
+            with session.begin():
+                device = self._sync.register_device(session, user_id, device_id)
+                device.last_seen_at = utc_now()
+                state = self._sync.ensure_user_state(session, user_id)
+                session.flush()
+                return device.device_id, device.last_ack_sequence, state.current_sequence
+        except Exception:
+            session.rollback()
+            raise
+
+    def _registered_device(self, session: Session, user_id: object, device_id: object):
+        device = self._sync.get_device(session, user_id, device_id, lock=True)
+        if device is None:
+            raise SyncProtocolError('sync_device_not_registered', 'Sync device is not registered.')
+        return device
+
+    @staticmethod
+    def _same_event(row, event: SyncEventEnvelope, device_id: object) -> bool:
+        return (row.device_id == device_id and row.project_id == event.project_id
+                and row.entity_id == event.entity_id and row.entity_type == event.entity_type
+                and row.operation == event.operation and row.revision == event.revision
+                and row.updated_at == event.updated_at and row.deleted_at == event.deleted_at)
+
+    def push(self, session: Session, user_id: object, device_id: object,
+             events: list[SyncEventEnvelope]) -> tuple[list[SyncPushResult], int]:
+        try:
+            session.commit()
+            with session.begin():
+                device = self._registered_device(session, user_id, device_id)
+                device.last_seen_at = utc_now()
+                # Validate the whole batch before allocating a sequence so any
+                # bad new event makes the transaction a genuine no-op.
+                for event in events:
+                    if self._projects.get(session, user_id, event.project_id) is None:
+                        raise SyncProtocolError('cloud_project_not_enabled', 'Cloud project is not enabled.')
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
+                results: list[SyncPushResult] = []
+                seen: dict[object, SyncEventEnvelope] = {}
+                for event in events:
+                    prior = seen.get(event.event_id)
+                    if prior is not None and prior != event:
+                        raise SyncProtocolError('sync_event_id_conflict', 'Event ID was reused with different metadata.')
+                    seen[event.event_id] = event
+                    existing = self._sync.event(session, user_id, event.event_id)
+                    if existing is not None:
+                        if not self._same_event(existing, event, device_id):
+                            raise SyncProtocolError('sync_event_id_conflict', 'Event ID was reused with different metadata.')
+                        results.append(SyncPushResult(event.event_id, existing.server_sequence, True))
+                        continue
+                    state.current_sequence += 1
+                    row = self._sync.add_event(
+                        session, user_id=user_id, event_id=event.event_id, device_id=device_id,
+                        project_id=event.project_id, entity_id=event.entity_id,
+                        entity_type=event.entity_type, operation=event.operation,
+                        revision=event.revision, updated_at=event.updated_at,
+                        deleted_at=event.deleted_at, server_sequence=state.current_sequence,
+                    )
+                    session.flush()
+                    results.append(SyncPushResult(event.event_id, row.server_sequence, False))
+                return results, state.current_sequence
+        except Exception:
+            session.rollback()
+            raise
+
+    def pull(self, session: Session, user_id: object, device_id: object, since: int, limit: int):
+        device = self._sync.get_device(session, user_id, device_id)
+        if device is None:
+            raise SyncProtocolError('sync_device_not_registered', 'Sync device is not registered.')
+        events = self._sync.pull(session, user_id, since, limit)
+        has_more = len(events) > limit
+        visible = events[:limit]
+        state = self._sync.ensure_user_state(session, user_id)
+        next_cursor = visible[-1].server_sequence if visible else since
+        return visible, next_cursor, has_more, state.current_sequence
+
+    def ack(self, session: Session, user_id: object, device_id: object, cursor: int) -> int:
+        try:
+            session.commit()
+            with session.begin():
+                device = self._registered_device(session, user_id, device_id)
+                state = self._sync.ensure_user_state(session, user_id, lock=True)
+                if cursor > state.current_sequence:
+                    raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
+                if cursor > device.last_ack_sequence:
+                    device.last_ack_sequence = cursor
+                return device.last_ack_sequence
         except Exception:
             session.rollback()
             raise

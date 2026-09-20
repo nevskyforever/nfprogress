@@ -32,6 +32,7 @@ from .dependencies import Services, require_session
 from .cloud.router import router as cloud_router
 from .cloud.admin_router import router as cloud_admin_router
 from .cloud.projects_router import router as cloud_projects_router
+from .cloud.sync_router import router as cloud_sync_router
 from .cloud.email import email_sender_from_config
 from .routers import content, documents, game, integrations, notes, projects
 
@@ -271,6 +272,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
     app.include_router(documents.router, prefix='/api', dependencies=api_dependencies)
     app.include_router(cloud_router)
     app.include_router(cloud_projects_router)
+    app.include_router(cloud_sync_router)
     app.include_router(cloud_admin_router)
     return app
 

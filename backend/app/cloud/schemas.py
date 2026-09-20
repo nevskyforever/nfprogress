@@ -92,6 +92,75 @@ class CloudProjectsResponse(BaseModel):
     max_cloud_projects: int
 
 
+SYNC_PROTOCOL_VERSION = 1
+
+
+class SyncEventEnvelope(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    event_id: UUID
+    project_id: str = Field(min_length=1, max_length=512)
+    entity_id: str = Field(min_length=1, max_length=512)
+    entity_type: str = Field(min_length=1, max_length=128, pattern=r'^[a-z][a-z0-9_:-]*$')
+    operation: Literal['upsert', 'delete', 'event']
+    revision: int = Field(ge=1, le=9_223_372_036_854_775_807)
+    updated_at: datetime
+    deleted_at: datetime | None = None
+
+    @model_validator(mode='after')
+    def validate_tombstone_and_timestamps(self) -> 'SyncEventEnvelope':
+        if self.updated_at.tzinfo is None or self.updated_at.utcoffset() is None:
+            raise ValueError('updated_at must include a timezone.')
+        if self.deleted_at is not None and (self.deleted_at.tzinfo is None or self.deleted_at.utcoffset() is None):
+            raise ValueError('deleted_at must include a timezone.')
+        if (self.operation == 'delete') != (self.deleted_at is not None):
+            raise ValueError('delete requires deleted_at; upsert and event forbid it.')
+        return self
+
+
+class SyncPushRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    protocol_version: int
+    device_id: UUID
+    events: list[SyncEventEnvelope] = Field(max_length=100)
+
+
+class SyncPushResult(BaseModel):
+    event_id: UUID
+    server_sequence: int
+    duplicate: bool
+
+
+class SyncPushResponse(BaseModel):
+    protocol_version: int = SYNC_PROTOCOL_VERSION
+    results: list[SyncPushResult]
+    current_cursor: int
+
+
+class SyncDeviceResponse(BaseModel):
+    protocol_version: int = SYNC_PROTOCOL_VERSION
+    device_id: UUID
+    last_ack_cursor: int
+
+
+class SyncPullEvent(SyncEventEnvelope):
+    device_id: UUID
+    server_sequence: int
+
+
+class SyncPullResponse(BaseModel):
+    protocol_version: int = SYNC_PROTOCOL_VERSION
+    events: list[SyncPullEvent]
+    next_cursor: int
+    has_more: bool
+
+
+class SyncAckRequest(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    protocol_version: int
+    device_id: UUID
+    cursor: int = Field(ge=0, le=9_223_372_036_854_775_807)
+
+
 class AdminUserResponse(BaseModel):
     id: UUID
     username: str
