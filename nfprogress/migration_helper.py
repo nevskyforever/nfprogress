@@ -652,6 +652,10 @@ def _load_projects(root: Path) -> tuple[Mapping[str, Any], MigrationBundle]:
             _repair_legacy_entity(stage, project_id=project.project_id, stage_index=stage_index)
     try:
         with engine.data_directory_context(root):
+            for project in projects.values():
+                migrate = getattr(project, 'migrate', None)
+                if callable(migrate):
+                    migrate()
             bundle = MigrationBundle.from_legacy(envelope)
     except (TypeError, ValueError, AttributeError, KeyError) as error:
         raise HelperError(OUTCOME_SOURCE_CORRUPT, f"legacy project conversion failed: {error}") from error
@@ -699,11 +703,13 @@ def _load_documents(root: Path, project_ids: set[str], stage_ids: set[str], warn
         "document_id", "id", "project_id", "stage_id", "title", "content",
         "content_format", "created_at", "updated_at", "exists", "docx_path",
         "sync_state", "last_synced_hash", "last_synced_at", "local_dirty",
-        "word_dirty", "symbols", "has_content",
+        "word_dirty", "symbols", "has_content", "revision",
+        "last_external_hash", "last_synced_revision", "expected_external_hash",
     }
     documents: list[dict[str, Any]] = []
     bindings: list[dict[str, Any]] = []
     external: list[dict[str, Any]] = []
+    existing_scopes: dict[str, list[tuple[str, str | None]]] = {}
     for source_key, item in raw.items():
         if not isinstance(item, Mapping):
             raise HelperError(OUTCOME_SOURCE_CORRUPT, f"documents.json record {source_key!r} is not an object")
@@ -714,6 +720,10 @@ def _load_documents(root: Path, project_ids: set[str], stage_ids: set[str], warn
         stage_id = item.get("stage_id")
         if project_id not in project_ids or (stage_id is not None and stage_id not in stage_ids):
             raise HelperError(OUTCOME_SOURCE_CORRUPT, f"document {source_key!r} has a broken project/stage relation")
+        if item.get('exists', True):
+            existing_scopes.setdefault(project_id, []).append(
+                (str(source_key), stage_id),
+            )
         content = item.get("content", {"type": "doc", "content": [{"type": "paragraph"}]})
         if not isinstance(content, Mapping) or content.get("type") != "doc":
             raise HelperError(OUTCOME_SOURCE_CORRUPT, f"document {source_key!r} has invalid Tiptap content")
@@ -732,19 +742,40 @@ def _load_documents(root: Path, project_ids: set[str], stage_ids: set[str], warn
             if not exists:
                 sync_state = "missing_external"
                 warnings.append(f"missing external file: {external_path}")
+            last_synced_hash = item.get("last_synced_hash")
+            revision = int(record.get("revision", 0) or 0)
             bindings.append({
                 "id": uuid.uuid5(uuid.NAMESPACE_URL, f"nfprogress-document-binding:{document_id}").hex,
                 "document_id": document_id, "project_id": project_id, "stage_id": stage_id,
                 "binding_type": "word", "external_path": external_path, "source_id": None,
-                "last_external_hash": item.get("last_synced_hash"),
-                "last_synced_revision": 0, "last_synced_hash": item.get("last_synced_hash"),
+                "last_external_hash": item.get("last_external_hash", last_synced_hash),
+                "last_synced_revision": item.get("last_synced_revision", revision),
+                "last_synced_hash": last_synced_hash,
                 "last_synced_at": item.get("last_synced_at"), "sync_state": sync_state,
+                "expected_external_hash": item.get(
+                    "expected_external_hash", last_synced_hash,
+                ),
                 "payload": {"legacy_source_key": str(source_key)},
             })
             external.append({
                 "document_id": document_id, "external_path": external_path,
                 "content_hash": item.get("last_synced_hash"), "exists": exists,
             })
+    conflicts = {
+        project_id: scopes
+        for project_id, scopes in existing_scopes.items()
+        if any(stage_id is None for _key, stage_id in scopes)
+        and any(stage_id is not None for _key, stage_id in scopes)
+    }
+    if conflicts:
+        details = '; '.join(
+            f'{project_id}: {", ".join(key for key, _stage_id in scopes)}'
+            for project_id, scopes in sorted(conflicts.items())
+        )
+        raise HelperError(
+            OUTCOME_SOURCE_CORRUPT,
+            f'conflicting project/stage document scopes: {details}',
+        )
     return documents, bindings, external
 
 
@@ -852,7 +883,7 @@ def _json(value: Any) -> str:
 
 def _import_complete_bundle(bundle: MigrationBundle, target: Path, inspection: SourceInspection) -> None:
     """Import user data into a staging profile without qualification markers."""
-    import_projects_bundle(bundle, target)
+    import_projects_bundle(bundle, target, publish_healthy=False)
     with closing(open_database(target)) as db:
         with db:
             db.execute("DELETE FROM settings")
@@ -881,7 +912,7 @@ def _import_complete_bundle(bundle: MigrationBundle, target: Path, inspection: S
             for binding in bundle.document_bindings:
                 db.execute(
                     "INSERT INTO document_bindings(id,document_id,binding_type,external_path,source_id,last_external_hash,last_synced_revision,last_synced_hash,last_synced_at,sync_state,expected_external_hash,payload_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
-                    (binding["id"], binding["document_id"], binding["binding_type"], binding["external_path"], binding.get("source_id"), binding.get("last_external_hash"), binding.get("last_synced_revision", 0), binding.get("last_synced_hash"), binding.get("last_synced_at"), binding.get("sync_state", "unlinked"), None, _json(binding.get("payload", {}))),
+                    (binding["id"], binding["document_id"], binding["binding_type"], binding["external_path"], binding.get("source_id"), binding.get("last_external_hash"), binding.get("last_synced_revision", 0), binding.get("last_synced_hash"), binding.get("last_synced_at"), binding.get("sync_state", "unlinked"), binding.get("expected_external_hash"), _json(binding.get("payload", {}))),
                 )
             db.execute("DELETE FROM document_metadata WHERE key='documents_json_migration'")
             db.execute("DELETE FROM game_metadata WHERE key='migration_status'")
@@ -1005,10 +1036,11 @@ def _semantic_verify(
                 "external_path": row[3], "source_id": row[4],
                 "last_external_hash": row[5], "last_synced_revision": row[6],
                 "last_synced_hash": row[7], "last_synced_at": row[8],
-                "sync_state": row[9], "payload": json.loads(row[10]),
+                "sync_state": row[9], "expected_external_hash": row[10],
+                "payload": json.loads(row[11]),
             }
             for row in connection.execute(
-                "SELECT id,document_id,binding_type,external_path,source_id,last_external_hash,last_synced_revision,last_synced_hash,last_synced_at,sync_state,payload_json FROM document_bindings"
+                "SELECT id,document_id,binding_type,external_path,source_id,last_external_hash,last_synced_revision,last_synced_hash,last_synced_at,sync_state,expected_external_hash,payload_json FROM document_bindings"
             )
         }
         expected_document_bindings = {
@@ -1020,6 +1052,7 @@ def _semantic_verify(
                 "last_synced_hash": binding.get("last_synced_hash"),
                 "last_synced_at": binding.get("last_synced_at"),
                 "sync_state": binding.get("sync_state", "unlinked"),
+                "expected_external_hash": binding.get("expected_external_hash"),
                 "payload": binding.get("payload", {}),
             }
             for binding in bundle.document_bindings
@@ -1201,17 +1234,70 @@ def _authoritative_bridge_snapshot(root: Path) -> tuple[Path, dict[str, str]]:
     try:
         for name in before:
             shutil.copy2(root / name, directory / name)
-        copied = _legacy_source_checksums(directory)
+        copied = {
+            name: sha256_file(directory / name)
+            for name in before
+        }
         after = _legacy_source_checksums(root)
         if copied != before or after != before:
             raise HelperError(
                 OUTCOME_MIGRATION_FAILED,
                 'legacy source changed while the bridge snapshot was read',
             )
+        with engine.data_directory_context(directory):
+            if not (directory / 'data.pkl').is_file():
+                engine.atomic_pickle_save(
+                    engine.load_data(), engine.get_data_file_path('data'),
+                )
+            if not (directory / 'settings.pkl').is_file():
+                engine.atomic_pickle_save(
+                    engine.load_settings(), engine.get_data_file_path('settings'),
+                )
+            if not (directory / 'gamer.pkl').is_file():
+                import game
+
+                engine.atomic_pickle_save(
+                    game.Gamer(), engine.get_data_file_path('gamer'),
+                )
         return directory, before
     except Exception:
         shutil.rmtree(directory, ignore_errors=True)
         raise
+
+
+def _active_document_count(root: Path) -> int:
+    database = root / 'nfprogress.db'
+    if not database.is_file():
+        return 0
+    connection = sqlite3.connect(
+        f'file:{database.resolve().as_posix()}?mode=ro', uri=True,
+    )
+    try:
+        table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' AND name='documents'",
+        ).fetchone()
+        if table is None:
+            return 0
+        return int(connection.execute('SELECT COUNT(*) FROM documents').fetchone()[0])
+    finally:
+        connection.close()
+
+
+def _guard_empty_document_source(root: Path, snapshot: Path) -> None:
+    """Reject an empty document source that would erase staged user data."""
+    path = snapshot / 'documents.json'
+    source_empty = not path.is_file()
+    if path.is_file():
+        try:
+            value = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            return
+        source_empty = isinstance(value, Mapping) and not value
+    if source_empty and _active_document_count(root) > 0:
+        raise HelperError(
+            OUTCOME_SOURCE_CORRUPT,
+            'documents.json is unexpectedly empty while the active snapshot contains documents',
+        )
 
 
 def _bridge_source_backup(root: Path) -> Path:
@@ -1309,6 +1395,8 @@ def prepare_bridge_snapshot(data_root: str | Path) -> MigrationReport:
         prefix='.nfprogress-bridge-target-', dir=root,
     ))
     try:
+        backup = _bridge_source_backup(root)
+        _guard_empty_document_source(root, source_snapshot)
         report = prepare(source_snapshot, staging_profile, replace=True)
         database = staging_profile / 'nfprogress.db'
         version = validate_sqlite_file(
@@ -1326,7 +1414,6 @@ def prepare_bridge_snapshot(data_root: str | Path) -> MigrationReport:
                 'bridge staging profile is not ready for Tauri',
                 details=reasons,
             )
-        backup = _bridge_source_backup(root)
         _activate_bridge_database(database, root, source_checksums)
         report.backup = str(backup)
         report.details.extend([

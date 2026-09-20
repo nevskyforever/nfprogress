@@ -544,7 +544,12 @@ def cutover_game(data_root: str | Path) -> GameMigrationBundle:
     return bundle
 
 
-def import_projects_bundle(bundle: MigrationBundle, data_root: str | Path) -> None:
+def import_projects_bundle(
+        bundle: MigrationBundle,
+        data_root: str | Path,
+        *,
+        publish_healthy: bool = True,
+) -> None:
     """Atomically replace only the Projects storage representation.
 
     Settings, Game and SQLite-owned Notes are not touched.  Notes are copied
@@ -664,8 +669,14 @@ def import_projects_bundle(bundle: MigrationBundle, data_root: str | Path) -> No
             # a healthy mirror, even if a future caller bypasses the bundle
             # validator or changes one of the order-writing loops.
             validate_order_invariants(db)
+            status = 'healthy' if publish_healthy else 'rebuild_required'
             db.execute(
-                "UPDATE mirror_state SET source_format='migration_bundle', sync_status='healthy', last_error=NULL WHERE id=1",
+                "INSERT INTO mirror_state(id,source_format,source_schema_version,"
+                "sync_status,last_error) VALUES(1,'migration_bundle','legacy',?,NULL) "
+                "ON CONFLICT(id) DO UPDATE SET source_format='migration_bundle', "
+                "source_schema_version='legacy',sync_status=excluded.sync_status,"
+                "last_error=NULL",
+                (status,),
             )
 
 

@@ -12,6 +12,7 @@ import engine
 from nfprogress.core.game_state import _game_payload
 from nfprogress.core.serialization import serialize_project
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core.sqlite.notes import canonical_notes_from_projects
 from nfprogress.core.sqlite.repository import _legacy_json
 from nfprogress.core.storage import PickleRepository
 
@@ -32,7 +33,10 @@ def _expected(repository):
         'projects': {p.project_id: serialize_project(p) for p in projects.values()},
         'stages': {stage.stage_id: serialize_project(stage) for project in projects.values() for stage in getattr(project, 'stages', [])},
         'progress': {entry['id']: entry for entity in entities for entry in serialize_project(entity).get('progress_entries', [])},
-        'notes': {note['id']: note for entity in entities for note in serialize_project(entity).get('project_notes', []) if note.get('id')},
+        'notes': {
+            note['id']: note
+            for note in canonical_notes_from_projects(data)
+        },
         'settings': {str(key): _legacy_json(value) for key, value in settings.items()},
         'game': _legacy_json(_game_payload(gamer, data)),
     }

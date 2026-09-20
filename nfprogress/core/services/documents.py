@@ -282,8 +282,10 @@ class ProjectDocumentService:
                 self._symbol_count(target.get('content', {})) > 0
                 or target.get('docx_path')
         ):
-            del records[source_key]
-            return True
+            # Both records are recovery-significant.  A caller may resolve the
+            # scope conflict explicitly, but an automatic read migration must
+            # never discard either document or its Word binding.
+            return False
 
         moved = dict(source)
         moved.update({'project_id': project_id, 'stage_id': stage_id})
