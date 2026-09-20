@@ -13,6 +13,8 @@ from jwt import InvalidTokenError
 
 ACCESS_TOKEN_LIFETIME = timedelta(minutes=15)
 SESSION_LIFETIME = timedelta(days=30)
+EMAIL_VERIFICATION_TOKEN_LIFETIME = timedelta(hours=24)
+PASSWORD_RESET_TOKEN_LIFETIME = timedelta(hours=1)
 JWT_ISSUER = 'nfprogress-cloud'
 JWT_AUDIENCE = 'nfprogress-api'
 JWT_ALGORITHM = 'HS256'
@@ -65,6 +67,28 @@ class TokenService:
 
     def verify_refresh_secret(self, secret: str, token_hash: str) -> bool:
         return hmac.compare_digest(self.hash_refresh_secret(secret), token_hash)
+
+    def issue_email_verification_token(self) -> tuple[uuid.UUID, str, str]:
+        return self._issue_opaque_token('ev1')
+
+    def issue_password_reset_token(self) -> tuple[uuid.UUID, str, str]:
+        return self._issue_opaque_token('pr1')
+
+    @staticmethod
+    def _issue_opaque_token(prefix: str) -> tuple[uuid.UUID, str, str]:
+        token_id = uuid.uuid4()
+        secret = secrets.token_urlsafe(32)
+        return token_id, f'{prefix}.{token_id}.{secret}', hashlib.sha256(secret.encode()).hexdigest()
+
+    @staticmethod
+    def parse_opaque_token(raw_token: str, prefix: str) -> tuple[uuid.UUID, str] | None:
+        parts = raw_token.split('.')
+        if len(parts) != 3 or parts[0] != prefix or not parts[2]:
+            return None
+        try:
+            return uuid.UUID(parts[1]), parts[2]
+        except ValueError:
+            return None
 
     @staticmethod
     def parse_refresh_token(raw_token: str) -> tuple[uuid.UUID, str] | None:

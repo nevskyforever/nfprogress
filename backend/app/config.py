@@ -32,6 +32,14 @@ class RuntimeConfig:
     environment: str = 'development'
     database_url: str | None = field(default=None, repr=False)
     auth_secret: str | None = field(default=None, repr=False)
+    public_web_url: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_username: str | None = None
+    smtp_password: str | None = field(default=None, repr=False)
+    smtp_from_email: str | None = None
+    smtp_from_name: str | None = None
+    smtp_security: str | None = None
 
     def __post_init__(self) -> None:
         if self.environment not in RUNTIME_ENVIRONMENTS:
@@ -47,6 +55,17 @@ class RuntimeConfig:
             raise ValueError('NFPROGRESS_AUTH_SECRET is required in production.')
         if self.auth_secret is not None and len(self.auth_secret) < 32:
             raise ValueError('NFPROGRESS_AUTH_SECRET must contain at least 32 characters.')
+        smtp_values = (self.smtp_host, self.smtp_port, self.smtp_username,
+                       self.smtp_password, self.smtp_from_email, self.smtp_security)
+        if any(value is not None for value in smtp_values):
+            if not all(value is not None for value in smtp_values):
+                raise ValueError('SMTP configuration must be complete when enabled.')
+            if self.smtp_security not in {'starttls', 'implicit_tls'}:
+                raise ValueError('NFPROGRESS_SMTP_SECURITY must be starttls or implicit_tls.')
+            if self.smtp_port is None or not 1 <= self.smtp_port <= 65535:
+                raise ValueError('NFPROGRESS_SMTP_PORT must be a valid TCP port.')
+            if self.public_web_url is None or urlsplit(self.public_web_url).scheme != 'https':
+                raise ValueError('NFPROGRESS_PUBLIC_WEB_URL must use HTTPS when SMTP is enabled.')
 
     @staticmethod
     def _validate_database_url(database_url: str) -> None:
@@ -90,4 +109,12 @@ class RuntimeConfig:
             environment=environment,
             database_url=os.environ.get('NFPROGRESS_DATABASE_URL') or None,
             auth_secret=os.environ.get('NFPROGRESS_AUTH_SECRET') or None,
+            public_web_url=os.environ.get('NFPROGRESS_PUBLIC_WEB_URL') or None,
+            smtp_host=os.environ.get('NFPROGRESS_SMTP_HOST') or None,
+            smtp_port=int(os.environ['NFPROGRESS_SMTP_PORT']) if os.environ.get('NFPROGRESS_SMTP_PORT') else None,
+            smtp_username=os.environ.get('NFPROGRESS_SMTP_USERNAME') or None,
+            smtp_password=os.environ.get('NFPROGRESS_SMTP_PASSWORD') or None,
+            smtp_from_email=os.environ.get('NFPROGRESS_SMTP_FROM_EMAIL') or None,
+            smtp_from_name=os.environ.get('NFPROGRESS_SMTP_FROM_NAME') or None,
+            smtp_security=os.environ.get('NFPROGRESS_SMTP_SECURITY') or None,
         )

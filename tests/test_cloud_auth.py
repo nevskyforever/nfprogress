@@ -16,7 +16,9 @@ from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from backend.app.cloud.models import AuthRefreshToken, AuthSession, User
+from backend.app.cloud.email import RecordingEmailSender
+from backend.app.cloud.models import (AuthRefreshToken, AuthSession, EmailVerificationToken,
+                                      PasswordResetToken, User)
 from backend.app.cloud.repositories import normalize_username
 from backend.app.cloud.services import AccountService, AuthenticationError, AuthenticationService
 from backend.app.cloud.tokens import JWT_ALGORITHM, JWT_AUDIENCE, JWT_ISSUER, TokenService, utc_now
@@ -41,6 +43,8 @@ def migrated_database(monkeypatch):
     monkeypatch.setenv('NFPROGRESS_ENV', 'test')
     engine = create_engine(url)
     with engine.begin() as connection:
+        connection.execute(text('DROP TABLE IF EXISTS password_reset_tokens CASCADE'))
+        connection.execute(text('DROP TABLE IF EXISTS email_verification_tokens CASCADE'))
         connection.execute(text('DROP TABLE IF EXISTS auth_refresh_tokens CASCADE'))
         connection.execute(text('DROP TABLE IF EXISTS auth_sessions CASCADE'))
         connection.execute(text('DROP TABLE IF EXISTS users CASCADE'))
@@ -51,6 +55,8 @@ def migrated_database(monkeypatch):
         yield engine
     finally:
         with engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS password_reset_tokens CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS email_verification_tokens CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS auth_refresh_tokens CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS auth_sessions CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS users CASCADE'))
@@ -60,7 +66,9 @@ def migrated_database(monkeypatch):
 
 @pytest.fixture()
 def cloud_client(migrated_database, tmp_path):
-    app = create_app(RuntimeConfig(data_dir=tmp_path, environment='test', database_url=_database_url(), auth_secret=AUTH_SECRET))
+    app = create_app(RuntimeConfig(data_dir=tmp_path, environment='test', database_url=_database_url(),
+        auth_secret=AUTH_SECRET, public_web_url='https://app.example.test'))
+    app.state.email_sender = RecordingEmailSender()
     with TestClient(app) as client:
         yield client, migrated_database
 
@@ -80,12 +88,13 @@ def login(client, username='Arthur', password='correct horse battery staple'):
 def test_c2_schema_and_repeated_head_upgrade(migrated_database, monkeypatch):
     assert set(inspect(migrated_database).get_table_names()) == {
         'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
+        'email_verification_tokens', 'password_reset_tokens',
     }
     assert inspect(migrated_database).get_columns('users')[0]['name'] == 'id'
     monkeypatch.setenv('NFPROGRESS_DATABASE_URL', _database_url())
     command.upgrade(AlembicConfig(str(ROOT / 'alembic.ini')), 'head')
     with migrated_database.connect() as connection:
-        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c2_account_auth_core'
+        assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c3_email_account_recovery'
 
 
 def test_user_normalization_password_hash_and_unique_constraints(migrated_database):

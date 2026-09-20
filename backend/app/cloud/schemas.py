@@ -17,6 +17,19 @@ class RefreshRequest(BaseModel):
     refresh_token: str = Field(min_length=1, max_length=1024)
 
 
+class VerificationTokenRequest(BaseModel):
+    token: str = Field(min_length=1, max_length=1024)
+
+
+class PasswordResetRequest(BaseModel):
+    # Deliberately not EmailStr: malformed inputs receive the same public response.
+    email: str = Field(min_length=1, max_length=320)
+
+
+class PasswordResetConfirmRequest(VerificationTokenRequest):
+    new_password: str = Field(min_length=1, max_length=MAX_PASSWORD_LENGTH)
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str

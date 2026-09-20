@@ -55,6 +55,10 @@ def get_authentication_service(request: Request):
     return AuthenticationService(TokenService(request.app.state.runtime_config.require_auth_secret()))
 
 
+def get_email_sender(request: Request):
+    return request.app.state.email_sender
+
+
 def get_current_user(
         credentials: HTTPAuthorizationCredentials | None = Depends(_bearer),
         session: Session = Depends(get_cloud_session),

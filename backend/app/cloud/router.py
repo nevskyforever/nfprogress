@@ -1,12 +1,19 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from urllib.parse import urlencode
+
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from ..dependencies import (AuthenticatedUser, get_authentication_service,
-                            get_cloud_session, get_current_user)
-from .schemas import AccountResponse, LoginRequest, RefreshRequest, TokenResponse
-from .services import AuthenticationError, AuthenticationService
+                            get_cloud_session, get_current_user, get_email_sender)
+from .email import EmailSender, OutgoingEmail
+from .schemas import (AccountResponse, LoginRequest, PasswordResetConfirmRequest,
+                      PasswordResetRequest, RefreshRequest, TokenResponse,
+                      VerificationTokenRequest)
+from .services import (AccountEmailService, AuthenticationError,
+                       AuthenticationService, RecoveryTokenError)
+from .tokens import TokenService
 
 
 router = APIRouter(prefix='/api/v1', tags=['cloud authentication'])
@@ -15,6 +22,27 @@ router = APIRouter(prefix='/api/v1', tags=['cloud authentication'])
 def _authentication_failure() -> HTTPException:
     return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED,
         detail={'code': 'invalid_credentials', 'message': 'Invalid credentials.'})
+
+
+def _invalid_recovery_token() -> HTTPException:
+    return HTTPException(status_code=400, detail={
+        'code': 'invalid_or_expired_token', 'message': 'Invalid or expired token.',
+    })
+
+
+def _email_service(request: Request) -> AccountEmailService:
+    return AccountEmailService(TokenService(request.app.state.runtime_config.require_auth_secret()))
+
+
+def _trusted_link(request: Request, path: str, token: str) -> str | None:
+    base = request.app.state.runtime_config.public_web_url
+    if base is None:
+        return None
+    return f"{base.rstrip('/')}{path}?{urlencode({'token': token})}"
+
+
+def _send(sender: EmailSender, message: OutgoingEmail) -> None:
+    sender.send(message)
 
 
 @router.post('/auth/login', response_model=TokenResponse)
@@ -51,3 +79,52 @@ def account_me(current: AuthenticatedUser = Depends(get_current_user)) -> Accoun
     user = current.user
     return AccountResponse(id=user.id, username=user.username, email=user.email,
         email_verified=user.email_verified, role=user.role, status=user.status, created_at=user.created_at)
+
+
+@router.post('/account/email/verification/request', status_code=status.HTTP_202_ACCEPTED)
+def request_verification(background: BackgroundTasks, request: Request,
+        current: AuthenticatedUser = Depends(get_current_user), session: Session = Depends(get_cloud_session),
+        sender: EmailSender = Depends(get_email_sender)) -> dict[str, str]:
+    token = _email_service(request).issue_verification(session, current.user)
+    link = _trusted_link(request, '/verify-email', token) if token else None
+    if token and link:
+        background.add_task(_send, sender, OutgoingEmail(current.user.email, 'Подтверждение email',
+            f'Подтвердите email: {link}\nСсылка действует 24 часа. Если это были не вы, проигнорируйте письмо.'))
+    return {'code': 'verification_request_accepted'}
+
+
+@router.post('/auth/email/verify')
+def verify_email(payload: VerificationTokenRequest, request: Request,
+        session: Session = Depends(get_cloud_session)) -> dict[str, str]:
+    try:
+        _email_service(request).verify_email(session, payload.token)
+    except RecoveryTokenError:
+        raise _invalid_recovery_token() from None
+    return {'code': 'email_verified'}
+
+
+@router.post('/auth/password-reset/request', status_code=status.HTTP_202_ACCEPTED)
+def request_password_reset(payload: PasswordResetRequest, background: BackgroundTasks, request: Request,
+        session: Session = Depends(get_cloud_session), sender: EmailSender = Depends(get_email_sender)) -> dict[str, str]:
+    issued = _email_service(request).issue_password_reset(session, payload.email)
+    if issued is not None:
+        email, token = issued
+        link = _trusted_link(request, '/reset-password', token)
+        if link:
+            background.add_task(_send, sender, OutgoingEmail(email, 'Восстановление пароля',
+                f'Установите новый пароль: {link}\nСсылка действует 1 час. Если это были не вы, проигнорируйте письмо.'))
+    return {'code': 'password_reset_request_accepted'}
+
+
+@router.post('/auth/password-reset/confirm')
+def confirm_password_reset(payload: PasswordResetConfirmRequest, background: BackgroundTasks, request: Request,
+        session: Session = Depends(get_cloud_session), sender: EmailSender = Depends(get_email_sender)) -> dict[str, str]:
+    try:
+        email = _email_service(request).confirm_password_reset(session, payload.token, payload.new_password)
+    except RecoveryTokenError:
+        raise _invalid_recovery_token() from None
+    except ValueError:
+        raise HTTPException(status_code=422, detail={'code': 'invalid_password', 'message': 'Invalid password.'}) from None
+    background.add_task(_send, sender, OutgoingEmail(email, 'Пароль изменён',
+        'Пароль вашей учётной записи был изменён. Если это были не вы, обратитесь в поддержку.'))
+    return {'code': 'password_reset_complete'}

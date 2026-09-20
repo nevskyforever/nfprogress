@@ -30,6 +30,7 @@ from .config import RuntimeConfig
 from .db import CloudDatabase, DatabaseReadiness
 from .dependencies import Services, require_session
 from .cloud.router import router as cloud_router
+from .cloud.email import email_sender_from_config
 from .routers import content, documents, game, integrations, notes, projects
 
 
@@ -201,6 +202,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
     app.state.runtime_config = runtime_config
     app.state.services = services
     app.state.cloud_database = cloud_database
+    app.state.email_sender = email_sender_from_config(runtime_config)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=list(runtime_config.allowed_origins),

@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from .models import AuthRefreshToken, AuthSession, User
+from .models import (AuthRefreshToken, AuthSession, EmailVerificationToken,
+                     PasswordResetToken, User)
 from .passwords import PasswordService
 from .repositories import AuthRepository, UserRepository
-from .tokens import ACCESS_TOKEN_LIFETIME, SESSION_LIFETIME, TokenService, utc_now
+from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
+                     PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
+                     TokenService, utc_now)
 
 
 _DEFAULT_PASSWORDS = PasswordService()
@@ -16,6 +20,10 @@ _DEFAULT_PASSWORDS = PasswordService()
 
 class AuthenticationError(Exception):
     """A deliberately generic public authentication failure."""
+
+
+class RecoveryTokenError(Exception):
+    """A deliberately generic token failure."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,3 +144,120 @@ class AuthenticationService:
         if auth_session.revoked_at is None:
             auth_session.revoked_at = now
         self._auth.revoke_active_tokens(session, auth_session.id, now)
+
+
+class AccountEmailService:
+    """C3 token issuance/consumption. Email delivery stays outside DB transactions."""
+    ISSUE_LIMIT = 5
+
+    def __init__(self, tokens: TokenService, passwords: PasswordService | None = None,
+                 now_provider=utc_now) -> None:
+        self._tokens = tokens
+        self._passwords = passwords or _DEFAULT_PASSWORDS
+        self._now = now_provider
+
+    def issue_verification(self, session: Session, user: User) -> str | None:
+        if user.email_verified:
+            return None
+        now = self._now()
+        if self._is_throttled(session, EmailVerificationToken, user.id, now):
+            return None
+        user_id, email_normalized = user.id, user.email_normalized
+        session.commit()
+        token_id, raw, token_hash = self._tokens.issue_email_verification_token()
+        with session.begin():
+            session.execute(update(EmailVerificationToken).where(
+                EmailVerificationToken.user_id == user_id,
+                EmailVerificationToken.email_normalized == email_normalized,
+                EmailVerificationToken.used_at.is_(None), EmailVerificationToken.revoked_at.is_(None),
+            ).values(revoked_at=now))
+            session.add(EmailVerificationToken(id=token_id, user_id=user_id, token_hash=token_hash,
+                email_normalized=email_normalized,
+                created_at=now, expires_at=now + EMAIL_VERIFICATION_TOKEN_LIFETIME))
+        return raw
+
+    def issue_password_reset(self, session: Session, email: str) -> tuple[str, str] | None:
+        from .repositories import normalize_email
+        normalized = normalize_email(email)
+        user = session.scalar(select(User).where(User.email_normalized == normalized))
+        if user is None or user.status != 'active':
+            return None
+        now = self._now()
+        if self._is_throttled(session, PasswordResetToken, user.id, now):
+            return None
+        user_id = user.id
+        session.commit()
+        token_id, raw, token_hash = self._tokens.issue_password_reset_token()
+        with session.begin():
+            session.execute(update(PasswordResetToken).where(
+                PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None),
+                PasswordResetToken.revoked_at.is_(None),
+            ).values(revoked_at=now))
+            session.add(PasswordResetToken(id=token_id, user_id=user_id, token_hash=token_hash,
+                created_at=now, expires_at=now + PASSWORD_RESET_TOKEN_LIFETIME))
+        return user.email, raw
+
+    def verify_email(self, session: Session, raw_token: str) -> None:
+        parsed = self._tokens.parse_opaque_token(raw_token, 'ev1')
+        if parsed is None:
+            raise RecoveryTokenError()
+        token_id, secret = parsed
+        now = self._now()
+        try:
+            with session.begin():
+                token = session.scalar(select(EmailVerificationToken).where(
+                    EmailVerificationToken.id == token_id).with_for_update())
+                if token is None or token.used_at or token.revoked_at or token.expires_at <= now \
+                        or not self._tokens.verify_refresh_secret(secret, token.token_hash):
+                    raise RecoveryTokenError()
+                user = session.scalar(select(User).where(User.id == token.user_id).with_for_update())
+                if user is None or user.email_normalized != token.email_normalized:
+                    raise RecoveryTokenError()
+                user.email_verified = True
+                token.used_at = now
+        except RecoveryTokenError:
+            session.rollback()
+            raise
+
+    def confirm_password_reset(self, session: Session, raw_token: str, new_password: str) -> str:
+        self._passwords.validate_new_password(new_password)
+        parsed = self._tokens.parse_opaque_token(raw_token, 'pr1')
+        if parsed is None:
+            raise RecoveryTokenError()
+        token_id, secret = parsed
+        now = self._now()
+        try:
+            with session.begin():
+                token = session.scalar(select(PasswordResetToken).where(
+                    PasswordResetToken.id == token_id).with_for_update())
+                if token is None or token.used_at or token.revoked_at or token.expires_at <= now \
+                        or not self._tokens.verify_refresh_secret(secret, token.token_hash):
+                    raise RecoveryTokenError()
+                user = session.scalar(select(User).where(User.id == token.user_id).with_for_update())
+                if user is None or user.status != 'active':
+                    raise RecoveryTokenError()
+                email = user.email
+                user.password_hash = self._passwords.hash(new_password)
+                token.used_at = now
+                session.execute(update(PasswordResetToken).where(
+                    PasswordResetToken.user_id == user.id, PasswordResetToken.id != token.id,
+                    PasswordResetToken.used_at.is_(None), PasswordResetToken.revoked_at.is_(None),
+                ).values(revoked_at=now))
+                session.execute(update(AuthSession).where(AuthSession.user_id == user.id,
+                    AuthSession.revoked_at.is_(None)).values(revoked_at=now))
+                session.execute(update(AuthRefreshToken).where(AuthRefreshToken.session_id.in_(
+                    select(AuthSession.id).where(AuthSession.user_id == user.id)),
+                    AuthRefreshToken.revoked_at.is_(None)).values(revoked_at=now))
+            return email
+        except RecoveryTokenError:
+            session.rollback()
+            raise
+
+    def _is_throttled(self, session: Session, model, user_id, now: datetime) -> bool:
+        # Token history is PostgreSQL-backed, shared across workers, and is audit retained.
+        cutoff = now - timedelta(hours=1)
+        recent = session.scalars(select(model.created_at).where(
+            model.user_id == user_id, model.created_at >= cutoff).order_by(model.created_at.desc())).all()
+        if len(recent) >= self.ISSUE_LIMIT:
+            return True
+        return bool(recent and recent[0] > now - timedelta(seconds=60))
