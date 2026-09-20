@@ -227,6 +227,11 @@ bash "Run Tauri.sh" --check
 5173. Первый Tauri dev-start может скомпилировать debug Rust-код, но не создаёт
 production .app, DMG или ZIP.
 
+`Build Tauri ARM.sh` также независимо от активированного окружения использует
+обычный `.venv`. `Build Tauri Intel.sh` подготавливает `.venv-tauri-intel` и
+запускает его через Rosetta x86_64. Оба скрипта проверяют backend-зависимости,
+Nuitka и `zstandard` перед сборкой sidecar.
+
 Если в терминале Tauri появляется Vite-сообщение
 API вернул ошибку 502 или connect ECONNREFUSED 127.0.0.1:8000 **до** строки
 Running target/debug/nfprogress-desktop, обычно его отправляет ранее открытая

@@ -211,6 +211,11 @@ Tauri debug mode. Use
 bash "Run Tauri.sh" --check to validate prerequisites without opening a window.
 Stop a separately running npm run dev first, because Tauri dev uses port 5173.
 
+The ARM archive script likewise uses the project `.venv`, independently of an
+active `.venv-tauri-intel`. The Intel script configures that Rosetta environment
+and runs it as x86_64; both scripts validate and repair their Python packages
+before invoking Nuitka.
+
 Checks and a production bundle:
 
 ```bash
