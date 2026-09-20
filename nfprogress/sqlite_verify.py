@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import argparse
 import json
+import pickle
 import sys
 from collections.abc import Mapping
 
 import engine
+from nfprogress.core.game_state import _game_payload
 from nfprogress.core.serialization import serialize_project
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.core.sqlite.notes import canonical_notes_from_projects
 from nfprogress.core.sqlite.repository import _legacy_json
 from nfprogress.core.storage import PickleRepository
 
@@ -18,16 +21,24 @@ def _expected(repository):
     with repository.locked():
         data = engine.load_data()
         settings = engine.load_settings()
-        gamer = __import__('game').load_game()
+        gamer_path = repository.base_dir / 'gamer.pkl'
+        if gamer_path.is_file():
+            with gamer_path.open('rb') as stream:
+                gamer = pickle.load(stream)
+        else:
+            gamer = __import__('game').Gamer()
     projects = data.get('projects', {}) if isinstance(data, dict) else {}
     entities = [entity for project in projects.values() for entity in [project, *getattr(project, 'stages', [])]]
     return {
         'projects': {p.project_id: serialize_project(p) for p in projects.values()},
         'stages': {stage.stage_id: serialize_project(stage) for project in projects.values() for stage in getattr(project, 'stages', [])},
         'progress': {entry['id']: entry for entity in entities for entry in serialize_project(entity).get('progress_entries', [])},
-        'notes': {note['id']: note for entity in entities for note in serialize_project(entity).get('project_notes', []) if note.get('id')},
+        'notes': {
+            note['id']: note
+            for note in canonical_notes_from_projects(data)
+        },
         'settings': {str(key): _legacy_json(value) for key, value in settings.items()},
-        'game': _legacy_json(vars(gamer)),
+        'game': _legacy_json(_game_payload(gamer, data)),
     }
 
 
@@ -85,8 +96,11 @@ def verify(data_dir: str) -> tuple[bool, list[str]]:
             if isinstance(expected_value, dict) and isinstance(actual_value, dict):
                 # Gamer() initializes this runtime health timestamp on every
                 # load when no gamer.pkl exists; it is not user progress.
-                expected_value.pop('last_health_recovery_at', None)
-                actual_value.pop('last_health_recovery_at', None)
+                expected_gamer = expected_value.get('gamer', {})
+                actual_gamer = actual_value.get('gamer', {})
+                if isinstance(expected_gamer, dict) and isinstance(actual_gamer, dict):
+                    expected_gamer.pop('last_health_recovery_at', None)
+                    actual_gamer.pop('last_health_recovery_at', None)
         if expected_value == actual_value:
             messages.append(f'{label}: OK')
             continue

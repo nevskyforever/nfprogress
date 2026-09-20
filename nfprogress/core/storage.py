@@ -175,31 +175,16 @@ class PickleRepository:
 
     def synchronize_shadow(self) -> None:
         """Rebuild SQLite from PKL; PKL remains untouched and authoritative."""
-        from nfprogress.core.sqlite import SQLiteMirrorRepository
+        from nfprogress.core.legacy_shadow import sync_legacy_sqlite_shadow
 
         with self.locked():
-            try:
-                SQLiteMirrorRepository(self.base_dir).rebuild(
-                    engine.load_data(),
-                    engine.load_settings(),
-                    __import__('game').load_game(),
-                )
-            except Exception as error:
-                SQLiteMirrorRepository(self.base_dir).mark_dirty(error)
-                raise
+            sync_legacy_sqlite_shadow(self.base_dir, raise_on_error=True)
 
     def _sync_shadow_after_pickle_save(self) -> None:
         """Best-effort mirror update after a successful legacy write."""
-        from nfprogress.core.sqlite import SQLiteMirrorRepository
+        from nfprogress.core.legacy_shadow import sync_legacy_sqlite_shadow
 
-        try:
-            SQLiteMirrorRepository(self.base_dir).rebuild(
-                engine.load_data(),
-                engine.load_settings(),
-                __import__('game').load_game(),
-            )
-        except Exception as error:
-            SQLiteMirrorRepository(self.base_dir).mark_dirty(error)
+        sync_legacy_sqlite_shadow(self.base_dir)
 
     def create_backup(self, names: Iterable[str] | str | None = None) -> Path:
         """Copy existing stores into a unique timestamped snapshot directory.

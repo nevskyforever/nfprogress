@@ -51,10 +51,12 @@ configure_tauri_intel_python() {
   requirements_hash="$(shasum -a 256 "$requirements_file" | awk '{print $1}')"
   if [ ! -f "$requirements_marker" ] \
     || [ "$(<"$requirements_marker")" != "$requirements_hash" ] \
-    || ! /usr/bin/arch -x86_64 "$python_bin" -m nuitka --version >/dev/null 2>&1; then
+    || ! /usr/bin/arch -x86_64 "$python_bin" -c \
+      'import docx, fastapi, nuitka, pydantic, striprtf, uvicorn, zstandard' \
+      >/dev/null 2>&1; then
     echo "Устанавливаются backend-зависимости для Intel Tauri-сборки..."
     /usr/bin/arch -x86_64 "$python_bin" -m pip install --upgrade pip
-    /usr/bin/arch -x86_64 "$python_bin" -m pip install -r "$requirements_file" nuitka
+    /usr/bin/arch -x86_64 "$python_bin" -m pip install -r "$requirements_file" 'Nuitka[onefile]'
     printf '%s\n' "$requirements_hash" > "$requirements_marker"
   fi
 

@@ -21,7 +21,7 @@ MAX_PROJECT_COVER_IMAGE_LENGTH = 5_000_000
 # Режим разработчика.
 dev_mode = "__compiled__" not in globals()
 
-# Версия приложения.
+# Версия приложения
 version = '5.3.9'
 
 # Определяем систему
@@ -135,20 +135,28 @@ def get_test_data_dir():
     return test_dir
 
 
-def sync_test_data():
-    """Копирует все рабочие файлы данных в папку ``test_data``.
+def sync_test_data(destination_dir=None, *, replace=True):
+    """Копирует authoritative legacy-файлы в тестовую директорию.
 
-    При каждом запуске в режиме разработчика одноимённые тестовые файлы
-    перезаписываются. Это гарантирует, что тексты проектов и этапов, как и
-    остальные реальные данные, доступны в тестовой копии. Файлы, которых нет
-    в основной директории, не создаются и не удаляются в ``test_data``.
+    Эта низкоуровневая функция не копирует ``nfprogress.db``. Для подготовки
+    полного Tauri-профиля используется :func:`refresh_test_data`.
     """
-    import shutil
     source_dir = get_app_data_dir()
-    test_dir = get_test_data_dir()
-    for data_file in source_dir.glob('*.pkl'):
-        test_file = test_dir / data_file.name
-        shutil.copy2(data_file, test_file)
+    test_dir = Path(destination_dir) if destination_dir is not None else get_test_data_dir()
+    test_dir.mkdir(parents=True, exist_ok=True)
+    for pattern in ('*.pkl', 'documents.json'):
+        for data_file in source_dir.glob(pattern):
+            test_file = test_dir / data_file.name
+            if test_file.exists() and not replace:
+                continue
+            shutil.copy2(data_file, test_file)
+
+
+def refresh_test_data():
+    """Atomically prepare canonical test data from current real legacy data."""
+    from nfprogress.migration_helper import refresh_test_data_profile
+
+    return refresh_test_data_profile(get_app_data_dir(), get_test_data_dir())
 
 
 def get_data_file_path(name):
@@ -1132,6 +1140,7 @@ def save_settings(data):
     """Сохраняет данные в кроссплатформенную директорию"""
     data_file = get_data_file_path('settings')
     atomic_pickle_save(data, data_file)
+    _sync_shadow_after_legacy_save(data_file)
 
 
 def atomic_pickle_save(data, data_file):
@@ -1156,6 +1165,20 @@ def atomic_pickle_save(data, data_file):
         if temp_path.exists():
             temp_path.unlink()
         raise
+
+
+def _sync_shadow_after_legacy_save(data_file):
+    """Refresh the derived SQLite mirror after an authoritative file write."""
+    from nfprogress.core.legacy_shadow import sync_legacy_sqlite_shadow
+
+    sync_legacy_sqlite_shadow(Path(data_file).parent)
+
+
+def reconcile_legacy_sqlite_shadow():
+    """Heal the bridge mirror from the active legacy profile at startup."""
+    from nfprogress.core.legacy_shadow import reconcile_legacy_sqlite_shadow as reconcile
+
+    return reconcile(Path(get_data_file_path('data')).parent)
 
 class Project:
     def __init__(self, name='Без имени', goal=None,
@@ -2461,6 +2484,7 @@ def save_data(data):
     """Сохраняет данные в кроссплатформенную директорию"""
     data_file = get_data_file_path('data')
     atomic_pickle_save(data, data_file)
+    _sync_shadow_after_legacy_save(data_file)
 
 
 def apply_project_freeze(
@@ -3091,8 +3115,6 @@ def count_symbols_in_docx(filepath):
                     total += len(paragraph.text)
     return total
 
-# При импорте модуля: в режиме разработчика синхронизируем test_data с текущими данными
-if dev_mode:
-    sync_test_data()
-else:
+# Persistent test_data обновляется только явной командой refresh.
+if not dev_mode:
     get_app_data_dir()

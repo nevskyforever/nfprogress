@@ -42,7 +42,7 @@ def test_empty_database_and_idempotent_migrations(tmp_path):
     first = open_database(tmp_path)
     first.close()
     second = open_database(tmp_path)
-    assert second.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 1
+    assert second.execute('SELECT schema_version FROM schema_info').fetchone()[0] == 7
     assert second.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='projects'").fetchone()
     second.close()
 
@@ -78,7 +78,9 @@ def test_projects_stages_progress_notes_settings_game_and_unicode(tmp_path):
         assert json.loads(project['payload_json'])['infinite'] is False
         assert json.loads(db.execute("SELECT value_json FROM settings WHERE key='optional'").fetchone()[0]) is None
         game_payload = json.loads(db.execute('SELECT payload_json FROM game_state').fetchone()[0])
-        assert isinstance(game_payload['writing_session']['started_at'], str)
+        started_at = game_payload['gamer']['writing_session']['started_at']
+        assert started_at['__type__'] == 'datetime'
+        assert isinstance(started_at['value'], str)
         assert 'nodeData' in json.loads(project['payload_json'])['mindmap']
     assert verify(tmp_path)[0]
 

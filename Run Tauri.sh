@@ -6,6 +6,15 @@ set -euo pipefail
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$SCRIPT_DIR"
+PYTHON_BIN="${NFPROGRESS_TAURI_PYTHON:-$ROOT_DIR/.venv/bin/python3}"
+
+# The Intel release environment may be activated in a developer terminal, but
+# it contains x86_64 extension modules and cannot build the native Apple
+# Silicon development sidecar. Prefer the regular project environment unless a
+# Python interpreter was deliberately specified for this launch.
+if [ ! -x "$PYTHON_BIN" ]; then
+  PYTHON_BIN="$(command -v python3 || true)"
+fi
 
 MODE=""
 if [ "$#" -gt 0 ]; then
@@ -69,12 +78,26 @@ if [ "$SIDECAR_REBUILD" = "1" ]; then
     echo "Обычный запуск соберёт его автоматически."
     exit 1
   fi
-  if ! command -v python3 >/dev/null 2>&1; then
-    echo "Не найден python3, необходимый для сборки локального sidecar."
+  if [ -z "$PYTHON_BIN" ] || [ ! -x "$PYTHON_BIN" ]; then
+    echo "Не найден Python, необходимый для сборки локального sidecar."
     exit 1
   fi
+  case "$TARGET" in
+    aarch64-apple-darwin) EXPECTED_PYTHON_ARCH="arm64" ;;
+    x86_64-apple-darwin) EXPECTED_PYTHON_ARCH="x86_64" ;;
+  esac
+  ACTUAL_PYTHON_ARCH="$("$PYTHON_BIN" -c 'import platform; print(platform.machine())')"
+  if [ "$ACTUAL_PYTHON_ARCH" != "$EXPECTED_PYTHON_ARCH" ]; then
+    echo "Python для sidecar имеет архитектуру $ACTUAL_PYTHON_ARCH, а для $TARGET нужен $EXPECTED_PYTHON_ARCH." >&2
+    echo "Используйте обычное .venv для запуска на Apple Silicon или задайте совместимый NFPROGRESS_TAURI_PYTHON." >&2
+    exit 1
+  fi
+  if ! "$PYTHON_BIN" -c 'import docx, fastapi, nuitka, pydantic, striprtf, uvicorn' >/dev/null 2>&1; then
+    echo "Подготавливается Python-окружение для локального Tauri sidecar..."
+    "$PYTHON_BIN" -m pip install -r "$ROOT_DIR/requirements-backend.txt" 'Nuitka[onefile]'
+  fi
   echo "Sidecar для $TARGET отсутствует или устарел. Собирается локальный Python backend..."
-  python3 "$ROOT_DIR/scripts/build-backend-sidecar.py" --target "$TARGET"
+  "$PYTHON_BIN" "$ROOT_DIR/scripts/build-backend-sidecar.py" --target "$TARGET"
   if [ ! -x "$SIDECAR_PATH" ]; then
     echo "Сборка sidecar завершилась без ожидаемого файла: $SIDECAR_PATH"
     exit 1

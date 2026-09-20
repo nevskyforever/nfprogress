@@ -981,6 +981,7 @@ class Gamer:
         self.normalize_coins()
         data_file = get_data_file_path()
         engine.atomic_pickle_save(self, data_file)
+        engine._sync_shadow_after_legacy_save(data_file)
 
     # === МОТИВАЦИЯ И ПИСАТЕЛЬСКИЕ СЕССИИ ===
     def normalize_motivation(self):

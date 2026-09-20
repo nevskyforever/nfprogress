@@ -6,7 +6,6 @@ ARCH="${1:-}"
 SCRIPT_SOURCE="${BASH_SOURCE[0]:-$0}"
 SCRIPT_DIR="$(cd -- "$(dirname -- "$SCRIPT_SOURCE")" && pwd -P)"
 ROOT_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
-PYTHON_BIN="${NFPROGRESS_TAURI_PYTHON:-python3}"
 PYTHON_ARCH="${NFPROGRESS_TAURI_PYTHON_ARCH:-}"
 
 case "$ARCH" in
@@ -25,8 +24,19 @@ case "$ARCH" in
   *)
     echo "Использование: $0 arm|intel"
     exit 2
-    ;;
+  ;;
 esac
+
+# An activated .venv-tauri-intel is only valid when the process itself runs
+# through Rosetta. Do not inherit it for the native ARM archive: use the
+# project environment unless the caller explicitly selects another Python.
+if [ -n "${NFPROGRESS_TAURI_PYTHON:-}" ]; then
+  PYTHON_BIN="$NFPROGRESS_TAURI_PYTHON"
+elif [ "$ARCH" = "arm" ] && [ -x "$ROOT_DIR/.venv/bin/python3" ]; then
+  PYTHON_BIN="$ROOT_DIR/.venv/bin/python3"
+else
+  PYTHON_BIN="$(command -v python3 || true)"
+fi
 
 WORKSPACE_DIR="$ROOT_DIR/.tauri-build-workspaces/$ARCH"
 FRONTEND_SOURCE_DIR="$ROOT_DIR/frontend"
@@ -57,12 +67,6 @@ if ! command -v rsync >/dev/null 2>&1; then
   echo "Не найден rsync. Он нужен для изолированной Tauri-сборки."
   exit 1
 fi
-if ! run_python -m nuitka --version >/dev/null; then
-  echo "Не найдена Nuitka для $PYTHON_BIN. Установите её:"
-  echo "  $PYTHON_BIN -m pip install nuitka"
-  exit 1
-fi
-
 ACTUAL_PYTHON_ARCH="$(run_python -c 'import platform; print(platform.machine())')"
 if [ "$ACTUAL_PYTHON_ARCH" != "$EXPECTED_PYTHON_ARCH" ]; then
   echo "Для $ARCH-сборки нужен Python архитектуры $EXPECTED_PYTHON_ARCH, найден $ACTUAL_PYTHON_ARCH."
@@ -73,6 +77,10 @@ if [ "$ACTUAL_PYTHON_ARCH" != "$EXPECTED_PYTHON_ARCH" ]; then
       "  NFPROGRESS_TAURI_PYTHON_ARCH=x86_64 bash 'Build Tauri Intel.sh'"
   fi
   exit 1
+fi
+if ! run_python -c 'import docx, fastapi, nuitka, pydantic, striprtf, uvicorn, zstandard' >/dev/null 2>&1; then
+  echo "Подготавливается Python-окружение для $ARCH Tauri-сборки..."
+  run_python -m pip install -r "$ROOT_DIR/requirements-backend.txt" 'Nuitka[onefile]'
 fi
 
 if ! rustup target list --installed | grep -Fxq "$TARGET"; then

@@ -203,11 +203,18 @@ root:
 bash "Run Tauri.sh"
 ```
 
-It selects the host target, rebuilds its matching sidecar when that ignored
-local binary is absent or stale, and uses the Python-compatible synchronized
-`test_data` directory in Tauri debug mode. Use
+It selects the host target and the project `.venv` (unless
+`NFPROGRESS_TAURI_PYTHON` is set), repairs its backend/Nuitka dependencies when
+needed, rebuilds its matching sidecar when that ignored local binary is absent
+or stale, and uses the Python-compatible synchronized `test_data` directory in
+Tauri debug mode. Use
 bash "Run Tauri.sh" --check to validate prerequisites without opening a window.
 Stop a separately running npm run dev first, because Tauri dev uses port 5173.
+
+The ARM archive script likewise uses the project `.venv`, independently of an
+active `.venv-tauri-intel`. The Intel script configures that Rosetta environment
+and runs it as x86_64; both scripts validate and repair their Python packages
+before invoking Nuitka.
 
 Checks and a production bundle:
 

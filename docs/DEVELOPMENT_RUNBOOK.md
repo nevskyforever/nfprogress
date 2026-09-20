@@ -207,8 +207,13 @@ npm run tauri:dev
 bash "Run Tauri.sh"
 ```
 
-Скрипт выбирает Rust architecture текущего Mac, использует matching sidecar и
-использует Python-совместимую папку `test_data` и синхронизирует её при старте.
+Скрипт выбирает Rust architecture текущего Mac и обычный project `.venv`
+(либо Python из `NFPROGRESS_TAURI_PYTHON`), использует matching sidecar и
+Python-совместимую папку `test_data`, синхронизируя её при старте. При первой
+сборке он установит недостающие backend-зависимости и Nuitka в выбранное
+окружение. Не используйте для Apple Silicon dev-запуска активированное
+`.venv-tauri-intel`: это окружение предназначено только для x86_64 Rosetta
+release-сборок.
 Если sidecar отсутствует, не поддерживает dev-режим или старее Python-кода
 backend, скрипт пересоберёт только этот локальный Python backend; production `.app`, DMG и ZIP
 при этом не создаются.
@@ -221,6 +226,11 @@ bash "Run Tauri.sh" --check
 Перед запуском остановите отдельный npm run dev, если он уже занимает порт
 5173. Первый Tauri dev-start может скомпилировать debug Rust-код, но не создаёт
 production .app, DMG или ZIP.
+
+`Build Tauri ARM.sh` также независимо от активированного окружения использует
+обычный `.venv`. `Build Tauri Intel.sh` подготавливает `.venv-tauri-intel` и
+запускает его через Rosetta x86_64. Оба скрипта проверяют backend-зависимости,
+Nuitka и `zstandard` перед сборкой sidecar.
 
 Если в терминале Tauri появляется Vite-сообщение
 API вернул ошибку 502 или connect ECONNREFUSED 127.0.0.1:8000 **до** строки

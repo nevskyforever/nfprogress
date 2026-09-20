@@ -5158,6 +5158,7 @@ if __name__ == "__main__":
         sys.exit(0)
 
     _suppress_invalid_object_stderr_spam()
+    en.reconcile_legacy_sqlite_shadow()
     app = QApplication(sys.argv)
     install_accessibility(app)
 
