@@ -36,6 +36,12 @@ intentional and explicit. In `production`, construction of configuration
 requires `NFPROGRESS_DATABASE_URL`; SQLite URLs and other drivers are rejected.
 No SQLite database is invented by this setting.
 
+Cloud PostgreSQL engines pass Psycopg a bounded `connect_timeout` of 5 seconds.
+This applies only to the cloud PostgreSQL boundary; Desktop SQLite and legacy
+repositories are unchanged. Readiness does not retry or start a reconnect
+worker: a failed attempt returns `503`, and a later request may try the pool
+again.
+
 ## Runtime boundary and lifecycle
 
 `backend/app/db/` is deliberately isolated from `PickleRepository`, desktop
@@ -83,12 +89,13 @@ action.
 
 ## Local verification
 
-Create an ignored local environment when needed, install the backend manifest
-and pytest, then run focused checks:
+Create an ignored local environment when needed, install both repository
+dependency manifests, then run focused checks. `requirements-test.txt` keeps
+pytest and the current Starlette TestClient dependency (`httpx2`) reproducible:
 
 ```bash
 python3 -m venv .venv
-.venv/bin/pip install -r requirements-backend.txt pytest httpx2
+.venv/bin/pip install -r requirements-backend.txt -r requirements-test.txt
 .venv/bin/python -m pytest -q tests/test_cloud_postgresql_foundation.py tests/test_api.py
 ```
 
@@ -97,12 +104,19 @@ PostgreSQL database; SQLite is never accepted as a substitute:
 
 ```bash
 NFPROGRESS_TEST_DATABASE_URL='postgresql+psycopg://…/nfprogress_c1_test' \
+NFPROGRESS_ENV=test \
 .venv/bin/python -m pytest -q \
   tests/test_cloud_postgresql_foundation.py::test_alembic_upgrade_empty_postgresql_database_to_head_twice
 ```
 
 The test removes only its `alembic_version` table before and after execution,
 so that database must contain no application data and be reserved for this test.
+
+The focused GitHub Actions workflow
+`.github/workflows/cloud-backend-tests.yml` starts a disposable PostgreSQL 16
+service, creates `nfprogress_c1_test`, and runs the same focused suite with the
+real PostgreSQL Alembic integration test enabled. Its service credentials are
+test-only and are not production secrets.
 
 ## Deliberately not implemented
 

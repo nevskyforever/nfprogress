@@ -13,6 +13,7 @@ from sqlalchemy.exc import OperationalError
 
 from backend.app.config import RuntimeConfig
 from backend.app.db import CloudDatabase, DatabaseReadiness
+from backend.app.db.database import POSTGRESQL_CONNECT_TIMEOUT_SECONDS
 from backend.app.main import create_app
 
 
@@ -53,11 +54,17 @@ def test_invalid_environment_and_non_postgresql_url_are_rejected_without_secret_
 
 def test_cloud_database_reuses_one_engine_and_disposes_it(monkeypatch):
     engine = Mock()
-    monkeypatch.setattr('backend.app.db.database.create_engine', Mock(return_value=engine))
+    create_engine_mock = Mock(return_value=engine)
+    monkeypatch.setattr('backend.app.db.database.create_engine', create_engine_mock)
     database = CloudDatabase(DATABASE_URL)
 
     assert database.engine is engine
     assert database.engine is engine
+    create_engine_mock.assert_called_once_with(
+        DATABASE_URL,
+        pool_pre_ping=True,
+        connect_args={'connect_timeout': POSTGRESQL_CONNECT_TIMEOUT_SECONDS},
+    )
     database.dispose()
 
     engine.dispose.assert_called_once_with()

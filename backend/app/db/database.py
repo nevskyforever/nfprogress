@@ -8,6 +8,9 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
 
 
+POSTGRESQL_CONNECT_TIMEOUT_SECONDS = 5
+
+
 class DatabaseNotConfiguredError(RuntimeError):
     """Raised only at the cloud boundary when PostgreSQL is intentionally absent."""
 
@@ -30,7 +33,12 @@ class CloudDatabase:
         self._engine: Engine | None = None
         self._session_factory: sessionmaker[Session] | None = None
         if database_url is not None:
-            self._engine = create_engine(database_url, pool_pre_ping=True)
+            engine_options = {'pool_pre_ping': True}
+            if database_url.startswith('postgresql+psycopg://'):
+                engine_options['connect_args'] = {
+                    'connect_timeout': POSTGRESQL_CONNECT_TIMEOUT_SECONDS,
+                }
+            self._engine = create_engine(database_url, **engine_options)
             self._session_factory = sessionmaker(
                 bind=self._engine,
                 autoflush=False,
