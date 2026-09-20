@@ -100,12 +100,12 @@ export const gameApi = {
   },
 
   developerRestoreStreak(payload: DeveloperStreakRequest): Promise<GameCommandResponse> {
-    if (isDesktopGame()) return nativeCommand('game_developer_restore_streak', { ...payload })
+    if (isDesktopGame()) return nativeCommand('game_developer_restore_streak', nativeDeveloperStreakPayload(payload))
     return command('/developer/streaks/restore', payload)
   },
 
   developerCreateStreakSeries(payload: DeveloperStreakRequest): Promise<GameCommandResponse> {
-    if (isDesktopGame()) return nativeCommand('game_developer_create_streak_series', { ...payload })
+    if (isDesktopGame()) return nativeCommand('game_developer_create_streak_series', nativeDeveloperStreakPayload(payload))
     return command('/developer/streaks/series', payload)
   },
 
@@ -327,4 +327,13 @@ function nativeCommand(
 
 function nativeInventoryPayload(payload: InventoryCommand): Record<string, unknown> {
   return { category: payload.category, itemId: payload.item_id, count: payload.count }
+}
+
+function nativeDeveloperStreakPayload(payload: DeveloperStreakRequest): Record<string, unknown> {
+  return {
+    type: payload.type,
+    ...(payload.project_id ? { projectId: payload.project_id } : {}),
+    ...(payload.stage_id ? { stageId: payload.stage_id } : {}),
+    ...(payload.length === undefined ? {} : { length: payload.length }),
+  }
 }
