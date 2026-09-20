@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import os
 import shutil
 import sqlite3
@@ -45,6 +46,7 @@ from nfprogress.core.recovery import (
     create_application_backup,
     sha256_file,
     source_fingerprint,
+    validate_backup,
     validate_migration_bundle,
     validate_sqlite_file,
 )
@@ -66,6 +68,7 @@ from nfprogress.core.serialization.projections import to_json_safe
 from nfprogress.core.sqlite.notes import canonical_notes_from_projects
 
 
+LOGGER = logging.getLogger(__name__)
 HELPER_VERSION = "f9.1"
 LATEST_BUNDLE_VERSION = 1
 EMPTY_GAME_PAYLOAD = {
@@ -796,7 +799,12 @@ def build_bundle(inspection: SourceInspection, root: Path) -> tuple[MigrationBun
             raise HelperError(getattr(error, "code", OUTCOME_SOURCE_CORRUPT), str(error)) from error
         bundle.game = _game_payload(gamer, envelope)
     else:
-        bundle.game = dict(EMPTY_GAME_PAYLOAD)
+        if envelope:
+            import game
+
+            bundle.game = _game_payload(game.Gamer(), envelope)
+        else:
+            bundle.game = dict(EMPTY_GAME_PAYLOAD)
 
     documents, bindings, external = _load_documents(root, project_ids, stage_ids, warnings)
     bundle.documents, bundle.document_bindings, bundle.external_file_manifest = documents, bindings, external
@@ -843,7 +851,7 @@ def _json(value: Any) -> str:
 
 
 def _import_complete_bundle(bundle: MigrationBundle, target: Path, inspection: SourceInspection) -> None:
-    """Trusted importer for a full bundle; target is always a staging profile."""
+    """Import user data into a staging profile without qualification markers."""
     import_projects_bundle(bundle, target)
     with closing(open_database(target)) as db:
         with db:
@@ -875,18 +883,41 @@ def _import_complete_bundle(bundle: MigrationBundle, target: Path, inspection: S
                     "INSERT INTO document_bindings(id,document_id,binding_type,external_path,source_id,last_external_hash,last_synced_revision,last_synced_hash,last_synced_at,sync_state,expected_external_hash,payload_json) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)",
                     (binding["id"], binding["document_id"], binding["binding_type"], binding["external_path"], binding.get("source_id"), binding.get("last_external_hash"), binding.get("last_synced_revision", 0), binding.get("last_synced_hash"), binding.get("last_synced_at"), binding.get("sync_state", "unlinked"), None, _json(binding.get("payload", {}))),
                 )
-            documents_checksum = bundle.source_manifest.get("documents.json", {}).get("checksum")
-            db.execute("INSERT INTO document_metadata(key,value_json) VALUES('documents_json_migration',?)", (_json({"status": "complete", "source_checksum": documents_checksum}),))
-            marker = {
-                "status": "ready_for_tauri", "source_fingerprint": inspection.fingerprint,
-                "helper_version": HELPER_VERSION, "bundle_version": bundle.dto_version,
-                "bundle_checksum": bundle.bundle_manifest.get("bundle_checksum"),
-                "completed_domains": ["projects", "settings", "notes", "game", "documents"],
-                "prepared_at": _now(), "source_profile": inspection.source_profile,
-            }
-            db.execute("INSERT OR REPLACE INTO game_metadata(key,value_json) VALUES('migration_status',?)", (_json(marker),))
+            db.execute("DELETE FROM document_metadata WHERE key='documents_json_migration'")
+            db.execute("DELETE FROM game_metadata WHERE key='migration_status'")
             for key, value in (("source_fingerprint", inspection.fingerprint), ("helper_version", HELPER_VERSION), ("bundle_checksum", bundle.bundle_manifest.get("bundle_checksum"))):
                 db.execute("INSERT OR REPLACE INTO game_metadata(key,value_json) VALUES(?,?)", (key, _json(value)))
+
+
+def _qualify_complete_bundle(
+    bundle: MigrationBundle,
+    target: Path,
+    inspection: SourceInspection,
+) -> None:
+    """Publish 6.0 authority and completion markers after semantic parity."""
+    marker = {
+        "status": "ready_for_tauri",
+        "source_fingerprint": inspection.fingerprint,
+        "helper_version": HELPER_VERSION,
+        "bundle_version": bundle.dto_version,
+        "bundle_checksum": bundle.bundle_manifest.get("bundle_checksum"),
+        "completed_domains": ["projects", "settings", "notes", "game", "documents"],
+        "prepared_at": _now(),
+        "source_profile": inspection.source_profile,
+    }
+    documents_checksum = bundle.source_manifest.get("documents.json", {}).get("checksum")
+    with closing(open_database(target)) as db:
+        with db:
+            db.execute(
+                "INSERT OR REPLACE INTO document_metadata(key,value_json) "
+                "VALUES('documents_json_migration',?)",
+                (_json({"status": "complete", "source_checksum": documents_checksum}),),
+            )
+            db.execute(
+                "INSERT OR REPLACE INTO game_metadata(key,value_json) "
+                "VALUES('migration_status',?)",
+                (_json(marker),),
+            )
             db.execute(
                 "UPDATE storage_ownership SET owner='sqlite', schema_version=?, updated_at=datetime('now')",
                 (CURRENT_SCHEMA_VERSION,),
@@ -894,7 +925,13 @@ def _import_complete_bundle(bundle: MigrationBundle, target: Path, inspection: S
             db.execute("INSERT INTO mirror_state(id,source_format,source_schema_version,sync_status,last_full_sync_at,last_successful_sync_at,last_error) VALUES(1,'migration_bundle',?,'healthy',datetime('now'),datetime('now'),NULL) ON CONFLICT(id) DO UPDATE SET source_format='migration_bundle', source_schema_version=excluded.source_schema_version, sync_status='healthy', last_full_sync_at=datetime('now'), last_successful_sync_at=datetime('now'), last_error=NULL", (str(CURRENT_SCHEMA_VERSION),))
 
 
-def _semantic_verify(bundle: MigrationBundle, target: Path, inspection: SourceInspection) -> list[str]:
+def _semantic_verify(
+    bundle: MigrationBundle,
+    target: Path,
+    inspection: SourceInspection,
+    *,
+    require_qualified: bool = True,
+) -> list[str]:
     errors: list[str] = []
     try:
         validate_sqlite_file(
@@ -911,12 +948,16 @@ def _semantic_verify(bundle: MigrationBundle, target: Path, inspection: SourceIn
     connection = sqlite3.connect(f"file:{(target / 'nfprogress.db').resolve().as_posix()}?mode=ro", uri=True)
     connection.row_factory = sqlite3.Row
     try:
-        owners = {row[0]: row[1] for row in connection.execute("SELECT subsystem,owner FROM storage_ownership")}
-        if owners != {name: "sqlite" for name in ("projects", "settings", "notes", "game")}:
-            errors.append("all domain owners are not SQLite")
-        marker = json.loads(connection.execute("SELECT value_json FROM game_metadata WHERE key='migration_status'").fetchone()[0])
-        if marker.get("status") != "ready_for_tauri" or marker.get("source_fingerprint") != inspection.fingerprint:
-            errors.append("prepared migration marker is invalid")
+        if require_qualified:
+            owners = {row[0]: row[1] for row in connection.execute("SELECT subsystem,owner FROM storage_ownership")}
+            if owners != {name: "sqlite" for name in ("projects", "settings", "notes", "game")}:
+                errors.append("all domain owners are not SQLite")
+            marker_row = connection.execute(
+                "SELECT value_json FROM game_metadata WHERE key='migration_status'",
+            ).fetchone()
+            marker = json.loads(marker_row[0]) if marker_row else None
+            if not marker or marker.get("status") != "ready_for_tauri" or marker.get("source_fingerprint") != inspection.fingerprint:
+                errors.append("prepared migration marker is invalid")
         expected_counts = {
             "projects": len(bundle.projects), "stages": sum(len(p.get("stages", [])) for p in bundle.projects),
             "progress_entries": sum(len(p.get("payload", {}).get("progress_entries", [])) + sum(len(s.get("payload", {}).get("progress_entries", [])) for s in p.get("stages", [])) for p in bundle.projects),
@@ -925,7 +966,7 @@ def _semantic_verify(bundle: MigrationBundle, target: Path, inspection: SourceIn
         for table, expected in expected_counts.items():
             if connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] != expected:
                 errors.append(f"{table} count mismatch")
-        if connection.execute("SELECT sync_status FROM mirror_state WHERE id=1").fetchone()[0] != "healthy":
+        if require_qualified and connection.execute("SELECT sync_status FROM mirror_state WHERE id=1").fetchone()[0] != "healthy":
             errors.append("mirror is not healthy")
         if bundle.settings is not None:
             actual_settings = {row[0]: json.loads(row[1]) for row in connection.execute("SELECT key,value_json FROM settings")}
@@ -1031,6 +1072,11 @@ def verify_prepared_profile(data_root: str | Path) -> tuple[bool, list[str]]:
             errors.append("documents migration is incomplete")
         if (marker is None) != (doc_marker is None):
             errors.append("migration markers are incomplete")
+        mirror = connection.execute(
+            "SELECT sync_status FROM mirror_state WHERE id=1",
+        ).fetchone()
+        if mirror is None or mirror[0] != "healthy":
+            errors.append("SQLite mirror status is not healthy")
     finally:
         connection.close()
     return not errors, errors
@@ -1132,6 +1178,169 @@ def _authoritative_test_snapshot(root: Path) -> Path:
         raise
 
 
+_BRIDGE_SOURCE_NAMES = (
+    'data.pkl', 'settings.pkl', 'gamer.pkl', 'documents.json',
+)
+_BRIDGE_BACKUP_MARKER = 'bridge-preparation-source.json'
+
+
+def _legacy_source_checksums(root: Path) -> dict[str, str]:
+    return {
+        name: sha256_file(root / name)
+        for name in _BRIDGE_SOURCE_NAMES
+        if (root / name).is_file()
+    }
+
+
+def _authoritative_bridge_snapshot(root: Path) -> tuple[Path, dict[str, str]]:
+    """Copy only bridge-authoritative files and prove a coherent read."""
+    before = _legacy_source_checksums(root)
+    directory = Path(tempfile.mkdtemp(
+        prefix='.nfprogress-bridge-source-', dir=root,
+    ))
+    try:
+        for name in before:
+            shutil.copy2(root / name, directory / name)
+        copied = _legacy_source_checksums(directory)
+        after = _legacy_source_checksums(root)
+        if copied != before or after != before:
+            raise HelperError(
+                OUTCOME_MIGRATION_FAILED,
+                'legacy source changed while the bridge snapshot was read',
+            )
+        return directory, before
+    except Exception:
+        shutil.rmtree(directory, ignore_errors=True)
+        raise
+
+
+def _bridge_source_backup(root: Path) -> Path:
+    """Create and validate one persistent pre-activation recovery snapshot."""
+    backups = root / 'backups'
+    marker_path = backups / _BRIDGE_BACKUP_MARKER
+    if marker_path.is_file():
+        try:
+            marker = json.loads(marker_path.read_text(encoding='utf-8'))
+            backup = root / str(marker['backup'])
+            validate_backup(backup)
+            return backup
+        except (OSError, KeyError, TypeError, ValueError, RecoveryError, json.JSONDecodeError):
+            LOGGER.exception('Existing bridge source backup marker is invalid')
+
+    backup = create_application_backup(root)
+    validate_backup(backup)
+    backups.mkdir(parents=True, exist_ok=True)
+    descriptor, temporary = tempfile.mkstemp(
+        prefix='.bridge-preparation-source-', suffix='.json', dir=backups,
+    )
+    try:
+        with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
+            json.dump(
+                {
+                    'backup': str(backup.relative_to(root)),
+                    'created_at': _now(),
+                    'validated': True,
+                },
+                stream,
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+            stream.write('\n')
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, marker_path)
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+    return backup
+
+
+def _activate_bridge_database(
+    candidate: Path,
+    root: Path,
+    source_checksums: Mapping[str, str],
+) -> None:
+    """Atomically replace the active DB and roll back failed final checks."""
+    target = root / 'nfprogress.db'
+    rollback = root / '.nfprogress-bridge-rollback.db'
+    rollback.unlink(missing_ok=True)
+    had_target = target.is_file()
+    if had_target:
+        _atomic_copy(target, rollback)
+    try:
+        if _legacy_source_checksums(root) != dict(source_checksums):
+            raise HelperError(
+                OUTCOME_MIGRATION_FAILED,
+                'legacy source changed before bridge activation',
+            )
+        os.replace(candidate, target)
+        ready, reasons = verify_prepared_profile(root)
+        if not ready:
+            raise HelperError(
+                OUTCOME_MIGRATION_FAILED,
+                'activated bridge database failed read-only verification',
+                details=reasons,
+            )
+        if _legacy_source_checksums(root) != dict(source_checksums):
+            raise HelperError(
+                OUTCOME_MIGRATION_FAILED,
+                'legacy source changed during bridge activation',
+            )
+    except Exception:
+        if rollback.is_file():
+            os.replace(rollback, target)
+        elif not had_target:
+            target.unlink(missing_ok=True)
+        raise
+    finally:
+        rollback.unlink(missing_ok=True)
+
+
+def prepare_bridge_snapshot(data_root: str | Path) -> MigrationReport:
+    """Build and activate a 6.0-qualified snapshot from legacy authority.
+
+    ``storage_ownership=sqlite`` is deliberately a property of the generated
+    6.0 target. It never changes the bridge runtime's PKL/JSON authority.
+    """
+    root = Path(data_root).expanduser().resolve()
+    root.mkdir(parents=True, exist_ok=True)
+    source_snapshot, source_checksums = _authoritative_bridge_snapshot(root)
+    staging_profile = Path(tempfile.mkdtemp(
+        prefix='.nfprogress-bridge-target-', dir=root,
+    ))
+    try:
+        report = prepare(source_snapshot, staging_profile, replace=True)
+        database = staging_profile / 'nfprogress.db'
+        version = validate_sqlite_file(
+            database, allow_versions={CURRENT_SCHEMA_VERSION},
+        )
+        if version != CURRENT_SCHEMA_VERSION:
+            raise HelperError(
+                OUTCOME_MIGRATION_FAILED,
+                f'bridge staging schema is {version}, expected {CURRENT_SCHEMA_VERSION}',
+            )
+        ready, reasons = verify_prepared_profile(staging_profile)
+        if not ready:
+            raise HelperError(
+                OUTCOME_MIGRATION_FAILED,
+                'bridge staging profile is not ready for Tauri',
+                details=reasons,
+            )
+        backup = _bridge_source_backup(root)
+        _activate_bridge_database(database, root, source_checksums)
+        report.backup = str(backup)
+        report.details.extend([
+            'source_authority=legacy',
+            'target_ownership=sqlite',
+            'activation=atomic',
+            'post_activation_verification=ok',
+        ])
+        return report
+    finally:
+        shutil.rmtree(source_snapshot, ignore_errors=True)
+        shutil.rmtree(staging_profile, ignore_errors=True)
+
+
 def _snapshot(root: Path) -> Path:
     directory = Path(tempfile.mkdtemp(prefix="nfprogress-migration-source-"))
     try:
@@ -1216,7 +1425,15 @@ def prepare(
         staging = Path(tempfile.mkdtemp(prefix=f".{destination.name}-migration-", dir=destination.parent))
         phase = "staging_import"
         _import_complete_bundle(bundle, staging, inspection)
-        phase = "staging_semantic_verify"
+        phase = "staging_data_verify"
+        errors = _semantic_verify(
+            bundle, staging, inspection, require_qualified=False,
+        )
+        if errors:
+            raise HelperError(OUTCOME_MIGRATION_FAILED, "staging semantic verification failed", details=errors)
+        phase = "staging_qualification"
+        _qualify_complete_bundle(bundle, staging, inspection)
+        phase = "staging_final_verify"
         errors = _semantic_verify(bundle, staging, inspection)
         if errors:
             raise HelperError(OUTCOME_MIGRATION_FAILED, "staging semantic verification failed", details=errors)
@@ -1224,6 +1441,7 @@ def prepare(
             raise HelperError(OUTCOME_MIGRATION_FAILED, "source_changed: source fingerprint changed during migration")
         phase = "staging_activation"
         rollback = _activate(staging, destination)
+        shutil.rmtree(staging, ignore_errors=True)
         staging = None
         if bundle_out is None:
             phase = "migration_manifest_write"

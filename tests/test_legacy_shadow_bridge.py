@@ -7,13 +7,14 @@ from datetime import date
 
 import engine
 import game
+import nfprogress.migration_helper as migration_helper
 
 from nfprogress.core.legacy_shadow import (
     reconcile_legacy_sqlite_shadow,
     sync_legacy_sqlite_shadow,
 )
-from nfprogress.core.sqlite import SQLiteMirrorRepository
 from nfprogress.core.sqlite.connection import open_database
+from nfprogress.migration_helper import verify_prepared_profile
 
 
 def _payload(root):
@@ -42,14 +43,15 @@ def _legacy_data(project=None):
     }
 
 
-def test_legacy_save_paths_immediately_refresh_healthy_pickle_owned_mirror(tmp_path):
+def test_legacy_save_paths_immediately_refresh_qualified_sqlite_snapshot(tmp_path):
     project = engine.Project('Bridge', 100)
     data = _legacy_data(project)
     with engine.data_directory_context(tmp_path):
         engine.save_data(data)
         state, _game_payload, owners = _payload(tmp_path)
         assert state['sync_status'] == 'healthy'
-        assert set(owners.values()) == {'pickle'}
+        assert set(owners.values()) == {'sqlite'}
+        assert verify_prepared_profile(tmp_path) == (True, [])
 
         engine.save_settings({'language': 'de', 'bridge': 'new'})
         with open_database(tmp_path) as database:
@@ -65,6 +67,7 @@ def test_legacy_save_paths_immediately_refresh_healthy_pickle_owned_mirror(tmp_p
         gamer.save()
         _state, game_payload, _owners = _payload(tmp_path)
         assert game_payload['gamer']['coins'] == gamer.coins
+        assert verify_prepared_profile(tmp_path) == (True, [])
 
 
 def test_global_and_local_freeze_are_projected_with_tagged_dates(tmp_path):
@@ -97,28 +100,27 @@ def test_global_and_local_freeze_are_projected_with_tagged_dates(tmp_path):
     ]
 
 
-def test_failed_sync_keeps_new_pickle_marks_dirty_and_retries(tmp_path, monkeypatch):
+def test_failed_prepare_keeps_new_pickle_and_previous_database_untouched(
+        tmp_path, monkeypatch,
+):
     with engine.data_directory_context(tmp_path):
         engine.save_data(_legacy_data())
+        previous_database = (tmp_path / 'nfprogress.db').read_bytes()
         replacement = _legacy_data()
         replacement['bridge_value'] = 'new-pickle'
-        original = SQLiteMirrorRepository.rebuild
+        original = migration_helper.prepare
 
         def fail(*_args, **_kwargs):
             raise sqlite3.OperationalError('disk full')
 
-        monkeypatch.setattr(SQLiteMirrorRepository, 'rebuild', fail)
+        monkeypatch.setattr(migration_helper, 'prepare', fail)
         engine.save_data(replacement)
         with (tmp_path / 'data.pkl').open('rb') as stream:
             assert pickle.load(stream)['bridge_value'] == 'new-pickle'
-        with open_database(tmp_path) as database:
-            state = database.execute(
-                'SELECT sync_status,last_error FROM mirror_state WHERE id=1',
-            ).fetchone()
-            assert state['sync_status'] == 'dirty'
-            assert 'disk full' in state['last_error']
+        assert (tmp_path / 'nfprogress.db').read_bytes() == previous_database
+        assert verify_prepared_profile(tmp_path) == (True, [])
 
-        monkeypatch.setattr(SQLiteMirrorRepository, 'rebuild', original)
+        monkeypatch.setattr(migration_helper, 'prepare', original)
         engine.save_settings({'retry': True})
         state, payload, _owners = _payload(tmp_path)
         assert state['sync_status'] == 'healthy'
@@ -126,14 +128,19 @@ def test_failed_sync_keeps_new_pickle_marks_dirty_and_retries(tmp_path, monkeypa
 
 
 def test_startup_heals_stale_dirty_or_missing_mirror_without_replacing_pickle(tmp_path):
-    data = _legacy_data()
-    data['bridge_value'] = 'authoritative'
     with engine.data_directory_context(tmp_path):
+        stale = _legacy_data()
+        stale['bridge_value'] = 'stale-sqlite'
+        engine.save_data(stale)
+        data = _legacy_data()
+        data['bridge_value'] = 'authoritative'
         engine.atomic_pickle_save(data, engine.get_data_file_path('data'))
         engine.atomic_pickle_save({'language': 'ru'}, engine.get_data_file_path('settings'))
         engine.atomic_pickle_save(game.Gamer(), engine.get_data_file_path('gamer'))
+    (tmp_path / 'documents.json').write_text('{}', encoding='utf-8')
     original_bytes = {
-        path.name: path.read_bytes() for path in tmp_path.glob('*.pkl')
+        path.name: path.read_bytes()
+        for path in (*tmp_path.glob('*.pkl'), tmp_path / 'documents.json')
     }
 
     with open_database(tmp_path) as database:
@@ -143,13 +150,18 @@ def test_startup_heals_stale_dirty_or_missing_mirror_without_replacing_pickle(tm
             "ON CONFLICT(id) DO UPDATE SET sync_status='dirty',last_error='stale'",
         )
         database.commit()
+        assert set(dict(database.execute(
+            'SELECT subsystem,owner FROM storage_ownership',
+        )).values()) == {'sqlite'}
     assert reconcile_legacy_sqlite_shadow(tmp_path)
     state, payload, _owners = _payload(tmp_path)
     assert state['sync_status'] == 'healthy'
     assert payload['extensions']['bridge_value'] == 'authoritative'
     assert original_bytes == {
-        path.name: path.read_bytes() for path in tmp_path.glob('*.pkl')
+        path.name: path.read_bytes()
+        for path in (*tmp_path.glob('*.pkl'), tmp_path / 'documents.json')
     }
+    assert verify_prepared_profile(tmp_path) == (True, [])
 
     (tmp_path / 'nfprogress.db').unlink()
     assert sync_legacy_sqlite_shadow(tmp_path)
@@ -158,27 +170,20 @@ def test_startup_heals_stale_dirty_or_missing_mirror_without_replacing_pickle(tm
 
 
 def test_nested_gamer_save_during_rebuild_does_not_recurse(tmp_path, monkeypatch):
-    gamer = game.Gamer()
     with engine.data_directory_context(tmp_path):
         engine.atomic_pickle_save(_legacy_data(), engine.get_data_file_path('data'))
         engine.atomic_pickle_save({}, engine.get_data_file_path('settings'))
 
-    rebuilds = 0
-    original_rebuild = SQLiteMirrorRepository.rebuild
+    preparations = 0
+    original_prepare = migration_helper.prepare_bridge_snapshot
 
-    def counted_rebuild(self, *args, **kwargs):
-        nonlocal rebuilds
-        rebuilds += 1
-        return original_rebuild(self, *args, **kwargs)
+    def counted_prepare(root):
+        nonlocal preparations
+        preparations += 1
+        assert not sync_legacy_sqlite_shadow(root)
+        return original_prepare(root)
 
-    original_load_data = engine.load_data
-
-    def load_and_migrate():
-        gamer.save()
-        return original_load_data()
-
-    monkeypatch.setattr(SQLiteMirrorRepository, 'rebuild', counted_rebuild)
-    monkeypatch.setattr(engine, 'load_data', load_and_migrate)
+    monkeypatch.setattr(migration_helper, 'prepare_bridge_snapshot', counted_prepare)
     with engine.data_directory_context(tmp_path):
         assert sync_legacy_sqlite_shadow(tmp_path)
-    assert rebuilds == 1
+    assert preparations == 1
