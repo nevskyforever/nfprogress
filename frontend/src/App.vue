@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { IonApp, IonRouterOutlet } from '@ionic/vue'
 
 import { apiErrorMessage } from '@/api/client'
@@ -16,6 +16,7 @@ import { isMotionPreference, useMotionStore } from '@/stores/motion'
 import { useNotificationsStore } from '@/stores/notifications'
 import { isThemePreference, useThemeStore } from '@/stores/theme'
 import { useUpdaterStore } from '@/stores/updater'
+import router from '@/router'
 import type { SettingsResponse } from '@/types/content'
 
 type BootstrapState = 'loading' | 'agreement' | 'ready' | 'error'
@@ -31,6 +32,7 @@ const bootstrapState = ref<BootstrapState>('loading')
 const bootstrapError = ref<string | null>(null)
 let updateTimer: number | null = null
 const workspaceWindow = isWorkspaceWindow()
+const isAdminRoute = computed(() => router.currentRoute.value.path === '/admin' || router.currentRoute.value.path === '/admin/login')
 
 function startAutomaticUpdateChecks(): void {
   if (!supportsUpdateChecks() || updateTimer !== null) return
@@ -77,7 +79,13 @@ async function handleAgreementAccepted(settings: SettingsResponse): Promise<void
   startAutomaticUpdateChecks()
 }
 
-void bootstrapApplication()
+watch(isAdminRoute, (admin) => {
+  if (admin) {
+    void locale.initialize()
+  } else if (bootstrapState.value === 'loading') {
+    void bootstrapApplication()
+  }
+}, { immediate: true })
 onBeforeUnmount(() => {
   if (updateTimer !== null) window.clearInterval(updateTimer)
 })
@@ -85,8 +93,9 @@ onBeforeUnmount(() => {
 
 <template>
   <IonApp>
+    <IonRouterOutlet v-if="isAdminRoute" />
     <div
-      v-if="bootstrapState === 'loading'"
+      v-else-if="bootstrapState === 'loading'"
       class="application-bootstrap"
       role="status"
       aria-live="polite"

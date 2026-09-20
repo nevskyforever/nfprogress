@@ -84,6 +84,15 @@ def get_current_user(
     return AuthenticatedUser(user=user, session=auth_session)
 
 
+def get_current_admin(current: AuthenticatedUser = Depends(get_current_user)) -> AuthenticatedUser:
+    """C7's server-side boundary; frontend guards are only convenience."""
+    if current.user.role != 'admin' or current.user.status != 'active':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail={
+            'code': 'admin_required', 'message': 'Administrator access is required.',
+        })
+    return current
+
+
 def require_session(
         request: Request,
         token: str | None = Header(default=None, alias='X-NFProgress-Token'),

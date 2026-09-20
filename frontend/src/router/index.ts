@@ -1,8 +1,11 @@
 import { createRouter, createWebHistory } from '@ionic/vue-router'
+import { adminSession } from '@/api/admin'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
+    { path: '/admin/login', name: 'admin-login', component: () => import('@/pages/AdminLoginPage.vue'), meta: { admin: true, title: 'Администрирование' } },
+    { path: '/admin', name: 'admin', component: () => import('@/pages/AdminPage.vue'), meta: { admin: true, requiresAdmin: true, title: 'Администрирование' } },
     { path: '/', redirect: '/projects' },
     {
       path: '/projects',
@@ -80,6 +83,11 @@ const router = createRouter({
     },
     { path: '/:pathMatch(.*)*', redirect: '/projects' },
   ],
+})
+
+router.beforeEach((to) => {
+  if (to.meta.requiresAdmin && !adminSession.active()) return { name: 'admin-login' }
+  return true
 })
 
 router.afterEach((route) => {

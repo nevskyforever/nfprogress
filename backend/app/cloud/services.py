@@ -8,13 +8,15 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from .models import (AuthRefreshToken, AuthSession, EmailVerificationToken,
-                     PasswordResetToken, RegistrationSettings, User)
+                     GlobalLimits, PasswordResetToken, RegistrationSettings,
+                     ReservedUsername, User, UserLimitOverrides)
 from .passwords import PasswordService
 from .repositories import (AuthRepository, GlobalLimitsRepository,
                            RegistrationSettingsRepository,
                            ReservedUsernameRepository,
                            UserLimitOverridesRepository, UserRepository,
-                           normalize_email)
+                           lock_username_namespace, normalize_email,
+                           normalize_username)
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
                      PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
                      TokenService, utc_now)
@@ -37,6 +39,12 @@ class RegistrationUnavailableError(Exception):
 
 class LimitsUnavailableError(Exception):
     """The authoritative global limits singleton is missing or unavailable."""
+
+
+class AdminOperationError(Exception):
+    def __init__(self, code: str, message: str, status_code: int = 409) -> None:
+        super().__init__(message)
+        self.code, self.message, self.status_code = code, message, status_code
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +153,9 @@ class RegistrationService:
                     return RegistrationResult('registration_closed')
                 if not email_delivery_available:
                     raise RegistrationUnavailableError()
+                # The authoritative claim happens after Argon2 and is shared
+                # with C7 reservation management. Never hold it during hashing.
+                lock_username_namespace(session, username)
                 if self._reserved_usernames.is_reserved(session, username):
                     return RegistrationResult('username_reserved')
                 token_id, raw_token, token_hash = self._tokens.issue_email_verification_token()
@@ -269,6 +280,197 @@ class AuthenticationService:
         if auth_session.revoked_at is None:
             auth_session.revoked_at = now
         self._auth.revoke_active_tokens(session, auth_session.id, now)
+
+
+class AdminService:
+    """Small C7 administration service over the existing C2--C6 authority."""
+
+    def __init__(self, now_provider=utc_now) -> None:
+        self._now = now_provider
+        self._users = UserRepository()
+        self._auth = AuthRepository()
+        self._settings = RegistrationSettingsRepository()
+        self._limits = GlobalLimitsRepository()
+        self._overrides = UserLimitOverridesRepository()
+        self._reserved = ReservedUsernameRepository()
+
+    @staticmethod
+    def _protected(user: User) -> None:
+        if user.role == 'admin':
+            raise AdminOperationError('admin_account_protected', 'Administrator accounts are protected.')
+
+    @staticmethod
+    def _not_found() -> None:
+        raise AdminOperationError('user_not_found', 'User was not found.', 404)
+
+    def _locked_user(self, session: Session, user_id: object) -> User:
+        user = session.scalar(select(User).where(User.id == user_id).with_for_update())
+        if user is None:
+            self._not_found()
+        return user
+
+    @staticmethod
+    def _require_capacity(session: Session, settings: RegistrationSettings) -> None:
+        active_count = session.scalar(select(func.count()).select_from(User).where(User.status == 'active')) or 0
+        if settings.max_users is not None and active_count >= settings.max_users:
+            raise AdminOperationError('user_capacity_reached', 'User capacity has been reached.')
+
+    def approve(self, session: Session, user_id: object) -> User:
+        try:
+            session.commit()
+            with session.begin():
+                user = self._locked_user(session, user_id)
+                self._protected(user)
+                if user.status == 'active':
+                    return user
+                if user.status not in {'pending', 'rejected'}:
+                    raise AdminOperationError('invalid_user_status', 'User cannot be approved in this state.')
+                if not user.email_verified:
+                    raise AdminOperationError('email_not_verified', 'Email must be verified before activation.')
+                settings = self._settings.get(session, lock=True)
+                if settings is None:
+                    raise AdminOperationError('registration_unavailable', 'Registration settings are unavailable.', 503)
+                self._require_capacity(session, settings)
+                user.status = 'active'
+                return user
+        except AdminOperationError:
+            session.rollback()
+            raise
+
+    def reject(self, session: Session, user_id: object) -> User:
+        try:
+            session.commit()
+            with session.begin():
+                user = self._locked_user(session, user_id)
+                self._protected(user)
+                if user.status == 'rejected':
+                    return user
+                if user.status != 'pending':
+                    raise AdminOperationError('invalid_user_status', 'Only pending users can be rejected.')
+                user.status = 'rejected'
+                return user
+        except AdminOperationError:
+            session.rollback()
+            raise
+
+    def block(self, session: Session, user_id: object) -> User:
+        try:
+            session.commit()
+            with session.begin():
+                user = self._locked_user(session, user_id)
+                self._protected(user)
+                if user.status == 'blocked':
+                    return user
+                if user.status != 'active':
+                    raise AdminOperationError('invalid_user_status', 'Only active users can be blocked.')
+                user.status = 'blocked'
+                self._auth.revoke_user_sessions(session, user.id, self._now())
+                return user
+        except AdminOperationError:
+            session.rollback()
+            raise
+
+    def unblock(self, session: Session, user_id: object) -> User:
+        try:
+            session.commit()
+            with session.begin():
+                user = self._locked_user(session, user_id)
+                self._protected(user)
+                if user.status == 'active':
+                    return user
+                if user.status != 'blocked':
+                    raise AdminOperationError('invalid_user_status', 'Only blocked users can be unblocked.')
+                if not user.email_verified:
+                    raise AdminOperationError('email_not_verified', 'Email must be verified before activation.')
+                settings = self._settings.get(session, lock=True)
+                if settings is None:
+                    raise AdminOperationError('registration_unavailable', 'Registration settings are unavailable.', 503)
+                self._require_capacity(session, settings)
+                user.status = 'active'
+                return user
+        except AdminOperationError:
+            session.rollback()
+            raise
+
+    def revoke_sessions(self, session: Session, user_id: object) -> tuple[int, int]:
+        try:
+            session.commit()
+            with session.begin():
+                user = self._locked_user(session, user_id)
+                return self._auth.revoke_user_sessions(session, user.id, self._now())
+        except AdminOperationError:
+            session.rollback()
+            raise
+
+    def update_registration(self, session: Session, *, mode: str | None, max_users: int | None | object) -> RegistrationSettings:
+        session.commit()
+        with session.begin():
+            settings = self._settings.get(session, lock=True)
+            if settings is None:
+                raise AdminOperationError('registration_unavailable', 'Registration settings are unavailable.', 503)
+            if mode is not None:
+                settings.mode = mode
+            if max_users is not _UNSET:
+                settings.max_users = max_users
+            return settings
+
+    def update_global_limits(self, session: Session, max_cloud_projects: int) -> GlobalLimits:
+        session.commit()
+        with session.begin():
+            limits = self._limits.get(session, lock=True)
+            if limits is None:
+                raise AdminOperationError('limits_unavailable', 'Limits are unavailable.', 503)
+            limits.max_cloud_projects = max_cloud_projects
+            return limits
+
+    def update_override(self, session: Session, user_id: object, value: int | None) -> tuple[int | None, int]:
+        try:
+            session.commit()
+            with session.begin():
+                user = self._locked_user(session, user_id)
+                limits = self._limits.get(session, lock=True)
+                if limits is None:
+                    raise AdminOperationError('limits_unavailable', 'Limits are unavailable.', 503)
+                if value is None:
+                    self._overrides.clear(session, user.id)
+                    return None, limits.max_cloud_projects
+                row = self._overrides.get(session, user.id)
+                if row is None:
+                    session.add(UserLimitOverrides(user_id=user.id, max_cloud_projects_override=value))
+                else:
+                    row.max_cloud_projects_override = value
+                return value, value
+        except AdminOperationError:
+            session.rollback()
+            raise
+
+    def add_reserved_username(self, session: Session, username: str) -> ReservedUsername:
+        normalized = normalize_username(username)
+        try:
+            session.commit()
+            with session.begin():
+                lock_username_namespace(session, normalized)
+                existing = session.get(ReservedUsername, normalized)
+                if existing is not None:
+                    return existing
+                if self._users.get_by_normalized_username(session, normalized) is not None:
+                    raise AdminOperationError('username_in_use', 'Username is already in use.')
+                row = self._reserved.add(session, normalized)
+                session.flush()
+                return row
+        except AdminOperationError:
+            session.rollback()
+            raise
+
+    def remove_reserved_username(self, session: Session, username: str) -> bool:
+        normalized = normalize_username(username)
+        session.commit()
+        with session.begin():
+            lock_username_namespace(session, normalized)
+            return self._reserved.remove(session, normalized)
+
+
+_UNSET = object()
 
 
 class AccountEmailService:

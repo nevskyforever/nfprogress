@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from sqlalchemy import select, update
+from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.orm import Session
 
 from .models import (AuthRefreshToken, AuthSession, GlobalLimits,
@@ -16,12 +16,40 @@ def normalize_email(value: str) -> str:
     return value.strip().casefold()
 
 
+def lock_username_namespace(session: Session, username: str) -> None:
+    """Serialize public username claims and administrator reservations.
+
+    This is deliberately PostgreSQL transaction-scoped: no process-local lock
+    can protect registration across API workers.
+    """
+    session.execute(text(
+        "SELECT pg_advisory_xact_lock(hashtextextended(:username, 641257))",
+    ), {'username': normalize_username(username)})
+
+
 class UserRepository:
     def get_by_normalized_username(self, session: Session, username: str) -> User | None:
         return session.scalar(select(User).where(User.username_normalized == normalize_username(username)))
 
     def get_by_id(self, session: Session, user_id: object) -> User | None:
         return session.get(User, user_id)
+
+    def list_admin(self, session: Session, *, limit: int, offset: int,
+                   status: str | None = None, role: str | None = None,
+                   search: str | None = None) -> tuple[list[User], int]:
+        statement = select(User)
+        if status is not None:
+            statement = statement.where(User.status == status)
+        if role is not None:
+            statement = statement.where(User.role == role)
+        if search:
+            value = f"%{normalize_username(search)}%"
+            statement = statement.where(
+                User.username_normalized.like(value) | User.email_normalized.like(value),
+            )
+        total = session.scalar(select(func.count()).select_from(statement.subquery())) or 0
+        users = session.scalars(statement.order_by(User.created_at, User.id).limit(limit).offset(offset)).all()
+        return users, total
 
     def create(self, session: Session, *, username: str, email: str, password_hash: str,
                role: str = 'user', status: str = 'pending', registration_mode_at_signup: str | None = None) -> User:
@@ -46,17 +74,39 @@ class ReservedUsernameRepository:
     def is_reserved(self, session: Session, username: str) -> bool:
         return session.get(ReservedUsername, normalize_username(username)) is not None
 
+    def list(self, session: Session) -> list[ReservedUsername]:
+        return session.scalars(select(ReservedUsername).order_by(
+            ReservedUsername.username_normalized,
+        )).all()
+
+    def add(self, session: Session, username: str) -> ReservedUsername:
+        row = ReservedUsername(username_normalized=normalize_username(username))
+        session.add(row)
+        return row
+
+    def remove(self, session: Session, username: str) -> bool:
+        result = session.execute(delete(ReservedUsername).where(
+            ReservedUsername.username_normalized == normalize_username(username),
+        ))
+        return bool(result.rowcount)
+
 
 class GlobalLimitsRepository:
     SINGLETON_ID = 1
 
-    def get(self, session: Session) -> GlobalLimits | None:
-        return session.get(GlobalLimits, self.SINGLETON_ID)
+    def get(self, session: Session, *, lock: bool = False) -> GlobalLimits | None:
+        statement = select(GlobalLimits).where(GlobalLimits.id == self.SINGLETON_ID)
+        if lock:
+            statement = statement.with_for_update()
+        return session.scalar(statement)
 
 
 class UserLimitOverridesRepository:
     def get(self, session: Session, user_id: object) -> UserLimitOverrides | None:
         return session.get(UserLimitOverrides, user_id)
+
+    def clear(self, session: Session, user_id: object) -> None:
+        session.execute(delete(UserLimitOverrides).where(UserLimitOverrides.user_id == user_id))
 
 
 class AuthRepository:
@@ -77,3 +127,13 @@ class AuthRepository:
             AuthRefreshToken.session_id == session_id,
             AuthRefreshToken.revoked_at.is_(None),
         ).values(revoked_at=now))
+
+    def revoke_user_sessions(self, session: Session, user_id: object, now: object) -> tuple[int, int]:
+        sessions = session.execute(update(AuthSession).where(
+            AuthSession.user_id == user_id, AuthSession.revoked_at.is_(None),
+        ).values(revoked_at=now))
+        tokens = session.execute(update(AuthRefreshToken).where(
+            AuthRefreshToken.session_id.in_(select(AuthSession.id).where(AuthSession.user_id == user_id)),
+            AuthRefreshToken.revoked_at.is_(None),
+        ).values(revoked_at=now))
+        return int(sessions.rowcount or 0), int(tokens.rowcount or 0)
