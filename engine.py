@@ -19,7 +19,7 @@ from collections import defaultdict
 MAX_PROJECT_COVER_IMAGE_LENGTH = 5_000_000
 
 
-# Режим разработчика.
+# Режим разработчика
 dev_mode = "__compiled__" not in globals()
 
 # Версия приложения
