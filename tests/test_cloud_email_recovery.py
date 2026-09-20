@@ -31,19 +31,21 @@ def _service(now=None) -> AccountEmailService:
     return AccountEmailService(TokenService(AUTH_SECRET), now_provider=now or utc_now)
 
 
-def _issue_verification(engine, user_id, now=None):
+def _issue_verification(engine, user_id, now=None, *, expect_token=True):
     with Session(engine) as db:
         raw = _service(now).issue_verification(db, db.get(User, user_id))
-    assert raw
+    if expect_token:
+        assert raw
     return raw
 
 
-def _issue_reset(engine, user_id, now=None):
+def _issue_reset(engine, user_id, now=None, *, expect_token=True):
     with Session(engine) as db:
         email = db.get(User, user_id).email
         issued = _service(now).issue_password_reset(db, email)
-    assert issued
-    return issued[1]
+    if expect_token:
+        assert issued
+    return issued[1] if issued else None
 
 
 @pytest.mark.parametrize('prefix,model,issue_name', [
@@ -140,10 +142,6 @@ def test_verification_resend_email_change_concurrency_and_verified_noop(migrated
             except RecoveryTokenError: return False
     with ThreadPoolExecutor(max_workers=2) as executor: results = list(executor.map(lambda _: consume(), range(2)))
     assert results.count(True) == 1
-    with Session(migrated_database) as db, pytest.raises(RecoveryTokenError):
-        _service().confirm_password_reset(db, raw, 'password sufficient for C3 reset')
-    with Session(migrated_database) as db, pytest.raises(RecoveryTokenError):
-        _service().confirm_password_reset(db, raw, 'password sufficient for C3 reset')
     with Session(migrated_database) as db:
         assert _service().issue_verification(db, db.get(User, user_id)) is None
 
@@ -153,12 +151,12 @@ def test_throttle_and_concurrent_issuance_are_postgresql_backed(migrated_databas
     clock = [utc_now()]
     now = lambda: clock[0]
     first = _issue_verification(migrated_database, user_id, now)
-    assert _issue_verification(migrated_database, user_id, now) is None
+    assert _issue_verification(migrated_database, user_id, now, expect_token=False) is None
     clock[0] += timedelta(seconds=61)
     for _ in range(4):
         assert _issue_verification(migrated_database, user_id, now)
         clock[0] += timedelta(seconds=61)
-    assert _issue_verification(migrated_database, user_id, now) is None
+    assert _issue_verification(migrated_database, user_id, now, expect_token=False) is None
     clock[0] += timedelta(hours=1)
     assert _issue_verification(migrated_database, user_id, now)
     # Independent sessions lock the stable user row, so two workers cannot bypass cooldown.
@@ -213,15 +211,20 @@ def test_reset_generic_states_tokens_sessions_and_notification(cloud_client):
 
 def test_reset_invalid_states_rotation_concurrency_and_throttle(migrated_database):
     user_id = create_user(migrated_database)
-    first = _issue_reset(migrated_database, user_id, lambda: utc_now() - timedelta(minutes=2))
-    second = _issue_reset(migrated_database, user_id)
+    clock = [utc_now()]
+    now = lambda: clock[0]
+    first = _issue_reset(migrated_database, user_id, now)
+    clock[0] += timedelta(seconds=61)
+    second = _issue_reset(migrated_database, user_id, now)
     with Session(migrated_database) as db, pytest.raises(RecoveryTokenError): _service().confirm_password_reset(db, first, 'password sufficient for C3 reset')
     parsed = TokenService.parse_opaque_token(second, 'pr1'); assert parsed
     with Session(migrated_database) as db:
         row = db.get(PasswordResetToken, parsed[0]); row.expires_at = utc_now() - timedelta(seconds=1); db.commit()
     with Session(migrated_database) as db, pytest.raises(RecoveryTokenError): _service().confirm_password_reset(db, second, 'password sufficient for C3 reset')
     with Session(migrated_database) as db, pytest.raises(RecoveryTokenError): _service().confirm_password_reset(db, 'pr1.bad.secret', 'password sufficient for C3 reset')
-    raw = _issue_reset(migrated_database, user_id)
+    assert _issue_reset(migrated_database, user_id, now, expect_token=False) is None
+    clock[0] += timedelta(seconds=61)
+    raw = _issue_reset(migrated_database, user_id, now)
     altered = raw + 'changed'
     with Session(migrated_database) as db, pytest.raises(RecoveryTokenError): _service().confirm_password_reset(db, altered, 'password sufficient for C3 reset')
     barrier = threading.Barrier(2)
@@ -232,6 +235,8 @@ def test_reset_invalid_states_rotation_concurrency_and_throttle(migrated_databas
             except RecoveryTokenError: return False
     with ThreadPoolExecutor(max_workers=2) as executor: results = list(executor.map(lambda _: consume(), range(2)))
     assert results.count(True) == 1
+    with Session(migrated_database) as db, pytest.raises(RecoveryTokenError):
+        _service(now).confirm_password_reset(db, raw, 'password sufficient for C3 reset')
 
 
 def test_reset_throttle_and_concurrent_issuance(migrated_database):
@@ -239,12 +244,12 @@ def test_reset_throttle_and_concurrent_issuance(migrated_database):
     clock = [utc_now()]
     now = lambda: clock[0]
     assert _issue_reset(migrated_database, user_id, now)
-    assert _issue_reset(migrated_database, user_id, now) is None
+    assert _issue_reset(migrated_database, user_id, now, expect_token=False) is None
     clock[0] += timedelta(seconds=61)
     for _ in range(4):
         assert _issue_reset(migrated_database, user_id, now)
         clock[0] += timedelta(seconds=61)
-    assert _issue_reset(migrated_database, user_id, now) is None
+    assert _issue_reset(migrated_database, user_id, now, expect_token=False) is None
     clock[0] += timedelta(hours=1)
     assert _issue_reset(migrated_database, user_id, now)
     racer_id = create_user(migrated_database, username='ResetRace', email='reset-race@example.test')
