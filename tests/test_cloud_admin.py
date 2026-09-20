@@ -83,6 +83,12 @@ def test_admin_policy_limits_and_reservations(cloud_client):
 
 def test_registration_and_reservation_race_has_one_namespace_claim(migrated_database):
     """Real independent PostgreSQL sessions exercise C6/C7 advisory locking."""
+    with Session(migrated_database) as session:
+        settings = session.get(RegistrationSettings, 1)
+        assert settings is not None
+        settings.mode = 'open'
+        settings.max_users = None
+        session.commit()
     barrier = threading.Barrier(2)
     outcomes: dict[str, object] = {}
 
@@ -117,7 +123,10 @@ def test_registration_and_reservation_race_has_one_namespace_claim(migrated_data
 
 
 def test_admin_cli_create_promote_restore_and_no_password_argv(migrated_database, monkeypatch, capsys):
-    monkeypatch.setenv('NFPROGRESS_DATABASE_URL', str(migrated_database.url))
+    monkeypatch.setenv(
+        'NFPROGRESS_DATABASE_URL',
+        migrated_database.url.render_as_string(hide_password=False),
+    )
     values = iter(['admin', 'admin-cli@example.test'])
     passwords = iter(['x' * 15, 'x' * 15])
     monkeypatch.setattr('builtins.input', lambda _prompt: next(values))
