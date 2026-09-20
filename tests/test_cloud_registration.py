@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import re
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor
+from datetime import timedelta
+from unittest.mock import Mock
 
 import pytest
 from alembic import command
@@ -10,8 +13,13 @@ from alembic.config import Config as AlembicConfig
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
-from backend.app.cloud.models import EmailVerificationToken, RegistrationSettings, User
-from backend.app.cloud.services import AccountEmailService, RegistrationService
+from backend.app.cloud.models import (AuthRefreshToken, AuthSession,
+                                      EmailVerificationToken,
+                                      RegistrationSettings, User)
+from backend.app.cloud.passwords import PasswordService
+from backend.app.cloud.services import (AccountEmailService,
+                                        RegistrationService,
+                                        RegistrationUnavailableError)
 from backend.app.cloud.tokens import TokenService, utc_now
 from backend.app.config import RuntimeConfig
 from backend.app.main import create_app
@@ -71,6 +79,41 @@ def test_closed_policy_and_public_policy_are_safe(cloud_client):
     assert login(client).status_code == 200
 
 
+def test_registration_policy_gate_avoids_hash_only_when_publicly_unavailable(migrated_database):
+    passwords = Mock(spec=PasswordService)
+    passwords.hash.return_value = 'test-password-hash'
+    tokens = Mock(spec=TokenService)
+    tokens.issue_email_verification_token.side_effect = lambda: (
+        uuid.uuid4(), 'ev1.test-token.secret', 'a' * 64,
+    )
+    service = RegistrationService(tokens, passwords=passwords)
+
+    with Session(migrated_database) as session:
+        assert service.register(session, username='Closed', email='closed@example.com', password='x' * 15,
+                                email_delivery_available=True).code == 'registration_closed'
+    assert passwords.hash.call_count == 0
+    assert tokens.issue_email_verification_token.call_count == 0
+
+    _set_policy(migrated_database, mode='open')
+    with Session(migrated_database) as session, pytest.raises(RegistrationUnavailableError):
+        service.register(session, username='Unavailable', email='unavailable@example.com', password='x' * 15,
+                         email_delivery_available=False)
+    assert passwords.hash.call_count == 0
+    assert tokens.issue_email_verification_token.call_count == 0
+
+    with Session(migrated_database) as session:
+        assert service.register(session, username='Open', email='open@example.com', password='x' * 15,
+                                email_delivery_available=True).code == 'registration_request_accepted'
+    with Session(migrated_database) as session:
+        assert service.register(session, username=' OPEN ', email='other@example.com', password='x' * 15,
+                                email_delivery_available=True).code == 'registration_request_accepted'
+    assert passwords.hash.call_count == 2
+    assert tokens.issue_email_verification_token.call_count == 2
+    with Session(migrated_database) as session:
+        assert session.scalar(select(func.count()).select_from(User)) == 1
+        assert session.scalar(select(func.count()).select_from(EmailVerificationToken)) == 1
+
+
 def test_open_registration_verification_and_duplicate_contract(cloud_client):
     client, engine = cloud_client
     _set_policy(engine, mode='open')
@@ -87,10 +130,18 @@ def test_open_registration_verification_and_duplicate_contract(cloud_client):
         assert user.role == 'user' and user.status == 'pending' and not user.email_verified
         assert user.registration_mode_at_signup == 'open'
         assert session.scalar(select(func.count()).select_from(User)) == 1
+        assert session.scalar(select(func.count()).select_from(AuthSession)) == 0
+        assert session.scalar(select(func.count()).select_from(AuthRefreshToken)) == 0
     assert login(client, 'NewWriter', 'пароль с Unicode достаточно длинный').status_code == 401
     verified = client.post('/api/v1/auth/email/verify', json={'token': _token(sender)})
     assert verified.json() == {'code': 'email_verified', 'account_status': 'active', 'activation': 'active'}
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(AuthSession)) == 0
+        assert session.scalar(select(func.count()).select_from(AuthRefreshToken)) == 0
     assert login(client, 'NewWriter', 'пароль с Unicode достаточно длинный').status_code == 200
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(AuthSession)) == 1
+        assert session.scalar(select(func.count()).select_from(AuthRefreshToken)) == 1
 
 
 @pytest.mark.parametrize('start_mode,end_mode,expected', [
@@ -121,6 +172,36 @@ def test_approval_and_capacity_results(cloud_client):
     assert response.json() == {'code': 'email_verified', 'account_status': 'pending', 'activation': 'capacity_reached'}
     with Session(engine) as session:
         assert session.scalar(select(User).where(User.username_normalized == 'nocapacity')).email_verified
+
+
+def test_unlimited_capacity_and_only_active_users_count_toward_limit(cloud_client):
+    client, engine = cloud_client
+    _set_policy(engine, mode='open', max_users=None)
+    for status in ('active', 'pending', 'rejected', 'blocked'):
+        create_user(engine, username=f'Existing{status}', email=f'existing-{status}@example.test', status=status)
+    _register(client, username='Unlimited', email='unlimited@example.com')
+    assert client.post('/api/v1/auth/email/verify', json={'token': _token(client.app.state.email_sender)}).json()['activation'] == 'active'
+
+    _set_policy(engine, mode='open', max_users=3)
+    _register(client, username='SecondActive', email='second-active@example.com')
+    assert client.post('/api/v1/auth/email/verify', json={'token': _token(client.app.state.email_sender)}).json()['activation'] == 'active'
+    _register(client, username='OverCapacity', email='over-capacity@example.com')
+    result = client.post('/api/v1/auth/email/verify', json={'token': _token(client.app.state.email_sender)})
+    assert result.json()['activation'] == 'capacity_reached'
+
+
+def test_lowering_capacity_preserves_existing_active_users_and_blocks_next_activation(cloud_client):
+    client, engine = cloud_client
+    _set_policy(engine, mode='open', max_users=None)
+    for index in range(5):
+        create_user(engine, username=f'Kept{index}', email=f'kept-{index}@example.test')
+    _set_policy(engine, mode='open', max_users=2)
+    _register(client, username='AfterLowering', email='after-lowering@example.com')
+    result = client.post('/api/v1/auth/email/verify', json={'token': _token(client.app.state.email_sender)})
+    assert result.json()['activation'] == 'capacity_reached'
+    with Session(engine) as session:
+        assert session.scalar(select(func.count()).select_from(User).where(User.status == 'active')) == 5
+    assert login(client, 'Kept0').status_code == 200
 
 
 def test_registration_validation_and_privilege_fields_are_rejected(cloud_client):
@@ -160,6 +241,65 @@ def test_public_resend_is_generic_and_only_delivers_to_eligible_public_pending(c
         session.commit()
     blocked = client.post('/api/v1/auth/email/verification/request', json={'email': 'resend@example.com'})
     assert blocked.status_code == 202 and blocked.json() == unknown.json() and len(sender.messages) == 2
+
+
+def test_public_resend_inherits_c3_throttle_with_controlled_clock(migrated_database):
+    _set_policy(migrated_database, mode='open')
+    with Session(migrated_database) as session:
+        registered = RegistrationService(TokenService(AUTH_SECRET)).register(
+            session, username='ThrottlePublic', email='throttle-public@example.com', password='x' * 15,
+            email_delivery_available=True,
+        )
+        assert registered.verification_token
+    clock = [utc_now()]
+    with Session(migrated_database) as session:
+        initial = session.scalar(select(EmailVerificationToken))
+        initial.created_at = clock[0] - timedelta(hours=2)
+        session.commit()
+    service = AccountEmailService(TokenService(AUTH_SECRET), now_provider=lambda: clock[0])
+
+    def issue():
+        with Session(migrated_database) as session:
+            return service.issue_verification_for_public_email(session, 'throttle-public@example.com')
+
+    assert issue() is not None
+    assert issue() is None
+    for _ in range(4):
+        clock[0] += timedelta(seconds=61)
+        assert issue() is not None
+    clock[0] += timedelta(seconds=61)
+    assert issue() is None
+    clock[0] += timedelta(hours=1)
+    assert issue() is not None
+
+
+def test_concurrent_public_resend_keeps_one_usable_verification_token(migrated_database):
+    _set_policy(migrated_database, mode='open')
+    with Session(migrated_database) as session:
+        assert RegistrationService(TokenService(AUTH_SECRET)).register(
+            session, username='PublicResendRace', email='public-resend-race@example.com', password='x' * 15,
+            email_delivery_available=True,
+        ).verification_token
+    with Session(migrated_database) as session:
+        initial = session.scalar(select(EmailVerificationToken))
+        initial.created_at = utc_now() - timedelta(hours=2)
+        session.commit()
+    barrier = threading.Barrier(2)
+
+    def issue():
+        with Session(migrated_database) as session:
+            barrier.wait(timeout=10)
+            return AccountEmailService(TokenService(AUTH_SECRET)).issue_verification_for_public_email(
+                session, 'public-resend-race@example.com',
+            )
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        issued = list(executor.map(lambda _: issue(), range(2)))
+    assert sum(item is not None for item in issued) == 1
+    with Session(migrated_database) as session:
+        assert session.scalar(select(func.count()).select_from(EmailVerificationToken).where(
+            EmailVerificationToken.revoked_at.is_(None), EmailVerificationToken.used_at.is_(None),
+        )) == 1
 
 
 def test_production_open_registration_fails_closed_without_smtp(migrated_database, tmp_path):

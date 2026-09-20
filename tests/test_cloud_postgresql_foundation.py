@@ -142,20 +142,35 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
     migration_engine = create_engine(test_database_url)
     try:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS registration_settings CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS password_reset_tokens CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS email_verification_tokens CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS auth_refresh_tokens CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS auth_sessions CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS users CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS alembic_version'))
 
         monkeypatch.setenv('NFPROGRESS_ENV', 'test')
         monkeypatch.setenv('NFPROGRESS_DATABASE_URL', test_database_url)
         alembic_config = AlembicConfig(str(ROOT / 'alembic.ini'))
-        command.upgrade(alembic_config, 'c1_postgresql_foundation')
-        command.upgrade(alembic_config, 'c1_postgresql_foundation')
+        command.upgrade(alembic_config, 'head')
+        command.upgrade(alembic_config, 'head')
 
         with migration_engine.connect() as connection:
-            assert inspect(connection).get_table_names() == ['alembic_version']
+            assert set(inspect(connection).get_table_names()) == {
+                'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
+                'email_verification_tokens', 'password_reset_tokens', 'registration_settings',
+            }
             assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == (
-                'c1_postgresql_foundation'
+                'c4_registration_controls'
             )
     finally:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS registration_settings CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS password_reset_tokens CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS email_verification_tokens CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS auth_refresh_tokens CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS auth_sessions CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS users CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS alembic_version'))
         migration_engine.dispose()

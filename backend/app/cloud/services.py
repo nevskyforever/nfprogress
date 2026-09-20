@@ -85,6 +85,18 @@ class RegistrationService:
 
     def register(self, session: Session, *, username: str, email: str, password: str,
                  email_delivery_available: bool) -> RegistrationResult:
+        # CLOSED and unavailable production registration are public policy
+        # outcomes, so reject them before creating an avoidable Argon2 DoS
+        # surface. This read is deliberately not the authoritative decision:
+        # the locked re-check below governs creation if policy changes while
+        # Argon2 is running.
+        settings = self.public_policy(session)
+        if settings.mode == 'closed':
+            return RegistrationResult('registration_closed')
+        if not email_delivery_available:
+            raise RegistrationUnavailableError()
+        session.commit()
+
         # Preserve C2 password cost for accepted and duplicate requests without
         # holding the shared policy lock through Argon2 work.
         password_hash = self._passwords.hash(password)

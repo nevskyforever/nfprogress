@@ -33,6 +33,8 @@ Thus **`email_verified = true` does not necessarily mean `status = active`**. Ve
 
 Production OPEN/APPROVAL registration fails closed with `503 registration_unavailable` if SMTP delivery configuration is absent. No account or token is created in that case. Normal post-commit SMTP failure still does not roll back an already correct account/token transaction, preserving C3's delivery boundary. SMTP credentials and token material are not logged.
 
+CLOSED and unavailable production policy is checked before password hashing or verification-token generation, avoiding avoidable Argon2 work for a publicly known unavailable registration service. OPEN/APPROVAL performs C2's password work before the final locked insert decision for both accepted and duplicate requests, so duplicate detection is still not a cheap identifier probe.
+
 `POST /api/v1/auth/email/verification/request` accepts an email without authentication and always returns `202 {"code":"verification_request_accepted"}`. It sends only to a C4 public, pending, unverified registrant. Unknown, verified, active, blocked, rejected, internal, and throttled accounts all receive the same public response and no inappropriate mail. It reuses C3's PostgreSQL per-account 60-second / five-per-hour throttle and row-lock serialization.
 
 Public deployments still need reverse-proxy/WAF signup velocity limits, especially per-IP. C4 intentionally adds no CAPTCHA, phone verification, client-IP storage, Redis, or third-party anti-bot product.
