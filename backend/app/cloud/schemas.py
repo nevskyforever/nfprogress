@@ -79,3 +79,7 @@ class AccountResponse(BaseModel):
     role: str
     status: str
     created_at: datetime
+
+
+class AccountLimitsResponse(BaseModel):
+    max_cloud_projects: int

@@ -59,6 +59,38 @@ class RegistrationSettings(Base):
                                                    onupdate=UTC_NOW)
 
 
+class GlobalLimits(Base):
+    """The singleton PostgreSQL authority for per-user cloud resource defaults."""
+
+    __tablename__ = 'global_limits'
+    __table_args__ = (
+        CheckConstraint('id = 1', name='ck_global_limits_singleton'),
+        CheckConstraint('max_cloud_projects >= 0', name='ck_global_limits_max_cloud_projects'),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    max_cloud_projects: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW,
+                                                   onupdate=UTC_NOW)
+
+
+class UserLimitOverrides(Base):
+    __tablename__ = 'user_limit_overrides'
+    __table_args__ = (
+        CheckConstraint(
+            'max_cloud_projects_override IS NULL OR max_cloud_projects_override >= 0',
+            name='ck_user_limit_overrides_max_cloud_projects',
+        ),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey('users.id', ondelete='CASCADE'), primary_key=True,
+    )
+    max_cloud_projects_override: Mapped[int | None] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW,
+                                                   onupdate=UTC_NOW)
+
+
 class AuthSession(Base):
     __tablename__ = 'auth_sessions'
 

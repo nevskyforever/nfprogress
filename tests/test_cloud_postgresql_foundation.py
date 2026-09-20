@@ -142,6 +142,8 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
     migration_engine = create_engine(test_database_url)
     try:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS user_limit_overrides CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS global_limits CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS registration_settings CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS password_reset_tokens CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS email_verification_tokens CASCADE'))
@@ -160,12 +162,15 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
             assert set(inspect(connection).get_table_names()) == {
                 'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
                 'email_verification_tokens', 'password_reset_tokens', 'registration_settings',
+                'global_limits', 'user_limit_overrides',
             }
             assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == (
-                'c4_registration_controls'
+                'c5_limits_framework'
             )
     finally:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS user_limit_overrides CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS global_limits CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS registration_settings CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS password_reset_tokens CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS email_verification_tokens CASCADE'))

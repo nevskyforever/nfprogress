@@ -3,7 +3,8 @@ from __future__ import annotations
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from .models import AuthRefreshToken, AuthSession, RegistrationSettings, User
+from .models import (AuthRefreshToken, AuthSession, GlobalLimits,
+                     RegistrationSettings, User, UserLimitOverrides)
 
 
 def normalize_username(value: str) -> str:
@@ -38,6 +39,18 @@ class RegistrationSettingsRepository:
         if lock:
             statement = statement.with_for_update()
         return session.scalar(statement)
+
+
+class GlobalLimitsRepository:
+    SINGLETON_ID = 1
+
+    def get(self, session: Session) -> GlobalLimits | None:
+        return session.get(GlobalLimits, self.SINGLETON_ID)
+
+
+class UserLimitOverridesRepository:
+    def get(self, session: Session, user_id: object) -> UserLimitOverrides | None:
+        return session.get(UserLimitOverrides, user_id)
 
 
 class AuthRepository:

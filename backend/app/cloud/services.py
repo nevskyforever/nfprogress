@@ -10,8 +10,10 @@ from sqlalchemy.orm import Session
 from .models import (AuthRefreshToken, AuthSession, EmailVerificationToken,
                      PasswordResetToken, RegistrationSettings, User)
 from .passwords import PasswordService
-from .repositories import (AuthRepository, RegistrationSettingsRepository,
-                           UserRepository, normalize_email)
+from .repositories import (AuthRepository, GlobalLimitsRepository,
+                           RegistrationSettingsRepository,
+                           UserLimitOverridesRepository, UserRepository,
+                           normalize_email)
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
                      PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
                      TokenService, utc_now)
@@ -32,6 +34,10 @@ class RegistrationUnavailableError(Exception):
     """Public registration cannot safely create a verifiable account."""
 
 
+class LimitsUnavailableError(Exception):
+    """The authoritative global limits singleton is missing or unavailable."""
+
+
 @dataclass(frozen=True, slots=True)
 class RegistrationResult:
     code: str
@@ -50,6 +56,28 @@ class IssuedTokens:
     access_token: str
     refresh_token: str
     access_expires_in: int = int(ACCESS_TOKEN_LIFETIME.total_seconds())
+
+
+@dataclass(frozen=True, slots=True)
+class EffectiveLimits:
+    max_cloud_projects: int
+
+
+class LimitsService:
+    """Compute effective limits without exposing their global or override source."""
+
+    def __init__(self) -> None:
+        self._global_limits = GlobalLimitsRepository()
+        self._overrides = UserLimitOverridesRepository()
+
+    def effective_for_user(self, session: Session, user_id: object) -> EffectiveLimits:
+        global_limits = self._global_limits.get(session)
+        if global_limits is None:
+            raise LimitsUnavailableError()
+        override = self._overrides.get(session, user_id)
+        if override is not None and override.max_cloud_projects_override is not None:
+            return EffectiveLimits(max_cloud_projects=override.max_cloud_projects_override)
+        return EffectiveLimits(max_cloud_projects=global_limits.max_cloud_projects)
 
 
 class AccountService:

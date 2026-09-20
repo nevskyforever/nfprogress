@@ -8,13 +8,14 @@ from sqlalchemy.orm import Session
 from ..dependencies import (AuthenticatedUser, get_authentication_service,
                             get_cloud_session, get_current_user, get_email_sender)
 from .email import EmailSender, OutgoingEmail
-from .schemas import (AccountResponse, LoginRequest, PasswordResetConfirmRequest,
+from .schemas import (AccountLimitsResponse, AccountResponse, LoginRequest, PasswordResetConfirmRequest,
                       PasswordResetRequest, PublicVerificationRequest,
                       RefreshRequest, RegistrationRequest, TokenResponse,
                       VerificationTokenRequest)
 from .services import (AccountEmailService, AuthenticationError,
                        AuthenticationService, RecoveryTokenError,
-                       RegistrationService, RegistrationUnavailableError)
+                       LimitsService, LimitsUnavailableError, RegistrationService,
+                       RegistrationUnavailableError)
 from .tokens import TokenService
 
 
@@ -122,6 +123,18 @@ def account_me(current: AuthenticatedUser = Depends(get_current_user)) -> Accoun
     user = current.user
     return AccountResponse(id=user.id, username=user.username, email=user.email,
         email_verified=user.email_verified, role=user.role, status=user.status, created_at=user.created_at)
+
+
+@router.get('/account/limits', response_model=AccountLimitsResponse)
+def account_limits(current: AuthenticatedUser = Depends(get_current_user),
+                   session: Session = Depends(get_cloud_session)) -> AccountLimitsResponse:
+    try:
+        limits = LimitsService().effective_for_user(session, current.user.id)
+    except LimitsUnavailableError:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail={
+            'code': 'limits_unavailable', 'message': 'Limits are temporarily unavailable.',
+        }) from None
+    return AccountLimitsResponse(max_cloud_projects=limits.max_cloud_projects)
 
 
 @router.post('/account/email/verification/request', status_code=status.HTTP_202_ACCEPTED)
