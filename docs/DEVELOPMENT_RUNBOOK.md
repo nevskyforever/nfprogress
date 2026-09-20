@@ -207,8 +207,13 @@ npm run tauri:dev
 bash "Run Tauri.sh"
 ```
 
-Скрипт выбирает Rust architecture текущего Mac, использует matching sidecar и
-использует Python-совместимую папку `test_data` и синхронизирует её при старте.
+Скрипт выбирает Rust architecture текущего Mac и обычный project `.venv`
+(либо Python из `NFPROGRESS_TAURI_PYTHON`), использует matching sidecar и
+Python-совместимую папку `test_data`, синхронизируя её при старте. При первой
+сборке он установит недостающие backend-зависимости и Nuitka в выбранное
+окружение. Не используйте для Apple Silicon dev-запуска активированное
+`.venv-tauri-intel`: это окружение предназначено только для x86_64 Rosetta
+release-сборок.
 Если sidecar отсутствует, не поддерживает dev-режим или старее Python-кода
 backend, скрипт пересоберёт только этот локальный Python backend; production `.app`, DMG и ZIP
 при этом не создаются.
