@@ -340,5 +340,8 @@ class ProjectDocumentService:
             with os.fdopen(descriptor, 'w', encoding='utf-8') as stream:
                 json.dump(records, stream, ensure_ascii=False); stream.flush(); os.fsync(stream.fileno())
             os.replace(temporary, path)
+            from nfprogress.core.legacy_shadow import sync_legacy_sqlite_shadow
+
+            sync_legacy_sqlite_shadow(path.parent)
         finally:
             if os.path.exists(temporary): os.unlink(temporary)

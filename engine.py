@@ -1132,6 +1132,7 @@ def save_settings(data):
     """Сохраняет данные в кроссплатформенную директорию"""
     data_file = get_data_file_path('settings')
     atomic_pickle_save(data, data_file)
+    _sync_shadow_after_legacy_save(data_file)
 
 
 def atomic_pickle_save(data, data_file):
@@ -1156,6 +1157,20 @@ def atomic_pickle_save(data, data_file):
         if temp_path.exists():
             temp_path.unlink()
         raise
+
+
+def _sync_shadow_after_legacy_save(data_file):
+    """Refresh the derived SQLite mirror after an authoritative file write."""
+    from nfprogress.core.legacy_shadow import sync_legacy_sqlite_shadow
+
+    sync_legacy_sqlite_shadow(Path(data_file).parent)
+
+
+def reconcile_legacy_sqlite_shadow():
+    """Heal the bridge mirror from the active legacy profile at startup."""
+    from nfprogress.core.legacy_shadow import reconcile_legacy_sqlite_shadow as reconcile
+
+    return reconcile(Path(get_data_file_path('data')).parent)
 
 class Project:
     def __init__(self, name='Без имени', goal=None,
@@ -2461,6 +2476,7 @@ def save_data(data):
     """Сохраняет данные в кроссплатформенную директорию"""
     data_file = get_data_file_path('data')
     atomic_pickle_save(data, data_file)
+    _sync_shadow_after_legacy_save(data_file)
 
 
 def apply_project_freeze(
