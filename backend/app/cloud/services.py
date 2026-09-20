@@ -157,45 +157,52 @@ class AccountEmailService:
         self._now = now_provider
 
     def issue_verification(self, session: Session, user: User) -> str | None:
-        if user.email_verified:
-            return None
         now = self._now()
-        if self._is_throttled(session, EmailVerificationToken, user.id, now):
-            return None
-        user_id, email_normalized = user.id, user.email_normalized
+        user_id = user.id
+        # Authentication dependencies may already have opened a read transaction.
         session.commit()
         token_id, raw, token_hash = self._tokens.issue_email_verification_token()
         with session.begin():
+            locked_user = session.scalar(select(User).where(User.id == user_id).with_for_update())
+            if locked_user is None or locked_user.email_verified:
+                return None
+            if self._is_throttled(session, EmailVerificationToken, locked_user.id, now):
+                return None
             session.execute(update(EmailVerificationToken).where(
-                EmailVerificationToken.user_id == user_id,
-                EmailVerificationToken.email_normalized == email_normalized,
+                EmailVerificationToken.user_id == locked_user.id,
+                EmailVerificationToken.email_normalized == locked_user.email_normalized,
                 EmailVerificationToken.used_at.is_(None), EmailVerificationToken.revoked_at.is_(None),
             ).values(revoked_at=now))
-            session.add(EmailVerificationToken(id=token_id, user_id=user_id, token_hash=token_hash,
-                email_normalized=email_normalized,
+            session.add(EmailVerificationToken(id=token_id, user_id=locked_user.id, token_hash=token_hash,
+                email_normalized=locked_user.email_normalized,
                 created_at=now, expires_at=now + EMAIL_VERIFICATION_TOKEN_LIFETIME))
         return raw
 
     def issue_password_reset(self, session: Session, email: str) -> tuple[str, str] | None:
         from .repositories import normalize_email
         normalized = normalize_email(email)
-        user = session.scalar(select(User).where(User.email_normalized == normalized))
-        if user is None or user.status != 'active':
-            return None
         now = self._now()
-        if self._is_throttled(session, PasswordResetToken, user.id, now):
-            return None
-        user_id = user.id
         session.commit()
         token_id, raw, token_hash = self._tokens.issue_password_reset_token()
-        with session.begin():
-            session.execute(update(PasswordResetToken).where(
-                PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None),
-                PasswordResetToken.revoked_at.is_(None),
-            ).values(revoked_at=now))
-            session.add(PasswordResetToken(id=token_id, user_id=user_id, token_hash=token_hash,
-                created_at=now, expires_at=now + PASSWORD_RESET_TOKEN_LIFETIME))
-        return user.email, raw
+        try:
+            with session.begin():
+                user = session.scalar(select(User).where(
+                    User.email_normalized == normalized).with_for_update())
+                if user is None or user.status != 'active':
+                    return None
+                if self._is_throttled(session, PasswordResetToken, user.id, now):
+                    return None
+                user_id, email = user.id, user.email
+                session.execute(update(PasswordResetToken).where(
+                    PasswordResetToken.user_id == user_id, PasswordResetToken.used_at.is_(None),
+                    PasswordResetToken.revoked_at.is_(None),
+                ).values(revoked_at=now))
+                session.add(PasswordResetToken(id=token_id, user_id=user_id, token_hash=token_hash,
+                    created_at=now, expires_at=now + PASSWORD_RESET_TOKEN_LIFETIME))
+            return email, raw
+        except Exception:
+            session.rollback()
+            raise
 
     def verify_email(self, session: Session, raw_token: str) -> None:
         parsed = self._tokens.parse_opaque_token(raw_token, 'ev1')
