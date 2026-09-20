@@ -29,7 +29,7 @@ def _limits_unavailable() -> HTTPException:
 async def _reject_request_body(request: Request) -> None:
     """C8 never accepts a project payload, plaintext or otherwise."""
     if await request.body():
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail={
             'code': 'cloud_project_content_not_accepted',
             'message': 'Cloud project content is not accepted by this API.',
         })
