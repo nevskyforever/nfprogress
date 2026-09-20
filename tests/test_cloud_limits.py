@@ -111,13 +111,14 @@ def test_c5_postgresql_constraints_and_user_delete_cascade(migrated_database):
         session.execute(text('UPDATE global_limits SET max_cloud_projects = 0 WHERE id = 1'))
         session.commit()
         assert session.get(GlobalLimits, 1).max_cloud_projects == 0
-        session.execute(text('INSERT INTO global_limits (id, max_cloud_projects) VALUES (2, 1)'))
         with pytest.raises(IntegrityError):
-            session.commit()
+            session.execute(text('INSERT INTO global_limits (id, max_cloud_projects) VALUES (2, 1)'))
         session.rollback()
-        session.execute(text("INSERT INTO user_limit_overrides (user_id, max_cloud_projects_override) VALUES ('00000000-0000-0000-0000-000000000001', 1)"))
         with pytest.raises(IntegrityError):
-            session.commit()
+            session.execute(text(
+                "INSERT INTO user_limit_overrides (user_id, max_cloud_projects_override) "
+                "VALUES ('00000000-0000-0000-0000-000000000001', 1)",
+            ))
         session.rollback()
     with Session(migrated_database) as session:
         user = session.get(User, user_id)
