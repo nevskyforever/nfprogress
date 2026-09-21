@@ -24,6 +24,8 @@ An event ID is generated before the first network attempt and persisted in the o
 
 `POST /api/v1/sync/push` accepts at most 100 metadata envelopes atomically. Every new event is checked against C8's `(user_id, project_id)` registry; it never allocates a cloud slot. An unregistered device is rejected. The server locks the per-user `sync_user_state` row, assigns a fresh `server_sequence`, and stores the event. Its `(user_id, event_id)` primary key and `(user_id, server_sequence)` uniqueness enforce isolation and deduplication.
 
+An empty push batch is a successful no-op and returns the current cursor. Device registration is idempotent even when concurrent requests target a fresh account: PostgreSQL conflict-safe inserts create at most one account state row and one row per `(user_id, device_id)`. Different accounts have no global registration lock.
+
 C9 provides at-least-once delivery with idempotent server acceptance; it does not claim end-to-end exactly-once execution. A retry with canonically identical metadata returns the original sequence with `duplicate=true`. Reusing an event ID with different canonical metadata is rejected with `409 sync_event_id_conflict`. This covers concurrent duplicate deliveries as well: state-row locking serializes sequence allocation and database constraints remain the final guard.
 
 Server sequence is transport ordering, not conflict resolution. It is monotonically allocated per user account, does not depend on client clocks, and is not a claim about which user version is correct. C17 will define content conflict resolution.
@@ -32,6 +34,8 @@ Server sequence is transport ordering, not conflict resolution. It is monotonica
 
 `GET /api/v1/sync/pull?since=<cursor>&device_id=<uuid>&limit=...` uses only `server_sequence`, returns events with sequence strictly greater than the cursor in ascending sequence order, and uses bounded cursor pagination (default 200, maximum 500). Own events may be returned and clients deduplicate by `event_id`. An empty page retains the supplied cursor.
 
+Both revisions and all wire-visible sequences/cursors are bounded by `9,007,199,254,740,991` (`Number.MAX_SAFE_INTEGER`), even though PostgreSQL stores them as `BIGINT`; this keeps the TypeScript `number` contract exact. A pull cursor greater than the user's high-water mark is rejected as `sync_cursor_invalid`, while an equal valid cursor produces the normal empty page.
+
 `POST /api/v1/sync/ack` records a registered device's monotonic acknowledged cursor. Equal acknowledgements are idempotent; smaller ones do not regress it; cursors above the user's current high-water mark fail with `sync_cursor_invalid`. C9 performs no event-log garbage collection.
 
 All request contracts reject unexpected fields, so a `payload`, `content`, or arbitrary JSON field is not an accidental upload path. Unsupported protocol versions return `sync_protocol_version_unsupported`.
@@ -39,6 +43,8 @@ All request contracts reject unexpected fields, so a `payload`, `content`, or ar
 ## Local foundation and deferred work
 
 SQLite schema version 8 adds account-scoped `cloud_sync_state` (device and cursors) and `cloud_sync_outbox` (retry metadata and tombstones). Neither table has a content/payload/ciphertext column or an entity foreign key that could erase a tombstone.
+
+Both local sync tables count as application writes for `data_last_written_by_version`, because they are persistent account/device transport state. Python and Rust install the same writer-version triggers and validate both tables in their latest-schema boundary.
 
 C8's `encryptedInitialUpload = false` remains false. These endpoints do not make `LOCAL_ONLY -> ENABLING_SYNC -> SYNCED` a production flow, do not simulate `SYNCED`, and do not alter legacy `work_method == "sync"`.
 

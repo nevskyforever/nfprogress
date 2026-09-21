@@ -13,7 +13,7 @@ pub const CURRENT_SCHEMA_VERSION: i64 = 8;
 
 const APPLICATION_VERSION: &str = env!("CARGO_PKG_VERSION");
 const VERSION_KEYS: [&str; 2] = ["data_created_by_version", "data_last_written_by_version"];
-const USER_DATA_TABLES: [&str; 16] = [
+const USER_DATA_TABLES: [&str; 18] = [
     "projects",
     "stages",
     "progress_entries",
@@ -30,6 +30,8 @@ const USER_DATA_TABLES: [&str; 16] = [
     "project_extensions",
     "documents",
     "document_bindings",
+    "cloud_sync_state",
+    "cloud_sync_outbox",
 ];
 
 #[derive(Debug)]
@@ -267,6 +269,8 @@ pub(crate) fn validate_database(connection: &Connection) -> Result<(), StorageEr
         "documents",
         "document_bindings",
         "application_metadata",
+        "cloud_sync_state",
+        "cloud_sync_outbox",
     ];
     if required.iter().any(|table| !table_names.contains(*table)) {
         return Err(StorageError::CorruptSchema(
@@ -503,6 +507,12 @@ mod tests {
             Some("9.8.7-beta.1")
         );
         assert_eq!(read("data_created_by_version").as_deref(), Some("1.2.3"));
+
+        connection.execute("INSERT INTO cloud_sync_state(account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at) VALUES('account','123e4567-e89b-42d3-a456-426614174000',0,0,'now','now')", []).unwrap();
+        assert_eq!(
+            read("data_last_written_by_version").as_deref(),
+            Some("9.8.7-beta.1")
+        );
     }
 
     #[test]
@@ -636,6 +646,19 @@ mod tests {
             validate_database(&connection),
             Err(StorageError::CorruptSchema(message)) if message.contains("required SQLite table")
         ));
+    }
+
+    #[test]
+    fn database_validation_rejects_missing_c9_sync_tables() {
+        for table in ["cloud_sync_state", "cloud_sync_outbox"] {
+            let connection = Connection::open_in_memory().unwrap();
+            apply_migrations(&connection).unwrap();
+            connection.execute(&format!("DROP TABLE {table}"), []).unwrap();
+            assert!(matches!(
+                validate_database(&connection),
+                Err(StorageError::CorruptSchema(message)) if message.contains("required SQLite table")
+            ));
+        }
     }
 
     #[test]

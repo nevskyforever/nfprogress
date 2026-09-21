@@ -133,7 +133,8 @@ def test_each_supported_sqlite_schema_upgrades_to_latest(tmp_path, version):
         4: "004_projects_authority.sql",
             5: "005_game_authority.sql",
             6: "006_documents_authority.sql",
-            7: "007_application_metadata.sql",
+                7: "007_application_metadata.sql",
+                8: "008_cloud_sync_protocol.sql",
         }
     for migration_version in range(1, version + 1):
         connection.executescript(

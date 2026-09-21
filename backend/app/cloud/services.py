@@ -17,7 +17,7 @@ from .repositories import (AuthRepository, CloudProjectRepository, GlobalLimitsR
                            SyncRepository, UserLimitOverridesRepository, UserRepository,
                            lock_username_namespace, normalize_email,
                            normalize_username)
-from .schemas import SYNC_PROTOCOL_VERSION, SyncEventEnvelope
+from .schemas import SYNC_MAX_WIRE_INTEGER, SYNC_PROTOCOL_VERSION, SyncEventEnvelope
 from .tokens import (ACCESS_TOKEN_LIFETIME, EMAIL_VERIFICATION_TOKEN_LIFETIME,
                      PASSWORD_RESET_TOKEN_LIFETIME, SESSION_LIFETIME,
                      TokenService, utc_now)
@@ -210,11 +210,6 @@ class SyncService:
             with session.begin():
                 device = self._registered_device(session, user_id, device_id)
                 device.last_seen_at = utc_now()
-                # Validate the whole batch before allocating a sequence so any
-                # bad new event makes the transaction a genuine no-op.
-                for event in events:
-                    if self._projects.get(session, user_id, event.project_id) is None:
-                        raise SyncProtocolError('cloud_project_not_enabled', 'Cloud project is not enabled.')
                 state = self._sync.ensure_user_state(session, user_id, lock=True)
                 results: list[SyncPushResult] = []
                 seen: dict[object, SyncEventEnvelope] = {}
@@ -229,6 +224,12 @@ class SyncService:
                             raise SyncProtocolError('sync_event_id_conflict', 'Event ID was reused with different metadata.')
                         results.append(SyncPushResult(event.event_id, existing.server_sequence, True))
                         continue
+                    # C8 validation applies only to a newly accepted event.
+                    # An accepted retry remains confirmable after C8 disable.
+                    if self._projects.get(session, user_id, event.project_id) is None:
+                        raise SyncProtocolError('cloud_project_not_enabled', 'Cloud project is not enabled.')
+                    if state.current_sequence >= SYNC_MAX_WIRE_INTEGER:
+                        raise SyncProtocolError('sync_sequence_exhausted', 'Sync sequence limit reached.', 409)
                     state.current_sequence += 1
                     row = self._sync.add_event(
                         session, user_id=user_id, event_id=event.event_id, device_id=device_id,
@@ -248,10 +249,12 @@ class SyncService:
         device = self._sync.get_device(session, user_id, device_id)
         if device is None:
             raise SyncProtocolError('sync_device_not_registered', 'Sync device is not registered.')
+        state = self._sync.ensure_user_state(session, user_id)
+        if since > state.current_sequence:
+            raise SyncProtocolError('sync_cursor_invalid', 'Cursor is beyond the current server sequence.', 422)
         events = self._sync.pull(session, user_id, since, limit)
         has_more = len(events) > limit
         visible = events[:limit]
-        state = self._sync.ensure_user_state(session, user_id)
         next_cursor = visible[-1].server_sequence if visible else since
         return visible, next_cursor, has_more, state.current_sequence
 

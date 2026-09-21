@@ -43,7 +43,6 @@ def test_created_version_is_immutable_and_last_written_tracks_writer(tmp_path):
             "data_created_by_version": created,
             "data_last_written_by_version": "9.8.7-test.1",
         }
-
         configure_application_metadata(
             database, application_version=engine.version, new_database=False,
         )
@@ -58,6 +57,27 @@ def test_created_version_is_immutable_and_last_written_tracks_writer(tmp_path):
             "data_created_by_version": created,
             "data_last_written_by_version": engine.version,
         }
+
+
+def test_c9_sync_metadata_writes_track_the_application_version(tmp_path):
+    with open_database(tmp_path) as database:
+        configure_application_metadata(
+            database, application_version="9.8.7-test.1", new_database=False,
+        )
+        database.execute("""INSERT INTO cloud_sync_state(
+            account_id,device_id,pull_cursor,ack_cursor,created_at,updated_at
+        ) VALUES('account','123e4567-e89b-42d3-a456-426614174000',0,0,'now','now')""")
+        database.commit()
+        assert _metadata(database)['data_last_written_by_version'] == '9.8.7-test.1'
+        database.execute("""INSERT INTO cloud_sync_outbox(
+            event_id,account_id,device_id,project_id,entity_id,entity_type,operation,
+            revision,updated_at,deleted_at,created_at
+        ) VALUES('123e4567-e89b-42d3-a456-426614174001','account',
+            '123e4567-e89b-42d3-a456-426614174000','project','entity','note','upsert',
+            1,'now',NULL,'now')""")
+        database.commit()
+        assert _metadata(database)['data_last_written_by_version'] == '9.8.7-test.1'
+
 
 
 def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path):

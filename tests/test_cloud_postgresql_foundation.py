@@ -142,6 +142,9 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
     migration_engine = create_engine(test_database_url)
     try:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS sync_events CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS sync_devices CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS sync_user_state CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS cloud_projects CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS reserved_usernames CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS user_limit_overrides CASCADE'))
@@ -165,12 +168,16 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
                 'alembic_version', 'users', 'auth_sessions', 'auth_refresh_tokens',
                 'email_verification_tokens', 'password_reset_tokens', 'registration_settings',
                 'global_limits', 'user_limit_overrides', 'reserved_usernames', 'cloud_projects',
+                'sync_user_state', 'sync_devices', 'sync_events',
             }
             assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == (
-                'c8_cloud_projects'
+                'c9_sync_protocol'
             )
     finally:
         with migration_engine.begin() as connection:
+            connection.execute(text('DROP TABLE IF EXISTS sync_events CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS sync_devices CASCADE'))
+            connection.execute(text('DROP TABLE IF EXISTS sync_user_state CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS cloud_projects CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS reserved_usernames CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS user_limit_overrides CASCADE'))
@@ -182,4 +189,54 @@ def test_alembic_upgrade_empty_postgresql_database_to_head_twice(monkeypatch):
             connection.execute(text('DROP TABLE IF EXISTS auth_sessions CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS users CASCADE'))
             connection.execute(text('DROP TABLE IF EXISTS alembic_version'))
+        migration_engine.dispose()
+
+
+@pytest.mark.skipif(
+    not os.environ.get('NFPROGRESS_TEST_DATABASE_URL'),
+    reason='requires a dedicated real PostgreSQL database in NFPROGRESS_TEST_DATABASE_URL',
+)
+def test_alembic_c8_c9_roundtrip_preserves_prior_cloud_data(monkeypatch):
+    """C9 downgrade removes only C9 transport metadata, then upgrades cleanly."""
+    test_database_url = os.environ['NFPROGRESS_TEST_DATABASE_URL']
+    migration_engine = create_engine(test_database_url)
+    try:
+        with migration_engine.begin() as connection:
+            for table in ('sync_events', 'sync_devices', 'sync_user_state', 'cloud_projects',
+                          'reserved_usernames', 'user_limit_overrides', 'global_limits',
+                          'registration_settings', 'password_reset_tokens',
+                          'email_verification_tokens', 'auth_refresh_tokens', 'auth_sessions',
+                          'users', 'alembic_version'):
+                connection.execute(text(f'DROP TABLE IF EXISTS {table} CASCADE'))
+        monkeypatch.setenv('NFPROGRESS_DATABASE_URL', test_database_url)
+        config = AlembicConfig(str(ROOT / 'alembic.ini'))
+        command.upgrade(config, 'c8_cloud_projects')
+        with migration_engine.begin() as connection:
+            connection.execute(text("""INSERT INTO users(id,username,username_normalized,email,email_normalized,
+                email_verified,password_hash,role,status) VALUES
+                ('00000000-0000-0000-0000-000000000101','C8 User','c8 user','c8@example.test',
+                 'c8@example.test',true,'hash','user','active')"""))
+            connection.execute(text("""INSERT INTO cloud_projects(user_id,project_id)
+                VALUES ('00000000-0000-0000-0000-000000000101','c8-project')"""))
+        command.upgrade(config, 'c9_sync_protocol')
+        with migration_engine.connect() as connection:
+            tables = set(inspect(connection).get_table_names())
+            assert {'sync_events', 'sync_devices', 'sync_user_state'} <= tables
+            assert connection.execute(text("SELECT project_id FROM cloud_projects")).scalar_one() == 'c8-project'
+        command.downgrade(config, 'c8_cloud_projects')
+        with migration_engine.connect() as connection:
+            tables = set(inspect(connection).get_table_names())
+            assert not {'sync_events', 'sync_devices', 'sync_user_state'} & tables
+            assert connection.execute(text("SELECT project_id FROM cloud_projects")).scalar_one() == 'c8-project'
+        command.upgrade(config, 'c9_sync_protocol')
+        with migration_engine.connect() as connection:
+            assert connection.execute(text('SELECT version_num FROM alembic_version')).scalar_one() == 'c9_sync_protocol'
+    finally:
+        with migration_engine.begin() as connection:
+            for table in ('sync_events', 'sync_devices', 'sync_user_state', 'cloud_projects',
+                          'reserved_usernames', 'user_limit_overrides', 'global_limits',
+                          'registration_settings', 'password_reset_tokens',
+                          'email_verification_tokens', 'auth_refresh_tokens', 'auth_sessions',
+                          'users', 'alembic_version'):
+                connection.execute(text(f'DROP TABLE IF EXISTS {table} CASCADE'))
         migration_engine.dispose()

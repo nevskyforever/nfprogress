@@ -17,7 +17,8 @@ _USER_DATA_TABLES = (
     'projects', 'stages', 'progress_entries', 'notes', 'settings', 'game_state',
     'project_order', 'stage_order', 'progress_order', 'project_metadata',
     'project_folders', 'project_folder_members', 'project_bindings',
-    'project_extensions', 'documents', 'document_bindings',
+    'project_extensions', 'documents', 'document_bindings', 'cloud_sync_state',
+    'cloud_sync_outbox',
 )
 
 

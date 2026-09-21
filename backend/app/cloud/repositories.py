@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from sqlalchemy import delete, func, select, text, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from .models import (AuthRefreshToken, AuthSession, CloudProject, GlobalLimits,
@@ -144,10 +145,9 @@ class SyncRepository:
         return session.scalar(statement)
 
     def register_device(self, session: Session, user_id: object, device_id: object) -> SyncDevice:
+        session.execute(insert(SyncDevice).values(user_id=user_id, device_id=device_id).on_conflict_do_nothing())
         row = self.get_device(session, user_id, device_id, lock=True)
-        if row is None:
-            row = SyncDevice(user_id=user_id, device_id=device_id)
-            session.add(row)
+        assert row is not None
         return row
 
     def user_state(self, session: Session, user_id: object, *, lock: bool = False) -> SyncUserState | None:
@@ -157,14 +157,9 @@ class SyncRepository:
         return session.scalar(statement)
 
     def ensure_user_state(self, session: Session, user_id: object, *, lock: bool = False) -> SyncUserState:
+        session.execute(insert(SyncUserState).values(user_id=user_id).on_conflict_do_nothing())
         state = self.user_state(session, user_id, lock=lock)
-        if state is None:
-            state = SyncUserState(user_id=user_id)
-            session.add(state)
-            session.flush()
-            if lock:
-                state = self.user_state(session, user_id, lock=True)
-                assert state is not None
+        assert state is not None
         return state
 
     def event(self, session: Session, user_id: object, event_id: object) -> SyncEvent | None:

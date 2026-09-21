@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { syncApi } from '@/api/sync'
-import { SYNC_OPERATIONS, SYNC_PROTOCOL_VERSION, isSyncEventEnvelope, retrySyncEvent } from './syncProtocol'
+import { SYNC_MAX_WIRE_INTEGER, SYNC_OPERATIONS, SYNC_PROTOCOL_VERSION, isSyncCursor, isSyncEventEnvelope, retrySyncEvent } from './syncProtocol'
 import { canEnableCloudProjectSync } from './capabilities'
 
 const event = { event_id: '123e4567-e89b-42d3-a456-426614174000', project_id: 'p', entity_id: 'n', entity_type: 'note', operation: 'upsert' as const, revision: 1, updated_at: '2026-09-21T00:00:00Z', deleted_at: null }
@@ -12,6 +12,12 @@ describe('C9 sync protocol', () => {
     expect(isSyncEventEnvelope(event)).toBe(true)
     expect(isSyncEventEnvelope({ ...event, operation: 'delete', deleted_at: null })).toBe(false)
     expect(isSyncEventEnvelope({ ...event, operation: 'delete', deleted_at: '2026-09-21T01:00:00Z' })).toBe(true)
+    expect(isSyncEventEnvelope({ ...event, updated_at: '2026-09-21T00:00:00' })).toBe(false)
+    expect(isSyncEventEnvelope({ ...event, updated_at: '2026-09-21T03:00:00+03:00' })).toBe(true)
+    expect(isSyncEventEnvelope({ ...event, operation: 'delete', deleted_at: '2026-09-21T01:00:00' })).toBe(false)
+    expect(isSyncEventEnvelope({ ...event, revision: SYNC_MAX_WIRE_INTEGER + 1 })).toBe(false)
+    expect(isSyncCursor(SYNC_MAX_WIRE_INTEGER)).toBe(true)
+    expect(isSyncCursor(SYNC_MAX_WIRE_INTEGER + 1)).toBe(false)
   })
   it('keeps the event id on retry and never adds content fields', () => {
     expect(retrySyncEvent(event)).toEqual(event)
@@ -31,6 +37,8 @@ describe('C9 sync protocol', () => {
     expect(fetchMock.mock.calls[1]![1]).toMatchObject({ method: 'POST', body: JSON.stringify({ protocol_version: 1, device_id: event.event_id, events: [event] }) })
     expect(String(fetchMock.mock.calls[2]![0])).toContain('since=4')
     expect(fetchMock.mock.calls[3]![1]).toMatchObject({ method: 'POST' })
+    expect(() => syncApi.pull('token', event.event_id, Number.MAX_SAFE_INTEGER + 1)).toThrow(RangeError)
+    expect(() => syncApi.ack('token', { protocol_version: 1, device_id: event.event_id, cursor: -1 })).toThrow(RangeError)
   })
   it('does not enable the C8 production gate', () => expect(canEnableCloudProjectSync()).toBe(false))
 })

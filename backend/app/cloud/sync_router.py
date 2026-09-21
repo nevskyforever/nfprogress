@@ -40,7 +40,7 @@ def push(request: SyncPushRequest, current: AuthenticatedUser = Depends(get_curr
 
 
 @router.get('/pull', response_model=SyncPullResponse)
-def pull(device_id: UUID, since: int = Query(ge=0), limit: int = Query(default=200, ge=1, le=500),
+def pull(device_id: UUID, since: int = Query(ge=0, le=9_007_199_254_740_991), limit: int = Query(default=200, ge=1, le=500),
          protocol_version: int = Query(default=SYNC_PROTOCOL_VERSION),
          current: AuthenticatedUser = Depends(get_current_user),
          session: Session = Depends(get_cloud_session)) -> SyncPullResponse:

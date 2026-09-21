@@ -93,6 +93,7 @@ class CloudProjectsResponse(BaseModel):
 
 
 SYNC_PROTOCOL_VERSION = 1
+SYNC_MAX_WIRE_INTEGER = 9_007_199_254_740_991  # JavaScript Number.MAX_SAFE_INTEGER
 
 
 class SyncEventEnvelope(BaseModel):
@@ -102,7 +103,7 @@ class SyncEventEnvelope(BaseModel):
     entity_id: str = Field(min_length=1, max_length=512)
     entity_type: str = Field(min_length=1, max_length=128, pattern=r'^[a-z][a-z0-9_:-]*$')
     operation: Literal['upsert', 'delete', 'event']
-    revision: int = Field(ge=1, le=9_223_372_036_854_775_807)
+    revision: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
     updated_at: datetime
     deleted_at: datetime | None = None
 
@@ -126,31 +127,31 @@ class SyncPushRequest(BaseModel):
 
 class SyncPushResult(BaseModel):
     event_id: UUID
-    server_sequence: int
+    server_sequence: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
     duplicate: bool
 
 
 class SyncPushResponse(BaseModel):
     protocol_version: int = SYNC_PROTOCOL_VERSION
     results: list[SyncPushResult]
-    current_cursor: int
+    current_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
 
 
 class SyncDeviceResponse(BaseModel):
     protocol_version: int = SYNC_PROTOCOL_VERSION
     device_id: UUID
-    last_ack_cursor: int
+    last_ack_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
 
 
 class SyncPullEvent(SyncEventEnvelope):
     device_id: UUID
-    server_sequence: int
+    server_sequence: int = Field(ge=1, le=SYNC_MAX_WIRE_INTEGER)
 
 
 class SyncPullResponse(BaseModel):
     protocol_version: int = SYNC_PROTOCOL_VERSION
     events: list[SyncPullEvent]
-    next_cursor: int
+    next_cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
     has_more: bool
 
 
@@ -158,7 +159,7 @@ class SyncAckRequest(BaseModel):
     model_config = ConfigDict(extra='forbid')
     protocol_version: int
     device_id: UUID
-    cursor: int = Field(ge=0, le=9_223_372_036_854_775_807)
+    cursor: int = Field(ge=0, le=SYNC_MAX_WIRE_INTEGER)
 
 
 class AdminUserResponse(BaseModel):

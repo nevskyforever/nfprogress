@@ -1,5 +1,6 @@
 /** C9 metadata-only transport contract. It does not serialize project content. */
 export const SYNC_PROTOCOL_VERSION = 1 as const
+export const SYNC_MAX_WIRE_INTEGER = Number.MAX_SAFE_INTEGER
 export const SYNC_OPERATIONS = ['upsert', 'delete', 'event'] as const
 export type SyncOperation = (typeof SYNC_OPERATIONS)[number]
 
@@ -38,16 +39,24 @@ export interface SyncAckRequest {
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const ENTITY_TYPE = /^[a-z][a-z0-9_:-]*$/
+const ISO_TIMESTAMP_WITH_TIMEZONE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/
+
+function isTimezoneAwareTimestamp(input: string | null): boolean {
+  return input === null || (ISO_TIMESTAMP_WITH_TIMEZONE.test(input) && !Number.isNaN(Date.parse(input)))
+}
+
+export function isSyncCursor(value: number): boolean {
+  return Number.isSafeInteger(value) && value >= 0 && value <= SYNC_MAX_WIRE_INTEGER
+}
 
 export function isSyncEventEnvelope(value: SyncEventEnvelope): boolean {
-  const timestamp = (input: string | null) => input === null || !Number.isNaN(Date.parse(input))
   return UUID.test(value.event_id)
     && value.project_id.length > 0 && value.project_id.length <= 512
     && value.entity_id.length > 0 && value.entity_id.length <= 512
     && value.entity_type.length > 0 && value.entity_type.length <= 128 && ENTITY_TYPE.test(value.entity_type)
     && (SYNC_OPERATIONS as readonly string[]).includes(value.operation)
-    && Number.isSafeInteger(value.revision) && value.revision >= 1
-    && timestamp(value.updated_at) && timestamp(value.deleted_at)
+    && Number.isSafeInteger(value.revision) && value.revision >= 1 && value.revision <= SYNC_MAX_WIRE_INTEGER
+    && isTimezoneAwareTimestamp(value.updated_at) && isTimezoneAwareTimestamp(value.deleted_at)
     && ((value.operation === 'delete') === (value.deleted_at !== null))
 }
 
