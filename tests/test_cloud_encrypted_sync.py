@@ -519,7 +519,8 @@ def test_c15_owner_isolation_future_type_pull_and_mixed_global_pagination(cloud_
 
 
 def test_c15_encrypted_push_manual_validation_preserves_openapi_and_safe_malformed_contract(cloud_client):
-    client, _engine = cloud_client
+    client, engine = cloud_client
+    create_user(engine)
     token = login(client).json()['access_token']
     malformed = client.post('/api/v1/sync/encrypted/push', headers={
         **_headers(token), 'Content-Type': 'application/json',
@@ -537,7 +538,8 @@ def test_c15_encrypted_push_manual_validation_preserves_openapi_and_safe_malform
 
 
 def test_c15_encrypted_push_rejects_actual_raw_body_over_limit_despite_small_content_length(cloud_client):
-    client, _engine = cloud_client
+    client, engine = cloud_client
+    create_user(engine)
     token = login(client).json()['access_token']
     body = json.dumps({'protocol_version': 1}).encode() + b' ' * MAX_ENCRYPTED_SYNC_WIRE_BODY_BYTES
     response = client.post('/api/v1/sync/encrypted/push', headers={
@@ -620,13 +622,14 @@ def test_c15_descriptor_first_pull_uses_exact_aggregate_prefix_and_second_cipher
             statements.append(statement)
 
     from sqlalchemy import event as sqlalchemy_event
-    sqlalchemy_event.listen(engine, 'before_cursor_execute', capture)
+    application_engine = client.app.state.cloud_database.engine
+    sqlalchemy_event.listen(application_engine, 'before_cursor_execute', capture)
     try:
         response = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
             'device_id': device, 'since': 0,
         })
     finally:
-        sqlalchemy_event.remove(engine, 'before_cursor_execute', capture)
+        sqlalchemy_event.remove(application_engine, 'before_cursor_execute', capture)
     assert response.status_code == 200
     page = response.json()
     assert [item['event']['server_sequence'] for item in page['items']] == [1, 2]
