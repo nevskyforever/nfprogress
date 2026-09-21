@@ -522,11 +522,17 @@ def test_c15_encrypted_push_manual_validation_preserves_openapi_and_safe_malform
     client, engine = cloud_client
     create_user(engine)
     token = login(client).json()['access_token']
+    protected_marker = 'must-not-appear-in-validation-response'
     malformed = client.post('/api/v1/sync/encrypted/push', headers={
         **_headers(token), 'Content-Type': 'application/json',
-    }, content=b'{"protocol_version":')
+    }, content=f'{{"ciphertext":"{protected_marker}","protocol_version":'.encode())
     assert malformed.status_code == 422
-    assert isinstance(malformed.json()['detail'], list)
+    detail = malformed.json()['detail']
+    assert detail['code'] == 'invalid_request'
+    assert len(detail['fields']) == 1
+    assert detail['fields'][0]['field'] == ''
+    assert detail['fields'][0]['type'] == 'json_invalid'
+    assert protected_marker not in malformed.text
 
     schema = client.get('/openapi.json').json()
     request_body = schema['paths']['/api/v1/sync/encrypted/push']['post']['requestBody']
@@ -615,11 +621,11 @@ def test_c15_descriptor_first_pull_uses_exact_aggregate_prefix_and_second_cipher
                 ))
             state.current_sequence = 3
 
-    statements: list[str] = []
+    queries: list[tuple[tuple[object, ...], object]] = []
 
-    def capture(_connection, _cursor, statement, _parameters, _context, _executemany):
+    def capture(_connection, _cursor, statement, parameters, context, _executemany):
         if 'sync_events' in statement and 'encrypted_objects' in statement:
-            statements.append(statement)
+            queries.append((tuple(context.compiled.statement.selected_columns), parameters))
 
     from sqlalchemy import event as sqlalchemy_event
     application_engine = client.app.state.cloud_database.engine
@@ -635,10 +641,28 @@ def test_c15_descriptor_first_pull_uses_exact_aggregate_prefix_and_second_cipher
     assert [item['event']['server_sequence'] for item in page['items']] == [1, 2]
     assert page['next_cursor'] == 2 and page['has_more'] is True
     assert len(base64.urlsafe_b64decode(page['items'][0]['object']['ciphertext'] + '==')) == object_size
-    assert len(statements) == 2
-    assert 'octet_length(encrypted_objects.ciphertext)' in statements[0]
-    assert 'encrypted_objects.ciphertext AS encrypted_objects_ciphertext' not in statements[0]
-    assert 'encrypted_objects.ciphertext AS encrypted_objects_ciphertext' in statements[1]
+    assert len(queries) == 2
+    descriptor_columns, _descriptor_parameters = queries[0]
+    materialized_columns, materialized_parameters = queries[1]
+    ciphertext_column = EncryptedObject.__table__.c.ciphertext
+    assert not any(column.shares_lineage(ciphertext_column) for column in descriptor_columns)
+    assert any(
+        getattr(getattr(column, 'element', None), 'name', None) == 'octet_length'
+        and any(argument.shares_lineage(ciphertext_column) for argument in column.element.clauses)
+        for column in descriptor_columns
+    )
+    assert any(column.shares_lineage(ciphertext_column) for column in materialized_columns)
+
+    def parameter_values(value):
+        if isinstance(value, dict):
+            return {item for nested in value.values() for item in parameter_values(nested)}
+        if isinstance(value, (list, tuple, set)):
+            return {item for nested in value for item in parameter_values(nested)}
+        return {str(value)}
+
+    selected_parameters = parameter_values(materialized_parameters)
+    assert {str(event_ids[0]), str(event_ids[1])} <= selected_parameters
+    assert str(event_ids[2]) not in selected_parameters
 
     final = client.get('/api/v1/sync/encrypted/pull', headers=_headers(token), params={
         'device_id': device, 'since': 2,
