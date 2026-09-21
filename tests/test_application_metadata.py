@@ -85,6 +85,11 @@ def test_existing_v6_database_without_metadata_opens_and_starts_unknown(tmp_path
         pass
     path = tmp_path / "nfprogress.db"
     with sqlite3.connect(path) as database:
+        database.execute("DROP TABLE cloud_sync_event_objects")
+        database.execute("DROP TABLE cloud_sync_inbox")
+        database.execute("DROP TABLE cloud_sync_entities")
+        database.execute("DROP TABLE cloud_sync_outbox")
+        database.execute("DROP TABLE cloud_sync_state")
         database.execute("DROP TABLE application_metadata")
         database.execute("UPDATE schema_info SET schema_version=6")
 

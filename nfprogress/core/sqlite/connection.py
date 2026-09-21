@@ -18,7 +18,8 @@ _USER_DATA_TABLES = (
     'project_order', 'stage_order', 'progress_order', 'project_metadata',
     'project_folders', 'project_folder_members', 'project_bindings',
     'project_extensions', 'documents', 'document_bindings', 'cloud_sync_state',
-    'cloud_sync_outbox',
+    'cloud_sync_outbox', 'cloud_sync_event_objects', 'cloud_sync_inbox',
+    'cloud_sync_entities',
 )
 
 
