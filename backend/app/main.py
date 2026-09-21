@@ -214,6 +214,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
         allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
         allow_headers=['Content-Type', 'X-NFProgress-Token', 'Authorization',
                        'X-WORTA-Crypto-Version', 'X-WORTA-AAD-Version', 'X-WORTA-Nonce'],
+        expose_headers=['X-WORTA-Crypto-Version', 'X-WORTA-AAD-Version', 'X-WORTA-Nonce'],
     )
 
     @app.exception_handler(DomainError)

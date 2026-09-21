@@ -37,8 +37,10 @@ def _metadata(project_id: str, blob_id: UUID, crypto_version: str | None,
     if not project_id or len(project_id) > 512:
         raise HTTPException(status_code=422, detail={'code': 'invalid_encrypted_blob', 'message': 'Invalid encrypted blob.'})
     try:
-        crypto = int(crypto_version or '')
-        aad = int(aad_version or '')
+        if not all(value is not None and value == '1' for value in (crypto_version, aad_version)):
+            raise ValueError('Unsupported version.')
+        crypto = int(crypto_version)
+        aad = int(aad_version)
         decoded_nonce = decode_canonical_base64url(nonce or '', expected_length=24)
     except (TypeError, ValueError):
         raise HTTPException(status_code=422, detail={'code': 'invalid_encrypted_blob', 'message': 'Invalid encrypted blob.'}) from None

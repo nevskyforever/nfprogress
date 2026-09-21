@@ -2,8 +2,14 @@ export const MAX_COVER_SOURCE_BYTES = 20 * 1024 * 1024
 export const MAX_COVER_PREPARED_BYTES = 2 * 1024 * 1024
 export const COVER_WIDTH = 1000
 export const COVER_HEIGHT = 1500
+export const COVER_SOURCE_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp'])
 
 export type CoverDraw = (canvas: HTMLCanvasElement, width: number, height: number) => void
+
+export function validateProjectCoverSource(file: Pick<File, 'type' | 'size'>): void {
+  if (!COVER_SOURCE_MIME_TYPES.has(file.type)) throw new TypeError('Unsupported project cover source.')
+  if (file.size > MAX_COVER_SOURCE_BYTES) throw new RangeError('Project cover source exceeds 20 MiB.')
+}
 
 function toBlob(canvas: HTMLCanvasElement, quality: number): Promise<Blob> {
   return new Promise((resolve, reject) => canvas.toBlob((blob) => {

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { MAX_COVER_PREPARED_BYTES, prepareProjectCover, projectCoverDataUrlToBytes } from './projectCoverPreparation'
+import { COVER_HEIGHT, COVER_WIDTH, MAX_COVER_PREPARED_BYTES, MAX_COVER_SOURCE_BYTES, prepareProjectCover, projectCoverDataUrlToBytes, validateProjectCoverSource } from './projectCoverPreparation'
 
 describe('project cover preparation', () => {
   it('uses JPEG Blob bytes and reduces quality before reducing resolution', async () => {
@@ -14,5 +14,12 @@ describe('project cover preparation', () => {
   it('rejects malformed and unsupported stored data URLs', async () => {
     await expect(projectCoverDataUrlToBytes('data:image/png;base64,AA==')).rejects.toThrow(TypeError)
     await expect(projectCoverDataUrlToBytes('not-a-data-url')).rejects.toThrow(TypeError)
+  })
+
+  it('accepts only the declared source MIME types and source size', () => {
+    for (const type of ['image/jpeg', 'image/png', 'image/webp']) expect(() => validateProjectCoverSource({ type, size: 1 })).not.toThrow()
+    for (const type of ['image/gif', 'image/svg+xml', 'image/avif']) expect(() => validateProjectCoverSource({ type, size: 1 })).toThrow(TypeError)
+    expect(() => validateProjectCoverSource({ type: 'image/jpeg', size: MAX_COVER_SOURCE_BYTES + 1 })).toThrow(RangeError)
+    expect(COVER_WIDTH / COVER_HEIGHT).toBe(2 / 3)
   })
 })

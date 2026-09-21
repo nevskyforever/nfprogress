@@ -3,7 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { IonContent, IonHeader, IonModal } from '@ionic/vue'
 
 import { useLocaleStore } from '@/stores/locale'
-import { blobToDataUrl, MAX_COVER_SOURCE_BYTES, prepareProjectCover } from './projectCoverPreparation'
+import { blobToDataUrl, prepareProjectCover, validateProjectCoverSource } from './projectCoverPreparation'
 
 const props = withDefaults(defineProps<{
   modelValue?: string | null
@@ -95,8 +95,10 @@ function chooseFile(event: Event): void {
   const file = (event.target as HTMLInputElement).files?.[0]
   if (!file) return
   error.value = ''
-  if (!file.type.startsWith('image/')) { error.value = t('Выберите файл изображения.'); return }
-  if (file.size > MAX_COVER_SOURCE_BYTES) { error.value = t('Изображение должно быть не больше 20 МБ.'); return }
+  try { validateProjectCoverSource(file) } catch (reason) {
+    error.value = reason instanceof RangeError ? t('Изображение должно быть не больше 20 МБ.') : t('Выберите файл изображения.')
+    return
+  }
   const reader = new FileReader()
   reader.onload = () => { if (typeof reader.result === 'string') loadImage(reader.result) }
   reader.onerror = () => { error.value = t('Не удалось прочитать изображение.') }

@@ -17,11 +17,14 @@ describe('C14 project cover crypto', () => {
     await expect(decryptObjectBytes(amk, { userId: identity.userId, projectId: identity.projectId, entityId: identity.blobId, entityType: 'other_type' }, envelope)).rejects.toMatchObject({ code: 'decrypt_failed' })
     const tampered = { ...envelope, ciphertext: new Uint8Array(envelope.ciphertext) }; tampered.ciphertext[0]! ^= 1
     await expect(decryptProjectCover(amk, identity, tampered)).rejects.toMatchObject({ code: 'decrypt_failed' })
+    const nonceTampered = { ...envelope, nonce: new Uint8Array(envelope.nonce) }; nonceTampered.nonce[0]! ^= 1
+    await expect(decryptProjectCover(amk, identity, nonceTampered)).rejects.toMatchObject({ code: 'decrypt_failed' })
   })
 
   it('rejects excess plaintext and creates fresh envelopes without mutating caller buffers', async () => {
     const plaintext = Uint8Array.of(8, 9); const original = new Uint8Array(plaintext); const amkOriginal = new Uint8Array(amk)
     await expect(encryptProjectCover(amk, identity, new Uint8Array(2 * 1024 * 1024 + 1))).rejects.toThrow(RangeError)
+    await expect(encryptProjectCover(amk, identity, new Uint8Array(2 * 1024 * 1024))).resolves.toBeDefined()
     const first = await encryptProjectCover(amk, identity, plaintext); const second = await encryptProjectCover(amk, identity, plaintext)
     expect(first.nonce).not.toEqual(second.nonce); expect(first.ciphertext).not.toEqual(second.ciphertext)
     expect(plaintext).toEqual(original); expect(amk).toEqual(amkOriginal)
