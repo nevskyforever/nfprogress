@@ -1,0 +1,39 @@
+{
+  "format": "worta-c11-crypto-compatibility-vectors",
+  "version": 1,
+  "encoding": "All byte fields are lowercase hexadecimal strings. XChaCha20-Poly1305 ciphertext is combined ciphertext plus 16-byte authentication tag.",
+  "hkdf": {
+    "amk": "0707070707070707070707070707070707070707070707070707070707070707",
+    "context": { "userId": "user-α", "projectId": "project-β", "entityId": "entity-γ", "entityType": "document" },
+    "encodedContext": "776f7274612f6f626a6563742d6b65792f7631010100000007757365722dceb10000000a70726f6a6563742dceb200000009656e746974792dceb300000008646f63756d656e74",
+    "objectKey": "6bc270db196c49959307057b293d028a41d1c1aeb2e78a1a8e6f2d79d7194147"
+  },
+  "xchacha20poly1305Ietf": {
+    "key": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    "nonce": "202122232425262728292a2b2c2d2e2f3031323334353637",
+    "plaintext": "0001020300ff8041",
+    "aad": "776f7274612f6331322f786368616368612d766563746f722f7631",
+    "ciphertext": "1d584fc87bc894ca24c4e3ead27d5ad8bd5f4adfc4619150"
+  },
+  "argon2id13": {
+    "passphrase": "C12 vector passphrase 🔐",
+    "salt": "a0a1a2a3a4a5a6a7a8a9aaabacadaeaf",
+    "opslimit": 2,
+    "memlimit": 67108864,
+    "kek": "b26b58ebb85512609931a85d4a2e11b36a35a03150366173d2a660711c9d34ae"
+  },
+  "passwordWrap": {
+    "amk": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+    "kek": "b26b58ebb85512609931a85d4a2e11b36a35a03150366173d2a660711c9d34ae",
+    "aad": "776f7274612f616d6b2f70617373776f72642d777261702f763101",
+    "nonce": "606162636465666768696a6b6c6d6e6f7071727374757677",
+    "ciphertext": "c8751fc8d65c7b5b69513ff31796a049199bb1934bfc7001e482a7e2a097ca884a9ad72fa94d18d65c6bb9b843249941"
+  },
+  "recoveryWrap": {
+    "amk": "404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f",
+    "recoveryKey": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9f",
+    "aad": "776f7274612f616d6b2f7265636f766572792d777261702f763101",
+    "nonce": "606162636465666768696a6b6c6d6e6f7071727374757677",
+    "ciphertext": "91415077f4380abda5d3a9e019130fbd5a63408ca3bf9ef0f0eb1a49ffa32eb1b7e685c43f5f3abfd8ab7a0a6c609484"
+  }
+}

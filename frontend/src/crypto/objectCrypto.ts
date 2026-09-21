@@ -7,7 +7,10 @@ import { getSodium } from './sodium'
 import type { AccountMasterKey, ObjectCryptoContext, ObjectCryptoEnvelope } from './types'
 
 function validateEnvelope(envelope: ObjectCryptoEnvelope): void {
-  if (typeof envelope !== 'object' || envelope === null) throw new CryptoError('invalid_format')
+  if (typeof envelope !== 'object' || envelope === null || Array.isArray(envelope)) throw new CryptoError('invalid_format')
+  if (typeof envelope.crypto_version !== 'number' || typeof envelope.aad_version !== 'number') {
+    throw new CryptoError('invalid_format')
+  }
   if (envelope.crypto_version !== CRYPTO_VERSION || envelope.aad_version !== AAD_VERSION) {
     throw new CryptoError('unsupported_version')
   }

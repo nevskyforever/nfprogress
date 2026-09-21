@@ -16,7 +16,7 @@ import { getSodium } from './sodium'
 import type { AccountMasterKey, PasswordWrappedAmkRecord, RecoveryKey, RecoveryWrappedAmkRecord } from './types'
 
 function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
 function validateNonce(value: unknown): asserts value is Uint8Array {
@@ -29,27 +29,28 @@ function validateCiphertext(value: unknown): asserts value is Uint8Array {
   if (!isUint8Array(value) || value.length < KEY_BYTES + 16) throw new CryptoError('invalid_format')
 }
 
-function validatePasswordRecord(record: PasswordWrappedAmkRecord): void {
-  if (!isRecord(record) || record.wrapping_version !== PASSWORD_WRAPPING_VERSION
-    || record.crypto_version !== CRYPTO_VERSION || !isRecord(record.kdf)) {
+async function validatePasswordRecord(record: PasswordWrappedAmkRecord): Promise<void> {
+  if (!isRecord(record) || typeof record.wrapping_version !== 'number'
+    || typeof record.crypto_version !== 'number' || !isRecord(record.kdf)) {
+    throw new CryptoError('invalid_format')
+  }
+  if (record.wrapping_version !== PASSWORD_WRAPPING_VERSION || record.crypto_version !== CRYPTO_VERSION) {
     throw new CryptoError(
-      isRecord(record) && (record.wrapping_version !== PASSWORD_WRAPPING_VERSION || record.crypto_version !== CRYPTO_VERSION)
-        ? 'unsupported_version'
-        : 'invalid_format',
+      'unsupported_version',
     )
   }
-  assertSupportedKdfRecord(record.kdf as PasswordWrappedAmkRecord['kdf'])
+  await assertSupportedKdfRecord(record.kdf)
   validateNonce(record.nonce)
   validateCiphertext(record.ciphertext)
 }
 
 function validateRecoveryRecord(record: RecoveryWrappedAmkRecord): void {
-  if (!isRecord(record) || record.wrapping_version !== RECOVERY_WRAPPING_VERSION
-    || record.crypto_version !== CRYPTO_VERSION) {
+  if (!isRecord(record) || typeof record.wrapping_version !== 'number' || typeof record.crypto_version !== 'number') {
+    throw new CryptoError('invalid_format')
+  }
+  if (record.wrapping_version !== RECOVERY_WRAPPING_VERSION || record.crypto_version !== CRYPTO_VERSION) {
     throw new CryptoError(
-      isRecord(record) && (record.wrapping_version !== RECOVERY_WRAPPING_VERSION || record.crypto_version !== CRYPTO_VERSION)
-        ? 'unsupported_version'
-        : 'invalid_format',
+      'unsupported_version',
     )
   }
   validateNonce(record.nonce)
@@ -93,7 +94,7 @@ export async function wrapAmkWithPassphrase(amk: AccountMasterKey, passphrase: s
 }
 
 export async function unwrapAmkWithPassphrase(passphrase: string, record: PasswordWrappedAmkRecord): Promise<AccountMasterKey> {
-  validatePasswordRecord(record)
+  await validatePasswordRecord(record)
   const kek = await deriveKek(passphrase, record.kdf)
   try {
     return await decryptAmk(record.ciphertext, record.nonce, kek, PASSWORD_WRAP_AAD_DOMAIN)
