@@ -23,6 +23,7 @@ USER_TWO = '00000000-0000-0000-0000-000000000132'
 USER_THREE = '00000000-0000-0000-0000-000000000135'
 EVENT_ID = '00000000-0000-0000-0000-000000000133'
 BAD_EVENT_ID = '00000000-0000-0000-0000-000000000134'
+NONEXISTENT_EVENT_ID = '00000000-0000-0000-0000-000000000198'
 
 
 def b64(value: bytes) -> str:
@@ -113,6 +114,25 @@ def test_c13_postgresql_migration_constraints_isolation_and_roundtrip(monkeypatc
     engine = create_engine(url)
     config = AlembicConfig(str(ROOT / 'alembic.ini'))
     monkeypatch.setenv('NFPROGRESS_DATABASE_URL', url)
+    invalid_crypto = [
+        ({'kdf_salt': b'a' * 15}, 'ck_user_crypto_kdf_salt_length'),
+        ({'kdf_salt': b'a' * 17}, 'ck_user_crypto_kdf_salt_length'),
+        ({'password_nonce': b'b' * 23}, 'ck_user_crypto_password_nonce_length'),
+        ({'password_nonce': b'b' * 25}, 'ck_user_crypto_password_nonce_length'),
+        ({'password_wrapped_amk': b'c' * 47}, 'ck_user_crypto_password_wrapped_amk_length'),
+        ({'password_wrapped_amk': b'c' * 49}, 'ck_user_crypto_password_wrapped_amk_length'),
+        ({'password_crypto_version': 0}, 'ck_user_crypto_password_crypto_version_positive'),
+        ({'password_wrapping_version': -1}, 'ck_user_crypto_password_wrapping_version_positive'),
+        ({'kdf_version': 0}, 'ck_user_crypto_kdf_version_positive'),
+        ({'kdf_opslimit': 0}, 'ck_user_crypto_kdf_opslimit_positive'),
+        ({'kdf_memlimit': -1}, 'ck_user_crypto_kdf_memlimit_positive'),
+        ({'recovery_crypto_version': 1}, 'ck_user_crypto_recovery_all_or_none'),
+        ({'recovery_crypto_version': 1, 'recovery_wrapping_version': 1, 'recovery_nonce': b'd' * 23,
+          'recovery_wrapped_amk': b'e' * 48}, 'ck_user_crypto_recovery_nonce_length'),
+        ({'recovery_crypto_version': 1, 'recovery_wrapping_version': 1, 'recovery_nonce': b'd' * 24,
+          'recovery_wrapped_amk': b'e' * 47}, 'ck_user_crypto_recovery_wrapped_amk_length'),
+    ]
+    invalid_user_ids = [f'00000000-0000-0000-0000-000000000{140 + index}' for index in range(len(invalid_crypto))]
     try:
         with engine.begin() as connection:
             _drop_all(connection)
@@ -126,8 +146,8 @@ def test_c13_postgresql_migration_constraints_isolation_and_roundtrip(monkeypatc
             _insert_event(connection, USER_TWO, EVENT_ID, 1)
             _insert_event(connection, USER_THREE, EVENT_ID, 1)
             _insert_event(connection, USER_TWO, BAD_EVENT_ID, 2)
-            for index in range(13):
-                _insert_user(connection, f'00000000-0000-0000-0000-000000000{140 + index}', f'C13 Invalid {index}')
+            for index, user_id in enumerate(invalid_user_ids):
+                _insert_user(connection, user_id, f'C13 Invalid {index}')
         command.upgrade(config, 'c13_encrypted_cloud_schema')
         with engine.begin() as connection:
             _insert_user_crypto(connection, USER_ONE, recovery_crypto_version=1, recovery_wrapping_version=1,
@@ -155,26 +175,54 @@ def test_c13_postgresql_migration_constraints_isolation_and_roundtrip(monkeypatc
             assert set(EncryptedObject.__table__.columns.keys()) == {column['name'] for column in inspector.get_columns('encrypted_objects')}
             assert {'payload', 'ciphertext', 'content', 'nonce'}.isdisjoint({column['name'] for column in inspector.get_columns('sync_events')})
 
-        invalid_crypto = [
-            {'kdf_salt': b'a' * 15}, {'kdf_salt': b'a' * 17}, {'password_nonce': b'b' * 23},
-            {'password_nonce': b'b' * 25}, {'password_wrapped_amk': b'c' * 47}, {'password_wrapped_amk': b'c' * 49},
-            {'password_crypto_version': 0}, {'password_wrapping_version': -1}, {'kdf_version': 0},
-            {'kdf_opslimit': 0}, {'kdf_memlimit': -1}, {'recovery_crypto_version': 1},
-            {'recovery_crypto_version': 1, 'recovery_wrapping_version': 1, 'recovery_nonce': b'd' * 23, 'recovery_wrapped_amk': b'e' * 48},
-            {'recovery_crypto_version': 1, 'recovery_wrapping_version': 1, 'recovery_nonce': b'd' * 24, 'recovery_wrapped_amk': b'e' * 47},
-        ]
         with engine.connect() as connection:
-            for index, values in enumerate(invalid_crypto):
-                with pytest.raises(IntegrityError), connection.begin_nested():
-                    _insert_user_crypto(connection, f'00000000-0000-0000-0000-000000000{140 + index}', **values)
+            for user_id, (values, constraint_name) in zip(invalid_user_ids, invalid_crypto, strict=True):
+                with pytest.raises(IntegrityError) as error, connection.begin_nested():
+                    _insert_user_crypto(connection, user_id, **values)
+                assert error.value.orig.diag.constraint_name == constraint_name
             for values in ({'nonce': b'h' * 23}, {'nonce': b'h' * 25}, {'ciphertext': b'i' * 15},
-                           {'crypto_version': 0}, {'aad_version': 0}, {'user_id': USER_ONE, 'event_id': BAD_EVENT_ID}):
+                           {'crypto_version': 0}, {'aad_version': 0}):
                 with pytest.raises(IntegrityError), connection.begin_nested():
                     connection.execute(text("""INSERT INTO encrypted_objects(user_id,event_id,crypto_version,aad_version,nonce,ciphertext)
                         VALUES (:user_id,:event_id,:crypto_version,:aad_version,:nonce,:ciphertext)"""), {
                         'user_id': USER_TWO, 'event_id': BAD_EVENT_ID, 'crypto_version': 1, 'aad_version': 1,
                         'nonce': b'h' * 24, 'ciphertext': b'i' * 16, **values,
                     })
+
+            assert connection.execute(text("SELECT count(*) FROM sync_events WHERE event_id = :event_id"), {
+                'event_id': NONEXISTENT_EVENT_ID,
+            }).scalar_one() == 0
+            with pytest.raises(IntegrityError), connection.begin_nested():
+                connection.execute(text("""INSERT INTO encrypted_objects(user_id,event_id,crypto_version,aad_version,nonce,ciphertext)
+                    VALUES (:user_id,:event_id,1,1,:nonce,:ciphertext)"""), {
+                    'user_id': USER_TWO, 'event_id': NONEXISTENT_EVENT_ID, 'nonce': b'h' * 24, 'ciphertext': b'i' * 16,
+                })
+
+            assert connection.execute(text("SELECT count(*) FROM sync_events WHERE user_id = :user_id AND event_id = :event_id"), {
+                'user_id': USER_TWO, 'event_id': BAD_EVENT_ID,
+            }).scalar_one() == 1
+            assert connection.execute(text("SELECT count(*) FROM sync_events WHERE user_id = :user_id AND event_id = :event_id"), {
+                'user_id': USER_ONE, 'event_id': BAD_EVENT_ID,
+            }).scalar_one() == 0
+            with pytest.raises(IntegrityError), connection.begin_nested():
+                connection.execute(text("""INSERT INTO encrypted_objects(user_id,event_id,crypto_version,aad_version,nonce,ciphertext)
+                    VALUES (:user_id,:event_id,1,1,:nonce,:ciphertext)"""), {
+                    'user_id': USER_ONE, 'event_id': BAD_EVENT_ID, 'nonce': b'h' * 24, 'ciphertext': b'i' * 16,
+                })
+
+        with engine.begin() as connection:
+            connection.execute(text('DELETE FROM sync_events WHERE user_id = :user_id AND event_id = :event_id'), {
+                'user_id': USER_ONE, 'event_id': EVENT_ID,
+            })
+            assert connection.execute(text('SELECT count(*) FROM encrypted_objects WHERE user_id = :user_id AND event_id = :event_id'), {
+                'user_id': USER_ONE, 'event_id': EVENT_ID,
+            }).scalar_one() == 0
+            assert connection.execute(text('SELECT count(*) FROM encrypted_objects WHERE user_id = :user_id AND event_id = :event_id'), {
+                'user_id': USER_TWO, 'event_id': EVENT_ID,
+            }).scalar_one() == 1
+            assert connection.execute(text('SELECT count(*) FROM encrypted_objects WHERE user_id = :user_id AND event_id = :event_id'), {
+                'user_id': USER_THREE, 'event_id': EVENT_ID,
+            }).scalar_one() == 1
 
         with engine.begin() as connection:
             connection.execute(text('DELETE FROM users WHERE id = :id'), {'id': USER_THREE})
