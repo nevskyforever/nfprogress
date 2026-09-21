@@ -40,6 +40,7 @@ class RuntimeConfig:
     smtp_from_email: str | None = None
     smtp_from_name: str | None = None
     smtp_security: str | None = None
+    cloud_blob_dir: Path | None = None
 
     def __post_init__(self) -> None:
         if self.environment not in RUNTIME_ENVIRONMENTS:
@@ -122,4 +123,6 @@ class RuntimeConfig:
             smtp_from_email=os.environ.get('NFPROGRESS_SMTP_FROM_EMAIL') or None,
             smtp_from_name=os.environ.get('NFPROGRESS_SMTP_FROM_NAME') or None,
             smtp_security=os.environ.get('NFPROGRESS_SMTP_SECURITY') or None,
+            cloud_blob_dir=(Path(os.environ['NFPROGRESS_CLOUD_BLOB_DIR']).expanduser()
+                            if os.environ.get('NFPROGRESS_CLOUD_BLOB_DIR') else None),
         )

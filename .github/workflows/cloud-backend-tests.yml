@@ -103,6 +103,7 @@ jobs:
             tests/test_cloud_projects.py \
             tests/test_cloud_sync.py \
             tests/test_cloud_encrypted_schema.py \
+            tests/test_cloud_encrypted_blobs.py \
             tests/test_c9_sqlite_sync.py \
             tests/test_api.py
 
@@ -121,7 +122,7 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck
         working-directory: frontend
-      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/cloud/projectState.spec.ts src/cloud/syncProtocol.spec.ts src/crypto/crypto.spec.ts src/crypto/crypto.vectors.spec.ts src/crypto/crypto.security.spec.ts src/crypto/crypto.boundary.spec.ts
+      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/cloud/projectState.spec.ts src/cloud/syncProtocol.spec.ts src/cloud/projectCoverCrypto.spec.ts src/api/encryptedCovers.spec.ts src/components/projects/projectCoverPreparation.spec.ts src/crypto/crypto.spec.ts src/crypto/crypto.vectors.spec.ts src/crypto/crypto.security.spec.ts src/crypto/crypto.boundary.spec.ts
         working-directory: frontend
       - run: npm run build
         working-directory: frontend

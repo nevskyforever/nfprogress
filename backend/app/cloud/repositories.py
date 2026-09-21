@@ -4,7 +4,7 @@ from sqlalchemy import delete, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
-from .models import (AuthRefreshToken, AuthSession, CloudProject, GlobalLimits,
+from .models import (AuthRefreshToken, AuthSession, CloudProject, EncryptedBlob, GlobalLimits,
                      RegistrationSettings, ReservedUsername, User,
                      UserLimitOverrides, SyncDevice, SyncEvent, SyncUserState)
 
@@ -135,6 +135,16 @@ class CloudProjectRepository:
             CloudProject.project_id == project_id,
         ))
         return bool(result.rowcount)
+
+
+class EncryptedBlobRepository:
+    def get(self, session: Session, user_id: object, blob_id: object) -> EncryptedBlob | None:
+        return session.get(EncryptedBlob, (user_id, blob_id))
+
+    def add(self, session: Session, **values: object) -> EncryptedBlob:
+        row = EncryptedBlob(**values)
+        session.add(row)
+        return row
 
 
 class SyncRepository:

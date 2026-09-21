@@ -33,6 +33,7 @@ from .cloud.router import router as cloud_router
 from .cloud.admin_router import router as cloud_admin_router
 from .cloud.projects_router import router as cloud_projects_router
 from .cloud.sync_router import router as cloud_sync_router
+from .cloud.encrypted_blobs_router import router as cloud_encrypted_blobs_router
 from .cloud.email import email_sender_from_config
 from .routers import content, documents, game, integrations, notes, projects
 
@@ -211,7 +212,8 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
         allow_origins=list(runtime_config.allowed_origins),
         allow_credentials=False,
         allow_methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-        allow_headers=['Content-Type', 'X-NFProgress-Token', 'Authorization'],
+        allow_headers=['Content-Type', 'X-NFProgress-Token', 'Authorization',
+                       'X-WORTA-Crypto-Version', 'X-WORTA-AAD-Version', 'X-WORTA-Nonce'],
     )
 
     @app.exception_handler(DomainError)
@@ -273,6 +275,7 @@ def create_app(config: RuntimeConfig | None = None) -> FastAPI:
     app.include_router(cloud_router)
     app.include_router(cloud_projects_router)
     app.include_router(cloud_sync_router)
+    app.include_router(cloud_encrypted_blobs_router)
     app.include_router(cloud_admin_router)
     return app
 

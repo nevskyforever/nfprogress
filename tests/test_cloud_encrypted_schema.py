@@ -66,7 +66,7 @@ def test_c13_wire_dtos_accept_only_canonical_base64url_and_c11_shapes():
 
 
 def _drop_all(connection) -> None:
-    for table in ('encrypted_objects', 'user_crypto', 'sync_events', 'sync_devices', 'sync_user_state', 'cloud_projects',
+    for table in ('encrypted_blobs', 'encrypted_objects', 'user_crypto', 'sync_events', 'sync_devices', 'sync_user_state', 'cloud_projects',
                   'reserved_usernames', 'user_limit_overrides', 'global_limits', 'registration_settings',
                   'password_reset_tokens', 'email_verification_tokens', 'auth_refresh_tokens', 'auth_sessions',
                   'users', 'alembic_version'):

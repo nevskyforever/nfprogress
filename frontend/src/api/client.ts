@@ -120,6 +120,22 @@ export async function apiRequest<T>(path: string, options: ApiRequestOptions = {
   return (await response.json()) as T
 }
 
+export async function apiBinaryRequest(path: string, options: ApiRequestOptions = {}): Promise<{ bytes: Uint8Array; headers: Headers }> {
+  const { body: jsonBody, rawBody, headers: suppliedHeaders, ...requestOptions } = options
+  if (jsonBody !== undefined || rawBody !== undefined) throw new TypeError('Binary API request does not accept a request body.')
+  const headers = new Headers(suppliedHeaders)
+  headers.set('Accept', 'application/octet-stream')
+  let response: Response
+  try {
+    response = await fetch(requestUrl(path), { ...requestOptions, headers })
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error
+    throw new ApiError(0, 'network_error', 'Не удалось подключиться к nfprogress API.', error)
+  }
+  if (!response.ok) throw await errorFromResponse(response)
+  return { bytes: new Uint8Array(await response.arrayBuffer()), headers: response.headers }
+}
+
 export function apiErrorMessage(error: unknown): string {
   if (error instanceof ApiError) {
     return error.message

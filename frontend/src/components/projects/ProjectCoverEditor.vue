@@ -3,6 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { IonContent, IonHeader, IonModal } from '@ionic/vue'
 
 import { useLocaleStore } from '@/stores/locale'
+import { blobToDataUrl, MAX_COVER_SOURCE_BYTES, prepareProjectCover } from './projectCoverPreparation'
 
 const props = withDefaults(defineProps<{
   modelValue?: string | null
@@ -60,31 +61,14 @@ function resetCrop(): void {
   redraw()
 }
 
-function compactDataUrl(): string | null {
-  if (!source.value) return null
-  let width = 600
-  let height = 900
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    const target = document.createElement('canvas')
-    draw(target, width, height)
-    for (let quality = 0.84; quality >= 0.48; quality -= 0.09) {
-      const value = target.toDataURL('image/jpeg', quality)
-      if (value.length <= 1_350_000) return value
-    }
-    width = Math.round(width * 0.8)
-    height = Math.round(height * 0.8)
-  }
-  return null
-}
-
-function saveCrop(): void {
-  const value = compactDataUrl()
-  if (!value) {
+async function saveCrop(): Promise<void> {
+  try {
+    const value = await blobToDataUrl(await prepareProjectCover(draw))
+    emit('update:modelValue', value)
+    cropOpen.value = false
+  } catch {
     error.value = t('Не удалось подготовить обложку. Выберите другое изображение.')
-    return
   }
-  emit('update:modelValue', value)
-  cropOpen.value = false
 }
 
 function openExistingCover(): void {
@@ -112,7 +96,7 @@ function chooseFile(event: Event): void {
   if (!file) return
   error.value = ''
   if (!file.type.startsWith('image/')) { error.value = t('Выберите файл изображения.'); return }
-  if (file.size > 20 * 1024 * 1024) { error.value = t('Изображение должно быть не больше 20 МБ.'); return }
+  if (file.size > MAX_COVER_SOURCE_BYTES) { error.value = t('Изображение должно быть не больше 20 МБ.'); return }
   const reader = new FileReader()
   reader.onload = () => { if (typeof reader.result === 'string') loadImage(reader.result) }
   reader.onerror = () => { error.value = t('Не удалось прочитать изображение.') }

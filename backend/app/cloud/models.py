@@ -234,6 +234,32 @@ class EncryptedObject(Base):
     stored_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
 
 
+class EncryptedBlob(Base):
+    """Metadata for an immutable external ciphertext blob; bytes stay outside PostgreSQL."""
+
+    __tablename__ = 'encrypted_blobs'
+    __table_args__ = (
+        CheckConstraint("kind = 'project_cover'", name='ck_encrypted_blobs_kind'),
+        CheckConstraint('crypto_version >= 1', name='ck_encrypted_blobs_crypto_version_positive'),
+        CheckConstraint('aad_version >= 1', name='ck_encrypted_blobs_aad_version_positive'),
+        CheckConstraint('octet_length(nonce) = 24', name='ck_encrypted_blobs_nonce_length'),
+        CheckConstraint('ciphertext_size >= 16', name='ck_encrypted_blobs_ciphertext_size_min'),
+        CheckConstraint('ciphertext_size <= 2097168', name='ck_encrypted_blobs_ciphertext_size_max'),
+        CheckConstraint('octet_length(ciphertext_sha256) = 32', name='ck_encrypted_blobs_ciphertext_sha256_length'),
+    )
+
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey('users.id', ondelete='CASCADE'), primary_key=True)
+    blob_id: Mapped[uuid.UUID] = mapped_column(primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(512), nullable=False)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    crypto_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    aad_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    nonce: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    ciphertext_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    ciphertext_sha256: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=UTC_NOW)
+
+
 class AuthSession(Base):
     __tablename__ = 'auth_sessions'
 
