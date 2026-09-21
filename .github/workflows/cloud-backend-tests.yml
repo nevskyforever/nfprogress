@@ -120,5 +120,5 @@ jobs:
         working-directory: frontend
       - run: npm run typecheck
         working-directory: frontend
-      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/cloud/projectState.spec.ts src/cloud/syncProtocol.spec.ts
+      - run: npm test -- --run src/App.spec.ts src/router/index.spec.ts src/api/admin.spec.ts src/cloud/projectState.spec.ts src/cloud/syncProtocol.spec.ts src/crypto/crypto.spec.ts
         working-directory: frontend
